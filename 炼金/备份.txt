@@ -1,0 +1,331 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.GameContent;
+using Terraria.Localization;
+using Terraria.Map;
+using Terraria.ModLoader;
+using System.Collections.Generic;
+using ModElaina.Items.Armors;
+using System;
+using ReLogic.Content;
+using ModElaina.Items.accessories;
+
+
+namespace ModElaina.炼金
+{
+    public class 炼金modplayer : ModPlayer
+    {
+        private Asset<Texture2D> hintTexture;//ReLogic.Content
+        private Asset<Texture2D> hintTexture2;
+        public bool 使用提示 = false;
+        public bool 炼制提示 = false;
+        public int 炼金lv = 0;
+        public int 炼金最大lv = 2;
+        public int 炼金exp = 0;
+        public int 炼金最大exp = 100;
+        public bool 炼制中=false;
+        public bool 搅拌中=false;
+        public int 准备投入 = 0;
+        public Item [] itemList=new Item[100];
+        public Item [] itemListClone = new Item[100];
+        public int itemNo=0;
+        public int 判定间隔 = 0;
+        public int 魔力间隔 = 0;
+        public int 使用锅炉次数 = 1;
+        public override void ResetEffects()
+        {
+            if (Main.time == 0 && Main.dayTime) 使用锅炉次数=1* 炼金lv;
+            炼金lv = 4;
+            if (Main.hardMode) 炼金最大lv = 8;
+            //Main.NewText(Main.HoverItem);
+            if (Main.mouseRight && Main.mouseRightRelease && (炼制中 || 搅拌中) && !使用提示 && !炼制提示&&Main.HoverItem.IsAir&& Vector2.Distance(Main.MouseWorld, Player.Center) >= 50)
+            {//退出炼制状态
+
+                Player.bodyFrame.Y = 0;
+                Player.bodyFrame.X = 0;
+                炼制中 = false;
+                if (搅拌中)
+                {
+                    itemNo = 0;
+                }
+                
+                if (Main.netMode == 1)
+                {
+                    //Main.NewText("主机发送" + 炼制中);
+                    ModPacket packet = Mod.GetPacket();
+                    packet.Write((byte)ModElaina.MessageType.炼金状态);
+                    packet.Write(Player.whoAmI);
+                    packet.Write(炼制中);
+                    packet.Write(搅拌中);
+                    packet.Send(-1, -1);
+                }
+            }
+            使用提示 = false;
+            炼制提示= false;
+            if (炼制中 || 搅拌中)
+            {
+                Player.controlRight = false;
+                Player.releaseRight = true;
+                Player.controlLeft = false;
+                Player.releaseLeft = true;
+                Player.controlJump = false;
+                Player.controlUp = false;
+                Player.controlDown = false;
+                Player.controlHook = false;
+                Player.controlMount = false;
+                Player.releaseMount = false;
+                Player.controlThrow = false;
+                Player.gravControl = false;
+                Player.controlUseItem = false;
+                Player.controlUseTile = false;
+            }
+        }
+        public override void SyncPlayer(int toWho, int fromWho, bool newPlayer)
+        {
+
+        }
+        
+        public override void DrawEffects(PlayerDrawSet drawInfo, ref float r, ref float g, ref float b, ref float a, ref bool fullBright)
+        {
+            //Main.NewText(炼制中);
+            Tile t=Main.tile[0, 0];
+            int i=0;
+            int j = 0;
+            if (Main.myPlayer==Player.whoAmI&&Main.MouseWorld.X>0&&Main.MouseWorld.Y>0&& Vector2.Distance(Main.MouseWorld, Player.Center) < 50)
+            {
+                i = (int)(Main.MouseWorld.X / 16f);
+                j = (int)(Main.MouseWorld.Y / 16f);
+                if(i-1>0&&j-1>0) t = Main.tile[i, j];
+            }
+            if (Player.GetModPlayer<ElainaModplayer>().Elaina  && Player.whoAmI == Main.myPlayer)
+            {
+                if (t.TileType == 96 && t.TileFrameX > 18)
+                {//鼠标处于锅上且足够接近时的所有选项：1使用提示2搅拌提示3放入物品
+                    //Main.NewText("yes");
+                    if (!炼制中 && !搅拌中)
+                    {   
+                        
+                        使用提示 = true;
+                        String lv = "炼金等级: " + 炼金lv.ToString()
+                            , exp = "下一等级需要经验: " + 炼金exp.ToString() + "/" + 炼金最大exp.ToString();
+                        Utils.DrawBorderString(Main.spriteBatch, lv,
+                            Main.MouseWorld - Main.screenPosition + new Vector2(-30, 30), Color.Gold, 1f, 0f, 0f, -1);
+                        Utils.DrawBorderString(Main.spriteBatch, exp,
+                            Main.MouseWorld - Main.screenPosition + new Vector2(-30, 60), Color.White, 1f, 0f, 0f, -1);
+
+                        if (hintTexture == null) hintTexture = Mod.Assets.Request<Texture2D>("炼金/使用提示");
+                        drawInfo.DrawDataCache.Add(new DrawData(
+                            hintTexture.Value, // The texture to render.
+                            Main.MouseWorld - Main.screenPosition, // Position to render at.
+                            null, // Source rectangle.
+                            Color.White, // Color.
+                            0, // Rotation.
+                            hintTexture.Size() * 0.5f, // Origin. Uses the texture's center.
+                            1f, // Scale.
+                            SpriteEffects.None, // SpriteEffects.
+                            0 // 'Layer'. This is always 0 in Terraria.
+                        ));
+                    }
+                    else if (炼制中)
+                    {
+                        if (Main.mouseItem.IsAir)//没有物品则搅拌提示
+                        {
+                            炼制提示 = true;
+
+                            if (hintTexture2 == null) hintTexture2 = Mod.Assets.Request<Texture2D>("炼金/炼制提示");
+                            drawInfo.DrawDataCache.Add(new DrawData(
+                                hintTexture2.Value, // The texture to render.
+                                Main.MouseWorld - Main.screenPosition, // Position to render at.
+                                new Rectangle(0, 12 * 40, 40, 40), // Source rectangle.
+                                Color.White, // Color.
+                                0, // Rotation.
+                                hintTexture.Size() * 0.5f, // Origin. Uses the texture's center.
+                                1f, // Scale.
+                                SpriteEffects.None, // SpriteEffects.
+                                0 // 'Layer'. This is always 0 in Terraria.
+                            ));
+                        }
+                        else if(Main.mouseLeft)
+                        {
+                            if (!(Main.mouseItem.DamageType.Type == 0 && !Main.mouseItem.accessory &&
+                                Main.mouseItem.bodySlot < 0 && Main.mouseItem.headSlot < 0 && Main.mouseItem.legSlot < 0 &&
+                                Main.mouseItem.material))
+                            {   
+                                if(Main.mouseLeftRelease) Main.NewText("似乎无法炼制这个物品..");
+                            }
+                            else
+                            {
+                                if (hintTexture2 == null) hintTexture2 = Mod.Assets.Request<Texture2D>("炼金/炼制提示");
+                                准备投入++;
+                                drawInfo.DrawDataCache.Add(new DrawData(
+                                    hintTexture2.Value, // The texture to render.
+                                    Main.MouseWorld - Main.screenPosition, // Position to render at.
+                                    new Rectangle(0, (准备投入/7) * 40, 40, 40), // Source rectangle.
+                                    Color.White, // Color.
+                                    0, // Rotation.
+                                    hintTexture.Size() * 0.5f, // Origin. Uses the texture's center.
+                                    1f, // Scale.
+                                    SpriteEffects.None, // SpriteEffects.
+                                    0 // 'Layer'. This is always 0 in Terraria.
+                                ));
+                            }
+                        }
+                        if (准备投入 /7 >= 12)
+                        {   
+                            itemList[itemNo++] = Main.mouseItem.Clone();
+                            Main.NewText(itemList[itemNo-1]);
+                            Main.mouseItem.TurnToAir();
+                            准备投入 = 0;
+                        }
+                        if (!Main.mouseLeft) 准备投入 = 0;
+                    }
+                    
+
+                }
+                else
+                {
+                    if (Main.mouseLeft && Main.mouseLeftRelease && itemListClone[0]!=null)
+                        foreach (Item item in itemListClone)
+                        {
+                            if (item != null) Main.NewText(item);
+                            else break;
+                        }
+                    if (Main.mouseMiddle && Main.mouseMiddleRelease)
+                    {
+                        itemListClone = new Item[100];
+                        itemNo = 0;
+                    }
+                }
+            }
+
+            if (使用提示 && Main.mouseRight && Main.mouseRightRelease && !炼制中&&!搅拌中)//进入炼金状态
+            {
+                if (使用锅炉次数 > 0)
+                {
+                    int z = i;
+                    int y = z;
+                    int 间隔 = 0;
+                    炼制中 = true;
+                    Player.velocity = Vector2.Zero;
+                    if (Main.netMode == 1)
+                    {
+                        //Main.NewText("主机发送" + 炼制中);
+                        ModPacket packet = Mod.GetPacket();
+                        packet.Write((byte)ModElaina.MessageType.炼金状态);
+                        packet.Write(Player.whoAmI);
+                        packet.Write(炼制中);
+                        packet.Write(搅拌中);
+                        packet.Send(-1, -1);
+                    }
+                    //搅拌中 = true;
+                    if (Player.mount.Active)
+                    {
+                        Player.mount.Dismount(Player);
+                    }
+                    while (Main.tile[i - 1, j].TileType == t.TileType)
+                    {
+                        if (Main.tile[i - 2, j].TileType == t.TileType)
+                        {
+                            间隔++;
+                            i -= 2;
+                        }
+                        else i--;
+                    }
+
+                    i += 间隔 * 2;
+                    z = i + 1;
+                    //if (Main.tile[z + 2, j].TileType == t.TileType&& Main.tile[z + 1, j].TileType == t.TileType) z++;
+                    while (Main.tile[y, j + 1].TileType == t.TileType && j > 0)
+                    {
+                        j++;
+                    }
+                    float c = (i + z) / 2;
+                    Player.Center = new Vector2(c * 16, j * 16 - 6);
+                    Player.direction = 1;
+                    //Player.gravDir = 1;
+                }
+                else Main.NewText("今天已经太累了");
+
+            }
+
+            if (炼制提示 && Main.mouseRight && Main.mouseRightRelease && !搅拌中)
+            {//进入搅拌状态
+                if (itemNo == 0)
+                {
+                    Main.NewText("空气可做不出东西来");
+                }
+                else
+                {
+                    搅拌中 = true;
+                    炼制中 = false;
+                    使用锅炉次数--;
+                    Player.velocity = Vector2.Zero;
+                    itemListClone = itemList;
+                    itemList = new Item[100];
+                    Main.NewText(itemListClone[0]);
+                    if (Main.netMode == 1)
+                    {
+                        ModPacket packet = Mod.GetPacket();
+                        packet.Write((byte)ModElaina.MessageType.炼金状态);
+                        packet.Write(Player.whoAmI);
+                        packet.Write(炼制中);
+                        packet.Write(搅拌中);
+                        packet.Send(-1, -1);
+                    }
+                }
+            }
+
+            if (!Main.mouseItem.IsAir)
+            {
+                if (Main.mouseItem.DamageType.Type == 0 && !Main.mouseItem.accessory  &&
+                    Main.mouseItem.bodySlot<0&& Main.mouseItem.headSlot<0&& Main.mouseItem.legSlot<0&&
+                     Main.mouseItem.material)
+                {//Main.NewText(Main.mouseItem.rare+" "+Main.mouseItem.value+" "+ Main.mouseItem.DamageType.Type);
+                } 
+            }
+
+            //生成物品！
+            if (搅拌中)
+            {
+                //克隆物品
+                if (itemNo == 1)
+                {
+                    if (判定间隔++ > (itemListClone[0].rare+1) * (60+ 180 / ((itemListClone[0].maxStack<100)? itemListClone[0].maxStack:99))-
+                        45*(炼金lv- itemListClone[0].rare)){
+                        判定间隔 = 0;//道具越稀有，可最大堆叠数量越少，则炼制越慢
+                        //int newItem= Item.NewItem(null,(int)Player.position.X, (int)Player.position.Y, Player.width, Player.height, itemList[0].type, 1, false, 0, false, false);
+                        Main.item[Player.QuickSpawnItem(null, itemListClone[0].type, 1)].noGrabDelay=30;
+                        //Main.item[Item.NewItem(null, (int)Player.position.X, (int)Player.position.Y, Player.width, Player.height, itemList[0].type, itemList[0].stack, false, 0, false, false)].noGrabDelay = 60;
+                        //if (Main.netMode == 1) NetMessage.SendData(21, -1, -1, null, newItem, 0f, 0f, 0f, 0, 0, 0);
+                    }
+                }
+            }
+
+            base.DrawEffects(drawInfo, ref r, ref g, ref b, ref a, ref fullBright);
+        }
+
+        public override void ModifyDrawInfo(ref PlayerDrawSet drawInfo)
+        {
+            if (炼制中 || 搅拌中)
+            {
+                //Main.OffsetsPlayerOffhand[drawInfo.drawPlayer.bodyFrame.Y / 56].Y = 20;
+                drawInfo.compFrontArmFrame.Y = 1000;
+                drawInfo.compBackArmFrame.Y = 1000;
+                drawInfo.drawPlayer.legFrame.Y = 112;
+                drawInfo.drawPlayer.bodyFrame.X=40;
+                drawInfo.drawPlayer.bodyFrame.Y = 56;
+                //Main.NewText(drawInfo.drawPlayer.bodyFrame.Y);
+                //Main.NewText(drawInfo.torsoOffset+" "+drawInfo.helmetOffset);
+            }
+            base.ModifyDrawInfo(ref drawInfo);
+        }
+
+        public void 绘制提示(bool 炼制中, bool 搅拌中)
+        {
+
+        }
+
+    }
+}

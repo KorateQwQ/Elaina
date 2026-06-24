@@ -1,0 +1,1992 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>技能 DPS 曲线编辑器</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0b1020;
+            --panel: #151f33;
+            --panel2: #0f172a;
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --accent: #60a5fa;
+            --danger: #ef4444;
+            --ok: #22c55e;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at top left, #1e3a8a 0, transparent 34rem), var(--bg);
+            color: var(--text);
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 280px minmax(560px, 1fr) 380px;
+            gap: 16px;
+            padding: 16px;
+            min-height: 100vh;
+        }
+
+        .panel {
+            background: rgba(21, 31, 51, 0.94);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+            background: rgba(15, 23, 42, 0.72);
+        }
+
+        .panel-title {
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .panel-body {
+            padding: 14px;
+        }
+
+        .skill-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .skill-item {
+            width: 100%;
+            padding: 11px 12px;
+            text-align: left;
+            color: var(--text);
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .skill-item:hover,
+        .skill-item.active {
+            border-color: var(--accent);
+            background: rgba(37, 99, 235, 0.18);
+        }
+
+        .skill-name {
+            font-weight: 700;
+        }
+
+        .skill-meta,
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 620px;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.64));
+            border-radius: 0 0 16px 16px;
+            cursor: crosshair;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            color: var(--text);
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 10px;
+            outline: none;
+            padding: 9px 10px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--accent);
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: Consolas, "Cascadia Mono", monospace;
+            font-size: 12px;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn {
+            color: var(--text);
+            background: rgba(59, 130, 246, 0.22);
+            border: 1px solid rgba(96, 165, 250, 0.44);
+            border-radius: 10px;
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: rgba(59, 130, 246, 0.34);
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.42;
+        }
+
+        .btn.danger {
+            background: rgba(239, 68, 68, 0.18);
+            border-color: rgba(239, 68, 68, 0.42);
+        }
+
+        .btn.ok {
+            background: rgba(34, 197, 94, 0.18);
+            border-color: rgba(34, 197, 94, 0.42);
+        }
+
+        .table-wrap {
+            margin-top: 14px;
+            max-height: 210px;
+            overflow: auto;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+            text-align: right;
+        }
+
+        th:first-child,
+        td:first-child,
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: var(--panel2);
+            color: var(--muted);
+        }
+
+        .status {
+            min-height: 20px;
+            color: var(--ok);
+            font-size: 12px;
+        }
+
+        .drag-tooltip {
+            position: fixed;
+            z-index: 20;
+            display: none;
+            pointer-events: none;
+            padding: 7px 9px;
+            color: #ffffff;
+            background: rgba(2, 6, 23, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.42);
+            border-radius: 9px;
+            box-shadow: 0 0 18px rgba(96, 165, 250, 0.45);
+            font-size: 12px;
+            line-height: 1.55;
+            white-space: nowrap;
+        }
+
+        .compare-summary {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        @media (max-width: 1180px) {
+            .app {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">技能</div>
+                <button class="btn" id="addSkillBtn">新增</button>
+            </div>
+            <div class="panel-body">
+                <div class="skill-list" id="skillList"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">曲线编辑</div>
+                    <div class="hint">CustomBezier：拖白点移动关键帧，拖亮青/亮黄方块调整右/左切线。双击空白处新增关键帧，按住 Shift 预览鼠标对应曲线位置，滚轮缩放图表倍率。</div>
+                </div>
+                <div class="toolbar">
+                    <button class="btn" id="zoomXInBtn" title="只放大 X 轴">X轴+</button>
+                    <button class="btn" id="zoomXOutBtn" title="只缩小 X 轴">X轴-</button>
+                    <button class="btn" id="zoomYInBtn" title="只放大 Y 轴">Y轴+</button>
+                    <button class="btn" id="zoomYOutBtn" title="只缩小 Y 轴">Y轴-</button>
+                    <button class="btn" id="resetBtn">重置示例</button>
+                    <button class="btn ok" id="saveBtn">保存</button>
+                </div>
+            </div>
+            <canvas id="chart" width="1200" height="760"></canvas>
+            <div class="drag-tooltip" id="dragTooltip"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">参数</div>
+                <button class="btn danger" id="deleteSkillBtn">删除技能</button>
+            </div>
+            <div class="panel-body">
+                <div class="form-grid">
+                    <div class="field full">
+                        <label>技能名称</label>
+                        <input id="nameInput">
+                    </div>
+                    <div class="field full">
+                        <label>曲线类型</label>
+                        <select id="curveSelect">
+                            <option value="Linear">Linear：线性</option>
+                            <option value="SmoothStep">SmoothStep：平滑</option>
+                            <option value="CustomBezier">CustomBezier：自定义关键帧/切线</option>
+                        </select>
+                    </div>
+                    <div class="field full">
+                        <label>背景对比</label>
+                        <select id="compareModeSelect">
+                            <option value="none">不对比</option>
+                            <option value="single">单体武器</option>
+                            <option value="aoe">AOE武器</option>
+                            <option value="recommendedRange">伤害推荐区间</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>State0 DPS</label>
+                        <input id="s1Input" type="number" step="1">
+                    </div>
+                    <div class="field">
+                        <label>State18 DPS</label>
+                        <input id="s18Input" type="number" step="1">
+                    </div>
+                    <div class="field full">
+                        <label>备注</label>
+                        <input id="noteInput">
+                    </div>
+                </div>
+
+                <div class="compare-summary" id="compareSummary"></div>
+
+                <div style="height: 10px"></div>
+                <div class="toolbar">
+                    <button class="btn" id="addKeyBtn">添加关键帧</button>
+                    <button class="btn danger" id="deleteKeyBtn">删除关键帧</button>
+                    <button class="btn" id="convertCustomBtn">转为自定义</button>
+                </div>
+
+                <div class="table-wrap">
+                    <table id="previewTable"></table>
+                </div>
+
+                <div style="height: 14px"></div>
+                <div class="toolbar">
+                    <button class="btn" id="exportJsonBtn">导出 JSON</button>
+                    <button class="btn" id="exportCsvBtn">导出 CSV</button>
+                    <button class="btn" id="copyCsBtn">复制 C#</button>
+                    <button class="btn" id="importBtn">导入 JSON</button>
+                    <button class="btn ok" id="saveJsonFileBtn">保存 JSON 文件</button>
+                    <button class="btn" id="openJsonFileBtn">读取本地 JSON</button>
+                </div>
+                <div style="height: 10px"></div>
+                <textarea id="ioText" placeholder="这里显示导出的配置，也可以粘贴 JSON 后点导入。"></textarea>
+                <input id="jsonFileInput" type="file" accept=".json,application/json" hidden>
+                <div class="status" id="status"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const bossNames = {
+            0: "boss前",
+            1: "史莱姆王",
+            2: "克眼",
+            3: "世吞/克脑",
+            4: "蜂王",
+            5: "骷髅王",
+            6: "鹿角怪",
+            7: "肉山",
+            8: "史莱姆王后",
+            9: "双子魔眼",
+            10: "毁灭者",
+            11: "机械骷髅王",
+            12: "世纪之花",
+            13: "石巨人",
+            14: "猪鲨",
+            15: "光女",
+            16: "跳过",
+            17: "拜月教徒",
+            18: "月总",
+        };
+
+        const colors = ["#60a5fa", "#fb923c", "#4ade80", "#f472b6", "#a78bfa", "#facc15"];
+        const storageKey = "elaina_skill_curve_editor_v2";
+        const compareModeStorageKey = "elaina_skill_curve_editor_compare_mode_v1";
+        const maxEditableDps = 100000;
+        const chartMinState = 0;
+        const chartMaxState = 18;
+        const chartDefaultStateCenter = (chartMinState + chartMaxState) / 2;
+
+        function makeKey(bossState, dps, inState, inDps, outState, outDps) {
+            return { bossState, dps, inState, inDps, outState, outDps };
+        }
+
+        const weaponObtainMethods = {
+            "火花魔杖": "地表或地下的宝箱、木匣、珍珠木匣中获得",
+            "猩红法杖": "猩红之心掉落，或从猩红匣、血匣中开出",
+            "灰冲击波": "旅行商人随机出售",
+            "蜜蜂枪": "蜂王掉落",
+            "火之花": "地狱暗影箱或黑曜石锁盒中获得",
+            "骷髅头法术": "骷髅王掉落",
+            "寒霜之花": "困难模式冰雪宝箱怪掉落",
+            "水晶风暴": "用魔法书、水晶碎块、光明之魂在书架处制作",
+            "水晶蛇": "困难模式神圣之地钓鱼获得",
+            "无限智慧巨著": "撒旦军队事件中的食人魔掉落",
+            "彩虹法杖": "用水晶碎块、独角兽角、妖精尘、光明之魂、视域之魂在秘银砧或山铜砧处制作",
+            "暴雪法杖": "霜月事件中的冰雪女王掉落",
+            "剃刀松": "霜月事件中的常绿尖叫怪掉落",
+            "高温射线枪": "石巨人掉落",
+            "激光机枪": "火星暴乱事件中的火星飞碟掉落",
+            "泡泡枪": "猪龙鱼公爵掉落",
+            "利刃台风": "猪龙鱼公爵掉落",
+            "夜光": "光之女皇掉落",
+            "星星吉他": "光之女皇掉落",
+            "星云烈焰": "用星云碎片在远古操纵机处制作",
+            "最终棱镜": "月亮领主掉落",
+            "月耀": "月亮领主掉落",
+            "钻石法杖": "用钻石和铂金锭在铁砧或铅砧处制作",
+            "魔刺": "暗影珠掉落，或从腐化匣、污损匣中开出",
+            "恶魔锄刀": "地狱中的恶魔或巫毒恶魔掉落",
+            "太空枪": "用陨石锭在铁砧或铅砧处制作",
+            "水矢": "地牢书架上的书中随机获得",
+            "烈焰火鞭": "地狱暗影箱或黑曜石锁盒中获得",
+            "天候棒": "困难模式雨天的愤怒雨云怪掉落",
+            "魔法竖琴": "用竖琴、水晶碎块、暗影之魂、视域之魂在秘银砧或山铜砧处制作",
+            "流星法杖": "用陨石锭、妖精尘、光明之魂在秘银砧或山铜砧处制作",
+            "邪恶三叉戟": "困难模式地狱中的红魔鬼掉落",
+            "毒液法杖": "用毒法杖和叶绿锭在秘银砧或山铜砧处制作",
+            "爆裂藤蔓": "世纪之花掉落",
+            "暗影束法杖": "困难模式地牢中的死灵法师掉落",
+            "狱火叉": "困难模式地牢中的魔教徒掉落",
+            "大地法杖": "石巨人掉落",
+            "带电爆破炮": "火星暴乱事件中的火星飞碟掉落",
+            "星云奥秘": "用星云碎片在远古操纵机处制作",
+        };
+
+        const weaponProgressionRoles = {
+            "火花魔杖": "流程外/过渡：很早能拿，但通常只作开局娱乐或临时过渡",
+            "猩红法杖": "可选流程：猩红世界早期实用，受世界类型和掉落影响",
+            "灰冲击波": "娱乐/难规划：旅行商随机出售且弹道随机，不适合作为稳定流程基准",
+            "蜜蜂枪": "可选流程：蜂王后可用，追踪好但很快会被肉前末期武器替换",
+            "火之花": "可选流程：地狱箱武器，能用但通常不是法师主线首选",
+            "骷髅头法术": "可选/稀有：骷髅王掉落，强度可用但掉落不稳定",
+            "寒霜之花": "可选/稀有：冰雪宝箱怪掉落，属于困难模式早期替代项",
+            "水晶风暴": "流程推荐：困难模式早期常见法师武器，制作路线明确",
+            "水晶蛇": "流程推荐但需钓鱼：强度优秀，获取依赖神圣钓鱼",
+            "无限智慧巨著": "可选/事件：撒旦军队掉落，强但不属于最省事主线流程",
+            "彩虹法杖": "流程推荐/可选：机械三王后可制作，综合性能稳定",
+            "暴雪法杖": "强力但难获取：霜月高波次掉落，更偏刷事件后的上限参照",
+            "剃刀松": "强力但难获取：霜月掉落，DPS高但不属于常规推进必备",
+            "高温射线枪": "可选流程：石巨人后掉落，属于过渡到后期事件/猪鲨前后的替代项",
+            "激光机枪": "强力但偏支线：火星暴乱掉落，事件成本较高",
+            "泡泡枪": "可选/近距离：猪鲨掉落，DPS高但输出环境要求较高",
+            "利刃台风": "流程推荐但需打猪鲨：追踪强，是月前法师常见强力选择",
+            "夜光": "流程推荐但需打光女：强力追踪，属于月前高级选择",
+            "星星吉他": "娱乐/极稀有：光女低概率掉落，强但不适合流程规划",
+            "星云烈焰": "流程推荐：星云柱后制作，是月总前法师主力武器之一",
+            "最终棱镜": "终局/毕业：月亮领主掉落，属于通关后毕业参照而非推进流程",
+            "月耀": "终局/毕业：月亮领主掉落，属于通关后毕业参照",
+            "钻石法杖": "流程推荐：boss前宝石法杖代表，获取路线清晰",
+            "魔刺": "可选流程：腐化世界早期穿墙工具，受世界类型影响",
+            "恶魔锄刀": "流程推荐但难刷：肉前强力武器，掉率低、获取成本高",
+            "太空枪": "流程推荐：配陨石套非常稳定，是肉前常见法师主线武器",
+            "水矢": "流程推荐但依赖地牢书：肉前强力 AOE，获取有随机性",
+            "烈焰火鞭": "流程推荐/可选：肉前地狱箱武器，适合单体与追踪补位",
+            "天候棒": "可选/稀有：雨云怪掉落，功能强但掉落随机",
+            "魔法竖琴": "流程推荐：机械阶段常用 AOE，尤其适合多节目标",
+            "流星法杖": "流程推荐：困难模式早期强力 AOE，制作路线明确",
+            "邪恶三叉戟": "可选/稀有：红魔鬼掉落，能用但通常不是稳定流程核心",
+            "毒液法杖": "可选流程：蜘蛛法杖升级路线，世纪之花前后可作为替代",
+            "爆裂藤蔓": "可选/掉落：世纪之花掉落，穿透强但不一定稳定获得",
+            "暗影束法杖": "流程推荐/可选：地牢法师掉落，后花阶段优秀 AOE",
+            "狱火叉": "流程推荐/可选：后花地牢掉落，爆炸 AOE 强但要刷怪",
+            "大地法杖": "可选/娱乐：石巨人掉落，机制有趣但流程常用度不高",
+            "带电爆破炮": "强力但偏支线：火星暴乱掉落，满蓄力 AOE 上限高但获取晚",
+            "星云奥秘": "流程推荐：星云柱后制作，适合月总前后 AOE/追踪参照",
+        };
+
+        function makeCompare(bossState, mode, name, dps, homing, note = "", obtain = weaponObtainMethods[name] || "", progression = weaponProgressionRoles[name] || "") {
+            return { bossState, mode, name, dps, singleDps: dps, groupDps: dps, homing, obtain, progression, note };
+        }
+
+        function makeAoeCompare(bossState, name, singleDps, groupDps, homing, note = "", obtain = weaponObtainMethods[name] || "", progression = weaponProgressionRoles[name] || "") {
+            return { bossState, mode: "aoe", name, dps: groupDps, singleDps, groupDps, homing, obtain, progression, note };
+        }
+
+        function makeRecommendedRange(bossState, name, minDps, maxDps, note = "") {
+            return { bossState, mode: "recommendedRange", name, dps: maxDps, minDps, maxDps, note };
+        }
+
+        const compareModes = {
+            none: {
+                label: "不对比",
+                description: "关闭原版法师武器背景柱状图。",
+            },
+            single: {
+                label: "单体武器",
+                description: "使用法师武器测试表的单体 DPS，并用原版武器 DPS 表补足阶段参照。",
+                fill: "rgba(248, 113, 113, 0.18)",
+                stroke: "rgba(248, 113, 113, 0.62)",
+                legend: "#f87171",
+            },
+            aoe: {
+                label: "AOE武器",
+                description: "优先使用法师武器测试表的群体 DPS；原版表补充项按武器机制归入 AOE。",
+                fill: "rgba(250, 204, 21, 0.18)",
+                stroke: "rgba(250, 204, 21, 0.62)",
+                legend: "#facc15",
+            },
+            recommendedRange: {
+                label: "伤害推荐区间",
+                description: "按攻略总结的流程 DPS 推荐表显示每个阶段建议达到的伤害区间。",
+                fill: "rgba(34, 197, 94, 0.18)",
+                stroke: "rgba(34, 197, 94, 0.72)",
+                legend: "#22c55e",
+            },
+        };
+
+        const homingCompareStyle = {
+            fill: "rgba(168, 85, 247, 0.24)",
+            stroke: "rgba(168, 85, 247, 0.82)",
+            legend: "#a855f7",
+        };
+
+        const vanillaCompareEntries = [
+            makeCompare(0, "single", "火花法杖", 50, false,"最容易获得的前期武器"),
+            makeCompare(0, "single", "钻石法杖", 75, false),
+            makeCompare(1, "single", "钻石法杖", 75, false, "史莱姆王后阶段仍以 boss 前稳定法师武器作参照"),
+            makeCompare(1, "single", "猩红法杖", 80, false, "猩红世界早期可选参照，boss前可得但是难命中"),
+            makeCompare(2, "single", "太空枪", 90, false, "克眼后常见陨石路线参照，替换随机旅行商武器"),
+            makeCompare(2, "single", "猩红法杖", 80, false),
+            makeCompare(3, "single", "太空枪", 90, false),
+            makeCompare(3, "single", "恶魔锄刀", 150, false, "世吞/克脑后可进入地狱刷取，强力但掉率较低"),
+            makeCompare(4, "single", "蜜蜂枪", 85, true),
+            makeCompare(4, "single", "太空枪", 90, false, "蜂王后仍可作为稳定参照"),
+            makeCompare(5, "single", "恶魔锄刀", 150, false, "骷髅王后肉前首选参照之一，伤害和穿透表现稳定，但需要刷恶魔"),
+            makeCompare(5, "single", "烈焰火鞭", 150, true, "骷髅王后地狱箱追踪武器，常作为魔法导弹的上位替代"),
+            makeCompare(6, "single", "恶魔锄刀", 150, false, "鹿角怪后沿用肉前末期首选参照"),
+            makeCompare(6, "single", "烈焰火鞭", 150, true, "鹿角怪后沿用肉前末期追踪参照"),
+            makeCompare(7, "single", "寒霜之花", 300, false, "肉山后进入困难模式，可使用困难模式早期武器"),
+            makeCompare(7, "single", "水晶风暴", 400, false, "肉山后制作路线明确的困难模式早期参照"),
+            makeCompare(8, "single", "寒霜之花", 300, false),
+            makeCompare(8, "single", "水晶蛇", 300, false),
+            makeCompare(9, "single", "水晶蛇", 300, false),
+            makeCompare(9, "single", "彩虹法杖", 500, true, "双子魔眼后可用视域之魂制作，光球可控，松手后会追踪敌怪"),
+            makeCompare(10, "single", "无限智慧巨著", 450, false),
+            makeCompare(10, "single", "彩虹法杖", 500, true, "机械 Boss 推进后期的稳定参照"),
+            makeCompare(11, "single", "无限智慧巨著", 450, false),
+            makeCompare(11, "single", "彩虹法杖", 500, true, "机械三王后仍适合作为世纪之花前参照"),
+            makeCompare(12, "single", "毒液法杖", 581, false, "世纪之花后可升级毒法杖，替换霜月高波次参照"),
+            makeCompare(12, "single", "剃刀松", 1500, false, "高投入可选：世纪之花后可刷霜月获得"),
+            makeCompare(13, "single", "高温射线枪", 700, false),
+            makeCompare(13, "single", "激光机枪", 1500, false, "石巨人后可推进火星暴乱，作为后期事件参照"),
+            makeCompare(14, "single", "泡泡枪", 1800, false, "猪鲨后可获得，适合作为高 DPS 近距离参照"),
+            makeCompare(14, "single", "利刃台风", 600, true, "猪鲨后可获得，月前常见追踪参照"),
+            makeCompare(15, "single", "夜光", 1200, true, "光女后可获得，适合作为月前高级追踪参照"),
+            makeCompare(15, "single", "星星吉他", 1200, true, "光女后低概率掉落，作为稀有上限参照"),
+            makeCompare(17, "single", "星云烈焰", 1300, true),
+            makeCompare(17, "single", "夜光", 1200, true, "拜月教徒后、月总前可继续使用的光女武器参照"),
+            makeCompare(18, "single", "最终棱镜", 4500, false, "月总后毕业参照；法师测试表单体 DPS"),
+            makeCompare(18, "single", "月耀", 2700, false, "月总后毕业参照；该武器也可作为 AOE 参照"),
+
+            makeAoeCompare(0, "钻石法杖", 75, 150, false),
+            makeAoeCompare(0, "魔刺", 80, 500, false),
+            makeAoeCompare(0, "恶魔锄刀", 150, 800, false, "高投入流程参照：掉率低但肉前强度高"),
+            makeAoeCompare(1, "魔刺", 80, 500, false, "史莱姆王后仍沿用 boss 前 AOE 参照"),
+            makeAoeCompare(1, "恶魔锄刀", 150, 800, false, "高投入流程参照：掉率低但肉前强度高"),
+            makeAoeCompare(2, "太空枪", 90, 270, false, "克眼后常见陨石路线参照"),
+            makeAoeCompare(2, "恶魔锄刀", 150, 800, false),
+            makeAoeCompare(3, "太空枪", 90, 270, false),
+            makeAoeCompare(3, "恶魔锄刀", 150, 800, false),
+            makeAoeCompare(4, "蜜蜂枪", 100, 500, true),
+            makeAoeCompare(4, "太空枪", 90, 270, false),
+            makeAoeCompare(5, "水矢", 100, 1000, false),
+            makeAoeCompare(5, "烈焰火鞭", 150, 200, true),
+            makeAoeCompare(6, "水矢", 100, 1000, false),
+            makeAoeCompare(6, "恶魔锄刀", 150, 800, false, "鹿角怪后沿用肉前末期 AOE 参照"),
+            makeAoeCompare(7, "魔法竖琴", 300, 2000, false, "肉山后进入困难模式；若已取得视域之魂可制作"),
+            makeAoeCompare(7, "流星法杖", 400, 3000, false, "肉山后制作路线明确的困难模式早期 AOE 参照"),
+            makeAoeCompare(8, "魔法竖琴", 300, 2000, false),
+            makeAoeCompare(8, "流星法杖", 400, 3000, false),
+            makeAoeCompare(9, "魔法竖琴", 300, 2000, false, "双子魔眼后可用视域之魂制作"),
+            makeAoeCompare(9, "流星法杖", 400, 3000, false),
+            makeAoeCompare(10, "魔法竖琴", 300, 2000, false, "机械 Boss 推进后期对多节目标表现优秀"),
+            makeAoeCompare(10, "流星法杖", 400, 3000, false),
+            makeAoeCompare(11, "毒液法杖", 581, 581, false, "原版武器 DPS 表：裸装 DPS；多枚穿透毒牙"),
+            makeAoeCompare(11, "魔法竖琴", 300, 2000, false),
+            makeAoeCompare(12, "爆裂藤蔓", 270, 4000, false),
+            makeAoeCompare(12, "暗影束法杖", 320, 2600, false),
+            makeAoeCompare(12, "狱火叉", 500, 3500, false),
+            makeAoeCompare(13, "大地法杖", 500, 3500, false),
+            makeAoeCompare(13, "带电爆破炮", 1000, 18000, false, "石巨人后可推进火星暴乱，满蓄力 AOE 上限高"),
+            makeAoeCompare(14, "利刃台风", 600, 4000, true, "猪鲨后可获得，月前常见追踪 AOE 参照"),
+            makeAoeCompare(14, "泡泡枪", 1800, 1800, false, "猪鲨后可获得，高 DPS 近距离参照"),
+            makeAoeCompare(15, "星星吉他", 1200, 6000, true, "光女后低概率掉落，射弹会搜寻附近敌怪，并有小范围爆炸"),
+            makeAoeCompare(15, "夜光", 1200, 1300, true),
+            makeAoeCompare(17, "星云奥秘", 2000, 4000, true, "拜月教徒后可通过星云柱制作，天体会缓慢寻的并爆炸成小射弹"),
+            makeAoeCompare(17, "星云烈焰", 1300, 1300, true),
+            makeAoeCompare(18, "最终棱镜", 4500, 67000, false, "月总后毕业参照"),
+            makeAoeCompare(18, "月耀", 2700, 20000, false, "月总后毕业参照"),
+        ];
+
+        const recommendedRangeEntries = [
+            makeRecommendedRange(1, "史莱姆王 推荐DPS", 50, 70),
+            makeRecommendedRange(2, "克眼 推荐DPS", 80, 100),
+            makeRecommendedRange(3, "世吞和克脑 推荐DPS", 90, 120),
+            makeRecommendedRange(4, "蜂王 推荐DPS", 100, 130),
+            makeRecommendedRange(5, "骷髅王 推荐DPS", 150, 210),
+            makeRecommendedRange(6, "鹿角怪 推荐DPS", 150, 210),
+            makeRecommendedRange(7, "肉山 推荐DPS", 300, 400, "配合饰品加成实战 DPS 约 1000"),
+            makeRecommendedRange(8, "史莱姆王后 推荐DPS", 350, 450),
+            makeRecommendedRange(9, "双子魔眼 推荐DPS", 400, 500),
+            makeRecommendedRange(10, "毁灭者 推荐DPS", 450, 550),
+            makeRecommendedRange(11, "机械骷髅王 推荐DPS", 500, 600),
+            makeRecommendedRange(12, "世纪之花 推荐DPS", 800, 1000),
+            makeRecommendedRange(13, "石巨人 推荐DPS", 1000, 1200),
+            makeRecommendedRange(14, "猪鲨 推荐DPS", 1100, 1300),
+            makeRecommendedRange(15, "光女 推荐DPS", 1200, 1400),
+            makeRecommendedRange(17, "拜月教徒 推荐DPS", 1600, 2000, "四柱推荐 DPS 同区间"),
+            makeRecommendedRange(18, "月总 推荐DPS", 2500, 3500, "天顶剑可参考眼睛约 5500"),
+        ];
+
+        const defaultSkills = [
+            {
+                name: "魔力飞弹",
+                curve: "CustomBezier",
+                s1: 30,
+                s18: 300,
+                note: "自定义线性参考",
+                keys: [
+                    makeKey(0, 30, 0, 0, 4, 60),
+                    makeKey(18, 300, -4, -60, 0, 0),
+                ],
+            },
+            {
+                name: "火焰射线",
+                curve: "CustomBezier",
+                s1: 40,
+                s18: 650,
+                note: "自定义关键帧，可拖切线",
+                keys: [
+                    makeKey(0, 40, 0, 0, 2, 5),
+                    makeKey(7, 120, -2, -5, 0, 0),
+                    makeKey(8, 220, 0, 0, 3, 80),
+                    makeKey(18, 650, -4, -100, 0, 0),
+                ],
+            },
+            {
+                name: "水球",
+                curve: "SmoothStep",
+                s1: 80,
+                s18: 520,
+                note: "平滑成长",
+            },
+        ];
+
+        const appState = {
+            skills: loadSkills(),
+            selectedSkill: 0,
+            selectedKey: -1,
+            dragTarget: null,
+            dragLastMouse: null,
+            dragLastTime: 0,
+            dragStartMouseValue: null,
+            dragStartValue: null,
+            dragRawValue: null,
+            dragWasCtrl: false,
+            dragMetrics: null,
+            chartPanning: null,
+            chartPanState: 0,
+            chartPanDps: 0,
+            curvePreview: null,
+            hitboxes: [],
+            compareMode: loadCompareMode(),
+            chartZoomState: 1,
+            chartZoomDps: 1,
+        };
+
+        const canvas = document.getElementById("chart");
+        const ctx = canvas.getContext("2d");
+        const dragTooltip = document.getElementById("dragTooltip");
+        const skillList = document.getElementById("skillList");
+        const previewTable = document.getElementById("previewTable");
+        const ioText = document.getElementById("ioText");
+        const jsonFileInput = document.getElementById("jsonFileInput");
+        const statusEl = document.getElementById("status");
+        const compareModeSelect = document.getElementById("compareModeSelect");
+        const compareSummary = document.getElementById("compareSummary");
+
+        const inputs = {
+            name: document.getElementById("nameInput"),
+            curve: document.getElementById("curveSelect"),
+            s1: document.getElementById("s1Input"),
+            s18: document.getElementById("s18Input"),
+            note: document.getElementById("noteInput"),
+        };
+
+        function loadSkills() {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) {
+                return structuredClone(defaultSkills);
+            }
+
+            try {
+                return normalizeSkills(JSON.parse(raw));
+            }
+            catch {
+                return structuredClone(defaultSkills);
+            }
+        }
+
+        function loadCompareMode() {
+            const raw = localStorage.getItem(compareModeStorageKey);
+            return compareModes[raw] ? raw : "none";
+        }
+
+        function normalizeSkills(skills) {
+            return skills.map(skill => ({
+                name: String(skill.name || "未命名技能"),
+                curve: ["Linear", "SmoothStep", "CustomBezier"].includes(skill.curve) ? skill.curve : "Linear",
+                s1: editableDps(skill.s1),
+                s18: editableDps(skill.s18),
+                note: String(skill.note || ""),
+                keys: Array.isArray(skill.keys) ? skill.keys.map(key => makeKey(
+                    clamp(numberValue(key.bossState ?? key.state), chartMinState, chartMaxState),
+                    editableDps(key.dps),
+                    numberValue(key.inState),
+                    editableDps(numberValue(key.dps) + numberValue(key.inDps)) - editableDps(key.dps),
+                    numberValue(key.outState),
+                    editableDps(numberValue(key.dps) + numberValue(key.outDps)) - editableDps(key.dps),
+                )) : undefined,
+            }));
+        }
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function numberValue(value) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function editableDps(value) {
+            return clamp(numberValue(value), 0, maxEditableDps);
+        }
+
+        function lerp(start, end, amount) {
+            return start + (end - start) * amount;
+        }
+
+        function smoothStep(amount) {
+            const t = clamp(amount, 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+
+        function cubic(a, b, c, d, amount) {
+            const t = clamp(amount, 0, 1);
+            const mt = 1 - t;
+            return mt * mt * mt * a + 3 * mt * mt * t * b + 3 * mt * t * t * c + t * t * t * d;
+        }
+
+        function currentSkill() {
+            return appState.skills[appState.selectedSkill];
+        }
+
+        function calcFixedDps(skill, bossState) {
+            const amount = (bossState - chartMinState) / (chartMaxState - chartMinState);
+            const curveAmount = skill.curve === "SmoothStep" ? smoothStep(amount) : clamp(amount, 0, 1);
+            return Math.round(lerp(skill.s1, skill.s18, curveAmount));
+        }
+
+        function calcDps(skill, bossState) {
+            if (skill.curve !== "CustomBezier") {
+                return calcFixedDps(skill, bossState);
+            }
+
+            ensureCustomKeys(skill);
+            const keys = skill.keys.slice().sort((a, b) => a.bossState - b.bossState);
+            if (bossState <= keys[0].bossState) {
+                return Math.round(keys[0].dps);
+            }
+            if (bossState >= keys[keys.length - 1].bossState) {
+                return Math.round(keys[keys.length - 1].dps);
+            }
+
+            for (let i = 0; i < keys.length - 1; i++) {
+                const start = keys[i];
+                const end = keys[i + 1];
+                if (bossState >= start.bossState && bossState <= end.bossState) {
+                    let lo = 0;
+                    let hi = 1;
+                    for (let step = 0; step < 28; step++) {
+                        const mid = (lo + hi) / 2;
+                        const x = cubic(start.bossState, start.bossState + start.outState, end.bossState + end.inState, end.bossState, mid);
+                        if (x < bossState) {
+                            lo = mid;
+                        }
+                        else {
+                            hi = mid;
+                        }
+                    }
+                    const t = (lo + hi) / 2;
+                    return Math.round(cubic(start.dps, start.dps + start.outDps, end.dps + end.inDps, end.dps, t));
+                }
+            }
+
+            return 0;
+        }
+
+        function ensureCustomKeys(skill) {
+            if (skill.keys && skill.keys.length >= 2) {
+                normalizeKeyOrder(skill);
+                return;
+            }
+
+            const oldCurve = skill.curve;
+            skill.curve = oldCurve === "CustomBezier" ? "Linear" : oldCurve;
+            skill.keys = [];
+            for (let bossState = chartMinState; bossState <= chartMaxState; bossState++) {
+                skill.keys.push(makeKey(bossState, calcFixedDps(skill, bossState), 0, 0, 0, 0));
+            }
+            skill.curve = "CustomBezier";
+            normalizeKeyOrder(skill);
+        }
+
+        function normalizeKeyOrder(skill) {
+            skill.keys.sort((a, b) => a.bossState - b.bossState);
+            for (let i = 0; i < skill.keys.length; i++) {
+                const key = skill.keys[i];
+                const prev = skill.keys[i - 1];
+                const next = skill.keys[i + 1];
+                key.bossState = clamp(numberValue(key.bossState), chartMinState, chartMaxState);
+                key.dps = editableDps(key.dps);
+                key.inState = prev ? clamp(numberValue(key.inState), prev.bossState - key.bossState, 0) : 0;
+                key.outState = next ? clamp(numberValue(key.outState), 0, next.bossState - key.bossState) : 0;
+                key.inDps = editableDps(key.dps + key.inDps) - key.dps;
+                key.outDps = editableDps(key.dps + key.outDps) - key.dps;
+            }
+        }
+
+        function syncInputsFromSkill() {
+            const skill = currentSkill();
+            inputs.name.value = skill.name;
+            inputs.curve.value = skill.curve;
+            inputs.s1.value = skill.s1;
+            inputs.s18.value = skill.s18;
+            inputs.note.value = skill.note || "";
+            compareModeSelect.value = appState.compareMode;
+            updateFieldState();
+        }
+
+        function syncSkillFromInputs() {
+            const skill = currentSkill();
+            const oldCurve = skill.curve;
+            skill.name = inputs.name.value.trim() || "未命名技能";
+            skill.curve = inputs.curve.value;
+            skill.s1 = editableDps(inputs.s1.value);
+            skill.s18 = editableDps(inputs.s18.value);
+            skill.note = inputs.note.value.trim();
+
+            if (skill.curve === "CustomBezier" && oldCurve !== "CustomBezier") {
+                ensureCustomKeys(skill);
+            }
+
+            updateFieldState();
+            render();
+        }
+
+        function updateFieldState() {
+            const isCustom = inputs.curve.value === "CustomBezier";
+            document.getElementById("addKeyBtn").disabled = !isCustom;
+            document.getElementById("deleteKeyBtn").disabled = !isCustom;
+        }
+
+        function renderSkillList() {
+            skillList.innerHTML = "";
+            appState.skills.forEach((skill, index) => {
+                const button = document.createElement("button");
+                button.className = "skill-item" + (index === appState.selectedSkill ? " active" : "");
+                button.innerHTML = `<div class="skill-name">${escapeHtml(skill.name)}</div><div class="skill-meta">${skill.curve} / ${calcDps(skill, chartMinState)} → ${calcDps(skill, chartMaxState)}</div>`;
+                button.addEventListener("click", () => {
+                    appState.selectedSkill = index;
+                    appState.selectedKey = -1;
+                    syncInputsFromSkill();
+                    render();
+                });
+                skillList.appendChild(button);
+            });
+        }
+
+        function renderTable() {
+            const header = ["State", "Boss", ...appState.skills.map(skill => skill.name)];
+            const rows = [];
+            for (let bossState = chartMinState; bossState <= chartMaxState; bossState++) {
+                rows.push([bossState, bossNames[bossState], ...appState.skills.map(skill => calcDps(skill, bossState))]);
+            }
+
+            previewTable.innerHTML = `
+                <thead><tr>${header.map(item => `<th>${escapeHtml(item)}</th>`).join("")}</tr></thead>
+                <tbody>${rows.map(row => `<tr>${row.map(item => `<td>${escapeHtml(item)}</td>`).join("")}</tr>`).join("")}</tbody>
+            `;
+        }
+
+        function getComparisonEntries() {
+            if (appState.compareMode === "none") {
+                return [];
+            }
+            if (appState.compareMode === "recommendedRange") {
+                return recommendedRangeEntries;
+            }
+            return vanillaCompareEntries.filter(entry => entry.mode === appState.compareMode);
+        }
+
+        function renderComparisonSummary() {
+            const mode = compareModes[appState.compareMode];
+            if (!mode || appState.compareMode === "none") {
+                compareSummary.textContent = "背景柱状对比已关闭。";
+                return;
+            }
+
+            const entries = getComparisonEntries();
+            const stageCount = new Set(entries.map(item => item.bossState)).size;
+            const aoeHint = appState.compareMode === "aoe" ? " AOE 武器每把显示两根柱：左侧浅色为对单DPS，右侧为对群DPS。" : "";
+            const rangeHint = appState.compareMode === "recommendedRange" ? " 每个阶段显示一段推荐 DPS 区间带。悬停区间可查看推荐范围。" : " 悬停柱子可查看武器名、DPS、是否追踪、获得方式和流程定位。";
+            compareSummary.innerHTML = `当前背景：${escapeHtml(mode.label)}，共 ${entries.length} 项，覆盖 ${stageCount} 个阶段。<br>${escapeHtml(mode.description)}${aoeHint}${rangeHint}`;
+        }
+
+        function chartMetrics() {
+            const rect = canvas.getBoundingClientRect();
+            const scale = window.devicePixelRatio || 1;
+            canvas.width = Math.round(rect.width * scale);
+            canvas.height = Math.round(rect.height * scale);
+            ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+            const values = [];
+            const skill = currentSkill();
+            for (let bossState = chartMinState; bossState <= chartMaxState; bossState++) {
+                values.push(calcDps(skill, bossState));
+            }
+            if (skill.keys) {
+                skill.keys.forEach(key => values.push(key.dps, key.dps + key.inDps, key.dps + key.outDps));
+            }
+
+            getComparisonEntries().forEach(entry => values.push(entry.dps, entry.minDps ?? entry.dps, entry.maxDps ?? entry.dps));
+
+            const baseMaxDps = Math.max(100, Math.ceil(Math.max(...values) / 100) * 100);
+            const fullStateRange = chartMaxState - chartMinState;
+            const stateRange = Math.min(fullStateRange, fullStateRange / appState.chartZoomState);
+            const dpsRange = baseMaxDps / appState.chartZoomDps;
+            const stateCenter = clamp(chartDefaultStateCenter + appState.chartPanState, chartMinState + stateRange / 2, chartMaxState - stateRange / 2);
+            const dpsCenter = Math.max(dpsRange / 2, baseMaxDps / 2 + appState.chartPanDps);
+            const viewMinState = stateCenter - stateRange / 2;
+            const viewMaxState = stateCenter + stateRange / 2;
+            const viewMinDps = Math.max(0, dpsCenter - dpsRange / 2);
+            const viewMaxDps = viewMinDps + dpsRange;
+            appState.chartPanState = stateCenter - chartDefaultStateCenter;
+            appState.chartPanDps = dpsCenter - baseMaxDps / 2;
+
+            return {
+                width: rect.width,
+                height: rect.height,
+                padding: { left: 64, right: 28, top: 34, bottom: 82 },
+                maxDps: viewMaxDps,
+                viewMinState,
+                viewMaxState,
+                viewMinDps,
+                viewMaxDps,
+                stateRange,
+                dpsRange,
+            };
+        }
+
+        function xOf(metrics, bossState) {
+            return metrics.padding.left + ((bossState - metrics.viewMinState) / metrics.stateRange) * (metrics.width - metrics.padding.left - metrics.padding.right);
+        }
+
+        function yOf(metrics, dps) {
+            return metrics.padding.top + (1 - (dps - metrics.viewMinDps) / metrics.dpsRange) * (metrics.height - metrics.padding.top - metrics.padding.bottom);
+        }
+
+        function bossStateFromX(metrics, x) {
+            return clamp(metrics.viewMinState + ((x - metrics.padding.left) / (metrics.width - metrics.padding.left - metrics.padding.right)) * metrics.stateRange, chartMinState, chartMaxState);
+        }
+
+        function dpsFromY(metrics, y) {
+            return Math.round(Math.max(0, metrics.viewMinDps + clamp(1 - (y - metrics.padding.top) / (metrics.height - metrics.padding.top - metrics.padding.bottom), 0, 1) * metrics.dpsRange));
+        }
+
+        function snappedBossState(value, enabled) {
+            return enabled ? Math.round(value) : value;
+        }
+
+        function snappedDps(value, enabled, step) {
+            return enabled ? Math.round(value / step) * step : value;
+        }
+
+        function chartValueFromMouse(metrics, pos, snap, dpsStep) {
+            return {
+                bossState: snappedBossState(bossStateFromX(metrics, pos.x), snap),
+                dps: snappedDps(dpsFromY(metrics, pos.y), snap, dpsStep),
+            };
+        }
+
+        function dpsPerPixel(metrics) {
+            return metrics.maxDps / (metrics.height - metrics.padding.top - metrics.padding.bottom);
+        }
+
+        function targetValueFromKey(key, type) {
+            if (type === "in") {
+                return { bossState: key.bossState + key.inState, dps: key.dps + key.inDps };
+            }
+            if (type === "out") {
+                return { bossState: key.bossState + key.outState, dps: key.dps + key.outDps };
+            }
+            return { bossState: key.bossState, dps: key.dps };
+        }
+
+        function ctrlValueFromMouse(metrics, pos, movement, dpsStep, key, dragType) {
+            const state = snappedBossState(bossStateFromX(metrics, pos.x), true);
+            if (!appState.dragRawValue || !appState.dragWasCtrl) {
+                appState.dragRawValue = targetValueFromKey(key, dragType);
+            }
+
+            const sensitivity = dpsStep === 1 ? 0.18 : 1;
+            appState.dragRawValue = {
+                bossState: state,
+                dps: Math.max(0, appState.dragRawValue.dps - movement.deltaY * dpsPerPixel(metrics) * sensitivity),
+            };
+
+            return {
+                bossState: state,
+                dps: snappedDps(appState.dragRawValue.dps, true, dpsStep),
+            };
+        }
+
+        function dpsStepFromSpeed(speed) {
+            if (speed < 0.28) {
+                return 1;
+            }
+            if (speed < 1.15) {
+                return 5;
+            }
+            return 100;
+        }
+
+        function updateDragSpeed(event) {
+            const now = performance.now();
+            const mouse = { x: event.clientX, y: event.clientY };
+            if (!appState.dragLastMouse || !appState.dragLastTime) {
+                appState.dragLastMouse = mouse;
+                appState.dragLastTime = now;
+                return { speed: 0, deltaX: 0, deltaY: 0 };
+            }
+
+            const deltaX = mouse.x - appState.dragLastMouse.x;
+            const deltaY = mouse.y - appState.dragLastMouse.y;
+            const distance = Math.hypot(deltaX, deltaY);
+            const elapsed = Math.max(1, now - appState.dragLastTime);
+            appState.dragLastMouse = mouse;
+            appState.dragLastTime = now;
+            return { speed: distance / elapsed, deltaX, deltaY };
+        }
+
+        function showDragTooltip(event, value, dpsStep) {
+            dragTooltip.style.display = "block";
+            dragTooltip.style.left = `${event.clientX + 14}px`;
+            dragTooltip.style.top = `${event.clientY + 14}px`;
+            dragTooltip.innerHTML = `State：${value.bossState.toFixed(0)}<br>DPS：${Math.round(value.dps)}<br>步进：${dpsStep}`;
+        }
+
+        function showCompareTooltip(event, item) {
+            const bossLabel = bossNames[item.bossState] || "";
+            let damageText;
+            let extraText;
+            if (item.mode === "recommendedRange") {
+                damageText = `推荐DPS：${Math.round(item.minDps)}-${Math.round(item.maxDps)}`;
+                extraText = item.note ? `<br>${escapeHtml(item.note)}` : "";
+            }
+            else {
+                const homingLabel = item.homing ? "是" : "否";
+                damageText = item.mode === "aoe"
+                    ? `对单DPS：${Math.round(item.singleDps ?? item.dps)}<br>对群DPS：${Math.round(item.groupDps ?? item.dps)}`
+                    : `DPS：${Math.round(item.dps)}`;
+                const obtainText = item.obtain ? `<br>获得方式：${escapeHtml(item.obtain)}` : "";
+                const progressionText = item.progression ? `<br>流程定位：${escapeHtml(item.progression)}` : "";
+                extraText = `<br>追踪：${homingLabel}${obtainText}${progressionText}${item.note ? `<br>${escapeHtml(item.note)}` : ""}`;
+            }
+            dragTooltip.style.display = "block";
+            dragTooltip.style.left = `${event.clientX + 14}px`;
+            dragTooltip.style.top = `${event.clientY + 14}px`;
+            dragTooltip.innerHTML = `${escapeHtml(item.name)}<br>State：${item.bossState}${bossLabel ? ` / ${escapeHtml(bossLabel)}` : ""}<br>${damageText}${extraText}`;
+        }
+
+        function showCurvePreviewTooltip(event, value) {
+            const bossLabel = bossNames[Math.round(value.bossState)] || "";
+            dragTooltip.style.display = "block";
+            dragTooltip.style.left = `${event.clientX + 14}px`;
+            dragTooltip.style.top = `${event.clientY + 14}px`;
+            dragTooltip.innerHTML = `曲线预览<br>State：${value.bossState.toFixed(2)}${bossLabel ? ` / ${escapeHtml(bossLabel)}` : ""}<br>DPS：${Math.round(value.dps)}`;
+        }
+
+        function clearCurvePreview() {
+            if (!appState.curvePreview) {
+                return false;
+            }
+            appState.curvePreview = null;
+            return true;
+        }
+
+        function hideDragTooltip() {
+            dragTooltip.style.display = "none";
+        }
+
+        function hitTest(pos, draggableOnly = false) {
+            for (let i = appState.hitboxes.length - 1; i >= 0; i--) {
+                const box = appState.hitboxes[i];
+                if (draggableOnly && box.type === "compareBar") {
+                    continue;
+                }
+                if (box.width !== undefined && box.height !== undefined) {
+                    if (pos.x >= box.x && pos.x <= box.x + box.width && pos.y >= box.y && pos.y <= box.y + box.height) {
+                        return box;
+                    }
+                    continue;
+                }
+                if (Math.hypot(box.x - pos.x, box.y - pos.y) <= (box.radius || 12)) {
+                    return box;
+                }
+            }
+            return null;
+        }
+
+        function renderChart() {
+            const metrics = chartMetrics();
+            appState.hitboxes = [];
+            ctx.clearRect(0, 0, metrics.width, metrics.height);
+            drawComparisonBars(metrics);
+            drawGrid(metrics);
+            drawCurves(metrics);
+            drawLegend(metrics);
+            drawCustomEditor(metrics);
+            drawCurvePreview(metrics);
+        }
+
+        function plotBounds(metrics) {
+            return {
+                left: metrics.padding.left,
+                top: metrics.padding.top,
+                right: metrics.width - metrics.padding.right,
+                bottom: metrics.height - metrics.padding.bottom,
+            };
+        }
+
+        function isPointInPlot(metrics, x, y) {
+            const bounds = plotBounds(metrics);
+            return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+        }
+
+        function withPlotClip(metrics, draw) {
+            const bounds = plotBounds(metrics);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+            ctx.clip();
+            draw();
+            ctx.restore();
+        }
+
+        function drawGrid(metrics) {
+            ctx.save();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
+            ctx.fillStyle = "rgba(226, 232, 240, 0.72)";
+            ctx.font = "12px Microsoft YaHei";
+
+            for (let bossState = Math.ceil(metrics.viewMinState); bossState <= Math.floor(metrics.viewMaxState); bossState++) {
+                const x = xOf(metrics, bossState);
+                ctx.beginPath();
+                ctx.moveTo(x, metrics.padding.top);
+                ctx.lineTo(x, metrics.height - metrics.padding.bottom);
+                ctx.stroke();
+                ctx.fillText(String(bossState), x - 4, metrics.height - 34);
+                if (bossState !== 16 && bossNames[bossState]) {
+                    ctx.save();
+                    ctx.translate(x - 5, metrics.height - 14);
+                    ctx.rotate(-Math.PI / 5);
+                    ctx.fillText(bossNames[bossState], 0, 0);
+                    ctx.restore();
+                }
+            }
+
+            for (let i = 0; i <= 5; i++) {
+                const dps = Math.round(metrics.viewMinDps + (metrics.dpsRange / 5) * i);
+                const y = yOf(metrics, dps);
+                ctx.beginPath();
+                ctx.moveTo(metrics.padding.left, y);
+                ctx.lineTo(metrics.width - metrics.padding.right, y);
+                ctx.stroke();
+                ctx.fillText(String(dps), 16, y + 4);
+            }
+
+            ctx.fillStyle = "#e2e8f0";
+            ctx.font = "bold 14px Microsoft YaHei";
+            ctx.fillText("DPS", 16, 26);
+            ctx.fillText("State", metrics.width - 78, metrics.height - 16);
+            ctx.restore();
+        }
+
+        function drawCurves(metrics) {
+            withPlotClip(metrics, () => {
+                const skill = currentSkill();
+                const index = appState.selectedSkill;
+                ctx.save();
+                ctx.strokeStyle = colors[index % colors.length];
+                ctx.lineWidth = 4;
+                ctx.globalAlpha = 1;
+                ctx.beginPath();
+                for (let sample = 0; sample <= 300; sample++) {
+                    const bossState = metrics.viewMinState + (sample / 300) * metrics.stateRange;
+                    const x = xOf(metrics, bossState);
+                    const y = yOf(metrics, calcDps(skill, bossState));
+                    if (sample === 0) {
+                        ctx.moveTo(x, y);
+                    }
+                    else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+
+        function drawComparisonBars(metrics) {
+            const mode = compareModes[appState.compareMode];
+            const entries = getComparisonEntries();
+            if (!mode || appState.compareMode === "none" || entries.length === 0) {
+                return;
+            }
+
+            const groups = new Map();
+            entries.forEach(entry => {
+                if (!groups.has(entry.bossState)) {
+                    groups.set(entry.bossState, []);
+                }
+                groups.get(entry.bossState).push(entry);
+            });
+
+            const stateWidth = (metrics.width - metrics.padding.left - metrics.padding.right) / metrics.stateRange;
+            const bounds = plotBounds(metrics);
+            const baseY = bounds.bottom;
+            ctx.save();
+
+            withPlotClip(metrics, () => {
+                [...groups.entries()].sort((a, b) => a[0] - b[0]).forEach(([bossState, items]) => {
+                    const maxClusterWidth = stateWidth * 0.9;
+                    const zoomWidthScale = Math.max(0.45, Math.min(3.2, stateWidth / 58));
+                    const preferredBarWidth = (appState.compareMode === "aoe" ? 22 : 14) * zoomWidthScale;
+                    const minBarWidth = (appState.compareMode === "aoe" ? 8 : 4) * zoomWidthScale;
+                    const gap = items.length > 1 ? Math.min(10 * zoomWidthScale, Math.max(2, stateWidth * 0.06)) : 0;
+                    const totalGap = gap * Math.max(0, items.length - 1);
+                    const preferredClusterWidth = items.length * preferredBarWidth + totalGap;
+                    const clusterWidth = Math.max(items.length * minBarWidth + totalGap, Math.min(maxClusterWidth, preferredClusterWidth));
+                    const barWidth = Math.max(minBarWidth, (clusterWidth - totalGap) / items.length);
+                    const totalWidth = barWidth * items.length + totalGap;
+                    const centerX = xOf(metrics, bossState);
+                    if (centerX + totalWidth / 2 < bounds.left || centerX - totalWidth / 2 > bounds.right) {
+                        return;
+                    }
+                    const startX = clamp(centerX - totalWidth / 2, bounds.left, Math.max(bounds.left, bounds.right - totalWidth));
+
+                    items.forEach((item, index) => {
+                        const left = startX + index * (barWidth + gap);
+                        const style = item.homing ? homingCompareStyle : mode;
+                        if (item.mode === "recommendedRange") {
+                            drawCompareRange(item, left, barWidth, style);
+                        }
+                        else if (item.mode === "aoe") {
+                            const innerGap = Math.min(5, Math.max(3, barWidth * 0.18));
+                            const subWidth = Math.max(6, (barWidth - innerGap) / 2);
+                            drawCompareBar(item, left, subWidth, item.singleDps ?? item.dps, style, true);
+                            drawCompareBar(item, left + subWidth + innerGap, subWidth, item.groupDps ?? item.dps, style, false);
+                        }
+                        else {
+                            drawCompareBar(item, left, barWidth, item.dps, style, false);
+                        }
+                    });
+                });
+            });
+
+            ctx.restore();
+
+            function drawCompareBar(item, left, width, dps, style, secondary) {
+                const top = Math.max(bounds.top, yOf(metrics, dps));
+                const height = Math.max(1, baseY - top);
+                ctx.fillStyle = secondary ? style.stroke : style.fill;
+                ctx.strokeStyle = style.stroke;
+                ctx.globalAlpha = secondary ? 0.62 : 1;
+                ctx.lineWidth = secondary ? 1.5 : 1;
+                ctx.fillRect(left, top, width, height);
+                ctx.strokeRect(left + 0.5, top + 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
+                ctx.globalAlpha = 1;
+                if (left + width >= bounds.left && left <= bounds.right) {
+                    appState.hitboxes.push({
+                        type: "compareBar",
+                        x: Math.max(bounds.left, left),
+                        y: top,
+                        width: Math.min(bounds.right, left + width) - Math.max(bounds.left, left),
+                        height,
+                        item,
+                    });
+                }
+            }
+
+            function drawCompareRange(item, left, width, style) {
+                const top = Math.max(bounds.top, yOf(metrics, item.maxDps));
+                const bottom = Math.min(bounds.bottom, yOf(metrics, item.minDps));
+                const height = Math.max(2, bottom - top);
+                ctx.fillStyle = style.fill;
+                ctx.strokeStyle = style.stroke;
+                ctx.globalAlpha = 1;
+                ctx.lineWidth = 1.5;
+                ctx.fillRect(left, top, width, height);
+                ctx.strokeRect(left + 0.5, top + 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
+                if (left + width >= bounds.left && left <= bounds.right) {
+                    appState.hitboxes.push({
+                        type: "compareBar",
+                        x: Math.max(bounds.left, left),
+                        y: top,
+                        width: Math.min(bounds.right, left + width) - Math.max(bounds.left, left),
+                        height,
+                        item,
+                    });
+                }
+            }
+        }
+
+        function drawLegend(metrics) {
+            ctx.save();
+            ctx.font = "13px Microsoft YaHei";
+            const selectedSkill = currentSkill();
+            const selectedIndex = appState.selectedSkill;
+            const x = metrics.padding.left + 10;
+            const y = metrics.padding.top + 18;
+            ctx.fillStyle = colors[selectedIndex % colors.length];
+            ctx.fillRect(x, y - 10, 22, 4);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(selectedSkill.name, x + 32, y - 4);
+
+            if (appState.compareMode !== "none") {
+                const mode = compareModes[appState.compareMode];
+                const y = metrics.padding.top + 40;
+                ctx.fillStyle = mode.legend;
+                ctx.fillRect(x, y - 11, 22, 10);
+                ctx.fillStyle = "rgba(226, 232, 240, 0.85)";
+                ctx.fillText(`背景对比：${mode.label}`, x + 32, y - 2);
+
+                if (appState.compareMode !== "recommendedRange") {
+                    ctx.fillStyle = homingCompareStyle.legend;
+                    ctx.fillRect(x, y + 11, 22, 10);
+                    ctx.fillStyle = "rgba(226, 232, 240, 0.85)";
+                    ctx.fillText("追踪武器", x + 32, y + 20);
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawCurvePreview(metrics) {
+            if (!appState.curvePreview) {
+                return;
+            }
+
+            const bounds = plotBounds(metrics);
+            const value = appState.curvePreview;
+            const x = xOf(metrics, value.bossState);
+            const y = yOf(metrics, value.dps);
+            if (x < bounds.left || x > bounds.right) {
+                return;
+            }
+
+            ctx.save();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
+            ctx.fillStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 5]);
+            ctx.beginPath();
+            ctx.moveTo(x, bounds.top);
+            ctx.lineTo(x, bounds.bottom);
+            ctx.stroke();
+            if (y >= bounds.top && y <= bounds.bottom) {
+                ctx.setLineDash([]);
+                ctx.shadowColor = "rgba(255, 255, 255, 0.8)";
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(x, y, 7, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#0f172a";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawCustomEditor(metrics) {
+            const skill = currentSkill();
+            if (skill.curve !== "CustomBezier") {
+                return;
+            }
+
+            ensureCustomKeys(skill);
+            const keys = skill.keys;
+            ctx.save();
+
+            withPlotClip(metrics, () => {
+                keys.forEach((key, index) => {
+                    const x = xOf(metrics, key.bossState);
+                    const y = yOf(metrics, key.dps);
+                    const isSelectedKey = index === appState.selectedKey;
+
+                    if (isSelectedKey && index > 0) {
+                        const hx = xOf(metrics, key.bossState + key.inState);
+                        const hy = yOf(metrics, key.dps + key.inDps);
+                        drawTangentLine(x, y, hx, hy, "#ffd400");
+                        drawHandle(hx, hy, "in", index);
+                    }
+
+                    if (isSelectedKey && index < keys.length - 1) {
+                        const hx = xOf(metrics, key.bossState + key.outState);
+                        const hy = yOf(metrics, key.dps + key.outDps);
+                        drawTangentLine(x, y, hx, hy, "#00f5ff");
+                        drawHandle(hx, hy, "out", index);
+                    }
+
+                    drawPoint(x, y, index);
+                });
+            });
+
+            ctx.restore();
+
+            function drawTangentLine(x, y, hx, hy, color) {
+                ctx.save();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([7, 5]);
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(hx, hy);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function drawPoint(x, y, index) {
+                if (!isPointInPlot(metrics, x, y)) {
+                    return;
+                }
+                appState.hitboxes.push({ type: "key", index, x, y, radius: 12 });
+                ctx.fillStyle = index === appState.selectedKey ? "#ffffff" : "#cbd5e1";
+                ctx.strokeStyle = "#0f172a";
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "12px Microsoft YaHei";
+                ctx.fillText(`${keys[index].bossState.toFixed(1)} / ${Math.round(keys[index].dps)}`, x + 10, y - 10);
+            }
+
+            function drawHandle(x, y, side, index) {
+                if (!isPointInPlot(metrics, x, y)) {
+                    return;
+                }
+                appState.hitboxes.push({ type: side, index, x, y, radius: 12 });
+                const size = 14;
+                const half = size / 2;
+                ctx.fillStyle = "#020617";
+                ctx.fillRect(x - half - 2, y - half - 2, size + 4, size + 4);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(x - half - 1, y - half - 1, size + 2, size + 2);
+                ctx.fillStyle = side === "in" ? "#facc15" : "#22d3ee";
+                ctx.fillRect(x - half, y - half, size, size);
+            }
+        }
+
+        function render() {
+            renderSkillList();
+            renderTable();
+            renderComparisonSummary();
+            renderChart();
+        }
+
+        function exportJson() {
+            ioText.value = JSON.stringify(appState.skills, null, 4);
+            setStatus("已导出 JSON");
+        }
+
+        async function saveJsonFile() {
+            const json = JSON.stringify(appState.skills, null, 4);
+            ioText.value = json;
+            const fileName = `skill-curves-${new Date().toISOString().slice(0, 10)}.json`;
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: fileName,
+                        types: [{
+                            description: "JSON 配置文件",
+                            accept: { "application/json": [".json"] },
+                        }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(json);
+                    await writable.close();
+                    setStatus("已保存 JSON 文件");
+                    return;
+                }
+                catch (error) {
+                    if (error.name === "AbortError") {
+                        setStatus("已取消保存 JSON 文件", true);
+                        return;
+                    }
+                }
+            }
+
+            const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            setStatus("已下载 JSON 文件");
+        }
+
+        function openJsonFile() {
+            jsonFileInput.value = "";
+            jsonFileInput.click();
+        }
+
+        async function importLocalJsonFile(event) {
+            const file = event.target.files?.[0];
+            if (!file) {
+                return;
+            }
+
+            try {
+                ioText.value = await file.text();
+                importJson();
+                setStatus(`已读取本地文件：${file.name}`);
+            }
+            catch (error) {
+                setStatus(`读取失败：${error.message}`, true);
+            }
+        }
+
+        function exportCsv() {
+            const rows = [["State", "Boss", ...appState.skills.map(skill => skill.name)]];
+            for (let bossState = chartMinState; bossState <= chartMaxState; bossState++) {
+                rows.push([bossState, bossNames[bossState], ...appState.skills.map(skill => calcDps(skill, bossState))]);
+            }
+            ioText.value = rows.map(row => row.map(csvCell).join(",")).join("\n");
+            setStatus("已导出 CSV");
+        }
+
+        function exportCs() {
+            const lines = [
+                "public enum SkillCurveType",
+                "{",
+                "    Linear,",
+                "    SmoothStep,",
+                "    CustomBezier,",
+                "}",
+                "",
+                "public readonly record struct SkillCurveKey(float State, float Dps, float InState, float InDps, float OutState, float OutDps);",
+                "public readonly record struct SkillDpsCurve(string Name, SkillCurveType Curve, float State0, float State18, SkillCurveKey[] Keys);",
+                "",
+                "public static readonly SkillDpsCurve[] SkillDpsCurves =",
+                "[",
+            ];
+
+            appState.skills.forEach(skill => {
+                const keys = (skill.keys || []).map(key => `new(${formatNumber(key.bossState)}f, ${formatNumber(key.dps)}f, ${formatNumber(key.inState)}f, ${formatNumber(key.inDps)}f, ${formatNumber(key.outState)}f, ${formatNumber(key.outDps)}f)`).join(", ");
+                lines.push(`    new("${escapeCs(skill.name)}", SkillCurveType.${skill.curve}, ${formatNumber(skill.s1)}f, ${formatNumber(skill.s18)}f, [${keys}]),`);
+            });
+            lines.push("]; ");
+
+            ioText.value = lines.join("\n");
+            navigator.clipboard?.writeText(ioText.value);
+            setStatus("已生成 C# 配置，并尝试复制到剪贴板");
+        }
+
+        function importJson() {
+            try {
+                const parsed = JSON.parse(ioText.value);
+                if (!Array.isArray(parsed)) {
+                    throw new Error("根节点必须是数组");
+                }
+                appState.skills = normalizeSkills(parsed);
+                appState.selectedSkill = 0;
+                appState.selectedKey = -1;
+                syncInputsFromSkill();
+                render();
+                setStatus("导入成功");
+            }
+            catch (error) {
+                setStatus(`导入失败：${error.message}`, true);
+            }
+        }
+
+        function addKeyAt(bossState, dps) {
+            const skill = currentSkill();
+            skill.curve = "CustomBezier";
+            ensureCustomKeys(skill);
+            const clampedBossState = clamp(bossState, chartMinState, chartMaxState);
+            skill.keys.push(makeKey(clampedBossState, Math.max(0, dps), -1, 0, 1, 0));
+            normalizeKeyOrder(skill);
+            appState.selectedKey = skill.keys.findIndex(key => Math.abs(key.bossState - clampedBossState) < 0.01);
+            syncInputsFromSkill();
+            render();
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"]/g, char => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                "\"": "&quot;",
+            })[char]);
+        }
+
+        function csvCell(value) {
+            const text = String(value);
+            return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+        }
+
+        function escapeCs(value) {
+            return String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+        }
+
+        function formatNumber(value) {
+            const text = Number(value).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+            return text.includes(".") ? text : `${text}.0`;
+        }
+
+        function setStatus(text, isError = false) {
+            statusEl.textContent = text;
+            statusEl.style.color = isError ? "var(--danger)" : "var(--ok)";
+        }
+
+        function zoomAxis(axis, direction) {
+            const factor = direction > 0 ? 1.18 : 1 / 1.18;
+            if (axis === "x") {
+                appState.chartZoomState = clamp(appState.chartZoomState * factor, 0.2, 8);
+            }
+            else {
+                appState.chartZoomDps = clamp(appState.chartZoomDps * factor, 0.2, 8);
+            }
+            renderChart();
+            setStatus(`图表倍率：X ${appState.chartZoomState.toFixed(2)}x / Y ${appState.chartZoomDps.toFixed(2)}x`);
+        }
+
+        function mousePosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
+            };
+        }
+
+        Object.values(inputs).forEach(input => {
+            input.addEventListener("input", syncSkillFromInputs);
+            input.addEventListener("change", syncSkillFromInputs);
+        });
+
+        canvas.addEventListener("mousedown", event => {
+            const pos = mousePosition(event);
+            const hit = hitTest(pos, true);
+            if (hit) {
+                const metrics = chartMetrics();
+                const skill = currentSkill();
+                const key = skill.keys[hit.index];
+                const mouseValue = chartValueFromMouse(metrics, pos, false, 1);
+                let targetValue = { bossState: key.bossState, dps: key.dps };
+                if (hit.type === "in") {
+                    targetValue = { bossState: key.bossState + key.inState, dps: key.dps + key.inDps };
+                }
+                else if (hit.type === "out") {
+                    targetValue = { bossState: key.bossState + key.outState, dps: key.dps + key.outDps };
+                }
+
+                appState.dragTarget = hit;
+                appState.dragLastMouse = { x: event.clientX, y: event.clientY };
+                appState.dragLastTime = performance.now();
+                appState.dragStartMouseValue = mouseValue;
+                appState.dragStartValue = targetValue;
+                appState.dragRawValue = targetValue;
+                appState.dragWasCtrl = event.ctrlKey;
+                appState.dragMetrics = metrics;
+                appState.selectedKey = hit.index;
+                canvas.style.cursor = "grabbing";
+                render();
+                return;
+            }
+
+            const metrics = chartMetrics();
+            appState.selectedKey = -1;
+            renderChart();
+            appState.chartPanning = {
+                mouseX: event.clientX,
+                mouseY: event.clientY,
+                panState: appState.chartPanState,
+                panDps: appState.chartPanDps,
+                statePerPixel: metrics.stateRange / (metrics.width - metrics.padding.left - metrics.padding.right),
+                dpsPerPixel: metrics.dpsRange / (metrics.height - metrics.padding.top - metrics.padding.bottom),
+            };
+            canvas.style.cursor = "grabbing";
+        });
+
+        canvas.addEventListener("dblclick", event => {
+            const skill = currentSkill();
+            if (skill.curve !== "CustomBezier") {
+                return;
+            }
+            const pos = mousePosition(event);
+            const metrics = chartMetrics();
+            addKeyAt(bossStateFromX(metrics, pos.x), dpsFromY(metrics, pos.y));
+        });
+
+        window.addEventListener("mousemove", event => {
+            if (appState.chartPanning) {
+                const offsetX = event.clientX - appState.chartPanning.mouseX;
+                const offsetY = event.clientY - appState.chartPanning.mouseY;
+                appState.chartPanState = appState.chartPanning.panState - offsetX * appState.chartPanning.statePerPixel;
+                appState.chartPanDps = appState.chartPanning.panDps + offsetY * appState.chartPanning.dpsPerPixel;
+                hideDragTooltip();
+                canvas.style.cursor = "grabbing";
+                renderChart();
+                return;
+            }
+
+            if (!appState.dragTarget) {
+                const pos = mousePosition(event);
+                if (event.shiftKey) {
+                    const metrics = chartMetrics();
+                    if (isPointInPlot(metrics, pos.x, pos.y)) {
+                        const bossState = bossStateFromX(metrics, pos.x);
+                        const dps = calcDps(currentSkill(), bossState);
+                        appState.curvePreview = { bossState, dps };
+                        showCurvePreviewTooltip(event, appState.curvePreview);
+                        canvas.style.cursor = "crosshair";
+                        renderChart();
+                        return;
+                    }
+                }
+
+                const clearedPreview = clearCurvePreview();
+                const hit = hitTest(pos, false);
+                if (hit?.type === "compareBar") {
+                    showCompareTooltip(event, hit.item);
+                    canvas.style.cursor = "pointer";
+                }
+                else {
+                    hideDragTooltip();
+                    canvas.style.cursor = hit ? "grab" : "move";
+                }
+                if (clearedPreview) {
+                    renderChart();
+                }
+                return;
+            }
+
+            const pos = mousePosition(event);
+            const metrics = appState.dragMetrics || chartMetrics();
+            const skill = currentSkill();
+            const key = skill.keys[appState.dragTarget.index];
+            const movement = updateDragSpeed(event);
+            const dpsStep = dpsStepFromSpeed(movement.speed);
+            const mouseValue = event.ctrlKey
+                ? ctrlValueFromMouse(metrics, pos, movement, dpsStep, key, appState.dragTarget.type)
+                : chartValueFromMouse(metrics, pos, false, dpsStep);
+            appState.dragWasCtrl = event.ctrlKey;
+            let displayValue = mouseValue;
+
+            if (appState.dragTarget.type === "key") {
+                key.bossState = appState.dragTarget.index === 0 ? chartMinState : appState.dragTarget.index === skill.keys.length - 1 ? chartMaxState : mouseValue.bossState;
+                key.dps = editableDps(mouseValue.dps);
+                displayValue = { bossState: key.bossState, dps: key.dps };
+            }
+            else if (appState.dragTarget.type === "in") {
+                key.inState = mouseValue.bossState - key.bossState;
+                key.inDps = editableDps(mouseValue.dps) - key.dps;
+                displayValue = { bossState: key.bossState + key.inState, dps: key.dps + key.inDps };
+            }
+            else if (appState.dragTarget.type === "out") {
+                key.outState = mouseValue.bossState - key.bossState;
+                key.outDps = editableDps(mouseValue.dps) - key.dps;
+                displayValue = { bossState: key.bossState + key.outState, dps: key.dps + key.outDps };
+            }
+
+            normalizeKeyOrder(skill);
+            if (event.ctrlKey) {
+                showDragTooltip(event, displayValue, dpsStep);
+            }
+            else {
+                hideDragTooltip();
+            }
+            render();
+        });
+
+        canvas.addEventListener("mouseleave", () => {
+            const clearedPreview = clearCurvePreview();
+            if (!appState.dragTarget) {
+                hideDragTooltip();
+                canvas.style.cursor = "crosshair";
+            }
+            if (clearedPreview) {
+                renderChart();
+            }
+        });
+
+        canvas.addEventListener("wheel", event => {
+            event.preventDefault();
+            const metrics = chartMetrics();
+            const pos = mousePosition(event);
+            const anchorState = bossStateFromX(metrics, pos.x);
+            const anchorDps = dpsFromY(metrics, pos.y);
+            const stateRatio = clamp((anchorState - metrics.viewMinState) / metrics.stateRange, 0, 1);
+            const dpsRatio = clamp((anchorDps - metrics.viewMinDps) / metrics.dpsRange, 0, 1);
+            const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+            appState.chartZoomState = clamp(appState.chartZoomState * factor, 0.2, 8);
+            appState.chartZoomDps = clamp(appState.chartZoomDps * factor, 0.2, 8);
+
+            const nextMetrics = chartMetrics();
+            const nextStateCenter = anchorState + nextMetrics.stateRange * (0.5 - stateRatio);
+            const nextDpsCenter = anchorDps + nextMetrics.dpsRange * (0.5 - dpsRatio);
+            appState.chartPanState = nextStateCenter - chartDefaultStateCenter;
+            appState.chartPanDps += nextDpsCenter - ((nextMetrics.viewMinDps + nextMetrics.viewMaxDps) / 2);
+            renderChart();
+            setStatus(`图表倍率：X ${appState.chartZoomState.toFixed(2)}x / Y ${appState.chartZoomDps.toFixed(2)}x`);
+        }, { passive: false });
+
+        window.addEventListener("mouseup", () => {
+            const clearedPreview = clearCurvePreview();
+            appState.dragTarget = null;
+            appState.dragLastMouse = null;
+            appState.dragLastTime = 0;
+            appState.dragStartMouseValue = null;
+            appState.dragStartValue = null;
+            appState.dragRawValue = null;
+            appState.dragWasCtrl = false;
+            appState.dragMetrics = null;
+            appState.chartPanning = null;
+            hideDragTooltip();
+            canvas.style.cursor = "move";
+            if (clearedPreview) {
+                renderChart();
+            }
+        });
+
+        window.addEventListener("resize", renderChart);
+
+        document.getElementById("addSkillBtn").addEventListener("click", () => {
+            appState.skills.push({
+                name: "新技能",
+                curve: "CustomBezier",
+                s1: 50,
+                s18: 400,
+                note: "",
+                keys: [makeKey(0, 50, 0, 0, 4, 80), makeKey(18, 400, -4, -80, 0, 0)],
+            });
+            appState.selectedSkill = appState.skills.length - 1;
+            appState.selectedKey = -1;
+            syncInputsFromSkill();
+            render();
+        });
+
+        document.getElementById("deleteSkillBtn").addEventListener("click", () => {
+            if (appState.skills.length <= 1) {
+                setStatus("至少保留一个技能", true);
+                return;
+            }
+            appState.skills.splice(appState.selectedSkill, 1);
+            appState.selectedSkill = clamp(appState.selectedSkill, 0, appState.skills.length - 1);
+            appState.selectedKey = -1;
+            syncInputsFromSkill();
+            render();
+        });
+
+        document.getElementById("zoomXInBtn").addEventListener("click", () => {
+            zoomAxis("x", 1);
+        });
+
+        document.getElementById("zoomXOutBtn").addEventListener("click", () => {
+            zoomAxis("x", -1);
+        });
+
+        document.getElementById("zoomYInBtn").addEventListener("click", () => {
+            zoomAxis("y", 1);
+        });
+
+        document.getElementById("zoomYOutBtn").addEventListener("click", () => {
+            zoomAxis("y", -1);
+        });
+
+        document.getElementById("resetBtn").addEventListener("click", () => {
+            appState.skills = structuredClone(defaultSkills);
+            appState.selectedSkill = 0;
+            appState.selectedKey = -1;
+            syncInputsFromSkill();
+            render();
+            setStatus("已重置示例数据");
+        });
+
+        document.getElementById("saveBtn").addEventListener("click", () => {
+            localStorage.setItem(storageKey, JSON.stringify(appState.skills));
+            localStorage.setItem(compareModeStorageKey, appState.compareMode);
+            setStatus("已保存到浏览器本地存储");
+        });
+
+        document.getElementById("addKeyBtn").addEventListener("click", () => {
+            addKeyAt(9, calcDps(currentSkill(), 9));
+        });
+
+        document.getElementById("deleteKeyBtn").addEventListener("click", () => {
+            const skill = currentSkill();
+            if (skill.curve !== "CustomBezier") {
+                return;
+            }
+            ensureCustomKeys(skill);
+            if (appState.selectedKey < 0 || appState.selectedKey >= skill.keys.length) {
+                setStatus("请先选择要删除的关键帧", true);
+                return;
+            }
+            if (skill.keys.length <= 2) {
+                setStatus("至少保留两个关键帧", true);
+                return;
+            }
+            if (appState.selectedKey === 0 || appState.selectedKey === skill.keys.length - 1) {
+                setStatus("首尾关键帧不能删除", true);
+                return;
+            }
+            skill.keys.splice(appState.selectedKey, 1);
+            appState.selectedKey = -1;
+            render();
+        });
+
+        document.getElementById("convertCustomBtn").addEventListener("click", () => {
+            const skill = currentSkill();
+            ensureCustomKeys(skill);
+            skill.curve = "CustomBezier";
+            syncInputsFromSkill();
+            render();
+            setStatus("已转为自定义曲线");
+        });
+
+        compareModeSelect.addEventListener("change", () => {
+            appState.compareMode = compareModeSelect.value;
+            localStorage.setItem(compareModeStorageKey, appState.compareMode);
+            render();
+            setStatus(`已切换背景对比：${compareModes[appState.compareMode].label}`);
+        });
+
+        document.getElementById("exportJsonBtn").addEventListener("click", exportJson);
+        document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+        document.getElementById("copyCsBtn").addEventListener("click", exportCs);
+        document.getElementById("importBtn").addEventListener("click", importJson);
+        document.getElementById("saveJsonFileBtn").addEventListener("click", saveJsonFile);
+        document.getElementById("openJsonFileBtn").addEventListener("click", openJsonFile);
+        jsonFileInput.addEventListener("change", importLocalJsonFile);
+
+        syncInputsFromSkill();
+        render();
+    </script>
+</body>
+</html>

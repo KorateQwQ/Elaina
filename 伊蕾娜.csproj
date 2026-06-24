@@ -1,0 +1,31 @@
+
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\tModLoader.targets" />
+  <PropertyGroup>
+    <AssemblyName>伊蕾娜</AssemblyName>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="projectiles\effects\content\tail3.fx" />
+    <None Remove="ReProjs\MissileSpawner.png" />
+    <None Remove="ReProjs\wand.png" />
+    <None Remove="ReProjs\WandGlitter.png" />
+    <None Remove="技能ui\RoundWheel.fx" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="lib\" />
+    <Folder Include="Projectiles\新文件夹1\" />
+    <Folder Include="Projectiles\新文件夹\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Homura">
+      <HintPath>..\Homura\bin\Debug\net8.0\Homura.dll</HintPath>
+    </Reference>
+    <Reference Include="SilkyUIFramework">
+      <HintPath>..\SilkyUIFramework\bin\Debug\net8.0\SilkyUIFramework.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\KL\KL.csproj" />
+  </ItemGroup>
+</Project>
