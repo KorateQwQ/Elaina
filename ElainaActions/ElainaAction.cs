@@ -1,11 +1,8 @@
 using System;
 using KL.ActionsSystem;
-using KL.Drawing;
 using KL.Extensions;
-using KL.Utils;
 using Terraria.DataStructures;
 using 伊蕾娜.Managers;
-using DrawHelper = KL.Drawing.DrawHelper;
 
 namespace 伊蕾娜.ElainaActions;
 
@@ -30,26 +27,20 @@ public abstract class ElainaAction :AnimAction
     }
 
     
-    protected virtual Color StarColor => new Color(255, 160, 239,0);
-    
     protected virtual bool DrawWandTrail => true;
 
+    protected virtual bool DrawActionStar => true;
+
     protected virtual int WandTrailLength => 30;
-
-    protected float WandTrailMaxWidth => 5f;
-
-    protected float WandTrailEndWidth => 0f;
 
     private Vector2[] wandTrailPositions = Array.Empty<Vector2>();
 
     private int wandTrailPointCount;
 
-    protected static Texture2D trailTex; 
     protected static Texture2D wandTex; 
 
     protected ElainaAction(int totalFrame) : base(totalFrame)
     {
-        trailTex ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/LightTrail", AssetRequestMode.ImmediateLoad).Value;
         wandTex ??= ModContent.Request<Texture2D>("伊蕾娜/Items/魔杖", AssetRequestMode.ImmediateLoad).Value;
     }
 
@@ -79,9 +70,16 @@ public abstract class ElainaAction :AnimAction
         }
         if(drawLayerType==ActionDrawLayerType.OverPlayer)
         {
+            base.Draw(actionPlayer, ref drawInfo, actionFrame, actionProgress, drawLayerType);
             DrawAutoWandTrail(actionProgress);
-            DrawStar(ref drawInfo,actionProgress);
-            EndBeginDraw(0,1);
+            if (DrawActionStar)
+            {
+                DrawStar(ref drawInfo,actionProgress);
+            }
+            if (DrawWandTrail || DrawActionStar)
+            {
+                EndBeginDraw(0,1);
+            }
 
             return;
         }
@@ -163,14 +161,10 @@ public abstract class ElainaAction :AnimAction
             return;
         }
 
-        float totalAlpha = 1f;
-        if(actionProgress<0.2f) totalAlpha = KLMathF.ClampLerp(0f, 1f, actionProgress / 0.2f);
-        if(actionProgress>0.8f) totalAlpha = KLMathF.ClampLerp(1f, 0f, (actionProgress - 0.8f) / 0.2f);
-
         Vector2[] trailPositions = new Vector2[wandTrailPointCount];
         Array.Copy(wandTrailPositions, trailPositions, wandTrailPointCount);
 
-        TrailEffect(trailTex, trailPositions, StarColor * totalAlpha, StarColor * 0f, WandTrailMaxWidth, WandTrailEndWidth);
+        ElainaTrailVisualStyle.DrawWandTrail(trailPositions, actionProgress);
     }
 
     void SyncItemRotationToArmRotation()
@@ -186,93 +180,13 @@ public abstract class ElainaAction :AnimAction
         //if(towardToMouse) player.direction = toward.X < 0 ? -1 : 1;//玩家朝向根据鼠标
 
         toward.SafeNormalize(Vector2.One);
-        Vector2 itemOffset = GetPlayerLocalDrawOffset(new Vector2(-2, -2));
+        Vector2 itemOffset = new Vector2(-2, -2 * owner.gravDir);
         owner.itemLocation = owner.MountedCenter + itemOffset + ArmDrawingFixer.GetFrontArmTotalOffset(owner) + toward * 7 * owner.direction;
         owner.itemRotation = toward.ToRotation();//武器朝向
     }
  
-    protected Vector2 GetPlayerLocalDrawOffset(Vector2 offset)
-    {
-        if (owner.gravDir == -1f)
-        {
-            offset.Y *= -1f;
-        }
-
-        return offset;
-    }
-
-
     protected virtual void DrawStar(ref PlayerDrawSet drawInfo,float actionProgress)
     {
-        float totalAlpha = 1;
-        if(actionProgress<0.2f) totalAlpha = KLMathF.ClampLerp(0f, 1f, actionProgress / 0.2f);
-        if(actionProgress>0.8f) totalAlpha = KLMathF.ClampLerp(1f, 0f, (actionProgress - 0.8f) / 0.2f);
-
-        Texture2D Line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D subCircle = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/HShotA", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D Cross = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/T_StartFlare001", AssetRequestMode.ImmediateLoad).Value;
-
-        float blinkAlpha = PingPongWave(0.5f, 1f, 60f, Main.timeForVisualEffects,PingPongWaveType.SmoothStep);
-        
-        
-        drawInfo.DrawDataCache.Add(new DrawData(
-            Cross,
-            StarCenter.Floor()-Main.screenPosition,
-            null,
-            new Color(255,100,255,0)*totalAlpha * blinkAlpha,
-            0,
-            Cross.Origin(),
-            new Vector2(0.05f,0.03f),
-            SpriteEffects.None,
-            0)
-        {
-            ignorePlayerRotation = true
-        }); 
-        
-        drawInfo.DrawDataCache.Add(new DrawData(
-            Line,
-            StarCenter.Floor()-Main.screenPosition,
-            null,
-            new Color(255,100,255,0)*totalAlpha * blinkAlpha*0.5f,
-            0,
-            Line.Origin(),
-            new Vector2(0.2f,0.2f),
-            SpriteEffects.None,
-            0)
-        {
-            ignorePlayerRotation = true
-        });
-        
-        drawInfo.DrawDataCache.Add(new DrawData(
-            Line,
-            StarCenter.Floor()-Main.screenPosition,
-            null,
-            new Color(255,100,255,0)*totalAlpha * blinkAlpha*0.5f,
-            3.14f/2f,
-            Line.Origin(),
-            new Vector2(0.1f,0.2f),
-            SpriteEffects.None,
-            0)
-        {
-            ignorePlayerRotation = true
-        });
-        
-        //debug鼠标位置
-        /*drawInfo.DrawDataCache.Add(new DrawData(
-            Cross,
-            ArmCenter(ref drawInfo).Floor()-Main.screenPosition,
-            null,
-            Color.White,
-            0,
-            Cross.Origin(),
-            new Vector2(0.05f,0.03f),
-            SpriteEffects.None,
-            0)
-        {
-            ignorePlayerRotation = true
-        });*/
-        
-        //DrawInWorld(Cross, StarCenter, new Color(255,100,255,0)*totalAlpha, new Vector2(0.05f,0.03f));
-
+        ElainaTrailVisualStyle.DrawDefaultStar(ref drawInfo, StarCenter.Floor(), actionProgress);
     }
 }

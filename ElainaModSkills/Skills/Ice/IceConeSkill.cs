@@ -40,20 +40,19 @@ public class IceConeSkill : ElainaSkill
     public override bool PreUseSkill(IEntitySource source = null)
     {
         Player localPlayer = Main.LocalPlayer;
-        ShootIceCone3D(localPlayer, Main.MouseScreen);
+        ShootIceCone3D(localPlayer, Main.MouseWorld);
         //ShootIceCone(localPlayer, Main.MouseWorld);
 
         return false;
     }
     
 
-    public void ShootIceCone3D(Player player, Vector2 targetScreenPosition, bool spawnFromOutsideScreen = true)
+    public void ShootIceCone3D(Player player, Vector2 targetWorldPosition, bool spawnFromOutsideScreen = true)
     {
-        Vector2 targetWorldPosition = GetTargetWorldPosition(targetScreenPosition);
         Vector2 aimDirection = (targetWorldPosition - player.MountedCenter).SafeNormalize(Vector2.UnitX * (player.direction == 0 ? 1 : player.direction));
         List<IceConeSpawnData> spawnData = BuildIceCone3DSpawnData(targetWorldPosition, 500f);
 
-        AnimAction animAction = new Action_SimpleSlash();
+        AnimAction animAction = new Action_Cast();
         foreach (IceConeSpawnData spawnDataEntry in spawnData)
         {
             IceConeSpawnData cachedSpawnData = spawnDataEntry;
@@ -125,10 +124,13 @@ public class IceConeSkill : ElainaSkill
             return;
         }
 
+        Vector2 shootVelocity = (targetWorldPosition - spawnData.SpawnWorldPosition)
+            .SafeNormalize(Vector2.UnitX * player.direction) * GetIceCone3DSpeed();
+
         int projectileIndex = Projectile.NewProjectile(
             player.GetSource_FromThis(),
             spawnData.SpawnWorldPosition,
-            Vector2.Zero,
+            shootVelocity,
             ModContent.ProjectileType<IceCone3DProj>(),
             GetIceCone3DDamage(),
             2f,
@@ -152,12 +154,9 @@ public class IceConeSkill : ElainaSkill
         return 100;
     }
 
-    private static Vector2 GetTargetWorldPosition(Vector2 targetScreenPosition)
+    private float GetIceCone3DSpeed()
     {
-        Vector2 clampedTarget = new(
-            MathHelper.Clamp(targetScreenPosition.X, 0f, Main.screenWidth),
-            MathHelper.Clamp(targetScreenPosition.Y, 0f, Main.screenHeight));
-        return Main.screenPosition + clampedTarget;
+        return 58f;
     }
 
     private static List<IceConeSpawnData> BuildIceCone3DSpawnData(Vector2 targetWorldPosition, float sphereRadius)
@@ -172,7 +171,7 @@ public class IceConeSkill : ElainaSkill
             Vector3 spawnOffset3D = sphereDirection * sphereRadius;
             Vector2 spawnWorldPosition = targetWorldPosition + new Vector2(spawnOffset3D.X, spawnOffset3D.Y);
             result.Add(new IceConeSpawnData(triggerFrame, spawnWorldPosition, spawnOffset3D.Z));
-            triggerFrame += 3;
+            triggerFrame += 5;
         }
 
         return result;
@@ -180,20 +179,37 @@ public class IceConeSkill : ElainaSkill
 
     private static List<IceConeRotationConfig> BuildIceConeFixedRotations()
     {
+        //0，0正后方，
         return new List<IceConeRotationConfig>
         {
-            new(-2.9f, 0.2f),
+            new(-0.0f, 0.2f),
+            new(-1.9f, 0.2f),
+            new(0.4f, 0.3f),
+            new(0.6f, -0.3f),
+            new(0.9f, -0.3f),
+            new(2.5f, 0.3f),
+            new(3.1f, -0.8f),
+            new(-0.5f, 0.3f),
+            new(-0.3f, -0.6f),
+            new(0.2f, 0.6f),
+            new(0.3f, -0.6f),
+            new(-0.3f, 0.6f),
+            new(-0.8f, 0.6f),
+            new(-1.2f, -0.4f),
+
+            /*new(-2.9f, 0.2f),
             new(-0.15f, 0.3f),
             new(0.65f, -2.6f),
             new(-0.2f, -0.4f),
             new(1.5f, 0.05f),
             new(2.5f, -0.8f),
-            new(0.5f, -0.5f),
-            new(-2.2f, 1.0f),
-            new(-1.1f, -1.2f),
-            new(0.95f, 1.35f),
-            new(2.05f, 0.75f),
-            new(3.0f, -1.45f),
+            new(-1.9f, 0.2f),
+            new(0.5f, 1.8f),
+            new(3.0f, 0.5f),
+            new(1.8f, -0.85f),
+            new(2.5f, 0f),
+            new(-3.5f, -0.2f),
+            new(0.7f, 0.3f),*/
         };
     }
 
