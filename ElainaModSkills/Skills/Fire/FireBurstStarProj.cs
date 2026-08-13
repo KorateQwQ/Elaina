@@ -51,7 +51,7 @@ public class FireBurstStarProj : ElainaBasicProjectile
 
         List<FrameInfo> lengthInfo = new List<FrameInfo>();
         lengthInfo.Add(new FrameInfo(1.8f,0.6f,10));
-        lengthInfo.Add(new FrameInfo(0.6f,0.5f,30));
+        lengthInfo.Add(new FrameInfo(0.6f,0.5f,20));
 
         List<FrameInfo> widthInfo = new List<FrameInfo>();
         widthInfo.Add(new FrameInfo(0.2f,0.0f,30));
@@ -88,12 +88,12 @@ public class FireBurstStarProj : ElainaBasicProjectile
         
             List<FrameInfo> scaleInfos2 = new List<FrameInfo>();
             scaleInfos2.Add(new FrameInfo(0.0f,0.2f,10));
-            scaleInfos2.Add(new FrameInfo(0.2f,0.25f,30));
+            scaleInfos2.Add(new FrameInfo(0.2f,0.25f,20));
 
         
             List<FrameInfo> alphaInfos = new List<FrameInfo>();
             alphaInfos.Add(new FrameInfo(5f,2.5f,10));
-            alphaInfos.Add(new FrameInfo(2.5f,0.0f,30));
+            alphaInfos.Add(new FrameInfo(2.5f,0.0f,20));
         
             float alpha =GetFrameValue(alphaInfos, time,startFrame);
             ReColorEffect(new Vector4(1f, 0.5f, 0.1f, 1f) * alpha*totalAlpha);

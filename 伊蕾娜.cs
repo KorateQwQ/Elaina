@@ -48,7 +48,8 @@ namespace 伊蕾娜
             //Terraria.On_Player.itemcheck
             On_PlayerDrawLayers.DrawPlayer_03_PortableStool += Elaina_PortableStool;
             //Terraria.On_NPC.strikenpc += Main_NewStrikeNpc;
-            On_PlayerDrawLayers.DrawSittingLegs += Elaina_sittinglegs;
+            //On_PlayerDrawLayers.DrawSittingLegs += Elaina_sittinglegs;
+            On_PlayerDrawLayers.DrawSittingLegs += Elaina_sittinglegs2;
             Terraria.Graphics.Effects.On_FilterManager.EndCapture += FilterManager_EndCapture;//原版绘制场景的最后部分——滤镜。在这里运用render保证不会与原版冲突
             Main.OnResolutionChanged += Main_OnResolutionChanged;
             On_NPC.Transform += Elaina_NewTransform;
@@ -63,8 +64,29 @@ namespace 伊蕾娜
             base.Load();
         }
 
-
+        private void Elaina_sittinglegs(Terraria.DataStructures.On_PlayerDrawLayers.orig_DrawSittingLegs orig, ref Terraria.DataStructures.PlayerDrawSet drawinfo, Texture2D textureToDraw, Color matchingColor, int shaderIndex, bool glowmask)
+        {
+            if (drawinfo.drawPlayer.GetModPlayer<ElainaModplayer>().Elaina)
+            {
+                drawinfo.drawPlayer.GetModPlayer<ElainaModplayer>().sittingmount = true;
+                drawinfo.drawPlayer.legFrame.Y = 336;
+                return;
+            }
+            //orig(ref drawinfo, textureToDraw, matchingColor, shaderIndex, glowmask);
+        }
         
+        private void Elaina_sittinglegs2(On_PlayerDrawLayers.orig_DrawSittingLegs orig, ref PlayerDrawSet drawinfo, Texture2D textureToDraw, Color matchingColor, int shaderIndex, bool glowmask, EquipType? equipType)
+        {
+            if (drawinfo.drawPlayer.GetModPlayer<ElainaModplayer>().Elaina)
+            {
+                drawinfo.drawPlayer.GetModPlayer<ElainaModplayer>().sittingmount = true;
+                drawinfo.drawPlayer.legFrame.Y = 336;
+                return;
+            }
+            orig(ref drawinfo, textureToDraw, matchingColor, shaderIndex, glowmask, equipType);
+        }
+
+
         public static bool iftarget(NPC target, Player player)
         {
             if (!(target.CountsAsACritter && player.dontHurtCritters) && !target.dontTakeDamage && target.active && !target.immortal && !target.friendly && !target.GetGlobalNPC<CrittersGlobalnpc>().IfCountrolByPlayer)
@@ -235,16 +257,7 @@ namespace 伊蕾娜
                 false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
         }
 
-        private void Elaina_sittinglegs(Terraria.DataStructures.On_PlayerDrawLayers.orig_DrawSittingLegs orig, ref Terraria.DataStructures.PlayerDrawSet drawinfo, Texture2D textureToDraw, Color matchingColor, int shaderIndex, bool glowmask)
-        {
-            if (drawinfo.drawPlayer.GetModPlayer<ElainaModplayer>().Elaina)
-            {
-                drawinfo.drawPlayer.GetModPlayer<ElainaModplayer>().sittingmount = true;
-                drawinfo.drawPlayer.legFrame.Y = 336;
-                return;
-            }
-            orig(ref drawinfo, textureToDraw, matchingColor, shaderIndex, glowmask);
-        }
+
 
 
         public enum SkillType : int

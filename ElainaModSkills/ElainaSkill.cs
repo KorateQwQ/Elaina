@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using KL.DamageSystem;
 using KL.Drawing;
 using KL.Drawing.Snippets;
@@ -7,6 +9,7 @@ using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using ReLogic.Graphics;
 using Terraria;
+using Terraria.ID;
 using Terraria.ModLoader;
 
 namespace 伊蕾娜.ElainaModSkills;
@@ -31,9 +34,29 @@ public abstract class ElainaSkill : ModSkill
     /// 是否已经装备在技能栏中，可以用来判定是否显示cd。
     /// </summary>
     public bool SelectedInSkillBar = false;
+    
+    /// <summary>
+    /// 主动技能，被动技能，以及派生技能
+    /// </summary>
+    public enum SkillInfoType
+    {
+        Active,
+        Passive,
+        /// <summary>
+        /// 派生技能，需要特定条件才可以释放
+        /// </summary>
+        Derived
+    }
+    public SkillInfoType InfoType = SkillInfoType.Active;
+
+    /// <summary>
+    /// 释放技能消耗的魔力点数。
+    /// </summary>
+    public float MagicPointCost = 0f;
 
     /// <summary>
     /// 按当前技能对应的曲线获取指定进度的技能伤害。
+
     /// </summary>
     protected int GetSkillDamage(float bossState)
     {
@@ -48,7 +71,7 @@ public abstract class ElainaSkill : ModSkill
         return GetSkillDamage(1f);
     }
 
-    public override SkillUnlockCondition UnlockCondition => base.UnlockCondition;
+    public override SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.None;// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
 
     public override bool CanDragInSkillPanel()
     {
@@ -88,13 +111,33 @@ public abstract class ElainaSkill : ModSkill
         base.OnUnlockSkill();
     }
 
-    public override bool TryGetToolTip(out string name, out string level, out string desc)
+    protected virtual object[] SkillDescriptionArgs => Array.Empty<object>();
+
+    public override bool TryGetToolTip(ref string name, ref string level, ref string desc)
     {
+        base.TryGetToolTip(ref name, ref level, ref desc);
+        name = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillName.{GetType().Name}").Value;
+        string type = InfoType switch
+        {
+            SkillInfoType.Active => Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Active").Value,
+            SkillInfoType.Passive => Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Passive").Value,
+            SkillInfoType.Derived => Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Derived").Value,
+            _ => "未知技能"
+        };
+        if(IsPassiveSkill) type = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Passive").Value;
+        
+        string maxCD = MaxCD <0 ? "--" : $"{MaxCD}s";
+        string magicPointCost = MagicPointCost <0 ? "--"  : $"{MagicPointCost}MP";
+        desc = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillTotalInfo").WithFormatArgs(type, maxCD, magicPointCost).Value;
+        desc += Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}")
+            .WithFormatArgs(SkillDescriptionArgs).Value;
+        //level = $"Lv. {Level}";
         /*name = GetType().Name;
         level = $"Lv. {Level}";
         desc = "造成100" +ElementType.Fire.GetIcon(offsetY:2) + "火元素伤害";
         toolTipWidth = 200;*/
-        return base.TryGetToolTip(out name, out level, out desc);
+        //ElementType.Fire.GetIcon(offsetY:2)
+        return true;
     }
 
     public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale,Color color, Effect effect = null)

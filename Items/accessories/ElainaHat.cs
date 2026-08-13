@@ -4,6 +4,7 @@ using Terraria.ModLoader;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework;
 using Terraria.GameContent;
+using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.Items.accessories
 {
@@ -67,7 +68,9 @@ namespace 伊蕾娜.Items.accessories
         {
             player.GetDamage<MagicDamageClass>() += 0.1f;
             player.statManaMax2 += 20;
-            player.manaCost -= 0.15f;
+            //player.manaCost -= 0.15f;
+            player.manaRegenBonus += 25;
+            player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint += 20;
             //player.GetCritChance<MagicDamageClass>()+= 100f;
             if (!hideVisual)
             {

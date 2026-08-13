@@ -1,13 +1,19 @@
+using System.IO;
 using KL.DamageSystem;
 using KL.DamageSystem.ElementalDamageClass;
 using KL.Drawing;
 using KL.Dusts;
+using KL.Dusts.Burst;
 using KL.Extensions;
+using KL.Utils;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria.DataStructures;
 using Terraria.GameContent;
 using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.Dusts;
+using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
@@ -42,8 +48,8 @@ public class MagicMissile : KLProjectile
         Projectile.tileCollide = true;//瓷砖碰撞
         //projectile.timeLeft=30;
         //projectile.extraUpdates=1;
-        Projectile.width = 35;
-        Projectile.height = 35;
+        Projectile.width = 5;
+        Projectile.height = 5;
         Projectile.damage = 15;
         Projectile.timeLeft = 300;
         //Projectile.extraUpdates = ;
@@ -103,9 +109,22 @@ public class MagicMissile : KLProjectile
             Projectile.velocity *= 40f;
         }
     }
+
+    void DrawFlower(float rotation = 0)
+    {
+        Texture2D flower = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flo_1");
+        Texture2D flowerEdge = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flower_Edge");
+
+
+        DrawInWorld(flower,Main.MouseWorld,new Color(255, 255, 255,255),scale:new Vector2(1f),rotation:rotation);
+        //DrawInWorld(flowerEdge,Main.MouseWorld,new Color(255, 255, 255,255),scale:new Vector2(0.5f),rotation:rotation);
+    }
     public override bool PreDraw(ref Color lightColor)
     {
         base.PreDraw(ref lightColor);
+        if(trail!= null&&OldCenter.Length>2 && OldCenter!=null)TrailEffect(trail.Value,OldCenter,GetColor(new Color(255, 160, 239,100)),new Color(255, 160, 239,0)*0f,
+            8,2f,startAlpha:2.5f,endAlpha:0f,drawTimes:1,uTime:new Vector2(1-(count % 120) / 30f,0),blendState:0);
+        
         float clipValue = 0.3f;
 
         Vector2 time = new Vector2( (count % 120) / 40f,0);
@@ -116,23 +135,27 @@ public class MagicMissile : KLProjectile
 
         effect.Parameters["Edge"].SetValue(0f);
         effect.Parameters["EdgeColor"].SetValue(new Vector4(0));
-        effect.Parameters["imageColor"].SetValue(GetColor(new Vector4(1f,0.5f,0.8f,2))*1.2f * totalAlpha);
-
+        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(1,0.5f,0.8f)*1.4f,1)* totalAlpha);
+        
         Main.graphics.GraphicsDevice.Textures[1] = waterNoise.Value;
         Main.graphics.GraphicsDevice.Textures[2] = headClip.Value;  
 
-        EndBeginDraw(1,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
+        
+        EndBeginDraw(0,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
 
         Vector2 move = new Vector2(1,0).RotatedBy(Projectile.rotation)*35f;
 
         Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move - Main.screenPosition, waterNoise.Value.GetRec(),
-            Color.White, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
+            new Color(150,150,150,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
 
         Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move- Main.screenPosition, waterNoise.Value.GetRec(),
-            Color.White, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);
+            new Color(100,100,100,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);
         
-        if(trail!= null && OldCenter!=null)TrailEffect(trail.Value,OldCenter,GetColor(new Color(255, 160, 239,255)),new Color(255, 160, 239,255)*0f,
-            8,2f,startAlpha:2.5f,endAlpha:0f,drawTimes:1,uTime:new Vector2(1-(count % 120) / 30f,0),blendState:1);
+        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move - Main.screenPosition, waterNoise.Value.GetRec(),
+            new Color(255,255,255,0), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
+
+        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move- Main.screenPosition, waterNoise.Value.GetRec(),
+            new Color(255,255,255,0), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);
         //if(trail!= null && OldCenter!=null)TrailEffect(trail.Value,OldCenter,new Color(255, 255, 255,255),Color.White*0f,5,0.1f,drawTimes:3,uTime:new Vector2(1-(count % 120) / 30f,0));
         EndBeginDraw();
         return false;
@@ -140,11 +163,19 @@ public class MagicMissile : KLProjectile
     
     public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
     {
+        return (new Vector2(targetHitbox.X, targetHitbox.Y) - Projectile.Center).Length() < 50;
         return base.Colliding(projHitbox, targetHitbox);
     }
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
+        bool fullMark = target.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark(target);
+        if (fullMark)
+        {
+            Main.player[Projectile.owner].GetModPlayer<ElainaAttributeModPlayer>().RegenPercentMagicPoint(15,true);
+            Projectile.damage*=2;
+            Projectile.Damage();
+        }
         base.OnHitNPC(target, hit, damageDone);
     }
 
@@ -152,12 +183,64 @@ public class MagicMissile : KLProjectile
     {
         Vector2 velocity = Projectile.velocity.SafeNormalize(Projectile.velocity);
         
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 5, -velocity*7.1f, 
-            3.14f,20, new Color(255, 120, 239,255),Vector2.One,0,50,new Vector2(0.5f,0f),7);
+        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1));
+        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1.3f));
+
+        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 5, -velocity*10.1f, 
+            3.14f,20, new Color(255, 120, 239,0),Vector2.One,0,10,new Vector2(0.5f,0f),7);
         
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 10, -velocity*7.1f, 
-            3.14f,20, new Color(255, 120, 239,255),Vector2.One,0,70,new Vector2(0.5f,0f),7);
+        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 10, -velocity*10.1f, 
+            3.14f,20, new Color(255, 120, 239,0),Vector2.One,0,50,new Vector2(0.5f,0f),7);
         
         base.OnKill(timeLeft);
+    }
+
+    class MagicMissileNpcMark : GlobalNPC
+    {
+        public override bool InstancePerEntity => true;
+        static Texture2D[] flowers = new Texture2D[5];
+        
+        int markCount = 0;
+        ulong[] markSpawnFrames = new ulong[5];
+        public override void Load()
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                flowers[i] = AssetManager.GetTexture($"伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flo_{i+1}",AssetRequestMode.ImmediateLoad);
+            }
+            base.Load();
+        }
+
+        public bool ApplyMark(NPC npc)
+        {
+            markSpawnFrames[markCount] = Main.GameUpdateCount;
+            markCount++;
+            if(markCount>=5)
+            {
+                KLBasicDust.SpawnDust(npc.Center,ModContent.DustType<FloDust>(),Vector2.Zero,15,new Color(255, 255, 255,200));
+                markCount = 0;
+                return true;
+            }
+
+            return false;
+        }
+        public override bool PreDraw(NPC npc, SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
+        {
+            return base.PreDraw(npc, spriteBatch, screenPos, drawColor);
+        }
+
+        public override void PostDraw(NPC npc, SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
+        {
+            for (int i = 0; i < markCount; i++)
+            {
+                float fadeProgress = MathHelper.Clamp((Main.GameUpdateCount - markSpawnFrames[i]) / 15f, 0f, 1f);
+                float scale = KLMathF.ClampLerp(2f, 1f,(Main.GameUpdateCount - markSpawnFrames[i]) / 15f);
+                
+                DrawInWorld(flowers[i],npc.Center,new Color(255, 255, 255,200) * fadeProgress,scale:new Vector2(1f)*scale);
+            }
+
+            //DrawInWorld(flower,npc.Center,new Color(255, 255, 255,200));
+            base.PostDraw(npc, spriteBatch, screenPos, drawColor);
+        }
     }
 }

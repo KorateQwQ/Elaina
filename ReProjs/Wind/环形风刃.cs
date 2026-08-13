@@ -71,7 +71,7 @@ namespace 伊蕾娜.ReProjs.Wind
                 color1 = 伊蕾娜.SkillDamageColor((伊蕾娜.HitType)Projectile.ai[2]);
             }
             else color1 = new(255, 160, 239);
-
+            color1 = new(255, 160, 239);
             float alpha = MathHelper.Lerp(0, 1, Projectile.timeLeft / MaxTime);
             Texture2D tex = 风刃3.Value;// TextureAssets.Extra[98].Value;// TextureAssets.Projectile[Projectile.type].Value;
             color1.A = 0;

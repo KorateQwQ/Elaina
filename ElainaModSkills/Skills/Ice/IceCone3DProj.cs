@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using KL.Drawing;
 using KL.Drawing.ThreeD;
 using KL.Dusts;
@@ -22,24 +23,31 @@ public class IceCone3DProj : ElainaBasicProjectile
     private ProjectionMode ProjectionMode => ProjectionMode.Perspective;
     private float fov => MathF.PI / 6f;
 
-    private float DefaultDepth => 1000f;
+    private float DefaultDepth => 900f;
     private static int TrailPointCount => 30;
+
+    private int BackwardFlyTime => 25;
+    private int BurstFlyTime => 5;
+    private float BackwardSpeedMultiplier => 0.5f;
 
     private bool initialized;
     private Vector3 currentPosition3D;
     private Vector3 targetPosition3D;
     private Vector3 velocity3D;
+    private Vector3 forwardVelocity3D;
     private Vector3[] trailPositions3D = new Vector3[TrailPointCount];
     private int trailRecordedCount;
     private int time;
     private float startDepth;
+    private float targetDepth;
+    private Vector2 targetWorldPosition;
 
     private float TrailMaxWidth => 13f;
     private float TrailMinWidth => 0f;
     private Color TrailStartColor => new(180, 200, 255, 255);
     private Color TrailEndColor => new(180, 200, 255, 0);
     private float TrailDepthFade => 0.35f;
-    private float TrailDelayDistance => 108f;
+    private float TrailDelayDistance => 0f;
     private float TrailFlowSpeed => 0.03f;
 
     public override void Load()
@@ -67,6 +75,29 @@ public class IceCone3DProj : ElainaBasicProjectile
         base.SetDefaults();
     }
 
+    public void SetupFlight(Vector2 targetWorldPosition, float startDepth, float targetDepth = 0f)
+    {
+        this.targetWorldPosition = targetWorldPosition;
+        this.startDepth = startDepth;
+        this.targetDepth = targetDepth;
+    }
+
+    public override void SendExtraAI(BinaryWriter writer)
+    {
+        writer.WriteVector2(targetWorldPosition);
+        writer.Write(startDepth);
+        writer.Write(targetDepth);
+        base.SendExtraAI(writer);
+    }
+
+    public override void ReceiveExtraAI(BinaryReader reader)
+    {
+        targetWorldPosition = reader.ReadVector2();
+        startDepth = reader.ReadSingle();
+        targetDepth = reader.ReadSingle();
+        base.ReceiveExtraAI(reader);
+    }
+
     public override void AI()
     {
         InitializeFlight();
@@ -74,17 +105,21 @@ public class IceCone3DProj : ElainaBasicProjectile
 
         Projectile.Center = GetModelOriginScreenPosition();
 
-        Vector2 planarVelocity = new Vector2(velocity3D.X, velocity3D.Y);
+        Vector3 drawVelocity3D = time < BackwardFlyTime && forwardVelocity3D.LengthSquared() > 0.001f ? forwardVelocity3D : velocity3D;
+        Vector2 planarVelocity = new Vector2(drawVelocity3D.X, drawVelocity3D.Y);
         if (planarVelocity.LengthSquared() > 0.001f)
         {
             Projectile.rotation = planarVelocity.ToRotation();
         }
 
-        RecordTrailPosition();
+        if (time >= BackwardFlyTime)
+        {
+            RecordTrailPosition();
+        }
         Lighting.AddLight(Projectile.Center, new Color(255, 255, 255).ToVector3());
         time++;
 
-        if (time == 8)
+        if (time == BackwardFlyTime + BurstFlyTime-1)
         {
             SpawnIceDust();
         }
@@ -93,14 +128,14 @@ public class IceCone3DProj : ElainaBasicProjectile
 
     void SpawnIceDust()
     {
-        return;
         /*KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<GlowDust>(),velocity:Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,
             color:new Color(0,0,0,100)*1f,scale:new Vector2(1.5f));*/
         
+        Vector2 dir = new Vector2(velocity3D.X,velocity3D.Y).SafeNormalize(Vector2.One);
         KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),velocity:Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,
             color:new Color(100,220,255,0)*1.0f,scale:new Vector2(0.7f));
         
-        KLBasicDust.SpawnDust(Projectile.Center+new Vector2(velocity3D.X,velocity3D.Y)*2f,ModContent.DustType<BurstDust>(),velocity:new Vector2(velocity3D.X,velocity3D.Y)*0.01f,lifeTime:12,
+        KLBasicDust.SpawnDust(Projectile.Center+dir*50f,ModContent.DustType<BurstDust>(),velocity:dir*0.01f,lifeTime:12,
             color:new Color(150,220,255,0),scale:new Vector2(2.5f,0.8f));
         
         KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<GlowDust>(),velocity:Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,
@@ -120,12 +155,15 @@ public class IceCone3DProj : ElainaBasicProjectile
         }
 
         initialized = true;
-        startDepth = Projectile.localAI[0] == 0f ? DefaultDepth : Projectile.localAI[0];
-        float targetDepth = Projectile.localAI[1];
+        if (startDepth == 0f)
+        {
+            startDepth = DefaultDepth;
+        }
 
         currentPosition3D = new Vector3(Projectile.Center.X, Projectile.Center.Y, startDepth);
-        targetPosition3D = new Vector3(Projectile.ai[0], Projectile.ai[1], targetDepth);
-        velocity3D = GetInitialVelocity3D();
+        targetPosition3D = new Vector3(targetWorldPosition.X, targetWorldPosition.Y, targetDepth);
+        forwardVelocity3D = GetInitialVelocity3D();
+        velocity3D = forwardVelocity3D;
         Projectile.netUpdate = true;
 
         for (int i = 0; i < trailPositions3D.Length; i++)
@@ -138,7 +176,34 @@ public class IceCone3DProj : ElainaBasicProjectile
 
     private void UpdateMovement()
     {
-        if (time < 11) currentPosition3D += velocity3D;
+        if (forwardVelocity3D.LengthSquared() <= 0.0001f)
+        {
+            return;
+        }
+
+        float fixedSpeed = forwardVelocity3D.Length();
+        Vector3 forwardDirection = Vector3.Normalize(forwardVelocity3D);
+
+        if (time < BackwardFlyTime)
+        {
+            float backwardProgress = time / (float)(BackwardFlyTime - 1);
+            float currentSpeed = MathHelper.Lerp(fixedSpeed * BackwardSpeedMultiplier, 0f, backwardProgress);
+            velocity3D = -forwardDirection * currentSpeed;
+            currentPosition3D += velocity3D;
+            return;
+        }
+
+        if (time < BackwardFlyTime + BurstFlyTime)
+        {
+            float burstProgress = (time - BackwardFlyTime) / (float)BurstFlyTime;
+            float currentSpeed = MathHelper.Lerp(fixedSpeed * 3.4f, fixedSpeed, burstProgress);
+            velocity3D = forwardDirection * currentSpeed;
+            currentPosition3D += velocity3D;
+            return;
+        }
+
+        /*velocity3D = forwardDirection * fixedSpeed;
+        if(time<5) currentPosition3D += velocity3D;*/
     }
 
     private Vector3 GetInitialVelocity3D()
@@ -165,11 +230,11 @@ public class IceCone3DProj : ElainaBasicProjectile
 
     private Matrix GetModelMatrix()
     {
+        float toward = -1;
+        if (time < BackwardFlyTime)toward = 1;
         Vector3 scale3D = new Vector3(20f);
-        Vector3 forward = velocity3D.LengthSquared() > 0.001f
-            ? Vector3.Normalize(velocity3D)
-            : Vector3.Transform(-Vector3.UnitY, Matrix.CreateRotationZ(Projectile.rotation));
-        Matrix directionRotation = CreateRotationFromTo(-Vector3.UnitY, forward);
+        Vector3 forward =Vector3.Normalize(velocity3D);
+        Matrix directionRotation = CreateRotationFromTo(toward*Vector3.UnitY, forward);
         return Matrix.CreateScale(scale3D) * directionRotation * Matrix.CreateTranslation(currentPosition3D);
     }
 
@@ -385,75 +450,77 @@ public class IceCone3DProj : ElainaBasicProjectile
         List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
-        float z = GetDrawLayerZ();
         behindNPCsAndTiles.Add(index);
 
-        /*if (z < 0)
-        {
-            behindNPCsAndTiles.Add(index);
-        }
-        else
-        {
-            behindProjectiles.Add(index);
-        }*/
-        
-        LayerDrawRequestSystem.DrawTargetLayer layer = z >= 0 ? LayerDrawRequestSystem.DrawTargetLayer.BehindNPCs : LayerDrawRequestSystem.DrawTargetLayer.OverPlayers;
-        
-        //if(z>=0)return;
-        LayerDrawRequestSystem.RequestBefore("icedraw", layer, ctx=>
-        {
-            //PrintText("icedraw");
-            Color lightColor2 = Lighting.GetColor((int)((double)Projectile.position.X + (double)Projectile.width * 0.5) / 16, (int)(((double)Projectile.position.Y + (double)Projectile.height * 0.5) / 16.0));
-            Effect iceConeEffect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/ThreeD/IceCone3D", AssetRequestMode.ImmediateLoad).Value;
+        bool drawTrailBehind = GetDrawLayerZ() >= 0f;
+        RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCs, 1f, drawTrailBehind);
+        RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, -1f, !drawTrailBehind);
+    }
 
+    private void RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer layer, float depthClipSide,
+        bool drawTrail)
+    {
+        LayerDrawRequestSystem.RequestBefore("icedraw", layer, ctx =>
+        {
+            Color lightColor = Lighting.GetColor((int)(Projectile.Center.X / 16f), (int)(Projectile.Center.Y / 16f));
+            Effect iceConeEffect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/ThreeD/IceCone3D", AssetRequestMode.ImmediateLoad).Value;
             GraphicsDevice gd = Main.instance.GraphicsDevice;
             VertexBuffer vertexBuffer = iceCone.GetOrCreateVertexBuffer(gd);
-            int vertexCount = vertexBuffer.VertexCount;
-            Vector3 position = currentPosition3D;
             Vector3 cameraPosition = GraphicsUtils.CameraPos(fov);
             Vector3 sunPosition = new(new Vector2(Main.screenWidth, Main.screenHeight) / 4f + Main.screenPosition,
-                -1000);
-            Vector3 lightDirection = Vector3.Normalize(position - sunPosition);
-            Vector4 baseColor = new Color(200, 220, 255, 255).ToVector4() * 1.00f;
-            Vector3 fresnelColor = (new Color(255, 255, 255)).ToVector3() * 0.5f;
+                -1000f);
+            Vector3 lightDirection = Vector3.Normalize(currentPosition3D - sunPosition);
 
-            Matrix modelMatrix = GetModelMatrix();
-            Matrix viewProjectionMatrix = GraphicsUtils.GetVPMatrix(ProjectionMode, fov);
-            
-            if(ctx.IsFirst) BeginDraw3D();
-            DrawTrail3D(gd);
+            if (ctx.IsFirst)
+            {
+                BeginDraw3D();
+            }
 
-            iceConeEffect.Parameters["uWorld"].SetValue(modelMatrix);
-            iceConeEffect.Parameters["uViewProjection"].SetValue(viewProjectionMatrix);
+            if (drawTrail)
+            {
+                DrawTrail3D(gd);
+            }
+
+            iceConeEffect.Parameters["uWorld"].SetValue(GetModelMatrix());
+            iceConeEffect.Parameters["uViewProjection"].SetValue(GraphicsUtils.GetVPMatrix(ProjectionMode, fov));
             iceConeEffect.Parameters["uLightDirection"].SetValue(lightDirection);
-            iceConeEffect.Parameters["uLightColor"].SetValue(lightColor2.ToVector3());
+            iceConeEffect.Parameters["uLightColor"].SetValue(lightColor.ToVector3());
             iceConeEffect.Parameters["uCameraPosition"].SetValue(cameraPosition);
-            iceConeEffect.Parameters["uBaseColor"].SetValue(baseColor);
-            iceConeEffect.Parameters["uFresnelColor"].SetValue(fresnelColor);
-            iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(Vector4.One);
+            iceConeEffect.Parameters["uBaseColor"].SetValue(new Color(200, 220, 255, 255).ToVector4());
+            iceConeEffect.Parameters["uFresnelColor"].SetValue(new Color(255, 255, 255).ToVector3() * 0.5f);
             iceConeEffect.Parameters["uAmbientStrength"].SetValue(0.8f);
             iceConeEffect.Parameters["uDiffuseStrength"].SetValue(1f);
             iceConeEffect.Parameters["uFresnelStrength"].SetValue(2f);
+
+            float dissolveThreshold = 0f;
+            if (time < BackwardFlyTime)
+            {
+                float progress = time / (float)BackwardFlyTime;
+                float appearProgress = MathHelper.Clamp(progress * 1.5f, 0f, 1f);
+                dissolveThreshold = MathHelper.Lerp(1.2f, 0f, appearProgress);
+            }
+
             iceConeEffect.Parameters["uDissolveNoiseScale"].SetValue(1f);
-            iceConeEffect.Parameters["uDissolveThreshold"].SetValue(0f);
+            iceConeEffect.Parameters["uDissolveThreshold"].SetValue(dissolveThreshold);
             iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(0.2f);
             iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Color(100, 200, 255, 255).ToVector4() * 4.5f);
+            iceConeEffect.Parameters["uDepthClipSide"].SetValue(depthClipSide);
 
             gd.BlendState = BlendState.NonPremultiplied;
             gd.DepthStencilState = DepthStencilState.Default;
             gd.SamplerStates[0] = SamplerState.LinearWrap;
             gd.SamplerStates[1] = SamplerState.LinearWrap;
             gd.RasterizerState = RasterizerState.CullClockwise;
-
             gd.Textures[0] = texture;
-            gd.Textures[1] = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/4", AssetRequestMode.ImmediateLoad)
-                .Value;
-
+            gd.Textures[1] = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/4", AssetRequestMode.ImmediateLoad).Value;
             gd.SetVertexBuffer(vertexBuffer);
             iceConeEffect.CurrentTechnique.Passes[0].Apply();
-            gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexCount);
+            gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
 
-            if(ctx.IsLast) Main.spriteBatch.End();
+            if (ctx.IsLast)
+            {
+                Main.spriteBatch.End();
+            }
         });
     }
 

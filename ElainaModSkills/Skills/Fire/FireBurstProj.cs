@@ -72,15 +72,15 @@ public class FireBurstProj : ElainaBasicProjectile
         List<FrameInfo> heightInfos =
         [
             new(0.5f, 4, 10),
-            new(4, 3, 25),
-            new(3, 0, 30)
+            new(4, 3, 15),
+            new(3, 0, 5)
         ];
 
         List<FrameInfo> widthInfos =
         [
             new(7, 1, 7, FrameType.SmoothStep),
-            new(1, 1, 15),
-            new(1, 0, 25)
+            new(1, 1, 8),
+            new(1, 0, 10)
         ];
 
         float height = GetFrameValue(heightInfos,time,clamp:true);
@@ -90,13 +90,13 @@ public class FireBurstProj : ElainaBasicProjectile
         List<FrameInfo> heightInfos2 =
         [
             new(3f, 4, 10),
-            new(4, 10, 25),
+            new(4, 10, 15),
         ];
 
         List<FrameInfo> widthInfos2 =
         [
             new(8, 1, 10, FrameType.SmoothStep),
-            new(1, 0, 15),
+            new(1, 0, 5),
         ];
         
         float height2 = GetFrameValue(heightInfos2,time,clamp:true);
@@ -137,12 +137,12 @@ public class FireBurstProj : ElainaBasicProjectile
 
         List<FrameInfo> alphaInfos = new List<FrameInfo>();
         alphaInfos.Add(new FrameInfo(0f,10,10));
-        alphaInfos.Add(new FrameInfo(10,1,15));
-        alphaInfos.Add(new FrameInfo(1f,0,30));
+        alphaInfos.Add(new FrameInfo(10,1,5));
+        alphaInfos.Add(new FrameInfo(1f,0,15));
 
         List<FrameInfo> scaleInfos = new List<FrameInfo>();
         scaleInfos.Add(new FrameInfo(0f,0.8f,15));
-        scaleInfos.Add(new FrameInfo(0.8f,1,30));
+        scaleInfos.Add(new FrameInfo(0.8f,1,15));
         
         float alpha =  GetFrameValue(alphaInfos,time,clamp:true);
         float scale = GetFrameValue(scaleInfos,time,clamp:true);

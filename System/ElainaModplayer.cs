@@ -15,6 +15,7 @@ using Terraria.ModLoader.IO;
 using 伊蕾娜.Config;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 using 伊蕾娜.Items;
 using 伊蕾娜.Items.accessories;
 using 伊蕾娜.Projectiles.MagicBarrier;
@@ -156,6 +157,7 @@ namespace 伊蕾娜
                 GiveNikehBookToOldPlayer = true;
                 Player.GetModPlayer<ElainaModplayer>().Elaina = true;
                 Player.GetModPlayer<EXPmodplayer>().Reset();
+                Player.GetModPlayer<ElainaSkillModPlayer>().UnlockSkill(Skill.NewSkill(typeof(AshenWitchSkill),伊蕾娜.ElainaModInstance));
                 return
                 [
                     new Item(ModContent.ItemType<ElainaHat>()),
@@ -172,7 +174,11 @@ namespace 伊蕾娜
             MissileSpawner.Reset();
             if (Elaina&&Main.myPlayer==Player.whoAmI)
             {
-                SetTitle();
+                if (!Main.dedServ&&Platform.IsWindows)
+                {
+                    string title = "Wandering Witch: The Journey of Elaina".ZHlan("泰拉瑞亚: 魔女之旅");
+                    Platform.Get<IWindowService>().SetUnicodeTitle(Main.instance.Window, title);
+                }
             }
             RPC("NewPlayerIn",[Main.myPlayer,Elaina]);
 
@@ -212,14 +218,6 @@ namespace 伊蕾娜
             }*/
             //Console.WriteLine("WhoAmI"+Main.myPlayer+ " ProjectileCount " + ProjectileLoader.ProjectileCount +" ItemCount "+ItemLoader.ItemCount);
             
-            if (Lighting.Mode is LightMode.Retro or LightMode.Trippy)
-            {
-                Lighting.Mode = LightMode.Color;
-            }
-            if (Main.WaveQuality < 1)
-            {
-                Main.WaveQuality = 1;
-            }
             
             if (SayoProtectCD > 0 && SayoNecklace)
                 SayoProtectCD--;
@@ -275,7 +273,6 @@ namespace 伊蕾娜
         {
             if (!Main.dedServ&&Platform.IsWindows)
             {
-                //Lang.GetRandomGameTitle();
                 string title = "Wandering Witch: The Journey of Elaina".ZHlan("泰拉瑞亚: 魔女之旅");
                 Platform.Get<IWindowService>().SetUnicodeTitle(Main.instance.Window, title);
             }

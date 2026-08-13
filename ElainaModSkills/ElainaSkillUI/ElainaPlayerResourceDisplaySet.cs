@@ -8,6 +8,7 @@ using Terraria.GameContent;
 using Terraria.GameContent.UI.ResourceSets;
 using Terraria.Localization;
 using Terraria.ModLoader;
+using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -38,6 +39,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     public override void PreDrawResources(PlayerStatsSnapshot snapshot)
     {
         this.snapshot = snapshot;
+        
     }
 
     public override void DrawLife(SpriteBatch spriteBatch)
@@ -46,8 +48,10 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         DrawElainaIcon();
 
         Vector2 center = GetBaseCenter();
+        string currentLifeText = $"{snapshot.Life:0.#}";
+        string maxLifeText = $"{snapshot.LifeMax:0.#}";
         lifeArea = DrawBar(spriteBatch, center, new Vector2(300,15), snapshot.Life, snapshot.LifeMax, LifeBackColor, new Color(220, 102, 188,255), ref lifeDecayPercent);
-        DrawCenteredText(spriteBatch, lifeText.Format(snapshot.Life, snapshot.LifeMax), lifeArea, Color.White, 0.82f);
+        DrawCenteredText(spriteBatch, lifeText.Format(currentLifeText, maxLifeText), lifeArea, Color.White, 0.82f);
         
         Point mousePoint = Main.MouseScreen.ToPoint();
         
@@ -56,8 +60,8 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 
         if (lifeArea.Contains(mousePoint))
         {
-            float scale = 0.5f;
-            string text = $"HP: {snapshot.Life}/{snapshot.LifeMax}";
+            float scale = 0.25f;
+            string text = $"HP: {currentLifeText}/{maxLifeText}";
             Vector2 size = font.MeasureString(text) * scale;
             center = center - size * 0.5f;
             Main.spriteBatch.DrawString(font, text, center, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
@@ -66,17 +70,22 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 
     public override void DrawMana(SpriteBatch spriteBatch)
     {
-        Vector2 center = GetBaseCenter() + new Vector2(-25f, 30f);
-        manaArea = DrawBar(spriteBatch, center, new Vector2(250,12), snapshot.Mana, snapshot.ManaMax, ManaBackColor, new Color(100,210,255,255), ref manaDecayPercent);
-        DrawCenteredText(spriteBatch, manaText.Format(snapshot.Mana, snapshot.ManaMax), manaArea, Color.White * 0.9f, 0.68f);
+        float currentMagicPoint = Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint;
+        float maxMagicPoint = Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint;
+        string currentMagicPointText = $"{currentMagicPoint:0.#}";
+        string maxMagicPointText = $"{maxMagicPoint:0.#}";
+        
+        Vector2 center = GetBaseCenter() + new Vector2(0, 30f);
+        manaArea = DrawBar(spriteBatch, center, new Vector2(300,15), currentMagicPoint, maxMagicPoint, ManaBackColor, new Color(100,210,255,255), ref manaDecayPercent);
+        DrawCenteredText(spriteBatch, manaText.Format(currentMagicPointText, maxMagicPointText), manaArea, Color.White * 0.9f, 0.68f);
         
         Point mousePoint = Main.MouseScreen.ToPoint();
         DynamicSpriteFont font = FontManager.HarmonyOS_Sans_SC.Value;
 
         if (manaArea.Contains(mousePoint))
         {
-            float scale = 0.5f;
-            string text = $"MP: {snapshot.Mana}/{snapshot.ManaMax}";
+            float scale = 0.25f;
+            string text = $"MP: {currentMagicPointText}/{maxMagicPointText}   + {Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery()}/s";
             Vector2 size = font.MeasureString(text) * scale;
             center = center - size * 0.5f;
             Main.spriteBatch.DrawString(font, text, center, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);

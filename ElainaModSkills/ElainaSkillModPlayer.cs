@@ -12,8 +12,10 @@ using 伊蕾娜.ElainaModSkills.Skills.Wind;
 using 伊蕾娜.Projectiles.MagicMissile;
 using System.Linq;
 using Terraria.ID;
+using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills;
+
 
 public class ElainaSkillModPlayer : KLSkillModPlayer
 {
@@ -78,7 +80,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
     void HandleOpenCloseSkillPanel()
     {
         //技能面板开关控制
-        if (KeyBind.OpenSkillPanel.JustPressed)
+        if (KeyBind.OpenSkillPanel.JustPressed&&Main.myPlayer==Player.whoAmI)
         {
             if (ElainaSkillPanel != null)
             {
@@ -93,7 +95,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     void HandleSwitchNextSkill()
     {
-        if (KeyBind.SwitchNextSkill.JustPressed)
+        if (KeyBind.SwitchNextSkill.JustPressed&&Main.myPlayer==Player.whoAmI)
         {
             SwitchNextSkill();
         }
@@ -101,7 +103,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     void HandleSwitchPreviousSkill()
     {
-        if (KeyBind.SwitchPreviousSkill.JustPressed)
+        if (KeyBind.SwitchPreviousSkill.JustPressed&&Main.myPlayer==Player.whoAmI)
         {
             SwitchPreviousSkill();
         }
@@ -169,16 +171,36 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     public bool CanUseSkill()
     {
-        if(CurrentSkillIndex<0||CurrentSkillIndex>=GetActiveSkill.Count|| GetActiveSkill[CurrentSkillIndex]== null)return false;
-        return !GetActiveSkill[CurrentSkillIndex].InCD;
+        if(CurrentSkillIndex<0||CurrentSkillIndex>=GetActiveSkill.Count|| GetActiveSkill[CurrentSkillIndex]== null||Main.myPlayer!=Player.whoAmI)return false;
+        Skill skill = GetActiveSkill[CurrentSkillIndex];
+        if (skill.InCD) return false;
+        if (skill.ModSkill is not ElainaSkill elainaSkill) return true;
+        ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (!attributePlayer.ConsumeMagicPoint(elainaSkill.MagicPointCost, false))
+        {
+            if(Main.mouseLeftRelease)PrintText(Language.GetText($"Mods.伊蕾娜.SkillInfo.LackOfMagic").Value);
+            return false;
+        }
+        return true;
+
     }
     public override void UseSkill(int index=0, IEntitySource source = null)
     {
-        if (index >= 0 && index < GetActiveSkill.Count)
+        if (index < 0 || index >= GetActiveSkill.Count || GetActiveSkill[index] == null||Main.myPlayer!=Player.whoAmI) return;
+
+        Skill skill = GetActiveSkill[index];
+        if (skill.InCD) return;
+
+        if (skill.ModSkill is ElainaSkill elainaSkill)
         {
-            GetActiveSkill[index].UseSkill(source);
+            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+            if (!attributePlayer.ConsumeMagicPoint(elainaSkill.MagicPointCost)) return;
         }
+
+
+        skill.UseSkill(source);
     }
+
     public void UseSkill(IEntitySource source = null)
     {
         UseSkill(CurrentSkillIndex, source);
@@ -201,4 +223,5 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
     {
         return ModContent.ProjectileType<FinalLightning>();
     }
+    
 }

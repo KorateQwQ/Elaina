@@ -155,7 +155,7 @@ namespace 伊蕾娜.ReProjs.Wind
             FrameCounter(15);
             if(!transForm) TryTransform();
 
-            if (Channel&&!end)
+            if (Main.mouseRight)
             {
                 if (Projectile.frameCounter%5==0&& !Owner.CheckMana(Owner.HeldItem, EXP.GetMana(1f), true))
                 {
@@ -185,6 +185,7 @@ namespace 伊蕾娜.ReProjs.Wind
             else
             {
                 end = true;
+                Projectile.Kill();
             }
             float effect = 1;
             if (end)
@@ -214,7 +215,7 @@ namespace 伊蕾娜.ReProjs.Wind
                 if (!transForm) transForm = true;
             }
             else color = new(255, 160, 239);
-
+            color = new(255, 160, 239);
 
             Asset<Texture2D> noise = Mod.Assets.Request<Texture2D>("Projectiles/Perlin");
             Asset<Texture2D> wind = Mod.Assets.Request<Texture2D>("ReProjs/Wind/wind");

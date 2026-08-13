@@ -66,7 +66,6 @@ namespace 伊蕾娜.Items
         public override bool? UseItem(Player player)
         {
             player.statMana -= 970;
-            //if (player.statMana <= 0) player.statMana = 30;
             return base.UseItem(player);
         }
         public override void OnConsumeItem(Player player)

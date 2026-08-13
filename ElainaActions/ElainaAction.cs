@@ -99,7 +99,7 @@ public abstract class ElainaAction :AnimAction
 
     private void UpdateWandTrail()
     {
-        if (!DrawWandTrail || wandTrailPositions.Length == 0)
+        if (!DrawWandTrail || wandTrailPositions.Length == 0||Main.gamePaused)
         {
             return;
         }

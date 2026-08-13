@@ -16,6 +16,8 @@ float uFresnelStrength = 0.65;
 float uDissolveNoiseScale = 1.0;
 float uDissolveThreshold = 0.5;
 float uDissolveEdgeWidth = 0.1;
+float uDepthClipSide = 0.0;
+
 
 struct VSInput
 {
@@ -49,6 +51,11 @@ PSInput VertexShaderBase(VSInput input)
 
 float4 PixelShaderBase(PSInput input) : COLOR0
 {
+    if (uDepthClipSide != 0.0)
+    {
+        clip(input.WorldPosition.z * uDepthClipSide);
+    }
+
     float3 normal = normalize(input.WorldNormal);
     float3 viewDirection = normalize(uCameraPosition - input.WorldPosition);
     float fresnelDot = saturate(abs(dot(normal, viewDirection)));

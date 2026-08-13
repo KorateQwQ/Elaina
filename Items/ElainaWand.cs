@@ -210,7 +210,7 @@ namespace 伊蕾娜.Items
         }
         public override bool CanUseItem(Player player)
         {
-            if (!player.GetModPlayer<ElainaModplayer>().Elaina) return false;
+            if (!player.GetModPlayer<ElainaModplayer>().Elaina||Main.myPlayer!=player.whoAmI) return false;
             
             ElainaSkillModPlayer skillModPlayer = player.GetModPlayer<ElainaSkillModPlayer>();
             //PrintText(skillModPlayer.CanUseSkill());
@@ -221,7 +221,7 @@ namespace 伊蕾娜.Items
         {
             ElainaSkillModPlayer skillModPlayer = player.GetModPlayer<ElainaSkillModPlayer>();
             Item.noUseGraphic = true;
-            if (skillModPlayer.CanUseSkill())
+            if (Main.myPlayer==player.whoAmI&&skillModPlayer.CanUseSkill())
             {
                 skillModPlayer.UseSkill();
             }

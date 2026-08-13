@@ -30,18 +30,16 @@ public class WindSlash : ElainaBasicProjectile
         Projectile.rotation = Projectile.velocity.ToRotation();
         Vector2 move = new Vector2(1, 0);
 
-        windPoints = QuickConePoints( move*1,-move*200f ,200, 200, 200,0.25f);
-        windPoints2 = QuickConePoints( move*1,-move*120f ,200, 140, 150,0.25f);
-        
-        windPoints3 = QuickConePoints( move*1,move*200f ,200, 200, 170,0.1f);
+        windPoints = QuickConePoints( move*50,-move*300f ,300, 200, 200,0.1f);
+        windPoints2 = QuickConePoints( move*50,-move*300f ,300, 300, 200,0.1f);
+        windPoints3 = QuickConePoints( move*50,-move*300f ,300, 300, 200,0.1f);
 
         base.AI();
     }
 
     public override bool PreDraw(ref Color lightColor)
     {
-        DrawWind2();
-        DrawWind3();
+        DrawWind();
         EndBeginDraw();
         
         return base.PreDraw(ref lightColor);
@@ -49,6 +47,7 @@ public class WindSlash : ElainaBasicProjectile
 
     void DrawWind()
     {
+
         Texture2D top = ModContent.Request<Texture2D>("KL/Effects/Tex/lightMask", AssetRequestMode.ImmediateLoad).Value;
         Texture2D top2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/3eb465f7ddb4bc30589830a7750b398e", AssetRequestMode.ImmediateLoad).Value;
 
@@ -59,31 +58,35 @@ public class WindSlash : ElainaBasicProjectile
         Texture2D wind2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/windNoi", AssetRequestMode.ImmediateLoad).Value;
 
         Vector2 move = new Vector2(1, 0);
+        windPoints = QuickConePoints( move*50,-move*150f ,300, 200, 200,0.1f);
+        windPoints2 = QuickConePoints( move*50,-move*200f ,300, 300, 300,0.1f);
+        windPoints3 = QuickConePoints( move*50,-move*400f ,300, 150, 150,0.1f);
+
         
         Vector2 uTime = new Vector2((float)(Main.timeForVisualEffects % 1200) / 165f, 0);
 
         Color pink = new Color(255, 160, 239,155);
         Color fire = new Color(255, 120, 30, 255);
         
-        VertexDrawEffect(TextureAssets.MagicPixel.Value, windPoints2, pink, pink*0,
+        VertexDrawEffect(top, windPoints2, pink, pink*0,
             startAlpha: 2.2f, endAlpha: 1, blendState: 1, drawTimes: 1,
             uTime: new Vector2(0),
             attachPoint: Projectile.Center + move.RotatedBy(Projectile.rotation) * (1),
             attachRotation: Projectile.rotation,
             imageScale: new Vector2(1, 1),
-            useRforAlpha: false, debugPoint: true);
+            useRforAlpha: false, debugPoint: false);
             
         VertexDrawEffect(wind,windPoints,pink, pink,startAlpha:2.0f, endAlpha:0.0f,blendState:1,drawTimes:1,
             uTime:new Vector2((float)(Main.timeForVisualEffects%1200)/25f,0),
             attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation,
             imageScale:new Vector2(2,1),
-            useRforAlpha:false,debugPoint:true);
+            useRforAlpha:false,debugPoint:false);
         
         VertexDrawEffect(wind2,windPoints3,pink, pink,startAlpha:3.0f, endAlpha:0f,blendState:1,drawTimes:1,
             uTime:new Vector2((float)(Main.timeForVisualEffects%1200)/25f,0),
             attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation,
             imageScale:new Vector2(2,1),
-            useRforAlpha:false,debugPoint:true);
+            useRforAlpha:false,debugPoint:false);
     }
     
     void DrawWind2()
@@ -121,11 +124,11 @@ public class WindSlash : ElainaBasicProjectile
             imageScale:new Vector2(1f,1),
             useRforAlpha:false,debugPoint:false);*/
         
-        VertexDrawEffect(noise2,windPoints3,fire, fire,startAlpha:2.0f, endAlpha:0f,blendState:1,drawTimes:1,
+        /*VertexDrawEffect(noise2,windPoints3,fire, fire,startAlpha:2.0f, endAlpha:0f,blendState:1,drawTimes:1,
             uTime:new Vector2(-(float)(Main.timeForVisualEffects%1200)/45f,0),
             attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation+MathF.PI,
             imageScale:new Vector2(1f,0.5f),
-            useRforAlpha:false,debugPoint:false);
+            useRforAlpha:false,debugPoint:false);*/
 
     }
     void DrawWind3()

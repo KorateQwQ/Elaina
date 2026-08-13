@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using KL.ActionsSystem;
+using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
@@ -40,17 +41,29 @@ public class IceConeSkill : ElainaSkill
     public override bool PreUseSkill(IEntitySource source = null)
     {
         Player localPlayer = Main.LocalPlayer;
-        ShootIceCone3D(localPlayer, Main.MouseWorld);
+        ShootIceShardLock3D(localPlayer, Main.MouseWorld);
+        //ShootIceCone3D(localPlayer, Main.MouseWorld);
         //ShootIceCone(localPlayer, Main.MouseWorld);
 
         return false;
     }
     
 
+    public void ShootIceShardLock3D(Player player, Vector2 targetWorldPosition)
+    {
+        Vector2 aimDirection = (targetWorldPosition - player.MountedCenter).SafeNormalize(Vector2.UnitX * (player.direction == 0 ? 1 : player.direction));
+
+        AnimAction animAction = new Action_Cast();
+        animAction.AddNode(new CallbackActionNode(1, (_, _, _) => SpawnIceShardLock3D(player, targetWorldPosition)));
+
+        float startRotation = aimDirection.ToRotation() * player.gravDir;
+        player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
+    }
+
     public void ShootIceCone3D(Player player, Vector2 targetWorldPosition, bool spawnFromOutsideScreen = true)
     {
         Vector2 aimDirection = (targetWorldPosition - player.MountedCenter).SafeNormalize(Vector2.UnitX * (player.direction == 0 ? 1 : player.direction));
-        List<IceConeSpawnData> spawnData = BuildIceCone3DSpawnData(targetWorldPosition, 500f);
+        List<IceConeSpawnData> spawnData = BuildIceCone3DSpawnData(targetWorldPosition, 200f);
 
         AnimAction animAction = new Action_Cast();
         foreach (IceConeSpawnData spawnDataEntry in spawnData)
@@ -64,6 +77,7 @@ public class IceConeSkill : ElainaSkill
         player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
     }
     
+
 
     public void ShootIceCone(Player player, Vector2 aimTarget, int damage = 10, float knockback = 2f,
         float baseSpeed = 25f)
@@ -117,6 +131,25 @@ public class IceConeSkill : ElainaSkill
         player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
     }
 
+    private void SpawnIceShardLock3D(Player player, Vector2 targetWorldPosition)
+    {
+        if (player.whoAmI != Main.myPlayer)
+        {
+            return;
+        }
+
+        Projectile projectile = NewProjectile<IceShardLockProj>(
+            player.GetSource_FromThis(),
+            targetWorldPosition,
+            Vector2.Zero,
+            GetIceCone3DDamage(),
+            2f,
+            player.whoAmI,
+            netUpdate: false);
+
+        projectile.netUpdate = true;
+    }
+
     private void SpawnIceCone3D(Player player, IceConeSpawnData spawnData, Vector2 targetWorldPosition)
     {
         if (player.whoAmI != Main.myPlayer)
@@ -127,27 +160,23 @@ public class IceConeSkill : ElainaSkill
         Vector2 shootVelocity = (targetWorldPosition - spawnData.SpawnWorldPosition)
             .SafeNormalize(Vector2.UnitX * player.direction) * GetIceCone3DSpeed();
 
-        int projectileIndex = Projectile.NewProjectile(
+        Projectile projectile = NewProjectile<IceCone3DProj>(
             player.GetSource_FromThis(),
             spawnData.SpawnWorldPosition,
             shootVelocity,
-            ModContent.ProjectileType<IceCone3DProj>(),
             GetIceCone3DDamage(),
             2f,
             player.whoAmI,
-            targetWorldPosition.X,
-            targetWorldPosition.Y);
+            netUpdate: false);
 
-        if (projectileIndex < 0 || projectileIndex >= Main.maxProjectiles)
-        {
-            return;
+        if (projectile.ModProjectile is IceCone3DProj iceCone3DProj)
+        {       
+            iceCone3DProj.SetupFlight(targetWorldPosition, spawnData.StartDepth);
         }
 
-        Projectile projectile = Main.projectile[projectileIndex];
-        projectile.localAI[0] = spawnData.StartDepth;
-        projectile.localAI[1] = 0f;
         projectile.netUpdate = true;
     }
+
 
     private int GetIceCone3DDamage()
     {
@@ -163,15 +192,40 @@ public class IceConeSkill : ElainaSkill
     {
         List<IceConeSpawnData> result = new();
         List<IceConeRotationConfig> rotations = BuildIceConeFixedRotations();
-        int triggerFrame = 1;
+        int triggerFrame = 46;
 
+        int index = 0;
         foreach (IceConeRotationConfig rotation in rotations)
         {
             Vector3 sphereDirection = GetIceConeSphereDirection(rotation);
             Vector3 spawnOffset3D = sphereDirection * sphereRadius;
             Vector2 spawnWorldPosition = targetWorldPosition + new Vector2(spawnOffset3D.X, spawnOffset3D.Y);
-            result.Add(new IceConeSpawnData(triggerFrame, spawnWorldPosition, spawnOffset3D.Z));
-            triggerFrame += 5;
+            switch (index)
+            {
+                case 0:
+                    result.Add(new IceConeSpawnData(1, spawnWorldPosition, spawnOffset3D.Z));
+                    break;
+                case 1:
+                    result.Add(new IceConeSpawnData(15, spawnWorldPosition, spawnOffset3D.Z));
+                    break;
+                case 2:
+                    result.Add(new IceConeSpawnData(25, spawnWorldPosition, spawnOffset3D.Z));
+                    break;
+                case 3:
+                    result.Add(new IceConeSpawnData(32, spawnWorldPosition, spawnOffset3D.Z));
+                    break;
+                case 4:
+                    result.Add(new IceConeSpawnData(39, spawnWorldPosition, spawnOffset3D.Z));
+                    break;
+                case 5:
+                    result.Add(new IceConeSpawnData(46, spawnWorldPosition, spawnOffset3D.Z));
+                    break;
+                default:
+                    result.Add(new IceConeSpawnData(triggerFrame, spawnWorldPosition, spawnOffset3D.Z));
+                    triggerFrame += 3;
+                    break;
+            }
+            index++;
         }
 
         return result;

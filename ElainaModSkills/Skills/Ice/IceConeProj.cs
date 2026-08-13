@@ -3,8 +3,8 @@ using KL.Drawing.ThreeD;
 using KL.Dusts;
 using KL.Dusts.Burst;
 using KL.Dusts.Glow;
-using KL.Dusts.Ice;
 using KL.Dusts.Smoke;
+using KL.Dusts.Stone;
 using KL.Utils;
 using Terraria.ID;
 
@@ -180,6 +180,7 @@ public class IceConeProj : ElainaBasicProjectile
         iceConeEffect.Parameters["uDissolveNoiseScale"].SetValue(dissolveNoiseScale);
         iceConeEffect.Parameters["uDissolveThreshold"].SetValue(dissolveThreshold);
         iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(dissolveEdgeWidth);
+        iceConeEffect.Parameters["uDepthClipSide"].SetValue(0f);
 
         gd.BlendState = BlendState.NonPremultiplied;
         gd.DepthStencilState = DepthStencilState.Default;
