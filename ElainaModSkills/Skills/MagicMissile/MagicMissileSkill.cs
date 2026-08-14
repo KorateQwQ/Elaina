@@ -46,13 +46,15 @@ public class MagicMissileSkill : ElainaSkill
         CurrentCD = 0.1f;
         MaxCD = 0.1f;
         
-        //PrintText((int)(KLGameStateManager.GetLevelDps(5)));
+        int level = 5;//角色等级
+        float attackTotalTime = 0.333f * 5;//5次攻击需要的时间
+        int attackCount = 7;//五次攻击触发被动，额外造成200%伤害，因此可算作7次攻击
         AnimAction animAction = new Action_SimpleShoot()
             .AddNode(new ShootActionNode(
                 1,
                 ModContent.ProjectileType<LightningModelTest>(),
                 _ => Main.MouseWorld,
-                damage:(int)(KLGameStateManager.GetLevelDps(5)/4.2f),//DpsHelper.GetSkillDamage(GetType().Name,1)
+                damage:KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level),attackTotalTime,attackCount),//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));
 
