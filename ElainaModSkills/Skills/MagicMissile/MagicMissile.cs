@@ -45,7 +45,7 @@ public class MagicMissile : KLProjectile
         Projectile.DamageType = ModContent.GetInstance<ElainaBasicDamage>();
         //InfusionElement = ElementType.Fire;
         
-        Projectile.tileCollide = true;//瓷砖碰撞
+        Projectile.tileCollide = false;//瓷砖碰撞
         //projectile.timeLeft=30;
         //projectile.extraUpdates=1;
         Projectile.width = 5;
@@ -56,7 +56,7 @@ public class MagicMissile : KLProjectile
         Projectile.alpha = 0;
 
         TrailLength = 30;
-        scale = 0.7f;
+        scale = 0.0f;
         totalAlpha = 0;
 
         base.SetDefaults();
@@ -85,14 +85,29 @@ public class MagicMissile : KLProjectile
         //TraceTarget();
         count++;
         if (totalAlpha < 1) totalAlpha += 0.1f;
+        if(scale<0.7)scale+=0.1f;
+
+        if (count > 10)
+        {
+            Projectile.tileCollide = true;
+            NPC target = null;
+            Projectile.ai[0] = Projectile.FindTarget(searchAngle:120);
         
+            if (Projectile.ai[0] >= 0)
+            {
+                target = Main.npc[(int)Projectile.ai[0]];
+                Projectile.TraceTargetPosition(target.Center,20,0.05f);
+            }
+        }
+
+        //TraceTarget();
         base.AI();
     }
 
     public void TraceTarget()
     {
         NPC target = null;
-        Projectile.ai[0] = Projectile.FindTargetWithLineOfSight(500f);
+        Projectile.ai[0] = Projectile.FindTargetWithLineOfSight(1000f);
         
         if (Projectile.ai[0] >= 0) target = Main.npc[(int)Projectile.ai[0]];
         if (target != null && target.active && !target.friendly && !target.dontTakeDamage)
@@ -106,7 +121,7 @@ public class MagicMissile : KLProjectile
             // 朝向npc的单位向量*20 + 3.33%偏移量
             Projectile.velocity = (Projectile.velocity * 15f + targetVec) / 15f;
             Projectile.velocity.Normalize();
-            Projectile.velocity *= 40f;
+            Projectile.velocity *= 20f;
         }
     }
 
@@ -121,9 +136,20 @@ public class MagicMissile : KLProjectile
     }
     public override bool PreDraw(ref Color lightColor)
     {
+        Color borderColor = new Color(0, 0, 0,255);
         base.PreDraw(ref lightColor);
-        if(trail!= null&&OldCenter.Length>2 && OldCenter!=null)TrailEffect(trail.Value,OldCenter,GetColor(new Color(255, 160, 239,100)),new Color(255, 160, 239,0)*0f,
-            8,2f,startAlpha:2.5f,endAlpha:0f,drawTimes:1,uTime:new Vector2(1-(count % 120) / 30f,0),blendState:0);
+        if(trail!= null&&OldCenter.Length>2 && OldCenter!=null)
+        {
+            TrailEffect(TextureAssets.MagicPixel.Value, OldCenter, borderColor,
+                borderColor,
+                3, 0f, startAlpha: 1f, endAlpha: -0.5f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
+                blendState: 2);
+            
+            TrailEffect(trail.Value, OldCenter, GetColor(new Color(255, 160, 239, 255)),
+                new Color(255, 160, 239, 255) * 0f,
+                8, 2f, startAlpha: 2.5f, endAlpha: 0f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
+                blendState: 1);
+        }
         
         float clipValue = 0.3f;
 
@@ -133,29 +159,36 @@ public class MagicMissile : KLProjectile
         effect.Parameters["clipValue"].SetValue(clipValue);
         effect.Parameters["clipValue2"].SetValue(0f);
 
-        effect.Parameters["Edge"].SetValue(0f);
-        effect.Parameters["EdgeColor"].SetValue(new Vector4(0));
-        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(1,0.5f,0.8f)*1.4f,1)* totalAlpha);
+        effect.Parameters["Edge"].SetValue(0.00f);
+        effect.Parameters["EdgeColor"].SetValue(borderColor.ToVector4());
+        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(0,0,0)*1.0f,1));
         
         Main.graphics.GraphicsDevice.Textures[1] = waterNoise.Value;
         Main.graphics.GraphicsDevice.Textures[2] = headClip.Value;  
 
         
-        EndBeginDraw(0,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
+        EndBeginDraw(2,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
 
         Vector2 move = new Vector2(1,0).RotatedBy(Projectile.rotation)*35f;
 
-        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move - Main.screenPosition, waterNoise.Value.GetRec(),
-            new Color(150,150,150,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
+        Vector2 borderScale = new Vector2(0.33f, 0.35f);
+        Vector2 borderOffset = new Vector2(1.15f);
+        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move*borderOffset- Main.screenPosition, waterNoise.Value.GetRec(),
+            borderColor, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* borderScale * scale, 0, 0);
 
-        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move- Main.screenPosition, waterNoise.Value.GetRec(),
-            new Color(100,100,100,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);
+        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move*borderOffset- Main.screenPosition, waterNoise.Value.GetRec(),
+            borderColor, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* borderScale* scale, 0, 0);
         
+        EndBeginDraw(2,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
+
+        effect.Parameters["Edge"].SetValue(0.01f);
+        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(1,0.5f,0.8f)*3.4f,1));
+
         Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move - Main.screenPosition, waterNoise.Value.GetRec(),
-            new Color(255,255,255,0), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
+            new Color(255,255,255,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
 
         Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move- Main.screenPosition, waterNoise.Value.GetRec(),
-            new Color(255,255,255,0), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);
+            new Color(255,255,255,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);
         //if(trail!= null && OldCenter!=null)TrailEffect(trail.Value,OldCenter,new Color(255, 255, 255,255),Color.White*0f,5,0.1f,drawTimes:3,uTime:new Vector2(1-(count % 120) / 30f,0));
         EndBeginDraw();
         return false;
@@ -163,8 +196,9 @@ public class MagicMissile : KLProjectile
     
     public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
     {
-        return (new Vector2(targetHitbox.X, targetHitbox.Y) - Projectile.Center).Length() < 50;
-        return base.Colliding(projHitbox, targetHitbox);
+        float width = 50;
+        Vector2 dir = new Vector2(1, 0).RotatedBy(Projectile.rotation);
+        return AABBvLineCollision(targetHitbox, Projectile.Center - dir * width/2, Projectile.Center + dir * width/2, width);
     }
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
@@ -186,11 +220,12 @@ public class MagicMissile : KLProjectile
         KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1));
         KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1.3f));
 
+        
         KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 5, -velocity*10.1f, 
-            3.14f,20, new Color(255, 120, 239,0),Vector2.One,0,10,new Vector2(0.5f,0f),7);
+            3.14f,20, new Color(255, 120, 239,0),new Vector2(1,0.3f),0,10,new Vector2(0.5f,0f),7);
         
         KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 10, -velocity*10.1f, 
-            3.14f,20, new Color(255, 120, 239,0),Vector2.One,0,50,new Vector2(0.5f,0f),7);
+            3.14f,20, new Color(255, 120, 239,0),new Vector2(1,0.3f),0,50,new Vector2(0.5f,0f),7);
         
         base.OnKill(timeLeft);
     }

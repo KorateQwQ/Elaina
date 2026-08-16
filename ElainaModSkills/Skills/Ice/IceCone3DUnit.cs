@@ -167,20 +167,27 @@ public class IceCone3DUnit : VisualUnit
             iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(0.2f);
             iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Color(100, 200, 255, 255).ToVector4() * 4.5f);
             iceConeEffect.Parameters["uDepthClipSide"].SetValue(depthClipSide);
+            iceConeEffect.Parameters["uOutlineWidth"].SetValue(4f);
+            iceConeEffect.Parameters["uScreenSize"].SetValue(new Vector2(gd.Viewport.Width, gd.Viewport.Height));
+            iceConeEffect.Parameters["uOutlineColor"].SetValue(new Color(255, 255, 255, 255).ToVector4());
 
             gd.BlendState = BlendState.NonPremultiplied;
-            gd.DepthStencilState = DepthStencilState.Default;
+            gd.DepthStencilState = DepthStencilState.DepthRead;
             gd.SamplerStates[0] = SamplerState.LinearWrap;
             gd.SamplerStates[1] = SamplerState.LinearWrap;
-            gd.RasterizerState = RasterizerState.CullClockwise;
             gd.Textures[0] = texture;
             gd.Textures[1] = dissolveNoiseTexture;
             gd.SetVertexBuffer(vertexBuffer);
-            iceConeEffect.CurrentTechnique.Passes[0].Apply();
+
+            gd.RasterizerState = RasterizerState.CullCounterClockwise;
+            iceConeEffect.CurrentTechnique.Passes["Outline"].Apply();
             gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
 
-            EndBeginDraw();
-
+            gd.DepthStencilState = DepthStencilState.Default;
+            gd.RasterizerState = RasterizerState.CullClockwise;
+            iceConeEffect.CurrentTechnique.Passes["Base"].Apply();
+            gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
+            
             if (ctx.IsLast)
             {
                 Main.spriteBatch.End();

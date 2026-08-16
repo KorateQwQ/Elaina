@@ -18,7 +18,7 @@ using 伊蕾娜.ElainaModSkills.Skills.Wind;
 using 伊蕾娜.ReProjs.Wind;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
-[SkillUIInfo(State = 0, Pixels = 100)]
+[SkillUIInfo(State = 0, Pixels = 120)]
 public class MagicMissileSkill : ElainaSkill
 {
     public override void Initialize()
@@ -52,8 +52,8 @@ public class MagicMissileSkill : ElainaSkill
         AnimAction animAction = new Action_SimpleShoot()
             .AddNode(new ShootActionNode(
                 1,
-                ModContent.ProjectileType<LightningModelTest>(),
-                _ => Main.MouseWorld,
+                ModContent.ProjectileType<MagicMissile>(),
+                _ => WandCenter+new Vector2(0,0),
                 damage:KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level),attackTotalTime,attackCount),//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));

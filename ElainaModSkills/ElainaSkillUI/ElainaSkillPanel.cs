@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
+using KL.UI;
 using SilkyUIFramework;
 using SilkyUIFramework.Attributes;
 using Terraria.GameContent;
@@ -45,6 +46,11 @@ public class ElainaSkillPanel : SkillPanelUI
     protected override KLSkillModPlayer GetSkillPlayer()
     {
         return Main.LocalPlayer.GetModPlayer<ElainaSkillModPlayer>();
+    }
+
+    protected override SkillToolTip CreateSkillToolTip()
+    {
+        return new ElainaSkillToolTip();
     }
 
     static Texture2D background;
@@ -99,6 +105,39 @@ public class ElainaSkillPanel : SkillPanelUI
         DrawRectangle(position, size, Color.White,texture:background,corner:20,border:2,borderColor:ElainaPanelBorderColor,rotation:0);
         //DrawInScreen(background, position,Color.White, Vector2.One/(background.Size()/size));
         
+        base.Draw(gameTime, spriteBatch);
+    }
+}
+
+public class ElainaSkillToolTip : SkillToolTip
+{
+    private static Texture2D lineTexture;
+    private static Texture2D crossTexture;
+
+    protected override ToggleButton CreateToggleButton()
+    {
+        return new ToggleButton
+        {
+            ToggleSize = new Vector2(26f, 16f),
+            ThumbDiameter = 10f,
+            ThumbInset = 3f,
+            OffBackgroundColor = new Color(69, 66, 75),
+            OnBackgroundColor = new Color(255, 142, 255),
+            OffThumbColor = new Color(203, 142, 177),
+            OnThumbColor = Color.White,
+        };
+    }
+
+    protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+    {
+        lineTexture ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLineSPA", AssetRequestMode.ImmediateLoad).Value;
+        crossTexture ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/Cross", AssetRequestMode.ImmediateLoad).Value;
+
+        Vector2 center = Bounds.Position + new Vector2(135f, 35f);
+        DrawInScreen(lineTexture, center + new Vector2(70f, 0f), scale: new Vector2(0.6f, 0.1f), color: new Color(255, 255, 255, 0));
+        DrawInScreen(lineTexture, center - new Vector2(70f, 0f), scale: new Vector2(0.6f, 0.1f), color: new Color(255, 255, 255, 0));
+        DrawInScreen(crossTexture, center, scale: new Vector2(0.04f, 0.02f), color: new Color(255, 255, 255, 0));
+
         base.Draw(gameTime, spriteBatch);
     }
 }

@@ -1,11 +1,11 @@
-sampler uImage0 : register(s0);
-sampler clipImage : register(s1);//Ê¹ÓÃ´Ë²ÄÖÊ¶ÔÍ¼Æ¬½øĞĞÏûÈÚ
-sampler clipImage2 : register(s2); //Ê¹ÓÃ´Ë²ÄÖÊ¶ÔÍ¼Æ¬½øĞĞÏûÈÚ,´Ë²ÄÖÊÎªÕûÌå²ÃÇĞ£¬²»»á¹ö¶¯
+ï»¿sampler uImage0 : register(s0);
+sampler clipImage : register(s1);//ä½¿ç”¨æ­¤æè´¨å¯¹å›¾ç‰‡è¿›è¡Œæ¶ˆè
+sampler clipImage2 : register(s2); //ä½¿ç”¨æ­¤æè´¨å¯¹å›¾ç‰‡è¿›è¡Œæ¶ˆè,æ­¤æè´¨ä¸ºæ•´ä½“è£åˆ‡ï¼Œä¸ä¼šæ»šåŠ¨
 
-float clipValue; //ÄÚ²¿ÏûÈÚãĞÖµ
-float clipValue2; //±ßÔµ²ÃÇĞãĞÖµ
+float clipValue; //å†…éƒ¨æ¶ˆèé˜ˆå€¼
+float clipValue2; //è¾¹ç¼˜è£åˆ‡é˜ˆå€¼
 
-float Edge; //ÄÚ²¿ÏûÈÚµÄ±ßÔµ
+float Edge; //å†…éƒ¨æ¶ˆèçš„è¾¹ç¼˜
 float4 EdgeColor;
 float4 imageColor;
 
@@ -15,7 +15,6 @@ float2 uTime;
 float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0) : COLOR0
 {
     float4 color = tex2D(uImage0, coords + uTime);
-    float4 clipcolor = tex2D(clipImage, coords + uTime);
     float4 clipcolor2 = tex2D(clipImage2, coords);
 
     float4 result = float4(0, 0, 0, 0);
@@ -23,7 +22,7 @@ float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0
     result = color;
     result.a = clipcolor2.r;//smoothstep(0, 1, clipcolor2.r);
     
-    //´¦ÀíÍâ²¿²ÃÇĞÒÔ¼°Ãè±ß
+    //å¤„ç†å¤–éƒ¨è£åˆ‡ä»¥åŠæè¾¹
     if ((result.r * result.a) <= clipValue2)
     {
         return float4(0, 0, 0, 0);
@@ -33,9 +32,7 @@ float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0
         return float4(0, 0, 0, 0);
     else if ((result.r * result.a) < clipValue)
     {
-        result = result.r * EdgeColor;
-        result.a = clipcolor.r * clipcolor2.r;
-        return result;
+        return EdgeColor;
     }
     
     return result * inputColor * imageColor;

@@ -16,6 +16,7 @@ using 伊蕾娜.Config;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 using 伊蕾娜.Items;
 using 伊蕾娜.Items.accessories;
 using 伊蕾娜.Projectiles.MagicBarrier;
@@ -292,12 +293,13 @@ namespace 伊蕾娜
             CritterType = tag.GetInt("CritterType");
             GiveNikehBookToOldPlayer = tag.GetBool("Nikeh");
         }
+
         public override void ModifyHurt(ref Player.HurtModifiers modifiers)
         {
-            if (Elaina)
-            {
-            }
+            modifiers.DisableSound();
+            base.ModifyHurt(ref modifiers);
         }
+
         public override void OnHurt(Player.HurtInfo info)
         {
             if (Elaina)

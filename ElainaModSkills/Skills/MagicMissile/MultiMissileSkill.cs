@@ -3,7 +3,7 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
-[SkillUIInfo(State = 1, Pixels = 100)]
+[SkillUIInfo(State = 1, Pixels = 200)]
 public class MultiMissileSkill : ElainaSkill
 {
     public override void Initialize()

@@ -2,8 +2,10 @@
 sampler uImage1 : register(s1);
 
 float4x4 uWorld;
+float4x4 uWorldInverseTranspose;
 float4x4 uViewProjection;
 
+float uOutlineWidth = 0.0;
 float4 uBaseColor = float4(1.0, 1.0, 1.0, 1.0);
 float4 uDissolveEdgeColor = float4(1.0, 1.0, 1.0, 1.0);
 float2 uDissolveNoiseScale = float2(1.0, 1.0);
@@ -29,6 +31,9 @@ PSInput VertexShaderBase(VSInput input)
 {
     PSInput output;
     float4 worldPosition = mul(float4(input.Pos, 1.0), uWorld);
+    float3 worldNormal = mul(float4(input.Normal, 0.0), uWorldInverseTranspose).xyz;
+    worldNormal *= rsqrt(max(dot(worldNormal, worldNormal), 0.000001));
+    worldPosition.xyz += worldNormal * uOutlineWidth;
 
     output.Pos = mul(worldPosition, uViewProjection);
     output.Color = input.Color;
@@ -45,8 +50,10 @@ float4 PixelShaderBase(PSInput input) : COLOR0
     clip(dissolveDistance);
 
     float edgeWidth = max(uDissolveEdgeWidth, 0.0001);
-    float edgeMask = 1.0 - saturate(dissolveDistance / edgeWidth);
-    baseColor.rgb = lerp(baseColor.rgb, uDissolveEdgeColor.rgb, edgeMask * uDissolveEdgeColor.a);
+    if (dissolveDistance < edgeWidth)
+    {
+        return uDissolveEdgeColor;
+    }
 
     return baseColor;
 }
