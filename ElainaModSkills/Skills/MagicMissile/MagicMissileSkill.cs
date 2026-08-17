@@ -52,8 +52,8 @@ public class MagicMissileSkill : ElainaSkill
         AnimAction animAction = new Action_SimpleShoot()
             .AddNode(new ShootActionNode(
                 1,
-                ModContent.ProjectileType<MagicMissile>(),
-                _ => WandCenter+new Vector2(0,0),
+                ModContent.ProjectileType<LightningModelTest>(),
+                _ => WandCenter+new Vector2(200,400),
                 damage:KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level),attackTotalTime,attackCount),//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));

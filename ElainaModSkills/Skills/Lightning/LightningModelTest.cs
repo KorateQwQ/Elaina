@@ -12,6 +12,7 @@ public class LightningModelTest : ElainaBasicProjectile
     static ObjModel lightningModel;
     static ObjModel lightningModel2;
     static ObjModel lightningModel3;
+    static ObjModel lightningModel4;
 
     static Effect lightningEffect;
 
@@ -26,6 +27,7 @@ public class LightningModelTest : ElainaBasicProjectile
         lightningModel ??= BuildOutlineModel(ObjModel.Load("伊蕾娜.Models.Lightning_1"));
         lightningModel2 ??= BuildOutlineModel(ObjModel.Load("伊蕾娜.Models.Lightning_2"));
         lightningModel3 ??= BuildOutlineModel(ObjModel.Load("伊蕾娜.Models.Lightning_3"));
+        lightningModel4 ??= BuildOutlineModel(ObjModel.Load("伊蕾娜.Models.Lightning_4"));
         lightningEffect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/ThreeD/LightningEffect", AssetRequestMode.ImmediateLoad).Value;
         
         base.Load();
@@ -100,10 +102,10 @@ public class LightningModelTest : ElainaBasicProjectile
 
     public override void AI()
     {
-        /*if ((ProjectileLifeTime - Projectile.timeLeft) % LightningSpawnInterval == 0)
-            SpawnLightningUnit();*/
+        if ((ProjectileLifeTime - Projectile.timeLeft) % LightningSpawnInterval == 0)
+            SpawnLightningUnit();
         
-        if(Main.GameUpdateCount%20==0) SpawnMainLightning();
+        if(Main.GameUpdateCount%Main.rand.Next(5,8)==0) SpawnMainLightning();
         
         VisualUnit.UpdateAll(units);
         base.AI();
@@ -114,10 +116,11 @@ public class LightningModelTest : ElainaBasicProjectile
         ObjModel model = lightningModel;
         Vector2 modelScale = new(
             Main.rand.NextFloat(0.85f, 1.15f),
-            Main.rand.NextFloat(1.7f, 2.2f));
+            Main.rand.NextFloat(0.7f, 2.2f));
+        
         
         float azimuth = Main.rand.NextFloat(0f, MathHelper.TwoPi);
-        float coneAngle = Main.rand.NextFloat(0.3f, 0.9f);
+        float coneAngle = Main.rand.NextFloat(-0.6f, 0.6f);
         Vector3 rotation = new(
             coneAngle,
             azimuth,
@@ -130,44 +133,25 @@ public class LightningModelTest : ElainaBasicProjectile
     
     void SpawnMainLightning()
     {
-        ObjModel model = lightningModel;//Main.rand.NextBool() ? lightningModel : lightningModel2;
-        Vector2 modelScale = 2*new Vector2(
+        int lightningType = Main.rand.Next(4);
+        ObjModel model = lightningType switch
+        {
+            0 => lightningModel,
+            1 => lightningModel2,
+            2 => lightningModel3,
+            _ => lightningModel4
+        };
+        float scaleMultiplier = lightningType is 0 or 2 ? 2f : 1f;
+        Vector2 modelScale = new Vector2(0.7f,0.8f)*scaleMultiplier * new Vector2(
             Main.rand.NextFloat(0.75f, 1.2f),
             Main.rand.NextFloat(2.7f, 3.2f));
         Vector3 rotation = new(
             Main.rand.NextFloat(-0.1f, 0.1f),
             Main.rand.NextFloat(-MathHelper.Pi, MathHelper.Pi),
             Main.rand.NextFloat(-0.1f, 0.1f));
-        Vector2 position = Projectile.Center;
 
         VisualUnit.Spawn(units,
-            new LightningVisualUnit(model, modelScale, rotation, position, LightningLifeTime+Main.rand.Next(5, 10)), Projectile);
-        
-        ObjModel model2 = lightningModel2;//Main.rand.NextBool() ? lightningModel : lightningModel2;
-        Vector2 modelScale2 = new Vector2(
-            Main.rand.NextFloat(0.75f, 1.2f),
-            Main.rand.NextFloat(2.7f, 3.2f));
-        Vector3 rotation2 = new(
-            Main.rand.NextFloat(-0.1f, 0.1f),
-            Main.rand.NextFloat(-MathHelper.Pi, MathHelper.Pi),
-            Main.rand.NextFloat(-0.1f, 0.1f));
-        Vector2 position2 = Projectile.Center+new Vector2(200,0);
-
-        VisualUnit.Spawn(units,
-            new LightningVisualUnit(model2, modelScale2, rotation2, position2, LightningLifeTime+Main.rand.Next(5, 10)), Projectile);
-        
-        ObjModel model3 = lightningModel3;//Main.rand.NextBool() ? lightningModel : lightningModel2;
-        Vector2 modelScale3 = 2*new Vector2(
-            Main.rand.NextFloat(0.75f, 1.2f),
-            Main.rand.NextFloat(2.7f, 3.2f));
-        Vector3 rotation3 = new(
-            Main.rand.NextFloat(-0.1f, 0.1f),
-            Main.rand.NextFloat(-MathHelper.Pi, MathHelper.Pi),
-            Main.rand.NextFloat(-0.1f, 0.1f));
-        Vector2 position3 = Projectile.Center+new Vector2(400,0);
-
-        VisualUnit.Spawn(units,
-            new LightningVisualUnit(model3, modelScale3, rotation3, position3, LightningLifeTime+Main.rand.Next(5, 10)), Projectile);
+            new LightningVisualUnit(model, modelScale, rotation, Projectile.Center, Main.rand.Next(12, 16)), Projectile);
     }
 
     public override bool ShouldUpdatePosition()
@@ -201,8 +185,8 @@ public class LightningModelTest : ElainaBasicProjectile
 
         const float outlineWidth = 3f;
         Matrix world = Matrix.CreateScale(new Vector3(modelScale, 1f)) *
-                       Matrix.CreateRotationX(rotation.X*0) *
-                       Matrix.CreateRotationY(rotation.Y*0) *
+                       Matrix.CreateRotationX(rotation.X) *
+                       Matrix.CreateRotationY(rotation.Y) *
                        Matrix.CreateRotationZ(-MathHelper.Pi + rotation.Z) *
                        Matrix.CreateTranslation(new Vector3(position, 0f));
         Texture2D whiteTexture = TextureAssets.MagicPixel.Value;
