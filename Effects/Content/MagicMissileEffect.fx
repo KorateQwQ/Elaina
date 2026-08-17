@@ -11,6 +11,10 @@ float4 imageColor;
 
 float2 uTime;
 
+float Luminance(float4 color)
+{
+    return dot(color, float4(0.2125, 0.7154, 0.0721, 0));
+}
 
 float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0) : COLOR0
 {
@@ -20,22 +24,22 @@ float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0
     float4 result = float4(0, 0, 0, 0);
     
     result = color;
-    result.a = clipcolor2.r;//smoothstep(0, 1, clipcolor2.r);
+    //result.a = clipcolor2.r;//smoothstep(0, 1, clipcolor2.r);
     
     //处理外部裁切以及描边
-    if ((result.r * result.a) <= clipValue2)
+    if ((Luminance(result) * clipcolor2.r) <= clipValue2)
     {
         return float4(0, 0, 0, 0);
     }
         
-    if ((result.r * result.a) < clipValue - Edge)
+    if ((Luminance(result) * clipcolor2.r) < clipValue - Edge)
         return float4(0, 0, 0, 0);
-    else if ((result.r * result.a) < clipValue)
+    else if ((Luminance(result) * clipcolor2.r) < clipValue)
     {
         return EdgeColor;
     }
     
-    return result * inputColor * imageColor;
+    return inputColor * imageColor;
 }
 
 /*float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0) : COLOR0

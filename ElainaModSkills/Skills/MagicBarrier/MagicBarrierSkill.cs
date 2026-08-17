@@ -21,6 +21,7 @@ public class MagicBarrierSkill : ElainaSkill
 
     public override void UpdateEquips(Player player)
     {
+        
         //魔力屏障：20%魔力时开始生效，80%魔力时完全生效，最小30%伤害减免，最大50%伤害减免
         float minimumMagicPointRatio = 0.2f;
         float fullReductionMagicPointRatio = 0.8f;

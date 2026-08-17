@@ -147,17 +147,17 @@ public class MagicMissile : KLProjectile
             
             TrailEffect(trail.Value, OldCenter, GetColor(new Color(255, 160, 239, 255)),
                 new Color(255, 160, 239, 255) * 0f,
-                8, 2f, startAlpha: 2.5f, endAlpha: 0f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
+                8, 2f, startAlpha: DrawSystem.GetShouldBloom()?3.0f:1.5f, endAlpha: 0f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
                 blendState: 1);
         }
         
-        float clipValue = 0.3f;
+        float clipValue = 0.4f;
 
         Vector2 time = new Vector2( (count % 120) / 40f,0);
 
         effect.Parameters["uTime"].SetValue(time);
         effect.Parameters["clipValue"].SetValue(clipValue);
-        effect.Parameters["clipValue2"].SetValue(0f);
+        effect.Parameters["clipValue2"].SetValue(0.2f);
 
         effect.Parameters["Edge"].SetValue(0.00f);
         effect.Parameters["EdgeColor"].SetValue(borderColor.ToVector4());
@@ -171,8 +171,8 @@ public class MagicMissile : KLProjectile
 
         Vector2 move = new Vector2(1,0).RotatedBy(Projectile.rotation)*35f;
 
-        Vector2 borderScale = new Vector2(0.33f, 0.35f);
-        Vector2 borderOffset = new Vector2(1.15f);
+        Vector2 borderScale = new Vector2(0.32f, 0.37f);
+        Vector2 borderOffset = new Vector2(1.09f);
         Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move*borderOffset- Main.screenPosition, waterNoise.Value.GetRec(),
             borderColor, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* borderScale * scale, 0, 0);
 
@@ -182,7 +182,7 @@ public class MagicMissile : KLProjectile
         EndBeginDraw(2,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
 
         effect.Parameters["Edge"].SetValue(0.01f);
-        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(1,0.5f,0.8f)*3.4f,1));
+        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(1,0.5f,0.8f)*(DrawSystem.GetShouldBloom()?2.5f:1.5f),1.0f));
 
         Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move - Main.screenPosition, waterNoise.Value.GetRec(),
             new Color(255,255,255,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
