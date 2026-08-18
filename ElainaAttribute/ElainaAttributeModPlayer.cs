@@ -1,4 +1,5 @@
 using System;
+using Terraria.ModLoader.IO;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -64,7 +65,17 @@ public class ElainaAttributeModPlayer : ModPlayer
     {
         base.FrameEffects();
     }
-    
+
+    public override void SaveData(TagCompound tag)
+    {
+        base.SaveData(tag);
+    }
+
+    public override void LoadData(TagCompound tag)
+    {
+        base.LoadData(tag);
+    }
+
     /// <summary>
     /// 以固定数值回蓝
     /// </summary>
