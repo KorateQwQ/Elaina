@@ -95,6 +95,7 @@ public class ElainaAttributeModPlayer : ModPlayer
     {
         if (MagicPoint < cost) return false;
         if (consume) MagicPoint -= cost;
+        if (inBattleCount < 300) InBattleState(300);
         return true;
     }
     
@@ -121,9 +122,9 @@ public class ElainaAttributeModPlayer : ModPlayer
     {
         if (Player.dead) return 0f;
         if(!InBattle)return MaxMagicPoint*0.5f;
-        return MagicPointRecovery + Player.manaRegenBonus/10f;
+        return MagicPointRecovery + Player.manaRegenBonus / 10f + MpManger.GetAdditionalMagicPointRecovery(Player);
     }
-
+ 
     public override void PostUpdate()
     {
         base.PostUpdate();

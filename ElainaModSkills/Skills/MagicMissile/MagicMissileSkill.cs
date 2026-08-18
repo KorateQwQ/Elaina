@@ -23,14 +23,14 @@ public class MagicMissileSkill : ElainaSkill
 {
     public override void Initialize()
     {
-        MagicPointCost = 5;
+        MagicPointCost = 3;
         CurrentCD = 0.3f;
         MaxCD = 0.3f;
         base.Initialize();
     }
     public override void ResetEffects(Player player)
     {
-        MagicPointCost = 5;
+        MagicPointCost = 3;
 
         if (player.GetModPlayer<ElainaModplayer>().Elaina)
         {
@@ -46,14 +46,14 @@ public class MagicMissileSkill : ElainaSkill
         CurrentCD = 0.1f;
         MaxCD = 0.1f;
         
-        int level = 5;//角色等级
+        int level = 10;//角色等级
         float attackTotalTime = 0.333f * 5;//5次攻击需要的时间
         int attackCount = 7;//五次攻击触发被动，额外造成200%伤害，因此可算作7次攻击
         AnimAction animAction = new Action_SimpleShoot()
             .AddNode(new ShootActionNode(
                 1,
-                ModContent.ProjectileType<LightningModelTest>(),
-                _ => WandCenter+new Vector2(200,400),
+                ModContent.ProjectileType<MagicMissile>(),
+                _ => WandCenter+new Vector2(0,0),
                 damage:KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level),attackTotalTime,attackCount),//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));

@@ -6,7 +6,7 @@ namespace 伊蕾娜.ElainaActions;
 public class Action_SimpleShoot : ElainaAction
 {
     float rotation;
-    public Action_SimpleShoot() : base(2)
+    public Action_SimpleShoot() : base(20)
     {
         
     }

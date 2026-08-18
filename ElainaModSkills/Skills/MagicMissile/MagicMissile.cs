@@ -142,12 +142,12 @@ public class MagicMissile : KLProjectile
         {
             TrailEffect(TextureAssets.MagicPixel.Value, OldCenter, borderColor,
                 borderColor,
-                3, 0f, startAlpha: 1f, endAlpha: -0.5f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
+                3, 0f, startAlpha: 1f, endAlpha: -0.1f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
                 blendState: 2);
             
             TrailEffect(trail.Value, OldCenter, GetColor(new Color(255, 160, 239, 255)),
                 new Color(255, 160, 239, 255) * 0f,
-                8, 2f, startAlpha: DrawSystem.GetShouldBloom()?3.0f:1.5f, endAlpha: 0f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
+                8, 2f, startAlpha: DrawSystem.GetShouldBloom()?2.5f:1.5f, endAlpha: 1f, drawTimes: 1, uTime: new Vector2(1 - (count % 120) / 30f, 0),
                 blendState: 1);
         }
         
@@ -206,7 +206,7 @@ public class MagicMissile : KLProjectile
         bool fullMark = target.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark(target);
         if (fullMark)
         {
-            Main.player[Projectile.owner].GetModPlayer<ElainaAttributeModPlayer>().RegenPercentMagicPoint(15,true);
+            //Main.player[Projectile.owner].GetModPlayer<ElainaAttributeModPlayer>().RegenPercentMagicPoint(15,true);
             Projectile.damage*=2;
             Projectile.Damage();
         }
@@ -216,16 +216,27 @@ public class MagicMissile : KLProjectile
     public override void OnKill(int timeLeft)
     {
         Vector2 velocity = Projectile.velocity.SafeNormalize(Projectile.velocity);
+        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<ShockBlackDust>(), 7, -velocity*10.1f, 
+            2.14f,10, new Color(180, 50, 180,255),new Vector2(0.3f,0.1f),0,10,new Vector2(0.05f,0.03f),3);
         
-        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1));
-        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1.3f));
+        
+        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),
+            lifeTime:12,color:new Color(180, 50, 180,255),scale:new Vector2(1.3f));
+        
+        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),
+            lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1.3f));
+        KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),Main.rand.NextVector2Circular(0.1f,0.1f),
+            lifeTime:12,color:new Color(255, 150, 239,0),scale:new Vector2(1.3f));
+        
+        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<ShockDust>(), 5, -velocity*10.1f, 
+            2.14f,15, new Color(255, 120, 239,255),new Vector2(0.2f,0.1f),0,10,new Vector2(0.05f,0.03f),3);
 
         
         KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 5, -velocity*10.1f, 
-            3.14f,20, new Color(255, 120, 239,0),new Vector2(1,0.3f),0,10,new Vector2(0.5f,0f),7);
+            3.14f,15, new Color(255, 120, 239,0),new Vector2(1,0.3f),0,0,new Vector2(0.5f,0f),3);
         
         KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 10, -velocity*10.1f, 
-            3.14f,20, new Color(255, 120, 239,0),new Vector2(1,0.3f),0,50,new Vector2(0.5f,0f),7);
+            3.14f,15, new Color(255, 120, 239,0),new Vector2(1,0.3f),0,20,new Vector2(0.5f,0f),3);
         
         base.OnKill(timeLeft);
     }
@@ -261,6 +272,7 @@ public class MagicMissile : KLProjectile
         }
         public override bool PreDraw(NPC npc, SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
         {
+            if(markCount>0)Lighting.AddLight(npc.Center,new Color(255, 120, 239,0).ToVector3());
             return base.PreDraw(npc, spriteBatch, screenPos, drawColor);
         }
 
