@@ -95,7 +95,7 @@ public class ElainaAttributeModPlayer : ModPlayer
     {
         if (MagicPoint < cost) return false;
         if (consume) MagicPoint -= cost;
-        if (inBattleCount < 300) InBattleState(300);
+        if (inBattleCount < 300&&consume) InBattleState(300);
         return true;
     }
     

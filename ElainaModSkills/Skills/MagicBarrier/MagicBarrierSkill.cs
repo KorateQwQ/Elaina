@@ -1,7 +1,9 @@
 using System;
+using KL.Extensions;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
@@ -21,15 +23,24 @@ public class MagicBarrierSkill : ElainaSkill
 
     public override void UpdateEquips(Player player)
     {
-        
-        //魔力屏障：20%魔力时开始生效，80%魔力时完全生效，最小30%伤害减免，最大50%伤害减免
+        if (IsEnabled)
+        {
+            player.endurance += GetEndurance(player);
+        }
+        base.UpdateEquips(player);
+    }
+
+    public static float GetEndurance(Player player)
+    {
+        //魔力屏障：20%魔力以下生效最小值，80%魔力时完全生效，最小30%伤害减免，最大70%伤害减免
         float minimumMagicPointRatio = 0.2f;
         float fullReductionMagicPointRatio = 0.8f;
         float minimumDamageReduction = 0.3f;
-        float fullDamageReduction = 0.5f;
+        float fullDamageReduction = 0.7f;
         
-        ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-        if (IsEnabled && attributePlayer.MaxMagicPoint > 0f)
+        ElainaAttributeModPlayer attributePlayer = player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (attributePlayer.MaxMagicPoint > 0f&&
+            (player.HeldItem.IsAir||!player.HeldItem.IsWeapon()||player.HeldItem.type == ModContent.ItemType<ElainaWand>()))
         {
             float magicPointRatio = attributePlayer.MagicPoint / attributePlayer.MaxMagicPoint;
             if (magicPointRatio >= minimumMagicPointRatio)
@@ -41,37 +52,48 @@ public class MagicBarrierSkill : ElainaSkill
                         (fullReductionMagicPointRatio - minimumMagicPointRatio), 0f, 1f);
                 float reduction = MathHelper.Lerp(
                     minimumDamageReduction, fullDamageReduction, reductionProgress);
-                Player.endurance += reduction;
+                return reduction;
             }
+
+            return minimumDamageReduction;
         }
-        base.UpdateEquips(player);
+
+        return 0;
     }
 
     class MagicBarrierModPlayer : ModPlayer
     {
-        private bool barrierAppliedToCurrentHit;
 
         public override void ModifyHurt(ref Player.HurtModifiers modifiers)
         {
-            ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
-
             base.ModifyHurt(ref modifiers);
         }
+        
 
         public override void OnHurt(Player.HurtInfo info)
         {
-            //魔力屏障：20%魔力时开始生效
-            float minimumMagicPointRatio = 0.2f;
             ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-            float magicPointRatio = attributePlayer.MagicPoint / attributePlayer.MaxMagicPoint;
-            if (magicPointRatio >= minimumMagicPointRatio)
+            ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
+            if (skillPlayer.UnlockedSkill.TryGetValue("MagicBarrierSkill", out var skill))
             {
-                float magicPointCost = Math.Min(info.Damage, attributePlayer.MagicPoint);
-                attributePlayer.ConsumeMagicPoint(magicPointCost);
-                barrierAppliedToCurrentHit = false;
-                PrintText($"魔法屏障：受到 {info.Damage} 伤害，消耗魔力：{magicPointCost:0.#}");
+                if (skill.ModSkill.IsEnabled)
+                {
+                    float endurance = GetEndurance(Player);
+                    float reductionDamage = endurance*info.SourceDamage;
+                    if (endurance > 0)
+                    {
+                        float magicPointCost = Math.Min(reductionDamage, attributePlayer.MaxMagicPoint*0.2f);
+                        if (attributePlayer.ConsumeMagicPoint(magicPointCost, false))
+                        {
+                            attributePlayer.ConsumeMagicPoint(magicPointCost);
+                        }
+                        else attributePlayer.MagicPoint = 0;
+                    
+                        PrintText($"魔法屏障：受到 {info.SourceDamage}伤害  护盾减免 {reductionDamage} 伤害，消耗魔力：{magicPointCost:0.#}"); 
+                    }
+                }
             }
-            PrintText($"魔法屏障：受到 {info.Damage} 伤害");
+
 
             base.OnHurt(info);
         }
