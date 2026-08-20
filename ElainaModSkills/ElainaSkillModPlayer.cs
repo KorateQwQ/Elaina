@@ -29,6 +29,28 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
     public new static List<Skill> GetActiveSkill => SkillModPlayer.ActiveSkill;
     public new static Dictionary<string,Skill> GetUnlockedSkill => SkillModPlayer.UnlockedSkill;
 
+    public bool HasUnlockedSkill<TSkill>() where TSkill : ElainaSkill
+    {
+        return TryGetUnlockedSkill<TSkill>(out _);
+    }
+
+    public bool TryGetUnlockedSkill<TSkill>(out Skill skill) where TSkill : ElainaSkill
+    {
+        return UnlockedSkill.TryGetValue(typeof(TSkill).Name, out skill);
+    }
+
+    public bool TryGetUnlockedModSkill<TSkill>(out TSkill modSkill) where TSkill : ElainaSkill
+    {
+        if (TryGetUnlockedSkill<TSkill>(out Skill skill) && skill.ModSkill is TSkill targetSkill)
+        {
+            modSkill = targetSkill;
+            return true;
+        }
+
+        modSkill = null;
+        return false;
+    }
+
     public override void Load()
     {
         On_Player.QuickGrapple += On_PlayerOnQuickGrapple;

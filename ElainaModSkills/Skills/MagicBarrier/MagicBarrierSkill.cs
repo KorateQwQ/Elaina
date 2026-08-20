@@ -74,9 +74,9 @@ public class MagicBarrierSkill : ElainaSkill
         {
             ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
             ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
-            if (skillPlayer.UnlockedSkill.TryGetValue("MagicBarrierSkill", out var skill))
+            if (skillPlayer.TryGetUnlockedModSkill<MagicBarrierSkill>(out var magicBarrierSkill))
             {
-                if (skill.ModSkill.IsEnabled)
+                if (magicBarrierSkill.IsEnabled)
                 {
                     float endurance = GetEndurance(Player);
                     float reductionDamage = endurance*info.SourceDamage;
@@ -85,7 +85,8 @@ public class MagicBarrierSkill : ElainaSkill
                         float magicPointCost = Math.Min(reductionDamage, attributePlayer.MaxMagicPoint*0.2f);
                         if (attributePlayer.ConsumeMagicPoint(magicPointCost, false))
                         {
-                            attributePlayer.ConsumeMagicPoint(magicPointCost);
+                            //attributePlayer.ConsumeMagicPoint(magicPointCost);
+                            attributePlayer.MagicPoint -= magicPointCost;
                         }
                         else attributePlayer.MagicPoint = 0;
                     

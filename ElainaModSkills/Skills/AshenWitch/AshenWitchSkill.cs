@@ -17,12 +17,67 @@ public class AshenWitchSkill: ElainaSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         SkillUnlockCondition.None;
 
+    //每步至少消耗血量的百分比
+    private const float LifePercentPerStep = 1f;
+    //每步可恢复的魔力的懂百分比
+    private const float MagicPointPercentPerStep = 1f;
+
     public override void Initialize()
     {
         MaxCD = -1;
         MagicPointCost = -1;
         KLGameStateManager.OnBossLoot += OnKillBoss;
+        ElainaAttributeModPlayer.MagicPointInsufficient -= OnMagicPointInsufficient;
+        ElainaAttributeModPlayer.MagicPointInsufficient += OnMagicPointInsufficient;
         base.Initialize();
+    }
+
+    private bool OnMagicPointInsufficient(ElainaAttributeModPlayer attributePlayer, float cost, bool consume)
+    {
+        Player player = attributePlayer.Player;
+        if (!CanConvertLifeToMagicPoint(player, attributePlayer, cost)) return false;
+
+        if (consume)
+        {
+            float lackMagicPoint = cost - attributePlayer.MagicPoint;
+            int lifeCost = GetLifeCost(player, attributePlayer, cost);
+            PrintText($"灰之魔女：魔力不足，需求魔力：{cost:0.#}，缺少魔力：{lackMagicPoint:0.#}，消耗生命：{lifeCost}");
+            player.statLife -= lifeCost;
+            if (Main.netMode == NetmodeID.MultiplayerClient)
+            {
+                NetMessage.SendData(MessageID.PlayerLifeMana, -1, -1, null, player.whoAmI);
+            }
+            attributePlayer.MagicPoint += GetMagicPointRecovery(attributePlayer, cost);
+        }
+
+        return true;
+    }
+
+    private bool CanConvertLifeToMagicPoint(Player player, ElainaAttributeModPlayer attributePlayer, float cost)
+    {
+        if (!player.active || player.dead) return false;
+        if (!player.GetModPlayer<ElainaModplayer>().Elaina) return false;
+        if (BasicStatus != Skill.SKillBasicStatus.UnLock) return false;
+        if (attributePlayer.MaxMagicPoint <= 0f || cost <= attributePlayer.MagicPoint || cost > attributePlayer.MaxMagicPoint) return false;
+
+        int lifeCost = GetLifeCost(player, attributePlayer, cost);
+        return lifeCost > 0 && player.statLife > lifeCost;
+    }
+    
+    private static int GetLifeCost(Player player, ElainaAttributeModPlayer attributePlayer, float cost)
+    {
+        return (int)Math.Ceiling(player.statLifeMax2 * LifePercentPerStep / 100f) * GetConversionStepCount(attributePlayer, cost);
+    }
+
+    private static float GetMagicPointRecovery(ElainaAttributeModPlayer attributePlayer, float cost)
+    {
+        return attributePlayer.MaxMagicPoint * MagicPointPercentPerStep / 100f * GetConversionStepCount(attributePlayer, cost);
+    }
+
+    private static int GetConversionStepCount(ElainaAttributeModPlayer attributePlayer, float cost)
+    {
+        float needMagicPoint = cost - attributePlayer.MagicPoint;
+        return (int)Math.Ceiling(needMagicPoint / (attributePlayer.MaxMagicPoint * MagicPointPercentPerStep / 100f));
     }
 
     private void OnKillBoss(NPC self, List<int> killers, int realMaxHp)

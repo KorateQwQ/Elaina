@@ -6,8 +6,10 @@ namespace 伊蕾娜.ElainaAttribute;
 public class ElainaAttributeModPlayer : ModPlayer
 {
     public delegate void OnMagicPointChangedHandler(float oldMagicPoint, float magicPoint);
+    public delegate bool OnMagicPointInsufficientHandler(ElainaAttributeModPlayer attributePlayer, float cost, bool consume);
 
     public event OnMagicPointChangedHandler MagicPointChanged;
+    public static event OnMagicPointInsufficientHandler MagicPointInsufficient;
     
     //public OnMagicPointChangedHandler MagicPointChanged;
     
@@ -93,10 +95,28 @@ public class ElainaAttributeModPlayer : ModPlayer
     /// <returns>魔力点足够时返回 true，否则返回 false。</returns>
     public bool ConsumeMagicPoint(float cost, bool consume = true)
     {
-        if (MagicPoint < cost) return false;
+        if (MagicPoint < cost && !TryHandleMagicPointInsufficient(cost, consume)) return false;
+        if (consume && MagicPoint < cost) return false;
         if (consume) MagicPoint -= cost;
         if (inBattleCount < 300&&consume) InBattleState(300);
         return true;
+    }
+
+    private bool TryHandleMagicPointInsufficient(float cost, bool consume)
+    {
+        if (MagicPointInsufficient == null) return false;
+
+        bool canConsume = false;
+        foreach (Delegate magicPointInsufficientHandler in MagicPointInsufficient.GetInvocationList())
+        {
+            if (magicPointInsufficientHandler is OnMagicPointInsufficientHandler handler && handler(this, cost, consume))
+            {
+                canConsume = true;
+                if (consume && MagicPoint >= cost) return true;
+            }
+        }
+
+        return canConsume;
     }
     
     /// <summary>
