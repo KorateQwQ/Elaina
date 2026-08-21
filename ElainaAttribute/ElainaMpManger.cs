@@ -9,7 +9,7 @@ namespace 伊蕾娜.ElainaAttribute;
 /// 3：魔力回复速度只能有限手段增加，其中最重要道具为帽子+2.5，奥术水晶（需要找到微光）+2.5,魔力再生手环(需要破坏邪恶群落珠子）+2.5。其他效果：星星瓶，+1魔力再生药水+1，以及魔力强化炎每阶段+1。
 /// 4：1.45新增装备注意事项：魔力再生手环上位有两件新版回蓝饰品。1.骷髅王后地牢中获取的钴护盾合成恢复之盾，2.世纪之花后获得的黑腰带合成秘术腰带
 /// </summary>
-public static class MpManger
+public class ElainaMpManger : ModSystem
 {
     public static float GetAdditionalMagicPointRecovery(Player player)
     {

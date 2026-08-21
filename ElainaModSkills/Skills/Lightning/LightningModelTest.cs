@@ -105,7 +105,7 @@ public class LightningModelTest : ElainaBasicProjectile
         if ((ProjectileLifeTime - Projectile.timeLeft) % LightningSpawnInterval == 0)
             SpawnLightningUnit();
         
-        if(Main.GameUpdateCount%Main.rand.Next(5,8)==0) SpawnMainLightning();
+        if(Main.GameUpdateCount%Main.rand.Next(5,7)==0) SpawnMainLightning();
         
         VisualUnit.UpdateAll(units);
         base.AI();
@@ -184,7 +184,7 @@ public class LightningModelTest : ElainaBasicProjectile
         Vector2 uDissolveNoiseScale = new Vector2(1f, 15f)*0.1f;
 
         const float outlineWidth = 3f;
-        Matrix world = Matrix.CreateScale(new Vector3(modelScale, 1f)) *
+        Matrix world = Matrix.CreateScale(new Vector3(modelScale, 0.01f)) *
                        Matrix.CreateRotationX(rotation.X) *
                        Matrix.CreateRotationY(rotation.Y) *
                        Matrix.CreateRotationZ(-MathHelper.Pi + rotation.Z) *
@@ -195,13 +195,12 @@ public class LightningModelTest : ElainaBasicProjectile
         const int dissolveStartTime = 0;
         float dissolveProgress = MathHelper.Clamp(
             (elapsedTime - dissolveStartTime) / (float)(lifeTime - dissolveStartTime), 0f, 1f);
-        lightningEffect.SetValue("uViewProjection", GraphicsUtils.GetVPMatrix(ProjectionMode.Orthographic));
+        lightningEffect.SetValue("uViewProjection", GraphicsUtils.GetVPMatrix(ProjectionMode.Perspective,MathF.PI / 2f));
         lightningEffect.SetValue("uBaseColor", Color.Black.ToVector4());
         lightningEffect.SetValue("uDissolveNoiseScale", uDissolveNoiseScale);
         lightningEffect.SetValue("uDissolveThreshold", dissolveProgress * 1.05f);
         lightningEffect.SetValue("uDissolveEdgeWidth", 0.0f);
         lightningEffect.SetValue("uDissolveEdgeColor", Color.Black.ToVector4() * 1f);
-        
         gd.Textures[0] = whiteTexture;
         gd.Textures[1] = dissolveNoise;
 
@@ -216,10 +215,10 @@ public class LightningModelTest : ElainaBasicProjectile
         lightningEffect.SetValue("uWorldInverseTranspose", Matrix.Transpose(Matrix.Invert(world)));
         lightningEffect.SetValue("uOutlineWidth", outlineWidth);
         lightningEffect.CurrentTechnique.Passes[0].Apply();
-        gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
+        //gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
 
-        lightningEffect.SetValue("uOutlineWidth", 0f);
-        lightningEffect.SetValue("uDissolveEdgeWidth", 0.05f);
+        lightningEffect.SetValue("uOutlineWidth", 0.0f);
+        lightningEffect.SetValue("uDissolveEdgeWidth", 0.03f);
         lightningEffect.SetValue("uDissolveEdgeColor", Color.Black.ToVector4() * 1f);
         lightningEffect.SetValue("uBaseColor", new Color(100, 200, 255, 255).ToVector4() * 1.3f);
         lightningEffect.CurrentTechnique.Passes[0].Apply();

@@ -67,9 +67,10 @@ namespace 伊蕾娜.Items.accessories
         public override void UpdateAccessory(Player player, bool hideVisual)
         {
             player.GetDamage<MagicDamageClass>() += 0.1f;
-            player.statManaMax2 += 20;
+            player.statManaMax2 += 120;
             //player.manaCost -= 0.15f;
-            player.manaRegenBonus += 25;
+            player.manaRegenBonus += 120;//145每个饰品给60
+            player.manaRegenDelayBonus += 1;//145延迟4，每个饰品给1，星星瓶0.5，站立不动1，钩爪状态1，魔力药水1
             player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint += 20;
             //player.GetCritChance<MagicDamageClass>()+= 100f;
             if (!hideVisual)

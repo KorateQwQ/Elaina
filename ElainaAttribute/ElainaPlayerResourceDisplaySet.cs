@@ -10,7 +10,7 @@ using Terraria.Localization;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaAttribute;
 
-namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+namespace 伊蕾娜.ElainaAttribute;
 
 public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 {
@@ -70,8 +70,10 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 
     public override void DrawMana(SpriteBatch spriteBatch)
     {
-        float currentMagicPoint = Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint;
-        float maxMagicPoint = Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint;
+        const bool UseUniqueMana = false;
+
+        float currentMagicPoint = UseUniqueMana ?  Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint : snapshot.Mana;
+        float maxMagicPoint = UseUniqueMana ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint : snapshot.ManaMax;
         string currentMagicPointText = $"{currentMagicPoint:0.#}";
         string maxMagicPointText = $"{maxMagicPoint:0.#}";
         
@@ -85,7 +87,8 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         if (manaArea.Contains(mousePoint))
         {
             float scale = 0.25f;
-            string text = $"MP: {currentMagicPointText}/{maxMagicPointText}   + {Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery()}/s";
+            float magicPointRecovery = UseUniqueMana ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery() : Main.LocalPlayer.manaRegen / 2f;
+            string text = $"MP: {currentMagicPointText}/{maxMagicPointText}   + {magicPointRecovery:0.#}/s";
             Vector2 size = font.MeasureString(text) * scale;
             center = center - size * 0.5f;
             Main.spriteBatch.DrawString(font, text, center, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);

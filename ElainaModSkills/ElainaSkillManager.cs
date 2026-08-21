@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ModLoader;
+using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
 namespace 伊蕾娜.ElainaModSkills;
