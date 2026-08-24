@@ -117,9 +117,29 @@ public class AshenWitchSkill: ElainaSkill
     }
     public override void UpdateEquips(Player player)
     {
-        player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint+=1*Player.statManaMax2;
+        //player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint+=1*Player.statManaMax2;
+        Player.buffImmune[BuffID.ManaSickness] = true;
 
-        //PrintText("更新装备");
+        int extraHP = (int)(Player.statLifeMax2 -100);
+        int reduceHP = (int)(extraHP * 0.5f);
+        float extraMultiplier =  7.5f ;
+        float extraManaPercent = 1 + Math.Max(0, extraHP * extraMultiplier * 0.001f);
+        
+        Player.statLifeMax2 = 100 + reduceHP;
+        //PrintText(extraHP);
+        /*if (Player.statLifeMax2 > 100 && Player.statLifeMax2 <= 400f)
+        {
+            Player.statLifeMax2 = 100 + (int)((Player.statLifeMax2 - 100) * 0.334f);
+        }
+        else if (Player.statLifeMax2 > 400)
+        {
+            Player.statLifeMax2 = 200 + (int)((Player.statLifeMax2 - 400) * 0.5f);
+        }*/
+
+        float extraMana = (int)(Player.statManaMax2 * extraManaPercent)-Player.statManaMax2;
+        Player.statManaMax2 = (int)(Player.statManaMax2 * extraManaPercent);
+        
+        //PrintText("额外生命："+extraHP+"，减少生命："+reduceHP+"，最终生命："+Player.statLifeMax2 + " 额外魔力倍率："+extraManaPercent + "实际额外获得魔力："+extraMana);
     }
     
     public override void OnRightClickInSkillPanel()

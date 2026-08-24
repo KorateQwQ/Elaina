@@ -19,6 +19,7 @@ namespace 伊蕾娜.ElainaModSkills;
 
 public class ElainaSkillModPlayer : KLSkillModPlayer
 {
+    public override int MaxSkillSlot => 8;
 
     public static int CurrentSkillIndex = -1;
     
@@ -198,7 +199,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         if (skill.InCD) return false;
         if (skill.ModSkill is not ElainaSkill elainaSkill) return true;
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-        if (!attributePlayer.ConsumeMagicPoint(elainaSkill.MagicPointCost, false))
+        if (!Player.CheckMana((int)elainaSkill.MagicPointCost, false))
         {
             if(Main.mouseLeftRelease)PrintText(Language.GetText($"Mods.伊蕾娜.SkillInfo.LackOfMagic").Value);
             return false;
@@ -213,11 +214,11 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         Skill skill = GetActiveSkill[index];
         if (skill.InCD) return;
 
-        if (skill.ModSkill is ElainaSkill elainaSkill)
+        /*if (skill.ModSkill is ElainaSkill elainaSkill)
         {
             ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
             if (!attributePlayer.ConsumeMagicPoint(elainaSkill.MagicPointCost)) return;
-        }
+        }*/
 
 
         skill.UseSkill(source);

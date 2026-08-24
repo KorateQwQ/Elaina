@@ -70,7 +70,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 
     public override void DrawMana(SpriteBatch spriteBatch)
     {
-        const bool UseUniqueMana = false;
+        bool UseUniqueMana = false;
 
         float currentMagicPoint = UseUniqueMana ?  Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint : snapshot.Mana;
         float maxMagicPoint = UseUniqueMana ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint : snapshot.ManaMax;
@@ -87,7 +87,9 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         if (manaArea.Contains(mousePoint))
         {
             float scale = 0.25f;
-            float magicPointRecovery = UseUniqueMana ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery() : Main.LocalPlayer.manaRegen / 2f;
+            float magicPointRecovery = UseUniqueMana
+                ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery()
+                : Main.LocalPlayer.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaRegenPerSecond;
             string text = $"MP: {currentMagicPointText}/{maxMagicPointText}   + {magicPointRecovery:0.#}/s";
             Vector2 size = font.MeasureString(text) * scale;
             center = center - size * 0.5f;

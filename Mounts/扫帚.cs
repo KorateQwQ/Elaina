@@ -99,7 +99,6 @@ namespace 伊蕾娜.Mounts
             float cost = MathHelper.Lerp(5, 1, v.熟练度 / 10f);
             player.fallStart = (int)(player.position.Y / 16f);
             //Main.NewText((int)(player.velocity.Length() / 3f * cost)+" "+ player.velocity.Length());
-            player.buffImmune[BuffID.ManaSickness] = true;
 
             if (player.CheckMana(player.HeldItem, (int)(player.velocity.Length() / 3f * cost * player.manaCost), false) && player.GetModPlayer<ElainaModplayer>().Elaina)
             {
@@ -154,7 +153,7 @@ namespace 伊蕾娜.Mounts
                         }
                         else
                         {
-                            player.manaRegenDelay = 60;
+                            //player.manaRegenDelay = 60;
                             v.lvUp((int)cost);
                         }
                     }

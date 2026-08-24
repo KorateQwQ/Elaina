@@ -7,7 +7,7 @@ using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
-[SkillUIInfo(State = 0, Pixels = 60)]
+[SkillUIInfo(State = 0, Pixels = 100)]
 public class MagicBarrierSkill : ElainaSkill
 {
 
@@ -32,17 +32,17 @@ public class MagicBarrierSkill : ElainaSkill
 
     public static float GetEndurance(Player player)
     {
-        //魔力屏障：20%魔力以下生效最小值，80%魔力时完全生效，最小30%伤害减免，最大70%伤害减免
-        float minimumMagicPointRatio = 0.2f;
+        //魔力屏障：10%魔力以下生效最小值，80%魔力时完全生效，最小0%伤害减免，最大70%伤害减免
+        float minimumMagicPointRatio = 0.1f;
         float fullReductionMagicPointRatio = 0.8f;
-        float minimumDamageReduction = 0.3f;
+        float minimumDamageReduction = 0.0f;
         float fullDamageReduction = 0.7f;
         
-        ElainaAttributeModPlayer attributePlayer = player.GetModPlayer<ElainaAttributeModPlayer>();
-        if (attributePlayer.MaxMagicPoint > 0f&&
+        //ElainaAttributeModPlayer attributePlayer = player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (player.statMana> 0f&&
             (player.HeldItem.IsAir||!player.HeldItem.IsWeapon()||player.HeldItem.type == ModContent.ItemType<ElainaWand>()))
         {
-            float magicPointRatio = attributePlayer.MagicPoint / attributePlayer.MaxMagicPoint;
+            float magicPointRatio = (player.statMana / (float)player.statManaMax2);
             if (magicPointRatio >= minimumMagicPointRatio)
             {
                 float reductionProgress = fullReductionMagicPointRatio <= minimumMagicPointRatio
@@ -72,7 +72,7 @@ public class MagicBarrierSkill : ElainaSkill
 
         public override void OnHurt(Player.HurtInfo info)
         {
-            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+            //ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
             ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
             if (skillPlayer.TryGetUnlockedModSkill<MagicBarrierSkill>(out var magicBarrierSkill))
             {
@@ -82,15 +82,16 @@ public class MagicBarrierSkill : ElainaSkill
                     float reductionDamage = endurance*info.SourceDamage;
                     if (endurance > 0)
                     {
-                        float magicPointCost = Math.Min(reductionDamage, attributePlayer.MaxMagicPoint*0.2f);
-                        if (attributePlayer.ConsumeMagicPoint(magicPointCost, false))
+                        float magicPointCost = Math.Min(reductionDamage, Player.statManaMax2*0.2f);
+                        if (Player.statMana>magicPointCost)
                         {
                             //attributePlayer.ConsumeMagicPoint(magicPointCost);
-                            attributePlayer.MagicPoint -= magicPointCost;
+                            Player.statMana -= (int)magicPointCost;
                         }
-                        else attributePlayer.MagicPoint = 0;
-                    
-                        PrintText($"魔法屏障：受到 {info.SourceDamage}伤害  护盾减免 {reductionDamage} 伤害，消耗魔力：{magicPointCost:0.#}"); 
+                        else Player.statMana = 0;
+
+                        Player.manaRegenDelay = 30;
+                        PrintText($"魔法屏障：受到 {info.SourceDamage}伤害 护盾减免率{endurance} 护盾减免 {reductionDamage} 伤害，消耗魔力：{magicPointCost:0.#}, 最终受到伤害：{info.Damage}"); 
                     }
                 }
             }

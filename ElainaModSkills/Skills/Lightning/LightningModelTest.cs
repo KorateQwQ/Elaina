@@ -144,7 +144,7 @@ public class LightningModelTest : ElainaBasicProjectile
         float scaleMultiplier = lightningType is 0 or 2 ? 2f : 1f;
         Vector2 modelScale = new Vector2(0.7f,0.8f)*scaleMultiplier * new Vector2(
             Main.rand.NextFloat(0.75f, 1.2f),
-            Main.rand.NextFloat(2.7f, 3.2f));
+            Main.rand.NextFloat(1.7f, 2.2f));
         Vector3 rotation = new(
             Main.rand.NextFloat(-0.1f, 0.1f),
             Main.rand.NextFloat(-MathHelper.Pi, MathHelper.Pi),
@@ -215,10 +215,10 @@ public class LightningModelTest : ElainaBasicProjectile
         lightningEffect.SetValue("uWorldInverseTranspose", Matrix.Transpose(Matrix.Invert(world)));
         lightningEffect.SetValue("uOutlineWidth", outlineWidth);
         lightningEffect.CurrentTechnique.Passes[0].Apply();
-        //gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
+        gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
 
         lightningEffect.SetValue("uOutlineWidth", 0.0f);
-        lightningEffect.SetValue("uDissolveEdgeWidth", 0.03f);
+        lightningEffect.SetValue("uDissolveEdgeWidth", 0.00f);
         lightningEffect.SetValue("uDissolveEdgeColor", Color.Black.ToVector4() * 1f);
         lightningEffect.SetValue("uBaseColor", new Color(100, 200, 255, 255).ToVector4() * 1.3f);
         lightningEffect.CurrentTechnique.Passes[0].Apply();

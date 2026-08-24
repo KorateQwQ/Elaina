@@ -63,26 +63,30 @@ public abstract class ElainaAction :AnimAction
         ActionDrawLayerType drawLayerType)
     {
 
-        if (drawLayerType == ActionDrawLayerType.UnderArm)
+        if (drawInfo.shadow == 0)
         {
-            UpdateWandTrail();
-            DrawWand(ref drawInfo);
-        }
-        if(drawLayerType==ActionDrawLayerType.OverPlayer)
-        {
-            base.Draw(actionPlayer, ref drawInfo, actionFrame, actionProgress, drawLayerType);
-            DrawAutoWandTrail(actionProgress);
-            if (DrawActionStar)
+            if (drawLayerType == ActionDrawLayerType.UnderArm)
             {
-                DrawStar(ref drawInfo,actionProgress);
+                UpdateWandTrail();
+                DrawWand(ref drawInfo);
             }
-            if (DrawWandTrail || DrawActionStar)
+            if(drawLayerType==ActionDrawLayerType.OverPlayer)
             {
-                EndBeginDraw(0,1);
-            }
+                base.Draw(actionPlayer, ref drawInfo, actionFrame, actionProgress, drawLayerType);
+                DrawAutoWandTrail(actionProgress);
+                if (DrawActionStar)
+                {
+                    DrawStar(ref drawInfo,actionProgress);
+                }
+                if (DrawWandTrail || DrawActionStar)
+                {
+                    EndBeginDraw(0,1);
+                }
 
-            return;
+                return;
+            }
         }
+
         base.Draw(actionPlayer, ref drawInfo, actionFrame, actionProgress, drawLayerType);
     }
 

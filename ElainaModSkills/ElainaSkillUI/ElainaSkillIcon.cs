@@ -17,7 +17,6 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
             
             ImageScale = new Vector2(Parent.Width.Pixels/Texture2D.Width()*1f, Parent.Height.Pixels/Texture2D.Height()*1f);
 
-            ImageAlign = new Vector2(0.5f);
             SetLeft(alignment: 0.5f);
             SetTop(alignment: 0.5f);
         
@@ -50,7 +49,10 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
     
     protected override void Update(GameTime gameTime)
     {
-        ImageScale = new Vector2(Parent.Width.Pixels/Texture2D.Width()*1f, Parent.Height.Pixels/Texture2D.Height()*1f);
+        BackgroundColor = Color.Black*0.5f;
+        SetSize(Parent.Width.Pixels,Parent.Height.Pixels);
+        BorderRadius = Parent.BorderRadius;
+        ImageScale = new Vector2(Parent.Width.Pixels/Texture2D.Width(), Parent.Height.Pixels/Texture2D.Height())*0.98f;
         base.Update(gameTime);
     }
 

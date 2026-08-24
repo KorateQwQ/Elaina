@@ -158,7 +158,7 @@ public class ElainaAttributeModPlayer : ModPlayer
         else InBattle = false;
         
         MagicPoint += GetMagicPointRecovery() / 60f;
-        //PrintText(Player.manaRegenBonus + " " + Player.manaRegen+" "+GetMagicPointRecovery());
+        //PrintText("额外回复"+Player.manaRegenBonus + " 额外回复延迟减免" + Player.manaRegenDelayBonus+" ");
 
     }
 

@@ -52,7 +52,7 @@ public abstract class ElainaSkill : ModSkill
     /// <summary>
     /// 释放技能消耗的魔力点数。
     /// </summary>
-    public float MagicPointCost = 0f;
+    public int MagicPointCost = 0;
 
     /// <summary>
     /// 按当前技能对应的曲线获取指定进度的技能伤害。

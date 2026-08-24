@@ -94,7 +94,6 @@ namespace 伊蕾娜
 
             if (Elaina && !Player.dead)
             {
-                Player.buffImmune[BuffID.ManaSickness] = true;
                 Player.legPosition = new Vector2(0, 0);
 
                 if (Player.bodyFrame.Y >= 56 && Player.bodyFrame.Y < 392 && Player.legFrame.Y >= 392)//正在跑步的同时手里持有物品
@@ -156,6 +155,7 @@ namespace 伊蕾娜
             if (Elaina)
             {
                 GiveNikehBookToOldPlayer = true;
+                Player.ConsumedManaCrystals = 4;
                 Player.GetModPlayer<ElainaModplayer>().Elaina = true;
                 Player.GetModPlayer<EXPmodplayer>().Reset();
                 Player.GetModPlayer<ElainaSkillModPlayer>().UnlockSkill(Skill.NewSkill(typeof(AshenWitchSkill),伊蕾娜.ElainaModInstance));
@@ -242,8 +242,7 @@ namespace 伊蕾娜
                 hat = false;
 
             }
-
-
+            base.ResetEffects();
         }
         public override void SyncPlayer(int toWho, int fromWho, bool newPlayer)
         {
@@ -499,16 +498,6 @@ namespace 伊蕾娜
         {
             if (Elaina)
             {
-                Player.buffImmune[BuffID.ManaSickness] = true;
-
-                if (Player.statLifeMax2 > 100 && Player.statLifeMax2 <= 400f)
-                {
-                    Player.statLifeMax2 = 100 + (int)((Player.statLifeMax2 - 100) * 0.334f);
-                }
-                else if (Player.statLifeMax2 > 400)
-                {
-                    Player.statLifeMax2 = 200 + (int)((Player.statLifeMax2 - 400) * 0.5f);
-                }
             }
             if (Main.myPlayer == Player.whoAmI)
             {
@@ -586,9 +575,14 @@ namespace 伊蕾娜
             base.ModifyDrawInfo(ref drawInfo);
         }
 
+        public override void UpdateEquips()
+        {            
+            //Player.buffImmune[BuffID.ManaSickness] = true;
+            base.UpdateEquips();
+        }
+
         public override void PostUpdate()
         {
-
             base.PostUpdate();
         }
 

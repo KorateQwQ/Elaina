@@ -1,11 +1,12 @@
+using System;
 using System.Linq;
 using KL.Drawing;
+using KL.Extensions;
 using KL.SkillSystem;
 using KL.SkillSystem.AbstractClass;
 using KL.SkillSystem.SilkyUI;
 using KL.SkillSystem.TemplateSkillUI;
 using Microsoft.Xna.Framework.Graphics;
-using ReLogic.Content;
 using ReLogic.Graphics;
 using SilkyUIFramework;
 using SilkyUIFramework.Attributes;
@@ -13,7 +14,7 @@ using SilkyUIFramework.Elements;
 using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria.ModLoader;
-using 伊蕾娜.ElainaModSkills.Skills.Fire;
+using 伊蕾娜.ElainaModSkills.UICore;
 
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
@@ -25,15 +26,11 @@ public class ElainaSkillBar : BasicSkillBar
     public override bool IsInteractable => Main.LocalPlayer.itemAnimation <= 0;
     public virtual int MaxSkillSlot => ElainaSkillModPlayer.GetActiveSkill.Count;
 
+
     BookIconSkillBar bookIcon_SkillBar = null;
-    private static Texture2D circle;
-    private static Texture2D icon_Line;
-    
+
     protected override void OnInitialize()
     {
-        icon_Line  ??=  ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/Texture/Icon_Line_Non", AssetRequestMode.ImmediateLoad).Value;
-        circle  ??=  ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/Texture/Icon_Circle", AssetRequestMode.ImmediateLoad).Value;
-        
         SetLeft(alignment: 0.5f);
         SetTop(alignment: 0.05f);
 
@@ -51,11 +48,11 @@ public class ElainaSkillBar : BasicSkillBar
         //内边距
         Padding = new Margin(30,8,8,8);
         Enabled = true;
-        
+
 
         /*bookIcon_SkillBar = new BookIconSkillBar().Join(this);
         bookIcon_SkillBar.elainaSkillBar = this;*/
-        
+
         ZIndex = -100;
         BorderColor = Color.Black*0.0f;
         BackgroundColor = Color.Black*0.0f;
@@ -137,63 +134,65 @@ public class ElainaSkillBar : BasicSkillBar
 
     protected override void Update(GameTime gameTime)
     {
-        //Enabled = false;
-
-        //PrintText(GetAvailableSkillNum());
-        //BackgroundColor = Color.Black*0;
-        Padding = new Margin(8,8,8,8);
-        SetLeft(pixels:0, alignment: 0.90f);
-        SetTop(pixels:0, alignment: 0.95f);
+        Padding = new Margin(8, 8, 8, 8);
+        SetLeft(pixels: 0, alignment: 0.98f);
+        SetTop(pixels: 0, alignment: 0.95f);
+        
         base.Update(gameTime);
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        EndBeginDrawUI(2);
+        float phase = (float)Main.timeForVisualEffects;
+        int selectedIndex = ElainaSkillModPlayer.CurrentSkillIndex;
 
-        var position = Bounds.Position+new Vector2(-10,0);
-        float length = 1.5f;
-        Color pink = new Color(203,142,177);
-        Color black =new Color(69,66,75);
-        Color white =new Color(237,240,243);
-        Color purple =new Color(183,101,193,255) ;
-
-
-        /*for (int i = 0; i < 3; i++)
-        {
-            DrawInScreen(new TextureInfo(icon_Line,originOffset:new Vector2(-icon_Line.Width/2f,0)), 
-                position+new Vector2(3,0),color:white,scale: new Size(length,0.3f));
-        
-            DrawInScreen(new TextureInfo(icon_Line,originOffset:new Vector2(-icon_Line.Width/2f,0)), 
-                position+new Vector2(3.5f,63),color:white,scale: new Size(length*0.7f,0.3f));
-        
-            DrawInScreen(new TextureInfo(icon_Line,originOffset:new Vector2(-icon_Line.Width/2f,0)), 
-                position+new Vector2(0,67),color:white,scale: new Size(length*0.65f,0.15f));
-        }*/
-
-        EndBeginDrawUI(2);
-
+        /*// 先绘制所有槽位的灰色圆底背景
         foreach (var child in Children)
         {
-            if (child is ElainaSkillSlot slot)
-            {
-                var pos = slot.Bounds.Position + slot.Bounds.Size / 2;
-                //DrawInScreen(circle, pos,black,new Vector2(0.11f));
-                DrawRectangle(pos, new Vector2(65f), black,corner:8,border:0.5f,filled:true);
+            if (child is not ElainaSkillSlot slot) continue;
+            if (slot.GetSlotSkill() == null) continue;
 
+            Vector2 center = slot.Bounds.Position + slot.Bounds.Size / 2f;
+            UIDrawKit.DrawGlow(spriteBatch, center, 35f, new Color(128, 128, 128) * 0.8f);
+        }*/
+
+        // 绘制技能槽内容
+        base.Draw(gameTime, spriteBatch);
+
+        // 绘制所有槽位的白色圆形外框和选中提示(在图标上层)
+        EndBeginDrawUI(1, 1);
+        for (int i = 0; i < Children.Count; i++)
+        {
+            if (Children[i] is not ElainaSkillSlot slot) continue;
+            if (slot.GetSlotSkill() == null) continue;
+
+            Vector2 center = slot.Bounds.Position + slot.Bounds.Size / 2f;
+
+            // 白色圆形外框
+            DrawCircleFrame(spriteBatch, center, 28f, 1f, Color.White * 0.9f);
+
+            // 选中槽位的顶部十字星提示
+            if (i == selectedIndex)
+            {
+                Vector2 topPos = center + new Vector2(0f, -38f);
+                UIDrawKit.DrawSparkle(spriteBatch, topPos, 58f, phase * 0.02f, Color.White * 0.85f);
             }
         }
-
         EndBeginDrawUI();
-        EndBeginDrawUI();
-        
-        base.Draw(gameTime, spriteBatch);
     }
 
-    public override void HandleDraw(GameTime gameTime, SpriteBatch spriteBatch)
+    /// <summary>绘制圆形边框</summary>
+    private void DrawCircleFrame(SpriteBatch sb, Vector2 center, float radius, float thickness, Color color)
     {
-        base.HandleDraw(gameTime, spriteBatch);
-        
+        const int segments = 48;
+        for (int i = 0; i < segments; i++)
+        {
+            float angle1 = MathHelper.TwoPi * i / segments;
+            float angle2 = MathHelper.TwoPi * (i + 1) / segments;
+            Vector2 p1 = center + radius * new Vector2(MathF.Cos(angle1), MathF.Sin(angle1));
+            Vector2 p2 = center + radius * new Vector2(MathF.Cos(angle2), MathF.Sin(angle2));
+            UIDrawKit.DrawLine(sb, p1, p2, thickness, color);
+        }
     }
-    
+
 }

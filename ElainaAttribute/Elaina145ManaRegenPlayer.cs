@@ -4,6 +4,8 @@ using Terraria;
 using Terraria.ModLoader;
 using Terraria.Audio;
 using Terraria.ID;
+using Mono.Cecil.Cil;
+using MonoMod.Cil;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -13,18 +15,103 @@ namespace 伊蕾娜.ElainaAttribute;
 /// </summary>
 public class Elaina145ManaRegenPlayer : ModPlayer
 {
-    public const bool EnableElaina145ManaRegen = true;
+    public bool EnableElaina145ManaRegen => true;
 
     private int nebulaManaCounter;
+    private readonly int[] naturalManaGainHistory = new int[60];
+    private int naturalManaGainHistoryIndex;
+    private int naturalManaGainHistoryCount;
+    private int naturalManaGainHistoryTotal;
+    private int pendingExternalManaGain;
+    private int miscEffectsManaBefore;
+    private int equipManaBefore;
+
+    public float NaturalManaRegenPerSecond => naturalManaGainHistoryCount == 0
+        ? 0f
+        : naturalManaGainHistoryTotal * 60f / naturalManaGainHistoryCount;
 
     public override void Load()
     {
         On_Player.UpdateManaRegen += On_Player_UpdateManaRegen;
+        IL_Player.UpdateEquips += IL_Player_UpdateEquips;
+        IL_Player.Update += IL_Player_Update;
+        On_Player.ItemCheck += On_Player_ItemCheck;
     }
 
     public override void Unload()
     {
         On_Player.UpdateManaRegen -= On_Player_UpdateManaRegen;
+        IL_Player.UpdateEquips -= IL_Player_UpdateEquips;
+        IL_Player.Update -= IL_Player_Update;
+        On_Player.ItemCheck -= On_Player_ItemCheck;
+    }
+
+    private static void IL_Player_UpdateEquips(ILContext il)
+    {
+        var cursor = new ILCursor(il);
+        if (!cursor.TryGotoNext(MoveType.Before, instruction => instruction.MatchCall("Terraria.ModLoader.ItemLoader", "UpdateEquip")))
+            return;
+
+        cursor.Emit(OpCodes.Ldarg_0);
+        cursor.EmitDelegate<Action<Player>>(BeginEquipManaTracking);
+        cursor.GotoNext(MoveType.After, instruction => instruction.MatchCall("Terraria.ModLoader.ItemLoader", "UpdateEquip"));
+        cursor.Emit(OpCodes.Ldarg_0);
+        cursor.EmitDelegate<Action<Player>>(EndEquipManaTracking);
+    }
+
+    private static void BeginEquipManaTracking(Player player)
+    {
+        player.GetModPlayer<Elaina145ManaRegenPlayer>().equipManaBefore = player.statMana;
+    }
+
+    private static void EndEquipManaTracking(Player player)
+    {
+        RecordPositiveManaDifference(player, player.GetModPlayer<Elaina145ManaRegenPlayer>().equipManaBefore);
+    }
+
+    private static void IL_Player_Update(ILContext il)
+    {
+        var cursor = new ILCursor(il);
+        if (!cursor.TryGotoNext(MoveType.Before, instruction => instruction.MatchCall("Terraria.ModLoader.PlayerLoader", "PostUpdateMiscEffects")))
+            return;
+
+        cursor.Emit(OpCodes.Dup);
+        cursor.EmitDelegate<Action<Player>>(BeginMiscEffectsManaTracking);
+        cursor.GotoNext(MoveType.After, instruction => instruction.MatchCall("Terraria.ModLoader.PlayerLoader", "PostUpdateMiscEffects"));
+        cursor.Emit(OpCodes.Ldarg_0);
+        cursor.EmitDelegate<Action<Player>>(EndMiscEffectsManaTracking);
+    }
+
+    private static void BeginMiscEffectsManaTracking(Player player)
+    {
+        player.GetModPlayer<Elaina145ManaRegenPlayer>().miscEffectsManaBefore = player.statMana;
+    }
+
+    private static void EndMiscEffectsManaTracking(Player player)
+    {
+        RecordPositiveManaDifference(player, player.GetModPlayer<Elaina145ManaRegenPlayer>().miscEffectsManaBefore);
+    }
+
+    private static void RecordPositiveManaDifference(Player player, int manaBefore)
+    {
+        Elaina145ManaRegenPlayer modPlayer = player.GetModPlayer<Elaina145ManaRegenPlayer>();
+        if (modPlayer.EnableElaina145ManaRegen && player.GetModPlayer<ElainaModplayer>().Elaina)
+            modPlayer.pendingExternalManaGain += Math.Max(0, player.statMana - manaBefore);
+    }
+
+    private void On_Player_ItemCheck(On_Player.orig_ItemCheck orig, Player self)
+    {
+        bool wasUsingManaItem = false;
+        Item item = self.inventory[self.selectedItem];
+        if (EnableElaina145ManaRegen && self.GetModPlayer<ElainaModplayer>().Elaina && self.itemAnimation > 0 && item.mana > 0)
+        {
+            wasUsingManaItem = !(self.spaceGun && (item.type == ItemID.SpaceGun || item.type == ItemID.LaserRifle || item.type == ItemID.MeteorStaff || item.type == ItemID.ZapinatorGray));
+        }
+
+        orig(self);
+
+        if (wasUsingManaItem)
+            ApplyManaRegenerationDelay145(self);
     }
 
     private void On_Player_UpdateManaRegen(On_Player.orig_UpdateManaRegen orig, Player self)
@@ -35,15 +122,46 @@ public class Elaina145ManaRegenPlayer : ModPlayer
             return;
         }
 
-        if (self.manaRegenDelay > 4f)
-            ApplyManaRegenerationDelay145(self);
-        UpdateManaRegen145(self);
+        Elaina145ManaRegenPlayer modPlayer = self.GetModPlayer<Elaina145ManaRegenPlayer>();
+        if (self.dead)
+        {
+            modPlayer.ResetNaturalManaRegenHistory();
+            modPlayer.pendingExternalManaGain = 0;
+            UpdateManaRegen145(self);
+            return;
+        }
+
+        int actualNaturalManaGain = UpdateManaRegen145(self);
+        modPlayer.RecordNaturalManaGain(actualNaturalManaGain + modPlayer.pendingExternalManaGain);
+        modPlayer.pendingExternalManaGain = 0;
     }
 
-    private static void UpdateManaRegen145(Player player)
+    private void ResetNaturalManaRegenHistory()
+    {
+        Array.Clear(naturalManaGainHistory, 0, naturalManaGainHistory.Length);
+        naturalManaGainHistoryIndex = 0;
+        naturalManaGainHistoryCount = 0;
+        naturalManaGainHistoryTotal = 0;
+    }
+
+    private void RecordNaturalManaGain(int manaGain)
+    {
+        int gain = Math.Max(0, manaGain);
+        if (naturalManaGainHistoryCount == naturalManaGainHistory.Length)
+            naturalManaGainHistoryTotal -= naturalManaGainHistory[naturalManaGainHistoryIndex];
+        else
+            naturalManaGainHistoryCount++;
+
+        naturalManaGainHistory[naturalManaGainHistoryIndex] = gain;
+        naturalManaGainHistoryTotal += gain;
+        naturalManaGainHistoryIndex = (naturalManaGainHistoryIndex + 1) % naturalManaGainHistory.Length;
+    }
+
+    private int UpdateManaRegen145(Player player)
     {
         bool isUsingItem = player.itemAnimation > 0 || player.reuseDelay > 0;
-        ApplyNebulaBuffMana145(player.GetModPlayer<Elaina145ManaRegenPlayer>(), player);
+        Elaina145ManaRegenPlayer modPlayer = player.GetModPlayer<Elaina145ManaRegenPlayer>();
+        int actualNaturalManaGain = ApplyNebulaBuffMana145(modPlayer, player);
 
         if (player.manaRegenDelay > 0f)
         {
@@ -97,6 +215,7 @@ public class Elaina145ManaRegenPlayer : ModPlayer
             if (player.statMana < player.statManaMax2)
             {
                 player.statMana++;
+                actualNaturalManaGain++;
                 shouldShowFullManaEffect = true;
             }
 
@@ -120,6 +239,8 @@ public class Elaina145ManaRegenPlayer : ModPlayer
                 player.statMana = player.statManaMax2;
             }
         }
+
+        return actualNaturalManaGain;
     }
 
     public static void ApplyManaRegenerationDelay145(Player player)
@@ -135,25 +256,31 @@ public class Elaina145ManaRegenPlayer : ModPlayer
         if (player.statMana <= 0)
             return;
         player.manaRegenDelay = delayWithMana;
+        //PrintText("延迟"+player.manaRegenDelay);
     }
 
-    private static void ApplyNebulaBuffMana145(Elaina145ManaRegenPlayer modPlayer, Player player)
+    private static int ApplyNebulaBuffMana145(Elaina145ManaRegenPlayer modPlayer, Player player)
     {
         if (player.nebulaLevelMana > 0)
         {
             int interval = 6;
             modPlayer.nebulaManaCounter += player.nebulaLevelMana;
             if (modPlayer.nebulaManaCounter < interval)
-                return;
+                return 0;
 
             modPlayer.nebulaManaCounter -= interval;
+            if (player.statMana >= player.statManaMax2)
+                return 0;
+
             player.statMana++;
             if (player.statMana >= player.statManaMax2)
                 player.statMana = player.statManaMax2;
+            return 1;
         }
         else
         {
             modPlayer.nebulaManaCounter = 0;
+            return 0;
         }
     }
 
