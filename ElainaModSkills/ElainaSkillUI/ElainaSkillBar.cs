@@ -6,6 +6,7 @@ using KL.SkillSystem;
 using KL.SkillSystem.AbstractClass;
 using KL.SkillSystem.SilkyUI;
 using KL.SkillSystem.TemplateSkillUI;
+using KL.Utils;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Graphics;
 using SilkyUIFramework;
@@ -47,6 +48,10 @@ public class ElainaSkillBar : BasicSkillBar
 
         //内边距
         Padding = new Margin(30,8,8,8);
+        
+        //图标之间的间距
+        Gap = 10;
+        
         Enabled = true;
 
 
@@ -134,8 +139,7 @@ public class ElainaSkillBar : BasicSkillBar
 
     protected override void Update(GameTime gameTime)
     {
-        Padding = new Margin(8, 8, 8, 8);
-        SetLeft(pixels: 0, alignment: 0.98f);
+        SetLeft(pixels: 0, alignment: 0.95f);
         SetTop(pixels: 0, alignment: 0.95f);
         
         base.Update(gameTime);
@@ -178,7 +182,35 @@ public class ElainaSkillBar : BasicSkillBar
                 UIDrawKit.DrawSparkle(spriteBatch, topPos, 58f, phase * 0.02f, Color.White * 0.85f);
             }
         }
+
+        BackgroundColor = Color.Black;
         EndBeginDrawUI();
+        var tex = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.ElainaSkillBar_BackGround");
+        var slotTex = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.ElainaSkillSlot");
+
+        Vector2 size = Bounds.Size;
+        var position = Bounds.Position+ new Vector2(size.X/2, size.Y/2);
+
+        
+        DrawInScreen(tex,position,scale:new Vector2(1,1.1f));
+        //DrawInScreen(slotTex, position);
+
+    }
+
+    public override void DrawChildren(GameTime gameTime, SpriteBatch sb)
+    {
+        base.DrawChildren(gameTime, sb);
+
+        FitWidth = false;
+        SetWidth(620);
+        var slotTex = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.ElainaSkillSlot");
+        Vector2 size = Bounds.Size;
+        var position = Bounds.Position+ new Vector2(size.X/2, size.Y/2);
+        //内边距
+        Padding = new Margin(5,2,10,8);
+        //图标之间的间距
+        Gap = 11f;
+        DrawInScreen(slotTex, position,scale:new Vector2(1,1.1f));
     }
 
     /// <summary>绘制圆形边框</summary>

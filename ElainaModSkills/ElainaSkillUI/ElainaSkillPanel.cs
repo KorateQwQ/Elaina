@@ -3,6 +3,7 @@ using System.Linq;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using KL.UI;
+using KL.Utils;
 using SilkyUIFramework;
 using SilkyUIFramework.Attributes;
 using Terraria.GameContent;
@@ -137,7 +138,7 @@ public class ElainaSkillToolTip : SkillToolTip
         DrawInScreen(lineTexture, center + new Vector2(70f, 0f), scale: new Vector2(0.6f, 0.1f), color: new Color(255, 255, 255, 0));
         DrawInScreen(lineTexture, center - new Vector2(70f, 0f), scale: new Vector2(0.6f, 0.1f), color: new Color(255, 255, 255, 0));
         DrawInScreen(crossTexture, center, scale: new Vector2(0.04f, 0.02f), color: new Color(255, 255, 255, 0));
-
+        
         base.Draw(gameTime, spriteBatch);
     }
 }

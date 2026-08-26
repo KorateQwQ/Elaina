@@ -50,7 +50,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         Vector2 center = GetBaseCenter();
         string currentLifeText = $"{snapshot.Life:0.#}";
         string maxLifeText = $"{snapshot.LifeMax:0.#}";
-        lifeArea = DrawBar(spriteBatch, center, new Vector2(300,15), snapshot.Life, snapshot.LifeMax, LifeBackColor, new Color(220, 102, 188,255), ref lifeDecayPercent);
+        lifeArea = DrawBar(spriteBatch, center, new Vector2(285,15), snapshot.Life, snapshot.LifeMax, LifeBackColor, new Color(220, 102, 188,255), ref lifeDecayPercent);
         DrawCenteredText(spriteBatch, lifeText.Format(currentLifeText, maxLifeText), lifeArea, Color.White, 0.82f);
         
         Point mousePoint = Main.MouseScreen.ToPoint();
@@ -78,7 +78,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         string maxMagicPointText = $"{maxMagicPoint:0.#}";
         
         Vector2 center = GetBaseCenter() + new Vector2(0, 30f);
-        manaArea = DrawBar(spriteBatch, center, new Vector2(300,15), currentMagicPoint, maxMagicPoint, ManaBackColor, new Color(100,210,255,255), ref manaDecayPercent);
+        manaArea = DrawBar(spriteBatch, center, new Vector2(285,15), currentMagicPoint, maxMagicPoint, ManaBackColor, new Color(100,210,255,255), ref manaDecayPercent);
         DrawCenteredText(spriteBatch, manaText.Format(currentMagicPointText, maxMagicPointText), manaArea, Color.White * 0.9f, 0.68f);
         
         Point mousePoint = Main.MouseScreen.ToPoint();
@@ -130,7 +130,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 
     private static Vector2 GetBaseCenter()
     {
-        return new Vector2(Main.screenWidth - 174f, 32f);
+        return new Vector2(Main.screenWidth - 154f, 32f);
     }
 
     private static Rectangle DrawBar(SpriteBatch spriteBatch, Vector2 center, Vector2 size, float value, float maxValue, Color backColor, Color fillColor)
@@ -189,8 +189,13 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
             capsuleSharpness:0.5f);
 
         float arrowSize = size.Y / 15;
-        DrawArrow(center + new Vector2(-size.X * 0.5f - 5f, 0f), -7f*arrowSize, 70f);
-        DrawArrow(center + new Vector2(size.X * 0.5f + 5f, 0f), 7f*arrowSize, 70f);
+        //DrawArrow(center + new Vector2(-size.X * 0.5f - 5f, 0f), -7f*arrowSize, 70f);
+        //DrawArrow(center + new Vector2(size.X * 0.5f + 5f, 0f), 7f*arrowSize, 70f);
+        if (fillColor == new Color(100, 210, 255, 255))
+        {
+            DrawCrossStar(center + new Vector2(-size.X * 0.5f-14 , -4f),new Vector2(15,18)*1,Color.White,0,0.0f,0.2f);
+            DrawCrossStar(center + new Vector2(-size.X * 0.5f -8, 1f),new Vector2(14),Color.White,0,0.8f,0.2f);
+        }
         
         //Main.spriteBatch = spriteBatch;
 

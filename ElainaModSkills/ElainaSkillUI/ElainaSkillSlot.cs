@@ -3,6 +3,7 @@ using KL.Extensions;
 using KL.SkillSystem;
 using KL.SkillSystem.AbstractClass;
 using KL.SkillSystem.SilkyUI;
+using KL.Utils;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using SilkyUIFramework;
@@ -21,7 +22,7 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
     protected override Color SlotBackgroundColor { get; set; } = Color.Black * 0.0f;
     protected override Vector4 SlotBorderRadius { get; set; } = new Vector4(25);
     protected override float SlotPadding { get; set; } = 0f;
-    protected override Vector2 SlotSize { get; set; } = new Vector2(50);
+    protected override Vector2 SlotSize { get; set; } = new Vector2(58);
 
     /// <summary>图标绘制尺寸(正方形)。</summary>
     private const float IconDrawSize = 36f;
@@ -61,9 +62,10 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
     {
         float dt = Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0f, 1f / 20f);
 
-        SetTop(-5);
-        /*SetSize(50,50);
-        BorderRadius = new Vector4(25);*/
+        SetTop(0);
+        SetSize(58,58);
+        BorderRadius = new Vector4(29);
+
         Border = 0.0f;
         BorderColor = Color.White;
         Padding = new Margin(0, 0);
@@ -118,6 +120,7 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
                 center + new Vector2(SlotSize.X * 0.30f, SlotSize.Y * 0.24f),
                 Color.White, 0.66f, new Vector2(0.5f));
         }
+        
     }
 
 

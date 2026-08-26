@@ -49,7 +49,7 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
     
     protected override void Update(GameTime gameTime)
     {
-        BackgroundColor = Color.Black*0.5f;
+        BackgroundColor = Color.Black*0.0f;
         SetSize(Parent.Width.Pixels,Parent.Height.Pixels);
         BorderRadius = Parent.BorderRadius;
         ImageScale = new Vector2(Parent.Width.Pixels/Texture2D.Width(), Parent.Height.Pixels/Texture2D.Height())*0.98f;
@@ -58,8 +58,8 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        EndBeginDrawUI();
-        EndBeginDrawUI();
+        /*EndBeginDrawUI();
+        EndBeginDrawUI();*/
         base.Draw(gameTime, spriteBatch);
     }
 }
