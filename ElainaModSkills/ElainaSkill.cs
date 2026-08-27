@@ -142,7 +142,7 @@ public abstract class ElainaSkill : ModSkill
 
     public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale,Color color, Effect effect = null)
     {
-        EndBeginDrawUI(2,1,shader:effect);
+        //EndBeginDrawUI(2,1,shader:effect);
         return base.PreDrawSkillIcon(position, scale,color, effect);
     }
     

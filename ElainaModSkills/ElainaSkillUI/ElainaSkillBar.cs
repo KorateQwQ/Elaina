@@ -207,10 +207,10 @@ public class ElainaSkillBar : BasicSkillBar
         Vector2 size = Bounds.Size;
         var position = Bounds.Position+ new Vector2(size.X/2, size.Y/2);
         //内边距
-        Padding = new Margin(5,2,10,8);
+        Padding = new Margin(13,2,10,8);
         //图标之间的间距
-        Gap = 11f;
-        DrawInScreen(slotTex, position,scale:new Vector2(1,1.1f));
+        Gap = 10f;
+        DrawInScreen(slotTex, position,scale:new Vector2(1,1.0f));
     }
 
     /// <summary>绘制圆形边框</summary>

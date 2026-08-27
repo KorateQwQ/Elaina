@@ -61,8 +61,9 @@ public class MagicMissileSkill : ElainaSkill
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));
 
-        animAction.FrameUpdateListener = (actionPlayer, _, _) =>
-            Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);
+        //每帧固定回蓝时间
+        /*animAction.FrameUpdateListener = (actionPlayer, _, _) =>
+            Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);*/
         animAction.PreNodeUpdateListener = (_, node, actionFrame, _) =>
         {
             /*
@@ -93,7 +94,7 @@ public class MagicMissileSkill : ElainaSkill
 
     int GetDamage()
     {
-        int level = 5;//角色等级
+        int level = 10;//角色等级
         float attackTotalTime = 0.333f * 5;//5次攻击需要的时间
         int attackCount = 7;//五次攻击触发被动，额外造成200%伤害，因此可算作7次攻击
         return KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level), attackTotalTime, attackCount);

@@ -213,7 +213,6 @@ namespace 伊蕾娜.Items
             if (!player.GetModPlayer<ElainaModplayer>().Elaina||Main.myPlayer!=player.whoAmI) return false;
             
             ElainaSkillModPlayer skillModPlayer = player.GetModPlayer<ElainaSkillModPlayer>();
-            PrintText(skillModPlayer.CanUseSkill());
             return skillModPlayer.CanUseSkill();
         }
 
