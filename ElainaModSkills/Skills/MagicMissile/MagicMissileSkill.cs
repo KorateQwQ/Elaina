@@ -24,15 +24,15 @@ public class MagicMissileSkill : ElainaSkill
 {
     public override void Initialize()
     {
-        MagicPointCost = 3;
+        MagicPointCost = 5;
         CurrentCD = 0.3f;
         MaxCD = 0.3f;
         base.Initialize();
     }
     public override void ResetEffects(Player player)
     {
-        MagicPointCost = 5;//(int)(player.statMana*0.2)+200;
-        MaxStack = 1;
+        //MagicPointCost = 5;//(int)(player.statMana*0.2)+200;
+        //MaxStack = 1;
         if (player.GetModPlayer<ElainaModplayer>().Elaina)
         {
             BasicStatus = Skill.SKillBasicStatus.UnLock;
@@ -44,7 +44,6 @@ public class MagicMissileSkill : ElainaSkill
     //每秒三次攻击，再根据五发额外伤害的被动，大概得到期望dps/4.2的单发伤害
     public override bool PreUseSkill(IEntitySource source)
     {
-        MaxCD = 0.3f;
         if (!Player.CheckMana(MagicPointCost, false))
             return false;
 

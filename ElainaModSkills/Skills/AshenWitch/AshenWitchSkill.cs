@@ -122,8 +122,8 @@ public class AshenWitchSkill: ElainaSkill
 
         int extraHP = (int)(Player.statLifeMax2 -100);
         int reduceHP = (int)(extraHP * 0.5f);
-        float extraMultiplier =  7.5f ;
-        float extraManaPercent = 1 + Math.Max(0, extraHP * extraMultiplier * 0.001f);
+        float extraMultiplier =  15f ;
+        float extraManaPercent = 1 + Math.Max(0, reduceHP * extraMultiplier * 0.001f);
         
         Player.statLifeMax2 = 100 + reduceHP;
         //PrintText(extraHP);
@@ -141,7 +141,12 @@ public class AshenWitchSkill: ElainaSkill
         
         //PrintText("额外生命："+extraHP+"，减少生命："+reduceHP+"，最终生命："+Player.statLifeMax2 + " 额外魔力倍率："+extraManaPercent + "实际额外获得魔力："+extraMana);
     }
-    
+
+    protected override object[] SkillDescriptionArgs => new object[]
+    {
+        1.5,
+    };
+
     public override void OnRightClickInSkillPanel()
     {
         
@@ -153,7 +158,6 @@ public class AshenWitchSkill: ElainaSkill
         base.OnRightClickInSkillPanel();
     }
 
-    protected virtual object[] SkillDescriptionArgs => Array.Empty<object>();
     public override bool TryGetToolTip(ref string name, ref string level, ref string desc)
     {
         return base.TryGetToolTip(ref name, ref level, ref desc);

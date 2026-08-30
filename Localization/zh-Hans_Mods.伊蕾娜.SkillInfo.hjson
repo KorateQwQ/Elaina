@@ -4,6 +4,7 @@ SkillName: {
 	MagicMissileSkill: 魔法飞弹
 	MultiMissileSkill: 多重射击
 	AshenWitchSkill: 灰之魔女
+	MagicBarrierSkill: 魔力护盾
 }
 
 SkillDesc: {
@@ -13,13 +14,18 @@ SkillDesc: {
 		被动: 魔法飞弹连续命中5次后额外造成基于魔法飞弹200%伤害的额外伤害。
 		'''
 	MultiMissileSkill: 对目标造成魔法伤害
-	AshenWitchSkill:
+	AshenWitchSkill: 玩家额外生命收益减少50%，每当以这种方式损失1点生命值，额外增加{0}%[c/4C91FFFF:最大魔力值]。
+	MagicBarrierSkill:
 		'''
-		伊蕾娜使用独特的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]施展技能，从其他效果中获得的原版最大魔力提升会以2倍的量增加伊蕾娜的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
+		在使用魔法武器或者不使用武器时，在即将受伤时展开魔力护盾保护自己。
 
-		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]在非战斗状态下会快速恢复，在战斗状态下缓慢恢复，无法通过蓝药回复。
+		魔力护盾会根据[c/4C91FFFF:剩余魔力]提供[c/B0B0B0:伤害减免]。受到伤害时，会消耗相当于被减免伤害数值的[c/4C91FFFF:魔力]。
 
-		在需要使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]但[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]不足时，转而消耗一定比例的血量回复同比例的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
+		当[c/4C91FFFF:剩余魔力]低于[c/4C91FFFF:最大魔力]的10%时，获得最低20%[c/B0B0B0:伤害减免]
+
+		当[c/4C91FFFF:剩余魔力]达到[c/4C91FFFF:最大魔力]的50%时，获得50%[c/B0B0B0:伤害减免]。
+
+		当[c/4C91FFFF:剩余魔力]高于[c/4C91FFFF:最大魔力]的50%，且[c/4C91FFFF:最大魔力]高于600时，获得额外[c/B0B0B0:伤害减免]。当[c/4C91FFFF:剩余魔力]达到[c/4C91FFFF:最大魔力]的80%以上时，最高可获得[c/FFD166:{0}]%[c/B0B0B0:额外伤害减免]。额外[c/B0B0B0:伤害减免]不会超过20%。
 		'''
 }
 

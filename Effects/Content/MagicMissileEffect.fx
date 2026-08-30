@@ -1,15 +1,18 @@
-﻿sampler uImage0 : register(s0);
-sampler clipImage : register(s1);//使用此材质对图片进行消融
-sampler clipImage2 : register(s2); //使用此材质对图片进行消融,此材质为整体裁切，不会滚动
+﻿sampler uImage0 : register(s0); // 扰动纹理
+sampler clipImage : register(s1); // 消融纹理
 
-float clipValue; //内部消融阈值
-float clipValue2; //边缘裁切阈值
+// 圆形参数
+float CircleRadius = 0.4f; // 圆的半径（0-0.5）
+float2 CircleCenter = float2(0.5f, 0.5f); // 圆心位置
+float CircleSoftness = 0.05f; // 圆边缘柔和度
+float4 CircleColor = float4(1.00f, 0.42f, 0.92f, 1.00f); // 圆的颜色
 
-float Edge; //内部消融的边缘
-float4 EdgeColor;
-float4 imageColor;
+// 扰动参数
+float DistortionStrength = 0.1f; // 扰动强度
+float2 uTime = float2(0, 0); // 扰动纹理滚动时间
 
-float2 uTime;
+// 消融参数
+float clipValue = 0.35f; // 消融阈值
 
 float Luminance(float4 color)
 {
@@ -18,28 +21,33 @@ float Luminance(float4 color)
 
 float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0) : COLOR0
 {
-    float4 color = tex2D(uImage0, coords + uTime);
-    float4 clipcolor2 = tex2D(clipImage2, coords);
+    // === 1. 读取扰动纹理并应用滚动 ===
+    float4 distortionTex = tex2D(uImage0, coords + uTime);
+    float2 distortion = (distortionTex.rg - 0.5f) * 2.0f * DistortionStrength;
 
-    float4 result = float4(0, 0, 0, 0);
-    
-    result = color;
-    //result.a = clipcolor2.r;//smoothstep(0, 1, clipcolor2.r);
-    
-    //处理外部裁切以及描边
-    if ((Luminance(result) * clipcolor2.r) <= clipValue2)
-    {
+    // === 2. 计算到圆心的距离（应用扰动）===
+    float2 toCenter = coords - CircleCenter;
+    toCenter += distortion; // 应用扰动扭曲
+    float dist = length(toCenter);
+
+    // === 3. 基础圆形遮罩（带柔和边缘）===
+    float circleMask = 1.0f - smoothstep(CircleRadius - CircleSoftness, CircleRadius + CircleSoftness, dist);
+    if (circleMask <= 0)
         return float4(0, 0, 0, 0);
-    }
-        
-    if ((Luminance(result) * clipcolor2.r) < clipValue - Edge)
+
+    // === 4. 消融效果 ===
+    float4 clipTex = tex2D(clipImage, coords + uTime);
+    float clipAlpha = Luminance(clipTex);
+
+    // 根据消融阈值裁剪
+    if (clipAlpha < clipValue)
         return float4(0, 0, 0, 0);
-    else if ((Luminance(result) * clipcolor2.r) < clipValue)
-    {
-        return EdgeColor;
-    }
-    
-    return inputColor * imageColor;
+
+    // === 5. 最终合成 ===
+    float4 finalColor = CircleColor * inputColor;
+    finalColor.a *= circleMask;
+
+    return finalColor;
 }
 
 /*float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0) : COLOR0

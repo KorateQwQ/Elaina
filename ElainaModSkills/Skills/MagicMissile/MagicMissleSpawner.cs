@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using KL.Drawing;
 using KL.Extensions;
+using KL.Utils;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria.DataStructures;
@@ -48,7 +50,7 @@ public class MagicMissleSpawner : KLProjectile
                 if(time>20)
                 {
                     state = State.Normal;
-                    time = 0;
+                    //time = 0;
                 }
             }break;
             case State.Normal:
@@ -107,7 +109,7 @@ public class MagicMissleSpawner : KLProjectile
                 DrawStartCircle();
             }break;
         }*/
-        
+        int startTime = 5;
         switch (state)
         {
             case State.Spawn:
@@ -115,12 +117,17 @@ public class MagicMissleSpawner : KLProjectile
                 EndBeginDraw(1,1);
                 ReColorEffect(new Vector4(1)*1.9f);
 
-                DrawStartStar();
-                DrawStartCircle();
-                if(time>10)DrawMagicBall();
+                DrawMagicBall();
+
+                if(time>startTime)
+                {
+                    DrawStartStar(startTime);
+                    DrawStartCircle(startTime);
+                }
             }break;
             case State.Normal:
             {
+                DrawStartStar(startTime);
                 DrawMagicBall();
 
             }break;
@@ -128,8 +135,8 @@ public class MagicMissleSpawner : KLProjectile
             {
                 EndBeginDraw(1,1);
                 ReColorEffect(new Vector4(1)*1.9f);
-                DrawStartStar();
-                DrawStartCircle();
+                DrawStartStar(startTime);
+                DrawStartCircle(startTime);
             }break;
         }
         EndBeginDraw();
@@ -144,108 +151,172 @@ public class MagicMissleSpawner : KLProjectile
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
 
-    void DrawStartStar()
+    void DrawStartStar(int start)
     {
-        Asset<Texture2D> line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine");
-        Asset<Texture2D> line2 = TextureAssets.Extra[98];
-        float rotation = MathHelper.Lerp(0.7f, 1.3f, time/20f);
-        Color color = new Color(255, 160, 239,155);
-        float timeEffect = DrawManager.FrameTime(0, 1, 20,time);
+        Texture2D line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine").Value;
+        Texture2D noise = AssetManager.GetTexture("KL.Effects.Tex.voronoiOrigin");
+        Effect effect = AssetManager.GetEffect("KL.Effects.Content.FuzzyEdge");
 
-        float timeEffect2 = MathHelper.Lerp(0, 1, time / 20f);
+        int startTime = time - start;
+        if(startTime>40)return;
+        Asset<Texture2D> line2 = TextureAssets.Extra[98];
         
-        float timeEffect3 = MathHelper.Lerp(1, 0, time / 20f);
+        float progress = startTime / 20f;
+        float easedProgress = 1f - (1f - progress) * (1f - progress);
+        float rotation = MathHelper.Lerp(0.7f, 2.2f, easedProgress);
+        if (startTime > 20f)
+        {
+            rotation = MathHelper.Lerp(2.2f, 2.6f, (startTime-20)/20f);
+        }
+        
+        Color color = new Color(255, 160, 239,155);
+
+        float timeEffect = MathHelper.Lerp(1, 0, startTime / 20f);
 
         Vector2 toward = new Vector2(1, 0).RotatedBy(Projectile.rotation+rotation);
-        float radius = MathHelper.Lerp(100, 300, time / 20f);
-        int count = (int)(25*timeEffect3);
-        
-        float totalScale = 1f;
+        float radius = MathHelper.Lerp(100, 300, startTime / 20f);
+        int count = (int)(25*timeEffect);
+
+        Vector2 totalScale =new Vector2(MathHelper.Lerp(0.35f, 1.2f, startTime / 20f),MathHelper.Lerp(0.2f, 0.2f, startTime / 20f));
         float middleHeight = 1f;
         float subHeight = 0.1f;
-                
 
-        for (int i = 0; i < count; i++)
+        // FuzzyEdge 参数：保持 + 消融效果
+        Vector4 imageColor = new Color(255, 160, 239, 155).ToVector4() * MathHelper.Lerp(4.5f, 2.5f, startTime / 20f);
+
+        // edgeNoiseStrength 控制消融：前 12 帧保持完整，后 8 帧慢慢消融
+        float edgeNoiseStrength;
+        int keepTime = 5;
+        if (startTime < keepTime)
         {
-            float eachHeight = MathHelper.Lerp(middleHeight,subHeight, Math.Abs((float)i / count - 0.5f) * 2f);
-
-            DrawInWorld(line.Value, Projectile.Center + toward*(i+0.5f)*radius/count - toward*radius/2f, color, new Vector2(0.2f,0.5f*eachHeight) * totalScale * timeEffect3,Projectile.rotation+ rotation);
-
+            // 保持阶段：噪声强度保持很低，星星完整显示
+            edgeNoiseStrength = 0.0f;
         }
-        
-        rotation += 3.14f/2f;
-        toward = new Vector2(1, 0).RotatedBy(Projectile.rotation+rotation);
-        radius = DrawManager.FrameTime(70, 150, 20,time);
-        for (int i = 0; i < count; i++)
+        else
         {
-            float eachHeight = MathHelper.Lerp(middleHeight,subHeight, Math.Abs((float)i / count - 0.5f) * 2f);
+            // 消融阶段：噪声强度从 0 增加到 0.7，使用缓动函数让消融更自然
+            float fadeProgress = (startTime - keepTime) / 30f; // 0-1 的消融进度
 
-            DrawInWorld(line.Value, Projectile.Center + toward*(i+0.5f)*radius/count - toward*radius/2f, color, new Vector2(0.2f,0.5f*eachHeight) * totalScale * timeEffect3,Projectile.rotation+ rotation);
-
+            edgeNoiseStrength = MathHelper.Lerp(0.0f, 0.6f, 1f - (1f - fadeProgress) * (1f - fadeProgress));
         }
+        Vector2 edgeNoiseScale = new Vector2(1f,0.5f);
+        Vector2 edgeNoiseOffset = new Vector2(0.4f, 0);
+        int edgeDirection = 0;
+
+        EndBeginDraw(1,1);
+        effect.SetValue("ImageColor", imageColor);
+        effect.SetValue("Intensity", edgeNoiseStrength);
+        effect.SetValue("NoiseOffset", new Vector2(0.0f,0));
+        effect.SetValue("NoiseScale", edgeNoiseScale);
+        effect.SetValue("UseErosion", true);
+        effect.SetValue("Symmetric", false);
+
+        effect.SetTexture(1, noise);
+        effect.Apply();
+        //ClipEffect(edgeNoiseStrength,imageColor:imageColor,mask:noise,maskScale: edgeNoiseScale);
+
+
+        DrawInWorld(line,Projectile.Center,color,totalScale,Projectile.rotation+rotation);
+
+        EndBeginDraw(1,1);
+        effect.SetValue("NoiseOffset", new Vector2(0.5f,0));
+        effect.Apply();
+
+        DrawInWorld(line,Projectile.Center,color,totalScale,Projectile.rotation+rotation+3.14f/2);
+
     }
 
 
-    void DrawStartCircle()
+    void DrawStartCircle(int start)
     {
-        Asset<Texture2D> line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine");
-        Color color = new Color(255, 160, 239,155);
-        float radius = MathHelper.Lerp(10, 50, time / 20f);
+        Texture2D line = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.noi_1");
+        Texture2D noise = AssetManager.GetTexture("KL.Effects.Tex.cellnoise");
 
-        float count = 35 * MathHelper.Lerp(1, 0, time / 20f);
-        
-        float length =MathHelper.Lerp(1, 0, time / 20f);
-        
-        for(int i =0; i<count; i++) 
-        {
-            float eachAngle = 3.14f*2f/count;
-            Vector2 toward = new Vector2(1, 0).RotatedBy(Projectile.rotation+eachAngle*i);
-            DrawInWorld(line.Value, Projectile.Center + toward*radius, color, new Vector2(0.2f*length,0.23f*length),Projectile.rotation+ eachAngle*i+3.14f/2f);
-        }
+        Color color = new Color(255, 160, 239,155);
+        int startTime = time - start;
+
+        float radius = MathHelper.Lerp(20, 40, startTime / 20f)*0.01f;
+        float noiseStr = MathHelper.Lerp(0.0f, 0.25f, startTime / 40f);
+
+        float count = 35 * MathHelper.Lerp(1, 0, startTime / 20f);
+
+        float length =MathHelper.Lerp(1, 0, startTime / 20f);
+        EndBeginDraw(2,1);
+        CircleRingEffect(0.06f,outerRadius:radius,ringColor:new Vector4(new Vector3(0.5f),1),texScale:new Vector2(0.5f,4),
+            swapUV:true,noiseTex:noise,edgeNoiseStrength:noiseStr);
+        DrawInWorld(line,Projectile.Center);
+
+        EndBeginDraw(1,1);
+        CircleRingEffect(0.06f,outerRadius:radius,ringColor:color.ToVector4()*(DrawSystem.GetShouldBloom()?2.5f:1.5f),texScale:new Vector2(0.5f,4),
+            swapUV:true,noiseTex:noise,edgeNoiseStrength:noiseStr);
+        DrawInWorld(line,Projectile.Center);
 
     }
 
     void DrawMagicBall()
     {
-        Asset<Texture2D> waterNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/水波");
+
+        Texture2D waterNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/水波").Value;
         Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/MagicMissileEffect", AssetRequestMode.ImmediateLoad).Value;
         Asset<Texture2D> headClip = ModContent.Request<Texture2D>("KL/Effects/Tex/background", AssetRequestMode.ImmediateLoad);
-        Asset<Texture2D> trail = ModContent.Request<Texture2D>("KL/Effects/Tex/noi_1", AssetRequestMode.ImmediateLoad);
+        Asset<Texture2D> trail = ModContent.Request<Texture2D>("KL/Effects/Tex/air", AssetRequestMode.ImmediateLoad);
 
         //Vector2 time = new Vector2( (count % 120) / 40f,0);
-
-        Lighting.AddLight(Projectile.Center, new Vector3(1f,0.7f,0.8f)*DrawManager.FrameTime(0.5f,1.5f,60));
-        
-        float clipValue = 0.1f;
-        float totalAlpha = 1;
-        effect.Parameters["uTime"].SetValue(time/60f);
-        effect.Parameters["clipValue"].SetValue(clipValue);
-        effect.Parameters["clipValue2"].SetValue(clipValue);
-
-        effect.Parameters["Edge"].SetValue(0.2f);
-        effect.Parameters["EdgeColor"].SetValue(new Vector4(1f,0.7f,0.8f,1)*1);
-        effect.Parameters["imageColor"].SetValue(new Vector4(1f,0.5f,0.8f,1)*2.5f * totalAlpha);
-        
-        Main.graphics.GraphicsDevice.Textures[1] = waterNoise.Value;
-        Main.graphics.GraphicsDevice.Textures[2] = headClip.Value;  
-        
-        EndBeginDraw(1,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
-
-        Vector2 offset = Vector2.Zero;
-        if (Projectile.velocity.Length() < 10f)
+        if(OldCenter!=null&&OldCenter.Length>2)
         {
-            float offsetTime = DrawManager.FrameTime(0, 1, 150, time);
-
-            offset.Y = MathHelper.SmoothStep(-10, 10, offsetTime);
+            TrailEffect(trail.Value, OldCenter, new Color(0, 0, 0, 255), Color.White * 0f, 7, 0.1f, drawTimes: 1,
+                uTime: new Vector2(1 - (time % 120) / 30f, 0), startAlpha: 1f, endAlpha: 0.0f, blendState: 2);
+            
+            TrailEffect(trail.Value, OldCenter, new Color(255, 107, 239, 255), Color.White * 0f, 7, 0.1f, drawTimes: 1,
+                uTime: new Vector2(1 - (time % 120) / 30f, 0), startAlpha: 2.5f, endAlpha: 0.0f, blendState: 1);
         }
+        Lighting.AddLight(Projectile.Center, new Vector3(1f,0.7f,0.8f)*DrawManager.FrameTime(0.5f,1.5f,60));
+
+        // 新的 shader 参数（根据截图）
+        float circleRadius = 0.4f;
+        Vector2 circleCenter = new Vector2(0.5f, 0.5f);
+        float circleSoftness = 0.05f;
+        Vector4 circleColor = new Vector4(1f, 0.22f, 0.72f, 1f);
+        float distortionStrength = 0.01f;
+        Vector2 uTime = new Vector2(0f, 0f);
+        float clipValue = 0.0f;
+
+        // 设置 shader 参数
+        effect.Parameters["CircleRadius"].SetValue(circleRadius);
+        effect.Parameters["CircleCenter"].SetValue(circleCenter);
+        effect.Parameters["CircleSoftness"].SetValue(circleSoftness);
+        effect.Parameters["DistortionStrength"].SetValue(distortionStrength);
+        effect.Parameters["uTime"].SetValue(new Vector2(0, VisualTime * 0.8f / 60f)); // 使用截图中的动画参数 (0.2, 0.2)
+        effect.Parameters["clipValue"].SetValue(clipValue);
+
+        //Main.graphics.GraphicsDevice.Textures[1] = headClip.Value;  // clipImage
+
+        // Q弹缩放动画：从0放大撑开后回到0.2
+        float totalScale = 0.20f;
+        int startTime = time;
+        if (state == State.Spawn && startTime <= 15)
+        {
+            float progress = startTime / 15f; // 0-1 的进度
+            // 使用弹性函数：先超调到更大值，然后回弹
+            float overshoot = MathF.Sin(progress * MathF.PI); // 先增大后减小
+            float elastic = progress * (1f + 0.8f * overshoot); // 添加弹性效果
+            totalScale = 0.20f * elastic;
+        }
+
+        EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
+        effect.Parameters["CircleColor"].SetValue(new Vector4(0,0,0,1));
+        DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale*1.00f));
         
         
-        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center+offset - Main.screenPosition, waterNoise.Value.GetRec(),
-            Color.White, Projectile.rotation, new Vector2(waterNoise.Size().X/2f,waterNoise.Size().Y/2f), new Vector2(1)* 0.3f, 0, 0);
+        EndBeginDraw(1, shader: effect, ss: SamplerState.LinearWrap);
+        effect.Parameters["CircleColor"].SetValue(circleColor*1.8f);
+        DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale));
         
-        if(OldCenter!=null)TrailEffect(trail.Value,OldCenter,new Color(255, 160, 239,255),Color.White*0f,7,0.1f,drawTimes:1,
-            uTime:new Vector2(1-(time % 120) / 30f,0),startAlpha:2f,endAlpha:0.2f,blendState:1);
-        
+        EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
+        effect.Parameters["CircleColor"].SetValue(Vector4.One*1.0f);
+        effect.Parameters["DistortionStrength"].SetValue(0.04f);
+
+        DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale*0.8f));
     }
     public override void OnKill(int timeLeft)
     {
