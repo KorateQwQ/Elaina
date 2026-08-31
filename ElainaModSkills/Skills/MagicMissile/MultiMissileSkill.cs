@@ -19,18 +19,33 @@ public class MultiMissileSkill : ElainaSkill
     {
         MaxCD = 0.5f;
 
-        AnimAction animAction = new Action_SimpleSlash()
-            .AddNode(new ShootActionNode(
-                1,
+        Vector2 aimDirection = Vector2.UnitX * (Player.direction == 0 ? 1 : Player.direction);
+        float baseRotation = aimDirection.ToRotation();
+
+        // 半圆参数：以玩家为圆心，从前方到后方均匀分布 5 个位置
+        const int missileCount = 5;
+        const float radius = 120f;
+        Vector2 center = Player.MountedCenter;
+
+        AnimAction animAction = new Action_SimpleSlash();
+
+        for (int i = 0; i < missileCount; i++)
+        {
+            // 从 0（前方）到 π（后方）等分角度
+            float angleOffset = MathHelper.Lerp(0f, -MathHelper.Pi, i / (float)(missileCount - 1));
+            float finalRotation = baseRotation + angleOffset * Player.direction;
+            Vector2 spawnPosition = center + finalRotation.ToRotationVector2() * radius;
+
+            animAction.AddNode(new ShootActionNode(
+                1 + i * 5,
                 ModContent.ProjectileType<MagicMissleSpawner>(),
-                _ => Main.MouseWorld+new Vector2(0,0),
-                damage:1,//DpsHelper.GetSkillDamage(GetType().Name,1)
+                _ => spawnPosition,
+                damage: 1,//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 _ => Vector2.Zero));
-        
-        Vector2 aimDirection = (Main.MouseWorld - Player.MountedCenter).SafeNormalize(Vector2.UnitX * (Player.direction == 0 ? 1 : Player.direction));
+        }
 
-        float startRotation = aimDirection.ToRotation() * Player.gravDir;
+        float startRotation = baseRotation * Player.gravDir;
         Player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
         return base.PreUseSkill(source);
     }
