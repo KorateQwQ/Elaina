@@ -62,7 +62,7 @@ public class MagicMissleSpawner : KLProjectile
             case State.Dead:
             {
                 Projectile.velocity = Vector2.Zero;
-                if(time>20)Projectile.Kill();
+                if(time>40)Projectile.Kill();
             }break;
         }
 
@@ -72,7 +72,7 @@ public class MagicMissleSpawner : KLProjectile
 
     void FindTarget()
     {
-        if(!HasAuthority())return;
+        if(!HasAuthority()||time<40)return;
         NPC npc = null;
         int id = Projectile.FindTargetWithLineOfSight(1000);
         if(id<0||id>Main.npc.Length)return;
@@ -133,13 +133,10 @@ public class MagicMissleSpawner : KLProjectile
             }break;
             case State.Dead:
             {
-                EndBeginDraw(1,1);
-                ReColorEffect(new Vector4(1)*1.9f);
                 DrawStartStar(startTime);
                 DrawStartCircle(startTime);
             }break;
         }
-        EndBeginDraw();
         EndBeginDraw();
 
         return base.PreDraw(ref lightColor);

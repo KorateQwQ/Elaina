@@ -25,7 +25,6 @@ public class MultiMissileSkill : ElainaSkill
         // 半圆参数：以玩家为圆心，从前方到后方均匀分布 5 个位置
         const int missileCount = 5;
         const float radius = 120f;
-        Vector2 center = Player.MountedCenter;
 
         AnimAction animAction = new Action_SimpleSlash();
 
@@ -34,12 +33,11 @@ public class MultiMissileSkill : ElainaSkill
             // 从 0（前方）到 π（后方）等分角度
             float angleOffset = MathHelper.Lerp(0f, -MathHelper.Pi, i / (float)(missileCount - 1));
             float finalRotation = baseRotation + angleOffset * Player.direction;
-            Vector2 spawnPosition = center + finalRotation.ToRotationVector2() * radius;
 
             animAction.AddNode(new ShootActionNode(
                 1 + i * 5,
                 ModContent.ProjectileType<MagicMissleSpawner>(),
-                _ => spawnPosition,
+                _ => Player.MountedCenter + finalRotation.ToRotationVector2() * radius,
                 damage: 1,//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 _ => Vector2.Zero));
