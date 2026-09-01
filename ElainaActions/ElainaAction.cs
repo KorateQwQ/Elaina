@@ -142,7 +142,7 @@ public abstract class ElainaAction :AnimAction
             : MathHelper.PiOver4 * 3f;
 
         //魔杖到手的距离
-        float distance = 7f;
+        float distance = 10f;
         drawInfo.DrawDataCache.Add(new DrawData(
             wandTex,
             wandStartCenter+ new Vector2(1, 0).RotatedBy(owner.itemRotation+owner.fullRotation)*distance-Main.screenPosition,

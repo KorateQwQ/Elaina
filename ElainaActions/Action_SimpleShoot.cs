@@ -6,9 +6,12 @@ namespace 伊蕾娜.ElainaActions;
 public class Action_SimpleShoot : ElainaAction
 {
     float rotation;
-    public Action_SimpleShoot() : base(20)
+    public Action_SimpleShoot() : this(20)
     {
-        
+    }
+
+    public Action_SimpleShoot(int totalFrame) : base(totalFrame)
+    {
     }
 
     public override void OnStart(ActionModPlayer actionPlayer)

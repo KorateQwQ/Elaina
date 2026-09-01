@@ -17,7 +17,7 @@ public class MultiMissileSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source)
     {
-        MaxCD = 0.5f;
+        MaxCD = 1f;
 
         Vector2 aimDirection = Vector2.UnitX * (Player.direction == 0 ? 1 : Player.direction);
         float baseRotation = aimDirection.ToRotation();
@@ -26,7 +26,7 @@ public class MultiMissileSkill : ElainaSkill
         const int missileCount = 5;
         const float radius = 120f;
 
-        AnimAction animAction = new Action_SimpleSlash();
+        AnimAction animAction = new Action_SimpleShoot(40);
 
         for (int i = 0; i < missileCount; i++)
         {
@@ -43,7 +43,7 @@ public class MultiMissileSkill : ElainaSkill
                 _ => Vector2.Zero));
         }
 
-        float startRotation = baseRotation * Player.gravDir;
+        float startRotation = (Main.MouseWorld - Player.MountedCenter).ToRotation();
         Player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
         return base.PreUseSkill(source);
     }
