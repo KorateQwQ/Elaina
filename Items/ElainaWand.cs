@@ -234,52 +234,9 @@ namespace 伊蕾娜.Items
 
         public override bool Shoot(Player player, EntitySource_ItemUse_WithAmmo source, Vector2 position, Vector2 velocity, int type, int damage, float knockback)
         {
-            if(player.GetModPlayer<ActionModPlayer>().CurrentActionFrame==0)return false;
-            Projectile projectile = Projectile.NewProjectileDirect(source,position , velocity, type, damage, knockback);
-            return false;
-            Vector2 wandPos =  player.MountedCenter+ new Vector2(1*player.direction, 0).RotatedBy(player.itemRotation)*35f;
-            Vector2 toward = velocity.SafeNormalize(velocity);
-            
-            /*int glitter = ModContent.ProjectileType<WandGlitter>();
-            //if (player.ownedProjectileCounts[glitter] < 1)
-                Projectile.NewProjectile(source, position, velocity, glitter, damage, knockback);*/
-            
-            ElainaSkillModPlayer skillModPlayer = player.GetModPlayer<ElainaSkillModPlayer>();
-            //skillModPlayer.UseSkill(0,source);
-
-
-            //适配其他mod的增伤效果
-            float damageScale = ((float)damage / 100);
-            float skillBasicDamage = 1000;
-
-            Vector2 wandCenter = wandPos + toward * 10;
-
-            Vector2 validPosition = Main.MouseWorld+Main.rand.NextVector2Circular(100,100);
-            FireBurstSkillHelper.GetValidPositionForFireBurst(ref validPosition,1000);
-
-            int ProjType = ElainaSkillModPlayer.GetCurrentSkillType();
-            if (ProjType == ModContent.ProjectileType<FireBurstStarProj>()|| ProjType == ModContent.ProjectileType<FinalLightning>())
-            {
-                wandCenter = validPosition;
-            }
-            else if (ProjType == ModContent.ProjectileType<MagicMissleSpawner>())
-            {
-                wandCenter = wandPos + toward * 100;
-            }
-            /*Projectile projectile = Projectile.NewProjectileDirect(source,wandCenter , velocity, ProjType, 
-                (int)(skillBasicDamage*damageScale), knockback);*/
-            skillModPlayer.UseSkill(source);
-
-            //释放火柱的方法
-            //Projectile projectile = Projectile.NewProjectileDirect(source,wandCenter , velocity, ModContent.ProjectileType<WaterLaser>(), (int)(skillBasicDamage*damageScale), knockback);
-            /*if (projectile.ModProjectile is WaterTrail waterTrail)
-            {
-                waterTrail.TargetCenter = Main.MouseWorld;
-            }*/
-            if(player.ownedProjectileCounts[ ModContent.ProjectileType<WandLightProj>()] < 1)Projectile.NewProjectile(source, position+velocity*1, velocity, ModContent.ProjectileType<WandLightProj>(), 0, 0);
-            
-            //KLBasicDust.SpawnDust(wandPos,ModContent.DustType<>());
-            return false; //player.ownedProjectileCounts[type] < 1;
+            // The skill action owns projectile creation. Let ShootActionNode run its
+            // source-aware, delayed-spawn path after the action has started.
+            return player.GetModPlayer<ActionModPlayer>().CurrentActionFrame != 0;
         }
     }
 }
