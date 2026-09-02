@@ -4,6 +4,7 @@ using KL.Drawing;
 using KL.Drawing.ThreeD;
 using KL.Extensions;
 using Terraria.GameContent;
+using Terraria.ID;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Lightning;
 
@@ -35,6 +36,7 @@ public class LightningModelTest : ElainaBasicProjectile
 
     static ObjModel BuildOutlineModel(ObjModel source)
     {
+        if (Main.netMode == NetmodeID.Server) return null;
         Vertex3D[] vertices = (Vertex3D[])source.Vertices.Clone();
         Dictionary<Vector3, Vector2> normalSums = new();
         Dictionary<(Vector3, Vector3), (int Count, Vector2 Normal)> edges = new();

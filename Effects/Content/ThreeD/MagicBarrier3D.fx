@@ -14,6 +14,7 @@ float3 uHighlightColor;
 
 float2 uFlowScale;
 float2 uTransitionScale;
+float2 uDissolveOffset;
 float uTime;
 float uCenterDepth;
 float uDepthClipSide;
@@ -92,6 +93,7 @@ float4 PixelShaderBarrier(PSInput input) : COLOR0
 
     // Use a low-frequency field for large dissolve chunks; surface flow keeps its detail.
     float2 transitionUV = input.Texcoord * uTransitionScale
+        + uDissolveOffset
         + float2(uTime * 0.006, -uTime * 0.004);
     float transitionNoise = tex2D(uDissolveNoise, transitionUV).r;
     float transitionCells = tex2D(uDissolveNoise,

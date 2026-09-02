@@ -1,16 +1,16 @@
 using System;
-using KL.Extensions;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
-using KL.Utils;
-using 伊蕾娜.ElainaAttribute;
-using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
 [SkillUIInfo(State = 0, Pixels = 100)]
 public class MagicBarrierSkill : ElainaSkill
 {
+    public const float BaseShieldAmount = 50f;
+    public const float MaximumManaShieldRatio = 0.25f;
+    public const float ShieldRegenerationPerSecond = 0.01f;
+    public const int BrokenShieldCooldownTicks = 10 * 60;
 
     public override bool IsPassiveSkill => true;
     public override bool IsToggleable => true;
@@ -26,114 +26,271 @@ public class MagicBarrierSkill : ElainaSkill
     {
         if (IsEnabled)
         {
-            player.endurance += GetEndurance(player);
-            //
+            player.GetModPlayer<MagicBarrierModPlayer>().EnableBarrier();
         }
+
         base.UpdateEquips(player);
     }
 
-    public static float GetEndurance(Player player)
+    public static float GetMaximumShield(Player player)
     {
-        //魔力屏障：10%魔力以下生效最小值20%减伤，50%魔力时达到50%减伤，80%魔力时达到最大70%减伤（超过50%蓝量的额外减伤有生效条件：最大蓝量首先需要大于600，当前蓝量高于80%并且最大魔力值高于1000时可达到此最大值）
-        float minimumMagicPointRatio = 0.1f;
-        float midpointMagicPointRatio = 0.5f;
-        float fullReductionMagicPointRatio = 0.8f;
-        
-        float minimumDamageReduction = 0.2f;
-        float midpointDamageReduction = 0.5f;
-        float fullDamageReduction = 0.7f;
-        
-        //ElainaAttributeModPlayer attributePlayer = player.GetModPlayer<ElainaAttributeModPlayer>();
-        if (player.statMana> 0f&&
-            (player.HeldItem.IsAir||!player.HeldItem.IsWeapon()||player.HeldItem.type == ModContent.ItemType<ElainaWand>())||player.HeldItem.DamageType== DamageClass.Magic)
-        {
-            float magicPointRatio = (player.statMana / (float)player.statManaMax2);
-            if (magicPointRatio >= minimumMagicPointRatio)
-            {
-                float reduction;
-                if (magicPointRatio <= midpointMagicPointRatio)
-                {
-                    float reductionProgress = midpointMagicPointRatio <= minimumMagicPointRatio
-                        ? 1f
-                        : MathHelper.Clamp(
-                            (magicPointRatio - minimumMagicPointRatio) /
-                            (midpointMagicPointRatio - minimumMagicPointRatio), 0f, 1f);
-                    reduction = MathHelper.Lerp(
-                        minimumDamageReduction, midpointDamageReduction, reductionProgress);
-                }
-                else
-                {
-                    // 50% 以上的额外减伤由当前蓝量和最大魔力共同决定。
-                    // 最大魔力 600 时没有额外减伤，1000 时才允许达到完整的额外减伤。
-                    float maximumDamageReduction = GetMaximumDamageReduction(player);
-                    float reductionProgress = fullReductionMagicPointRatio <= midpointMagicPointRatio
-                        ? 1f
-                        : MathHelper.Clamp(
-                            (magicPointRatio - midpointMagicPointRatio) /
-                            (fullReductionMagicPointRatio - midpointMagicPointRatio), 0f, 1f);
-                    reduction = MathHelper.Lerp(
-                        midpointDamageReduction, maximumDamageReduction, reductionProgress);
-                }
-                return reduction;
-            }
-
-            return minimumDamageReduction;
-        }
-
-        return 0;
-    }
-
-    public static float GetMaximumDamageReduction(Player player)
-    {
-        float maximumManaProgress = MathHelper.Clamp(
-            (player.statManaMax2 - 600f) / 400f, 0f, 1f);
-        return MathHelper.Lerp(0.5f, 0.7f, maximumManaProgress);
+        return Math.Max(0f, BaseShieldAmount + player.statManaMax2 * MaximumManaShieldRatio);
     }
 
     protected override object[] SkillDescriptionArgs => new object[]
     {
-        Math.Max(0,GetMaximumDamageReduction(Player) * 100f-50),
+        (int)BaseShieldAmount,
+        MaximumManaShieldRatio * 100f,
+        ShieldRegenerationPerSecond * 100f,
+        BrokenShieldCooldownTicks / 60f,
     };
 
-    class MagicBarrierModPlayer : ModPlayer
+    public class MagicBarrierModPlayer : ModPlayer
     {
+        private const int DotBlockVisualCooldownTicks = 30;
+        private const int BarrierInvincibilityTicks = 30;
 
-        public override void ModifyHurt(ref Player.HurtModifiers modifiers)
+        private bool barrierEnabled;
+        private bool shieldInitialized;
+        private bool absorbingLifeRegenDamage;
+        private int dotBlockVisualCooldown;
+
+        public float CurrentShield { get; private set; }
+        public float MaximumShield => GetMaximumShield(Player);
+        public int BrokenShieldCooldownRemaining { get; private set; }
+        public bool BarrierEnabled => barrierEnabled;
+        public bool ShieldBroken => CurrentShield <= 0f && BrokenShieldCooldownRemaining > 0;
+        public float ShieldRatio => MaximumShield <= 0f
+            ? 0f
+            : MathHelper.Clamp(CurrentShield / MaximumShield, 0f, 1f);
+
+        public override void Initialize()
         {
-            base.ModifyHurt(ref modifiers);
+            CurrentShield = 0f;
+            BrokenShieldCooldownRemaining = 0;
+            barrierEnabled = false;
+            shieldInitialized = false;
+            absorbingLifeRegenDamage = false;
+            dotBlockVisualCooldown = 0;
         }
-        
 
-        public override void OnHurt(Player.HurtInfo info)
+        public override void ResetEffects()
         {
-            //ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-            ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
-            if (skillPlayer.TryGetUnlockedModSkill<MagicBarrierSkill>(out var magicBarrierSkill))
-            {
-                if (magicBarrierSkill.IsEnabled)
-                {
-                    float endurance = GetEndurance(Player);
-                    float reductionDamage = endurance*info.SourceDamage;
-                    if (endurance > 0)
-                    {
-                        float magicPointCost = reductionDamage;//Math.Min(reductionDamage, Player.statManaMax2*0.2f);
-                        if (Player.statMana>magicPointCost)
-                        {
-                            //attributePlayer.ConsumeMagicPoint(magicPointCost);
-                            Player.statMana -= (int)magicPointCost;
-                        }
-                        else Player.statMana = 0;
+            barrierEnabled = false;
+        }
 
-                        Player.manaRegenDelay =150;
-                        Projectile.NewProjectile(Player.GetSource_FromThis(), Player.MountedCenter, Vector2.Zero, ModContent.ProjectileType<MagicBarrierProj>(), 0,
-                            0, Player.whoAmI);
-                        //PrintText($"魔法屏障：受到 {info.SourceDamage}伤害 护盾减免率{endurance} 消耗魔力：{magicPointCost:0.#}, 最终受到伤害：{info.Damage}"); 
-                    }
+        public void EnableBarrier()
+        {
+            barrierEnabled = true;
+
+            if (!shieldInitialized)
+            {
+                CurrentShield = MaximumShield;
+                shieldInitialized = true;
+            }
+        }
+
+        public override void UpdateLifeRegen()
+        {
+            absorbingLifeRegenDamage = false;
+
+            if (Player.whoAmI != Main.myPlayer)
+            {
+                return;
+            }
+
+            if (dotBlockVisualCooldown > 0)
+            {
+                dotBlockVisualCooldown--;
+            }
+
+            if (!CanAbsorbDamage())
+            {
+                return;
+            }
+
+            // UpdateLifeRegen runs before vanilla adds this tick's lifeRegen to lifeRegenCount.
+            // Mirror the later vanilla thresholds so fractional DoT accumulation is preserved.
+            int projectedLifeRegenCount = Player.lifeRegenCount + Player.lifeRegen;
+            if (projectedLifeRegenCount >= 0)
+            {
+                return;
+            }
+
+            int incomingDamage = GetLifeRegenDamage(ref projectedLifeRegenCount);
+            Player.lifeRegen = 0;
+            Player.lifeRegenCount = projectedLifeRegenCount;
+
+            if (incomingDamage <= 0)
+            {
+                return;
+            }
+
+            absorbingLifeRegenDamage = true;
+            bool playVisual = dotBlockVisualCooldown <= 0;
+            AbsorbDamage(incomingDamage, playVisual);
+            if (playVisual)
+            {
+                dotBlockVisualCooldown = DotBlockVisualCooldownTicks;
+            }
+        }
+
+        private int GetLifeRegenDamage(ref int lifeRegenCount)
+        {
+            if (Player.burned || Player.suffocating || (Player.tongued && Main.expertMode))
+            {
+                int damage = 0;
+                while (lifeRegenCount <= -600)
+                {
+                    lifeRegenCount += 600;
+                    damage += 5;
+                }
+
+                return damage;
+            }
+
+            if (Player.starving)
+            {
+                int damagePerTick = Math.Max(Player.statLifeMax2 / 50, 2);
+                if (Player.ZoneDesert || Player.ZoneSnow)
+                {
+                    damagePerTick *= 2;
+                }
+
+                int threshold = 120 * damagePerTick;
+                int damage = 0;
+                while (lifeRegenCount <= -threshold)
+                {
+                    lifeRegenCount += threshold;
+                    damage += damagePerTick;
+                }
+
+                return damage;
+            }
+
+            int normalDamage = 0;
+            while (lifeRegenCount <= -120)
+            {
+                if (lifeRegenCount <= -480)
+                {
+                    lifeRegenCount += 480;
+                    normalDamage += 4;
+                }
+                else if (lifeRegenCount <= -360)
+                {
+                    lifeRegenCount += 360;
+                    normalDamage += 3;
+                }
+                else if (lifeRegenCount <= -240)
+                {
+                    lifeRegenCount += 240;
+                    normalDamage += 2;
+                }
+                else
+                {
+                    lifeRegenCount += 120;
+                    normalDamage++;
                 }
             }
 
+            return normalDamage;
+        }
 
+        public override void NaturalLifeRegen(ref float regen)
+        {
+            if (absorbingLifeRegenDamage)
+            {
+                regen = 0f;
+            }
+        }
+
+        public override void PostUpdate()
+        {
+            if (Player.whoAmI != Main.myPlayer || !shieldInitialized)
+            {
+                return;
+            }
+
+            CurrentShield = MathHelper.Clamp(CurrentShield, 0f, MaximumShield);
+
+            if (BrokenShieldCooldownRemaining > 0)
+            {
+                BrokenShieldCooldownRemaining--;
+                return;
+            }
+
+            if (!barrierEnabled || CurrentShield >= MaximumShield)
+            {
+                return;
+            }
+
+            float regenerationPerTick = MaximumShield * ShieldRegenerationPerSecond / 60f;
+            CurrentShield = Math.Min(MaximumShield, CurrentShield + regenerationPerTick);
+        }
+
+        public override void UpdateDead()
+        {
+            if (Player.whoAmI == Main.myPlayer && BrokenShieldCooldownRemaining > 0)
+            {
+                BrokenShieldCooldownRemaining--;
+            }
+        }
+
+        public override bool ConsumableDodge(Player.HurtInfo info)
+        {
+            if (!CanAbsorbDamage())
+            {
+                return false;
+            }
+
+            PrintText($"护盾格挡了 {info.Damage}" );
+            AbsorbDamage(info.Damage, playBlockVisual: true);
+
+            // Returning true completely ignores this Hurt, including its hit-side debuffs.
+            // Add a short immunity window so contact/projectile sources cannot immediately retry.
+            Player.SetImmuneTimeForAllTypes(BarrierInvincibilityTicks);
+
+            return true;
+        }
+
+        public override void OnHurt(Player.HurtInfo info)
+        {
+            PrintText($"受到{info.Damage}伤害");
             base.OnHurt(info);
+        }
+
+        private bool CanAbsorbDamage()
+        {
+            return barrierEnabled && shieldInitialized && CurrentShield > 0f;
+        }
+
+        private void AbsorbDamage(float damage, bool playBlockVisual)
+        {
+            CurrentShield = Math.Max(0f, CurrentShield - damage);
+
+            bool shieldBroke = CurrentShield <= 0f;
+            if (shieldBroke)
+            {
+                CurrentShield = 0f;
+                BrokenShieldCooldownRemaining = BrokenShieldCooldownTicks;
+            }
+
+            if (playBlockVisual || shieldBroke)
+            {
+                SpawnBarrierVisual();
+            }
+        }
+
+        private void SpawnBarrierVisual()
+        {
+            Projectile.NewProjectile(
+                Player.GetSource_FromThis(),
+                Player.MountedCenter,
+                Vector2.Zero,
+                ModContent.ProjectileType<MagicBarrierProj>(),
+                0,
+                0f,
+                Player.whoAmI);
         }
     }
 }

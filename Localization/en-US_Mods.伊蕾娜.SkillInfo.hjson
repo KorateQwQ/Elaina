@@ -19,7 +19,14 @@ SkillDesc: {
 		Elaina uses unique [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic] to cast skills. Increases to maximum Mana from other effects increase Elaina's Magic by twice the amount. Magic regenerates quickly outside of combat and slowly during combat, and cannot be restored with Mana Potions.
 		When Elaina lacks enough Magic to use a skill, she instead consumes a percentage of her health to restore the same percentage of Magic. Outside of combat, Elaina's Magic regeneration is greatly increased.
 		'''
-	MagicBarrierSkill: 抵挡额外伤害{0}
+	MagicBarrierSkill:
+		'''
+		Grants a magic barrier with [c/4C91FFFF:{0} + {1}% of maximum Mana] shield points.
+
+		While any shield points remain, incoming attacks and damaging debuffs consume shield points equal to their final damage and are [c/FFD166:fully blocked]. Damage beyond the remaining shield does not pass through.
+
+		The barrier restores [c/4C91FFFF:{2}%] of its maximum shield per second. When completely broken, it cannot regenerate for [c/FFD166:{3} seconds].
+		'''
 }
 
 SkillType: {

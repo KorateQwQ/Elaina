@@ -20,10 +20,18 @@ public class MagicMissleSpawner : KLProjectile
         Normal,
         Dead
     }
-    
+
     State state = State.Spawn;
     private int time = 0;
     private Vector2 traceToward;
+
+    // 使用ai[0]来存储状态，方便外部技能读取
+    // 0 = Spawn, 1 = Normal, 2 = Dead
+    State CurrentState
+    {
+        get => (State)Projectile.ai[0];
+        set => Projectile.ai[0] = (int)value;
+    }
     
     public override void SetDefaults()
     {
@@ -43,6 +51,10 @@ public class MagicMissleSpawner : KLProjectile
         //Projectile.Center = Main.MouseWorld;
         //Projectile.rotation = (Projectile.Center - Owner.MountedCenter).ToRotation();
         time++;
+
+        // 从ai[0]恢复状态
+        state = CurrentState;
+
         switch (state)
         {
             case State.Spawn:
@@ -50,6 +62,7 @@ public class MagicMissleSpawner : KLProjectile
                 if(time>20)
                 {
                     state = State.Normal;
+                    CurrentState = state; // 同步到ai[0]
                     //time = 0;
                 }
             }break;
@@ -77,46 +90,31 @@ public class MagicMissleSpawner : KLProjectile
         int id = Projectile.FindTargetWithLineOfSight(1000);
         if(id<0||id>Main.npc.Length)return;
         npc = Main.npc[id];
-        
+
         if (npc!=null&& npc.IsAttackable(true, true))
         {
-            state = State.Dead;
-            time = 0;
+
+            RPC("ToDeadState",KLNetModule.NetSendType.ClientToAll);
             Vector2 velocity = (npc.Center - Projectile.Center).SafeNormalize(Vector2.One);
-            
-            Projectile.NewProjectile(Projectile.GetSource_FromAI(), Projectile.Center, velocity*25f, ModContent.ProjectileType<MagicMissile>(), 10, 1);
+            Projectile.NewProjectile(Projectile.GetSource_FromAI(), Projectile.Center, velocity*25f, ModContent.ProjectileType<MagicMissile>(), Projectile.damage, 2);
         }
+    }
+
+    public void ToDeadState()
+    {            
+        time = 0;
+        state = State.Dead;
+        CurrentState = state; // 同步到ai[0]
+        
     }
 
     public override bool PreDraw(ref Color lightColor)
     {
-        EndBeginDraw(1,1);
-
-        /*switch (state)
-        {
-            case State.Spawn:
-            {
-                DrawStartStar();
-                DrawStartCircle();
-            }break;
-            case State.Normal:
-            {
-                
-            }break;
-            case State.Dead:
-            {
-                DrawStartStar();
-                DrawStartCircle();
-            }break;
-        }*/
         int startTime = 5;
         switch (state)
         {
             case State.Spawn:
             {
-                EndBeginDraw(1,1);
-                ReColorEffect(new Vector4(1)*1.9f);
-
                 DrawMagicBall();
 
                 if(time>startTime)
@@ -322,7 +320,27 @@ public class MagicMissleSpawner : KLProjectile
 
     void TraceLocation()
     {
-        Vector2 target = Owner.MountedCenter + traceToward;
+        int slotIndex = (int)Projectile.ai[1] - 1;
+        Vector2 target;
+
+        if (slotIndex >= 0 && slotIndex < 5)
+        {
+            // 目标使用不受玩家旋转影响的固定相对槽位，再通过速度追踪制造滞后。
+            target = MultiMissileSkill.GetSlotPosition(Owner, slotIndex);
+        }
+        else
+        {
+            // 兼容没有槽位编号的其他生成方式。
+            target = Owner.MountedCenter + traceToward;
+
+            if (Owner.gravDir < 0)
+            {
+                Vector2 relativeOffset = traceToward;
+                relativeOffset.Y = -relativeOffset.Y;
+                target = Owner.MountedCenter + relativeOffset;
+            }
+        }
+
         Vector2 targetVec = target - Projectile.Center;
         if (targetVec.Length()<1f)
         {

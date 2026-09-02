@@ -197,7 +197,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         if(CurrentSkillIndex<0||CurrentSkillIndex>=GetActiveSkill.Count|| GetActiveSkill[CurrentSkillIndex]== null||Main.myPlayer!=Player.whoAmI)return false;
         Skill skill = GetActiveSkill[CurrentSkillIndex];
         if (skill.InCD) return false;
-        if (skill.ModSkill is not ElainaSkill elainaSkill) return true;
+        if (skill.ModSkill is not ElainaSkill elainaSkill||!skill.ModSkill.CanUseSkill()) return false;
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
         if (!Player.CheckMana((int)elainaSkill.MagicPointCost, false))
         {

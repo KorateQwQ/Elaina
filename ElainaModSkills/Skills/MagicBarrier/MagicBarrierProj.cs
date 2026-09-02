@@ -25,6 +25,7 @@ public class MagicBarrierProj : ElainaBasicProjectile
     private Vector2 TransitionScale => new(0.72f, 0.52f);
     private float visualRevealProgress;
     private float visualFadeProgress;
+    private Vector2 dissolveOffset;
 
     private Color BaseColor => new(50, 100, 230);
     private Color RimColor => new(150, 200, 255);
@@ -61,6 +62,14 @@ public class MagicBarrierProj : ElainaBasicProjectile
 
         Projectile.timeLeft = 60;
         base.SetDefaults();
+    }
+
+    public override void OnSpawn_AllClient()
+    {
+        dissolveOffset = new Vector2(
+            Main.rand.NextFloat(-2f, 2f),
+            Main.rand.NextFloat(-2f, 2f));
+        base.OnSpawn_AllClient();
     }
 
     public override void AI()
@@ -124,17 +133,7 @@ public class MagicBarrierProj : ElainaBasicProjectile
             float revealScale = MathHelper.SmoothStep(0.84f, 1f, revealProgress);
             float fadeScale = MathHelper.Lerp(1f, 0.84f, fadeProgress);
             float transitionScale = revealScale * fadeScale;
-            Matrix shellWorld = CreateWorldMatrix(BarrierRadius * transitionScale, time);
             Matrix haloWorld = CreateWorldMatrix((BarrierRadius + HaloWidth) * transitionScale, time);
-
-            /*graphicsDevice.BlendState = BlendState.NonPremultiplied;
-            DrawSphere(shellWorld, depthClipSide, time,
-                opacity: 0.72f,
-                bodyAlpha: 0.00f,
-                rimStrength: 0.72f,
-                lowerRimStrength: 0.7f,
-                flowStrength: 0.24f,
-                highlightStrength: 0.9f);*/
 
             graphicsDevice.BlendState = BlendState.Additive;
             DrawSphere(haloWorld, new Vector3(0.3f,0.5f,1f),new Vector3(0.5f,0.7f,1f)*3f,depthClipSide, time,
@@ -185,6 +184,7 @@ public class MagicBarrierProj : ElainaBasicProjectile
         barrierEffect.Parameters["uHighlightColor"].SetValue(HighlightColor.ToVector3());
         barrierEffect.Parameters["uFlowScale"].SetValue(new Vector2(2.2f, 1.55f));
         barrierEffect.Parameters["uTransitionScale"].SetValue(TransitionScale);
+        barrierEffect.Parameters["uDissolveOffset"]?.SetValue(dissolveOffset);
         barrierEffect.Parameters["uTime"].SetValue(time);
         barrierEffect.Parameters["uCenterDepth"].SetValue(BarrierDepth);
         barrierEffect.Parameters["uDepthClipSide"].SetValue(depthClipSide);
