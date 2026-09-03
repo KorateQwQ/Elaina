@@ -13,6 +13,7 @@ public class AshenWitchSkill: ElainaSkill
     //public const int BonusMana = 40;
 
     public override bool IsPassiveSkill => true;
+    public override bool IsToggleable => true;
 
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         SkillUnlockCondition.None;
@@ -58,6 +59,8 @@ public class AshenWitchSkill: ElainaSkill
         if (!player.active || player.dead) return false;
         if (!player.GetModPlayer<ElainaModplayer>().Elaina) return false;
         if (BasicStatus != Skill.SKillBasicStatus.UnLock) return false;
+        // 只有在技能开启时才能转换生命为魔力
+        if (!IsEnabled) return false;
         if (attributePlayer.MaxMagicPoint <= 0f || cost <= attributePlayer.MagicPoint || cost > attributePlayer.MaxMagicPoint) return false;
 
         int lifeCost = GetLifeCost(player, attributePlayer, cost);
@@ -117,6 +120,12 @@ public class AshenWitchSkill: ElainaSkill
     }
     public override void UpdateEquips(Player player)
     {
+        // 只有在技能开启时才应用效果
+        if (!IsEnabled)
+        {
+            return;
+        }
+
         //player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint+=1*Player.statManaMax2;
         Player.buffImmune[BuffID.ManaSickness] = true;
 
@@ -124,7 +133,7 @@ public class AshenWitchSkill: ElainaSkill
         int reduceHP = (int)(extraHP * 0.5f);
         float extraMultiplier =  15f ;
         float extraManaPercent = 1 + Math.Max(0, reduceHP * extraMultiplier * 0.001f);
-        
+
         Player.statLifeMax2 = 100 + reduceHP;
         //PrintText(extraHP);
         /*if (Player.statLifeMax2 > 100 && Player.statLifeMax2 <= 400f)
@@ -138,13 +147,23 @@ public class AshenWitchSkill: ElainaSkill
 
         float extraMana = (int)(Player.statManaMax2 * extraManaPercent)-Player.statManaMax2;
         Player.statManaMax2 = (int)(Player.statManaMax2 * extraManaPercent);
-        
+
+
+        player.GetDamage<MagicDamageClass>() += ExtraDamage();
+        PrintText($"额外魔法伤害加成 {ExtraDamage()}");
         //PrintText("额外生命："+extraHP+"，减少生命："+reduceHP+"，最终生命："+Player.statLifeMax2 + " 额外魔力倍率："+extraManaPercent + "实际额外获得魔力："+extraMana);
     }
 
+    public float ExtraDamage()
+    {
+        float manaForExtraDamage = Math.Max(0, Player.statManaMax2 - 700);
+        float extraDamageMultiplier = manaForExtraDamage / 20f;
+        return extraDamageMultiplier/100f;
+    }
     protected override object[] SkillDescriptionArgs => new object[]
     {
         1.5,
+        (ExtraDamage() * 100f).ToString("F1")
     };
 
     public override void OnRightClickInSkillPanel()

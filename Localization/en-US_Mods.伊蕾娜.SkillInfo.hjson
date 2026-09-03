@@ -1,4 +1,7 @@
-Snippets.MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic]"
+Snippets: {
+	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic]"
+	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
+}
 
 SkillName: {
 	MagicMissileSkill: Magic Missile
@@ -21,11 +24,13 @@ SkillDesc: {
 		'''
 	MagicBarrierSkill:
 		'''
+		[c/FF6B6B:Prerequisite: Ashen Witch (must be unlocked and enabled)]
+
 		Grants a magic barrier with [c/4C91FFFF:{0} + {1}% of maximum Mana] shield points.
 
 		While any shield points remain, incoming attacks and damaging debuffs consume shield points equal to their final damage and are [c/FFD166:fully blocked]. Damage beyond the remaining shield does not pass through.
 
-		The barrier restores [c/4C91FFFF:{2}%] of its maximum shield per second. When completely broken, it cannot regenerate for [c/FFD166:{3} seconds].
+		Once Mana begins naturally regenerating, the barrier restores 1 shield point for every 10 Mana naturally regenerated. When completely broken, it cannot regenerate for [c/FFD166:{2} seconds].
 		'''
 }
 

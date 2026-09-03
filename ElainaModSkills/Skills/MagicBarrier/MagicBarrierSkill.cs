@@ -1,19 +1,30 @@
 using System;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
-[SkillUIInfo(State = 0, Pixels = 100)]
+[SkillUIInfo(State = 1, Pixels = 0)]
 public class MagicBarrierSkill : ElainaSkill
 {
-    public const float BaseShieldAmount = 50f;
-    public const float MaximumManaShieldRatio = 0.25f;
-    public const float ShieldRegenerationPerSecond = 0.01f;
-    public const int BrokenShieldCooldownTicks = 10 * 60;
+    public static float BaseShieldAmount  => 50f;
+    public static float MaximumManaShieldRatio => 0.25f;
+
+    //每自然恢复25点魔力，恢复1点护盾值。
+    public static int NaturalManaPerShieldPoint => 25;
+    public static int BrokenShieldCooldownTicks => 0 * 60;
+    //护盾受伤后，延迟多少Tick开始恢复
+    public static int ShieldRegenDelayTicks => 3 * 60;
 
     public override bool IsPassiveSkill => true;
     public override bool IsToggleable => true;
+
+    /// <summary>
+    /// 魔力护盾需要前置技能：灰之魔女
+    /// </summary>
+    public override Type[] PrerequisiteSkills => new[] { typeof(AshenWitchSkill) };
 
     public override void Initialize()
     {
@@ -22,9 +33,19 @@ public class MagicBarrierSkill : ElainaSkill
         base.Initialize();
     }
 
+    public override bool CanUseSkill()
+    {
+        // 检查所有前置技能是否都已生效
+        if (!AreAllPrerequisitesActive()||!IsEnabled)
+        {
+            return false;
+        }
+        return base.CanUseSkill();
+    }
+    
     public override void UpdateEquips(Player player)
     {
-        if (IsEnabled)
+        if (CanUseSkill())
         {
             player.GetModPlayer<MagicBarrierModPlayer>().EnableBarrier();
         }
@@ -41,8 +62,7 @@ public class MagicBarrierSkill : ElainaSkill
     {
         (int)BaseShieldAmount,
         MaximumManaShieldRatio * 100f,
-        ShieldRegenerationPerSecond * 100f,
-        BrokenShieldCooldownTicks / 60f,
+        ShieldRegenDelayTicks / 60f,
     };
 
     public class MagicBarrierModPlayer : ModPlayer
@@ -54,6 +74,8 @@ public class MagicBarrierSkill : ElainaSkill
         private bool shieldInitialized;
         private bool absorbingLifeRegenDamage;
         private int dotBlockVisualCooldown;
+        private int naturalManaRecoveryForShield;
+        private int shieldRegenDelayRemaining;
 
         public float CurrentShield { get; private set; }
         public float MaximumShield => GetMaximumShield(Player);
@@ -72,6 +94,8 @@ public class MagicBarrierSkill : ElainaSkill
             shieldInitialized = false;
             absorbingLifeRegenDamage = false;
             dotBlockVisualCooldown = 0;
+            naturalManaRecoveryForShield = 0;
+            shieldRegenDelayRemaining = 0;
         }
 
         public override void ResetEffects()
@@ -213,19 +237,49 @@ public class MagicBarrierSkill : ElainaSkill
 
             CurrentShield = MathHelper.Clamp(CurrentShield, 0f, MaximumShield);
 
+            int naturalManaGain = Player.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaGainThisTick;
+            if (!barrierEnabled)
+            {
+                naturalManaRecoveryForShield = 0;
+                shieldRegenDelayRemaining = 0;
+            }
+            else if (BrokenShieldCooldownRemaining > 0)
+            {
+                naturalManaRecoveryForShield = 0;
+                shieldRegenDelayRemaining = 0;
+            }
+            else if (CurrentShield < MaximumShield)
+            {
+                // 如果护盾未满且延迟倒计时还在进行，则减少延迟
+                if (shieldRegenDelayRemaining > 0)
+                {
+                    shieldRegenDelayRemaining--;
+                }
+                // 延迟结束后才开始恢复护盾
+                else
+                {
+                    naturalManaRecoveryForShield += naturalManaGain;
+                    int shieldGain = naturalManaRecoveryForShield / NaturalManaPerShieldPoint;
+                    /*PrintText($"每秒魔力恢复为: {Player.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaRegenPerSecond}");
+                    PrintText($"此帧魔力恢复为: {Player.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaGainThisTick} ");
+                    PrintText($"此帧护盾恢复为: {shieldGain} ");*/
+
+                    naturalManaRecoveryForShield %= NaturalManaPerShieldPoint;
+                    CurrentShield = Math.Min(MaximumShield, CurrentShield + shieldGain);
+                }
+            }
+            else
+            {
+                naturalManaRecoveryForShield = 0;
+                shieldRegenDelayRemaining = 0;
+            }
+
             if (BrokenShieldCooldownRemaining > 0)
             {
                 BrokenShieldCooldownRemaining--;
                 return;
             }
 
-            if (!barrierEnabled || CurrentShield >= MaximumShield)
-            {
-                return;
-            }
-
-            float regenerationPerTick = MaximumShield * ShieldRegenerationPerSecond / 60f;
-            CurrentShield = Math.Min(MaximumShield, CurrentShield + regenerationPerTick);
         }
 
         public override void UpdateDead()
@@ -243,7 +297,7 @@ public class MagicBarrierSkill : ElainaSkill
                 return false;
             }
 
-            PrintText($"护盾格挡了 {info.Damage}" );
+            //PrintText($"护盾格挡了 {info.Damage}" );
             AbsorbDamage(info.Damage, playBlockVisual: true);
 
             // Returning true completely ignores this Hurt, including its hit-side debuffs.
@@ -255,7 +309,7 @@ public class MagicBarrierSkill : ElainaSkill
 
         public override void OnHurt(Player.HurtInfo info)
         {
-            PrintText($"受到{info.Damage}伤害");
+            //PrintText($"受到{info.Damage}伤害");
             base.OnHurt(info);
         }
 
@@ -268,6 +322,9 @@ public class MagicBarrierSkill : ElainaSkill
         {
             CurrentShield = Math.Max(0f, CurrentShield - damage);
 
+            // 护盾受伤后，重置恢复延迟计时器
+            shieldRegenDelayRemaining = ShieldRegenDelayTicks;
+
             bool shieldBroke = CurrentShield <= 0f;
             if (shieldBroke)
             {
@@ -277,6 +334,7 @@ public class MagicBarrierSkill : ElainaSkill
 
             if (playBlockVisual || shieldBroke)
             {
+                CombatText.NewText(Player.Hitbox, new Color(180,180,180,255), $"-{damage}");
                 SpawnBarrierVisual();
             }
         }

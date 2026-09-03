@@ -96,7 +96,7 @@ public class MagicMissleSpawner : KLProjectile
 
             RPC("ToDeadState",KLNetModule.NetSendType.ClientToAll);
             Vector2 velocity = (npc.Center - Projectile.Center).SafeNormalize(Vector2.One);
-            Projectile.NewProjectile(Projectile.GetSource_FromAI(), Projectile.Center, velocity*25f, ModContent.ProjectileType<MagicMissile>(), Projectile.damage, 2);
+            Projectile.NewProjectile(Projectile.GetSource_FromAI(), Projectile.Center, velocity*30f, ModContent.ProjectileType<MagicMissile>(), Projectile.damage, 2);
         }
     }
 

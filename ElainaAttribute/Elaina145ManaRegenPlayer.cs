@@ -26,6 +26,8 @@ public class Elaina145ManaRegenPlayer : ModPlayer
     private int miscEffectsManaBefore;
     private int equipManaBefore;
 
+    public int NaturalManaGainThisTick { get; private set; }
+
     public float NaturalManaRegenPerSecond => naturalManaGainHistoryCount == 0
         ? 0f
         : naturalManaGainHistoryTotal * 60f / naturalManaGainHistoryCount;
@@ -116,6 +118,7 @@ public class Elaina145ManaRegenPlayer : ModPlayer
 
     private void On_Player_UpdateManaRegen(On_Player.orig_UpdateManaRegen orig, Player self)
     {
+        NaturalManaGainThisTick = 0;
         if (!EnableElaina145ManaRegen || !self.GetModPlayer<ElainaModplayer>().Elaina)
         {
             orig(self);
@@ -127,11 +130,13 @@ public class Elaina145ManaRegenPlayer : ModPlayer
         {
             modPlayer.ResetNaturalManaRegenHistory();
             modPlayer.pendingExternalManaGain = 0;
+            modPlayer.NaturalManaGainThisTick = 0;
             UpdateManaRegen145(self);
             return;
         }
 
         int actualNaturalManaGain = UpdateManaRegen145(self);
+        modPlayer.NaturalManaGainThisTick = actualNaturalManaGain;
         modPlayer.RecordNaturalManaGain(actualNaturalManaGain + modPlayer.pendingExternalManaGain);
         modPlayer.pendingExternalManaGain = 0;
     }
@@ -161,7 +166,8 @@ public class Elaina145ManaRegenPlayer : ModPlayer
     {
         bool isUsingItem = player.itemAnimation > 0 || player.reuseDelay > 0;
         Elaina145ManaRegenPlayer modPlayer = player.GetModPlayer<Elaina145ManaRegenPlayer>();
-        int actualNaturalManaGain = ApplyNebulaBuffMana145(modPlayer, player);
+        ApplyNebulaBuffMana145(modPlayer, player);
+        int actualNaturalManaGain = 0;
 
         if (player.manaRegenDelay > 0f)
         {
@@ -212,10 +218,11 @@ public class Elaina145ManaRegenPlayer : ModPlayer
         {
             bool shouldShowFullManaEffect = false;
             player.manaRegenCount -= 120;
+            // 每完成一个自然回蓝周期都记录一次，满蓝时也记录。
+            actualNaturalManaGain++;
             if (player.statMana < player.statManaMax2)
             {
                 player.statMana++;
-                actualNaturalManaGain++;
                 shouldShowFullManaEffect = true;
             }
 

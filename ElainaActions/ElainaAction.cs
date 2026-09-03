@@ -2,6 +2,7 @@ using System;
 using KL.ActionsSystem;
 using KL.Extensions;
 using Terraria.DataStructures;
+using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Managers;
 
 namespace 伊蕾娜.ElainaActions;
@@ -54,7 +55,7 @@ public abstract class ElainaAction :AnimAction
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
         base.Update(actionPlayer, actionFrame, actionProgress);
-        
+        Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);
         SyncItemRotationToArmRotation();
 
     }

@@ -78,8 +78,8 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
             string text = $"HP: {currentLifeText}/{maxLifeText}";
             if (barrierPlayer.BarrierEnabled)
             {
-                string currentShieldText = $"{barrierPlayer.CurrentShield:0.#}";
-                string maximumShieldText = $"{barrierPlayer.MaximumShield:0.#}";
+                string currentShieldText = $"{(int)barrierPlayer.CurrentShield}";
+                string maximumShieldText = $"{(int)barrierPlayer.MaximumShield}";
                 text += $"   {shieldText.Format(currentShieldText, maximumShieldText)}";
             }
 

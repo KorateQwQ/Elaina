@@ -99,7 +99,7 @@ public class MagicMissile : KLProjectile
             if (Projectile.ai[0] >= 0)
             {
                 target = Main.npc[(int)Projectile.ai[0]];
-                Projectile.TraceTargetPosition(target.Center, 20, 0.08f);
+                Projectile.TraceTargetPosition(target.Center, Projectile.velocity.Length(), 0.08f);
             }
         }
 

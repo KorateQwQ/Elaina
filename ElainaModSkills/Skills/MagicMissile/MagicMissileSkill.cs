@@ -60,18 +60,18 @@ public class MagicMissileSkill : ElainaSkill
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));
 
-        //每帧固定回蓝时间
-        /*animAction.FrameUpdateListener = (actionPlayer, _, _) =>
-            Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);*/
+        /*//每帧固定回蓝时间
+        animAction.FrameUpdateListener = (actionPlayer, _, _) =>
+            Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);
         animAction.PreNodeUpdateListener = (_, node, actionFrame, _) =>
         {
             /*
             if (node is ShootActionNode)
                 PrintText($"MagicMissile ShootActionNode triggered at action frame {actionFrame}.");
-                */
+                #1#
 
             return true;
-        };
+        };*/
 
         Player localPlayer = Main.LocalPlayer;
         Vector2 directionToMouse = Main.MouseWorld - localPlayer.MountedCenter;

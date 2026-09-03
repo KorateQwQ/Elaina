@@ -25,6 +25,7 @@ public class MultiMissileSkill : ElainaSkill
     {
         MaxCD = 0.2f;
         MaxStack = 1;
+        MagicPointCost = 10;
 
         for (int i = 0; i < MissileCount; i++)
         {
@@ -39,6 +40,8 @@ public class MultiMissileSkill : ElainaSkill
 
     public override bool CanUseSkill()
     {
+        MaxCD = 0.15f;
+
         // 即使技能状态曾被重置，也不允许场上该玩家的spawner总数超过上限。
         if (CountActiveSpawners() >= MissileCount)
         {
@@ -66,6 +69,12 @@ public class MultiMissileSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source)
     {
+        if (!Player.CheckMana(MagicPointCost, false))
+            return false;
+
+        if (!Player.CheckMana(MagicPointCost, true))
+            return false;
+        
         UpdateSpawnerSlots();
 
         // 找到最右边（索引最小）的空闲位置
@@ -90,12 +99,12 @@ public class MultiMissileSkill : ElainaSkill
         Vector2 spawnPosition = GetSlotPosition(Player, slotIndex);
 
         // 创建动作并生成单个spawner
-        AnimAction animAction = new Action_SimpleShoot(13);
+        AnimAction animAction = new Action_SimpleShoot(10);
         animAction.AddNode(new ShootActionNode(
             1,
             ModContent.ProjectileType<MagicMissleSpawner>(),
             _ => spawnPosition,
-            damage: 20000,
+            damage: 100,
             2,
             _ => Vector2.Zero,
             configureProjectile: projectile =>
