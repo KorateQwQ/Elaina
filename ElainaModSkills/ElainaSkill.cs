@@ -83,7 +83,14 @@ public abstract class ElainaSkill : ModSkill
     {
         return base.PreUpdateCD();
     }
-    
+
+    public override bool CanUseSkill()
+    {
+        if (!Player.CheckMana(MagicPointCost, false))
+            return false;
+        return base.CanUseSkill();
+    }
+
     public override void PostDrawSkillIcon(Vector2 position, Vector2 scale,Color color, Effect effect = null)
     {
         //BasicStatus = Skill.SKillBasicStatus.Learned;

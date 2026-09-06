@@ -150,7 +150,7 @@ public class AshenWitchSkill: ElainaSkill
 
 
         player.GetDamage<MagicDamageClass>() += ExtraDamage();
-        PrintText($"额外魔法伤害加成 {ExtraDamage()}");
+        //PrintText($"额外魔法伤害加成 {ExtraDamage()}");
         //PrintText("额外生命："+extraHP+"，减少生命："+reduceHP+"，最终生命："+Player.statLifeMax2 + " 额外魔力倍率："+extraManaPercent + "实际额外获得魔力："+extraMana);
     }
 

@@ -3,7 +3,7 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
-[SkillUIInfo(State = 1, Pixels = 300)]
+[SkillUIInfo(State = 4, Pixels = 400)]
 public class WaterLaserSKill : ElainaSkill
 {
     public override void Initialize()

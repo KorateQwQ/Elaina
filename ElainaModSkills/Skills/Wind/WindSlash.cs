@@ -1,187 +1,195 @@
 using System;
+using KL.Extensions;
+using KL.Utils;
 using Terraria.GameContent;
+using Terraria.ID;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 public class WindSlash : ElainaBasicProjectile
 {
-    
     private Vector2[] windPoints;
-    private Vector2[] windPoints2;
     private Vector2[] windPoints3;
+
+    private static Effect crescentFan;
+    private static Effect arcFlame;
+    private static Texture2D fadeTexture;
+    private static Texture2D arcMaterial;
+    private static Texture2D arcNoise;
+    private static Texture2D windTexture;
+    private static Texture2D windNoiseTexture;
+
+    public override void Load()
+    {
+        if (Main.netMode != NetmodeID.Server)
+        {
+            crescentFan = AssetManager.GetEffect("KL/Effects/Content/CrescentFan");
+            arcFlame = AssetManager.GetEffect("KL/Effects/Content/ArcFlame");
+            fadeTexture = AssetManager.GetTexture("伊蕾娜.Effects.Tex.fadeUP");
+            arcMaterial = AssetManager.GetTexture("KL/Effects/Tex/background");
+            arcNoise = AssetManager.GetTexture("KL/Effects/Tex/水波");
+            windTexture = AssetManager.GetTexture("KL/Effects/Tex/Wind/wind3");
+            windNoiseTexture = AssetManager.GetTexture("KL/Effects/Tex/Wind/windNoi");
+        }
+
+        base.Load();
+    }
+
+    public override void Unload()
+    {
+        crescentFan = null;
+        arcFlame = null;
+        fadeTexture = null;
+        arcMaterial = null;
+        arcNoise = null;
+        windTexture = null;
+        windNoiseTexture = null;
+        base.Unload();
+    }
 
     public override void SetDefaults()
     {
+        Projectile.tileCollide = false;
+        Projectile.timeLeft = 600;
+        Projectile.friendly = true;
+        Projectile.penetrate = -1;
         base.SetDefaults();
     }
 
     public override void OnSpawn_AllClient()
     {
-        Vector2 move = new Vector2(1, 0);
-
-        windPoints = QuickConePoints( move*50,-move*300f ,300, 200, 200,0.1f);
-        windPoints2 = QuickConePoints( move*50,-move*300f ,300, 300, 200,0.1f);
-        windPoints3 = QuickConePoints( move*50,-move*300f ,300, 300, 200,0.1f);
+        Vector2 move = new(1, 0);
+        windPoints = QuickConePoints(move * 50, -move * 100f, 100, 150, 150, 0.1f);
+        windPoints3 = QuickConePoints(move * 50, -move * 200f, 100, 70, 100, 0.1f);
         base.OnSpawn_AllClient();
     }
-    
+
+    public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
+    {
+        Vector2 toward = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation());
+        return AABBvLineCollision(targetHitbox, Projectile.Center + toward * 100,
+            Projectile.Center - toward * 100, 300);
+    }
+
     public override void AI()
     {
+        Projectile.localAI[0]++;
         Projectile.rotation = Projectile.velocity.ToRotation();
-        Vector2 move = new Vector2(1, 0);
-
-        windPoints = QuickConePoints( move*50,-move*300f ,300, 200, 200,0.1f);
-        windPoints2 = QuickConePoints( move*50,-move*300f ,300, 300, 200,0.1f);
-        windPoints3 = QuickConePoints( move*50,-move*300f ,300, 300, 200,0.1f);
-
+        if (HasAuthority())
+        {
+            CutTilesInWindHitbox();
+        }
+        Lighting.AddLight(Projectile.Center,new Color(255, 160, 239).ToVector3());
         base.AI();
+    }
+
+    private void CutTilesInWindHitbox()
+    {
+        Vector2 direction = new Vector2(1f, 0f).RotatedBy(Projectile.velocity.ToRotation());
+        Vector2 widthDirection = direction.RotatedBy(MathHelper.PiOver2);
+        const float collisionHalfWidth = 150f;
+        const float sampleSpacing = 16f;
+        int sampleCount = Math.Max(1, (int)(collisionHalfWidth * 2f / sampleSpacing));
+
+        for (int i = 0; i <= sampleCount; i++)
+        {
+            float offset = MathHelper.Lerp(-collisionHalfWidth, collisionHalfWidth, i / (float)sampleCount);
+            CutTile(Projectile.Center + widthDirection * offset, true);
+        }
     }
 
     public override bool PreDraw(ref Color lightColor)
     {
         DrawWind();
         EndBeginDraw();
-        
         return base.PreDraw(ref lightColor);
     }
 
-    void DrawWind()
+    private void DrawWind()
     {
-
-        Texture2D top = ModContent.Request<Texture2D>("KL/Effects/Tex/lightMask", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D top2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/3eb465f7ddb4bc30589830a7750b398e", AssetRequestMode.ImmediateLoad).Value;
-
-        Texture2D noise = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/4", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D noise2 = ModContent.Request<Texture2D>("KL/Effects/Tex/voronoiOrigin", AssetRequestMode.ImmediateLoad).Value;
-
-        Texture2D wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind3", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D wind2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/windNoi", AssetRequestMode.ImmediateLoad).Value;
-
-        Vector2 move = new Vector2(1, 0);
-        windPoints = QuickConePoints( move*50,-move*150f ,300, 200, 200,0.1f);
-        windPoints2 = QuickConePoints( move*50,-move*200f ,300, 300, 300,0.1f);
-        windPoints3 = QuickConePoints( move*50,-move*400f ,300, 150, 150,0.1f);
-
+        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation());
+        float additiveProgress = MathHelper.Clamp(Projectile.localAI[0] / 15f, 0f, 1f);
+        float additiveAlpha = additiveProgress * additiveProgress * (3f - 2f * additiveProgress);
+        float baseProgress = MathHelper.Clamp(Projectile.localAI[0] / 20f, 0f, 1f);
+        float baseAlpha = baseProgress * baseProgress * (3f - 2f * baseProgress);
+        float appearScale = MathHelper.Lerp(0.78f, 1f, additiveAlpha);
+        float offset = -37f * appearScale;
+        Vector2 drawScale = new(0.9f * appearScale);
+        Vector2 topScale = new(0.8f * appearScale, 1.3f * appearScale);
+        Color pink = new(255, 160, 239, 255);
         
-        Vector2 uTime = new Vector2((float)(Main.timeForVisualEffects % 1200) / 165f, 0);
+        // 先铺黑底，避免后续 additive 绘制产生颜色曝光。
+        EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
+        DrawCrescentFan(new Vector4(new Color(255, 160, 239).ToVector3() * 0.0f, 0.7f * baseAlpha), 0.97f, move, topScale);
+        DrawArcFlame(new Vector4(new Color(255, 160, 239).ToVector3() * 0.0f, 0.7f * baseAlpha), move, offset, drawScale);
+        DrawWindTrails(new Color(255, 160, 239)* 0.8f * baseAlpha, new Color(255, 160, 239)* 0.8f * baseAlpha, 0.8f * baseAlpha, 0f, 2);
 
-        Color pink = new Color(255, 160, 239,155);
-        Color fire = new Color(255, 120, 30, 255);
-        
-        VertexDrawEffect(top, windPoints2, pink, pink*0,
-            startAlpha: 2.2f, endAlpha: 1, blendState: 1, drawTimes: 1,
-            uTime: new Vector2(0),
-            attachPoint: Projectile.Center + move.RotatedBy(Projectile.rotation) * (1),
-            attachRotation: Projectile.rotation,
-            imageScale: new Vector2(1, 1),
-            useRforAlpha: false, debugPoint: false);
-            
-        VertexDrawEffect(wind,windPoints,pink, pink,startAlpha:2.0f, endAlpha:0.0f,blendState:1,drawTimes:1,
-            uTime:new Vector2((float)(Main.timeForVisualEffects%1200)/25f,0),
-            attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation,
-            imageScale:new Vector2(2,1),
-            useRforAlpha:false,debugPoint:false);
-        
-        VertexDrawEffect(wind2,windPoints3,pink, pink,startAlpha:3.0f, endAlpha:0f,blendState:1,drawTimes:1,
-            uTime:new Vector2((float)(Main.timeForVisualEffects%1200)/25f,0),
-            attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation,
-            imageScale:new Vector2(2,1),
-            useRforAlpha:false,debugPoint:false);
-    }
-    
-    void DrawWind2()
-    {
-        Texture2D top = ModContent.Request<Texture2D>("KL/Effects/Tex/lightMask", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D top2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/SemiCircle2", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D top3 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/SemiCircle", AssetRequestMode.ImmediateLoad).Value;
-
-        Texture2D noise = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/4", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D noise2 = ModContent.Request<Texture2D>("KL/Effects/Tex/voronoi", AssetRequestMode.ImmediateLoad).Value;
-
-        Texture2D wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind4", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D wind2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind3", AssetRequestMode.ImmediateLoad).Value;
-        
-        Texture2D trail = ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/165612odcu1dschrvcz6yh", AssetRequestMode.ImmediateLoad).Value;
-
-        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.rotation);
-        
-        Vector2 uTime = new Vector2((float)(Main.timeForVisualEffects % 1200) / 185f, 0);
-
-        Color pink = new Color(255, 255, 255,255);
-        Color fire = new Color(255, 120, 30, 255);
-        
-        Vector4 fireColor = new Vector4(1f,0.4f,0.1f,1f)*2.5f;
-        
-        /*VertexDrawEffect(trail,windPoints3,pink, pink,startAlpha:2.0f, endAlpha:0f,blendState:1,drawTimes:1,
-            uTime:new Vector2(-(float)(Main.timeForVisualEffects%1200)/15f,0),
-            attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation+MathF.PI,
-            imageScale:new Vector2(2f,1),
-            useRforAlpha:false,debugPoint:false);*/
-        
-        /*VertexDrawEffect(wind,windPoints3,fire, fire,startAlpha:2.0f, endAlpha:0f,blendState:1,drawTimes:1,
-            uTime:new Vector2(-(float)(Main.timeForVisualEffects%1200)/25f,0),
-            attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation+MathF.PI,
-            imageScale:new Vector2(1f,1),
-            useRforAlpha:false,debugPoint:false);*/
-        
-        /*VertexDrawEffect(noise2,windPoints3,fire, fire,startAlpha:2.0f, endAlpha:0f,blendState:1,drawTimes:1,
-            uTime:new Vector2(-(float)(Main.timeForVisualEffects%1200)/45f,0),
-            attachPoint:Projectile.Center-move.RotatedBy(Projectile.rotation)*(1),attachRotation:Projectile.rotation+MathF.PI,
-            imageScale:new Vector2(1f,0.5f),
-            useRforAlpha:false,debugPoint:false);*/
-
-    }
-    void DrawWind3()
-    {
-        Texture2D wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind4", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D circle = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/SemiCircle", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D noise = ModContent.Request<Texture2D>("KL/Effects/Tex/voronoi", AssetRequestMode.ImmediateLoad).Value;
-
-        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.rotation);
-
-        Color cyan = new Color(120, 255, 220, 255);
-
-        VertexDrawEffect(circle, windPoints, cyan, cyan * 0,
-            startAlpha: 2.2f, endAlpha: 0.8f, blendState: 1, drawTimes: 1,
-            uTime: new Vector2((float)(Main.timeForVisualEffects % 1200) / 28f, 0),
-            attachPoint: Projectile.Center + move * 10, attachRotation: Projectile.rotation + 0.4f,
-            imageScale: new Vector2(1.3f, 0.7f),
-            useRforAlpha: false, debugPoint: false);
-
-        VertexDrawEffect(wind, windPoints2, cyan, cyan,
-            startAlpha: 1.5f, endAlpha: 0f, blendState: 1, drawTimes: 1,
-            uTime: new Vector2(-(float)(Main.timeForVisualEffects % 1200) / 22f, 0),
-            attachPoint: Projectile.Center - move * 15, attachRotation: Projectile.rotation - 0.4f,
-            imageScale: new Vector2(1.8f, 1.5f),
-            useRforAlpha: false, debugPoint: false);
-
-        VertexDrawEffect(noise, windPoints3, cyan, cyan * 0.3f,
-            startAlpha: 1.2f, endAlpha: 0f, blendState: 1, drawTimes: 1,
-            uTime: new Vector2((float)(Main.timeForVisualEffects % 1200) / 55f, 0),
-            attachPoint: Projectile.Center + move * 5, attachRotation: Projectile.rotation + MathF.PI / 3,
-            imageScale: new Vector2(0.9f, 1.2f),
-            useRforAlpha: false, debugPoint: false);
+        // 黑底完成后再绘制 additive 高光。
+        EndBeginDraw(1, 1, ss: SamplerState.LinearClamp);
+        DrawCrescentFan(new Color(255, 160, 239, 255).ToVector4() * additiveAlpha, 1f, move, topScale);
+        DrawArcFlame(pink.ToVector4() * (1.05f * additiveAlpha), move, offset, drawScale);
+        DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.8f * additiveAlpha, 0.0f, 1);
     }
 
-    public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
-        List<int> overWiresUI)
+    private void DrawCrescentFan(Vector4 effectColor, float positionScale, Vector2 move, Vector2 scale)
     {
-        base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
-    }
-    
-    public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
-    {
-        base.OnHitNPC(target, hit, damageDone);
+        crescentFan.SetValue("OuterRadius", 0.37f);
+        crescentFan.SetValue("OuterRadiusY", positionScale == 1f ? 0.37f : 0.34f);
+        crescentFan.SetValue("InnerRadius", 0.36f);
+        crescentFan.SetValue("InnerRadiusY", 0.39f);
+        crescentFan.SetValue("InnerOffset", new Vector2(-0.06f, 0f));
+        crescentFan.SetValue("TextureRotation", -1.57f);
+        crescentFan.SetValue("TextureScale", new Vector2(1f, 1.57f));
+        crescentFan.SetValue("TextureFlow", new Vector2(0f, 0.36f));
+        crescentFan.SetValue("EffectColor", effectColor);
+        crescentFan.SetValue("EdgeSoftness", 0.1f);
+        crescentFan.Apply();
+        DrawInWorld(fadeTexture, Projectile.Center + move * -27f * positionScale,
+            color: Color.White, scale: scale, rotation: Projectile.velocity.ToRotation());
     }
 
-    public override void OnKill(int timeLeft)
+    private void DrawArcFlame(Vector4 effectColor, Vector2 move, float offset, Vector2 scale)
     {
-        base.OnKill(timeLeft);
+        arcFlame.SetValue("EffectColor", effectColor);
+        arcFlame.SetValue("sweepDirection", new Vector2(1f, 0f));
+        arcFlame.SetValue("ArcCenter", new Vector2(0.5f, 0.5f));
+        arcFlame.SetValue("OuterRadius", 0.52f);
+        arcFlame.SetValue("OuterRadiusY", 0.38f);
+        arcFlame.SetValue("EdgeSoftness", 0f);
+        arcFlame.SetValue("TextureRotation", 0f);
+        arcFlame.SetValue("TextureScale", new Vector2(0.5f));
+        arcFlame.SetValue("TextureFlow", new Vector2(-0.1f, 0f));
+        arcFlame.SetValue("useRGBforApha", false);
+        arcFlame.SetValue("iTimeProgress", 0.6f);
+        arcFlame.SetValue("edgeWidth", 0.2f);
+        arcFlame.SetValue("noiseStrength", 0.2f);
+        arcFlame.SetValue("curveStrength", 0.45f);
+        arcFlame.SetValue("radialCenter", new Vector2(0.5f));
+        arcFlame.SetValue("dissolveRotation", 1.57f);
+        arcFlame.SetValue("dissolveScale", new Vector2(2f, 0.05f));
+        arcFlame.SetValue("iTimeDisolve", new Vector2(0f, (float)(Main.timeForVisualEffects % 1200) / 55f));
+        arcFlame.SetTexture(1, arcNoise);
+        arcFlame.Apply();
+        DrawInWorld(arcMaterial, Projectile.Center + move * offset,
+            color: Color.White, scale: scale, rotation: Projectile.velocity.ToRotation());
     }
-    
-    public override bool ShouldUpdatePosition()
+
+    private void DrawWindTrails(Color startColor, Color endColor, float startAlpha, float endAlpha, int blendState)
     {
-        return base.ShouldUpdatePosition();
+        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation());
+        Vector2 time = new((float)(Main.timeForVisualEffects % 1200) / 25f, 0);
+        Vector2 attachPoint = Projectile.Center - move.RotatedBy(Projectile.rotation);
+
+        VertexDrawEffect(windTexture, windPoints, startColor, endColor,
+            startAlpha: startAlpha, endAlpha: endAlpha, blendState: blendState, drawTimes: 1,
+            uTime: time, attachPoint: attachPoint, attachRotation: Projectile.rotation,
+            imageScale: new Vector2(2f, 1f), useRforAlpha: false,
+            debugPoint: false);
+        VertexDrawEffect(windNoiseTexture, windPoints3, startColor, endColor,
+            startAlpha: startAlpha * 1.5f, endAlpha: endAlpha, blendState: blendState, drawTimes: 1,
+            uTime: time, attachPoint: attachPoint, attachRotation: Projectile.rotation,
+            imageScale: new Vector2(2f, 1f), useRforAlpha: false,
+            debugPoint: false);
     }
-    
+
 }

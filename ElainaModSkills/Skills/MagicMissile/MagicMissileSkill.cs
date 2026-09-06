@@ -41,15 +41,16 @@ public class MagicMissileSkill : ElainaSkill
         base.ResetEffects(player);
     }
 
+    public override bool CanUseSkill()
+    {
+        return base.CanUseSkill();
+    }
+
     //每秒三次攻击，再根据五发额外伤害的被动，大概得到期望dps/4.2的单发伤害
     public override bool PreUseSkill(IEntitySource source)
     {
-        if (!Player.CheckMana(MagicPointCost, false))
-            return false;
-
         if (!Player.CheckMana(MagicPointCost, true))
             return false;
-        
 
         AnimAction animAction = new Action_SimpleShoot()
             .AddNode(new ShootActionNode(

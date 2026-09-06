@@ -164,44 +164,7 @@ public class MagicMissile : KLProjectile
         float clipValue = 0.4f;
 
         Vector2 time = new Vector2((count % 120) / 40f, 0);
-
-        /*effect.Parameters["uTime"].SetValue(time);
-        effect.Parameters["clipValue"].SetValue(clipValue);
-        effect.Parameters["clipValue2"].SetValue(0.2f);
-        effect.Parameters["OuterEdgeWidth"].SetValue(0.10f);
-
-        effect.Parameters["Edge"].SetValue(0.00f);
-        effect.Parameters["EdgeColor"].SetValue(borderColor.ToVector4());
-        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(0, 0, 0) * 1.0f, 1));
-
-        Main.graphics.GraphicsDevice.Textures[1] = waterNoise.Value;
-        Main.graphics.GraphicsDevice.Textures[2] = headClip.Value;
-
-
-        EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap, adjustToScreen: true);
-
-        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.rotation) * 35f;
-
-        Vector2 borderScale = new Vector2(0.32f, 0.37f);
-        Vector2 borderOffset = new Vector2(1.09f);*/
-        /*Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move*borderOffset- Main.screenPosition, waterNoise.Value.GetRec(),
-            borderColor, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* borderScale * scale, 0, 0);
-
-        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move*borderOffset- Main.screenPosition, waterNoise.Value.GetRec(),
-            borderColor, Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* borderScale* scale, 0, 0);
-
-        EndBeginDraw(2,shader:effect,ss:SamplerState.LinearWrap,adjustToScreen:true);
-
-        effect.Parameters["Edge"].SetValue(0.01f);
-        effect.Parameters["imageColor"].SetValue(new Vector4(new Vector3(1,0.5f,0.8f)*(DrawSystem.GetShouldBloom()?2.5f:1.5f),1.0f));
-
-        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move - Main.screenPosition, waterNoise.Value.GetRec(),
-            new Color(255,255,255,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(3.5f,2.2f)* 0.3f * scale, 0, 0);
-
-        Main.spriteBatch.Draw(waterNoise.Value, Projectile.Center + move- Main.screenPosition, waterNoise.Value.GetRec(),
-            new Color(255,255,255,255), Projectile.rotation, new Vector2(waterNoise.Size().X,waterNoise.Size().Y/2f), new Vector2(5.7f,0.8f)* 0.3f* scale, 0, 0);*/
-        //if(trail!= null && OldCenter!=null)TrailEffect(trail.Value,OldCenter,new Color(255, 255, 255,255),Color.White*0f,5,0.1f,drawTimes:3,uTime:new Vector2(1-(count % 120) / 30f,0));
-
+        
         DrawMagicMissile();
         EndBeginDraw();
         return false;
@@ -220,31 +183,8 @@ public class MagicMissile : KLProjectile
         Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.rotation);
         Vector2 totalMove = move * -57*scale;
         Vector2 scale2 = new Vector2(0.35f, 0.40f)*scale;
-
-        if (DrawSystem.GetShouldBloom())
-        {
-            EndBeginDraw(2, 1);
-            RadialDissolve(new Vector4(new Vector3(0.0f), 1.0f), waterNoise, 0.2f,
-                new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
-                sweepDirection: new Vector2(1, 0),
-                imageTex: waterNoise3, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
-                internalTextureScale: new Vector2(1.5f));
-
-            DrawInWorld(ball, Projectile.Center + totalMove, Color.White, new Vector2(1.0f, 0.5f) * scale2 * 1.00f,
-                Projectile.rotation);
-
-            RadialDissolve(new Vector4(new Vector3(0.0f), 1.0f), waterNoise, 0.2f,
-                new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
-                sweepDirection: new Vector2(1, 0),
-                imageTex: waterNoise2, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
-                internalTextureScale: new Vector2(1.5f));
-
-            DrawInWorld(ball, Projectile.Center + move * 10 + totalMove, Color.White,
-                new Vector2(0.8f, 0.3f) * scale2 * 1.00f, Projectile.rotation);
-        }
-
-
-        if(!DrawSystem.GetShouldBloom()) EndBeginDraw(1, 1);
+        
+        EndBeginDraw(DrawSystem.GetShouldBloom()?2:1, 1);
 
         RadialDissolve(new Vector4(new Vector3(1, 0.5f, 0.8f) * (DrawSystem.GetShouldBloom() ? 7.5f : 1.5f), 1.0f),
             waterNoise, 0.2f,

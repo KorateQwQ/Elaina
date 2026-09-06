@@ -3,7 +3,7 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 
-[SkillUIInfo(State = 3, Pixels = 300)]
+//[SkillUIInfo(State = 3, Pixels = 300)]
 
 public class FireBurstSkill : ElainaSkill
 {

@@ -23,7 +23,7 @@ public class MultiMissileSkill : ElainaSkill
 
     public override void Initialize()
     {
-        MaxCD = 0.2f;
+        MaxCD = 0.15f;
         MaxStack = 1;
         MagicPointCost = 10;
 
@@ -40,8 +40,6 @@ public class MultiMissileSkill : ElainaSkill
 
     public override bool CanUseSkill()
     {
-        MaxCD = 0.15f;
-
         // 即使技能状态曾被重置，也不允许场上该玩家的spawner总数超过上限。
         if (CountActiveSpawners() >= MissileCount)
         {
@@ -69,9 +67,6 @@ public class MultiMissileSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source)
     {
-        if (!Player.CheckMana(MagicPointCost, false))
-            return false;
-
         if (!Player.CheckMana(MagicPointCost, true))
             return false;
         

@@ -6,7 +6,7 @@ using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
-[SkillUIInfo(State = 1, Pixels = 0)]
+[SkillUIInfo(State = 1, Pixels = 100)]
 public class MagicBarrierSkill : ElainaSkill
 {
     public static float BaseShieldAmount  => 50f;
@@ -36,7 +36,7 @@ public class MagicBarrierSkill : ElainaSkill
     public override bool CanUseSkill()
     {
         // 检查所有前置技能是否都已生效
-        if (!AreAllPrerequisitesActive()||!IsEnabled)
+        if (!AreAllPrerequisitesActive(Player.GetModPlayer<ElainaSkillModPlayer>())||!IsEnabled)
         {
             return false;
         }

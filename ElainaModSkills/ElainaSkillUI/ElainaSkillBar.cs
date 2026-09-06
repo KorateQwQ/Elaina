@@ -171,15 +171,12 @@ public class ElainaSkillBar : BasicSkillBar
             if (slot.GetSlotSkill() == null) continue;
 
             Vector2 center = slot.Bounds.Position + slot.Bounds.Size / 2f;
-
-            // 白色圆形外框
-            DrawCircleFrame(spriteBatch, center, 28f, 1f, Color.White * 0.9f);
-
+            
             // 选中槽位的顶部十字星提示
             if (i == selectedIndex)
             {
                 Vector2 topPos = center + new Vector2(0f, -38f);
-                UIDrawKit.DrawSparkle(spriteBatch, topPos, 58f, phase * 0.02f, Color.White * 0.85f);
+                //UIDrawKit.DrawSparkle(spriteBatch, topPos, 108f, phase * 0.02f, Color.White * 0.85f);
             }
         }
 
@@ -211,6 +208,57 @@ public class ElainaSkillBar : BasicSkillBar
         //图标之间的间距
         Gap = 10f;
         DrawInScreen(slotTex, position,scale:new Vector2(1,1.0f));
+        DrawSelectedEffect();
+
+    }
+
+    void DrawSelectedEffect()
+    {
+        var leftArrow = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.LeftArrow");
+        var leftArrowGlow = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.LeftArrow_Glow");
+
+        var upArrow = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.UpArrow");
+        var upArrowwGlow = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.UpArrow_Glow");
+
+        EndBeginDrawUI(2);
+        int selectedIndex = ElainaSkillModPlayer.CurrentSkillIndex;
+        if (selectedIndex >= 0 && selectedIndex < Children.Count)
+        {
+            if (Children[selectedIndex] is ElainaSkillSlot)
+            {
+                Vector2 center = Children[selectedIndex].Bounds.Position + Children[selectedIndex].Bounds.Size / 2f;
+
+                // 持续呼吸：缩放和透明度以平滑曲线同步变化。
+                float breath = (float)Math.Sin(Main.timeForVisualEffects * 0.08f) * 0.5f + 0.5f;
+                float arrowScale = MathHelper.Lerp(0.97f, 1.03f, breath);
+                Color arrowColor = Color.White * MathHelper.Lerp(0.85f, 1f, breath);
+                Vector2 arrowOffset = new Vector2(-1f, 1.2f) * arrowScale;
+                float upOffset = -12.5f;
+                float downOffset = 11.5f;
+
+                // 左上角：左箭头和上箭头
+                DrawInScreen(leftArrow, center + new Vector2(-7f, 0f) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(arrowScale));
+                DrawInScreen(upArrow, center + new Vector2(0f, upOffset) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(arrowScale)*0.8f);
+
+                // 右下角：翻转箭头贴图，得到右箭头和下箭头
+                DrawInScreen(leftArrow, center + new Vector2(7f, 0f) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(-arrowScale, arrowScale));
+                DrawInScreen(upArrow, center + new Vector2(0f, downOffset) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(arrowScale, -arrowScale)*0.8f);
+                
+                EndBeginDrawUI(1);
+                DrawInScreen(leftArrowGlow, center + new Vector2(-7f, 0f) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(arrowScale));
+                DrawInScreen(leftArrowGlow, center + new Vector2(7f, 0f) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(-arrowScale, arrowScale));
+                DrawInScreen(upArrowwGlow, center + new Vector2(0f, upOffset) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(arrowScale)*0.8f);
+                DrawInScreen(upArrowwGlow, center + new Vector2(0f,downOffset) * arrowScale + arrowOffset,
+                    arrowColor, new Vector2(arrowScale, -arrowScale)*0.8f);
+            }
+        }
     }
 
     /// <summary>绘制圆形边框</summary>

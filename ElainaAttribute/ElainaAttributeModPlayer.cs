@@ -3,6 +3,9 @@ using Terraria.ModLoader.IO;
 
 namespace 伊蕾娜.ElainaAttribute;
 
+/// <summary>
+/// 已弃用！！！
+/// </summary>
 public class ElainaAttributeModPlayer : ModPlayer
 {
     public delegate void OnMagicPointChangedHandler(float oldMagicPoint, float magicPoint);

@@ -8,7 +8,7 @@ using 伊蕾娜.ElainaModSkills.Skills.Lightning;
 using 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
-[SkillUIInfo(State = 2, Pixels = 300)]
+//[SkillUIInfo(State = 2, Pixels = 300)]
 public class FireLaserSkill : ElainaSkill
 {
     public override void Initialize()

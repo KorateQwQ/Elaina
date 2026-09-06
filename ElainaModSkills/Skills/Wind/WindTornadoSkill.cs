@@ -3,7 +3,7 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
-[SkillUIInfo(State = 8, Pixels = 500)]
+//[SkillUIInfo(State = 8, Pixels = 500)]
 public class WindTornadoSkill : ElainaSkill
 {
     public override void Initialize()

@@ -3,7 +3,7 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 
-[SkillUIInfo(State = 5, Pixels = 300)]
+//[SkillUIInfo(State = 5, Pixels = 300)]
 public class FireTornadoSkill : ElainaSkill
 {
     public override void Initialize()
