@@ -19,8 +19,8 @@ namespace 伊蕾娜.Buffs
         public override void Update(Player player, ref int buffIndex)
         {
             if (player.manaRegenDelay > 5) player.manaRegenDelay = 5;
-            player.manaRegen++;
-            //player.statMana++;
+            player.manaRegenBonus+=60;
+            //player.statMana+=1;
             //player.buffTime[buffIndex]++;
             //player.GetDamage<GenericDamageClass>() += 0.1f;
 

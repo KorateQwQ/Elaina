@@ -13,7 +13,7 @@ public class MagicBarrierSkill : ElainaSkill
     public static float MaximumManaShieldRatio => 0.25f;
 
     //每自然恢复25点魔力，恢复1点护盾值。
-    public static int NaturalManaPerShieldPoint => 25;
+    public static int NaturalManaPerShieldPoint => 10;
     public static int BrokenShieldCooldownTicks => 0 * 60;
     //护盾受伤后，延迟多少Tick开始恢复
     public static int ShieldRegenDelayTicks => 3 * 60;

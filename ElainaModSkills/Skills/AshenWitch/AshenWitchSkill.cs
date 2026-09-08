@@ -23,6 +23,8 @@ public class AshenWitchSkill: ElainaSkill
     //每步可恢复的魔力的懂百分比
     private const float MagicPointPercentPerStep = 1f;
 
+    // 每帧累积未结算的魔力，避免 int 魔力值造成小数损失。
+    private double regenMana = 0;
     public override void Initialize()
     {
         MaxCD = -1;
@@ -125,7 +127,7 @@ public class AshenWitchSkill: ElainaSkill
         {
             return;
         }
-
+        
         //player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint+=1*Player.statManaMax2;
         Player.buffImmune[BuffID.ManaSickness] = true;
 
@@ -147,11 +149,31 @@ public class AshenWitchSkill: ElainaSkill
 
         float extraMana = (int)(Player.statManaMax2 * extraManaPercent)-Player.statManaMax2;
         Player.statManaMax2 = (int)(Player.statManaMax2 * extraManaPercent);
-
-
         player.GetDamage<MagicDamageClass>() += ExtraDamage();
         //PrintText($"额外魔法伤害加成 {ExtraDamage()}");
         //PrintText("额外生命："+extraHP+"，减少生命："+reduceHP+"，最终生命："+Player.statLifeMax2 + " 额外魔力倍率："+extraManaPercent + "实际额外获得魔力："+extraMana);
+
+        AutoRegenMana();
+    }
+
+    void AutoRegenMana()
+    {
+        //每秒恢复10%蓝量
+        regenMana += Player.statManaMax2 * 0.1d / 60d;
+        int manaToRecover = (int)regenMana;
+        if (manaToRecover > 0)
+        {
+            Player.statMana += manaToRecover;
+            // 如果本次已经回复到满蓝，丢弃剩余的小数和溢出部分。
+            if (Player.statMana >= Player.statManaMax2)
+            {
+                regenMana = 0;
+            }
+            else
+            {
+                regenMana -= manaToRecover;
+            }
+        }
     }
 
     public float ExtraDamage()

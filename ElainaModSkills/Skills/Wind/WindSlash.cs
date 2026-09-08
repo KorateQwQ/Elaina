@@ -37,13 +37,6 @@ public class WindSlash : ElainaBasicProjectile
 
     public override void Unload()
     {
-        crescentFan = null;
-        arcFlame = null;
-        fadeTexture = null;
-        arcMaterial = null;
-        arcNoise = null;
-        windTexture = null;
-        windNoiseTexture = null;
         base.Unload();
     }
 
@@ -53,14 +46,16 @@ public class WindSlash : ElainaBasicProjectile
         Projectile.timeLeft = 600;
         Projectile.friendly = true;
         Projectile.penetrate = -1;
+        Projectile.usesLocalNPCImmunity = true;
+        Projectile.localNPCHitCooldown = 30;
         base.SetDefaults();
     }
 
     public override void OnSpawn_AllClient()
     {
         Vector2 move = new(1, 0);
-        windPoints = QuickConePoints(move * 50, -move * 100f, 100, 150, 150, 0.1f);
-        windPoints3 = QuickConePoints(move * 50, -move * 200f, 100, 70, 100, 0.1f);
+        windPoints = QuickConePoints(move * 50, -move * 100f, 100, 140, 140, 0.1f);
+        windPoints3 = QuickConePoints(move * 50, -move * 200f, 100, 30, 70, 0.1f);
         base.OnSpawn_AllClient();
     }
 
@@ -107,28 +102,29 @@ public class WindSlash : ElainaBasicProjectile
 
     private void DrawWind()
     {
-        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation());
-        float additiveProgress = MathHelper.Clamp(Projectile.localAI[0] / 15f, 0f, 1f);
+        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation())*1;
+        float additiveProgress = MathHelper.Clamp(Projectile.localAI[0] / 10f, 0f, 1f);
         float additiveAlpha = additiveProgress * additiveProgress * (3f - 2f * additiveProgress);
-        float baseProgress = MathHelper.Clamp(Projectile.localAI[0] / 20f, 0f, 1f);
+        float baseProgress = MathHelper.Clamp(Projectile.localAI[0] / 15f, 0f, 1f);
         float baseAlpha = baseProgress * baseProgress * (3f - 2f * baseProgress);
         float appearScale = MathHelper.Lerp(0.78f, 1f, additiveAlpha);
-        float offset = -37f * appearScale;
+        float offset = -21f * appearScale;
         Vector2 drawScale = new(0.9f * appearScale);
-        Vector2 topScale = new(0.8f * appearScale, 1.3f * appearScale);
+        Vector2 topScale = new(0.8f * appearScale, 1.2f * appearScale);
         Color pink = new(255, 160, 239, 255);
         
         // 先铺黑底，避免后续 additive 绘制产生颜色曝光。
         EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
-        DrawCrescentFan(new Vector4(new Color(255, 160, 239).ToVector3() * 0.0f, 0.7f * baseAlpha), 0.97f, move, topScale);
-        DrawArcFlame(new Vector4(new Color(255, 160, 239).ToVector3() * 0.0f, 0.7f * baseAlpha), move, offset, drawScale);
-        DrawWindTrails(new Color(255, 160, 239)* 0.8f * baseAlpha, new Color(255, 160, 239)* 0.8f * baseAlpha, 0.8f * baseAlpha, 0f, 2);
+        DrawCrescentFan(new Vector4(new Color(255, 120, 239).ToVector3() * 0.8f, 0.9f * baseAlpha), 1f, move*1.0f, topScale*1f);
+        DrawArcFlame(new Vector4(new Color(255, 120, 239).ToVector3() * 0.5f, 0.5f * baseAlpha), move, offset*1.0f, drawScale*1.0f,VisualTime);
+        DrawWindTrails(new Color(255, 160, 239)* 0.8f * baseAlpha, new Color(255, 160, 239)* 0.5f * baseAlpha, 0.8f * baseAlpha, 0f, 2);
 
         // 黑底完成后再绘制 additive 高光。
         EndBeginDraw(1, 1, ss: SamplerState.LinearClamp);
         DrawCrescentFan(new Color(255, 160, 239, 255).ToVector4() * additiveAlpha, 1f, move, topScale);
-        DrawArcFlame(pink.ToVector4() * (1.05f * additiveAlpha), move, offset, drawScale);
-        DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.8f * additiveAlpha, 0.0f, 1);
+
+        DrawArcFlame(new Vector4(new Color(255, 180, 239).ToVector3() * 0.9f, 1.0f * additiveAlpha), move, offset+0, drawScale,VisualTime+0);
+        DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.3f * additiveAlpha, 0.0f, 1);
     }
 
     private void DrawCrescentFan(Vector4 effectColor, float positionScale, Vector2 move, Vector2 scale)
@@ -136,7 +132,7 @@ public class WindSlash : ElainaBasicProjectile
         crescentFan.SetValue("OuterRadius", 0.37f);
         crescentFan.SetValue("OuterRadiusY", positionScale == 1f ? 0.37f : 0.34f);
         crescentFan.SetValue("InnerRadius", 0.36f);
-        crescentFan.SetValue("InnerRadiusY", 0.39f);
+        crescentFan.SetValue("InnerRadiusY", 0.42f);
         crescentFan.SetValue("InnerOffset", new Vector2(-0.06f, 0f));
         crescentFan.SetValue("TextureRotation", -1.57f);
         crescentFan.SetValue("TextureScale", new Vector2(1f, 1.57f));
@@ -148,11 +144,11 @@ public class WindSlash : ElainaBasicProjectile
             color: Color.White, scale: scale, rotation: Projectile.velocity.ToRotation());
     }
 
-    private void DrawArcFlame(Vector4 effectColor, Vector2 move, float offset, Vector2 scale)
+    private void DrawArcFlame(Vector4 effectColor, Vector2 move, float offset, Vector2 scale,int time)
     {
         arcFlame.SetValue("EffectColor", effectColor);
         arcFlame.SetValue("sweepDirection", new Vector2(1f, 0f));
-        arcFlame.SetValue("ArcCenter", new Vector2(0.5f, 0.5f));
+        arcFlame.SetValue("ArcCenter", new Vector2(0.43f, 0.5f));
         arcFlame.SetValue("OuterRadius", 0.52f);
         arcFlame.SetValue("OuterRadiusY", 0.38f);
         arcFlame.SetValue("EdgeSoftness", 0f);
@@ -167,7 +163,7 @@ public class WindSlash : ElainaBasicProjectile
         arcFlame.SetValue("radialCenter", new Vector2(0.5f));
         arcFlame.SetValue("dissolveRotation", 1.57f);
         arcFlame.SetValue("dissolveScale", new Vector2(2f, 0.05f));
-        arcFlame.SetValue("iTimeDisolve", new Vector2(0f, (float)(Main.timeForVisualEffects % 1200) / 55f));
+        arcFlame.SetValue("iTimeDisolve", new Vector2(0f, (float)(time % 1200) / 55f));
         arcFlame.SetTexture(1, arcNoise);
         arcFlame.Apply();
         DrawInWorld(arcMaterial, Projectile.Center + move * offset,

@@ -23,8 +23,8 @@ public class Elaina145ManaRegenPlayer : ModPlayer
     private int naturalManaGainHistoryCount;
     private int naturalManaGainHistoryTotal;
     private int pendingExternalManaGain;
+    private int buffsManaBefore;
     private int miscEffectsManaBefore;
-    private int equipManaBefore;
 
     public int NaturalManaGainThisTick { get; private set; }
 
@@ -32,45 +32,43 @@ public class Elaina145ManaRegenPlayer : ModPlayer
         ? 0f
         : naturalManaGainHistoryTotal * 60f / naturalManaGainHistoryCount;
 
+    public override void PreUpdateBuffs()
+    {
+        buffsManaBefore = Player.statMana;
+    }
+
+    public override void PostUpdateBuffs()
+    {
+        RecordExternalManaGain(Player.statMana - buffsManaBefore);
+    }
+
     public override void Load()
     {
         On_Player.UpdateManaRegen += On_Player_UpdateManaRegen;
-        IL_Player.UpdateEquips += IL_Player_UpdateEquips;
+        On_Player.UpdateEquips += On_PlayerOnUpdateEquips;
         IL_Player.Update += IL_Player_Update;
         On_Player.ItemCheck += On_Player_ItemCheck;
+    }
+
+    private void On_PlayerOnUpdateEquips(On_Player.orig_UpdateEquips orig, Player self, int i)
+    {
+        Elaina145ManaRegenPlayer modPlayer =
+            self.GetModPlayer<Elaina145ManaRegenPlayer>();
+        int manaBefore = self.statMana;
+
+        orig(self,i);
+        // 记录整个 UpdateEquips 阶段的实际回蓝，包括满蓝时的回复量。
+        modPlayer.RecordExternalManaGain(self.statMana - manaBefore);
     }
 
     public override void Unload()
     {
         On_Player.UpdateManaRegen -= On_Player_UpdateManaRegen;
-        IL_Player.UpdateEquips -= IL_Player_UpdateEquips;
+        On_Player.UpdateEquips -= On_PlayerOnUpdateEquips;
         IL_Player.Update -= IL_Player_Update;
         On_Player.ItemCheck -= On_Player_ItemCheck;
     }
-
-    private static void IL_Player_UpdateEquips(ILContext il)
-    {
-        var cursor = new ILCursor(il);
-        if (!cursor.TryGotoNext(MoveType.Before, instruction => instruction.MatchCall("Terraria.ModLoader.ItemLoader", "UpdateEquip")))
-            return;
-
-        cursor.Emit(OpCodes.Ldarg_0);
-        cursor.EmitDelegate<Action<Player>>(BeginEquipManaTracking);
-        cursor.GotoNext(MoveType.After, instruction => instruction.MatchCall("Terraria.ModLoader.ItemLoader", "UpdateEquip"));
-        cursor.Emit(OpCodes.Ldarg_0);
-        cursor.EmitDelegate<Action<Player>>(EndEquipManaTracking);
-    }
-
-    private static void BeginEquipManaTracking(Player player)
-    {
-        player.GetModPlayer<Elaina145ManaRegenPlayer>().equipManaBefore = player.statMana;
-    }
-
-    private static void EndEquipManaTracking(Player player)
-    {
-        RecordPositiveManaDifference(player, player.GetModPlayer<Elaina145ManaRegenPlayer>().equipManaBefore);
-    }
-
+    
     private static void IL_Player_Update(ILContext il)
     {
         var cursor = new ILCursor(il);
@@ -97,8 +95,17 @@ public class Elaina145ManaRegenPlayer : ModPlayer
     private static void RecordPositiveManaDifference(Player player, int manaBefore)
     {
         Elaina145ManaRegenPlayer modPlayer = player.GetModPlayer<Elaina145ManaRegenPlayer>();
-        if (modPlayer.EnableElaina145ManaRegen && player.GetModPlayer<ElainaModplayer>().Elaina)
-            modPlayer.pendingExternalManaGain += Math.Max(0, player.statMana - manaBefore);
+        modPlayer.RecordExternalManaGain(Math.Max(0, player.statMana - manaBefore));
+    }
+
+    /// <summary>
+    /// 记录由装备、技能等系统直接产生的实际回蓝量。
+    /// 会在当前帧的自然回蓝统计结算时合并进去。
+    /// </summary>
+    public void RecordExternalManaGain(int manaGain)
+    {
+        if (EnableElaina145ManaRegen && Player.GetModPlayer<ElainaModplayer>().Elaina)
+            pendingExternalManaGain += Math.Max(0, manaGain);
     }
 
     private void On_Player_ItemCheck(On_Player.orig_ItemCheck orig, Player self)

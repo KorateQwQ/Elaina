@@ -60,10 +60,8 @@ public class MagicMissileSkill : ElainaSkill
                 damage:GetDamage(),//DpsHelper.GetSkillDamage(GetType().Name,1)
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));
-
-        /*//每帧固定回蓝时间
-        animAction.FrameUpdateListener = (actionPlayer, _, _) =>
-            Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);
+        //每帧固定回蓝时间
+        /*
         animAction.PreNodeUpdateListener = (_, node, actionFrame, _) =>
         {
             /*
