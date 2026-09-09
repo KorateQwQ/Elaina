@@ -194,32 +194,51 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     public bool CanUseSkill()
     {
-        if(CurrentSkillIndex<0||CurrentSkillIndex>=GetActiveSkill.Count|| GetActiveSkill[CurrentSkillIndex]== null||Main.myPlayer!=Player.whoAmI)return false;
-        Skill skill = GetActiveSkill[CurrentSkillIndex];
-        if (skill.InCD) return false;
-        if (skill.ModSkill is not ElainaSkill elainaSkill||!skill.ModSkill.CanUseSkill()) return false;
-        ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-        if (!Player.CheckMana((int)elainaSkill.MagicPointCost, false))
+        if (CurrentSkillIndex < 0 || CurrentSkillIndex >= GetActiveSkill.Count
+            || GetActiveSkill[CurrentSkillIndex] == null || Main.myPlayer != Player.whoAmI)
         {
-            if(Main.mouseLeftRelease)PrintText(Language.GetText($"Mods.伊蕾娜.SkillInfo.LackOfMagic").Value);
             return false;
         }
-        return true;
 
+        Skill skill = GetActiveSkill[CurrentSkillIndex];
+        if (skill.InCD || skill.ModSkill is not ElainaSkill elainaSkill)
+        {
+            return false;
+        }
+
+        ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (!attributePlayer.UniqueMagicEnabled || !skill.ModSkill.CanUseSkill())
+        {
+            return false;
+        }
+
+        if (elainaSkill.MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(elainaSkill.MagicPointCost, false))
+        {
+            if (Main.mouseLeftRelease)
+            {
+                PrintText(Language.GetText($"Mods.伊蕾娜.SkillInfo.LackOfMagic").Value);
+            }
+
+            return false;
+        }
+
+        return true;
     }
     public override void UseSkill(int index=0, IEntitySource source = null)
     {
         if (index < 0 || index >= GetActiveSkill.Count || GetActiveSkill[index] == null||Main.myPlayer!=Player.whoAmI) return;
 
         Skill skill = GetActiveSkill[index];
-        if (skill.InCD) return;
-
-        /*if (skill.ModSkill is ElainaSkill elainaSkill)
+        if (skill.InCD || skill.ModSkill is not ElainaSkill elainaSkill)
         {
-            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-            if (!attributePlayer.ConsumeMagicPoint(elainaSkill.MagicPointCost)) return;
-        }*/
+            return;
+        }
 
+        ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (!attributePlayer.UniqueMagicEnabled || !skill.ModSkill.CanUseSkill())
+        {
+            return;
+        }
 
         skill.UseSkill(source);
     }

@@ -9,7 +9,6 @@ using Terraria.GameContent.UI.ResourceSets;
 using Terraria.Localization;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaAttribute;
-using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -20,14 +19,10 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     private Rectangle manaArea;
     private LocalizedText lifeText;
     private LocalizedText manaText;
-    private LocalizedText shieldText;
-
     private static readonly Color BorderColor = new Color(237, 240, 243);
     private static readonly Color BackgroundColor = new Color(35, 32, 42) * 0.85f;
     private static readonly Color LifeColor = new Color(220, 72, 108);
     private static readonly Color ManaColor = new Color(88, 128, 255);
-    private static readonly Color ShieldColor = new Color(137, 143, 154);
-    private static readonly Color ShieldBorderColor = new Color(225, 228, 234) * 0.75f;
     private static readonly Color LifeBackColor = new Color(93, 48, 66) * 0.9f;
     private static readonly Color ManaBackColor = new Color(43, 55, 96) * 0.9f;
     private static float ResourceDecaySpeed = 0.01f;
@@ -38,7 +33,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     {
         lifeText = this.GetLocalization(nameof(lifeText));
         manaText = this.GetLocalization(nameof(manaText));
-        shieldText = this.GetLocalization(nameof(shieldText));
     }
 
     public override void PreDrawResources(PlayerStatsSnapshot snapshot)
@@ -58,13 +52,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         string maxLifeText = $"{snapshot.LifeMax:0.#}";
         lifeArea = DrawBar(spriteBatch, center, barSize, snapshot.Life, snapshot.LifeMax, LifeBackColor, new Color(220, 102, 188,255), ref lifeDecayPercent);
 
-        MagicBarrierSkill.MagicBarrierModPlayer barrierPlayer =
-            Main.LocalPlayer.GetModPlayer<MagicBarrierSkill.MagicBarrierModPlayer>();
-        if (barrierPlayer.BarrierEnabled && barrierPlayer.CurrentShield > 0f)
-        {
-            DrawShieldOverlay(center, barSize, barrierPlayer.ShieldRatio);
-        }
-
         DrawCenteredText(spriteBatch, lifeText.Format(currentLifeText, maxLifeText), lifeArea, Color.White, 0.82f);
         
         Point mousePoint = Main.MouseScreen.ToPoint();
@@ -76,13 +63,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         {
             float scale = 0.25f;
             string text = $"HP: {currentLifeText}/{maxLifeText}";
-            if (barrierPlayer.BarrierEnabled)
-            {
-                string currentShieldText = $"{(int)barrierPlayer.CurrentShield}";
-                string maximumShieldText = $"{(int)barrierPlayer.MaximumShield}";
-                text += $"   {shieldText.Format(currentShieldText, maximumShieldText)}";
-            }
-
             Vector2 size = font.MeasureString(text) * scale;
             center = center - size * 0.5f;
             Main.spriteBatch.DrawString(font, text, center, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
@@ -91,10 +71,11 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
 
     public override void DrawMana(SpriteBatch spriteBatch)
     {
-        bool UseUniqueMana = false;
+        ElainaAttributeModPlayer attributePlayer = Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>();
+        bool UseUniqueMana = attributePlayer.UniqueMagicEnabled;
 
-        float currentMagicPoint = UseUniqueMana ?  Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint : snapshot.Mana;
-        float maxMagicPoint = UseUniqueMana ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint : snapshot.ManaMax;
+        float currentMagicPoint = UseUniqueMana ? attributePlayer.MagicPoint : snapshot.Mana;
+        float maxMagicPoint = UseUniqueMana ? attributePlayer.MaxMagicPoint : snapshot.ManaMax;
         string currentMagicPointText = $"{currentMagicPoint:0.#}";
         string maxMagicPointText = $"{maxMagicPoint:0.#}";
         
@@ -221,38 +202,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         //Main.spriteBatch = spriteBatch;
 
         return borderRectangle;
-    }
-
-    private static void DrawShieldOverlay(Vector2 center, Vector2 size, float shieldPercent)
-    {
-        shieldPercent = MathHelper.Clamp(shieldPercent, 0f, 1f);
-        if (shieldPercent <= 0f)
-        {
-            return;
-        }
-
-        Vector2 shieldSize = size - new Vector2(2f);
-        shieldSize.X *= shieldPercent;
-        float offset = size.X * (1f - shieldPercent) * 0.5f;
-        Vector2 shieldCenter = center + new Vector2(-offset, 0f);
-
-        EndBeginDrawUI();
-        DrawCapsuleRectangle(
-            shieldCenter,
-            shieldSize,
-            ShieldColor,
-            border: 2f,
-            filled: true,
-            borderColor: Color.Transparent,
-            capsuleSharpness: 0.7f);
-        DrawCapsuleRectangle(
-            shieldCenter,
-            shieldSize,
-            ShieldColor,
-            border: 1f,
-            filled: false,
-            borderColor: ShieldBorderColor,
-            capsuleSharpness: 0.7f);
     }
 
     private static void DrawCenteredText(SpriteBatch spriteBatch, string text, Rectangle area, Color color, float scale)

@@ -24,7 +24,7 @@ public class MagicMissileSkill : ElainaSkill
 {
     public override void Initialize()
     {
-        MagicPointCost = 5;
+        MagicPointCost = 3;
         CurrentCD = 0.3f;
         MaxCD = 0.3f;
         base.Initialize();
@@ -36,7 +36,6 @@ public class MagicMissileSkill : ElainaSkill
         if (player.GetModPlayer<ElainaModplayer>().Elaina)
         {
             BasicStatus = Skill.SKillBasicStatus.UnLock;
-            if (Level < 1) Level = 1;
         }
         base.ResetEffects(player);
     }
@@ -49,7 +48,7 @@ public class MagicMissileSkill : ElainaSkill
     //每秒三次攻击，再根据五发额外伤害的被动，大概得到期望dps/4.2的单发伤害
     public override bool PreUseSkill(IEntitySource source)
     {
-        if (!Player.CheckMana(MagicPointCost, true))
+        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 
         AnimAction animAction = new Action_SimpleShoot()

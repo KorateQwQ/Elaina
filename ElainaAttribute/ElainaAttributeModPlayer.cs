@@ -1,195 +1,317 @@
 using System;
+using KL.AttributeSystem;
+using KL.SkillSystem;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 
 namespace 伊蕾娜.ElainaAttribute;
 
 /// <summary>
-/// 已弃用！！！
+/// 伊蕾娜的独特魔力资源。上限由最终原版最大 mana 按属性换算，当前值独立保存。
 /// </summary>
-public class ElainaAttributeModPlayer : ModPlayer
+public class ElainaAttributeModPlayer : ModPlayer, IAttributeProvider
 {
+    public AttributeComponent Attributes { get; } = new();
+
     public delegate void OnMagicPointChangedHandler(float oldMagicPoint, float magicPoint);
-    public delegate bool OnMagicPointInsufficientHandler(ElainaAttributeModPlayer attributePlayer, float cost, bool consume);
 
     public event OnMagicPointChangedHandler MagicPointChanged;
-    public static event OnMagicPointInsufficientHandler MagicPointInsufficient;
-    
-    //public OnMagicPointChangedHandler MagicPointChanged;
-    
-    private float magicPoint = 100;
+
+    private float magicPoint;
+    private float maxMagicPoint;
+    private float loadedMagicPoint;
+    private double recoveryRemainder;
+    private int battleTicksRemaining;
+    private int recoveryPauseTicks;
+    private bool hasLoadedMagicPoint;
+    private bool magicPointInitialized;
+
     public float MagicPoint
     {
-         get => magicPoint;
-         set
-         {
-             float oldMagicPoint = magicPoint;
-             magicPoint = Math.Clamp(value, 0f, MaxMagicPoint);
-             if (Math.Abs(magicPoint - oldMagicPoint) > 0.001f)
-             {
-                 MagicPointChanged?.Invoke(oldMagicPoint, magicPoint);   
-             }
-         }
-    }
-    
-    private float maxMagicPoint = 100;
-
-    public float MaxMagicPoint
-    {
-        get => maxMagicPoint;
-        set => maxMagicPoint = value;
+        get => magicPoint;
+        private set
+        {
+            float clampedValue = Math.Clamp(value, 0f, MaxMagicPoint);
+            float oldMagicPoint = magicPoint;
+            magicPoint = clampedValue;
+            if (Math.Abs(magicPoint - oldMagicPoint) > 0.001f)
+            {
+                MagicPointChanged?.Invoke(oldMagicPoint, magicPoint);
+            }
+        }
     }
 
-    /// <summary>
-    /// 每秒回复的魔力点数。
-    /// </summary>
-    public float MagicPointRecovery { get; set; } = 1f;
-
-    //战斗中
-    public bool InBattle = false;
-
-    private int inBattleCount = 0;
-
-    public override void Load()
-    {
-        base.Load();
-    }
-
-    public override void OnEnterWorld()
-    {
-        base.OnEnterWorld();
-    }
+    public float MaxMagicPoint => maxMagicPoint;
 
     public override void ResetEffects()
     {
-        MagicPointRecovery = 5;
-        maxMagicPoint = 0;
+        Attributes.ResetForTick();
         base.ResetEffects();
     }
 
-    public override void FrameEffects()
-    {
-        base.FrameEffects();
-    }
-
-    public override void SaveData(TagCompound tag)
-    {
-        base.SaveData(tag);
-    }
-
-    public override void LoadData(TagCompound tag)
-    {
-        base.LoadData(tag);
-    }
+    public bool InBattle { get; private set; }
 
     /// <summary>
-    /// 以固定数值回蓝
+    /// 灰之魔女已解锁且开启时，伊蕾娜才实际使用独特魔力。
     /// </summary>
-    /// <param name="recovery"></param>
-    public void RegenMagicPoint(float recovery)
+    public bool UniqueMagicEnabled
     {
-        MagicPoint += recovery;
-    }
-
-    /// <summary>
-    /// 检查并按需消耗魔力点。
-    /// </summary>
-    /// <param name="cost">消耗的魔力点。</param>
-    /// <param name="consume">是否实际扣除魔力点。</param>
-    /// <returns>魔力点足够时返回 true，否则返回 false。</returns>
-    public bool ConsumeMagicPoint(float cost, bool consume = true)
-    {
-        if (MagicPoint < cost && !TryHandleMagicPointInsufficient(cost, consume)) return false;
-        if (consume && MagicPoint < cost) return false;
-        if (consume) MagicPoint -= cost;
-        if (inBattleCount < 300&&consume) InBattleState(300);
-        return true;
-    }
-
-    private bool TryHandleMagicPointInsufficient(float cost, bool consume)
-    {
-        if (MagicPointInsufficient == null) return false;
-
-        bool canConsume = false;
-        foreach (Delegate magicPointInsufficientHandler in MagicPointInsufficient.GetInvocationList())
+        get
         {
-            if (magicPointInsufficientHandler is OnMagicPointInsufficientHandler handler && handler(this, cost, consume))
+            if (!Player.GetModPlayer<ElainaModplayer>().Elaina)
             {
-                canConsume = true;
-                if (consume && MagicPoint >= cost) return true;
+                return false;
             }
-        }
 
-        return canConsume;
-    }
-    
-    /// <summary>
-    /// 按最大魔力或已损失魔力的百分比回蓝。
-    /// </summary>
-    /// <param name="recoveryPercent">恢复比例，例如 0.15f 表示 15%。</param>
-    /// <param name="basedOnMissingMagic">是否按已损失魔力计算。</param>
-    public void RegenPercentMagicPoint(float recoveryPercent, bool basedOnMissingMagic = false)
-    {
-        float recoveryBase = basedOnMissingMagic ? MaxMagicPoint - MagicPoint : MaxMagicPoint;
-        MagicPoint += recoveryBase * recoveryPercent/100f;
-        //PrintText(recoveryBase * recoveryPercent/100f);
+            ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
+            return skillPlayer.TryGetUnlockedModSkill<AshenWitchSkill>(out AshenWitchSkill skill)
+                && skill.BasicStatus == Skill.SKillBasicStatus.UnLock
+                && skill.IsEnabled;
+        }
     }
 
     public override void PostUpdateMiscEffects()
     {
         base.PostUpdateMiscEffects();
-        //PrintText("原版最大魔力： "+Player.statManaMax2);
-    }
-    
 
-    public float GetMagicPointRecovery()
-    {
-        if (Player.dead) return 0f;
-        if(!InBattle)return MaxMagicPoint*0.5f;
-        return MagicPointRecovery + Player.manaRegenBonus / 10f + ElainaMpManger.GetAdditionalMagicPointRecovery(Player);
+        float calculatedMaxMagicPoint = Math.Max(0f,
+            Player.statManaMax2 * Math.Max(0f,
+                ElainaMagicAttributes.VanillaManaToMagicPointRatio));
+        Attributes.AddBase(ElainaMagicAttributes.UniqueMagic, calculatedMaxMagicPoint);
+        maxMagicPoint = Math.Max(0f,
+            Attributes.GetFinalValue(ElainaMagicAttributes.UniqueMagic));
+
+        if (!magicPointInitialized && maxMagicPoint > 0f)
+        {
+            MagicPoint = hasLoadedMagicPoint
+                ? loadedMagicPoint
+                : maxMagicPoint;
+            magicPointInitialized = true;
+        }
+        else if (magicPointInitialized)
+        {
+            MagicPoint = magicPoint;
+        }
     }
- 
+
     public override void PostUpdate()
     {
+        Attributes.Commit();
         base.PostUpdate();
-        
-        //float RealMagicPointRecovery = GetMagicPointRecovery();
 
-        /*if (Player.dead || RealMagicPointRecovery <= 0f)
-            return;*/
-
-        if (inBattleCount > 0) inBattleCount--;
-        else InBattle = false;
-        
-        MagicPoint += GetMagicPointRecovery() / 60f;
-        //PrintText("额外回复"+Player.manaRegenBonus + " 额外回复延迟减免" + Player.manaRegenDelayBonus+" ");
-
-    }
-
-
-    public override void OnHitAnything(float x, float y, Entity victim)
-    {
-        if (victim is NPC npc)
+        if (battleTicksRemaining > 0)
         {
-            if(npc.immortal) InBattleState(180);
-            else InBattleState();
+            battleTicksRemaining--;
         }
-        else InBattleState();
-        base.OnHitAnything(x, y, victim);
+        else
+        {
+            InBattle = false;
+        }
+
+        if (recoveryPauseTicks > 0)
+        {
+            recoveryPauseTicks--;
+        }
+
+        if (!Player.dead && magicPointInitialized && recoveryPauseTicks <= 0 && MaxMagicPoint > 0f)
+        {
+            float recoveryPerSecond = GetMagicPointRecovery();
+            recoveryRemainder += recoveryPerSecond / 60f;
+            float recoveryThisTick = (float)recoveryRemainder;
+            if (recoveryThisTick > 0f)
+            {
+                MagicPoint += recoveryThisTick;
+                recoveryRemainder -= recoveryThisTick;
+            }
+        }
+
     }
 
     public override void PostHurt(Player.HurtInfo info)
     {
         InBattleState();
+        PauseMagicRecovery();
         base.PostHurt(info);
     }
 
-    /// <summary>
-    /// 进入战斗后默认十秒才能恢复为脱战状态。
-    /// </summary>
-    /// <param name="BattleTime"></param>
-    public void InBattleState(int BattleTime = 600)
+    public override void OnHitAnything(float x, float y, Entity victim)
     {
-        InBattle = true;
-        inBattleCount = BattleTime;
+        InBattleState(victim is NPC npc && npc.immortal ? 180 : -1);
+        base.OnHitAnything(x, y, victim);
+    }
+
+    public void RegenMagicPoint(float recovery)
+    {
+        if (recovery > 0f)
+        {
+            MagicPoint += recovery;
+        }
+    }
+
+    public void RegenPercentMagicPoint(float recoveryPercent, bool basedOnMissingMagic = false)
+    {
+        float recoveryBase = basedOnMissingMagic
+            ? Math.Max(0f, MaxMagicPoint - MagicPoint)
+            : MaxMagicPoint;
+        RegenMagicPoint(recoveryBase * Math.Max(0f, recoveryPercent) / 100f);
+    }
+
+    /// <summary>
+    /// 检查并按需支付独特魔力。魔力不足时默认允许灰之魔女进行生命转化。
+    /// </summary>
+    public bool ConsumeMagicPoint(float cost, bool consume = true, bool allowLifeConversion = true)
+    {
+        if (float.IsNaN(cost) || float.IsInfinity(cost) || cost <= 0f)
+        {
+            return true;
+        }
+
+        if (!UniqueMagicEnabled || MaxMagicPoint <= 0f)
+        {
+            return false;
+        }
+
+        if (MagicPoint >= cost)
+        {
+            if (consume)
+            {
+                MagicPoint -= cost;
+                InBattleState();
+            }
+
+            return true;
+        }
+
+        if (!allowLifeConversion || !TryGetLifeConversion(cost, out int lifeCost, out float magicRecovery))
+        {
+            return false;
+        }
+
+        if (!consume)
+        {
+            return true;
+        }
+
+        Player.statLife -= lifeCost;
+        MagicPoint += magicRecovery;
+        MagicPoint -= cost;
+        InBattleState();
+
+        if (Main.netMode == NetmodeID.MultiplayerClient)
+        {
+            NetMessage.SendData(MessageID.PlayerLifeMana, -1, -1, null, Player.whoAmI);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 仅从当前独特魔力中扣除资源，不允许生命转化。用于魔力护盾。
+    /// </summary>
+    public float ConsumeAvailableMagicPoint(float amount)
+    {
+        if (amount <= 0f || !magicPointInitialized)
+        {
+            return 0f;
+        }
+
+        float consumed = Math.Min(amount, MagicPoint);
+        if (consumed <= 0f)
+        {
+            return 0f;
+        }
+
+        MagicPoint -= consumed;
+        InBattleState();
+        PauseMagicRecovery();
+        return consumed;
+    }
+
+    public float GetMagicPointRecovery()
+    {
+        if (Player.dead || recoveryPauseTicks > 0 || MaxMagicPoint <= 0f)
+        {
+            return 0f;
+        }
+
+        if (!InBattle)
+        {
+            float refillSeconds = Math.Max(0.01f,
+                ElainaMagicAttributes.OutOfCombatRefillSeconds);
+            return MaxMagicPoint / refillSeconds;
+        }
+
+        return Math.Max(0f, ElainaMagicAttributes.CombatRecoveryPerSecond)
+            + MaxMagicPoint * Math.Max(0f,
+                ElainaMagicAttributes.CombatMaxMagicPointRecoveryPercentPerSecond);
+    }
+
+    public void PauseMagicRecovery()
+    {
+        recoveryPauseTicks = Math.Max(recoveryPauseTicks,
+            ElainaMagicAttributes.ToTicks(ElainaMagicAttributes.HurtRecoveryPauseSeconds));
+        recoveryRemainder = 0d;
+    }
+
+    /// <summary>
+    /// 进入战斗。传入负数时使用属性中的默认战斗时长。
+    /// </summary>
+    public void InBattleState(int battleTime = -1)
+    {
+        int duration = battleTime < 0
+            ? ElainaMagicAttributes.ToTicks(
+                ElainaMagicAttributes.CombatStateDurationSeconds)
+            : Math.Max(0, battleTime);
+        InBattle = duration > 0;
+        battleTicksRemaining = Math.Max(battleTicksRemaining, duration);
+    }
+
+    private bool TryGetLifeConversion(float cost, out int lifeCost, out float magicRecovery)
+    {
+        lifeCost = 0;
+        magicRecovery = 0f;
+
+        if (!UniqueMagicEnabled || Player.dead || MaxMagicPoint <= 0f || cost <= MagicPoint)
+        {
+            return false;
+        }
+
+        float lifePercent = Math.Max(0f,
+            ElainaMagicAttributes.LifePercentPerConversionStep);
+        float magicPercent = Math.Max(0f,
+            ElainaMagicAttributes.MagicPointPercentPerConversionStep);
+        float magicPerStep = MaxMagicPoint * magicPercent / 100f;
+        if (lifePercent <= 0f || magicPerStep <= 0f)
+        {
+            return false;
+        }
+
+        int stepCount = Math.Max(1, (int)MathF.Ceiling((cost - MagicPoint) / magicPerStep));
+        int lifePerStep = Math.Max(1, (int)MathF.Ceiling(Player.statLifeMax2 * lifePercent / 100f));
+        lifeCost = lifePerStep * stepCount;
+        magicRecovery = magicPerStep * stepCount;
+
+        return lifeCost > 0 && lifeCost < Player.statLife;
+    }
+
+    public override void SaveData(TagCompound tag)
+    {
+        tag["magicPoint"] = MagicPoint;
+        base.SaveData(tag);
+    }
+
+    public override void LoadData(TagCompound tag)
+    {
+        if (tag.TryGet("magicPoint", out float savedMagicPoint))
+        {
+            loadedMagicPoint = savedMagicPoint;
+            hasLoadedMagicPoint = true;
+        }
+
+        base.LoadData(tag);
     }
 }

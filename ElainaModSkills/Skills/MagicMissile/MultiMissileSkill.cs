@@ -3,6 +3,7 @@ using KL.SkillSystem.SilkyUI;
 using KL.Utils;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
@@ -67,7 +68,7 @@ public class MultiMissileSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source)
     {
-        if (!Player.CheckMana(MagicPointCost, true))
+        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
         
         UpdateSpawnerSlots();

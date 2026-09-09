@@ -1,6 +1,10 @@
 using System;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 
@@ -9,21 +13,14 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 [SkillUIInfo(State = 1, Pixels = 100)]
 public class MagicBarrierSkill : ElainaSkill
 {
-    public static float BaseShieldAmount  => 50f;
-    public static float MaximumManaShieldRatio => 0.25f;
-
-    //每自然恢复25点魔力，恢复1点护盾值。
-    public static int NaturalManaPerShieldPoint => 10;
-    public static int BrokenShieldCooldownTicks => 0 * 60;
-    //护盾受伤后，延迟多少Tick开始恢复
-    public static int ShieldRegenDelayTicks => 3 * 60;
+    public static float BaseShieldAmount => 0f;
+    public static float MaximumManaShieldRatio => 1f;
+    public static int NaturalManaPerShieldPoint => 1;
+    public static int BrokenShieldCooldownTicks => 0;
+    public static int ShieldRegenDelayTicks => 0;
 
     public override bool IsPassiveSkill => true;
     public override bool IsToggleable => true;
-
-    /// <summary>
-    /// 魔力护盾需要前置技能：灰之魔女
-    /// </summary>
     public override Type[] PrerequisiteSkills => new[] { typeof(AshenWitchSkill) };
 
     public override void Initialize()
@@ -35,14 +32,14 @@ public class MagicBarrierSkill : ElainaSkill
 
     public override bool CanUseSkill()
     {
-        // 检查所有前置技能是否都已生效
-        if (!AreAllPrerequisitesActive(Player.GetModPlayer<ElainaSkillModPlayer>())||!IsEnabled)
+        if (!AreAllPrerequisitesActive(Player.GetModPlayer<ElainaSkillModPlayer>()) || !IsEnabled)
         {
             return false;
         }
+
         return base.CanUseSkill();
     }
-    
+
     public override void UpdateEquips(Player player)
     {
         if (CanUseSkill())
@@ -55,70 +52,95 @@ public class MagicBarrierSkill : ElainaSkill
 
     public static float GetMaximumShield(Player player)
     {
-        return Math.Max(0f, BaseShieldAmount + player.statManaMax2 * MaximumManaShieldRatio);
+        ElainaAttributeModPlayer attributePlayer = player.GetModPlayer<ElainaAttributeModPlayer>();
+        return Math.Max(0f, attributePlayer.MaxMagicPoint * MaximumManaShieldRatio + BaseShieldAmount);
     }
 
-    protected override object[] SkillDescriptionArgs => new object[]
-    {
-        (int)BaseShieldAmount,
-        MaximumManaShieldRatio * 100f,
-        ShieldRegenDelayTicks / 60f,
-    };
+    protected override object[] SkillDescriptionArgs => Array.Empty<object>();
 
     public class MagicBarrierModPlayer : ModPlayer
     {
-        private const int DotBlockVisualCooldownTicks = 30;
         private const int BarrierInvincibilityTicks = 30;
+        private const int DotBlockVisualCooldownTicks = 30;
 
         private bool barrierEnabled;
-        private bool shieldInitialized;
         private bool absorbingLifeRegenDamage;
         private int dotBlockVisualCooldown;
-        private int naturalManaRecoveryForShield;
-        private int shieldRegenDelayRemaining;
 
-        public float CurrentShield { get; private set; }
+        public float CurrentShield => Player.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint;
         public float MaximumShield => GetMaximumShield(Player);
-        public int BrokenShieldCooldownRemaining { get; private set; }
+        public int BrokenShieldCooldownRemaining => 0;
         public bool BarrierEnabled => barrierEnabled;
-        public bool ShieldBroken => CurrentShield <= 0f && BrokenShieldCooldownRemaining > 0;
+        public bool ShieldBroken => barrierEnabled && CurrentShield <= 0f;
         public float ShieldRatio => MaximumShield <= 0f
             ? 0f
             : MathHelper.Clamp(CurrentShield / MaximumShield, 0f, 1f);
 
         public override void Initialize()
         {
-            CurrentShield = 0f;
-            BrokenShieldCooldownRemaining = 0;
             barrierEnabled = false;
-            shieldInitialized = false;
             absorbingLifeRegenDamage = false;
             dotBlockVisualCooldown = 0;
-            naturalManaRecoveryForShield = 0;
-            shieldRegenDelayRemaining = 0;
         }
 
         public override void ResetEffects()
         {
             barrierEnabled = false;
+            absorbingLifeRegenDamage = false;
         }
 
         public void EnableBarrier()
         {
             barrierEnabled = true;
-
-            if (!shieldInitialized)
-            {
-                CurrentShield = MaximumShield;
-                shieldInitialized = true;
-            }
         }
 
+        /// <summary>
+        /// Direct damage is resolved exactly once in the finalized hurt-info callback.
+        /// Full absorption cancels the hit and applies the old barrier-style immunity;
+        /// partial absorption leaves only the uncovered damage for vanilla to apply.
+        /// </summary>
+        public override void ModifyHurt(ref Player.HurtModifiers modifiers)
+        {
+            if (!CanProcessLocalDamage())
+            {
+                return;
+            }
+
+            modifiers.ModifyHurtInfo += ResolveDirectHit;
+        }
+
+        private void ResolveDirectHit(ref Player.HurtInfo info)
+        {
+            if (!CanAbsorbDamage() || info.Damage <= 0)
+            {
+                return;
+            }
+
+            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+            float incomingDamage = info.Damage;
+            float consumed = attributePlayer.ConsumeAvailableMagicPoint(incomingDamage);
+            if (consumed >= incomingDamage)
+            {
+                info.Cancelled = true;
+                Player.SetImmuneTimeForAllTypes(BarrierInvincibilityTicks);
+            }
+            else
+            {
+                info.Damage = Math.Max(1, (int)MathF.Ceiling(incomingDamage - consumed));
+            }
+
+            ShowBarrierHit(consumed);
+        }
+
+        /// <summary>
+        /// Restores the previous barrier behavior for bleeding, burning, starving and other
+        /// life-regen damage. Fully covered DoT is removed; overflow remains vanilla damage.
+        /// </summary>
         public override void UpdateLifeRegen()
         {
             absorbingLifeRegenDamage = false;
 
-            if (Player.whoAmI != Main.myPlayer)
+            if (!CanProcessLocalDamage())
             {
                 return;
             }
@@ -133,8 +155,6 @@ public class MagicBarrierSkill : ElainaSkill
                 return;
             }
 
-            // UpdateLifeRegen runs before vanilla adds this tick's lifeRegen to lifeRegenCount.
-            // Mirror the later vanilla thresholds so fractional DoT accumulation is preserved.
             int projectedLifeRegenCount = Player.lifeRegenCount + Player.lifeRegen;
             if (projectedLifeRegenCount >= 0)
             {
@@ -142,20 +162,39 @@ public class MagicBarrierSkill : ElainaSkill
             }
 
             int incomingDamage = GetLifeRegenDamage(ref projectedLifeRegenCount);
-            Player.lifeRegen = 0;
             Player.lifeRegenCount = projectedLifeRegenCount;
-
+            Player.lifeRegen = 0;
             if (incomingDamage <= 0)
             {
                 return;
             }
 
-            absorbingLifeRegenDamage = true;
-            bool playVisual = dotBlockVisualCooldown <= 0;
-            AbsorbDamage(incomingDamage, playVisual);
-            if (playVisual)
+            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+            float consumed = attributePlayer.ConsumeAvailableMagicPoint(incomingDamage);
+            int remainingDamage = Math.Max(0, (int)MathF.Ceiling(incomingDamage - consumed));
+            if (remainingDamage > 0)
+            {
+                // Vanilla applies one life point per -120 lifeRegenCount. Reinsert only
+                // the uncovered portion after extracting the full DoT amount above.
+                Player.lifeRegen = -remainingDamage * 120;
+            }
+            else
+            {
+                absorbingLifeRegenDamage = true;
+            }
+
+            if (consumed > 0f && dotBlockVisualCooldown <= 0)
             {
                 dotBlockVisualCooldown = DotBlockVisualCooldownTicks;
+                ShowBarrierHit(consumed);
+            }
+        }
+
+        public override void NaturalLifeRegen(ref float regen)
+        {
+            if (absorbingLifeRegenDamage)
+            {
+                regen = 0f;
             }
         }
 
@@ -220,127 +259,26 @@ public class MagicBarrierSkill : ElainaSkill
             return normalDamage;
         }
 
-        public override void NaturalLifeRegen(ref float regen)
+        private bool CanProcessLocalDamage()
         {
-            if (absorbingLifeRegenDamage)
-            {
-                regen = 0f;
-            }
-        }
-
-        public override void PostUpdate()
-        {
-            if (Player.whoAmI != Main.myPlayer || !shieldInitialized)
-            {
-                return;
-            }
-
-            CurrentShield = MathHelper.Clamp(CurrentShield, 0f, MaximumShield);
-
-            int naturalManaGain = Player.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaGainThisTick;
-            if (!barrierEnabled)
-            {
-                naturalManaRecoveryForShield = 0;
-                shieldRegenDelayRemaining = 0;
-            }
-            else if (BrokenShieldCooldownRemaining > 0)
-            {
-                naturalManaRecoveryForShield = 0;
-                shieldRegenDelayRemaining = 0;
-            }
-            else if (CurrentShield < MaximumShield)
-            {
-                // 如果护盾未满且延迟倒计时还在进行，则减少延迟
-                if (shieldRegenDelayRemaining > 0)
-                {
-                    shieldRegenDelayRemaining--;
-                }
-                // 延迟结束后才开始恢复护盾
-                else
-                {
-                    naturalManaRecoveryForShield += naturalManaGain;
-                    int shieldGain = naturalManaRecoveryForShield / NaturalManaPerShieldPoint;
-                    /*PrintText($"每秒魔力恢复为: {Player.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaRegenPerSecond}");
-                    PrintText($"此帧魔力恢复为: {Player.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaGainThisTick} ");
-                    PrintText($"此帧护盾恢复为: {shieldGain} ");*/
-
-                    naturalManaRecoveryForShield %= NaturalManaPerShieldPoint;
-                    CurrentShield = Math.Min(MaximumShield, CurrentShield + shieldGain);
-                }
-            }
-            else
-            {
-                naturalManaRecoveryForShield = 0;
-                shieldRegenDelayRemaining = 0;
-            }
-
-            if (BrokenShieldCooldownRemaining > 0)
-            {
-                BrokenShieldCooldownRemaining--;
-                return;
-            }
-
-        }
-
-        public override void UpdateDead()
-        {
-            if (Player.whoAmI == Main.myPlayer && BrokenShieldCooldownRemaining > 0)
-            {
-                BrokenShieldCooldownRemaining--;
-            }
-        }
-
-        public override bool ConsumableDodge(Player.HurtInfo info)
-        {
-            if (!CanAbsorbDamage())
-            {
-                return false;
-            }
-
-            //PrintText($"护盾格挡了 {info.Damage}" );
-            AbsorbDamage(info.Damage, playBlockVisual: true);
-
-            // Returning true completely ignores this Hurt, including its hit-side debuffs.
-            // Add a short immunity window so contact/projectile sources cannot immediately retry.
-            Player.SetImmuneTimeForAllTypes(BarrierInvincibilityTicks);
-
-            return true;
-        }
-
-        public override void OnHurt(Player.HurtInfo info)
-        {
-            //PrintText($"受到{info.Damage}伤害");
-            base.OnHurt(info);
+            return Main.netMode != NetmodeID.MultiplayerClient || Player.whoAmI == Main.myPlayer;
         }
 
         private bool CanAbsorbDamage()
         {
-            return barrierEnabled && shieldInitialized && CurrentShield > 0f;
+            return barrierEnabled
+                && Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled
+                && CurrentShield > 0f;
         }
 
-        private void AbsorbDamage(float damage, bool playBlockVisual)
+        private void ShowBarrierHit(float amount)
         {
-            CurrentShield = Math.Max(0f, CurrentShield - damage);
-
-            // 护盾受伤后，重置恢复延迟计时器
-            shieldRegenDelayRemaining = ShieldRegenDelayTicks;
-
-            bool shieldBroke = CurrentShield <= 0f;
-            if (shieldBroke)
+            if (amount <= 0f || Player.whoAmI != Main.myPlayer)
             {
-                CurrentShield = 0f;
-                BrokenShieldCooldownRemaining = BrokenShieldCooldownTicks;
+                return;
             }
 
-            if (playBlockVisual || shieldBroke)
-            {
-                CombatText.NewText(Player.Hitbox, new Color(180,180,180,255), $"-{damage}");
-                SpawnBarrierVisual();
-            }
-        }
-
-        private void SpawnBarrierVisual()
-        {
+            CombatText.NewText(Player.Hitbox, new Color(180, 180, 180, 255), $"-{amount:0.#}");
             Projectile.NewProjectile(
                 Player.GetSource_FromThis(),
                 Player.MountedCenter,

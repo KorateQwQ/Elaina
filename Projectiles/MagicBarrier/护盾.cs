@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ModLoader;
 using Microsoft.Xna.Framework.Graphics;
@@ -152,7 +152,6 @@ namespace 伊蕾娜.Projectiles.MagicBarrier
             player.direction = towards.X < 0 ? -1 : 1;//玩家朝向根据鼠标
             Projectile.Center = new Vector2(player.MountedCenter.X, player.MountedCenter.Y + player.gfxOffY);
             //Projectile.velocity = towards;
-            if (!player.CheckMana(player.HeldItem, (int)(5*player.manaCost), false)) Projectile.Kill();
             Projectile.rotation = towards.ToRotation();
             player.itemRotation = (float)Math.Atan2(Projectile.rotation.ToRotationVector2().Y * player.direction, Projectile.rotation.ToRotationVector2().X * player.direction);//武器朝向
 
@@ -166,7 +165,6 @@ namespace 伊蕾娜.Projectiles.MagicBarrier
             hit.Crit = false;
             var player = Main.player[Projectile.owner];
 
-            player.CheckMana(player.HeldItem, (int)(5 * player.manaCost), true);
             base.OnHitNPC(target, hit, damageDone);
         }
 
@@ -203,40 +201,8 @@ namespace 伊蕾娜.Projectiles.MagicBarrier
         }
         public override bool CanBeHitByProjectile(Projectile proj)
         {
-            if (护盾cd <= 0)
-            {
-                //Main.NewText(Player.GetModPlayer<ElainaModplayer>().SayoNecklace);
-                if (护盾 || Player.GetModPlayer<ElainaModplayer>().SayoNecklace)
-                {
-                    if (Player.immune) return false;
-                    if (proj.active && Player.CheckMana(Player.HeldItem, (int)(proj.damage*Player.manaCost), false))
-                    {
-                        Player.CheckMana(Player.HeldItem, (int)(proj.damage * Player.manaCost), true);
-                        Color c = new(72, 187, 252, 255);
-                        if (!护盾) Projectile.NewProjectile(null, Player.Center, Vector2.Zero, ModContent.ProjectileType<护盾>(), 0, 0, Player.whoAmI, 1);
-                        护盾 = true;
-                        string s = "格挡! ";
-                        if (Language.ActiveCulture.Name == "en-US") s = "Block! ";
-                        CombatText.NewText(Player.getRect(), c, s + " -" + proj.damage, false, true);
-                        proj.damage = (int)(proj.damage * 0.1f);
-                        SoundEngine.PlaySound(护盾抵挡, Player.Center);
-                        if (proj.velocity.Length() > 5)
-                        {
-                            proj.Kill();
-                        }
-                        else
-                        {
-                            //Player.immune = true;
-                            //Player.immuneTime = 60;
-                            //Player.hurtCooldowns[proj.owner] = 120;
-                            //Main.npc[proj.owner].I
-                        }
-                        //proj.timeLeft = 1;
-                        //proj.active = false;
-                    }
-                }
-            }
-
+            // The active magic barrier is handled by MagicBarrierSkill.MagicBarrierModPlayer.
+            // This legacy player must not spend vanilla mana or reduce projectile damage.
             return base.CanBeHitByProjectile(proj);
         }
         public override void PostHurt(Player.HurtInfo info)

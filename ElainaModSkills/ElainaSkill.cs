@@ -11,6 +11,7 @@ using ReLogic.Graphics;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
+using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills;
 
@@ -86,8 +87,12 @@ public abstract class ElainaSkill : ModSkill
 
     public override bool CanUseSkill()
     {
-        if (!Player.CheckMana(MagicPointCost, false))
+        ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(MagicPointCost, false))
+        {
             return false;
+        }
+
         return base.CanUseSkill();
     }
 

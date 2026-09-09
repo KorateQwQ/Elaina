@@ -1,4 +1,4 @@
-﻿global using 伊蕾娜.Projectiles;
+global using 伊蕾娜.Projectiles;
 global using KL.Projectiles;
 global using static KL.Drawing.DrawHelper;
 global using static KL.Extensions.GamePlayStatic;
@@ -17,6 +17,7 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.UI;
 using 伊蕾娜.Buffs;
+using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Items.accessories;
 using 伊蕾娜.Projectiles.Lightning;
 using 伊蕾娜.炼金;
@@ -312,8 +313,6 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
-                // This message syncs ExamplePlayer.exampleLifeFruits
-
                 case MessageType.炼金状态:
 
                     bool 炼制中 = reader.ReadBoolean();

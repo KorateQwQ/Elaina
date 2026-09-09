@@ -1,4 +1,4 @@
-﻿using Terraria;
+using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Microsoft.Xna.Framework.Graphics;
@@ -71,7 +71,6 @@ namespace 伊蕾娜.Items.accessories
             //player.manaCost -= 0.15f;
             player.manaRegenBonus += 60;//145每个饰品给60
             //player.manaRegenDelayBonus += 4.0f;//145延迟4，每个饰品给1，星星瓶0.5，站立不动1，钩爪状态1，魔力药水1,原版在骷髅王后集齐两个回复饰品就会因为此值达到无限蓝（每秒回复300）
-            player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint += 20;
             //player.GetCritChance<MagicDamageClass>()+= 100f;
             if (!hideVisual)
             {   

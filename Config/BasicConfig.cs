@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using Terraria.ModLoader.Config;
 using 伊蕾娜.ElainaModSkills;
@@ -32,7 +32,6 @@ namespace 伊蕾娜.Config
         
         [Header("Damage")]
 
-        
         [DefaultValue(1f)]
         [Range(0.3f, 3f)]
         [Increment(0.1f)]

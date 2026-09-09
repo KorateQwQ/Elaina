@@ -2,6 +2,7 @@ using KL.ActionsSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
@@ -23,7 +24,7 @@ public class WindBladeSkill : ElainaSkill
 
     public override bool CanUseSkill()
     {
-        if (!Player.CheckMana(MagicPointCost, false))
+        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false))
             return false;
         return base.CanUseSkill();
     }
@@ -31,7 +32,7 @@ public class WindBladeSkill : ElainaSkill
     public override bool PreUseSkill(IEntitySource source = null)
     {
 
-        if (!Player.CheckMana(MagicPointCost, true))
+        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
         
         AnimAction animAction = new Action_SimpleShoot(10);

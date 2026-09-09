@@ -1,5 +1,5 @@
 Snippets: {
-	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon]"
+	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]"
 	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
 }
 
@@ -18,14 +18,17 @@ SkillDesc: {
 		被动: 魔法飞弹连续命中5次后额外造成基于魔法飞弹200%伤害的额外伤害。
 		'''
 	MultiMissileSkill: 对目标造成魔法伤害
-	AshenWitchSkill: 伊蕾娜的额外生命收益减少50%，每当以这种方式损失1点生命值，额外增加{0}%[c/4C91FFFF:最大魔力值]。当伊蕾娜的魔力值大于700时，每额外20最大魔力值，增加1%魔法伤害。已增加{1}%魔法伤害
+	AshenWitchSkill:
+		'''
+		灰之魔女开启后，伊蕾娜使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]施放技能。其总量为原版最大魔力值的10倍，且额外生命收益减少50%。
+
+		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]不足时，可消耗每1%最大生命，恢复[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限的1%用于施法。当前生命值低于10%时无法以此方式恢复。
+		'''
 	MagicBarrierSkill:
 		'''
-		[c/FF6B6B:需要技能灰之魔女才可使用。]获得拥有[c/4C91FFFF:{0} + 最大魔力的{1}%]护盾值的魔力护盾。
+		[c/FF6B6B:需要技能灰之魔女才可使用。]开启魔力护盾后，受到的最终伤害将由[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]抵消。
 
-		只要护盾仍有护盾值，受到攻击或生命减益效果时便会消耗等同于最终伤害的护盾值，并[c/FFD166:完全抵挡该次伤害]。
-
-		每有[c/4C91FFFF:25/s自然恢复魔力速度]，护盾每秒额外回复1点护盾值。护盾承受伤害后进入{2}秒恢复冷却，冷却期间无法恢复护盾。
+		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]足够时，该次伤害将被完全抵消，否则仅抵消部分伤害。
 		'''
 	WindBladeSkill: 对目标造成{0}魔法伤害
 }
@@ -43,4 +46,4 @@ SkillTotalInfo:
 	消耗: {2}
 	效果: 
 	'''
-LackOfMagic: 魔力不足
+LackOfMagic: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]不足"
