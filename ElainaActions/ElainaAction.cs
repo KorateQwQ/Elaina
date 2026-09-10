@@ -55,7 +55,6 @@ public abstract class ElainaAction :AnimAction
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
         base.Update(actionPlayer, actionFrame, actionProgress);
-        Elaina145ManaRegenPlayer.ApplyManaRegenerationDelay145(actionPlayer.Player);
         SyncItemRotationToArmRotation();
 
     }

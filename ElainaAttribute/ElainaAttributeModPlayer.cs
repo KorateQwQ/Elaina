@@ -3,7 +3,6 @@ using KL.AttributeSystem;
 using KL.SkillSystem;
 using Terraria;
 using Terraria.ID;
-using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
@@ -11,18 +10,11 @@ using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 namespace 伊蕾娜.ElainaAttribute;
 
 /// <summary>
-/// 伊蕾娜的独特魔力资源。上限由最终原版最大 mana 按属性换算，当前值独立保存。
+/// 在通用 RPG 属性组件中接入伊蕾娜魔力规则，上限直接由原版魔力换算。
+/// 急速与当前魔力共用继承得到的组件，本类只负责伊蕾娜的专属业务。
 /// </summary>
-public class ElainaAttributeModPlayer : ModPlayer, IAttributeProvider
+public class ElainaAttributeModPlayer : RPGAttributeModPlayer
 {
-    public AttributeComponent Attributes { get; } = new();
-
-    public delegate void OnMagicPointChangedHandler(float oldMagicPoint, float magicPoint);
-
-    public event OnMagicPointChangedHandler MagicPointChanged;
-
-    private float magicPoint;
-    private float maxMagicPoint;
     private float loadedMagicPoint;
     private double recoveryRemainder;
     private int battleTicksRemaining;
@@ -32,25 +24,25 @@ public class ElainaAttributeModPlayer : ModPlayer, IAttributeProvider
 
     public float MagicPoint
     {
-        get => magicPoint;
-        private set
-        {
-            float clampedValue = Math.Clamp(value, 0f, MaxMagicPoint);
-            float oldMagicPoint = magicPoint;
-            magicPoint = clampedValue;
-            if (Math.Abs(magicPoint - oldMagicPoint) > 0.001f)
-            {
-                MagicPointChanged?.Invoke(oldMagicPoint, magicPoint);
-            }
-        }
+        get => GetAttributeValue(ElainaMagicAttributes.MagicPoint);
+        private set => Attributes.SetBase(ElainaMagicAttributes.MagicPoint, value);
     }
 
-    public float MaxMagicPoint => maxMagicPoint;
+    /// <summary>独特魔力上限直接由原版最大魔力换算，不作为独立的 KL 属性保存。</summary>
+    public float MaxMagicPoint => Player.statManaMax2 * ElainaMagicAttributes.VanillaManaToMagicPointRatio;
 
-    public override void ResetEffects()
+    public override void Initialize()
     {
-        Attributes.ResetForTick();
-        base.ResetEffects();
+        base.Initialize();
+        AttributeChangeEvent magicEvent = Attributes.GetAttributeChangeEvent(ElainaMagicAttributes.MagicPoint);
+        magicEvent.PreAttributeChange -= OnPreMagicPointChange;
+        magicEvent.PreAttributeChange += OnPreMagicPointChange;
+    }
+
+    /// <summary>恢复、消耗和加载存档统一经过此钩子，按原版最大魔力换算出的上限裁剪。</summary>
+    private void OnPreMagicPointChange(object sender, PreAttributeChangeEventArgs args)
+    {
+        args.BaseValue = Math.Clamp(args.BaseValue, 0f, MaxMagicPoint);
     }
 
     public bool InBattle { get; private set; }
@@ -68,40 +60,28 @@ public class ElainaAttributeModPlayer : ModPlayer, IAttributeProvider
             }
 
             ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
-            return skillPlayer.TryGetUnlockedModSkill<AshenWitchSkill>(out AshenWitchSkill skill)
+            return skillPlayer.TryGetUnlockedModSkill(out AshenWitchSkill skill)
                 && skill.BasicStatus == Skill.SKillBasicStatus.UnLock
                 && skill.IsEnabled;
         }
     }
 
-    public override void PostUpdateMiscEffects()
-    {
-        base.PostUpdateMiscEffects();
-
-        float calculatedMaxMagicPoint = Math.Max(0f,
-            Player.statManaMax2 * Math.Max(0f,
-                ElainaMagicAttributes.VanillaManaToMagicPointRatio));
-        Attributes.AddBase(ElainaMagicAttributes.UniqueMagic, calculatedMaxMagicPoint);
-        maxMagicPoint = Math.Max(0f,
-            Attributes.GetFinalValue(ElainaMagicAttributes.UniqueMagic));
-
-        if (!magicPointInitialized && maxMagicPoint > 0f)
-        {
-            MagicPoint = hasLoadedMagicPoint
-                ? loadedMagicPoint
-                : maxMagicPoint;
-            magicPointInitialized = true;
-        }
-        else if (magicPointInitialized)
-        {
-            MagicPoint = magicPoint;
-        }
-    }
-
     public override void PostUpdate()
     {
-        Attributes.Commit();
         base.PostUpdate();
+
+        // 等原版完成本帧属性计算后恢复资源，避免在每帧重置的中间阶段初始化或裁剪。
+        float maximum = MaxMagicPoint;
+        if (!magicPointInitialized && maximum > 0f)
+        {
+            MagicPoint = hasLoadedMagicPoint ? loadedMagicPoint : maximum;
+            magicPointInitialized = true;
+        }
+        else if (magicPointInitialized && MagicPoint > maximum)
+        {
+            // 卸下装备等情况会降低上限，即使没有消耗或恢复也需要裁剪；仍通过 KL 写入和通知。
+            MagicPoint = maximum;
+        }
 
         if (battleTicksRemaining > 0)
         {
@@ -155,7 +135,7 @@ public class ElainaAttributeModPlayer : ModPlayer, IAttributeProvider
     public void RegenPercentMagicPoint(float recoveryPercent, bool basedOnMissingMagic = false)
     {
         float recoveryBase = basedOnMissingMagic
-            ? Math.Max(0f, MaxMagicPoint - MagicPoint)
+            ? MaxMagicPoint - MagicPoint
             : MaxMagicPoint;
         RegenMagicPoint(recoveryBase * Math.Max(0f, recoveryPercent) / 100f);
     }
@@ -219,13 +199,12 @@ public class ElainaAttributeModPlayer : ModPlayer, IAttributeProvider
             return 0f;
         }
 
-        float consumed = Math.Min(amount, MagicPoint);
+        float consumed = -Attributes.AddBase(ElainaMagicAttributes.MagicPoint, -amount);
         if (consumed <= 0f)
         {
             return 0f;
         }
 
-        MagicPoint -= consumed;
         InBattleState();
         PauseMagicRecovery();
         return consumed;

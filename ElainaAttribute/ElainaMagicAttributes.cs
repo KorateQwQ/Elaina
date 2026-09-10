@@ -4,16 +4,16 @@ using KL.AttributeSystem;
 namespace 伊蕾娜.ElainaAttribute;
 
 /// <summary>
-/// 伊蕾娜魔力系统的代码侧数值和唯一 KL 属性入口。
+/// 伊蕾娜魔力系统的属性声明和代码侧业务数值。
 /// 这些 C# 属性直接返回代码中的数值，不依赖 ModConfig。
 /// </summary>
 public static class ElainaMagicAttributes
 {
-    /// <summary>KL 属性系统中的“伊蕾娜独特魔力”属性类型。</summary>
-    public static readonly AttributeDefinition UniqueMagic =
-        new("伊蕾娜.UniqueMagic", 0f, 0f);
+    /// <summary>由 KL 保存的当前魔力；绿值固定为零，动态裁剪由玩家的属性钩子实现。</summary>
+    public static readonly AttributeDefinition MagicPoint =
+        new("伊蕾娜.MagicPoint", 0f, 0f, kind: AttributeKind.Resource);
 
-    /// <summary>1 点原版最大 mana 对应的独特魔力上限。</summary>
+    /// <summary>1 点原版最大魔力对应的独特魔力上限。</summary>
     public static float VanillaManaToMagicPointRatio => 2f;
 
     /// <summary>灰之魔女开启时，额外生命收益保留比例。</summary>

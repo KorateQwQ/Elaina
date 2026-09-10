@@ -1,4 +1,5 @@
 using KL.SkillSystem;
+using KL.AttributeSystem;
 using Terraria.DataStructures;
 using Terraria.GameInput;
 using Terraria.ModLoader.IO;
@@ -19,6 +20,8 @@ namespace 伊蕾娜.ElainaModSkills;
 
 public class ElainaSkillModPlayer : KLSkillModPlayer
 {
+    public override AttributeComponent Attributes => Player.GetModPlayer<ElainaAttributeModPlayer>().Attributes;
+
     public override int MaxSkillSlot => 8;
 
     public static int CurrentSkillIndex = -1;

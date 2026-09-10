@@ -5,8 +5,8 @@ using Terraria.ModLoader;
 namespace 伊蕾娜.ElainaAttribute;
 
 /// <summary>
-/// 将原版 mana 消耗入口桥接到伊蕾娜独特魔力。
-/// 灰之魔女关闭时不拦截 vanilla mana 流程。
+/// 将原版魔力消耗入口桥接到伊蕾娜独特魔力。
+/// 灰之魔女关闭时不拦截原版魔力流程。
 /// </summary>
 public class Elaina145ManaRegenPlayer : ModPlayer
 {
@@ -57,6 +57,6 @@ public class Elaina145ManaRegenPlayer : ModPlayer
 
     public static void ApplyManaRegenerationDelay145(Player player)
     {
-        // Kept as a compatibility no-op for existing action code.
+        // 保留空实现，以兼容已有动作代码的调用。
     }
 }
