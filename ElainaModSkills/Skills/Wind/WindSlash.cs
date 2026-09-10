@@ -54,7 +54,7 @@ public class WindSlash : ElainaBasicProjectile
     public override void OnSpawn_AllClient()
     {
         Vector2 move = new(1, 0);
-        windPoints = QuickConePoints(move * 50, -move * 100f, 100, 140, 140, 0.1f);
+        windPoints = QuickConePoints(move * 50, -move * 100f, 100, 100, 100, 0.1f);
         windPoints3 = QuickConePoints(move * 50, -move * 200f, 100, 30, 70, 0.1f);
         base.OnSpawn_AllClient();
     }
@@ -63,7 +63,7 @@ public class WindSlash : ElainaBasicProjectile
     {
         Vector2 toward = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation());
         return AABBvLineCollision(targetHitbox, Projectile.Center + toward * 100,
-            Projectile.Center - toward * 100, 300);
+            Projectile.Center - toward * 100, 200);
     }
 
     public override void AI()
@@ -82,9 +82,9 @@ public class WindSlash : ElainaBasicProjectile
     {
         Vector2 direction = new Vector2(1f, 0f).RotatedBy(Projectile.velocity.ToRotation());
         Vector2 widthDirection = direction.RotatedBy(MathHelper.PiOver2);
-        const float collisionHalfWidth = 150f;
+        const float collisionHalfWidth = 200f;
         const float sampleSpacing = 16f;
-        int sampleCount = Math.Max(1, (int)(collisionHalfWidth * 2f / sampleSpacing));
+        int sampleCount = Math.Max(1, (int)(collisionHalfWidth / sampleSpacing));
 
         for (int i = 0; i <= sampleCount; i++)
         {
@@ -109,8 +109,8 @@ public class WindSlash : ElainaBasicProjectile
         float baseAlpha = baseProgress * baseProgress * (3f - 2f * baseProgress);
         float appearScale = MathHelper.Lerp(0.78f, 1f, additiveAlpha);
         float offset = -21f * appearScale;
-        Vector2 drawScale = new(0.9f * appearScale);
-        Vector2 topScale = new(0.8f * appearScale, 1.2f * appearScale);
+        Vector2 drawScale = new(0.9f * appearScale,0.6f * appearScale);
+        Vector2 topScale = new(0.8f * appearScale, 0.8f * appearScale);
         Color pink = new(255, 160, 239, 255);
         
         // 先铺黑底，避免后续 additive 绘制产生颜色曝光。

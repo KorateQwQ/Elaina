@@ -11,6 +11,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 [SkillUIInfo(State = 0, Pixels = 0)]
 public class AshenWitchSkill : ElainaSkill
 {
+    public int LostMaxLife { get; private set; }
+
     public override bool IsPassiveSkill => true;
     public override bool IsToggleable => true;
 
@@ -27,6 +29,7 @@ public class AshenWitchSkill : ElainaSkill
 
     public override void ResetEffects(Player player)
     {
+        LostMaxLife = 0;
         if (player.GetModPlayer<ElainaModplayer>().Elaina)
         {
             BasicStatus = Skill.SKillBasicStatus.UnLock;
@@ -54,6 +57,7 @@ public class AshenWitchSkill : ElainaSkill
         float retentionRatio = Math.Clamp(ElainaMagicAttributes.ExtraLifeRetentionRatio, 0f, 1f);
         int retainedExtraLife = (int)(extraLife * retentionRatio);
         int reducedLifeMax = 100 + retainedExtraLife;
+        LostMaxLife = Math.Max(0, player.statLifeMax2 - reducedLifeMax);
         if (player.statLifeMax2 > reducedLifeMax)
         {
             player.statLife = Math.Min(player.statLife, reducedLifeMax);

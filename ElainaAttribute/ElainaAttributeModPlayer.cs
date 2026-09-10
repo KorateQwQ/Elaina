@@ -22,6 +22,9 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     private bool hasLoadedMagicPoint;
     private bool magicPointInitialized;
 
+    /// <summary>
+    /// 伊蕾娜的魔力属性
+    /// </summary>
     public float MagicPoint
     {
         get => GetAttributeValue(ElainaMagicAttributes.MagicPoint);

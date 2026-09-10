@@ -60,12 +60,7 @@ public class MagicBarrierSkill : ElainaSkill
 
     public class MagicBarrierModPlayer : ModPlayer
     {
-        private const int BarrierInvincibilityTicks = 30;
-        private const int DotBlockVisualCooldownTicks = 30;
-
         private bool barrierEnabled;
-        private bool absorbingLifeRegenDamage;
-        private int dotBlockVisualCooldown;
 
         public float CurrentShield => Player.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint;
         public float MaximumShield => GetMaximumShield(Player);
@@ -79,14 +74,11 @@ public class MagicBarrierSkill : ElainaSkill
         public override void Initialize()
         {
             barrierEnabled = false;
-            absorbingLifeRegenDamage = false;
-            dotBlockVisualCooldown = 0;
         }
 
         public override void ResetEffects()
         {
             barrierEnabled = false;
-            absorbingLifeRegenDamage = false;
         }
 
         public void EnableBarrier()
@@ -94,169 +86,88 @@ public class MagicBarrierSkill : ElainaSkill
             barrierEnabled = true;
         }
 
-        /// <summary>
-        /// Direct damage is resolved exactly once in the finalized hurt-info callback.
-        /// Full absorption cancels the hit and applies the old barrier-style immunity;
-        /// partial absorption leaves only the uncovered damage for vanilla to apply.
-        /// </summary>
+        public double DamageReduction
+        {
+            get
+            {
+                if (!barrierEnabled || !Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled
+                    || !Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill(out AshenWitchSkill witch))
+                {
+                    return 0d;
+                }
+
+                return BarrierDamageMath.GetReduction(Player.statLifeMax2, witch.LostMaxLife);
+            }
+        }
+
+        public override void UpdateDead()
+        {
+            barrierEnabled = false;
+        }
+
         public override void ModifyHurt(ref Player.HurtModifiers modifiers)
         {
-            if (!CanProcessLocalDamage())
+            if (CanProcessLocalDamage())
             {
-                return;
+                modifiers.ModifyHurtInfo += ResolveDirectHit;
             }
-
-            modifiers.ModifyHurtInfo += ResolveDirectHit;
         }
 
         private void ResolveDirectHit(ref Player.HurtInfo info)
         {
-            if (!CanAbsorbDamage() || info.Damage <= 0)
+            if (info.Cancelled || !CanAbsorbDamage() || info.Damage <= 0)
             {
                 return;
             }
 
-            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-            float incomingDamage = info.Damage;
-            float consumed = attributePlayer.ConsumeAvailableMagicPoint(incomingDamage);
-            if (consumed >= incomingDamage)
+            double requested = info.Damage * DamageReduction;
+            double consumed = ConsumeAbsorption(requested);
+            int remainingDamage = BarrierDamageMath.GetRemainingDamage(info.Damage, consumed);
+            int absorbed = info.Damage - remainingDamage;
+            ReportReduction(info.Damage, consumed, absorbed);
+            if (remainingDamage == 0)
             {
+                // HurtInfo.Damage cannot be zero. Cancel sub-one damage after rounding
+                // and preserve the normal minimum-hit immunity for this damage channel.
                 info.Cancelled = true;
-                Player.SetImmuneTimeForAllTypes(BarrierInvincibilityTicks);
+                ApplyMinimumHitImmunity(info);
+                Player.lifeRegenTime = 0f;
             }
             else
             {
-                info.Damage = Math.Max(1, (int)MathF.Ceiling(incomingDamage - consumed));
-            }
-
-            ShowBarrierHit(consumed);
-        }
-
-        /// <summary>
-        /// Restores the previous barrier behavior for bleeding, burning, starving and other
-        /// life-regen damage. Fully covered DoT is removed; overflow remains vanilla damage.
-        /// </summary>
-        public override void UpdateLifeRegen()
-        {
-            absorbingLifeRegenDamage = false;
-
-            if (!CanProcessLocalDamage())
-            {
-                return;
-            }
-
-            if (dotBlockVisualCooldown > 0)
-            {
-                dotBlockVisualCooldown--;
-            }
-
-            if (!CanAbsorbDamage())
-            {
-                return;
-            }
-
-            int projectedLifeRegenCount = Player.lifeRegenCount + Player.lifeRegen;
-            if (projectedLifeRegenCount >= 0)
-            {
-                return;
-            }
-
-            int incomingDamage = GetLifeRegenDamage(ref projectedLifeRegenCount);
-            Player.lifeRegenCount = projectedLifeRegenCount;
-            Player.lifeRegen = 0;
-            if (incomingDamage <= 0)
-            {
-                return;
-            }
-
-            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-            float consumed = attributePlayer.ConsumeAvailableMagicPoint(incomingDamage);
-            int remainingDamage = Math.Max(0, (int)MathF.Ceiling(incomingDamage - consumed));
-            if (remainingDamage > 0)
-            {
-                // Vanilla applies one life point per -120 lifeRegenCount. Reinsert only
-                // the uncovered portion after extracting the full DoT amount above.
-                Player.lifeRegen = -remainingDamage * 120;
-            }
-            else
-            {
-                absorbingLifeRegenDamage = true;
-            }
-
-            if (consumed > 0f && dotBlockVisualCooldown <= 0)
-            {
-                dotBlockVisualCooldown = DotBlockVisualCooldownTicks;
-                ShowBarrierHit(consumed);
+                info.Damage = remainingDamage;
             }
         }
 
-        public override void NaturalLifeRegen(ref float regen)
+        private void ApplyMinimumHitImmunity(Player.HurtInfo info)
         {
-            if (absorbingLifeRegenDamage)
+            int ticks = Player.longInvince ? 40 : 20;
+            if (info.CooldownCounter == -1)
             {
-                regen = 0f;
+                Player.immune = true;
+                Player.immuneTime = Math.Max(Player.immuneTime, info.PvP ? 8 : ticks);
+            }
+            else if (info.CooldownCounter == 0 || info.CooldownCounter == 1
+                || info.CooldownCounter == 3 || info.CooldownCounter == 4)
+            {
+                Player.hurtCooldowns[info.CooldownCounter] =
+                    Math.Max(Player.hurtCooldowns[info.CooldownCounter], ticks);
             }
         }
 
-        private int GetLifeRegenDamage(ref int lifeRegenCount)
+        internal int ResolveLifeRegenHit(int incomingDamage)
         {
-            if (Player.burned || Player.suffocating || (Player.tongued && Main.expertMode))
+            if (!CanProcessLocalDamage() || !CanAbsorbDamage() || incomingDamage <= 0)
             {
-                int damage = 0;
-                while (lifeRegenCount <= -600)
-                {
-                    lifeRegenCount += 600;
-                    damage += 5;
-                }
-
-                return damage;
+                return incomingDamage;
             }
 
-            if (Player.starving)
-            {
-                int damagePerTick = Math.Max(Player.statLifeMax2 / 50, 2);
-                if (Player.ZoneDesert || Player.ZoneSnow)
-                {
-                    damagePerTick *= 2;
-                }
-
-                int threshold = 120 * damagePerTick;
-                int damage = 0;
-                while (lifeRegenCount <= -threshold)
-                {
-                    lifeRegenCount += threshold;
-                    damage += damagePerTick;
-                }
-
-                return damage;
-            }
-
-            int normalDamage = 0;
-            while (lifeRegenCount <= -120)
-            {
-                if (lifeRegenCount <= -480)
-                {
-                    lifeRegenCount += 480;
-                    normalDamage += 4;
-                }
-                else if (lifeRegenCount <= -360)
-                {
-                    lifeRegenCount += 360;
-                    normalDamage += 3;
-                }
-                else if (lifeRegenCount <= -240)
-                {
-                    lifeRegenCount += 240;
-                    normalDamage += 2;
-                }
-                else
-                {
-                    lifeRegenCount += 120;
-                    normalDamage++;
-                }
-            }
-
-            return normalDamage;
+            // Called at each actual vanilla life subtraction, after all regen bonuses
+            // and tick thresholds. A five-point tick stays one hit, not five tiny hits.
+            double consumed = ConsumeAbsorption(incomingDamage * DamageReduction);
+            int remainingDamage = BarrierDamageMath.GetRemainingDamage(incomingDamage, consumed);
+            ReportReduction(incomingDamage, consumed, incomingDamage - remainingDamage, dot: true);
+            return remainingDamage;
         }
 
         private bool CanProcessLocalDamage()
@@ -264,21 +175,34 @@ public class MagicBarrierSkill : ElainaSkill
             return Main.netMode != NetmodeID.MultiplayerClient || Player.whoAmI == Main.myPlayer;
         }
 
-        private bool CanAbsorbDamage()
+        private void ReportReduction(int incomingDamage, double paidDamage,
+            int absorbedDamage, bool dot = false)
         {
-            return barrierEnabled
-                && Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled
-                && CurrentShield > 0f;
-        }
-
-        private void ShowBarrierHit(float amount)
-        {
-            if (amount <= 0f || Player.whoAmI != Main.myPlayer)
+            if (Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer || absorbedDamage <= 0)
             {
                 return;
             }
 
-            CombatText.NewText(Player.Hitbox, new Color(180, 180, 180, 255), $"-{amount:0.#}");
+            double roundingBonus = Math.Max(0d, absorbedDamage - paidDamage);
+            string extraInfo = roundingBonus > 0.00001d
+                ? $"，其中向下取整额外减伤：{roundingBonus:0.######}"
+                : "";
+            string source = dot ? "持续伤害" : "直接受击";
+            PrintText($"[魔力护盾/{source}] 本次实际减伤：{absorbedDamage}，"
+                + $"伤害 {incomingDamage} → {incomingDamage - absorbedDamage}{extraInfo}");
+            ShowAbsorbedDamage(absorbedDamage, dot);
+        }
+
+        private void ShowAbsorbedDamage(int amount, bool dot = false)
+        {
+            if (amount <= 0 || Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer)
+            {
+                return;
+            }
+
+            CombatText.NewText(Player.Hitbox, new Color(200,200,200), $"-{amount}",
+                dramatic: false, dot: dot);
+
             Projectile.NewProjectile(
                 Player.GetSource_FromThis(),
                 Player.MountedCenter,
@@ -287,6 +211,24 @@ public class MagicBarrierSkill : ElainaSkill
                 0,
                 0f,
                 Player.whoAmI);
+        }
+
+        private double ConsumeAbsorption(double requested)
+        {
+            ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
+            double payable = Math.Min(requested, Math.Max(0f, attributePlayer.MagicPoint));
+            float consumed = attributePlayer.ConsumeAvailableMagicPoint((float)payable);
+            // Resource storage uses floats. Subtracting a tiny payment from a large
+            // pool loses precision; do not accumulate that subtraction error as damage.
+            return consumed > 0f ? payable : 0f;
+        }
+
+        private bool CanAbsorbDamage()
+        {
+            return barrierEnabled
+                && Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled
+                && !Player.dead
+                && CurrentShield > 0f;
         }
     }
 }

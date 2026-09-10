@@ -27,9 +27,11 @@ SkillDesc: {
 		'''
 		[c/FF6B6B:Prerequisite: Ashen Witch (must be unlocked and enabled)]
 
-		While enabled, final incoming damage consumes unique Magic at a 1:1 rate.
+		While enabled, reduces final damage by the fraction of maximum life removed by Ashen Witch.
 
-		If Magic covers the hit, the damage is fully absorbed. If Magic is insufficient, it reaches zero and the remaining damage reduces life.
+		Direct hits and each actual damage-over-time tick use the same percentage reduction, consuming Magic equal to absorption before rounding. Remaining damage is rounded down; damage below 1 is fully blocked.
+		Insufficient Magic pays for partial absorption before these rounding rules apply, without converting life into Magic.
+		For example, reducing maximum life from 500 to 300 grants 40% damage reduction while Magic is sufficient. Life recovery is unchanged.
 		'''
 	WindBladeSkill: Deals {0} magic damage to the target.
 }

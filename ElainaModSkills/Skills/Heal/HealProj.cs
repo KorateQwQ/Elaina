@@ -117,7 +117,7 @@ public class HealProj : ElainaBasicProjectile
         effect.Apply();
         DrawInWorld(tex,Projectile.Center,color:new Color(255,255,255,100),scale);
         
-        EndBeginDraw(1);
+        //EndBeginDraw(1);
         VisualUnit.DrawAll(rainParticles);
         DrawInWorld(tex,Projectile.Center,color:new Color(255,255,255,155),scale*0.98f);
 
@@ -200,12 +200,19 @@ public class HealProj : ElainaBasicProjectile
             float stretch = MathHelper.Clamp(Velocity2D.Length() * 1.8f, 2.5f, 7f);
             float streakLength = 0.04f + stretch * 0.005f;
 
-            for (int i = 0; i < 1; i++)
+            DrawInWorld(
+                rainGlowTexture,
+                Position2D,
+                Color.Black,
+                new Vector2(0.1f * particleScale),
+                0f);
+            
+            for (int i = 0; i < 3; i++)
             {
                 DrawInWorld(
                     rainGlowTexture,
                     Position2D,
-                    glowColor,
+                    glowColor*(1-i*0.2f),
                     new Vector2(0.1f * particleScale),
                     0f);
             }
