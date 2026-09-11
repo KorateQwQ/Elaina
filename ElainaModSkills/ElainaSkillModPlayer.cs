@@ -243,7 +243,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
             return;
         }
 
-        skill.UseSkill(source);
+        skill.UseSkill(source, Attributes);
     }
 
     public void UseSkill(IEntitySource source = null)

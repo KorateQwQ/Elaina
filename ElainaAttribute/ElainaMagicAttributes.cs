@@ -11,7 +11,7 @@ public static class ElainaMagicAttributes
 {
     /// <summary>由 KL 保存的当前魔力；绿值固定为零，动态裁剪由玩家的属性钩子实现。</summary>
     public static readonly AttributeDefinition MagicPoint =
-        new("伊蕾娜.MagicPoint", 0f, 0f, kind: AttributeKind.Resource);
+        new(defaultBaseValue: 0f, minValue: 0f, kind: AttributeKind.Resource);
 
     /// <summary>1 点原版最大魔力对应的独特魔力上限。</summary>
     public static float VanillaManaToMagicPointRatio => 2f;
