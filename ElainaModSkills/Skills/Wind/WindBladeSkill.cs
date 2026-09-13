@@ -6,7 +6,7 @@ using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
-[SkillUIInfo(State = 2, Pixels = 300)]
+[SkillUIInfo(State = 1, Pixels = 300)]
 
 public class WindBladeSkill : ElainaSkill
 {

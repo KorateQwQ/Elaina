@@ -147,7 +147,6 @@ public class ElainaSkillBar : BasicSkillBar
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        float phase = (float)Main.timeForVisualEffects;
         int selectedIndex = ElainaSkillModPlayer.CurrentSkillIndex;
 
         /*// 先绘制所有槽位的灰色圆底背景
@@ -180,7 +179,6 @@ public class ElainaSkillBar : BasicSkillBar
             }
         }
 
-        BackgroundColor = Color.Black;
         EndBeginDrawUI();
         var tex = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.ElainaSkillBar_BackGround");
         var slotTex = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.ElainaSkillUI.ElainaSkillSlot");

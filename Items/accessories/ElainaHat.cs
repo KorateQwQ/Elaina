@@ -68,7 +68,7 @@ namespace 伊蕾娜.Items.accessories
         {
             player.GetDamage<MagicDamageClass>() += 0.1f;
             player.statManaMax2 += 20;
-            //player.manaCost -= 0.15f;
+            //player.manaCost -= 0.85f;
             player.manaRegenBonus += 60;//145每个饰品给60
             //player.manaRegenDelayBonus += 4.0f;//145延迟4，每个饰品给1，星星瓶0.5，站立不动1，钩爪状态1，魔力药水1,原版在骷髅王后集齐两个回复饰品就会因为此值达到无限蓝（每秒回复300）
             //player.GetCritChance<MagicDamageClass>()+= 100f;

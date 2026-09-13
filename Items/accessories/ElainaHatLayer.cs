@@ -32,6 +32,24 @@ namespace 伊蕾娜.Items.accessories
             SpriteEffects SE = drawInfo.playerEffect;
             // var position = drawInfo.drawPlayer.MountedCenter.Floor() + new Vector2(-19f, -4f + drawInfo.drawPlayer.gfxOffY) - Main.screenPosition;
             Vector2 position = new Vector2((int)(drawInfo.Position.X - Main.screenPosition.X - (float)(drawInfo.drawPlayer.bodyFrame.Width / 2) + (float)(drawInfo.drawPlayer.width / 2)), (int)(drawInfo.Position.Y - Main.screenPosition.Y + (float)drawInfo.drawPlayer.height - (float)drawInfo.drawPlayer.bodyFrame.Height + 4f)) + drawInfo.drawPlayer.headPosition + drawInfo.headVect;
+
+            // Match vanilla's upside-down head pivot adjustment.  The custom
+            // hat uses the same 56px frame, so the pivot (rather than the
+            // world position) is the correct value to change.
+            Vector2 origin = drawInfo.headVect;
+            if (!drawInfo.headOnlyRender && drawInfo.drawPlayer.gravDir < 0f)
+            {
+                origin.Y -= 1f;
+            }
+
+            // Head-only rendering (the minimap and player-target avatars) does
+            // not apply the gravity-specific setup used by a full player draw.
+            // Apply the corresponding vanilla portrait offset explicitly so a
+            // reversed-gravity player's hat is not left above the head.
+            if (drawInfo.headOnlyRender && drawInfo.drawPlayer.gravDir < 0f)
+            {
+                position.Y += 4f;
+            }
             //if (drawInfo.drawPlayer.GetModPlayer<炼金modplayer>().搅拌中) move += new Vector2(0, -10);
             //if (drawInfo.drawPlayer.mount.Active) position.Y += drawInfo.drawPlayer.mount.HeightBoost/2;
             int frameHeight = ElainaHatTexture.Height() / 20;
@@ -81,7 +99,6 @@ namespace 伊蕾娜.Items.accessories
 
 
             Rectangle sourceRectangle = new(0, startY, ElainaHatTexture.Width(), frameHeight);
-            Vector2 origin = drawInfo.headVect;
             drawInfo.DrawDataCache.Add(new DrawData(
                 ElainaHatTexture.Value, // The texture to render.
                 position + move, // Position to render at.

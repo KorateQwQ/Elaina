@@ -14,8 +14,17 @@ public class HealProj : ElainaBasicProjectile
     private static Texture2D rainStreakTexture;
     private static Texture2D rainGlowTexture;
 
-    private const int RainSpawnInterval = 3;
-    private const int RainParticleLifeTime = 42;
+    private int RainSpawnInterval => 3;
+    private int RainParticleLifeTime => 42;
+    private int OrbitingGlowCount => 3;
+    private float OrbitingGlowHeight => 92f;
+    private float OrbitingGlowRadius => 48f;
+    private float OrbitingGlowVerticalScale => 0.5f;
+    private float OrbitingGlowScale => 0.26f;
+    private float OrbitingGlowRotationSpeed => 0.045f;
+    private float TransitionDuration => 60f;
+    private float RainbowPhaseStart => 0.3f;
+    private float RainbowRevealSoftness => 0.12f;
 
     public override void Load()
     {
@@ -39,12 +48,25 @@ public class HealProj : ElainaBasicProjectile
     public override void SetDefaults()
     {
         Projectile.hide = true;
+        Projectile.timeLeft = 300;
         base.SetDefaults();
+    }
+
+    public override void OnSpawn_AllClient()
+    {
+        base.OnSpawn_AllClient();
     }
 
     public override void AI()
     {
-        Vector2 currentAnchor = Owner.VisualCenter().Floor();
+        if (!TryGetTarget(out Player target))
+        {
+            Projectile.Kill();
+            return;
+        }
+
+        Projectile.localAI[0] = MathF.Min(Projectile.localAI[0] + 1f, TransitionDuration);
+        Vector2 currentAnchor = target.VisualCenter().Floor()+new Vector2(0,-target.gravDir*10);
         Vector2 anchorDelta = currentAnchor - lastParticleAnchor;
         Projectile.Center = currentAnchor;
 
@@ -58,7 +80,10 @@ public class HealProj : ElainaBasicProjectile
 
         lastParticleAnchor = currentAnchor;
 
+        float transitionProgress = GetTransitionProgress();
+        float rainbowProgress = GetRainbowProgress(transitionProgress);
         if (Main.netMode != NetmodeID.Server &&
+            rainbowProgress > 0f && Projectile.timeLeft > TransitionDuration &&
             Main.GameUpdateCount % RainSpawnInterval == 0)
         {
             SpawnRainParticle();
@@ -70,13 +95,18 @@ public class HealProj : ElainaBasicProjectile
 
     private void SpawnRainParticle()
     {
-        float spawnWidth = 28f;
+        if (!TryGetTarget(out Player target))
+        {
+            return;
+        }
+
+        float spawnWidth = 18f;
         Vector2 spawnPosition = Projectile.Center + new Vector2(
             Main.rand.NextFloat(-spawnWidth, spawnWidth),
-            -68f + Main.rand.NextFloat(-8f, 12f));
+            -68f*target.gravDir + Main.rand.NextFloat(-8f, 12f));
         Vector2 velocity = new(
             Main.rand.NextFloat(-1.85f, 1.85f),
-            Main.rand.NextFloat(1.6f, 2.8f));
+            Main.rand.NextFloat(1.6f, 2.8f)*target.gravDir);
 
         VisualUnit.Spawn(
             rainParticles,
@@ -91,36 +121,112 @@ public class HealProj : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        if (!TryGetTarget(out Player target))
+        {
+            return false;
+        }
+
         Effect effect = AssetManager.GetEffect("伊蕾娜.Effects.Content.动态彩虹");
         Texture2D tex = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.Heal.HealProj");
         Texture2D noise = AssetManager.GetTexture("KL.Effects.Tex.PerlinX");
+        float transitionProgress = GetTransitionProgress();
+        float glowProgress = MathHelper.SmoothStep(0f, 1f, transitionProgress);
+        float rainbowProgress = GetRainbowProgress(transitionProgress);
 
-        Vector2 scale = new Vector2(1, 1)*1.5f;
-        EndBeginDraw(2);
-
-        DrawInWorld(tex,Projectile.Center,color:Color.Black*0.3f,scale:scale*0.97f);
-        
-        EndBeginDraw(1,1);
+        Vector2 scale = new Vector2(1, target.gravDir)*1.5f;
+        EndBeginDraw(2,1);
         effect.SetValue("uTime",VisualTime%1200/60f);
         effect.SetValue("uColorInterval",0.3f);
         effect.SetValue("uBrightness",1.0f);
-        effect.SetValue("baseColor",new Vector4(0.5f));
+        effect.SetValue("baseColor",new Vector4(0.8f));
         
         effect.SetValue("uNoiseScale",new Vector2(0.3f, 0.3f));
         effect.SetValue("uNoiseSpeed",new Vector2(0.00f, -0.3f));
         effect.SetValue("uDistortionStrength",0.03f);
         effect.SetValue("uHeatVerticalStrength",0.2f);
-        
-        
-        effect.SetTexture(1,noise);
-
+        effect.SetValue("uRevealProgress", rainbowProgress);
+        effect.SetValue("uRevealSoftness", RainbowRevealSoftness);
+        effect.SetTexture(1, noise);
         effect.Apply();
-        DrawInWorld(tex,Projectile.Center,color:new Color(255,255,255,100),scale);
-        
-        //EndBeginDraw(1);
-        VisualUnit.DrawAll(rainParticles);
-        DrawInWorld(tex,Projectile.Center,color:new Color(255,255,255,155),scale*0.98f);
+        DrawInWorld(tex,Projectile.Center,color:new Color(255,255,255,255),scale);
 
+        EndBeginDraw(0);
+        DrawOrbitingHealGlows(target, glowProgress);
+
+        EndBeginDraw();
+        VisualUnit.DrawAll(rainParticles);
+        //DrawInWorld(tex,Projectile.Center,color:new Color(255,255,255,155),scale*0.98f);
+
+        return false;
+    }
+
+    private float GetTransitionProgress()
+    {
+        float revealProgress = MathHelper.Clamp(Projectile.localAI[0] / TransitionDuration, 0f, 1f);
+        float fadeProgress = MathHelper.Clamp(Projectile.timeLeft / TransitionDuration, 0f, 1f);
+        return MathF.Min(revealProgress, fadeProgress);
+    }
+
+    private float GetRainbowProgress(float transitionProgress)
+    {
+        float progress = MathHelper.Clamp(
+            (transitionProgress - RainbowPhaseStart) / (1f - RainbowPhaseStart),
+            0f,
+            1f);
+        return MathHelper.SmoothStep(0f, 1f, progress);
+    }
+
+    private void DrawOrbitingHealGlows(Player target, float glowProgress)
+    {
+        Texture2D glowTexture = AssetManager.GetTexture(
+            "伊蕾娜.ElainaModSkills.Skills.Heal.HealGlow");
+        Vector2 orbitCenter = Projectile.Center +
+                              new Vector2(0f, -OrbitingGlowHeight * target.gravDir);
+        float baseRotation = VisualTime * OrbitingGlowRotationSpeed;
+
+        for (int i = 0; i < OrbitingGlowCount; i++)
+        {
+            float rotation = baseRotation + MathHelper.TwoPi * i / OrbitingGlowCount;
+            Vector2 orbitOffset = new(
+                MathF.Cos(rotation) * OrbitingGlowRadius * glowProgress,
+                MathF.Sin(rotation) * OrbitingGlowRadius * OrbitingGlowVerticalScale *
+                target.gravDir * glowProgress);
+
+            float pulse = 1f + MathF.Sin(baseRotation * 2f + i * MathHelper.TwoPi / OrbitingGlowCount) * 0.08f;
+            float animatedScale = OrbitingGlowScale * pulse * glowProgress;
+            DrawInWorld(
+                glowTexture,
+                orbitCenter + orbitOffset,
+                new Color(0,0,0,255) * glowProgress,
+                new Vector2(animatedScale),
+                0f);
+
+            DrawInWorld(
+                glowTexture,
+                orbitCenter + orbitOffset,
+                new Color(255,200,230,0)*0.7f * glowProgress,
+                new Vector2(animatedScale),
+                0f);
+            DrawInWorld(
+                glowTexture,
+                orbitCenter + orbitOffset,
+                new Color(255,160,230,0)*0.7f * glowProgress,
+                new Vector2(animatedScale * 1.02f),
+                0f);
+        }
+    }
+
+    private bool TryGetTarget(out Player target)
+    {
+        int targetIndex = (int)Projectile.ai[0];
+        if (targetIndex >= 0 && targetIndex < Main.maxPlayers &&
+            Main.player[targetIndex] is { active: true, dead: false } candidate)
+        {
+            target = candidate;
+            return true;
+        }
+
+        target = null;
         return false;
     }
 
@@ -197,14 +303,15 @@ public class HealProj : ElainaBasicProjectile
                 (Timer - Delay) / (float)Math.Max(TimeLeft, 1), 0f, 1f);
             float glowAlpha = 1f - lifeProgress;
             Color glowColor = Main.hslToRgb(animatedHue, 0.85f, 0.72f) * glowAlpha;
+            glowColor.A = 0;
             float stretch = MathHelper.Clamp(Velocity2D.Length() * 1.8f, 2.5f, 7f);
             float streakLength = 0.04f + stretch * 0.005f;
 
             DrawInWorld(
                 rainGlowTexture,
                 Position2D,
-                Color.Black,
-                new Vector2(0.1f * particleScale),
+                Color.Black*glowAlpha,
+                new Vector2(0.12f * particleScale),
                 0f);
             
             for (int i = 0; i < 3; i++)

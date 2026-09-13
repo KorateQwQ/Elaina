@@ -27,6 +27,12 @@ float uDistortionStrength = 0.0f;
 // Keeps heat distortion mostly horizontal. 0 = horizontal only, 1 = full RG displacement.
 float uHeatVerticalStrength = 0.2f;
 
+// Reveals the material from texture top to bottom. 0 = hidden, 1 = fully visible.
+float uRevealProgress = 1.0f;
+
+// Width of the soft transparent transition band in texture UV space.
+float uRevealSoftness = 0.12f;
+
 float4 baseColor = float4(0,0,0,0);
 
 float3 HsvToRgb(float3 hsv)
@@ -60,15 +66,26 @@ float4 PixelShaderFunction(float2 coords : TEXCOORD0, float4 vertexColor : COLOR
     float3 rainbow = HsvToRgb(float3(hue, 1.0f, 1.0f));
     rainbow *= max(uBrightness, 0.0f);
 
+    // Move a feathered visibility edge from above the texture to its bottom.
+    // Use the undistorted Y coordinate so heat shimmer does not make the edge jitter.
+    float revealSoftness = max(uRevealSoftness, 0.0001f);
+    float revealEdge = lerp(-revealSoftness, 1.0f, saturate(uRevealProgress));
+    float revealMask = 1.0f - smoothstep(
+        revealEdge,
+        revealEdge + revealSoftness,
+        coords.y);
+
     // Keep the distorted material silhouette and SpriteBatch opacity,
     // but not the material's original RGB color.
-    return float4((rainbow + baseColor.rgb), material.a * vertexColor.a);
+    return float4(
+        (rainbow + baseColor.rgb * material.a) * vertexColor.rgb,
+        material.a * vertexColor.a * revealMask);
 }
 
 technique Technique1
 {
     pass DynamicRainbow
     {
-        PixelShader = compile ps_2_0 PixelShaderFunction();
+        PixelShader = compile ps_3_0 PixelShaderFunction();
     }
 }

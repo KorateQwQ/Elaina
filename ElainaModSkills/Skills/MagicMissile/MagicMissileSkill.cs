@@ -93,7 +93,7 @@ public class MagicMissileSkill : ElainaSkill
     {
         int level = 10;//角色等级
         float attackTotalTime = 0.333f * 5;//5次攻击需要的时间
-        int attackCount = 7;//五次攻击触发被动，额外造成200%伤害，因此可算作7次攻击
+        int attackCount = 7;//五次攻击触发被动，额外造成200%伤害，因此可算作7次攻击,因此cd可以等同于0.24s
         return KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level), attackTotalTime, attackCount);
     }
     public override bool PreUpdateCD()

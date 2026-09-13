@@ -1,4 +1,5 @@
 using System;
+using KL.AttributeSystem;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using KL.Utils;
@@ -49,6 +50,7 @@ public class AshenWitchSkill : ElainaSkill
             return;
         }
 
+        //player.GetModPlayer<ElainaAttributeModPlayer>().Attributes.AddBase(CharacterAttributes.CooldownHaste, 300);
         player.buffImmune[BuffID.ManaSickness] = true;
 
         // Vanilla recomputes statLifeMax2 before skill effects. Retain only the configured

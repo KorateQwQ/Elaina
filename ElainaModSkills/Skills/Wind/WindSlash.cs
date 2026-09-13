@@ -55,7 +55,7 @@ public class WindSlash : ElainaBasicProjectile
     {
         Vector2 move = new(1, 0);
         windPoints = QuickConePoints(move * 50, -move * 100f, 100, 100, 100, 0.1f);
-        windPoints3 = QuickConePoints(move * 50, -move * 200f, 100, 30, 70, 0.1f);
+        windPoints3 = QuickConePoints(move * 50, -move * 200f, 100, 20, 30, 0.1f);
         base.OnSpawn_AllClient();
     }
 
@@ -108,7 +108,7 @@ public class WindSlash : ElainaBasicProjectile
         float baseProgress = MathHelper.Clamp(Projectile.localAI[0] / 15f, 0f, 1f);
         float baseAlpha = baseProgress * baseProgress * (3f - 2f * baseProgress);
         float appearScale = MathHelper.Lerp(0.78f, 1f, additiveAlpha);
-        float offset = -21f * appearScale;
+        float offset = -8f * appearScale;
         Vector2 drawScale = new(0.9f * appearScale,0.6f * appearScale);
         Vector2 topScale = new(0.8f * appearScale, 0.8f * appearScale);
         Color pink = new(255, 160, 239, 255);
@@ -124,6 +124,7 @@ public class WindSlash : ElainaBasicProjectile
         DrawCrescentFan(new Color(255, 160, 239, 255).ToVector4() * additiveAlpha, 1f, move, topScale);
 
         DrawArcFlame(new Vector4(new Color(255, 180, 239).ToVector3() * 0.9f, 1.0f * additiveAlpha), move, offset+0, drawScale,VisualTime+0);
+        
         DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.3f * additiveAlpha, 0.0f, 1);
     }
 
@@ -150,7 +151,7 @@ public class WindSlash : ElainaBasicProjectile
         arcFlame.SetValue("sweepDirection", new Vector2(1f, 0f));
         arcFlame.SetValue("ArcCenter", new Vector2(0.43f, 0.5f));
         arcFlame.SetValue("OuterRadius", 0.52f);
-        arcFlame.SetValue("OuterRadiusY", 0.38f);
+        arcFlame.SetValue("OuterRadiusY", 0.30f);
         arcFlame.SetValue("EdgeSoftness", 0f);
         arcFlame.SetValue("TextureRotation", 0f);
         arcFlame.SetValue("TextureScale", new Vector2(0.5f));

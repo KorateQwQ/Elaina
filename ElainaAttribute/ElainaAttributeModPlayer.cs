@@ -153,7 +153,7 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
             return true;
         }
 
-        if (!UniqueMagicEnabled || MaxMagicPoint <= 0f)
+        if (!UniqueMagicEnabled || MaxMagicPoint <= 0f || cost > MaxMagicPoint)
         {
             return false;
         }

@@ -7,7 +7,7 @@ using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
-[SkillUIInfo(State = 1, Pixels = 200)]
+[SkillUIInfo(State = 2, Pixels = 200)]
 public class MultiMissileSkill : ElainaSkill
 {
     private const int MissileCount = 5;
@@ -26,7 +26,7 @@ public class MultiMissileSkill : ElainaSkill
     {
         MaxCD = 0.15f;
         MaxStack = 1;
-        MagicPointCost = 10;
+        MagicPointCost = 3;
 
         for (int i = 0; i < MissileCount; i++)
         {
