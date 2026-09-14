@@ -171,7 +171,7 @@ public abstract class ElainaAction :AnimAction
         ElainaTrailVisualStyle.DrawWandTrail(trailPositions, actionProgress);
     }
 
-    void SyncItemRotationToArmRotation()
+    protected void SyncItemRotationToArmRotation()
     {
         //float rotation = (Main.MouseWorld - player.Center).ToRotation();
         float rotation = owner.compositeFrontArm.rotation * owner.gravDir;

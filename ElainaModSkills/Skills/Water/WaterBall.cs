@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using KL;
+using KL.ActionsSystem;
 using KL.Drawing;
 using KL.Dusts;
 using KL.Dusts.Water;
@@ -14,6 +15,7 @@ using Terraria.GameContent;
 using Terraria.Graphics.CameraModifiers;
 using Terraria.ModLoader;
 using 伊蕾娜.Dusts;
+using 伊蕾娜.ElainaActions;
 using 伊蕾娜.Managers;
 using 伊蕾娜.ReProjs.Water;
 
@@ -106,11 +108,18 @@ public class WaterBall : ElainaBasicProjectile
     public State state;
     private bool needShoot = false;
     private Vector2 mousePosition;
+    private int actionToken;
+
+    public void BindAction(int token)
+    {
+        actionToken = token;
+    }
 
     public override void SendExtraAI(BinaryWriter writer)
     {
         //writer.WriteVector2(mousePosition);
         writer.Write(needShoot);
+        writer.Write(actionToken);
         base.SendExtraAI(writer);
     }
 
@@ -119,6 +128,7 @@ public class WaterBall : ElainaBasicProjectile
     {
         //mousePosition = reader.ReadVector2();
         needShoot = reader.ReadBoolean();
+        actionToken = reader.ReadInt32();
         base.ReceiveExtraAI(reader);
     }
 
@@ -203,19 +213,9 @@ public class WaterBall : ElainaBasicProjectile
 
             Projectile.Resize((int)(WaterBallRadius*0.8f), (int)(WaterBallRadius*0.8f));
 
-            //保持弹幕时间以及物品使用时间
-            Owner.itemTime = 2;
-            Owner.itemAnimation = 2;
-            
             Projectile.rotation = HeldInfo.RealRotation;
 
-            //只有第一个弹幕可以对武器进行控制
-            if (NumOfOwingProjectiles == 0)
-            {
-                Owner.SetCompositeArmFront(true,stretch:Player.CompositeArmStretchAmount.Full,(Projectile.rotation*Owner.gravDir-3.14f/2));
-                //根据弹幕位置控制武器位置
-                Projectile.ControlWandByHeldProj();
-            }
+            UpdateWaterBallActionRotation();
             
             Projectile.velocity = Projectile.Center - Owner.MountedCenter;
             Projectile.velocity.Normalize();
@@ -260,6 +260,18 @@ public class WaterBall : ElainaBasicProjectile
         WaterBallRadius = 50 + selfChargeWater + extraChargeWater;
         
         base.AI();
+    }
+
+    private void UpdateWaterBallActionRotation()
+    {
+        ActionModPlayer actionPlayer = Owner.GetModPlayer<ActionModPlayer>();
+        if (actionPlayer.CurrentActionToken != actionToken ||
+            actionPlayer.CurrentAnimAction is not Action_WaterBall waterBallAction)
+        {
+            return;
+        }
+
+        waterBallAction.UpdateAimFromWaterBall(actionToken, HeldInfo.RealRotation);
     }
     public override void PostAI()
     {

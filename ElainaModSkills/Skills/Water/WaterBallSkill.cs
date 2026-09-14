@@ -25,23 +25,14 @@ public class WaterBallSkill: ElainaSkill
 
         float startRotation = directionToMouse.ToRotation()*Main.LocalPlayer.gravDir;
 
-        AnimAction animAction = new Action_SimpleShoot()
-            .AddNode(new ShootActionNode(
-                1,
-                ModContent.ProjectileType<WaterBall>(),
-                _ => WandCenter + new Vector2(0, 0),
-                damage: 10, //DpsHelper.GetSkillDamage(GetType().Name,1)
-                2,
-                player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));
-        
-        localPlayer.GetModPlayer<ActionModPlayer>().StartAction(animAction,rotation: startRotation);
+        localPlayer.GetModPlayer<ActionModPlayer>()
+            .StartAction(new Action_WaterBall(), rotation: startRotation);
 
         return base.PreUseSkill(source);
     }
 
     public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale,  Color color, Effect effect = null)
     {
-
         return base.PreDrawSkillIcon(position, scale, color, effect);
     }
 }
