@@ -10,7 +10,7 @@ using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 namespace 伊蕾娜.ElainaAttribute;
 
 /// <summary>
-/// 在通用 RPG 属性组件中接入伊蕾娜魔力规则，上限直接由原版魔力换算。
+/// 在通用 RPG 属性组件中接入伊蕾娜魔力规则，上限由原版魔力和灰之魔女牺牲的生命换算。
 /// 急速与当前魔力共用继承得到的组件，本类只负责伊蕾娜的专属业务。
 /// </summary>
 public class ElainaAttributeModPlayer : RPGAttributeModPlayer
@@ -30,9 +30,29 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
         get => GetAttributeValue(ElainaMagicAttributes.MagicPoint);
         private set => Attributes.SetBase(ElainaMagicAttributes.MagicPoint, value);
     }
+    
 
-    /// <summary>独特魔力上限直接由原版最大魔力换算，不作为独立的 KL 属性保存。</summary>
-    public float MaxMagicPoint => Player.statManaMax2 * ElainaMagicAttributes.VanillaManaToMagicPointRatio;
+    /// <summary>独特魔力上限由原版最大魔力与灰之魔女减少的生命上限换算，不作为独立的 KL 属性保存。</summary>
+    public float MaxMagicPoint
+    {
+        get
+        {
+            float maximum = Player.statManaMax2 * ElainaMagicAttributes.VanillaManaToMagicPointRatio;
+            if (!Player.GetModPlayer<ElainaModplayer>().Elaina)
+            {
+                return 0;
+            }
+
+            ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
+            if (skillPlayer.TryGetUnlockedModSkill(out AshenWitchSkill skill))
+            {
+                maximum += Math.Max(0, skill.LostMaxLife)
+                    * ElainaMagicAttributes.LostMaxLifeToMagicPointRatio;
+            }
+
+            return maximum;
+        }
+    }
 
     public override void Initialize()
     {

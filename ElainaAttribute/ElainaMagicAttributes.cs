@@ -16,14 +16,17 @@ public static class ElainaMagicAttributes
     /// <summary>1 点原版最大魔力对应的独特魔力上限。</summary>
     public static float VanillaManaToMagicPointRatio =>1f;
 
+    /// <summary>灰之魔女每减少 1 点生命上限所提供的额外独特魔力上限。</summary>
+    public static float LostMaxLifeToMagicPointRatio => 1f;
+
     /// <summary>灰之魔女开启时，额外生命收益保留比例。</summary>
     public static float ExtraLifeRetentionRatio => 0.5f;
 
     /// <summary>战斗中的固定每秒恢复量。</summary>
-    public static float CombatRecoveryPerSecond => 10f;
+    public static float CombatRecoveryPerSecond => 5f;
 
     /// <summary>战斗中的每秒最大魔力百分比恢复量。</summary>
-    public static float CombatMaxMagicPointRecoveryPercentPerSecond => 0.05f;
+    public static float CombatMaxMagicPointRecoveryPercentPerSecond => 0.02f;
 
     /// <summary>脱战后回满独特魔力所需的秒数。</summary>
     public static float OutOfCombatRefillSeconds => 2f;

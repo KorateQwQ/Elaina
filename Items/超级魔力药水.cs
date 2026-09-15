@@ -47,7 +47,7 @@ namespace 伊蕾娜.Items
                             //Item.makeNPC = ModContent.NPCType<gg_Head>();
             Item.UseSound = SoundID.Item3;//物品声音
             Item.autoReuse = false;//连点效果
-            Item.maxStack = 30;//最大堆叠数量
+            Item.maxStack = 9999;// 储存空间的堆叠上限；背包持有上限由独立系统限制
         }
 
 

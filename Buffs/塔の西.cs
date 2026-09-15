@@ -82,9 +82,9 @@ namespace 伊蕾娜.Buffs
                             if (item.GetGlobalItem<捡钱>().战利品)
                             {
                                 pickupcd = 60;
-                                player.statMana += 10;
+                                //player.statMana += 10;
                                 item.GetGlobalItem<捡钱>().战利品 = false;
-                                CombatText.NewText(player.getRect(), CombatText.HealMana, 10);
+                                //CombatText.NewText(player.getRect(), CombatText.HealMana, 10);
                                 player.AddBuff(ModContent.BuffType<塔の西>(), 600);
                                 //Main.NewText("好耶");
                             }
