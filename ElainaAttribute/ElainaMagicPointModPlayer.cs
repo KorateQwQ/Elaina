@@ -8,7 +8,7 @@ namespace 伊蕾娜.ElainaAttribute;
 /// 将原版魔力消耗入口桥接到伊蕾娜独特魔力。
 /// 灰之魔女关闭时不拦截原版魔力流程。
 /// </summary>
-public class Elaina145ManaRegenPlayer : ModPlayer
+public class ElainaMagicPointModPlayer : ModPlayer
 {
     public int NaturalManaGainThisTick { get; private set; }
 
@@ -26,11 +26,29 @@ public class Elaina145ManaRegenPlayer : ModPlayer
     public override void Load()
     {
         On_Player.CheckMana_Item_int_bool_bool += On_Player_CheckMana_Item_int_bool_bool;
+        On_Player.QuickMana += On_Player_QuickMana;
     }
 
     public override void Unload()
     {
         On_Player.CheckMana_Item_int_bool_bool -= On_Player_CheckMana_Item_int_bool_bool;
+        On_Player.QuickMana -= On_Player_QuickMana;
+    }
+
+    private void On_Player_QuickMana(On_Player.orig_QuickMana orig, Player self)
+    {
+        if (!IsUsingUniqueMagic(self))
+        {
+            orig(self);
+            return;
+        }
+
+        if (self.cursed || self.CCed || self.dead)
+        {
+            return;
+        }
+
+        self.GetModPlayer<ElainaManaElixirPlayer>().TryRestoreMagic();
     }
 
     private static bool IsUsingUniqueMagic(Player player)
@@ -46,10 +64,13 @@ public class Elaina145ManaRegenPlayer : ModPlayer
         bool pay,
         bool blockQuickMana)
     {
-        if (!IsUsingUniqueMagic(self) || item.ModItem != null)
+        if (!IsUsingUniqueMagic(self))
         {
             return orig(self, item, amount, pay, blockQuickMana);
         }
+
+        //对于开启了灰之魔女技能的伊蕾娜，直接不需要消耗原版魔力？暂定如此。
+        return true;
 
         int requiredMana = amount >= 0 ? amount : self.GetManaCost(item);
         return self.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(requiredMana, pay);

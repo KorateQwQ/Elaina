@@ -17,6 +17,7 @@ public class WaterBallSkill: ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
+        MagicPointCost = 390;
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 

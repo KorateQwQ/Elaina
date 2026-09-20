@@ -1,5 +1,5 @@
 Snippets: {
-	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic]"
+	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]"
 	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
 }
 
@@ -15,23 +15,18 @@ SkillDesc: {
 	MagicMissileSkill:
 		'''
 		Deals {0} magic damage to the target.
-		Passive: After Magic Missile hits 5 times consecutively, it deals additional damage equal to 200% of Magic Missile's damage and restores {1}% of lost Magic. If Magic Missile directly kills an enemy, it also restores some Magic.
+		Passive: After Magic Missile hits 5 times consecutively, it deals additional damage equal to 200% of Magic Missile's damage and restores {1}% of lost [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. If Magic Missile directly kills an enemy, it also restores some [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力].
 		'''
 	MultiMissileSkill: Deals magic damage to the target.
 	AshenWitchSkill:
 		'''
-		When enabled, Ashen Witch lets Elaina use unique [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic]. Its base maximum equals vanilla maximum mana, and each point of maximum life removed by Ashen Witch grants 1 additional maximum Magic. Her extra life gain is reduced by 50%. When Magic is insufficient, each 1% of maximum life restores 1% of maximum Magic.
-		Magic regenerates at a fixed combat rate, refills in about two seconds outside combat, and pauses for three seconds after taking damage. Mana potions do not restore it.
+		When enabled, Ashen Witch lets Elaina use [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. Its base maximum equals vanilla maximum mana, and each point of maximum life removed by Ashen Witch grants 1 additional maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. Her extra life gain is reduced by 50%. When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] is insufficient, each 1% of maximum life restores 1% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力].
+		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] regenerates at a fixed combat rate, refills in about two seconds outside combat, and pauses for three seconds after taking damage. Mana potions do not restore it.
 		'''
 	MagicBarrierSkill:
 		'''
-		[c/FF6B6B:Prerequisite: Ashen Witch (must be unlocked and enabled)]
-
-		While enabled, reduces final damage by the fraction of maximum life removed by Ashen Witch.
-
-		Direct hits and each actual damage-over-time tick use the same percentage reduction, consuming Magic equal to absorption before rounding. Remaining damage is rounded down; damage below 1 is fully blocked.
-		Insufficient Magic pays for partial absorption before these rounding rules apply, without converting life into Magic.
-		For example, reducing maximum life from 500 to 300 grants 40% damage reduction while Magic is sufficient. Life recovery is unchanged.
+		Requires the Ashen Witch skill to be enabled.
+		Activate the barrier just before taking damage. It reduces damage based on the life lost to Ashen Witch and consumes [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] equal to the damage blocked by the barrier.
 		'''
 	WindBladeSkill: Deals {0} magic damage to the target.
 }
@@ -49,4 +44,4 @@ SkillTotalInfo:
 	Cost: {2}
 	Effect:
 	'''
-LackOfMagic: Not Enough Magic
+LackOfMagic: Not Enough [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]

@@ -1,0 +1,74 @@
+using System;
+using System.Linq;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+
+internal static class NotebookChecks
+{
+    internal static void Run()
+    {
+        int checks=0;
+        void Check(bool ok,string name) { checks++; if(!ok) throw new Exception("Failed: "+name); }
+        PreviewState Fresh()=>new(new Terraria.ModLoader.Mod());
+        void Learn(PreviewState s,string id) { s.Select(id); Check(s.Unlock(),"learn "+id); }
+        var s=Fresh();
+        Check(s.Selected=="origin"&&s.Filter=="learned","initial selection");
+        Check(s.Points==18&&s.Learned.Count==3,"initial budget and ownership");
+        foreach(var (state,count) in new[]{("learned",3),("ready",3),("locked",4),("hidden",2)})
+            Check(s.Skills.Count(x=>s.Status(x)==state)==count,"initial count "+state);
+        Check(s.Slots.Length==8&&s.Slots[0]=="ember","initial loadout");
+        Check(!s.Unlock()&&!s.Equip(),"passive cannot relearn or equip");
+        Check(!s.Upgrade("moon")&&!s.Toggle("moon")&&!s.Toggle("origin"),"unowned and fixed passive guards");
+        s.Select("ritual");Check(!s.Unlock(),"locked cannot learn");
+        s.Select("hiddenA");Check(!s.Unlock()&&s.Name(s.Current)=="未显现","hidden cannot learn");
+        Learn(s,"moon"); Check(s.Points==16&&s.Level("moon")==1&&s.Filter=="learned","learn spends and selects learned");
+        Check(!s.Unlock()&&s.Points==16,"duplicate learn costs nothing");
+        Check(s.Stats("moon").Mana==18&&s.Stats("moon").Cooldown==8&&s.Stats("moon").Damage==30,"moon base stats");
+        Check(s.Upgrade("moon")&&s.Points==15&&s.Level("moon")==2,"upgrade cost and level");
+        var stats=s.Stats("moon");
+        Check(stats.Mana==17&&stats.Cooldown==7.4&&stats.Damage==36&&stats.BurstDamage==72&&stats.ManaReturn==10,"moon level two effects");
+        s.TargetSlot=7;Check(s.Equip()&&s.Slots[7]=="moon","eighth slot");
+        Check(!s.Equip(),"duplicate equip disabled");
+        s.TargetSlot=3;Check(s.Equip()&&s.Slots[7]==null&&s.Slots[3]=="moon","move without duplication");
+        Learn(s,"echo");Learn(s,"vortex");Learn(s,"fireflower");Learn(s,"ritual");Learn(s,"hiddenA");
+        Check(s.Affected("sense").Select(x=>x.id).ToHashSet().SetEquals(new[]{"moon","echo","ritual","hiddenA"}),"transitive affected set");
+        Check(s.Toggle("sense"),"disable sense");
+        foreach(string id in new[]{"moon","echo","ritual","hiddenA"})
+            Check(!s.Availability(id).Ok&&s.Availability(id).Blocker=="sense","disabled chain "+id);
+        foreach(string id in new[]{"origin","ember","vortex","fireflower"}) Check(s.Availability(id).Ok,"independent branch "+id);
+        Check(s.Level("moon")==2&&s.Slots[3]=="moon"&&s.Learned.Contains("moon"),"suspension retains progression and equipment");
+        s.Select("moon"); s.TargetSlot=6;Check(s.Equip(),"suspended spell still equipable");
+        Check(s.Toggle("sense")&&s.Availability("hiddenA").Ok,"reactivate full chain");
+        s.Select("ember");s.TargetSlot=5;s.Equip();s.Reset();
+        Check(s.Points==18&&s.Learned.Count==3&&s.Levels.Count==0&&s.Disabled.Count==0,"reset progression");
+        Check(s.Slots[5]=="ember"&&s.Slots.Count(x=>x!=null)==1&&s.TargetSlot==5,"reset preserves valid slot and target");
+        Array.Clear(s.Slots);s.Reset();Check(s.Slots[0]=="ember","reset fills only empty loadout");
+        s.Select("sense");Check(s.Upgrade("sense")&&s.Upgrade("sense"),"passive upgrades");
+        Check(s.Level("sense")==3&&s.Points==12&&s.NextCost("sense")==null&&!s.Upgrade("sense"),"passive cap");
+        Check(s.Stats("sense").Discount==6&&s.Stats("vortex").Mana==27,"global passive discount");
+        Check(s.Upgrade("origin")&&s.Stats("origin").MaxManaBonus==25,"origin maximum mana bonus");
+        s=Fresh();Learn(s,"vortex");Learn(s,"fireflower");Learn(s,"ice");
+        Check(s.Discovered(s.Find("hiddenB"))&&s.Status(s.Find("hiddenB"))=="locked","reveal separate from unlock");
+        Check(!s.Discovered(s.Find("hiddenA")),"dual reveal condition");
+        s=Fresh();
+        foreach(string id in new[]{"moon","echo","vortex","fireflower","ice","water","ritual","hiddenA","hiddenB"})Learn(s,id);
+        Check(s.Points==0&&s.Learned.Count==12,"full chart fits budget exactly");
+        Check(!s.Upgrade("moon")&&s.Points==0,"insufficient upgrade rejected");
+        s.SelectFilter("hidden");Check(s.EmptyFilter&&!s.CanEquip&&!s.CanUnlock,"empty filter disables stale actions");
+        s.Select("moon");Check(s.Filter=="learned"&&!s.EmptyFilter,"node selection follows state");
+        s=Fresh();s.SelectFilter("ready");Check(s.Selected=="moon","filter selects first match");
+        s.Select("ice");s.SelectFilter("ready");Check(s.Selected=="ice","filter retains matching selection");
+        for(int i=0;i<4;i++)s.Upgrade("ember");s.Upgrade("sense");s.Upgrade("sense");
+        Check(s.Points==2,"low balance setup");Learn(s,"moon");
+        Check(s.Status(s.Find("vortex"))=="ready","ready classification independent of affordability");
+        s.Select("vortex");Check(!s.CanUnlock&&!s.Unlock()&&s.Points==0,"insufficient learn rejected");
+        s=Fresh();Learn(s,"moon");
+        s.Find("sense").activationRequires=["moon"];
+        Check(!s.Availability("moon").Ok&&s.Availability("moon").Reason.Contains("循环"),"cycle safe availability");
+        s=Fresh();foreach(var skill in s.Skills)
+        {
+            Check(skill.prereqs.Concat(skill.discovery).Concat(skill.activationRequires).All(id=>s.Skills.Any(x=>x.id==id)),"valid references "+skill.id);
+            Check(skill.growth.costs.All(c=>c>=0),"valid growth "+skill.id);
+        }
+        Console.WriteLine($"PASS: {checks} progression checks");
+    }
+}

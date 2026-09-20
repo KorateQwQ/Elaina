@@ -132,8 +132,12 @@ Items: {
 
 	ManaElixir: {
 		DisplayName: Mana Elixir
-		Tooltip: Restores {0} unique mana
-		NameSuffix: " [{0} MP]"
+		Tooltip:
+			'''
+			Adds one charge to Elaina's mana elixir reserve
+			The reserve holds up to five charges
+			'''
+		NameSuffix: " [{0} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]]"
 	}
 
 	寒冰魔法书: {
@@ -386,6 +390,7 @@ Keybinds: {
 	BroomAcceleration.DisplayName: Broom Acceleration
 	SwitchNextSkill.DisplayName: Switch Next Skill
 	SwitchLastSkill.DisplayName: Switch Last Skill
+	ConstellationPreview.DisplayName: Constellation Preview
 }
 
 Conditions: {
@@ -412,6 +417,8 @@ ResourceDisplaySets: {
 		DisplayName: Elaina Resource Bar
 		lifeText: Life {0}/{1}
 		manaText: Mana {0}/{1}
+		magicPointText: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] {0}/{1}"
+		elixirRestoreText: Restore {0} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]
 		shieldText: Shield {0}/{1}
 	}
 }

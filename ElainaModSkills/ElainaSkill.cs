@@ -108,10 +108,10 @@ public abstract class ElainaSkill : ModSkill
         EndBeginDrawUI(ss:SamplerState.LinearClamp);
         if (SelectedInSkillBar&&CurrentCD > 0&&ElainaSkillManager.ShowCD)
         {
-            DynamicSpriteFont font = FontManager.LoliFont.Value;
+            DynamicSpriteFont font = FontManager.NotoSerifSC.Value;
             string text = $"{CurrentCD:F1}";
             Main.spriteBatch.DrawString(font, text, position, Color.White,0,
-                font.MeasureString(text)*new Vector2(0.5f,0.35f),0.78f,SpriteEffects.None,0);
+                font.MeasureString(text)*new Vector2(0.5f,0.5f),22f / 48f,SpriteEffects.None,0);
         }
         SelectedInSkillBar = false;
         base.PostDrawSkillIcon(position, scale,color, effect);
@@ -139,7 +139,9 @@ public abstract class ElainaSkill : ModSkill
         if(IsPassiveSkill) type = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Passive").Value;
         
         string maxCD = MaxCD <0 ? "--" : $"{MaxCD}s";
-        string magicPointCost = MagicPointCost <0 ? "--"  : $"{MagicPointCost}MP";
+        string magicPointName = Language.GetText(
+            "Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint").Value;
+        string magicPointCost = MagicPointCost < 0 ? "--" : $"{MagicPointCost} {magicPointName}";
         desc = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillTotalInfo").WithFormatArgs(type, maxCD, magicPointCost).Value;
         desc += Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}")
             .WithFormatArgs(SkillDescriptionArgs).Value;

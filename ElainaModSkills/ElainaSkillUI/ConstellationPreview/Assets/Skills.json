@@ -1,0 +1,411 @@
+[
+  {
+    "id": "origin",
+    "name": "旅途的起点",
+    "icon": "AshenWitchSkill",
+    "x": 330,
+    "y": 280,
+    "cost": 0,
+    "prereqs": [],
+    "initial": true,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "拓宽魔力储备。",
+    "type": "心得",
+    "mana": "—",
+    "cooldown": "被动",
+    "growth": {
+      "label": "被动天赋",
+      "costs": [
+        2,
+        4
+      ],
+      "manaStep": 0,
+      "cooldownStep": 0
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "sense",
+    "name": "魔力感知",
+    "icon": "WindBladeSkill",
+    "x": 174,
+    "y": 337,
+    "cost": 0,
+    "prereqs": [
+      "origin"
+    ],
+    "initial": true,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "节省施法所需的魔力。",
+    "type": "心得",
+    "mana": "—",
+    "cooldown": "被动",
+    "growth": {
+      "label": "被动天赋",
+      "costs": [
+        2,
+        4
+      ],
+      "manaStep": 0,
+      "cooldownStep": 0
+    },
+    "toggleable": true,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "moon",
+    "name": "月华飞弹",
+    "icon": "MagicMissileSkill",
+    "x": 111,
+    "y": 196,
+    "cost": 2,
+    "prereqs": [
+      "sense"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "飞弹追击目标，叠加印记；印记引爆时造成范围伤害并回复魔力。",
+    "type": "术式",
+    "mana": "18",
+    "cooldown": "8",
+    "growth": {
+      "label": "主动魔法",
+      "costs": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "manaStep": 1,
+      "cooldownStep": 0.08
+    },
+    "toggleable": false,
+    "activationRequires": [
+      "sense"
+    ],
+    "effect": {
+      "projectiles": 5,
+      "markThreshold": 3,
+      "damage": {
+        "base": 30,
+        "perLevel": 6
+      },
+      "burstDamage": {
+        "base": 60,
+        "perLevel": 12
+      },
+      "manaReturn": {
+        "base": 8,
+        "perLevel": 2
+      }
+    }
+  },
+  {
+    "id": "echo",
+    "name": "月影回响",
+    "icon": "MultiMissileSkill",
+    "x": 214,
+    "y": 98,
+    "cost": 2,
+    "prereqs": [
+      "moon"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "月光回旋，再次命中目标。",
+    "type": "术式",
+    "mana": "24",
+    "cooldown": "12",
+    "growth": {
+      "label": "强化魔法",
+      "costs": [
+        2,
+        3,
+        5
+      ],
+      "manaStep": 1,
+      "cooldownStep": 0.08
+    },
+    "toggleable": false,
+    "activationRequires": [
+      "moon"
+    ],
+    "effect": null
+  },
+  {
+    "id": "ember",
+    "name": "初始之焰",
+    "icon": "FireBurstSkill",
+    "x": 446,
+    "y": 363,
+    "cost": 0,
+    "prereqs": [
+      "origin"
+    ],
+    "initial": true,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "点燃火焰，攻击目标。",
+    "type": "术式",
+    "mana": "12",
+    "cooldown": "5",
+    "growth": {
+      "label": "主动魔法",
+      "costs": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "manaStep": 1,
+      "cooldownStep": 0.08
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "vortex",
+    "name": "绯焰旋风",
+    "icon": "FireTornadoSkill",
+    "x": 559,
+    "y": 261,
+    "cost": 2,
+    "prereqs": [
+      "ember"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "卷起火焰旋风，波及周围敌人。",
+    "type": "术式",
+    "mana": "28",
+    "cooldown": "14",
+    "growth": {
+      "label": "主动魔法",
+      "costs": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "manaStep": 1,
+      "cooldownStep": 0.08
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "fireflower",
+    "name": "焰花盛放",
+    "icon": "FireLaserSkill",
+    "x": 463,
+    "y": 128,
+    "cost": 2,
+    "prereqs": [
+      "vortex"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "绽放焰花，灼烧范围内的敌人。",
+    "type": "术式",
+    "mana": "36",
+    "cooldown": "18",
+    "growth": {
+      "label": "范围魔法",
+      "costs": [
+        2,
+        4,
+        6
+      ],
+      "manaStep": 2,
+      "cooldownStep": 0.07
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "ice",
+    "name": "冬夜流星",
+    "icon": "IceConeSkill",
+    "x": 344,
+    "y": 462,
+    "cost": 1,
+    "prereqs": [
+      "ember"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "召唤冰矢，伤敌并减速。",
+    "type": "术式",
+    "mana": "20",
+    "cooldown": "10",
+    "growth": {
+      "label": "主动魔法",
+      "costs": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "manaStep": 1,
+      "cooldownStep": 0.08
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "water",
+    "name": "星泉微雨",
+    "icon": "WaterBallSkill",
+    "x": 159,
+    "y": 462,
+    "cost": 2,
+    "prereqs": [
+      "ice"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "落下星雨，恢复生命。",
+    "type": "术式",
+    "mana": "32",
+    "cooldown": "20",
+    "growth": {
+      "label": "回复魔法",
+      "costs": [
+        3,
+        5
+      ],
+      "manaStep": 2,
+      "cooldownStep": 0.1
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  },
+  {
+    "id": "ritual",
+    "name": "魔女的结界",
+    "icon": "AshenWitchSkill",
+    "x": 331,
+    "y": 143,
+    "cost": 3,
+    "prereqs": [
+      "echo",
+      "fireflower"
+    ],
+    "initial": false,
+    "secret": false,
+    "discovery": [],
+    "hint": "",
+    "desc": "展开结界，抵挡伤害与打断。",
+    "type": "术式",
+    "mana": "45",
+    "cooldown": "30",
+    "growth": {
+      "label": "防护魔法",
+      "costs": [
+        3,
+        6
+      ],
+      "manaStep": 2,
+      "cooldownStep": 0.1
+    },
+    "toggleable": false,
+    "activationRequires": [
+      "echo"
+    ],
+    "effect": null
+  },
+  {
+    "id": "hiddenA",
+    "name": "月下的奇迹",
+    "icon": "MultiMissileSkill",
+    "x": 614,
+    "y": 92,
+    "cost": 2,
+    "prereqs": [
+      "ritual"
+    ],
+    "initial": false,
+    "secret": true,
+    "discovery": [
+      "echo",
+      "fireflower"
+    ],
+    "hint": "线索：习得月影回响与焰花盛放。",
+    "desc": "释放星光，重置月华飞弹的冷却。",
+    "type": "术式",
+    "mana": "60",
+    "cooldown": "45",
+    "growth": {
+      "label": "隐藏奥义",
+      "costs": [
+        6
+      ],
+      "manaStep": 4,
+      "cooldownStep": 0.12
+    },
+    "toggleable": false,
+    "activationRequires": [
+      "ritual"
+    ],
+    "effect": null
+  },
+  {
+    "id": "hiddenB",
+    "name": "万象归星",
+    "icon": "WaterLaserSKill",
+    "x": 620,
+    "y": 422,
+    "cost": 2,
+    "prereqs": [
+      "water",
+      "fireflower"
+    ],
+    "initial": false,
+    "secret": true,
+    "discovery": [
+      "ice",
+      "fireflower"
+    ],
+    "hint": "线索：习得冬夜流星与焰花盛放。",
+    "desc": "唤起星芒，持续恢复附近友方。",
+    "type": "术式",
+    "mana": "50",
+    "cooldown": "40",
+    "growth": {
+      "label": "隐藏奥义",
+      "costs": [
+        6
+      ],
+      "manaStep": 4,
+      "cooldownStep": 0.12
+    },
+    "toggleable": false,
+    "activationRequires": [],
+    "effect": null
+  }
+]

@@ -54,8 +54,8 @@ public static class UIDrawKit
     public static Effect SigilRing => TryGetEffect(ref _sigilRing, "SigilRing");
 
     // ---------- 字体 ----------
-    public static DynamicSpriteFont TitleFont => FontManager.HarmonyOS_Sans_SC?.Value ?? FontAssets.MouseText.Value;
-    public static DynamicSpriteFont NumberFont => FontManager.LoliFont?.Value ?? FontAssets.MouseText.Value;
+    public static DynamicSpriteFont TitleFont => FontManager.NotoSerifSC?.Value ?? FontAssets.MouseText.Value;
+    public static DynamicSpriteFont NumberFont => FontManager.NotoSerifSC?.Value ?? FontAssets.MouseText.Value;
 
     private static Effect TryGetEffect(ref Effect cache, string name)
     {

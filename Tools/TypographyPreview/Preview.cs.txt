@@ -1,0 +1,97 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using SDL2;
+
+internal sealed class TypographyGame : Game
+{
+    internal static string Repo;
+    internal static GraphicsDevice Device;
+    private static readonly Dictionary<string,Texture2D> Textures=new();
+    private bool done;
+    private TypographyGame(string repo)
+    {
+        Repo=repo;
+        new GraphicsDeviceManager(this) {PreferredBackBufferWidth=320,PreferredBackBufferHeight=180,
+            GraphicsProfile=GraphicsProfile.HiDef,SynchronizeWithVerticalRetrace=false};
+        IsFixedTimeStep=false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        Device=GraphicsDevice;
+        Content.RootDirectory=Path.GetFullPath(Path.Combine(Repo,"../KL/Fonts"));
+        KL.Drawing.FontManager.HarmonyOS_Sans_SC=new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
+        KL.Drawing.FontManager.NotoSerifSC=new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
+        KL.Drawing.FontManager.Gelasio=new(Content.Load<DynamicSpriteFont>("Gelasio"));
+        var digits=KL.Drawing.FontManager.Gelasio.Value;
+        foreach(char c in "0123456789")
+            if(!digits.IsCharacterSupported(c)) throw new Exception($"Missing Gelasio glyph: {c}");
+        Console.WriteLine($"Gelasio digits OK; line spacing {digits.LineSpacing}; measured {digits.MeasureString("01 08")}");
+        foreach (var font in new[]{KL.Drawing.FontManager.NotoSerifSC.Value, KL.Drawing.FontManager.HarmonyOS_Sans_SC.Value})
+        {
+            const string sample="出战技能选择槽位，再装配技能当前目标清空此槽0123456789";
+            foreach(char c in sample)
+                if(!font.IsCharacterSupported(c)) throw new Exception($"Missing loadout glyph: {c}");
+            Console.WriteLine($"Loadout glyph coverage OK; line spacing {font.LineSpacing}; measured {font.MeasureString(sample)}");
+        }
+        var pixel=new Texture2D(Device,1,1); pixel.SetData(new[]{Color.White});
+        Terraria.GameContent.TextureAssets.MagicPixel=new(pixel);
+    }
+    protected override void Update(GameTime time)
+    {
+        if(done)return; done=true;
+        string output=Path.Combine(Repo,".vissandbox/typography-preview/output");
+        Directory.CreateDirectory(output);
+        using var batch=new SpriteBatch(Device);
+        foreach(float scale in new[]{1f,1.5f})
+        foreach(string scenario in new[]{"initial","reference","occupied","eighth","hover","help"})
+        {
+            bool modal=scenario=="help";
+            using var target=new RenderTarget2D(Device,(int)(1100*scale),(int)(800*scale));
+            Device.SetRenderTarget(target); Device.Clear(new Color(33,29,46));
+            new 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview.PanelReplay().Render(batch,scale,modal,modal?"initial":scenario);
+            Device.SetRenderTarget(null);
+            string file=Path.Combine(output,$"{(modal?"help":scenario=="initial"?"panel":"loadout-"+scenario)}-{scale:0.0}.png");
+            using var stream=File.Create(file); target.SaveAsPng(stream,target.Width,target.Height);
+            Console.WriteLine(file);
+        }
+        Exit();
+    }
+    internal static Texture2D Texture(string asset)
+    {
+        if(Textures.TryGetValue(asset,out var texture))return texture;
+        using var stream=File.OpenRead(Path.Combine(Repo,asset[(asset.IndexOf('/')+1)..]+".png"));
+        texture=Texture2D.FromStream(Device,stream);
+        var pixels=new Color[texture.Width*texture.Height]; texture.GetData(pixels);
+        for(int i=0;i<pixels.Length;i++)if(pixels[i].A==0)pixels[i]=Color.Transparent;
+        texture.SetData(pixels); Textures.Add(asset,texture); return texture;
+    }
+    protected override void UnloadContent()
+    {
+        foreach(var texture in Textures.Values)texture.Dispose();
+        Terraria.GameContent.TextureAssets.MagicPixel.Value.Dispose();
+        base.UnloadContent();
+    }
+    [STAThread] static void Main(string[] args){using var game=new TypographyGame(args[0]);game.Run();}
+}
+internal sealed record ValueRef<T>(T Value);
+namespace Terraria.ModLoader
+{
+    internal class Mod { public byte[] GetFileBytes(string path)=>File.ReadAllBytes(Path.Combine(TypographyGame.Repo,path)); }
+    internal static class ModContent
+    {
+        public static ValueRef<T> Request<T>(string path, ReLogic.Content.AssetRequestMode mode)=>new((T)(object)TypographyGame.Texture(path));
+    }
+}
+namespace Terraria { internal static class Main { public static float UIScale=1; } }
+namespace Terraria.GameContent { internal static class TextureAssets { internal static ValueRef<Texture2D> MagicPixel; } }
+namespace KL.Drawing
+{
+    internal static class FontManager
+    {
+        internal static ValueRef<DynamicSpriteFont> HarmonyOS_Sans_SC, NotoSerifSC, Gelasio;
+    }
+}

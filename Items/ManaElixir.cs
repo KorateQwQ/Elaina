@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using Terraria;
 using Terraria.ID;
-using Terraria.Localization;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaAttribute;
@@ -19,19 +18,17 @@ public sealed class ManaElixir : ModItem
 {
     private const int DefaultRestoreAmount = 50;
 
-    /// <summary>使用时恢复的独特魔力。该数值在合成时由原料药水决定。</summary>
+    /// <summary>存入药水槽的独特魔力恢复量。该数值在合成时由原料药水决定。</summary>
     public int RestoreAmount { get; private set; } = DefaultRestoreAmount;
 
     // 临时与究极魔力药水共用贴图，后续可直接替换为 ManaElixir.png。
     public override string Texture => "伊蕾娜/Items/究极魔力药水";
 
-    public override LocalizedText Tooltip => base.Tooltip.WithFormatArgs(RestoreAmount);
-
     public override void SetDefaults()
     {
         Item.CloneDefaults(ItemID.LesserManaPotion);
 
-        // 魔力合剂只恢复独特魔力，不能进入原版 QuickMana 的候选列表。
+        // 魔力合剂只为专属药水槽充能，不能进入原版 QuickMana 的候选列表。
         Item.healMana = 0;
         Item.maxStack = Item.CommonMaxStack;
         Item.value = 0;
@@ -50,31 +47,23 @@ public sealed class ManaElixir : ModItem
 
     public override bool CanUseItem(Player player)
     {
-        ElainaAttributeModPlayer attributePlayer =
-            player.GetModPlayer<ElainaAttributeModPlayer>();
-
-        return RestoreAmount > 0
-            && attributePlayer.UniqueMagicEnabled
-            && attributePlayer.MagicPoint < attributePlayer.MaxMagicPoint;
+        return player.GetModPlayer<ElainaManaElixirPlayer>().CanStoreCharge(RestoreAmount);
     }
 
     public override bool? UseItem(Player player)
     {
-        ElainaAttributeModPlayer attributePlayer =
-            player.GetModPlayer<ElainaAttributeModPlayer>();
-        float magicBeforeUse = attributePlayer.MagicPoint;
-
-        attributePlayer.RegenMagicPoint(RestoreAmount);
-        attributePlayer.InBattleState();
-
-        int restoredMagic = (int)MathF.Ceiling(
-            attributePlayer.MagicPoint - magicBeforeUse);
-        if (restoredMagic > 0 && player.whoAmI == Main.myPlayer)
-        {
-            player.ManaEffect(restoredMagic);
-        }
-
         return true;
+    }
+
+    public override bool ConsumeItem(Player player)
+    {
+        return player.GetModPlayer<ElainaManaElixirPlayer>().CanStoreCharge(RestoreAmount);
+    }
+
+    public override void OnConsumeItem(Player player)
+    {
+        // 仅在本地玩家实际消耗一瓶合剂时入槽，避免动画和远端 UseItem 重复充能。
+        player.GetModPlayer<ElainaManaElixirPlayer>().TryStoreCharge(RestoreAmount);
     }
 
     public override bool CanStack(Item source)

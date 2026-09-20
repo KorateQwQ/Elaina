@@ -8,7 +8,9 @@ using Terraria.GameContent;
 using Terraria.GameContent.UI.ResourceSets;
 using Terraria.Localization;
 using Terraria.ModLoader;
+using Terraria.UI.Chat;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -19,6 +21,8 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     private Rectangle manaArea;
     private LocalizedText lifeText;
     private LocalizedText manaText;
+    private LocalizedText magicPointText;
+    private LocalizedText elixirRestoreText;
     private static readonly Color BorderColor = new Color(237, 240, 243);
     private static readonly Color BackgroundColor = new Color(35, 32, 42) * 0.85f;
     private static readonly Color LifeColor = new Color(220, 72, 108);
@@ -33,6 +37,8 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     {
         lifeText = this.GetLocalization(nameof(lifeText));
         manaText = this.GetLocalization(nameof(manaText));
+        magicPointText = this.GetLocalization(nameof(magicPointText));
+        elixirRestoreText = this.GetLocalization(nameof(elixirRestoreText));
     }
 
     public override void PreDrawResources(PlayerStatsSnapshot snapshot)
@@ -81,7 +87,8 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         
         Vector2 center = GetBaseCenter() + new Vector2(0, 30f);
         manaArea = DrawBar(spriteBatch, center, new Vector2(285,15), currentMagicPoint, maxMagicPoint, ManaBackColor, new Color(100,210,255,255), ref manaDecayPercent);
-        DrawCenteredText(spriteBatch, manaText.Format(currentMagicPointText, maxMagicPointText), manaArea, Color.White * 0.9f, 0.68f);
+        LocalizedText resourceText = UseUniqueMana ? magicPointText : manaText;
+        DrawCenteredText(spriteBatch, resourceText.Format(currentMagicPointText, maxMagicPointText), manaArea, Color.White * 0.9f, 0.68f);
         
         Point mousePoint = Main.MouseScreen.ToPoint();
         DynamicSpriteFont font = FontManager.HarmonyOS_Sans_SC.Value;
@@ -91,13 +98,58 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
             float scale = 0.25f;
             float magicPointRecovery = UseUniqueMana
                 ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery()
-                : Main.LocalPlayer.GetModPlayer<Elaina145ManaRegenPlayer>().NaturalManaRegenPerSecond;
+                : Main.LocalPlayer.GetModPlayer<ElainaMagicPointModPlayer>().NaturalManaRegenPerSecond;
             string text = $"MP: {currentMagicPointText}/{maxMagicPointText}   + {magicPointRecovery:0.#}/s";
-            Vector2 size = font.MeasureString(text) * scale;
+            Vector2 textScale = new Vector2(scale);
+            Vector2 size = ChatManager.GetStringSize(font, text, textScale);
             center = center - size * 0.5f;
             Main.spriteBatch.DrawString(font, text, center, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
+        DrawManaElixirSlot(spriteBatch);
         //DrawExpBar(spriteBatch);
+    }
+
+    private void DrawManaElixirSlot(SpriteBatch spriteBatch)
+    {
+        if (!Main.LocalPlayer.GetModPlayer<ElainaModplayer>().Elaina)
+        {
+            return;
+        }
+
+        var elixirPlayer = Main.LocalPlayer.GetModPlayer<ElainaManaElixirPlayer>();
+        Vector2 iconCenter = GetBaseCenter() + new Vector2(-265f, 75f);
+        Color chargeColor = new Color(100, 210, 255);
+        Color emptyColor = new Color(69, 66, 75);
+        EndBeginDrawUI();
+
+        for (int i = 0; i < ElainaManaElixirPlayer.MaxCharges; i++)
+        {
+            Vector2 center = iconCenter + new Vector2(31f + i * 12f, 0f);
+            bool charged = i < elixirPlayer.ChargeCount;
+            DrawDiamond(center, new Vector2(10f), charged ? chargeColor : emptyColor,
+                border: 1.5f, filled: true, borderColor: BorderColor);
+            DrawDiamond(center, new Vector2(13f), emptyColor,
+                border: 1f, filled: false, borderColor: BorderColor * (charged ? 1f : 0.45f));
+        }
+
+        // 与物品共用贴图引用，ManaElixir 更换贴图时资源槽会一起更新。
+        Texture2D icon = ModContent.Request<Texture2D>(
+            ModContent.GetInstance<ManaElixir>().Texture, AssetRequestMode.ImmediateLoad).Value;
+        float iconScale = Math.Min(28f / icon.Width, 30f / icon.Height);
+        /*
+        spriteBatch.Draw(icon, iconCenter, null, Color.White, 0f,
+            icon.Size() * 0.5f, iconScale, SpriteEffects.None, 0f);
+            */
+
+        string text = $"{elixirPlayer.TotalRestoreAmount}";//elixirRestoreText.Format(elixirPlayer.TotalRestoreAmount);
+        DynamicSpriteFont font = FontManager.HarmonyOS_Sans_SC.Value;
+        Vector2 textSize = font.MeasureString(text);
+        float scale = Math.Min(0.27f, 120f / Math.Max(1f, textSize.X));
+        Vector2 textPosition = iconCenter + new Vector2(42, -textSize.Y * scale * 0.5f+15);
+        spriteBatch.DrawString(font, text, textPosition + Vector2.One, Color.Black * 0.8f,
+            0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        spriteBatch.DrawString(font, text, textPosition, chargeColor,
+            0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
     }
 
     public void DrawExpBar(SpriteBatch spriteBatch)

@@ -1,0 +1,43 @@
+using System;
+using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
+
+// Runs the old XNA/GDI+ generator with a temporary session font; no registry/font-folder installation.
+internal static class Generate
+{
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int AddFontResourceEx(string path, uint flags, IntPtr reserved);
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool RemoveFontResourceEx(string path, uint flags, IntPtr reserved);
+
+    [STAThread]
+    private static int Main(string[] args)
+    {
+        string generatorDirectory = Path.GetDirectoryName(Path.GetFullPath(args[0]));
+        AppDomain.CurrentDomain.AssemblyResolve += delegate(object sender, ResolveEventArgs request)
+        {
+            string path = Path.Combine(generatorDirectory, new AssemblyName(request.Name).Name + ".dll");
+            return File.Exists(path) ? Assembly.LoadFrom(path) : null;
+        };
+        string fontPath = Path.GetFullPath(args[1]);
+        if (AddFontResourceEx(fontPath, 0, IntPtr.Zero) == 0)
+            throw new InvalidOperationException("Temporary font registration failed.");
+        AppDomain.CurrentDomain.ProcessExit += delegate { RemoveFontResourceEx(fontPath, 0, IntPtr.Zero); };
+        var assembly = Assembly.LoadFrom(Path.GetFullPath(args[0]));
+        // The legacy generator calls Environment.Exit; ProcessExit removes the temporary font.
+        try { assembly.EntryPoint.Invoke(null, null); }
+        catch (Exception ex)
+        {
+            while (ex != null)
+            {
+                Console.Error.WriteLine(ex.GetType().FullName);
+                Console.Error.WriteLine(ex.Message);
+                Console.Error.WriteLine(ex.StackTrace);
+                ex = ex.InnerException;
+            }
+            return 1;
+        }
+        return 0;
+    }
+}

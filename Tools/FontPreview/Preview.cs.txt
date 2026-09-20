@@ -1,0 +1,87 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using SDL2;
+
+internal sealed class FontPreview : Game
+{
+    private readonly string fontDir;
+    private readonly string output;
+    private DynamicSpriteFont serif;
+    private DynamicSpriteFont sans;
+    private bool done;
+
+    private FontPreview(string fontDir, string output)
+    {
+        this.fontDir = fontDir;
+        this.output = output;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    protected override void LoadContent()
+    {
+        Content.RootDirectory = fontDir;
+        // Exactly the same DynamicSpriteFont XNB and reader used by FontManager's asset request.
+        serif = Content.Load<DynamicSpriteFont>("NotoSerifSC");
+        sans = Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC");
+        const string required = "旅途的星图灰之魔女伊蕾娜魔女的咒术技能觉醒火焰射线风龙卷魔力消耗冷却时间0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz，。！？：；（）【】《》—…α◇◆★☆";
+        var missing = required.Where(c => !serif.IsCharacterSupported(c)).Distinct().ToArray();
+        if (missing.Length > 0) throw new Exception("Missing required characters: " + new string(missing));
+        if (serif.IsCharacterSupported('\u2727') || serif.IsCharacterSupported('\u2726'))
+            throw new Exception("Font incorrectly advertises unsupported star glyphs.");
+        Console.WriteLine($"Noto Serif SC loaded. LineSpacing={serif.LineSpacing}; test width={serif.MeasureString("旅途的星图").X}; default={serif.DefaultCharacter}");
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        Directory.CreateDirectory(output);
+        using var batch = new SpriteBatch(GraphicsDevice);
+        foreach (float scale in new[] { 1f, 1.5f }) Render(batch, scale);
+        Exit();
+    }
+
+    private void Render(SpriteBatch batch, float scale)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, (int)(1000 * scale), (int)(560 * scale));
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(33, 29, 46));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        void Text(DynamicSpriteFont font, string text, float x, float y, float size, Color color) =>
+            batch.DrawString(font, text, new Vector2(x, y), color, 0, Vector2.Zero, size / 48f, SpriteEffects.None, 0);
+        var ink = new Color(239, 226, 246);
+        var muted = new Color(185, 169, 203);
+        Text(sans, "Noto Serif SC · Regular 400 / FNA", 30, 12, 20, muted);
+        Text(serif, "旅途的星图 · 灰之魔女", 30, 53, 30, ink);
+        Text(serif, "魔女的咒术    伊蕾娜    技能觉醒", 30, 111, 24, ink);
+        Text(serif, "火焰射线    风龙卷    月光守护    星辰的回响", 30, 163, 18, ink);
+        Text(serif, "魔力消耗：120 MP    冷却时间：2.4 秒", 30, 205, 15, ink);
+        Text(serif, "旅途中收录的魔法，将随着你的选择而延伸。", 30, 241, 13, ink);
+        Text(serif, "The Witch's Constellation  0123456789  αβγ  ◇◆★☆", 30, 282, 22, new Color(230, 206, 165));
+        Text(sans, "对照：现有鸿蒙黑体", 30, 343, 18, muted);
+        Text(sans, "旅途的星图 · 灰之魔女", 30, 383, 30, ink);
+        Text(sans, "火焰射线    风龙卷    月光守护    星辰的回响", 30, 438, 18, ink);
+        Text(sans, "魔力消耗：120 MP    冷却时间：2.4 秒", 30, 480, 15, ink);
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        string file = Path.Combine(output, $"noto-serif-{scale:0.0}.png");
+        using var stream = File.Create(file);
+        target.SaveAsPng(stream, target.Width, target.Height);
+        Console.WriteLine(file);
+    }
+
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        using var game = new FontPreview(args[0], args[1]);
+        game.Run();
+    }
+}

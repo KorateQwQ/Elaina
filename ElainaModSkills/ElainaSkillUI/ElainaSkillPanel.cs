@@ -112,6 +112,7 @@ public class ElainaSkillPanel : SkillPanelUI
 
 public class ElainaSkillToolTip : SkillToolTip
 {
+    public override ReLogic.Graphics.DynamicSpriteFont NameFont => KL.Drawing.FontManager.NotoSerifSC.Value;
     private static Texture2D lineTexture;
     private static Texture2D crossTexture;
 

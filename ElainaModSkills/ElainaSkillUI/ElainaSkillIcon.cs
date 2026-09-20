@@ -1,3 +1,4 @@
+using System;
 using KL.SkillSystem;
 using KL.SkillSystem.AbstractClass;
 using SilkyUIFramework;
@@ -13,9 +14,10 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
         {
             //适应skillSlot的大小和圆角效果
             SetSize(Parent.Width.Pixels,Parent.Height.Pixels);
-            BorderRadius = Parent.BorderRadius;
+            BorderRadius = new Vector4(2);
+            Padding = 0;
             
-            ImageScale = new Vector2(Parent.Width.Pixels/Texture2D.Width()*1f, Parent.Height.Pixels/Texture2D.Height()*1f);
+            ImageScale = new Vector2(50f / Math.Max(Texture2D.Width(), Texture2D.Height()));
 
             SetLeft(alignment: 0.5f);
             SetTop(alignment: 0.5f);
@@ -49,10 +51,14 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
     
     protected override void Update(GameTime gameTime)
     {
+        // 技能栏刷新后，当前帧的 UI 缓存仍可能更新已移除的旧图标。
+        var parent = Parent;
+        if (parent == null) return;
+
         BackgroundColor = Color.Black*0.0f;
-        SetSize(Parent.Width.Pixels,Parent.Height.Pixels);
-        BorderRadius = Parent.BorderRadius;
-        ImageScale = new Vector2(Parent.Width.Pixels/Texture2D.Width(), Parent.Height.Pixels/Texture2D.Height())*0.98f;
+        SetSize(parent.Width.Pixels,parent.Height.Pixels);
+        BorderRadius = new Vector4(2);
+        ImageScale = new Vector2(50f / Math.Max(Texture2D.Width(), Texture2D.Height()));
         base.Update(gameTime);
     }
 
@@ -61,5 +67,9 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
         /*EndBeginDrawUI();
         EndBeginDrawUI();*/
         base.Draw(gameTime, spriteBatch);
+        // Skill callbacks use the legacy UI batch; restore the current SUI transform.
+        spriteBatch.End();
+        spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, SilkyUI.ScissorRasterizerState, null, SilkyUI.TransformMatrix);
     }
 }

@@ -136,8 +136,12 @@ Items: {
 
 	ManaElixir: {
 		DisplayName: 魔力合剂
-		Tooltip: 恢复 {0} 点独特魔力
-		NameSuffix: " [{0} MP]"
+		Tooltip:
+			'''
+			为伊蕾娜的魔力药水槽增加一格充能
+			药水槽最多储存五格充能
+			'''
+		NameSuffix: " [{0} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]]"
 	}
 
 	寒冰魔法书: {
@@ -390,6 +394,7 @@ Keybinds: {
 	BroomAcceleration.DisplayName: 扫帚加速
 	SwitchNextSkill.DisplayName: 切换下一个技能
 	SwitchLastSkill.DisplayName: 切换上一个技能
+	ConstellationPreview.DisplayName: 独立技能星图预览
 }
 
 Conditions: {
@@ -416,6 +421,8 @@ ResourceDisplaySets: {
 		DisplayName: 伊蕾娜资源条
 		lifeText: 生命 {0}/{1}
 		manaText: 魔力 {0}/{1}
+		magicPointText: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] {0}/{1}"
+		elixirRestoreText: 可恢复 {0} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]
 		shieldText: 护盾 {0}/{1}
 	}
 }

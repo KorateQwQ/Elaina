@@ -304,6 +304,7 @@ namespace 伊蕾娜
             父子关系同步,
             小动物状态,
             妮可名单,
+            ManaElixirCharges,
         }
 
 
@@ -313,6 +314,9 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
+                case MessageType.ManaElixirCharges:
+                    ElainaManaElixirPlayer.ReceiveCharges(reader, playernumber, whoAmI);
+                    break;
                 case MessageType.炼金状态:
 
                     bool 炼制中 = reader.ReadBoolean();

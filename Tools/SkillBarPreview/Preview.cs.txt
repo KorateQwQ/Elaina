@@ -1,0 +1,139 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+
+internal sealed class PreviewGame : Game
+{
+    private readonly string root;
+    private readonly string output;
+    private readonly Dictionary<string, Texture2D> textures = new();
+    private bool rendered;
+    private Effect cooldown;
+    private DynamicSpriteFont numberFont;
+
+    private PreviewGame(string root, string output)
+    {
+        this.root = root;
+        this.output = output;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    private Texture2D Texture(string relative)
+    {
+        if (textures.TryGetValue(relative, out var texture)) return texture;
+        using var stream = File.OpenRead(Path.Combine(root, relative + ".png"));
+        texture = Texture2D.FromStream(GraphicsDevice, stream);
+        // tML's rawimg conversion preserves RGB except at zero alpha.
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++) if (data[i].A == 0) data[i] = Color.Transparent;
+        texture.SetData(data);
+        textures.Add(relative, texture);
+        return texture;
+    }
+
+    protected override void LoadContent()
+    {
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
+        cooldown = Content.Load<Effect>("Effects/Content/CDEffect");
+        numberFont = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
+    }
+
+    protected override void Update(GameTime time)
+    {
+        if (rendered) return;
+        rendered = true;
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        using var batch = new SpriteBatch(GraphicsDevice);
+        foreach (float scale in new[] { 1f, 1.5f })
+        {
+            Render(batch, scale, .7f, 2, -1, "selected");
+            Render(batch, scale, 1.4f, 2, -1, "orbit");
+            Render(batch, scale, .16f, 0, 6, "empty-hover");
+            Render(batch, scale, .7f, 2, -1, "cooldown");
+            foreach (float seconds in new[] { 0f, .055f, .12f, .24f, .45f, .7f })
+                Render(batch, scale, seconds, 2, -1, $"arrival-{seconds:0.000}");
+        }
+        Render(batch, 1f, 0, -1, -1, "no-selection");
+        Render(batch, 1f, .7f, 7, -1, "last-slot");
+        for (int frame = 0; frame < 60; frame++)
+        {
+            float seconds = frame / 30f;
+            Render(batch, 1.5f, seconds % 1, seconds < 1 ? 1 : 2, -1, $"animation-{frame:000}");
+        }
+        Exit();
+    }
+
+    private void Render(SpriteBatch batch, float scale, float seconds, int selected, int hover, string state)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, (int)(710 * scale), (int)(150 * scale));
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(19, 20, 28));
+        var position = new Vector2(32, 20);
+        const string art = "ElainaModSkills/ElainaSkillUI/BattleBar/";
+        var atlas = Texture(art + "Ornaments");
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        SkillBarDrawing.DrawRack(batch, Texture(art + "Rack"), position);
+        for (int i = 0; i < 8; i++)
+        {
+            Vector2 center = position + new Vector2(57 + 78 * i, 55);
+            bool occupied = i == 1 || i == 2;
+            SkillBarDrawing.DrawSlotBackground(batch, atlas, center, selected == i, occupied, hover == i ? 1 : 0, seconds);
+            if (occupied)
+            {
+                var icon = Texture(i == 1 ? "ElainaModSkills/Skills/Fire/FireLaserSkill" : "ElainaModSkills/Skills/Fire/FireTornadoSkill");
+                if (state == "cooldown" && i == 2)
+                {
+                    batch.End();
+                    cooldown.Parameters["time"].SetValue(.4f);
+                    cooldown.Parameters["flashTime"].SetValue(0f);
+                    batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                        DepthStencilState.None, RasterizerState.CullNone, cooldown, Matrix.CreateScale(scale));
+                }
+                batch.Draw(icon, center, null, Color.White, 0, new Vector2(icon.Width, icon.Height) / 2,
+                    50f / Math.Max(icon.Width, icon.Height), SpriteEffects.None, 0);
+                if (state == "cooldown" && i == 2)
+                {
+                    batch.End();
+                    batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                        DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+                    batch.DrawString(numberFont, "2.4", center, Color.White, 0,
+                        numberFont.MeasureString("2.4") * new Vector2(.5f), 22f / 48f, SpriteEffects.None, 0);
+                }
+                if (state == "cooldown" && i == 1)
+                    batch.DrawString(numberFont, "3", center + new Vector2(18, 16), Color.White, 0,
+                        numberFont.MeasureString("3") * .5f, 14f / 48f, SpriteEffects.None, 0);
+            }
+            SkillBarDrawing.DrawSlotFrame(batch, atlas, center, selected == i, occupied, hover == i ? 1 : 0, seconds);
+        }
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        string file = Path.Combine(output, $"{state}-{scale:0.0}.png");
+        using var stream = File.Create(file);
+        target.SaveAsPng(stream, target.Width, target.Height);
+        Console.WriteLine(file);
+    }
+
+    protected override void UnloadContent()
+    {
+        foreach (var texture in textures.Values) texture.Dispose();
+        base.UnloadContent();
+    }
+
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        using var game = new PreviewGame(args[0], args[1]);
+        game.Run();
+    }
+}

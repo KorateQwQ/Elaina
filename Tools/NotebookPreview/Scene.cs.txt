@@ -1,0 +1,96 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview.PreviewDrawing;
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+internal sealed class NotebookScene
+{
+    private readonly PreviewState _state = new(new Terraria.ModLoader.Mod());
+    private readonly PreviewDrawing _draw = new(new Terraria.ModLoader.Mod());
+    // LIVE_CONSTANTS
+    private static readonly string[] SlotKeys = PreviewState.SlotLabels;
+    private const string ToggleKeyLabel = "V";
+    private float _zoom = .84f, _flash;
+    private Vector2 _pan;
+    private string _hoverNode, _modal, _tooltip;
+    private HashSet<string> _ancestors;
+    internal void RenderHeader(SpriteBatch batch, float scale)
+    {
+        _state.Select("vortex"); _state.Unlock(); _state.Select("ice"); _state.Unlock();
+        _state.Upgrade("sense"); _state.Upgrade("sense"); _state.Select("origin");
+        _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = Vector2.Zero;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        DrawChrome();
+        string[] filters = ["learned", "ready", "locked", "hidden"];
+        for (int i = 0; i < 4; i++) DrawFilter(i, filters[i], false);
+        DrawCloseButton(false);
+        batch.End();
+        _draw.DisposeGeneratedTextures();
+    }
+    internal void Render(SpriteBatch batch, int screenWidth, int screenHeight, float uiScale, string scenario)
+    {
+        void Learn(string id) { _state.Select(id); if (!_state.Unlock()) throw new Exception("Cannot learn " + id); }
+        if (scenario is "moon" or "off" or "off-moon" or "off-moon-bottom")
+        {
+            Learn("moon"); _state.Upgrade("moon");
+            _state.TargetSlot = 7; _state.Equip();
+            if (scenario.StartsWith("off")) { Learn("echo"); _state.Toggle("sense"); _state.Select(scenario == "off" ? "sense" : "moon"); }
+        }
+        else if (scenario == "formula") _state.Select("ember");
+        else if (scenario == "hidden") _state.Select("hiddenA");
+        else if (scenario == "locked") _state.Select("ritual");
+        else if (scenario == "ready") _state.Select("moon");
+        else if (scenario == "maxed") { _state.Select("sense"); _state.Upgrade("sense"); _state.Upgrade("sense"); }
+        else if (scenario == "empty")
+        {
+            foreach (string id in new[] {"moon","echo","vortex","fireflower","ice","water","ritual","hiddenA","hiddenB"}) Learn(id);
+            _state.SelectFilter("hidden");
+        }
+        else if (scenario == "help") _modal = "help";
+        else if (scenario == "hover") _hoverNode = "moon";
+        _ancestors = _state.Ancestors();
+        _pan = (new Vector2(MapWidth, MapHeight) - new Vector2(WorldWidth, WorldHeight) * _zoom) / 2;
+        float fit = Math.Min(1, Math.Min((screenWidth / uiScale - 32) / DesignWidth, (screenHeight / uiScale - 32) / DesignHeight));
+        float scale = fit * uiScale;
+        Vector2 origin = (new Vector2(screenWidth, screenHeight) - new Vector2(DesignWidth, DesignHeight) * scale) / 2;
+        _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = origin;
+        Terraria.Main.UIScale = 1; // Scale already includes the physical UI scale for this replay.
+        var detail = new PreviewDetail(_state, _draw);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        DrawChrome(); DrawDetails(); DrawActionButton(false);
+        string[] filters = ["learned","ready","locked","hidden"];
+        for(int i=0;i<4;i++) DrawFilter(i, filters[i], false);
+        for(int i=0;i<8;i++) DrawSlot(i, false);
+        DrawClearSlot(false);
+        CameraControl("minus", 591, false, true); CameraControl("plus", 663, false, true); CameraControl("center", 706, false, true);
+        _draw.Text("帮助",845,756,11,Muted,.5f); _draw.Text("重置手札",928,756,11,Muted,.5f); _draw.Text("返回",1008,756,11,Muted,.5f);
+        DrawCloseButton(false);
+        batch.End();
+        using var clip = new RasterizerState { ScissorTestEnable = true, CullMode = CullMode.None };
+        Rectangle Clip(float x,float y,float w,float h) => new((int)(origin.X+x*scale),(int)(origin.Y+y*scale),(int)(w*scale),(int)(h*scale));
+        batch.GraphicsDevice.ScissorRectangle = Clip(MapX,MapY,MapWidth,MapHeight);
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,clip);
+        DrawMap(); batch.End();
+        batch.GraphicsDevice.ScissorRectangle = Clip(PreviewDetail.Left,detail.Top,PreviewDetail.Width,detail.Height);
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,clip);
+        float offset = scenario.EndsWith("bottom") ? Math.Max(0,detail.ContentHeight-detail.Height) : 0;
+        float y = detail.Top-offset;
+        foreach(var row in detail.Rows)
+        {
+            _draw.Origin=origin+new Vector2(PreviewDetail.Left,y)*scale;
+            row.Paint(_draw,null); y+=row.Height;
+        }
+        batch.End(); _draw.Origin=origin;
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,RasterizerState.CullNone);
+        if(detail.ContentHeight>detail.Height && !_state.EmptyFilter)
+        {
+            float h=detail.Height*detail.Height/detail.ContentHeight;
+            float top=detail.Top+offset/detail.ContentHeight*detail.Height;
+            _draw.Box(PreviewDetail.Left+PreviewDetail.Width+3,top,3,h,Muted*.5f);
+        }
+        DrawModal(); batch.End();
+        Console.WriteLine($"{scenario}: detail {detail.ContentHeight:0} / {detail.Height:0}, scale {scale:0.000}");
+        _draw.DisposeGeneratedTextures();
+    }

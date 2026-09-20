@@ -1,0 +1,104 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+
+internal sealed class NotebookGame : Game
+{
+    internal static string Repo;
+    internal static GraphicsDevice Device;
+    private static readonly Dictionary<string,Texture2D> Textures=[];
+    private bool done;
+    internal static bool HeadersOnly;
+    private NotebookGame(string repo)
+    {
+        Repo=repo;
+        new GraphicsDeviceManager(this) {PreferredBackBufferWidth=320,PreferredBackBufferHeight=180,
+            GraphicsProfile=GraphicsProfile.HiDef,SynchronizeWithVerticalRetrace=false};
+        IsFixedTimeStep=false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        Device=GraphicsDevice;
+        Content.RootDirectory=Path.GetFullPath(Path.Combine(Repo,"../KL/Fonts"));
+        KL.Drawing.FontManager.HarmonyOS_Sans_SC=new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
+        KL.Drawing.FontManager.NotoSerifSC=new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
+        KL.Drawing.FontManager.Gelasio=new(Content.Load<DynamicSpriteFont>("Gelasio"));
+        var state=new PreviewState(new Terraria.ModLoader.Mod());
+        string sample=string.Concat(state.Skills.Select(s=>s.name+s.desc+s.hint))+"魔女手札星尘已习得待研习待启封未显现术式心得等级满级进修关联依赖前置尚未习得需开启关闭启用未生效装配清空此槽当前目标飞弹伤害引爆回复魔力上限消耗冷却还缺0123456789Lv.MP%−→秒";
+        foreach(var font in new[]{KL.Drawing.FontManager.HarmonyOS_Sans_SC.Value,KL.Drawing.FontManager.NotoSerifSC.Value})
+            foreach(char c in sample.Distinct())if(!font.IsCharacterSupported(c))throw new Exception("Missing glyph: "+c);
+        var pixel=new Texture2D(Device,1,1);pixel.SetData(new[]{Color.White});
+        Terraria.GameContent.TextureAssets.MagicPixel=new(pixel);
+        Console.WriteLine("PASS: notebook font coverage");
+    }
+    protected override void Update(GameTime time)
+    {
+        if(done)return;done=true;
+        string output=Path.Combine(Repo,".vissandbox/notebook-preview/output");Directory.CreateDirectory(output);
+        using var batch=new SpriteBatch(Device);
+        if (HeadersOnly)
+        {
+            foreach (float scale in new[] { 1f, 1.36f, 2f })
+            {
+                using var target = new RenderTarget2D(Device, (int)(1100 * scale), (int)(146 * scale));
+                Device.SetRenderTarget(target); Device.Clear(new Color(20,21,28));
+                new NotebookScene().RenderHeader(batch, scale);
+                Device.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(output, $"header-{scale:0.00}.png"));
+                target.SaveAsPng(stream, target.Width, target.Height);
+            }
+            Console.WriteLine(output); Exit(); return;
+        }
+        foreach(var (width,height,scale) in new[]{(1600,1000,1f),(1280,720,1f),(1600,1000,1.25f)})
+        foreach(string scene in new[]{"initial","formula","ready","moon","off","off-moon","off-moon-bottom","hidden","locked","maxed","empty","help"})
+        {
+            using var target=new RenderTarget2D(Device,width,height);
+            Device.SetRenderTarget(target);Device.Clear(new Color(20,21,28));
+            new NotebookScene().Render(batch,width,height,scale,scene);
+            Device.SetRenderTarget(null);
+            string file=Path.Combine(output,$"{scene}-{width}x{height}-{scale:0.00}.png");
+            using var stream=File.Create(file);target.SaveAsPng(stream,width,height);
+        }
+        Console.WriteLine(output);Exit();
+    }
+    internal static Texture2D Texture(string asset)
+    {
+        if(Textures.TryGetValue(asset,out var texture))return texture;
+        using var stream=File.OpenRead(Path.Combine(Repo,asset[(asset.IndexOf('/')+1)..]+".png"));
+        texture=Texture2D.FromStream(Device,stream);
+        var pixels=new Color[texture.Width*texture.Height];texture.GetData(pixels);
+        for(int i=0;i<pixels.Length;i++)if(pixels[i].A==0)pixels[i]=Color.Transparent;
+        texture.SetData(pixels);Textures.Add(asset,texture);return texture;
+    }
+    protected override void UnloadContent()
+    {
+        foreach(var texture in Textures.Values)texture.Dispose();
+        Terraria.GameContent.TextureAssets.MagicPixel.Value.Dispose();base.UnloadContent();
+    }
+    [STAThread]static void Main(string[] args)
+    {
+        Repo=args[0];HeadersOnly=args.Contains("--headers");if(!HeadersOnly)NotebookChecks.Run();
+        using var game=new NotebookGame(args[0]);game.Run();
+    }
+}
+internal sealed record ValueRef<T>(T Value);
+namespace Terraria.ModLoader
+{
+    internal class Mod { public byte[] GetFileBytes(string path)=>File.ReadAllBytes(Path.Combine(NotebookGame.Repo,path)); }
+    internal static class ModContent
+    {
+        public static ValueRef<T> Request<T>(string path, ReLogic.Content.AssetRequestMode mode)=>new((T)(object)NotebookGame.Texture(path));
+    }
+}
+namespace Terraria { internal static class Main { public static float UIScale=1; } }
+namespace Terraria.GameContent { internal static class TextureAssets { internal static ValueRef<Texture2D> MagicPixel; } }
+namespace KL.Drawing
+{
+    internal static class FontManager { internal static ValueRef<DynamicSpriteFont> HarmonyOS_Sans_SC,NotoSerifSC,Gelasio; }
+}
