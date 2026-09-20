@@ -1,0 +1,97 @@
+using SDL2;
+using ReLogic.Content;
+internal sealed class PanelGame : Game
+{
+    internal static string Repo;
+    private static string VanillaContent;
+    private static GraphicsDevice Device;
+    private static readonly Dictionary<string, Texture2D> Textures = [];
+    private bool _done;
+    private static bool IconsOnly;
+    private static bool HeadersOnly;
+    private static bool RequirementsOnly;
+    private static bool ToggleOnly;
+    private static bool PolishOnly;
+    private static bool PrimaryOnly;
+    private PanelGame()
+    {
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        SDL.SDL_HideWindow(Window.Handle);
+        IsFixedTimeStep = false;
+    }
+    protected override void LoadContent()
+    {
+        Device = GraphicsDevice;
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(Repo, "../KL/Fonts"));
+        KL.Drawing.FontManager.HarmonyOS_Sans_SC = new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
+        KL.Drawing.FontManager.NotoSerifSC = new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
+        KL.Drawing.FontManager.Gelasio = new(Content.Load<DynamicSpriteFont>("Gelasio"));
+        Content.RootDirectory = VanillaContent;
+        Terraria.GameContent.FontAssets.MouseText = new(Content.Load<DynamicSpriteFont>("Fonts/Mouse_Text"));
+        var pixel = new Texture2D(Device, 1, 1); pixel.SetData(new[] { Color.White });
+        Terraria.GameContent.TextureAssets.MagicPixel = new(pixel);
+    }
+    protected override void Update(GameTime time)
+    {
+        if (_done) return; _done = true;
+        string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output"); Directory.CreateDirectory(output);
+        using var batch = new SpriteBatch(Device);
+        if (ToggleOnly) { TogglePreview.Run(Device, batch, output); Exit(); return; }
+        if (HeadersOnly)
+        {
+            foreach (float scale in new[] { .86f, 1f, 1.25f })
+            foreach (int points in new[] { 0, 9999 })
+            {
+                using var target = new RenderTarget2D(Device, (int)Math.Ceiling(1100 * scale), (int)Math.Ceiling(146 * scale));
+                Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
+                new PanelScene().RenderHeader(batch, scale, points);
+                Device.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(output, $"study-header-{points}-{scale:0.00}.png"));
+                target.SaveAsPng(stream, target.Width, target.Height);
+            }
+            Console.WriteLine(output); Exit(); return;
+        }
+        IconChecks.Run(batch);
+        if (IconsOnly) { Exit(); return; }
+        if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
+        if (PolishOnly) PolishPreview.Run(Device, batch, output);
+        string[] scenes = RequirementsOnly || PolishOnly ? ["requirements-learn", "requirements-upgrade", "requirements-ready", "requirements-tooltip", "requirements-long"]
+            : ["new", "passive", "active", "equipped", "missing", "off", "empty", "bottom", "editor", "editor-moved", "maxed", "growth", "growth-poor", "growth-long"];
+        foreach (var (w, h, scale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
+        foreach (string scene in scenes)
+        {
+            using var target = new RenderTarget2D(Device, w, h);
+            Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
+            new PanelScene().Render(batch, w, h, scale, scene);
+            Device.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(output, $"{scene}-{w}x{h}-{scale:0.00}.png")); target.SaveAsPng(stream, w, h);
+        }
+        Console.WriteLine(output); Exit();
+    }
+    internal static Texture2D Texture(string asset)
+    {
+        if (Textures.TryGetValue(asset, out var result)) return result;
+        using var stream = File.OpenRead(Path.Combine(Repo, asset[(asset.IndexOf('/') + 1)..] + ".png"));
+        result = Texture2D.FromStream(Device, stream);
+        var pixels = new Color[result.Width * result.Height]; result.GetData(pixels);
+        for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+        result.SetData(pixels); Textures.Add(asset, result); return result;
+    }
+    protected override void UnloadContent()
+    {
+        foreach (var texture in Textures.Values) texture.Dispose();
+        Terraria.GameContent.TextureAssets.MagicPixel.Value.Dispose();
+        base.UnloadContent();
+    }
+    [STAThread] private static void Main(string[] args)
+    {
+        Repo = args[0]; VanillaContent = args[1]; IconsOnly = args.Contains("--icons-only");
+        HeadersOnly = args.Contains("--headers-only");
+        RequirementsOnly = args.Contains("--requirements-only");
+        ToggleOnly = args.Contains("--toggle-only");
+        PolishOnly = args.Contains("--polish-only");
+        PrimaryOnly = args.Contains("--primary-only");
+        Fixtures.Text(); if (!HeadersOnly) PanelChecks.Run();
+        using var game = new PanelGame(); game.Run();
+    }
+}

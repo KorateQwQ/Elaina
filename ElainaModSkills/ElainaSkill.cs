@@ -15,7 +15,7 @@ using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills;
 
-public abstract class ElainaSkill : ModSkill
+public abstract partial class ElainaSkill : ModSkill
 {
     protected Vector2 WandCenter =>Main.LocalPlayer.MountedCenter+ new Vector2(1, 0).RotatedBy(Main.LocalPlayer.itemRotation)*45f;
 
@@ -36,20 +36,6 @@ public abstract class ElainaSkill : ModSkill
     /// </summary>
     public bool SelectedInSkillBar = false;
     
-    /// <summary>
-    /// 主动技能，被动技能，以及派生技能
-    /// </summary>
-    public enum SkillInfoType
-    {
-        Active,
-        Passive,
-        /// <summary>
-        /// 派生技能，需要特定条件才可以释放
-        /// </summary>
-        Derived
-    }
-    public SkillInfoType InfoType = SkillInfoType.Active;
-
     /// <summary>
     /// 释放技能消耗的魔力点数。
     /// </summary>
@@ -72,7 +58,8 @@ public abstract class ElainaSkill : ModSkill
         return GetSkillDamage(1f);
     }
 
-    public override SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.None;// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
+    public override SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.
+        ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
 
     public override bool CanDragInSkillPanel()
     {
@@ -129,13 +116,7 @@ public abstract class ElainaSkill : ModSkill
     {
         base.TryGetToolTip(ref name, ref level, ref desc);
         name = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillName.{GetType().Name}").Value;
-        string type = InfoType switch
-        {
-            SkillInfoType.Active => Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Active").Value,
-            SkillInfoType.Passive => Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Passive").Value,
-            SkillInfoType.Derived => Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Derived").Value,
-            _ => "未知技能"
-        };
+        string type = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Active").Value;
         if(IsPassiveSkill) type = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Passive").Value;
         
         string maxCD = MaxCD <0 ? "--" : $"{MaxCD}s";

@@ -10,11 +10,11 @@ using Terraria.GameContent;
 using Terraria;
 using Terraria.ModLoader;
 
-namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 // Coordinates here are design pixels. The same scale/offset is used for SUI hit regions.
 // Original and uncolored artwork are ModContent-owned; no runtime texture copies are created.
-internal sealed class PreviewDrawing
+internal sealed class ConstellationDrawing
 {
     internal const string Root = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/";
     internal static readonly Color Ink = new(238, 233, 245);
@@ -22,8 +22,17 @@ internal sealed class PreviewDrawing
     internal static readonly Color Lavender = new(202, 178, 237);
     internal static readonly Color Gold = new(230, 206, 165);
     internal static readonly Color LineColor = new(76, 62, 88);
+    internal static readonly Color DetailText = new(201, 187, 211); // .description
+    internal static readonly Color DetailLabel = new(159, 143, 174); // .stat > span
+    internal static readonly Color DetailValue = new(230, 215, 239); // .stat strong
+    internal static readonly Color GrowthLabel = new(188, 168, 207);
+    internal static readonly Color GrowthNext = new(180, 211, 198);
+    internal static readonly Color DetailRule = new Color(183, 152, 204) * (37 / 255f);
     private readonly Dictionary<string, Texture2D> _textures = [];
     private readonly SkillIconVariants _skillIcons = new();
+    private readonly Dictionary<string, ConstellationToggleAnimation> _toggles = [];
+    private readonly Dictionary<string, ConstellationToggleAnimation> _buttons = [];
+    private ConstellationTween _filterMarker;
     private static DynamicSpriteFont GetFont(bool serif) => serif
         ? FontManager.NotoSerifSC.Value : FontManager.HarmonyOS_Sans_SC.Value;
     private readonly Dictionary<string, int[]> _icons;
@@ -39,7 +48,7 @@ internal sealed class PreviewDrawing
     internal Vector2 Origin;
     internal float Scale = 1;
 
-    internal PreviewDrawing(Mod mod)
+    internal ConstellationDrawing(Mod mod)
     {
         const string path = "ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/";
         _icons = JsonSerializer.Deserialize<Dictionary<string, int[]>>(mod.GetFileBytes(path + "Icons.json"));
@@ -56,7 +65,8 @@ internal sealed class PreviewDrawing
     }
 
     internal Texture2D Texture(string name)
-        => LoadTexture(Root + name);
+        => LoadTexture(name is "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
+            ? "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/" + name : Root + name);
 
     private Texture2D LoadTexture(string path)
     {
@@ -78,13 +88,95 @@ internal sealed class PreviewDrawing
         => Batch.Draw(TextureAssets.MagicPixel.Value, At(x, y), new Rectangle(0, 0, 1, 1), color,
             0, Vector2.Zero, new Vector2(w, h) * Scale, SpriteEffects.None, 0);
 
+    internal void AdvanceToggleAnimations(float seconds)
+    {
+        foreach (var animation in _toggles.Values) animation.Advance(seconds);
+        foreach (var animation in _buttons.Values) animation.Advance(seconds);
+        _filterMarker?.Advance(seconds);
+    }
+
+    internal void ClearToggleAnimations() { _toggles.Clear(); _buttons.Clear(); _filterMarker = null; }
+
+    internal void FilterMarker(string filter)
+    {
+        int index = filter switch { "ready" => 1, "locked" => 2, "hidden" => 3, _ => 0 };
+        _filterMarker ??= new ConstellationTween(index, .18f);
+        _filterMarker.SetTarget(index);
+        ActiveFilterMarker(new Vector2(91 + _filterMarker.Value * 145, 139));
+    }
+
+    internal void UpgradeButton(string id, bool enabled, bool hover, bool pressed)
+    {
+        if (!_buttons.TryGetValue(id, out var motion)) _buttons[id] = motion = new ConstellationToggleAnimation(false);
+        motion.SetTarget(enabled && pressed, enabled && hover);
+        float highlight = motion.Hover, push = motion.Position;
+        Color fill = new Color(190, 162, 208) * ((enabled ? .115f + highlight * .075f : .035f) * (1 - push * .28f));
+        Color border = Color.Lerp(new Color(185, 156, 198), new Color(217, 187, 232), highlight)
+            * (enabled ? .33f + highlight * .15f : .16f);
+        Image("UpgradeFill", 0, 0, 276, 35, fill);
+        Image("UpgradeOutline", 0, 0, 276, 35, border);
+    }
+
+    internal void PrimaryActionButton(float x, float y, string label, string suffix, bool studyCost,
+        bool enabled, bool hover, bool pressed, Color textColor)
+    {
+        const string key = "primary-action";
+        if (!_buttons.TryGetValue(key, out var motion)) _buttons[key] = motion = new ConstellationToggleAnimation(false);
+        motion.SetTarget(enabled && pressed, enabled && hover);
+        float highlight = motion.Hover, push = motion.Position;
+        Color fill = Color.Lerp(new Color(126, 92, 154), new Color(161, 121, 187), highlight)
+            * ((enabled ? .49f : .115f) * (1 - push * .25f));
+        Color edge = Color.Lerp(new Color(198, 163, 218), new Color(232, 201, 245), highlight)
+            * (enabled ? .57f : .22f);
+        Image("PrimaryActionFill", x, y, 276, 38, fill);
+        Image("PrimaryActionTrim", x, y, 276, 38, edge);
+        if (string.IsNullOrEmpty(suffix))
+        {
+            FittedText(label, x + 138, y + 11, 236, 14, textColor, .5f, serif: true, spacing: 2);
+            return;
+        }
+        float labelWidth = Measure(label, 14, 2, true), suffixWidth = LatinWidth(suffix, 14);
+        float groupWidth = labelWidth + 20 + suffixWidth + (studyCost ? 23 : 0);
+        float start = x + (276 - groupWidth) / 2;
+        Text(label, start, y + 11, 14, textColor, serif: true, spacing: 2);
+        float tailX = start + labelWidth + 20;
+        if (studyCost)
+        {
+            Image("StudyBook", tailX, y + 10, 18, 18, Gold * (enabled ? 1 : .6f));
+            tailX += 23;
+        }
+        LatinText(suffix, tailX, y + 11, 14, studyCost ? Gold * (enabled ? 1 : .6f) : textColor);
+    }
+
+    internal void Toggle(string id, float x, float y, bool on, bool enabled, bool hover)
+    {
+        if (!_toggles.TryGetValue(id, out var animation))
+            _toggles[id] = animation = new ConstellationToggleAnimation(on);
+        animation.SetTarget(on, enabled && hover);
+        float value = animation.Position, highlight = animation.Hover, alpha = enabled ? 1 : .4f;
+        Color track = Color.Lerp(new Color(31, 27, 40), new Color(164, 130, 188) * (66 / 255f), value);
+        Color border = Color.Lerp(new Color(142, 120, 166) * (107 / 255f), new Color(203, 177, 222) * (156 / 255f), value);
+        Color thumb = Color.Lerp(new Color(153, 135, 167), new Color(225, 206, 242), value);
+        Image("ToggleTrack", x, y, 37, 21, Color.Lerp(track, new Color(103, 78, 128) * .6f, highlight * .22f) * alpha);
+        Image("ToggleOutline", x, y, 37, 21, Color.Lerp(border, Lavender, highlight * .35f) * alpha);
+        Image("ToggleThumb", x + 3 + value * 16, y + 3, 15, 15, Color.Lerp(thumb, Ink, highlight * .2f) * alpha);
+    }
+
+    internal void Gradient(float x, float y, float width, float height, Color left, Color right)
+    {
+        // A small number of design-pixel strips; no generated textures or render targets.
+        int count = Math.Max(1, (int)MathF.Ceiling(width));
+        for (int i = 0; i < count; i++)
+            Box(x + i * width / count, y, width / count, height, Color.Lerp(left, right, (i + .5f) / count));
+    }
+
     internal void ActiveFilterMarker(Vector2 center)
     {
         // HTML active filter: a fading rule and a violet shadow behind the diamond.
         // Glow.png already contains premultiplied RGB for tML's rawimg loader.
-        Image("Glow", center.X - 32, center.Y - 4, 64, 8, new Color(192, 154, 220) * .14f);
+        Image("Glow", center.X - 58, center.Y - 4, 116, 8, new Color(192, 154, 220) * .12f);
         Image("Glow", center.X - 16, center.Y - 14, 32, 28, new Color(207, 157, 250) * .34f);
-        const int width = 58;
+        const int width = 112;
         for (int i = 0; i < width; i++)
         {
             float opacity = 1 - Math.Abs((i + .5f) / width * 2 - 1);
@@ -203,7 +295,7 @@ internal sealed class PreviewDrawing
             color, 0, new Vector2(r[2], r[3]) / 2, size * Scale / r[2], SpriteEffects.None, 0);
     }
 
-    internal void SkillIcon(PreviewSkill skill, Vector2 center, float size, Color color, bool hidden = false, bool uncolored = false)
+    internal void SkillIcon(ConstellationNode skill, Vector2 center, float size, Color color, bool hidden = false, bool uncolored = false)
     {
         if (hidden)
         {
@@ -227,8 +319,7 @@ internal sealed class PreviewDrawing
             CrossStar(center + new Vector2(size * .3f, -size * .3f), new Vector2(size * .35f), color, .2f);
             return;
         }
-        string path = "伊蕾娜/ElainaModSkills/Icon/" + skill.icon;
-        var icon = _skillIcons.Resolve(LoadTexture(path), path + "_Gray", uncolored);
+        var icon = _skillIcons.Resolve(skill.Skill.SkillIcon.Value, skill.ModSkill.ConstellationUncoloredIconPath, uncolored);
         var texture = icon.Texture;
         if (uncolored && !icon.Uncolored) color *= .65f;
         float factor = size / Math.Max(texture.Width, texture.Height);
@@ -269,6 +360,26 @@ internal sealed class PreviewDrawing
         Line(new Vector2(x + width, y), new Vector2(x + width, y + height), color);
         Line(new Vector2(x + width, y + height), new Vector2(x, y + height), color);
         Line(new Vector2(x, y + height), new Vector2(x, y), color);
+    }
+
+    internal void Tooltip(string text, Vector2 pointer, Vector2 bounds, Rectangle? anchor = null)
+    {
+        float maxWidth = Math.Min(340, bounds.X - 44);
+        var lines = WrapParagraph(ConstellationRequirements.Localize(text), maxWidth, 11);
+        int capacity = Math.Max(1, (int)((bounds.Y - 44) / 18));
+        if (lines.Length > capacity)
+        {
+            Array.Resize(ref lines, capacity);
+            lines[^1] = "…其余需求见详情";
+        }
+        float width = 20;
+        foreach (string line in lines) width = Math.Max(width, Measure(line, 11) + 20);
+        width = Math.Min(width, maxWidth + 20);
+        float height = lines.Length * 18 + 14;
+        var p = ConstellationTooltipPlacement.Place(new Vector2(width, height), pointer, bounds, anchor);
+        Box(p.X, p.Y, width, height, new Color(26, 22, 35));
+        Frame(p.X, p.Y, width, height, LineColor);
+        for (int i = 0; i < lines.Length; i++) Text(lines[i], p.X + 10, p.Y + 7 + i * 18, 11, Ink);
     }
 
     // Offline KL DrawCrossStar output; all shapes and prefiltered sizes share one texture.

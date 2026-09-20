@@ -5,7 +5,7 @@ using Terraria.GameInput;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.Config;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
-using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using 伊蕾娜.ElainaModSkills.Skills.Fire;
 using 伊蕾娜.ElainaModSkills.Skills.Lightning;
 using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
@@ -106,11 +106,10 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     void HandleOpenCloseSkillPanel()
     {
-        // 复用技能面板快捷键（默认 V），当前打开独立星图预览。
+        // The legacy panel remains registered; the hotkey now opens the live constellation.
         if (KeyBind.OpenSkillPanel?.JustPressed == true && Main.myPlayer == Player.whoAmI)
         {
-            ElainaSkillPanel.Enabled = !ElainaSkillPanel.Enabled;
-            ConstellationPreviewUI.TogglePreview();
+            ConstellationSkillPanel.TogglePanel();
         }
     }
 
@@ -164,7 +163,7 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
     public override void OnSkillsUpdated()
     {
         ReSetCurrentSkillIndex();
-        ElainaSkillBar.UpdateSkillBar();
+        ElainaSkillBar?.UpdateSkillBar();
         base.OnSkillsUpdated();
     }
 

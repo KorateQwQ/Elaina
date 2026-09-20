@@ -1,0 +1,40 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+
+internal static class IconChecks
+{
+    internal static void Run(SpriteBatch batch)
+    {
+        var state = Fixtures.State();
+        var node = state.Find(nameof(AshenWitchSkill));
+        var original = node.Skill.SkillIcon.Value;
+        var variants = new SkillIconVariants();
+        string path = node.ModSkill.ConstellationUncoloredIconPath;
+        var authored = Terraria.ModLoader.ModContent.Request<Texture2D>(path, ReLogic.Content.AssetRequestMode.ImmediateLoad).Value;
+        var normal = variants.Resolve(original, path, false);
+        var disabled = variants.Resolve(original, path, true);
+        if (normal.Texture != original || normal.Uncolored || disabled.Texture != authored || !disabled.Uncolored)
+            throw new Exception("Normal/uncolored icon selection failed");
+        if (variants.Resolve(original, path, true).Texture != authored)
+            throw new Exception("Uncolored artwork is not reused");
+        int attempts = Terraria.ModLoader.ModContent.OptionalRequests;
+        var missing = variants.Resolve(original, path + "_Missing", true);
+        variants.Resolve(original, path + "_Missing", true);
+        if (missing.Texture != original || missing.Uncolored || Terraria.ModLoader.ModContent.OptionalRequests != attempts + 1)
+            throw new Exception("Missing optional artwork must fall back and cache the miss");
+        if (variants.Resolve(original, null, true).Texture != original)
+            throw new Exception("Null optional path must fall back");
+
+        var live = new ConstellationDrawing(new()) { Batch = batch };
+        var preview = new PreviewDrawing(new()) { Batch = batch };
+        var previewNode = new PreviewState(new()).Skills[0];
+        batch.Begin();
+        live.SkillIcon(node, new Vector2(40), 30, Color.White, uncolored: true);
+        live.SkillIcon(state.Find(nameof(MagicMissileSkill)), new Vector2(80, 40), 30, Color.White, uncolored: true);
+        preview.SkillIcon(previewNode, new Vector2(120, 40), 30, Color.White, uncolored: true);
+        batch.End();
+        if (original.IsDisposed || authored.IsDisposed) throw new Exception("Panel disposed a ModContent-owned asset");
+        Console.WriteLine("PASS: authored uncolored icon, normal icon, shared asset reuse, missing/null fallback, cached misses, live/preview FNA drawing");
+    }
+}

@@ -11,37 +11,41 @@ using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria;
 using Terraria.ModLoader;
-using 伊蕾娜.Config;
-using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview.PreviewDrawing;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
 
-namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationPreview;
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
-[RegisterUI("Vanilla: Radial Hotbars", "Elaina: Constellation Visual Preview", 1000)]
-public sealed partial class ConstellationPreviewUI : BaseBody
+[RegisterUI("Vanilla: Radial Hotbars", "Elaina: Constellation Skill Panel", 1000)]
+public sealed partial class ConstellationSkillPanel : BaseBody
 {
-    private PreviewState _state;
-    private PreviewDrawing _draw;
+    public override bool IsInteractable => !Main.gameMenu && Main.LocalPlayer.itemAnimation <= 0;
+    private ConstellationState _state;
+    private ConstellationDrawing _draw;
     private readonly List<(UIView View, Rectangle Area)> _regions = [];
+    private readonly List<(UIView View, Func<bool> Visible)> _conditionalButtons = [];
     private UIElementGroup _viewport;
-    private PaintView _modalView;
     private SUIScrollView _detailScroll;
-    private PreviewDetail _detail;
-    private readonly List<(PaintView View, PreviewDetailRow Row)> _detailRows = [];
+    private ConstellationDetail _detail;
+    private readonly List<(PaintView View, ConstellationDetailRow Row)> _detailRows = [];
     private bool _detailDirty = true, _resetDetailScroll = true;
     private float _scale = 1, _zoom = .84f, _clock, _flash;
     private Vector2 _origin, _pan, _dragStart, _panStart, _lastSize;
     private bool _dragging, _moved, _inputSuspended;
-    private string _pressedNode, _hoverNode, _modal, _toast, _tooltip;
+    private string _pressedNode, _hoverNode, _toast, _tooltip;
+    private string _tooltipKey;
+    private Rectangle? _tooltipAnchor;
+    private readonly ConstellationTooltipDelay _tooltipDelay = new();
     private float _toastLife, _lastBlankClick = -1;
+    private float _refreshTimer;
+    private int _detailStamp;
     private HashSet<string> _ancestors = [];
     private const float DesignWidth = 1100, DesignHeight = 800, ScreenMargin = 16;
     private const int MapX = 26, MapY = 208, MapWidth = 727, MapHeight = 473;
     private const int WorldWidth = 727, WorldHeight = 550;
-    private static readonly string[] SlotKeys = PreviewState.SlotLabels;
+    private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
     private const int SlotLeft = 74, SlotTop = 741, SlotSize = 42, SlotStride = 48, TargetLeft = 464;
-    private static string ToggleKeyLabel => KeyBind.OpenSkillPanel?.GetAssignedKeys().FirstOrDefault() ?? "技能面板快捷键";
 
-    public ConstellationPreviewUI() { Enabled = false; }
+    public ConstellationSkillPanel() { Enabled = false; }
 
     protected override void OnInitialize()
     {
@@ -55,9 +59,7 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         SetLeft(0, 0, .5f);
         SetTop(0, 0, .5f);
         var mod = ModContent.GetInstance<global::伊蕾娜.伊蕾娜>();
-        _state = new PreviewState(mod);
-        _draw = new PreviewDrawing(mod);
-        _ancestors = _state.Ancestors();
+        _draw = new ConstellationDrawing(mod);
         Recenter();
 
         _viewport = new UIElementGroup
@@ -72,17 +74,22 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         }.Join(_viewport);
         _viewport.LeftMouseDown += (_, e) =>
         {
-            if (_modal != null) return;
+            if (_state == null) return;
             _dragStart = Design(e.MousePosition);
             _panStart = _pan;
             _pressedNode = HitNode(_dragStart);
+            if (Editing && _state.Find(_pressedNode) is { } node)
+            {
+                _nodeDragStart = new Vector2(node.x, node.y);
+                Select(node.id);
+            }
             _dragging = true;
             _moved = false;
         };
         _viewport.LeftMouseUp += (_, e) => { if (_dragging) DragTo(Design(e.MousePosition)); _dragging = false; };
         _viewport.LeftMouseClick += (_, e) =>
         {
-            if (_modal != null || _moved) return;
+            if (_state == null || _moved) return;
             string hit = HitNode(Design(e.MousePosition));
             if (hit != null && hit == _pressedNode) Select(hit);
             else if (hit == null && _pressedNode == null)
@@ -93,7 +100,7 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         };
         _viewport.MouseWheel += (_, e) =>
         {
-            if (_modal != null) return;
+            if (_state == null) return;
             ChangeZoom(Math.Sign(e.ScrollDelta) * .1f, Design(e.MousePosition));
             e.LockScroll(_viewport);
         };
@@ -108,6 +115,7 @@ public sealed partial class ConstellationPreviewUI : BaseBody
             {
                 _state.SelectFilter(filter);
                 _ancestors = _state.Ancestors();
+                if (!_state.EmptyFilter) CenterOn(_state.Current);
                 InvalidateDetail(true);
             }, hover => DrawFilter(index, filter, hover));
         }
@@ -127,42 +135,47 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         }
         Button(new Rectangle(TargetLeft, 763, 60, 21), () =>
         {
-            if (_state.Slots[_state.TargetSlot] == null) return;
-            _state.Slots[_state.TargetSlot] = null;
+            if (Editing || !_state.ClearSlot()) return;
             Notify($"{SlotKeys[_state.TargetSlot]} 槽已清空");
         }, DrawClearSlot);
         Button(new Rectangle(1038, 26, 30, 32), Close, DrawCloseButton, "关闭星图");
-        Button(new Rectangle(820, 744, 50, 35), () => _modal = "help",
-            h => _draw.Text("帮助", 845, 756, 11, h ? Ink : Muted, .5f));
-        Button(new Rectangle(890, 744, 76, 35), () =>
-        {
-            _state.Reset(); _ancestors = _state.Ancestors(); InvalidateDetail(true);
-            Notify("手札已重置 · 星尘 18");
-        }, h => _draw.Text("重置手札", 928, 756, 11, h ? Ink : Muted, .5f));
         Button(new Rectangle(959, 744, 109, 35), Close,
             h => _draw.Text("返回", 1008, 756, 11, h ? Ink : Muted, .5f));
+        InitializeLayoutEditor();
 
-        _modalView = new PaintView((_, _) => DrawModal()) { Positioning = Positioning.Absolute, ZIndex = 50 }.Join(this);
-        _regions.Add((_modalView, new Rectangle(0, 0, (int)DesignWidth, (int)DesignHeight)));
-        _modalView.LeftMouseClick += (_, e) =>
-        {
-            Vector2 p = Design(e.MousePosition);
-            if (!new Rectangle(335, 135, 430, 530).Contains(p.ToPoint()) ||
-                new Rectangle(718, 149, 34, 34).Contains(p.ToPoint()) ||
-                new Rectangle(368, 583, 364, 42).Contains(p.ToPoint())) _modal = null;
-        };
     }
 
-    private void Button(Rectangle area, Action click, Action<bool> paint, string tooltip = null)
+    private void Button(Rectangle area, Action click, Action<bool> paint, string tooltip = null, Func<bool> visible = null)
     {
         var view = new PaintView((v, _) =>
         {
-            bool hover = _modal == null && v.IsMouseHovering;
+            if (_state == null) return;
+            bool hover = v.IsMouseHovering;
             paint(hover);
-            if (hover && tooltip != null) _tooltip = tooltip;
+            if (hover && tooltip != null) RequestTooltip(tooltip, area, "button:" + area);
         }) { Positioning = Positioning.Absolute }.Join(this);
-        view.LeftMouseClick += (_, _) => { if (_modal == null) click(); };
+        view.LeftMouseClick += (_, _) =>
+        {
+            if (_state?.IsCurrentPlayer != true || visible?.Invoke() == false) return;
+            click();
+            RefreshConditionalButtons();
+        };
         _regions.Add((view, area));
+        if (visible != null)
+        {
+            _conditionalButtons.Add((view, visible));
+            view.Invalid = !visible();
+        }
+    }
+
+    private void RefreshConditionalButtons()
+    {
+        foreach (var (view, visible) in _conditionalButtons) view.Invalid = !visible();
+    }
+
+    private void RequestTooltip(string text, Rectangle? anchor, string key)
+    {
+        _tooltip = text; _tooltipAnchor = anchor; _tooltipKey = key;
     }
 
     private void FitWindowToScreen(Size screenSize)
@@ -181,25 +194,32 @@ public sealed partial class ConstellationPreviewUI : BaseBody
     protected override void OnExitTree()
     {
         Close();
-        if (_state != null)
-        {
-            Array.Clear(_state.Slots);
-            _state.TargetSlot = 0;
-            _state.Reset();
-            _ancestors = _state.Ancestors();
-            InvalidateDetail(true);
-            Recenter();
-        }
+        _state = null;
+        _layoutEditor = null;
+        _ancestors.Clear();
+        InvalidateDetail(true);
         base.OnExitTree();
     }
 
     protected override void UpdateStatus(GameTime gameTime)
     {
+        if (_state == null || !_state.IsCurrentPlayer) { Close(); return; }
+        RefreshConditionalButtons();
         base.UpdateStatus(gameTime);
         float delta = Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, .1f);
+        _draw.AdvanceToggleAnimations(delta);
         _clock += delta;
         _flash = Math.Max(0, _flash - delta);
         _toastLife = Math.Max(0, _toastLife - delta);
+        _refreshTimer -= delta;
+        if (_refreshTimer <= 0)
+        {
+            _refreshTimer = .25f;
+            _state.Refresh();
+            _ancestors = _state.Ancestors();
+            int stamp = _state.DetailStamp();
+            if (_detailStamp != stamp) { _detailStamp = stamp; InvalidateDetail(false); }
+        }
         Vector2 size = new(Width.Pixels, Height.Pixels);
         if (size != _lastSize)
         {
@@ -217,14 +237,10 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         if (_detailDirty) RefreshDetail();
         if (Main.hasFocus && Main.keyState.IsKeyDown(Keys.Escape) && Main.oldKeyState.IsKeyUp(Keys.Escape))
         {
-            if (_modal != null) _modal = null;
+            if (Editing) CancelLayoutEdit();
             else Close();
         }
-        _modalView.Invalid = _modal == null;
-        foreach (var (view, _) in _regions)
-            if (view != _modalView) view.DisableMouseInteraction = _modal != null;
-        _detailScroll.DisableMouseInteraction = _modal != null;
-        bool suspended = !Main.hasFocus || _modal != null || !Enabled;
+        bool suspended = !Main.hasFocus || !Enabled || !IsInteractable;
         if (suspended && !_inputSuspended) StopDragging();
         _inputSuspended = suspended;
         if (_dragging)
@@ -232,7 +248,7 @@ public sealed partial class ConstellationPreviewUI : BaseBody
             DragTo(Design(Main.MouseScreen));
             if (!Main.mouseLeft) _dragging = false;
         }
-        _hoverNode = _modal == null && _viewport.IsMouseHovering ? HitNode(Design(Main.MouseScreen)) : null;
+        _hoverNode = _viewport.IsMouseHovering ? HitNode(Design(Main.MouseScreen)) : null;
     }
 
     private Vector2 Design(Vector2 mouse) => (mouse - Bounds.Position - _origin) / _scale;
@@ -241,15 +257,24 @@ public sealed partial class ConstellationPreviewUI : BaseBody
     {
         Vector2 delta = p - _dragStart;
         if (delta.LengthSquared() > 25) { _moved = true; _lastBlankClick = -1; }
-        if (_moved) { _pan = _panStart + delta; ClampPan(); }
+        if (!_moved) return;
+        if (Editing && _pressedNode != null)
+        {
+            _layoutEditor.Move(_pressedNode, _nodeDragStart, delta, _zoom,
+                Main.keyState.IsKeyDown(Keys.LeftShift) || Main.keyState.IsKeyDown(Keys.RightShift));
+        }
+        else { _pan = _panStart + delta; ClampPan(); }
     }
     private void ClampPan() => _pan = Vector2.Clamp(_pan,
-        new Vector2(150 - WorldWidth * _zoom, 140 - WorldHeight * _zoom), new Vector2(MapWidth - 150, MapHeight - 140));
+        new Vector2(150, 140) - (_state?.WorldSize ?? new Vector2(WorldWidth, WorldHeight)) * _zoom,
+        new Vector2(MapWidth - 150, MapHeight - 140));
     private string HitNode(Vector2 p)
     {
         if (!new Rectangle(MapX, MapY, MapWidth, MapHeight).Contains(p.ToPoint())) return null;
-        foreach (var s in _state.Skills.AsEnumerable().Reverse())
+        // The selected node is drawn last and must also win hit testing when nodes overlap.
+        foreach (var s in _state.Skills.Where(s => s.id != _state.Selected).Append(_state.Current).Reverse())
         {
+            if (s == null) continue;
             Vector2 distance = p - MapPoint(s.x, s.y);
             float half = 34 * _zoom;
             if (Math.Abs(distance.X) <= half && Math.Abs(distance.Y) <= half) return s.id;
@@ -276,11 +301,13 @@ public sealed partial class ConstellationPreviewUI : BaseBody
     private void Recenter()
     {
         _zoom = .84f;
-        _pan = (new Vector2(MapWidth, MapHeight) - new Vector2(WorldWidth, WorldHeight) * _zoom) / 2;
+        _pan = new Vector2((MapWidth - (_state?.WorldSize.X ?? WorldWidth) * _zoom) / 2, 30);
+        ClampPan();
         _dragging = false;
     }
-    private void CenterOn(PreviewSkill s)
+    private void CenterOn(ConstellationNode s)
     {
+        if (s == null) return;
         _pan = new Vector2(MapWidth / 2f, MapHeight / 2f) - new Vector2(s.x, s.y) * _zoom;
         ClampPan();
     }
@@ -290,11 +317,17 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         if (_detailScroll != null)
             _detailScroll.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_detailScroll.ScrollBar, Main.MouseScreen));
     }
-    private void Close() { Enabled = false; StopDragging(); _modal = null; _lastBlankClick = -1; }
+    private void Close()
+    {
+        _layoutEditor?.Cancel();
+        _draw?.ClearToggleAnimations();
+        _tooltipDelay.Reset();
+        Enabled = false; StopDragging(); _lastBlankClick = -1; _toastLife = 0;
+    }
     private void Notify(string text) { _toast = text; _toastLife = 3.5f; }
     private void PrimaryAction()
     {
-        if (_state.EmptyFilter) return;
+        if (Editing || _state.EmptyFilter) return;
         if (_state.Learned.Contains(_state.Selected))
         {
             if (_state.Equip()) Notify($"{_state.Current.name}已装配至 {SlotKeys[_state.TargetSlot]} 槽");
@@ -305,24 +338,28 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         InvalidateDetail(false);
         _flash = 1;
         int revealed = _state.Skills.Count(s => _state.Discovered(s) && !before.Contains(s.id));
-        Notify(_state.Current.name + "已习得" + (revealed > 0 ? $" · {revealed} 颗隐星显现了" : $" · 星尘 −{_state.Current.cost}"));
+        _ancestors = _state.Ancestors();
+        Notify(_state.Current.name + "已习得" + (revealed > 0 ? $" · {revealed} 颗隐星显现了" : ""));
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
+        if (_state == null) return;
         base.Draw(gameTime, spriteBatch);
         _draw.Batch = spriteBatch;
         _draw.Origin = Bounds.Position + _origin;
         _draw.Scale = _scale;
         _tooltip = null;
+        _tooltipAnchor = null;
+        _tooltipKey = null;
         DrawChrome();
         DrawDetails();
     }
 
     public override void DrawChildren(GameTime gameTime, SpriteBatch spriteBatch)
     {
+        if (_state == null) return;
         base.DrawChildren(gameTime, spriteBatch);
-        if (_modal != null) return;
         if (_toastLife > 0)
         {
             float alpha = Math.Min(1, _toastLife * 3);
@@ -331,21 +368,15 @@ public sealed partial class ConstellationPreviewUI : BaseBody
             _draw.Frame(550 - width / 2, 693, width, 38, Lavender * .5f * alpha);
             _draw.FittedText(_toast, 550, 705, width - 30, 12, Ink * alpha, .5f);
         }
-        if (_tooltip == null) return;
-        var p = Design(Main.MouseScreen) + new Vector2(12, 18);
-        float w = _draw.Measure(_tooltip, 11) + 20;
-        p = Vector2.Clamp(p, new Vector2(12), new Vector2(DesignWidth - w - 12, DesignHeight - 40));
-        _draw.Box(p.X, p.Y, w, 27, new Color(26, 22, 35));
-        _draw.Frame(p.X, p.Y, w, 27, LineColor);
-        _draw.Text(_tooltip, p.X + 10, p.Y + 7, 11, Ink);
+        if (!Main.hasFocus || Main.mouseLeft || _dragging) { _tooltipDelay.Reset(); return; }
+        if (!_tooltipDelay.Ready(_tooltipKey, _clock)) return;
+        _draw.Tooltip(_tooltip, Design(Main.MouseScreen), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
     }
 
     private void DrawChrome()
     {
         var d = _draw;
-        d.Image("Page", 0, 0, DesignWidth, DesignHeight);
-        d.Image("HeaderSurface", 0, 0, DesignWidth, 146);
-        d.Image("StarfieldBase", 26, 146, 727, 578);
+        d.Image("NotebookSurface", 0, 0, DesignWidth, DesignHeight);
         d.Frame(1, 1, 1098, 798, Lavender * .5f);
         d.Frame(10, 10, 1080, 780, Lavender * .13f);
         d.PageCorner(new Vector2(-3, -3), 0);
@@ -360,10 +391,13 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         d.Ring(new Vector2(61, 42), 38, 38, Lavender * .14f);
         d.Image("HeaderHat", 35, 16, 52, 52, Lavender);
         d.NotebookTitle(101, 21);
+        d.FilterMarker(_state.Filter);
         string dust = _state.Points.ToString("00");
         float dustLeft = 1013 - d.LatinWidth(dust, 25);
-        d.Icon("star", new Vector2(dustLeft - 58, 42), 27, Gold);
-        d.Text("星尘", dustLeft - 35, 36, 11, new Color(196, 183, 206), spacing: 1);
+        const string pointLabel = "研习点";
+        float labelLeft = dustLeft - 12 - d.Measure(pointLabel, 11, 1);
+        d.Image("StudyBook", labelLeft - 37, 28.5f, 27, 27, Gold);
+        d.Text(pointLabel, labelLeft, 36, 11, new Color(196, 183, 206), spacing: 1);
         d.LatinText(dust, dustLeft, 29, 25, new Color(239, 223, 190));
         for (int i = 0; i < _state.Skills.Length; i++)
             if (_state.Learned.Contains(_state.Skills[i].id))
@@ -374,7 +408,6 @@ public sealed partial class ConstellationPreviewUI : BaseBody
                 _state.Learned.Contains(_state.Skills[i].id));
         d.LatinText(_state.Learned.Count.ToString("00"), 1007, 104, 19, new Color(233, 215, 246));
         d.LatinText($"/ {_state.Skills.Length}", 1038, 109, 12, new Color(155, 138, 168));
-        d.Box(754, 146, 320, 578, new Color(25, 24, 37) * .4f);
         d.Line(new Vector2(26, 145), new Vector2(1074, 145), new Color(183, 149, 209) * (27 / 255f));
         d.Line(new Vector2(26, 725), new Vector2(1074, 725), LineColor);
         d.Line(new Vector2(753, 146), new Vector2(753, 724), Lavender * .25f);
@@ -389,8 +422,7 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         d.Corners(new Vector2(122, 702), 8, 2, Lavender * .4f);
         d.Text("心得", 137, 696, 11, Muted);
         DrawLoadoutCaption();
-        d.Line(new Vector2(880, 754), new Vector2(880, 767), LineColor);
-        d.Line(new Vector2(978, 754), new Vector2(978, 767), LineColor);
+        DrawLayoutHints();
         d.Frame(1030, 753, 31, 17, LineColor);
         d.Text("Esc", 1045, 756, 9, Muted, .5f);
     }
@@ -403,11 +435,10 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         Color color = filter == "ready" ? Gold : filter == "locked" ? Muted * .6f : Lavender;
         if (filter == "hidden") d.Ring(new Vector2(x + 4, 113), 4, 4, color, 1, true);
         else d.CrossStar(new Vector2(x + 4, 113), new Vector2(9), color, .5f, filter == "learned");
-        d.Text(PreviewState.StatusName(filter), x + 17, 104, 14,
+        d.Text(ConstellationState.StatusName(filter), x + 17, 104, 14,
             active || hover ? new Color(240, 222, 247) : new Color(171, 154, 185), spacing: 1);
         d.LatinText(_state.Skills.Count(s => _state.Status(s) == filter).ToString("00"), x + 73, 106, 12,
             active ? new Color(228, 200, 239) : new Color(158, 139, 171));
-        if (active) d.ActiveFilterMarker(new Vector2(x + 55, 139));
     }
 
     private void CameraControl(string icon, float x, bool hover, bool enabled)
@@ -472,35 +503,37 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         d.CrossStar(SkyPoint(743, 549), new Vector2(14 * sx, 14 * sy), new Color(209, 188, 241) * .22f, .28f);
         d.CrossStar(SkyPoint(422, 477), new Vector2(10 * sx, 10 * sy), new Color(209, 188, 241) * .22f, .2f);
         foreach (var skill in _state.Skills)
-        foreach (string parentId in skill.prereqs) DrawEdge(_state.Find(parentId), skill);
+        foreach (string parentId in skill.prereqs)
+            if (_state.Find(parentId) is { } parent) DrawEdge(parent, skill);
         foreach (var skill in _state.Skills.Where(s => s.id != _state.Selected)) DrawNode(skill);
-        DrawNode(_state.Current);
+        if (_state.Current != null) DrawNode(_state.Current);
     }
 
-    private void DrawEdge(PreviewSkill parent, PreviewSkill skill)
+    private void DrawEdge(ConstellationNode parent, ConstellationNode skill)
     {
         bool related = (skill.id == _state.Selected || _ancestors.Contains(skill.id)) && _ancestors.Contains(parent.id);
         string status = _state.Status(skill);
-        bool dim = status != _state.Filter && _state.Status(parent) != _state.Filter;
+        bool dim = !Editing && status != _state.Filter && _state.Status(parent) != _state.Filter;
         // Straight routes and the old ready/hidden dash pattern; leave a gap around
         // unmasked artwork, since the new nodes no longer have an opaque backing.
         Vector2 a = new(parent.x, parent.y), b = new(skill.x, skill.y), delta = b - a;
         float axis = Math.Max(Math.Abs(delta.X), Math.Abs(delta.Y));
+        if (axis < 77) return;
         a += delta / axis * 36;
         b -= delta / axis * (skill.id == _state.Selected ? 41 : 36);
         a = MapPoint(a.X, a.Y); b = MapPoint(b.X, b.Y);
         _draw.SkillLink(a, b, status == "ready" ? "available" : status, related, dim, _zoom);
     }
 
-    private void DrawNode(PreviewSkill s)
+    private void DrawNode(ConstellationNode s)
     {
         var d = _draw;
-        string status = _state.Status(s);
+        string status = Editing ? "ready" : _state.Status(s);
         bool hidden = status == "hidden", selected = s.id == _state.Selected, hover = s.id == _hoverNode;
         bool insight = !hidden && !s.Active, owned = _state.Learned.Contains(s.id);
-        bool off = owned && !_state.Availability(s.id).Ok;
+        bool off = !Editing && owned && !_state.Availability(s.id).Ok;
         var p = MapPoint(s.x, s.y);
-        float alpha = status == _state.Filter ? 1 : hover ? .8f : .18f;
+        float alpha = Editing || status == _state.Filter ? 1 : hover ? .8f : .18f;
         Color accent = (selected || status == "ready" ? Gold : hover ? Ink : Lavender) * alpha;
         if (selected || hover) d.Image("Glow", p.X - 50 * _zoom, p.Y - 50 * _zoom, 100 * _zoom, 100 * _zoom, Lavender * (.1f * alpha));
         if (hidden)
@@ -530,12 +563,12 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         if (owned)
         {
             var badge = p + new Vector2(0, 38 * _zoom);
-            d.Box(badge.X - 24 * _zoom, badge.Y, 48 * _zoom, 14 * _zoom, new Color(39, 32, 51) * (.9f * alpha));
-            d.Text("Lv.", badge.X - 18 * _zoom, badge.Y + 3 * _zoom, 8 * _zoom, Muted * alpha, serif: true);
-            d.Text(_state.Level(s.id).ToString(), badge.X + 7 * _zoom, badge.Y, 11 * _zoom,
-                (off ? new Color(173, 145, 152) : _state.Level(s.id) == _state.MaxLevel(s.id) ? Gold : Ink) * alpha, .5f, serif: true);
+            d.Box(badge.X - 30 * _zoom, badge.Y, 60 * _zoom, 14 * _zoom, new Color(39, 32, 51) * (.9f * alpha));
+            d.Text("Lv.", badge.X - 24 * _zoom, badge.Y + 3 * _zoom, 8 * _zoom, Muted * alpha, serif: true);
+            d.FittedText($"{_state.Level(s.id)} / {_state.MaxLevel(s.id)}", badge.X + 8 * _zoom, badge.Y, 34 * _zoom, 11 * _zoom,
+                (off ? new Color(173, 145, 152) : _state.Level(s.id) >= _state.MaxLevel(s.id) ? Gold : Ink) * alpha, .5f, serif: true);
         }
-        string name = _state.Name(s);
+        string name = Editing ? s.name : _state.Name(s);
         float textWidth = Math.Min(136 * _zoom, d.Measure(name, 12 * _zoom, .5f * _zoom, true) + 16 * _zoom);
         d.Image("Glow", p.X - textWidth / 2, p.Y + 53 * _zoom, textWidth, 22 * _zoom, new Color(39, 32, 51) * alpha);
         d.FittedText(name, p.X, p.Y + 56 * _zoom, 136 * _zoom, 12 * _zoom,
@@ -547,9 +580,14 @@ public sealed partial class ConstellationPreviewUI : BaseBody
             d.Frame(p.X + 23 * _zoom, p.Y - 44 * _zoom, 20 * _zoom, 15 * _zoom, Lavender * .5f * alpha);
             d.Text(SlotKeys[equipped], p.X + 33 * _zoom, p.Y - 42 * _zoom, 9 * _zoom, Lavender * alpha, .5f, serif: true);
         }
-        if (hover) _tooltip = hidden ? "未显现" : $"{s.name} · {(insight ? "心得" : "术式")} · {PreviewState.StatusName(status)}"
-            + (owned ? $" · Lv. {_state.Level(s.id)} / {_state.MaxLevel(s.id)}" : "")
+        if (hover)
+        {
+            string tooltip = hidden ? "未显现" : $"{s.name} · {(insight ? "心得" : "术式")} · {ConstellationState.StatusName(status)}"
+            + (owned ? $" · Lv. {_state.Level(s.id)}" + (_state.MaxLevel(s.id) is int max ? $" / {max}" : "") : "")
             + (off ? " · " + _state.Availability(s.id).Reason : "");
+            if (Editing) tooltip = $"{s.name} · 拖动移动 · ({s.x:0.##}, {s.y:0.##})";
+            RequestTooltip(tooltip, new Rectangle((int)(p.X - 34 * _zoom), (int)(p.Y - 34 * _zoom), (int)(68 * _zoom), (int)(68 * _zoom)), "node:" + s.id);
+        }
     }
 
     private void DrawDetails()
@@ -557,14 +595,14 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         var d = _draw; var s = _state.Current;
         if (_state.EmptyFilter)
         {
-            d.Text(PreviewState.StatusName(_state.Filter) + " · 暂无", 914, 422, 15, Muted, .5f, serif: true);
+            d.Text(ConstellationState.StatusName(_state.Filter) + " · 暂无", 914, 422, 15, Muted, .5f, serif: true);
             return;
         }
         bool hidden = !_state.Discovered(s), insight = !hidden && !s.Active;
-        d.Text(hidden ? "未显现" : insight ? "心得" : "术式", 776, 164, 12, Muted, serif: true, spacing: 2);
+        d.Text(hidden ? "未显现" : insight ? "心得" : "术式", 776, 164, 12, new Color(192, 170, 205), serif: true, spacing: 2);
         if (_state.Learned.Contains(s.id) && !_state.Availability(s.id).Ok)
             d.Text(s.toggleable && _state.Disabled.Contains(s.id) ? "已关闭" : "未生效", 1052, 165, 11, new Color(214, 177, 155), 1);
-        var center = new Vector2(808.5f, s.effect != null && !hidden ? 221 : 226);
+        var center = new Vector2(808.5f, _detail?.Compact == true ? 221 : 226);
         if (insight)
         {
             d.Corners(center, 71, 16, Lavender * .6f);
@@ -572,8 +610,8 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         }
         else
         {
-            d.Frame(center.X - 32.5f, center.Y - 32.5f, 65, 65, Lavender * .6f);
-            d.Frame(center.X - 28.5f, center.Y - 28.5f, 57, 57, Lavender * .25f);
+            d.Frame(center.X - 32.5f, center.Y - 32.5f, 65, 65, new Color(193, 163, 213) * (138 / 255f));
+            d.Frame(center.X - 28.5f, center.Y - 28.5f, 57, 57, new Color(193, 163, 213) * (59 / 255f));
         }
         d.SkillIcon(s, center, 50, hidden ? Lavender : Color.White, hidden);
         d.FittedText(_state.Name(s), 857, center.Y - 12, 195, 22, Ink, serif: true, spacing: 1);
@@ -583,24 +621,27 @@ public sealed partial class ConstellationPreviewUI : BaseBody
 
     private void DrawActionButton(bool hover)
     {
+        if (Editing)
+        {
+            _draw.Text("正在编辑布局", 914, 683, 13, Muted, .5f);
+            return;
+        }
         var d = _draw; var s = _state.Current;
-        bool owned = _state.Learned.Contains(s.id);
-        if (_state.EmptyFilter || owned && !s.Active) return;
+        bool owned = s != null && _state.Learned.Contains(s.id);
+        if (_state.EmptyFilter || s == null || owned && !s.Active) return;
         string status = _state.Status(s);
         bool enabled = _state.CanUnlock || _state.CanEquip;
-        bool equipped = owned && !_state.CanEquip;
-        d.Box(776, 670, 276, 38, enabled ? hover ? new Color(238, 219, 247) : new Color(216, 195, 231)
-            : equipped ? new Color(57, 40, 70) : new Color(46, 36, 55));
-        d.Frame(776, 670, 276, 38, enabled ? new Color(239, 220, 247) : Lavender * .35f);
-        d.Frame(780, 674, 268, 30, enabled ? new Color(115, 83, 131) * .45f : Lavender * .12f);
-        string label = owned ? equipped ? $"已装配 · {SlotKeys[_state.TargetSlot]}" : "装配"
-            : status == "hidden" ? "未显现" : status == "locked" ? "待启封" : _state.CanUnlock ? "研习" : "星尘不足";
-        Color color = enabled ? new Color(50, 36, 62) : equipped ? new Color(229, 203, 247) : Muted;
-        d.FittedText(label, enabled ? 888 : 914, 681, 245, 14, color, .5f, serif: true, spacing: 2);
-        if (!enabled) return;
-        d.Line(new Vector2(943, 680), new Vector2(943, 698), color * .35f);
-        d.Text(_state.CanEquip ? SlotKeys[_state.TargetSlot] : s.cost.ToString(), 978, 681, 15, color, .5f, serif: true);
-        if (_state.CanUnlock) d.CrossStar(new Vector2(958, 689), new Vector2(9), color, .2f);
+        bool equipped = owned && _state.Slots[_state.TargetSlot] == s.id;
+        var requirements = owned || status == "hidden" ? null : _state.Requirements(s.id, false);
+        if (hover && requirements != null) RequestTooltip(requirements.ActionTooltip("研习"), new Rectangle(776, 670, 276, 38), "learn:" + s.id);
+        string label = owned ? equipped ? "已装配" : _state.CanEquip ? "装配" : "暂不可装配"
+            : status == "hidden" ? "未显现" : status == "locked" ? "待启封" : _state.CanUnlock ? "研习" : requirements.BlockReason;
+        Color color = enabled ? new Color(244, 226, 250) : equipped ? new Color(203, 180, 217)
+            : status == "ready" ? new Color(236, 156, 157) : Muted;
+        bool studyCost = !owned && enabled && requirements?.PointCost > 0;
+        string suffix = owned && (enabled || equipped) ? SlotKeys[_state.TargetSlot]
+            : studyCost ? requirements.PointCost.ToString() : null;
+        d.PrimaryActionButton(776, 670, label, suffix, studyCost, enabled, hover, hover && Main.mouseLeft, color);
     }
 
     private void DrawSlot(int slot, bool hover)
@@ -628,14 +669,15 @@ public sealed partial class ConstellationPreviewUI : BaseBody
         else
         {
             bool effective = _state.Availability(id).Ok;
-            d.SkillIcon(_state.Find(id), center, 32, Color.White * (effective ? 1 : .3f), uncolored: !effective);
+            if (_state.Find(id) is { } node) d.SkillIcon(node, center, 32, Color.White * (effective ? 1 : .3f), uncolored: !effective);
+            else d.Icon("star", center, 24, Muted);
         }
         float labelWidth = d.SlotLabelWidth(SlotKeys[slot], 9);
         d.Box(x - 3, y - 6, labelWidth + 6, 10, new Color(39, 32, 47));
         d.SlotLabel(SlotKeys[slot], x, y - 6, 9, new Color(194, 169, 213));
         if (selected) d.CrossStar(new Vector2(center.X, y + SlotSize + 2), new Vector2(8.5f), gold, .5f);
-        if (hover) _tooltip = id == null ? $"{SlotKeys[slot]} · 未装配" : $"{SlotKeys[slot]} · {_state.Find(id).name} · Lv. {_state.Level(id)}"
-            + (_state.Availability(id).Ok ? "" : " · " + _state.Availability(id).Reason);
+        if (hover) RequestTooltip(id == null ? $"{SlotKeys[slot]} · 未装配" : $"{SlotKeys[slot]} · {_state.Find(id)?.name ?? "其他技能"} · Lv. {_state.Level(id)}"
+            + (_state.Availability(id).Ok ? "" : " · " + _state.Availability(id).Reason), new Rectangle((int)x, (int)y, SlotSize, SlotSize), "slot:" + slot);
     }
 
     private void DrawLoadoutCaption()
@@ -648,46 +690,57 @@ public sealed partial class ConstellationPreviewUI : BaseBody
     private void DrawClearSlot(bool hover)
     {
         Color color = new Color(143, 124, 158);
-        color = _state.Slots[_state.TargetSlot] == null ? color * .3f : hover ? Ink : color;
+        color = Editing || _state.Slots[_state.TargetSlot] == null ? color * .3f : hover ? Ink : color;
         _draw.Text("清空此槽", TargetLeft, 766, 10, color);
         _draw.Line(new Vector2(TargetLeft, 779), new Vector2(TargetLeft + _draw.Measure("清空此槽", 10), 779), color);
     }
 
-    private void DrawModal()
-    {
-        if (_modal == null) return;
-        var d = _draw;
-        d.Box(0, 0, DesignWidth, DesignHeight, new Color(16, 13, 25) * .88f);
-        d.Box(335, 135, 430, 530, new Color(44, 33, 56));
-        d.Frame(335, 135, 430, 530, Lavender * .7f);
-        d.Icon("close", new Vector2(735, 166), 16, Muted);
-        d.Text("手札", 368, 171, 23, Ink, spacing: 1, serif: true);
-        string[] titles = ["已习得 → 待研习 → 待启封 → 未显现", "术式 / 心得", "研习 / 进修", "关联", "操作"];
-        string[] descriptions = ["已掌握、可学习、前置未满足、尚未发现。", "术式可装配。心得习得后生效，部分可开关。",
-            "研习获得技能，进修提升等级，均消耗星尘。", "关闭心得会暂停依赖技能，保留等级与装配。",
-            $"{ToggleKeyLabel} 打开手札 · Esc 返回。星图内拖动平移、滚轮缩放。详情内滚轮翻阅。"];
-        float y = 222;
-        for (int i = 0; i < titles.Length; i++)
-        {
-            d.Text(titles[i], 368, y, 13, Ink);
-            y = d.Paragraph(descriptions[i], 368, y + 23, 364, 12, Muted, 21) + 12;
-        }
-        d.Text("独立预览 · 不修改角色成长或实际战斗", 550, 551, 11, Muted, .5f);
-        d.Box(368, 583, 364, 42, Lavender);
-        d.Text("返回", 550, 596, 14, new Color(50, 36, 62), .5f);
-    }
-
-    public static bool TogglePreview()
+    public static bool TogglePanel()
     {
         if (Main.dedServ || Main.gameMenu || SilkyUISystem.ServiceProvider == null) return false;
-        if (!SilkyUIRenderSystem.Instance.TryGetInstance<ConstellationPreviewUI>(out var body)) return false;
+        if (!SilkyUIRenderSystem.Instance.TryGetInstance<ConstellationSkillPanel>(out var body)) return false;
         if (body.Enabled) body.Close();
-        else body.Enabled = true;
+        else
+        {
+            if (body._state == null || !body._state.IsCurrentPlayer)
+            {
+                body._state = new ConstellationState(ElainaSkillModPlayer.SkillModPlayer);
+                body.LoadLayout();
+            }
+            body._state.Refresh();
+            body._ancestors = body._state.Ancestors();
+            body.InvalidateDetail(true);
+            body.Recenter();
+            body.Enabled = true;
+        }
         return true;
+    }
+
+    internal static void ResetForWorld()
+    {
+        if (Main.dedServ || SilkyUISystem.ServiceProvider == null) return;
+        if (!SilkyUIRenderSystem.Instance.TryGetInstance<ConstellationSkillPanel>(out var body)) return;
+        var state = body._state;
+        Main.QueueMainThreadAction(() =>
+        {
+            // OnWorldUnload also runs during background save/quit. Reset UI input
+            // on the main thread. Ignore an old world's
+            // pending reset if this body has already been rebound to another player.
+            if (!ReferenceEquals(body._state, state)) return;
+            body.Close();
+            body._state = null;
+            body._layoutEditor = null;
+            body.InvalidateDetail(true);
+        });
     }
 
     private sealed class PaintView(Action<PaintView, SpriteBatch> paint) : UIView
     {
         protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch) => paint(this, spriteBatch);
     }
+}
+
+public sealed class ConstellationPanelSystem : ModSystem
+{
+    public override void OnWorldUnload() => ConstellationSkillPanel.ResetForWorld();
 }

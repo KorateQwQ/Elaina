@@ -27,7 +27,6 @@ internal sealed class NotebookScene
         for (int i = 0; i < 4; i++) DrawFilter(i, filters[i], false);
         DrawCloseButton(false);
         batch.End();
-        _draw.DisposeGeneratedTextures();
     }
     internal void Render(SpriteBatch batch, int screenWidth, int screenHeight, float uiScale, string scenario)
     {
@@ -92,5 +91,4 @@ internal sealed class NotebookScene
         }
         DrawModal(); batch.End();
         Console.WriteLine($"{scenario}: detail {detail.ContentHeight:0} / {detail.Height:0}, scale {scale:0.000}");
-        _draw.DisposeGeneratedTextures();
     }

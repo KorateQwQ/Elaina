@@ -1,0 +1,39 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class PolishPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        string folder = Path.Combine(output, "polish-frames"); Directory.CreateDirectory(folder);
+        var draw = new ConstellationDrawing(new()) { Batch = batch, Scale = 1.25f };
+        var delay = new ConstellationTooltipDelay();
+        using var target = new RenderTarget2D(device, 1375, 625);
+        for (int frame = 0; frame < 90; frame++)
+        {
+            float time = frame / 60f;
+            string filter = time < .3f ? "learned" : time < .65f ? "ready" : time < 1 ? "locked" : "hidden";
+            bool hover = time >= .15f && time < 1.2f, pressed = time >= .75f && time < .88f;
+            draw.AdvanceToggleAnimations(1f / 60);
+            draw.Origin = Vector2.Zero;
+            device.SetRenderTarget(target); device.Clear(new Color(27, 25, 41));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            draw.Image("NotebookSurface", 0, 0, 1100, 800);
+            string[] filters = ["learned", "ready", "locked", "hidden"];
+            for (int i = 0; i < filters.Length; i++) draw.Text(ConstellationState.StatusName(filters[i]), 53 + i * 145, 104, 14,
+                filters[i] == filter ? ConstellationDrawing.Ink : ConstellationDrawing.Muted);
+            draw.FilterMarker(filter);
+            draw.Origin = new Vector2(776, 272) * draw.Scale;
+            draw.UpgradeButton("example", true, hover, pressed);
+            draw.Text("进修", 10, 10, 12, ConstellationDrawing.Ink, serif: true);
+            draw.Image("StudyBook", 229, 10, 15, 15, ConstellationDrawing.Gold);
+            draw.LatinText("20", 266, 11, 11, ConstellationDrawing.Gold, 1);
+            draw.Origin = Vector2.Zero;
+            if (delay.Ready(hover && !pressed ? "upgrade" : null, time))
+                draw.Tooltip("进修至 2 级\n需求已满足，点击即可", new Vector2(970, 287), new Vector2(1100, 500), new Rectangle(776, 272, 276, 35));
+            draw.Text($"{time:0.00}s", 40, 460, 12, ConstellationDrawing.Muted);
+            batch.End(); device.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(folder, $"polish-{frame:000}.png")); target.SaveAsPng(file, target.Width, target.Height);
+        }
+        Console.WriteLine("FNA polish animation: category glide, upgrade hover/press, delayed anchored tooltip.");
+    }
+}

@@ -41,6 +41,7 @@ for lib in ['FNA','ReLogic']:
     ET.SubElement(items, 'Reference', Include=str(args.tml/'Libraries'/lib/'1.0.0'/f'{lib}.dll'))
 for name in ['PreviewData.cs', 'PreviewDrawing.cs', 'PreviewDetail.cs']:
     ET.SubElement(items, 'Compile', Include=str(ui/name))
+ET.SubElement(items, 'Compile', Include=str(ui.parent/'ConstellationSkillPanel/SkillIconVariants.cs'))
 ET.SubElement(items, 'None', Include=str(args.tml/'Libraries/Native/Windows/*.dll'), Link='%(Filename)%(Extension)', CopyToOutputDirectory='PreserveNewest')
 ET.ElementTree(project).write(out/'Preview.csproj', encoding='utf-8')
 print(out/'Preview.csproj')

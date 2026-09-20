@@ -183,7 +183,7 @@ internal sealed class PreviewDetail
                         d.Corners(center, 34, 3, frame * .5f);
                     }
                     else { d.Box(area.X, area.Y, 36, 36, new Color(34, 29, 44)); d.Frame(area.X, area.Y, 36, 36, frame); }
-                    d.SkillIcon(skill, center, 30, Color.White * (met ? 1 : .42f), !revealed, met ? 0 : .5f);
+                    d.SkillIcon(skill, center, 30, Color.White * (met ? 1 : .42f), !revealed, !met);
                     d.CrossStar(new Vector2(area.Right - 1, area.Bottom - 1), new Vector2(6), met ? Ink : Muted, .5f, met);
                 }
             }, actions);

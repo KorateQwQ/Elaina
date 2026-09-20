@@ -94,9 +94,22 @@ namespace Terraria.ModLoader
     internal static class ModContent
     {
         public static ValueRef<T> Request<T>(string path, ReLogic.Content.AssetRequestMode mode)=>new((T)(object)NotebookGame.Texture(path));
+        public static bool RequestIfExists<T>(string path, out ReLogic.Content.Asset<T> asset, ReLogic.Content.AssetRequestMode mode)
+        {
+            bool exists = File.Exists(Path.Combine(NotebookGame.Repo, path[(path.IndexOf('/') + 1)..] + ".png"));
+            asset = exists ? new((T)(object)NotebookGame.Texture(path)) : null;
+            return exists;
+        }
     }
 }
-namespace Terraria { internal static class Main { public static float UIScale=1; } }
+namespace ReLogic.Content { internal sealed class Asset<T>(T value) { public T Value => value; } }
+namespace Terraria
+{
+    internal static class Main
+    {
+        public static float UIScale=1;
+    }
+}
 namespace Terraria.GameContent { internal static class TextureAssets { internal static ValueRef<Texture2D> MagicPixel; } }
 namespace KL.Drawing
 {

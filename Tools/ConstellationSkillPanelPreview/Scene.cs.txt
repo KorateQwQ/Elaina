@@ -1,0 +1,140 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
+internal sealed class PanelScene
+{
+    private ConstellationState _state;
+    private ConstellationDetail _detail;
+    private readonly ConstellationDrawing _draw = new(new Terraria.ModLoader.Mod());
+    private const float DesignWidth = 1100, DesignHeight = 800;
+    private const int MapX = 26, MapY = 208, MapWidth = 727, MapHeight = 473, WorldWidth = 727, WorldHeight = 550;
+    private const int SlotLeft = 74, SlotTop = 741, SlotSize = 42, SlotStride = 48, TargetLeft = 464;
+    private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
+    private float _zoom = .84f, _flash;
+    private Vector2 _pan;
+    private string _hoverNode, _tooltip;
+    private string _tooltipKey;
+    private Rectangle? _tooltipAnchor;
+    private HashSet<string> _ancestors;
+    private ConstellationLayoutEditor _layoutEditor;
+    private bool Editing => _layoutEditor?.IsEditing == true;
+    internal void RenderPrimaryButton(SpriteBatch batch, float scale, string mode, bool hover, bool pressed, float seconds)
+    {
+        if (_state == null)
+        {
+            _state = Fixtures.State(mode is "equip" or "equipped");
+            _state.Select(nameof(MagicMissileSkill));
+            _state.Current.ModSkill.UnlockCondition = mode is "paid" or "missing"
+                ? KL.SkillSystem.SkillUnlockCondition.ByItemsAndSkillPoint(20, new KL.SkillSystem.SkillUnlockItem(9, 10))
+                : KL.SkillSystem.SkillUnlockCondition.None;
+            var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
+            player.SkillPoint = 100;
+            player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = mode == "missing" ? 0 : 10;
+            _state.TargetSlot = 3;
+            if (mode == "equipped") _state.Equip();
+        }
+        _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = new Vector2(-756, -650) * scale;
+        _draw.AdvanceToggleAnimations(seconds);
+        Terraria.Main.mouseLeft = pressed;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        _draw.Image("NotebookSurface", 0, 0, 1100, 800);
+        DrawActionButton(hover);
+        batch.End();
+        Terraria.Main.mouseLeft = false;
+    }
+    internal void RenderHeader(SpriteBatch batch, float scale, int points)
+    {
+        _state = Fixtures.State(true);
+        伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer.SkillPoint = points;
+        _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = Vector2.Zero;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        DrawChrome(); DrawCloseButton(false);
+        batch.End();
+    }
+    internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario)
+    {
+        _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long"));
+        if (scenario is "active" or "equipped" or "maxed")
+        {
+            _state.Select(nameof(MagicMissileSkill));
+            if (scenario == "equipped") { _state.TargetSlot = 7; _state.Equip(); }
+            if (scenario == "maxed") for (int i = 0; i < 10; i++) _state.Current.ModSkill.TryLevelUp();
+        }
+        if (scenario == "missing") _state.Select(nameof(WaterLaserSKill));
+        if (scenario == "off")
+        {
+            _state.Select(nameof(MagicBarrierSkill)); _state.Unlock(); _state.Toggle(nameof(AshenWitchSkill));
+        }
+        if (scenario == "empty") _state.SelectFilter("hidden");
+        if (scenario.StartsWith("requirements"))
+        {
+            _state.Select(nameof(MagicMissileSkill));
+            var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
+            _state.Current.ModSkill.UnlockCondition = KL.SkillSystem.SkillUnlockCondition.ByItemsAndSkillPoint(20,
+                new KL.SkillSystem.SkillUnlockItem(scenario == "requirements-long" ? 2 : 9, 10));
+            player.SkillPoint = scenario == "requirements-ready" ? 20 : 4;
+            player.Player.inventory[0].type = 9;
+            player.Player.inventory[0].stack = scenario == "requirements-ready" ? 10 : 3;
+        }
+        if (scenario.StartsWith("growth"))
+        {
+            MagicMissileSkill.GrowthPreview = true;
+            MagicMissileSkill.LongDescription = scenario == "growth-long";
+            var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
+            player.UnlockSkill(KL.SkillSystem.Skill.NewSkill(typeof(MultiMissileSkill)));
+            player.SkillPoint = scenario == "growth-poor" ? 0 : 10;
+            _state.Refresh(); _state.Select(nameof(MagicMissileSkill));
+            _state.Current.ModSkill.MagicPointCost = 18;
+            _state.Current.Skill.MaxCD = 8;
+        }
+        _layoutEditor = new(_state, new(), new());
+        if (scenario.StartsWith("editor"))
+        {
+            _layoutEditor.Begin();
+            if (scenario == "editor-moved")
+                _layoutEditor.Move(nameof(MagicMissileSkill), new Vector2(285, 80), new Vector2(120, 70), _zoom, true);
+            _state.Select(nameof(MagicMissileSkill));
+        }
+        _ancestors = _state.Ancestors();
+        _pan = new Vector2(MapWidth / 2f, MapHeight / 2f) - new Vector2(_state.Current.x, _state.Current.y) * _zoom;
+        if (scenario is "new" or "passive" or "bottom") _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
+        if (Editing) _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
+        float fit = Math.Min(1, Math.Min((width / uiScale - 32) / DesignWidth, (height / uiScale - 32) / DesignHeight));
+        float scale = fit * uiScale;
+        Vector2 origin = (new Vector2(width, height) - new Vector2(DesignWidth, DesignHeight) * scale) / 2;
+        _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = origin;
+        var detail = new ConstellationDetail(_state, _draw);
+        _detail = detail;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        DrawChrome(); DrawDetails(); DrawActionButton(false); DrawCloseButton(false);
+        string[] filters = ["learned", "ready", "locked", "hidden"];
+        for (int i = 0; i < 4; i++) DrawFilter(i, filters[i], false);
+        for (int i = 0; i < 8; i++) DrawSlot(i, false);
+        DrawClearSlot(false);
+        CameraControl("minus", 591, false, true); CameraControl("plus", 663, false, true); CameraControl("center", 706, false, true);
+        _draw.Text("返回", 1008, 756, 11, Muted, .5f);
+        foreach (string kind in new[] { "edit", "save", "cancel", "reset" }) DrawLayoutButton(kind, false);
+        DrawDebugButton("points", false); DrawDebugButton("reset-skills", false);
+        batch.End();
+        using var clip = new RasterizerState { ScissorTestEnable = true, CullMode = CullMode.None };
+        Rectangle Clip(float x, float y, float w, float h) => new((int)(origin.X + x * scale), (int)(origin.Y + y * scale), (int)(w * scale), (int)(h * scale));
+        batch.GraphicsDevice.ScissorRectangle = Clip(MapX, MapY, MapWidth, MapHeight);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
+        DrawMap(); batch.End();
+        batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
+        float offset = scenario is "bottom" or "growth-long" ? Math.Max(0, detail.ContentHeight - detail.Height) : 0;
+        float y = detail.Top - offset;
+        foreach (var row in detail.Rows) { _draw.Origin = origin + new Vector2(ConstellationDetail.Left, y) * scale; row.Paint(_draw, null); y += row.Height; }
+        batch.End(); _draw.Origin = origin;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        if (detail.ContentHeight > detail.Height) _draw.Box(ConstellationDetail.Left + ConstellationDetail.Width + 3, detail.Top + offset / detail.ContentHeight * detail.Height,
+            3, detail.Height * detail.Height / detail.ContentHeight, Muted * .5f);
+        if (scenario == "requirements-tooltip")
+        {
+            float buttonY = detail.Top + detail.Rows.TakeWhile(row => !row.Actions.Any(a => a.Kind == "upgrade")).Sum(row => row.Height);
+            _draw.Tooltip(_state.Requirements(_state.Selected, true).ActionTooltip("进修至 2 级"), new Vector2(1040, buttonY + 15),
+                new Vector2(DesignWidth, DesignHeight), new Rectangle(ConstellationDetail.Left, (int)buttonY, ConstellationDetail.Width, 35));
+        }
+        batch.End();
+        Console.WriteLine($"{scenario}: detail {detail.ContentHeight:0}/{detail.Height:0}, scale {scale:0.00}");
+    }

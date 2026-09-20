@@ -1,0 +1,355 @@
+using KL.SkillSystem;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class Fixtures
+{
+    internal static readonly Type[] Types = [typeof(AshenWitchSkill), typeof(MagicMissileSkill), typeof(MagicBarrierSkill), typeof(WindBladeSkill), typeof(MultiMissileSkill), typeof(HealSkill), typeof(WaterLaserSKill), typeof(FireLaserSkill), typeof(IceConeSkill), typeof(FireBurstSkill), typeof(WaterBallSkill)];
+    internal static string Icon(string name)
+    {
+        string folder = name switch
+        {
+            "AshenWitchSkill" => "AshenWitch", "MagicBarrierSkill" => "MagicBarrier", "WindBladeSkill" => "Wind",
+            "HealSkill" => "Heal", "WaterLaserSKill" or "WaterBallSkill" => "Water", "FireLaserSkill" or "FireBurstSkill" => "Fire",
+            "IceConeSkill" => "Ice", _ => "MagicMissile"
+        };
+        return $"伊蕾娜/ElainaModSkills/Skills/{folder}/{name}";
+    }
+    internal static ElainaSkillModPlayer Player(params Type[] extras)
+    {
+        MagicMissileSkill.GrowthPreview = MagicMissileSkill.LongDescription = false;
+        Skill.RegisterSkill.Clear();
+        foreach (var type in Types.Concat(extras)) Skill.RegisterSkill.Add(type.FullName, Skill.NewSkill(type));
+        var player = new ElainaSkillModPlayer();
+        Terraria.Main.LocalPlayer = player.Player;
+        Terraria.Main.gameMenu = false;
+        ElainaSkillModPlayer.SkillModPlayer = player;
+        return player;
+    }
+    internal static ConstellationState State(bool learned = false)
+    {
+        var player = Player();
+        if (learned)
+        {
+            player.UnlockSkill(Skill.NewSkill(typeof(AshenWitchSkill)));
+            player.UnlockSkill(Skill.NewSkill(typeof(MagicMissileSkill)));
+        }
+        return new(player);
+    }
+    internal static void Text()
+    {
+        string prefix = "Mods.伊蕾娜.SkillInfo.";
+        var text = Terraria.Localization.Language.Text;
+        text[prefix + "SkillName.AshenWitchSkill"] = "灰之魔女";
+        text[prefix + "SkillName.MagicMissileSkill"] = "魔法飞弹";
+        text[prefix + "SkillName.MagicBarrierSkill"] = "魔力护盾";
+        text[prefix + "SkillName.WindBladeSkill"] = "风刃";
+        text[prefix + "SkillName.MultiMissileSkill"] = "多重射击";
+        text[prefix + "SkillDesc.AshenWitchSkill"] = "灰之魔女开启后，伊蕾娜使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]施放技能。基础上限等同于原版最大魔力；每因灰之魔女减少1点生命上限，额外增加1点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限。额外生命收益减少50%。\n\n魔力不足时，可消耗每1%最大生命，恢复魔力上限的1%用于施法。当前生命值低于10%时无法以此方式恢复。";
+        text[prefix + "SkillDesc.MagicMissileSkill"] = "对目标造成魔法伤害。连续命中5次后造成额外伤害。";
+        text[prefix + "SkillDesc.MagicBarrierSkill"] = "需要开启灰之魔女技能才可使用。\n护盾会根据因灰之魔女损失的血量提供伤害减免，并消耗相应魔力。";
+    }
+}
+
+internal static class PanelChecks
+{
+    private static int _count;
+    private static void Check(bool value, string name) { if (!value) throw new Exception(name); _count++; }
+    internal static void Run()
+    {
+        var player = Fixtures.Player(typeof(UnlistedSkill), typeof(ForeignSkill), typeof(UpgradeSkill));
+        var state = new ConstellationState(player);
+        Check(state.Skills.Length == 12, "attribute plus ElainaSkill eligibility");
+        Check(state.Points == 0 && state.Learned.Count == 0 && state.Slots.All(s => s == null), "no preview progression seeded");
+        state.Select(nameof(MagicBarrierSkill));
+        Check(state.Status(state.Current) == "locked" && !state.Unlock(), "locked prerequisite");
+        state.Select(nameof(AshenWitchSkill));
+        var template = Skill.RegisterSkill[nameof(AshenWitchSkill)];
+        Check(state.Unlock(), "unlock free skill");
+        Check(!ReferenceEquals(template, state.Current.Skill) && template.BasicStatus == Skill.SKillBasicStatus.Lock, "registered template isolated");
+        Check(ReferenceEquals(state.Current.Skill, player.UnlockedSkill[nameof(AshenWitchSkill)]), "owned instance reused");
+        Check(!state.Unlock(), "unlock cannot repeat");
+        Check(!state.CanEquip && !state.Equip(), "passive cannot equip");
+        Check(state.Toggle(nameof(AshenWitchSkill)), "passive toggle writes runtime");
+        Check(!player.UnlockedSkill[nameof(AshenWitchSkill)].ModSkill.IsEnabled, "runtime toggle value");
+        state.Select(nameof(MagicBarrierSkill));
+        Check(state.Unlock(), "learned prerequisite permits unlock while disabled");
+        Check(!state.Availability(nameof(MagicBarrierSkill)).Ok, "disabled prerequisite availability");
+        state.Toggle(nameof(AshenWitchSkill));
+        Check(state.Availability(nameof(MagicBarrierSkill)).Ok, "reactivated dependency");
+        state.Select(nameof(MagicMissileSkill));
+        state.Current.ModSkill.UnlockCondition = SkillUnlockCondition.ByItemsAndSkillPoint(2, new SkillUnlockItem(1, 3));
+        Check(!state.CanUnlock && !state.Unlock(), "cannot afford unlock");
+        // Fresh instances use their own condition, just as production does.
+        state.Current.ModSkill.UnlockCondition = SkillUnlockCondition.None;
+        Check(state.Unlock() && state.Equip(), "active unlock and equip");
+        var missile = state.Current.Skill;
+        state.TargetSlot = 7;
+        Check(state.Equip() && player.ActiveSkill[0] == null && ReferenceEquals(player.ActiveSkill[7], missile) && missile.SkillSlot == 7, "move with stable identity");
+        Check(!state.CanEquip, "same target slot no-op");
+        state.Select(nameof(WindBladeSkill)); state.Unlock(); state.Equip();
+        Check(missile.SkillSlot == -1 && player.ActiveSkill[7] == state.Current.Skill, "replacement clears previous saved slot");
+        var wind = state.Current.Skill;
+        Check(state.ClearSlot() && wind.SkillSlot == -1 && player.ActiveSkill[7] == null, "clear slot persistence fields");
+        int pointsBeforeFreeUpgrade = player.SkillPoint;
+        Check(state.CanUpgrade(nameof(WindBladeSkill)) && state.Upgrade(nameof(WindBladeSkill)) && state.Level(nameof(WindBladeSkill)) == 2
+            && player.SkillPoint == pointsBeforeFreeUpgrade && state.MaxLevel(nameof(WindBladeSkill)) == 5, "default upgrade is free below max level");
+        for (int i = 0; i < 10; i++) wind.ModSkill.TryLevelUp();
+        Check(wind.Level == 5, "KL default upgrade stops at five");
+        Check(!state.Upgrade(nameof(WindBladeSkill)) && player.SkillPoint == pointsBeforeFreeUpgrade, "free upgrade still stops at max");
+        wind.Level = 8; wind.ModSkill.TryLevelUp();
+        Check(wind.Level == 8, "existing levels above cap are preserved");
+        state.Select(nameof(UpgradeSkill)); state.Unlock();
+        Check(!state.Upgrade(nameof(UpgradeSkill)), "upgrade requires resources");
+        player.SkillPoint = 4;
+        Check(state.Upgrade(nameof(UpgradeSkill)) && player.SkillPoint == 2 && state.Level(nameof(UpgradeSkill)) == 2, "paid upgrade");
+        Check(state.Upgrade(nameof(UpgradeSkill)) && !state.Upgrade(nameof(UpgradeSkill)) && player.SkillPoint == 0, "max level enforced");
+        state.Current.ModSkill.TryLevelUp();
+        Check(state.Level(nameof(UpgradeSkill)) == 3, "overridden cap also guards direct base upgrade");
+        state.SelectFilter("hidden"); Check(state.EmptyFilter, "empty filter");
+        state.Select(nameof(HealSkill));
+        Check(state.Current.name == nameof(HealSkill) && state.Current.ModSkill.GetConstellationDescription().Contains("待补充"), "missing localization fallback");
+        Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill"] = "{2}";
+        Check(state.Current.ModSkill.GetConstellationDescription().Contains("参数"), "missing format argument fallback");
+        Terraria.Localization.Language.Text.Remove("Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill");
+        Main.gameMenu = true; Check(!state.Unlock() && !state.Equip() && !state.Toggle(nameof(AshenWitchSkill)), "world exit rejects mutations");
+        Fixtures.Player(); Check(!state.IsCurrentPlayer, "character change rejects stale state");
+        player = Fixtures.Player(typeof(CycleA), typeof(CycleB)); state = new(player);
+        player.UnlockSkill(Skill.NewSkill(typeof(CycleA))); player.UnlockSkill(Skill.NewSkill(typeof(CycleB))); state.Refresh(); state.Select(nameof(CycleA));
+        Check(!state.Availability(nameof(CycleA)).Ok && state.Ancestors().Count == 2, "cycle termination");
+        Skill.RegisterSkill.Clear(); state = new(player);
+        Check(state.Current == null && state.EmptyFilter && !state.CanUnlock && !state.CanEquip && state.Ancestors().Count == 0, "empty registry");
+        player = Fixtures.Player(typeof(PaidSkill)); state = new(player); state.Select(nameof(PaidSkill));
+        player.SkillPoint = 2;
+        Check(!state.Unlock() && player.SkillPoint == 2, "missing items cannot spend points");
+        player.Player.inventory[0].type = 1; player.Player.inventory[0].stack = 3;
+        Check(state.Unlock() && player.SkillPoint == 0 && player.Player.inventory[0].IsAir, "real composite condition consumes both resources");
+        Check(!state.Unlock() && player.SkillPoint == 0, "paid unlock cannot repeat");
+        state.Select(nameof(HealSkill)); player.UnlockSkill(Skill.NewSkill(typeof(HealSkill)));
+        Check(!state.CanUnlock && !state.Unlock(), "external unlock is recognized before UI refresh");
+        state.Select(nameof(WaterBallSkill)); state.Current.Skill.BasicStatus = Skill.SKillBasicStatus.Hide;
+        Check(!state.Discovered(state.Current) && !state.CanUnlock, "hidden skill cannot unlock");
+        state.Current.Skill.BasicStatus = Skill.SKillBasicStatus.Lock; state.Current.ModSkill.UnlockCondition = null;
+        Check(!state.CanUnlock && state.UnlockDescription.Contains("待补充"), "missing unlock condition fallback");
+        MaxLevelChecks();
+        LayoutChecks();
+        DebugToolsChecks();
+        RequirementsChecks();
+        ToggleAnimationChecks();
+        PolishChecks();
+        Console.WriteLine($"PASS: {_count} production-state checks (isolated player boundary)");
+    }
+
+    private static void PolishChecks()
+    {
+        var tween = new ConstellationTween(0, .18f);
+        tween.SetTarget(1); tween.Advance(.09f);
+        Check(tween.Value > 0 && tween.Value < 1, "category underline moves through intermediate positions");
+        float before = tween.Value; tween.SetTarget(3);
+        Check(tween.Value == before, "category retarget preserves its current position");
+        tween.Advance(.18f); Check(tween.Value == 3, "category underline settles in 180ms");
+        var delay = new ConstellationTooltipDelay();
+        Check(!delay.Ready("upgrade", 1) && !delay.Ready("upgrade", 1.24f) && delay.Ready("upgrade", 1.26f), "tooltip waits for 250ms hover");
+        Check(!delay.Ready("learn", 1.27f), "moving to another control resets tooltip delay");
+        delay.Ready(null, 2); Check(!delay.Ready("learn", 3), "leaving control resets tooltip delay");
+        var anchor = new Rectangle(776, 450, 276, 35);
+        var size = new Vector2(230, 70);
+        var p = ConstellationTooltipPlacement.Place(size, new Vector2(950, 460), new Vector2(1100, 800), anchor);
+        Check(p.X + size.X < anchor.Left && p.Y + size.Y <= 788, "detail tooltip stays left of control and material list");
+        p = ConstellationTooltipPlacement.Place(size, Vector2.Zero, new Vector2(1100, 800), new Rectangle(60, 2, 80, 28));
+        Check(p.X >= 12 && p.Y >= 12 && p.X + size.X <= 1088 && p.Y + size.Y <= 788, "edge tooltip remains within window");
+    }
+
+    private static void ToggleAnimationChecks()
+    {
+        var on = new ConstellationToggleAnimation(true);
+        var off = new ConstellationToggleAnimation(false);
+        Check(on.Position == 1 && off.Position == 0, "toggle initializes at current state without an entry slide");
+        off.SetTarget(true, true);
+        off.Advance(1f / 60);
+        Check(off.Position > 0 && off.Position < 1 && off.Hover > 0 && off.Hover < 1, "toggle moves and highlights through intermediate values");
+        float before = off.Position;
+        off.SetTarget(true, true);
+        Check(off.Position == before, "detail rebuild cannot reset an in-flight toggle");
+        off.SetTarget(false, false); off.Advance(1f / 120);
+        Check(off.Position < before && off.Position > 0, "rapid reverse starts at current position without teleporting");
+        float Sample(int frames)
+        {
+            var animation = new ConstellationToggleAnimation(false);
+            for (int i = 0; i < frames; i++) { animation.SetTarget(true, true); animation.Advance(.1f / frames); }
+            return animation.Position;
+        }
+        Check(Math.Abs(Sample(3) - Sample(12)) < .00001f, "toggle trajectory is independent of frame rate");
+        off.SetTarget(true, true); off.Advance(1);
+        Check(off.Position == 1 && off.Hover == 1, "toggle settles exactly at its destination");
+        off.Advance(1);
+        Check(off.Hover == 0, "hover fades when a control is no longer drawn");
+        off.SetTarget(false, false); off.Advance(1);
+        Check(off.Position == 0, "toggle settles at off destination");
+    }
+
+    private static void RequirementsChecks()
+    {
+        var player = Fixtures.Player();
+        var state = new ConstellationState(player);
+        state.Select(nameof(MagicMissileSkill));
+        var condition = SkillUnlockCondition.ByItemsAndSkillPoint(20, new SkillUnlockItem(9, 10));
+        state.Current.ModSkill.UnlockCondition = condition;
+        var report = state.Requirements(state.Selected, false);
+        Check(report.Rows.Count == 2 && report.PointCost == 20 && report.BlockReason == "材料和研习点不足", "learning lists materials and points separately");
+        Check(report.Tooltip("研习所需").Contains("木材") && report.Tooltip("").Contains("缺少 10") && !report.Tooltip("").Contains("SP"), "missing quantities and dedicated point terminology");
+        player.SkillPoint = 20;
+        player.Player.inventory[0].type = player.Player.inventory[1].type = 9;
+        player.Player.inventory[0].stack = 3; player.Player.inventory[1].stack = 4;
+        report = state.Requirements(state.Selected, false);
+        Check(report.Rows[0].Owned == 7 && report.Rows[0].Detail.Contains("缺少 3") && report.BlockReason == "材料不足", "inventory stacks counted together");
+        int stamp = state.DetailStamp();
+        player.Player.inventory[0].stack++;
+        Check(state.DetailStamp() != stamp && !state.CanUnlock, "partial inventory changes invalidate detail while still blocked");
+        Check(!state.Unlock() && player.SkillPoint == 20 && player.Player.inventory[0].stack == 4, "missing materials consume nothing");
+        player.Player.inventory[0].stack = 6;
+        Check(state.CanUnlock && state.Unlock() && player.SkillPoint == 0 && player.Player.inventory[0].IsAir && player.Player.inventory[1].IsAir,
+            "learning consumes the same dynamic condition that was displayed");
+        Check(!state.Unlock(), "duplicate learning cannot spend resources twice");
+        report = state.Requirements(state.Selected, true);
+        Check(report.Rows.Count == 2 && report.PointCost == 20 && !state.CanUpgrade(state.Selected), "current configured upgrade requirement is represented");
+        player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 10;
+        Check(state.Requirements(state.Selected, true).BlockReason == "研习点不足" && !state.Upgrade(state.Selected), "upgrade points shortage is explicit and cannot consume items");
+        Check(player.Player.inventory[0].stack == 10, "failed upgrade keeps materials");
+        player.SkillPoint = 20;
+        Check(state.Upgrade(state.Selected) && state.Level(state.Selected) == 2 && player.SkillPoint == 0 && player.Player.inventory[0].IsAir, "upgrade consumes displayed materials and points");
+        player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 5;
+        var duplicate = new CompositeSkillUnlockCondition(SkillUnlockCondition.ByItems(new SkillUnlockItem(9, 3)),
+            new CompositeSkillUnlockCondition(SkillUnlockCondition.ByItems(new SkillUnlockItem(9, 4)), SkillUnlockCondition.BySkillPoint(2)));
+        report = ConstellationRequirements.Read(duplicate, player, state.Current.ModSkill);
+        Check(report.Rows[0].Needed == 7 && report.Rows[0].Owned == 5 && !report.Satisfied, "nested duplicate material costs aggregate before eligibility check");
+        report = ConstellationRequirements.Read(SkillUnlockCondition.Custom((_, _) => false, description: (_, _) => "额外条件\nSP x20"), player, state.Current.ModSkill);
+        Check(!report.Satisfied && report.Rows[0].Custom && report.Tooltip("").Contains("研习点 x20") && report.Tooltip("").Contains("未满足"), "custom conditions preserve status and localize point naming");
+        report = ConstellationRequirements.Read(SkillUnlockCondition.None, player, state.Current.ModSkill);
+        Check(report.Satisfied && report.Rows.Count == 0 && report.Tooltip("研习").Contains("无消耗"), "free learning is explicitly described");
+    }
+
+    private static void DebugToolsChecks()
+    {
+#if DEBUG
+        var player = Fixtures.Player(typeof(UnlistedSkill));
+        Skill.RegisterSkill[nameof(MagicBarrierSkill)].BasicStatus = Skill.SKillBasicStatus.Hide;
+        var state = new ConstellationState(player);
+        player.SkillPoint = 25;
+        Check(state.DebugGrantStudyPoints() && player.SkillPoint == 125, "debug grants exactly 100 study points");
+        foreach (var type in new[] { typeof(MagicMissileSkill), typeof(AshenWitchSkill), typeof(UnlistedSkill), typeof(MagicBarrierSkill) })
+            player.UnlockSkill(Skill.NewSkill(type));
+        state.Refresh(); state.Select(nameof(MagicMissileSkill)); state.Equip();
+        var skill = state.Current.Skill;
+        skill.Level = 4; skill.CurrentCD = 9; skill.Stack = 0;
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        var owned = player.UnlockedSkill.Values.ToArray();
+        state.Current.x = 543;
+        Check(state.DebugResetSkills() && player.UnlockedSkill.Count == 0 && state.Learned.Count == 0 && state.Disabled.Count == 0,
+            "debug reset clears all learned skills, including ones outside the panel");
+        Check(player.ActiveSkill.All(s => s == null) && state.Slots.All(s => s == null) && ElainaSkillModPlayer.CurrentSkillIndex == -1,
+            "reset clears loadout and current selection");
+        Check(owned.All(s => s.Level == 0 && s.SkillSlot == -1 && !s.ModSkill.IsEnabled && s.ModSkill.LockCalls == 1),
+            "reset invokes lock hooks and clears old instance progression");
+        Check(skill.CurrentCD == 0 && skill.Stack == skill.MaxStack, "reset clears old cooldown and stack state");
+        Check(player.SkillPoint == 125 && state.Find(nameof(MagicMissileSkill)).x == 543, "reset preserves points and map layout");
+        Check(ReferenceEquals(state.Find(nameof(MagicMissileSkill)).Skill, Skill.RegisterSkill[nameof(MagicMissileSkill)]),
+            "unlearned nodes return to templates instead of stale owned objects");
+        Check(state.Status(state.Find(nameof(MagicBarrierSkill))) == "hidden", "reset restores hidden template state");
+        Check(state.DebugResetSkills() && owned.All(s => s.ModSkill.LockCalls == 1), "repeated reset is harmless");
+        state.Select(nameof(MagicMissileSkill));
+        Check(state.Unlock() && state.Level(state.Selected) == 1 && !ReferenceEquals(state.Current.Skill, skill), "relearning starts with a fresh level-one instance");
+        player.SkillPoint = int.MaxValue - 50;
+        Check(state.DebugGrantStudyPoints() && player.SkillPoint == int.MaxValue, "debug point grant cannot overflow");
+        Main.gameMenu = true;
+        Check(!state.DebugGrantStudyPoints() && !state.DebugResetSkills() && player.UnlockedSkill.Count == 1, "debug actions reject menu context");
+        Main.gameMenu = false; Fixtures.Player();
+        Check(!state.DebugResetSkills(), "debug reset rejects a stale player");
+#else
+        var methods = typeof(ConstellationState).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Check(!methods.Any(m => m.Name is "DebugGrantStudyPoints" or "DebugResetSkills"), "release excludes debug mutation methods");
+#endif
+    }
+
+    private static void MaxLevelChecks()
+    {
+        var freePlayer = Fixtures.Player(typeof(NullUpgradeSkill));
+        var freeState = new ConstellationState(freePlayer);
+        string freeId = nameof(NullUpgradeSkill);
+        freeState.Select(freeId);
+        Check(!freeState.CanUpgrade(freeId) && !freeState.Upgrade(freeId), "null condition cannot bypass learning requirement");
+        freeState.Unlock();
+        Check(freeState.Upgrade(freeId) && freeState.Level(freeId) == 2 && freePlayer.SkillPoint == 0, "explicit null condition means free upgrade");
+        Check(!freeState.CanUpgrade("UnknownSkill") && !freeState.Upgrade("UnknownSkill"), "free fallback cannot upgrade absent skill");
+        var player = Fixtures.Player(typeof(DynamicMaxSkill));
+        var state = new ConstellationState(player);
+        state.Select(nameof(DynamicMaxSkill)); state.Unlock(); player.SkillPoint = 10;
+        Check(state.MaxLevel(state.Selected) == 2 && state.Upgrade(state.Selected), "dynamic cap initial rule");
+        int points = player.SkillPoint, stamp = state.DetailStamp();
+        Check(!state.Upgrade(state.Selected) && player.SkillPoint == points, "cap blocks resource consumption");
+        DynamicMaxSkill.Limit = 6;
+        Check(state.MaxLevel(state.Selected) == 6 && state.DetailStamp() != stamp && state.CanUpgrade(state.Selected), "cap change refreshes detail and permits upgrading");
+        Check(state.Upgrade(state.Selected) && state.Level(state.Selected) == 3, "upgrade after cap increases");
+        DynamicMaxSkill.Limit = 1;
+        Check(state.Level(state.Selected) == 3 && !state.CanUpgrade(state.Selected), "reduced cap preserves level and stops further upgrades");
+        DynamicMaxSkill.Limit = 0;
+        Check(state.MaxLevel(state.Selected) == 1, "invalid cap normalized to one");
+        DynamicMaxSkill.Limit = 2;
+    }
+
+    private static void LayoutChecks()
+    {
+        var state = Fixtures.State();
+        string id = nameof(MagicMissileSkill);
+        var node = state.Find(id);
+        var start = new Vector2(node.x, node.y);
+        var layout = new ConstellationLayoutEditor(state, new(), new());
+        layout.Move(id, start, new Vector2(100), 1, false);
+        Check(node.x == start.X && node.y == start.Y, "normal mode cannot move node");
+        layout.Begin();
+        layout.Move(id, start, new Vector2(50, 100), .5f, false);
+        Check(node.x == start.X + 100 && node.y == start.Y + 200 && layout.HasChanges, "drag converts camera zoom to map coordinates");
+        layout.Begin(); layout.Cancel();
+        Check(node.x == start.X && node.y == start.Y && !layout.IsEditing, "cancel restores original even after repeated begin");
+        layout.Begin();
+        layout.Move(id, start, new Vector2(53, 62), 1.5f, true);
+        Check(node.x % 10 == 0 && node.y % 10 == 0, "shift snap rounds map coordinates");
+        layout.Move(id, start, new Vector2(40000, -40000), 1, false);
+        Check(node.x == 20000 && node.y == 50 && state.WorldSize.X >= 20100, "canvas expands and coordinates bounded");
+        layout.Cancel();
+        Check(state.WorldSize.X < 20100, "cancel restores camera bounds");
+
+        string dir = Path.Combine(PanelGame.Repo, ".vissandbox/constellation-skill-panel/layout-checks", Guid.NewGuid().ToString("N"));
+        string file = Path.Combine(dir, "layout.json");
+        var bundled = ConstellationLayout.Parse("{\"Version\":1,\"Positions\":{\"MagicMissileSkill\":{\"X\":110,\"Y\":120}}}");
+        var local = ConstellationLayout.Parse("{\"Version\":1,\"Positions\":{\"MagicMissileSkill\":{\"X\":220,\"Y\":230},\"AbsentSkill\":{\"X\":300,\"Y\":400}}}");
+        layout = new(state, bundled, local);
+        Check(node.x == 220 && node.y == 230 && state.Find(nameof(WindBladeSkill)).x == 385, "local overrides bundled; unspecified nodes retain defaults");
+        layout.Begin(); layout.RestoreDefaults();
+        Check(node.x == 110 && node.y == 120, "restore defaults uses bundled map");
+        layout.Cancel(); Check(node.x == 220 && node.y == 230, "cancel default reset restores local layout");
+        layout.Begin(); layout.Move(id, new Vector2(220, 230), new Vector2(10, 20), 1, false);
+        Check(layout.Save(file, out _) && !layout.IsEditing, "save creates JSON and ends edit");
+        var read = ConstellationLayout.Read(file);
+        Check(read.Positions[id] == new ConstellationPosition { X = 230, Y = 250 } && read.Positions.ContainsKey("AbsentSkill"), "JSON roundtrip keeps coordinates and absent skills");
+        Check(File.ReadAllText(file).Contains("\n") && read.Positions.Count == state.Skills.Length + 1, "human readable complete map");
+        var reopened = Fixtures.State();
+        new ConstellationLayoutEditor(reopened, bundled, read);
+        Check(reopened.Find(id).x == 230 && reopened.Find(id).y == 250, "new player state reapplies saved layout");
+        layout.Begin(); layout.Move(id, new Vector2(node.x, node.y), new Vector2(10), 1, false);
+        Check(!layout.Save(dir, out var error) && error != null && layout.IsEditing && layout.HasChanges, "failed write retains editable draft");
+        Check(File.ReadAllText(file).Contains("230"), "failed save leaves previous file intact");
+        layout.Cancel();
+        layout.Begin(); layout.RestoreDefaults(); Check(layout.Save(file, out _), "atomic replacement of existing layout");
+        Check(ConstellationLayout.Read(file).Positions[id].X == 110, "saved defaults persist");
+        foreach (string invalid in new[] { "{", "null", "{\"Version\":2}", "{\"Positions\":null}", "{\"Positions\":{\"bad\":null}}", "{\"Positions\":{\"bad\":{\"X\":-1,\"Y\":100}}}", "{\"Positions\":{\"bad\":{\"X\":1e99,\"Y\":100}}}" })
+        {
+            bool rejected = false;
+            try { ConstellationLayout.Parse(invalid); }
+            catch (Exception e) when (ConstellationLayout.IsFileError(e)) { rejected = true; }
+            Check(rejected, "invalid JSON or coordinate rejected: " + invalid);
+        }
+        Check(ConstellationLayout.Read(Path.Combine(dir, "missing.json")).Positions.Count == 0, "missing layout uses defaults");
+        Check(state.Learned.Count == 0 && state.Slots.All(s => s == null), "layout changes do not unlock or equip skills");
+    }
+}

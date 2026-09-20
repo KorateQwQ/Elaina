@@ -1,0 +1,49 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class TogglePreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        string frames = Path.Combine(output, "toggle-frames"); Directory.CreateDirectory(frames);
+        foreach (float scale in new[] { 1f, 1.25f, 2f })
+        {
+            var drawing = new ConstellationDrawing(new()) { Batch = batch, Scale = scale };
+            using var target = new RenderTarget2D(device, (int)(260 * scale), (int)(96 * scale));
+            for (int frame = 0; frame < 96; frame++)
+            {
+                float time = frame / 60f;
+                bool on = time >= .15f && time < .65f || time >= .75f && time < 1.05f;
+                bool hover = time >= .1f && time < 1.3f;
+                drawing.AdvanceToggleAnimations(1f / 60);
+                device.SetRenderTarget(target); device.Clear(new Color(33, 29, 46));
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+                drawing.Image("NotebookSurface", -776, -272, 1100, 800);
+                drawing.Text(on ? "已启用" : "已关闭", 16, 34, 12, new Color(195, 176, 208));
+                drawing.Toggle("switch", 206, 31, on, true, hover);
+                drawing.Text($"{time:0.00}s" + (hover ? " · 悬停" : ""), 16, 72, 10, ConstellationDrawing.Muted);
+                batch.End(); device.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(frames, $"toggle-{scale:0.00}-{frame:000}.png"));
+                target.SaveAsPng(file, target.Width, target.Height);
+            }
+        }
+        // Draw the real measured detail rows, including their hover dispatch and rebuilt state.
+        var draw = new ConstellationDrawing(new()) { Batch = batch, Scale = 1.25f };
+        var state = Fixtures.State(true);
+        using var panel = new RenderTarget2D(device, 345, 545);
+        device.SetRenderTarget(panel); device.Clear(new Color(33, 29, 46));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        var detail = new ConstellationDetail(state, draw);
+        float y = 0;
+        foreach (var row in detail.Rows)
+        {
+            if (y + row.Height > 436) break;
+            draw.Origin = new Vector2(0, y * 1.25f);
+            row.Paint(draw, row.Actions.Any(a => a.Kind == "toggle") ? "toggle" : null);
+            y += row.Height;
+        }
+        batch.End(); device.SetRenderTarget(null);
+        using var snapshot = File.Create(Path.Combine(output, "toggle-detail-hover.png"));
+        panel.SaveAsPng(snapshot, panel.Width, panel.Height);
+        Console.WriteLine("FNA toggle animation: 96 frames at 100%, 125%, 200%, plus actual hovered detail row.");
+    }
+}

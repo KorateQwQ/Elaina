@@ -617,6 +617,126 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
 .effect-detail .level-track{margin:8px 0 9px}
 .effect-detail .growth-preview{row-gap:3px;margin-bottom:8px}
 .effect-detail .effect-requirements{margin-bottom:4px}
+
+/* Elaina's field notes: ink-dark paper, stitched margins and silver quills.
+   Decorative layers never intercept the existing HUD or star-map controls. */
+:root{--paper-edge:#cfbd9e;--paper-ink:#dac9ad;--ribbon:#8a708f}
+.notebook-decoration{position:absolute;pointer-events:none;user-select:none}
+.notebook-quill{color:#d7cadd;overflow:visible;filter:drop-shadow(0 3px 5px #08081366)}
+
+/* A loose folio beneath the original eight-slot frame. Slot coordinates stay native. */
+.battle-skills{bottom:47px}
+.battle-heading{height:42px;margin-bottom:7px;margin-left:50px;align-items:center}
+.battle-heading>div>span{font-size:14px;letter-spacing:2px;color:#e2d5c2}
+.battle-heading small{color:#a69aab;font-size:10px}
+.battle-heading>div>span:before{content:"VIII /";margin-right:10px;color:#a99a82;font:italic 12px Georgia}
+.battle-heading .open-stars{position:relative;height:38px;padding:7px 14px 10px;
+ border:0;color:#e5d6e9;background:linear-gradient(100deg,#564158,#3e324b);
+ clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 6px),0 100%)}
+.battle-heading .open-stars:hover{background:linear-gradient(100deg,#705571,#524061);color:#fff0dc}
+.battle-heading .open-stars:focus-visible{outline:0;box-shadow:inset 0 0 0 2px #e6cea5}
+.battle-heading .open-stars>svg{width:16px;height:16px;vertical-align:-4px;margin-right:5px;color:#e0c8a5}
+.battle-heading .open-stars kbd{font:9px Georgia;color:#c4adc9;border-color:#baa2c653}
+.rack-folio{inset:16px 0 -11px 16px;z-index:-2;border:1px solid #c9b3956b;border-radius:2px 3px 10px 2px;
+ background:linear-gradient(90deg,#221e2a 0,#64526370 9px,#292333 19px,transparent 55px),
+ radial-gradient(ellipse at 62% 15%,#8e799031,transparent 68%),
+ repeating-linear-gradient(0deg,transparent 0 23px,#c8b4990c 23px 24px),#2c2635;
+ box-shadow:0 5px 12px #08091070,inset 0 0 0 3px #251f2d,inset 0 -5px 12px #100d172e}
+.rack-folio:before,.rack-folio:after{content:"";position:absolute;z-index:-1;pointer-events:none;
+ inset:5px 3px -5px -3px;border:1px solid #baa78e59;border-radius:2px 2px 8px 2px;
+ background:linear-gradient(0deg,#79695642,transparent 8px);transform:rotate(-.45deg);transform-origin:10% 100%}
+.rack-folio:after{inset:9px 6px -9px -5px;transform:rotate(.3deg);border-color:#ad9b814a}
+.battle-rack-art{opacity:.62;filter:drop-shadow(0 2px 4px #07070c44)}
+.rack-stitches{left:23px;top:30px;bottom:2px;width:5px;z-index:-1;
+ background:repeating-linear-gradient(0deg,transparent 0 10px,#d3bea15e 10px 11px,transparent 11px 14px)}
+.rack-quill{left:-31px;top:-47px;width:82px;height:135px;transform:rotate(-13deg);z-index:0;opacity:.92}
+.rack-ribbon{left:calc(45px + var(--active-slot,0)*78px);top:83px;width:24px;height:31px;z-index:-1;
+ background:linear-gradient(90deg,#665170,#90728e 48%,#654c70);border-top:1px solid #dbc5a786;
+ clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);
+ transition:left 260ms cubic-bezier(.22,.8,.25,1);box-shadow:inset 3px 0 #c3a2b522,inset -3px 0 #c3a2b522}
+.rack-ribbon:after{content:"✦";position:absolute;inset:7px 0 auto;text-align:center;font:10px Georgia;color:#ead7b2}
+.rack-note{left:72px;right:12px;bottom:-36px;display:flex;justify-content:space-between;align-items:center;
+ color:#a89aab;font:italic 10px Georgia;letter-spacing:1px}
+.rack-note span:first-child{font:10px var(--serif);letter-spacing:1.5px;color:#b9a894}
+.rack-note span:last-child:before{content:"✧";margin-right:9px;color:#d5bda0}
+
+/* Vitals read as a small entry on a second sheet, with a portrait bookmark. */
+.character-hud{top:38px;isolation:isolate}
+.character-hud:before{content:"";position:absolute;inset:-14px -12px -15px -20px;z-index:-1;
+ border:1px solid #bca88e2b;border-left:2px solid #ac967b56;border-radius:2px 3px 8px 2px;
+ background:linear-gradient(90deg,#7562781c,transparent 40%),linear-gradient(125deg,#2e2939dd,#1f202bdd);
+ box-shadow:3px 4px 0 -1px #211e2a,3px 4px 0 0 #bca88e26,0 6px 20px #06081136}
+.character-hud:after{content:"";position:absolute;left:-11px;top:-5px;bottom:-6px;width:1px;
+ background:linear-gradient(#c6b29750,#c6b29715);pointer-events:none}
+.character-name{border-bottom:1px solid #c4b08c20;margin-bottom:4px}
+.character-name>span{color:#c0ae92}.character-name strong{color:#e3d9e7}
+.portrait-frame{overflow:visible;clip-path:none;border-color:#c6b99e73;background:linear-gradient(135deg,#55465e,#292434);
+ box-shadow:2px 3px 0 #c4b39a42,4px 5px 0 #252230;padding:3px}
+.portrait-frame:before{content:"";position:absolute;right:9px;top:-14px;width:17px;height:35px;z-index:1;
+ background:linear-gradient(90deg,#77607f,#a2879e,#766079);clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%)}
+.portrait-frame:after{content:"✧";position:absolute;right:12px;top:-7px;z-index:2;color:#efdbc0;font:11px Georgia}
+.potion-row{margin-top:15px}.hud-butterfly{opacity:.52}
+.inventory .hud-eyebrow{color:#b4a18b}
+.inventory .item-slot{border-color:#b6a18a4a;box-shadow:2px 2px 0 #c5ae881b}
+.inventory .item-slot.selected{border-color:#d8c1998f}
+
+/* The open notebook keeps its galaxy, now set between layered paper edges. */
+.grimoire{border-color:#bdaa8c80;border-radius:4px 9px 9px 4px;
+ background:linear-gradient(90deg,#191722,transparent 26px),
+ radial-gradient(ellipse at 24% 35%,#80628a23,transparent 65%),linear-gradient(110deg,#292434fa,#242032fc 65%,#302938fc);
+ box-shadow:-7px 0 0 #171620,-9px 0 0 #aa907849,0 0 0 4px #211c2c,0 30px 100px #03040cbb}
+.grimoire:before{border-color:#c6b09024;border-radius:1px 5px 5px 1px;inset:9px 11px 10px 17px}
+.grimoire:after{left:28px;right:27px;background:linear-gradient(90deg,transparent,#d6c3a3aa,transparent)}
+.notebook-underpages{inset:5px -7px -9px 5px;z-index:-2;border:1px solid #bda98a80;border-width:0 1px 1px 0;border-radius:3px 9px 11px 3px;
+ background:repeating-linear-gradient(0deg,#796c6066 0 1px,#28232f 1px 3px) right/6px 100% no-repeat,
+ repeating-linear-gradient(0deg,#796c6066 0 1px,#28232f 1px 3px) bottom/100% 8px no-repeat;
+ box-shadow:3px 3px 0 #1b1822,4px 4px 0 #a48d704d}
+.notebook-binding{left:7px;top:27px;bottom:27px;width:5px;z-index:1;
+ background:repeating-linear-gradient(0deg,transparent 0 23px,#baa18470 23px 25px,transparent 25px 37px)}
+.corner{color:#c5ae91;opacity:.7}
+.header{margin-left:38px;border-bottom-color:#c5ad8b35}
+.heading h1{font-size:28px;letter-spacing:4px;color:#ede2d4}
+.notebook-subtitle{font:9px Georgia;letter-spacing:2.7px;color:#ac99ae;margin:6px 0 0}
+.notebook-inscription{position:relative;margin:0 0 0 auto;padding-right:55px;color:#c2ad94;
+ font:12px var(--serif);letter-spacing:2px;white-space:nowrap}
+.notebook-inscription svg{position:absolute;right:0;top:-29px;width:42px;height:71px;transform:rotate(19deg);opacity:.88}
+.header-right{margin-left:36px;gap:25px}
+.crest:before{border-color:#c5ad875e}.crest:after{border-color:#c5ad8730}
+.crest svg{color:#e3cdad}
+.navigation{align-items:flex-start;padding-left:39px}
+.filters{gap:18px;height:57px;align-items:flex-start}
+.filter{height:49px;min-width:119px;justify-content:center;gap:8px;padding:0 9px 4px;
+ border-top:1px solid #ad91bb38;color:#b7a4bc;font-size:12px;letter-spacing:.6px;
+ background:linear-gradient(#5142563d,#3c304120);
+ clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 6px),0 100%)}
+.filter.active{color:#f4e4cc;border-top-color:#d8be91a1;background:linear-gradient(#79607d87,#66506d65)}
+.filter.active:before{bottom:7px;left:10px;right:10px;background:linear-gradient(90deg,transparent,#d4b69357,transparent)}
+.filter.active:after{display:none}.filter:hover{background-color:#b495b517}
+.filter:focus-visible{outline:0;box-shadow:inset 0 0 0 2px #e6cea5}
+.filter-count{font-size:10px}.filter.active .filter-count{color:#dbc4a8}
+.progress{align-self:center}.content{border-top-color:#c7ad8b1f;border-bottom-color:#c7ad8b30}
+.chart:before{inset:8px 13px 8px 8px;border:1px solid #bca68a10;
+ background:radial-gradient(ellipse at 47% 48%,#c6a2ed0c,transparent 63%)}
+.chart-top{display:block;left:22px;top:20px;color:#bba489;font:italic 11px Georgia;letter-spacing:1px}
+.chart-top span{font:10px var(--serif);letter-spacing:2px;margin-top:7px;color:#9b87a9}
+.chart-camera{border-color:#bca78927}.chart-bottom{color:#b8a6bd}
+.notebook-folio{right:25px;bottom:17px;color:#bca589;font:italic 10px Georgia;letter-spacing:2px}
+.detail{border-left-color:#c6b09048;background:
+ linear-gradient(90deg,#0d0b1659,transparent 17px,#be9b7910 20px,transparent 28px),
+ repeating-linear-gradient(0deg,transparent 0 27px,#c8b59d08 27px 28px),linear-gradient(120deg,#43344025,#64534315)}
+.detail:before{content:"";left:3px;top:12px;bottom:12px;width:4px;background:
+ repeating-linear-gradient(0deg,transparent 0 26px,#d3bc915e 26px 27px,transparent 27px 42px)}
+.detail:not(.empty-detail):after{content:"";position:absolute;right:0;top:0;width:22px;height:22px;
+ background:linear-gradient(45deg,#b29d7a5c 49%,#1c182533 50%);clip-path:polygon(0 0,100% 100%,0 100%);
+ transform:rotate(180deg);pointer-events:none}
+.detail-chapter{position:relative;min-width:52px;padding:6px 10px 10px;margin-top:-6px;
+ color:#ead6b7;background:linear-gradient(#755c7269,#5a456458);font-size:11px;
+ clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 5px),0 100%)}
+.detail h2{color:#e7dacb}.description{color:#d0c3d4}
+.loadout-caption{color:#d5c09f}.loadout-caption:before{content:"✧";display:block;text-align:center;font-size:14px;margin-bottom:4px}
+.loadout-slot{border-color:#b69c7859;background:#2c253580;box-shadow:2px 2px 0 #baa58018}
+.loadout-slot.target{background:#b99b5720}.footer{margin-left:38px}
+@media(prefers-reduced-motion:reduce){.rack-ribbon{transition:none}}
 </style>
 </head>
 <body>
@@ -644,12 +764,32 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
  </section>
  <div class="game-center" aria-hidden="true"><span>✧</span><p>旅途，仍在继续</p></div>
  <div class="cast-display" id="cast-display" role="status" aria-live="polite"></div>
- <section class="battle-skills" aria-label="战斗技能栏，滚轮切换当前技能，Z 释放"><div class="battle-heading"><svg class="hud-star-trail" viewBox="0 0 374 13" aria-hidden="true"><defs><linearGradient id="hud-trail-gradient"><stop stop-color="#b99acd" stop-opacity=".08"/><stop offset=".18" stop-color="#c5aad9" stop-opacity=".6"/><stop offset=".65" stop-color="#b698cc" stop-opacity=".28"/><stop offset="1" stop-color="#b698cc" stop-opacity="0"/></linearGradient></defs><path class="trail" d="M0 7H374"/><path class="star" d="m24 2 1.3 3.7L29 7l-3.7 1.3L24 12l-1.3-3.7L19 7l3.7-1.3Z"/><path class="star" opacity=".5" d="m139 4 .8 2.2L142 7l-2.2.8L139 10l-.8-2.2L136 7l2.2-.8Z"/><circle class="dust" cx="87" cy="7" r="1.1"/><circle class="dust" cx="219" cy="7" r=".9"/></svg><div><span>魔女的咒术</span><small id="battle-hint">魔杖已就绪</small></div><button id="recall" class="open-stars"><span>✧</span> 手札 <kbd>C</kbd></button></div><div class="battle-rack"><img class="battle-rack-art" src="data:image/png;base64,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" alt="" draggable="false" aria-hidden="true"><div class="battle-slots" id="battle-slots"></div></div><div class="battle-tip">八席咒术 <span>·</span> 点击空槽装配 <span>·</span> 滚轮切换 · Z 释放</div></section>
+ <section class="battle-skills" aria-label="战斗技能栏，滚轮切换当前技能，Z 释放"><div class="battle-heading"><svg class="hud-star-trail" viewBox="0 0 374 13" aria-hidden="true"><defs><linearGradient id="hud-trail-gradient"><stop stop-color="#b99acd" stop-opacity=".08"/><stop offset=".18" stop-color="#c5aad9" stop-opacity=".6"/><stop offset=".65" stop-color="#b698cc" stop-opacity=".28"/><stop offset="1" stop-color="#b698cc" stop-opacity="0"/></linearGradient></defs><path class="trail" d="M0 7H374"/><path class="star" d="m24 2 1.3 3.7L29 7l-3.7 1.3L24 12l-1.3-3.7L19 7l3.7-1.3Z"/><path class="star" opacity=".5" d="m139 4 .8 2.2L142 7l-2.2.8L139 10l-.8-2.2L136 7l2.2-.8Z"/><circle class="dust" cx="87" cy="7" r="1.1"/><circle class="dust" cx="219" cy="7" r=".9"/></svg><div><span>魔女的咒术</span><small id="battle-hint">魔杖已就绪</small></div><button id="recall" class="open-stars"><svg aria-hidden="true"><use href="#notebook-open"/></svg>手札 <kbd>C</kbd></button></div><div class="battle-rack">
+ <div class="rack-folio notebook-decoration" aria-hidden="true"></div>
+ <span class="rack-stitches notebook-decoration" aria-hidden="true"></span>
+ <svg class="rack-quill notebook-quill notebook-decoration" aria-hidden="true"><use href="#notebook-quill"/></svg>
+ <span class="rack-ribbon notebook-decoration" aria-hidden="true"></span>
+ <div class="rack-note notebook-decoration" aria-hidden="true"><span>今夜，也记下一点星光。</span><span>Elaina's notes / VIII</span></div>
+ <img class="battle-rack-art" src="data:image/png;base64,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" alt="" draggable="false" aria-hidden="true"><div class="battle-slots" id="battle-slots"></div></div><div class="battle-tip">八席咒术 <span>·</span> 点击空槽装配 <span>·</span> 滚轮切换 · Z 释放</div></section>
  <section class="preview-tools" aria-label="模拟画面设置"><div class="preview-label"><i></i>战斗演练 <span>PREVIEW</span></div><div class="preview-controls"><button class="hud-quiet" id="choose-background">＋ 上传背景截图</button><input id="background-upload" type="file" accept="image/png,image/jpeg,image/webp,image/avif" hidden><button class="hud-quiet" id="clear-background" hidden>移除背景</button><button class="hud-quiet" id="take-hit">模拟受击</button><button class="hud-quiet" id="restart-combat">重置战斗</button></div><div class="preview-caption" id="background-caption">纯色画布 · 可使用自己的游戏截图</div></section>
 </div>
 <div class="menu-backdrop" id="menu-backdrop"></div>
 </div>
 <svg class="hud-symbols" aria-hidden="true"><defs>
+<symbol id="notebook-quill" viewBox="0 0 80 140">
+ <path d="M17 104C12 85 11 67 23 48 35 28 56 10 73 5 76 27 65 55 52 71L42 74 45 80 32 85 32 92Z" fill="currentColor" fill-opacity=".13"/>
+ <path d="M17 104C12 85 11 67 23 48 35 28 56 10 73 5 72 26 66 46 54 62L45 65 49 69 42 75 33 77 37 80 32 86 24 89 24 97Z" fill="currentColor" fill-opacity=".26" stroke="currentColor" stroke-opacity=".72" stroke-width=".7"/>
+ <path d="M7 131C19 101 31 64 68 13" fill="none" stroke="#e9d7b8" stroke-width="1.25" stroke-linecap="round"/>
+ <g fill="none" stroke="currentColor" stroke-width=".75" opacity=".67">
+  <path d="m19 100 7-11M23 88l-5-15m9 4 13-9m-10 0-5-17m9 10 16-12m-12 4-3-19m8 11 17-14m-12 6-1-14m7 7 12-12"/>
+  <path d="M16 107c13-5 24-16 34-29M51 24c-12 18-17 35-19 49" opacity=".4"/>
+ </g>
+ <path d="m7 130 2-12 4 2Z" fill="#ead4ac"/>
+ <path d="m66 78 1.5 4.5L72 84l-4.5 1.5L66 90l-1.5-4.5L60 84l4.5-1.5Z" fill="#ddc499" opacity=".8"/>
+ <circle cx="58" cy="100" r="1" fill="#d6c2e2"/><circle cx="74" cy="59" r=".9" fill="#d6c2e2"/>
+</symbol>
+<symbol id="notebook-open" viewBox="0 0 24 24"><path d="M12 6c-3-2-6-2-10-1v14c4-1 7-1 10 1 3-2 6-2 10-1V5c-4-1-7-1-10 1Zm0 0v14M5 8l4 1m-4 3 4 1m6-4 4-1m-4 5 4-1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+
 <symbol id="item-wand" viewBox="0 0 64 64"><path d="m13 53 31-34 5 4-31 34Z" fill="#6c597f" stroke="#cfb8e6"/><path d="m42 21 6-15 4 1 5 7-9 11Z" fill="#d5bcf1" stroke="#efdcff"/><path d="m47 11 5 5M22 45l4 4M19 48l4 4" stroke="#f0d8fa"/><path d="m28 12 1.5 4.5L34 18l-4.5 1.5L28 24l-1.5-4.5L22 18l4.5-1.5Z" fill="#d8c09a"/><circle cx="57" cy="29" r="1" fill="#e8d3f4"/></symbol>
 <symbol id="item-broom" viewBox="0 0 64 64"><path d="M44 9 22 37" stroke="#e0ccae" stroke-width="3"/><path d="m20 32 12 9-12 17L7 50Z" fill="#c8abc6" fill-opacity=".45" stroke="#cfb4d9"/><path d="m24 38-10 15m14-12-9 14m1-15L9 49m9-14 12 9" stroke="#d8c5aa"/><path d="m45 16 6-2 2-6" fill="none" stroke="#c9b0df"/></symbol>
 <symbol id="item-book" viewBox="0 0 64 64"><path d="m13 12 34-3 7 41-33 5Z" fill="#51405c" stroke="#cbb2dd"/><path d="m19 13 6 39m-4-11 22-3M18 15l4 30m18-31 4 22" fill="none" stroke="#bea7c9" stroke-width=".7"/><path d="m34 19 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z" fill="#ceb491"/><path d="m41 49 1 11 4-4 4 2-2-10" fill="#b188ac"/></symbol>
@@ -664,15 +804,17 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
 </defs></svg>
 <div class="viewport">
 <main class="grimoire" id="panel" aria-label="魔女手札">
+<div class="notebook-underpages notebook-decoration" aria-hidden="true"></div>
+<div class="notebook-binding notebook-decoration" aria-hidden="true"></div>
 <div class="corner tl" aria-hidden="true"><svg><use href="#corner"/></svg></div><div class="corner tr" aria-hidden="true"><svg><use href="#corner"/></svg></div><div class="corner bl" aria-hidden="true"><svg><use href="#corner"/></svg></div><div class="corner br" aria-hidden="true"><svg><use href="#corner"/></svg></div>
-<header class="header"><div class="crest" aria-hidden="true"><svg><use href="#hat"/></svg></div><div class="heading"><h1>魔女手札</h1></div><div class="header-right"><div class="resource"><svg aria-hidden="true"><use href="#crystal"/></svg><div><span class="resource-label">星尘</span><div class="resource-value" id="stardust">18<span>STARDUST</span></div></div></div><button class="close" id="close" aria-label="关闭星图"><span class="close-hint">ESC</span></button></div></header>
+<header class="header"><div class="crest" aria-hidden="true"><svg><use href="#hat"/></svg></div><div class="heading"><h1>魔女手札</h1><p class="notebook-subtitle">ELAINA’S TRAVEL JOURNAL</p></div><p class="notebook-inscription" aria-hidden="true">把沿途的星光，写进下一页。<svg class="notebook-quill"><use href="#notebook-quill"/></svg></p><div class="header-right"><div class="resource"><svg aria-hidden="true"><use href="#crystal"/></svg><div><span class="resource-label">星尘</span><div class="resource-value" id="stardust">18<span>STARDUST</span></div></div></div><button class="close" id="close" aria-label="关闭星图"><span class="close-hint">ESC</span></button></div></header>
 <nav class="navigation" aria-label="习得进度"><div class="filters"><button class="filter active" data-filter="learned" aria-pressed="true"><i class="state-glyph" aria-hidden="true"></i>已习得<span class="filter-count">00</span></button><button class="filter" data-filter="ready" aria-pressed="false"><i class="state-glyph" aria-hidden="true"></i>待研习<span class="filter-count">00</span></button><button class="filter" data-filter="locked" aria-pressed="false"><i class="state-glyph" aria-hidden="true"></i>待启封<span class="filter-count">00</span></button><button class="filter" data-filter="hidden" aria-pressed="false"><i class="state-glyph" aria-hidden="true"></i>未显现<span class="filter-count">00</span></button></div><div class="progress" title="已习得 / 全部"><div class="tiny-stars" id="progress-stars" aria-hidden="true"></div><b id="progress">03</b><em>/ 12</em></div></nav>
-<div class="content"><section class="chart" id="chart" aria-label="技能关系星图"><div class="chart-top">CHAPTER I — A JOURNEY BEGINS<span>拖曳星河，寻找下一颗属于你的星。</span></div>
+<div class="content"><section class="chart" id="chart" aria-label="技能关系星图"><div class="chart-top">Atlas of passing stars<span>星河漫游 · 术式摘记</span></div>
 <div class="chart-camera" role="group" aria-label="星图视角"><button id="zoom-out" aria-label="缩小星图">−</button><output class="zoom-value" id="zoom-value" aria-label="当前星图缩放">84%</output><button id="zoom-in" aria-label="放大星图">＋</button><button id="view-home" class="view-home" aria-label="星图归位至84%">归位</button></div>
 <div class="star-viewport" id="star-viewport" tabindex="0" role="group" aria-label="可拖动星图，滚轮缩放0.5至1.5倍；方向键平移，加减键缩放，0归位"><div class="galaxy-field" aria-hidden="true"></div><div class="star-world" id="star-world">
 <svg class="sky" viewBox="0 0 727 550" aria-hidden="true"><defs><radialGradient id="nebula"><stop stop-color="#9b6fc4" stop-opacity=".06"/><stop offset="1" stop-color="#9063b9" stop-opacity="0"/></radialGradient></defs><ellipse cx="354" cy="286" rx="300" ry="255" fill="url(#nebula)"/><g fill="none" stroke="#a48aba"><circle cx="344" cy="284" r="222" stroke-opacity=".12" stroke-width=".7"/><circle cx="344" cy="284" r="208" stroke-opacity=".08" stroke-dasharray="1 6"/><circle cx="344" cy="284" r="152" stroke-opacity=".08" stroke-width=".7"/><circle cx="344" cy="284" r="81" stroke-opacity=".06"/><path d="M101 284h486M344 40v488" stroke-opacity=".055"/><ellipse cx="344" cy="284" rx="295" ry="125" transform="rotate(-32 344 284)" stroke-opacity=".055"/><path d="M344 55v10m0 438v10M113 284h10m442 0h10" stroke-opacity=".4"/></g><g id="stars"></g><text class="orbit-label" x="363" y="62">LUNA</text><text class="orbit-label" x="570" y="337" transform="rotate(90 570 337)">ARCANUM</text><text class="orbit-label" x="45" y="394" transform="rotate(-90 45 394)">MEMORIA</text></svg>
 <svg class="links" id="links" viewBox="0 0 727 550" role="img" aria-label="实线表示已习得的星轨，虚线指向尚未显现的技能"><defs><filter id="line-glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g id="edge-layer"></g></svg><div id="nodes"></div></div></div>
-<div class="chart-bottom"><span class="legend"><i class="kind-example formula" aria-hidden="true"></i>术式</span><span class="legend"><i class="kind-example insight" aria-hidden="true"></i>心得</span></div></section>
+<div class="chart-bottom"><span class="legend"><i class="kind-example formula" aria-hidden="true"></i>术式</span><span class="legend"><i class="kind-example insight" aria-hidden="true"></i>心得</span></div><span class="notebook-folio notebook-decoration" aria-hidden="true">— 01 —</span></section>
 <aside class="detail" aria-label="手札条目">
  <div class="detail-top"><span class="detail-chapter" id="detail-number"></span><span class="status-tag" id="detail-status"></span></div>
  <div class="detail-hero"><div class="detail-icon-wrap"><div class="detail-icon" id="detail-icon"></div></div><div class="detail-heading"><h2 id="detail-name"></h2><div class="skill-type" id="detail-type"></div></div></div>
@@ -984,6 +1126,7 @@ function loadEquipment(){try{const raw=localStorage.getItem(LOADOUT_STORAGE);if(
 function saveEquipment(){try{localStorage.setItem(LOADOUT_STORAGE,JSON.stringify(combat.serialize()))}catch{}}
 function renderEquipment(){
  $('battle-slots').style.setProperty('--active-slot',activeSlot);
+ document.querySelector('.battle-rack').style.setProperty('--active-slot',activeSlot);
  $('loadout-slots').innerHTML=combat.slots.map((id,i)=>`<button class="loadout-slot ${targetSlot===i?'target':''}" data-slot="${i}" aria-label="装配目标 ${SLOT_LABELS[i]} 槽：${id?byId[id].name:'空'}" aria-pressed="${targetSlot===i}"><kbd>${SLOT_LABELS[i]}</kbd>${id?iconMarkup(byId[id]):'<span class="empty-mark">＋</span>'}</button>`).join('');
  $('target-key').textContent=SLOT_LABELS[targetSlot];$('clear-slot').disabled=!combat.slots[targetSlot];
  $('battle-slots').innerHTML=combat.slots.map((id,i)=>`<button class="battle-slot ${id?'':'empty'} ${activeSlot===i?'current':''}" data-cast="${i}" aria-pressed="${activeSlot===i}" aria-label="第 ${SLOT_LABELS[i]} 槽：${id?'选择 '+byId[id].name+'，Z 释放':'空，点击装配'}"><span class="battle-disc">${id?iconMarkup(byId[id]):'✧'}<span class="cooldown-mask" data-cooldown="${i}" hidden></span></span></button>`).join('');
@@ -1025,6 +1168,7 @@ function selectBattleSlot(slot){
  if(next===activeSlot)return;
  activeSlot=next;
  const rack=$('battle-slots');rack.style.setProperty('--active-slot',activeSlot);
+ rack.closest('.battle-rack').style.setProperty('--active-slot',activeSlot);
  clearTimeout(selectionFlashTimer);rack.classList.remove('selection-switching');
  document.querySelectorAll('[data-cast]').forEach(button=>{
   const current=Number(button.dataset.cast)===activeSlot;

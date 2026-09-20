@@ -1,0 +1,222 @@
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using ReLogic.Graphics;
+global using SilkyUIFramework.Helper;
+global using PlainSnippet = Terraria.GameContent.UI.Chat.PlainTagHandler.PlainSnippet;
+global using Terraria;
+using KL.SkillSystem;
+using KL.SkillSystem.SilkyUI;
+using ReLogic.Content;
+
+namespace ReLogic.Content { public sealed class Asset<T>(T value) { public T Value => value; } }
+namespace Terraria.ModLoader
+{
+    public class Mod { public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(PanelGame.Repo, path)); }
+    public static class ModContent
+    {
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(object)PanelGame.Texture(path));
+        internal static int OptionalRequests;
+        public static bool RequestIfExists<T>(string path, out Asset<T> asset, AssetRequestMode mode)
+        {
+            OptionalRequests++;
+            bool exists = File.Exists(Path.Combine(PanelGame.Repo, path[(path.IndexOf('/') + 1)..] + ".png"));
+            asset = exists ? Request<T>(path, mode) : null;
+            return exists;
+        }
+    }
+}
+namespace Terraria
+{
+    public static class Main
+    {
+        public static float UIScale = 1;
+        public static bool gameMenu;
+        public static bool mouseLeft;
+        public static Player LocalPlayer;
+        public static Vector2 MouseScreen => new(-100);
+    }
+    public sealed class Player { public bool active = true; public Item[] inventory = Enumerable.Range(0, 58).Select(_ => new Item()).ToArray(); }
+    public sealed class Item { public int type, stack; public bool IsAir => stack <= 0; public void TurnToAir() { type = stack = 0; } }
+    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
+}
+namespace Terraria.ID { public static class ItemID { public const int Wood = 9; } }
+namespace Terraria.Localization
+{
+    public static class Language
+    {
+        public static readonly Dictionary<string, string> Text = [];
+        public static bool Exists(string key) => Text.ContainsKey(key);
+        public static string GetTextValue(string key) => Text.GetValueOrDefault(key, key);
+        public static LocalizedText GetText(string key) => new(GetTextValue(key));
+    }
+    public sealed record LocalizedText(string Value)
+    {
+        public LocalizedText WithFormatArgs(params object[] args) => new(string.Format(Value, args));
+    }
+}
+namespace Terraria.GameContent
+{
+    public static class TextureAssets { public static Asset<Texture2D> MagicPixel; }
+    public static class FontAssets { public static Asset<DynamicSpriteFont> MouseText; }
+}
+namespace KL.Drawing
+{
+    public static class FontManager { public static Asset<DynamicSpriteFont> HarmonyOS_Sans_SC, NotoSerifSC, Gelasio; }
+}
+namespace Terraria.UI.Chat
+{
+    public static class ChatManager
+    {
+        public static class Regexes
+        {
+            public static readonly System.Text.RegularExpressions.Regex Format = new("(?<!\\\\)\\[(?<tag>[a-zA-Z]{1,10})(\\/(?<options>[^:]+))?:(?<text>.+?)(?<!\\\\)\\]");
+        }
+        public static Color WaveColor(Color color) => color;
+        public static ITagHandler GetHandler(string tag) => tag switch
+        {
+            "klicon" => new KL.Drawing.Snippets.KLTextureTagHandler(),
+            "c" => new Terraria.GameContent.UI.Chat.ColorTagHandler(), _ => null
+        };
+    }
+}
+namespace SilkyUIFramework.Components
+{
+    public class CursorSnippet : Terraria.UI.Chat.TextSnippet { public DynamicSpriteFont Font; public float TrueHeight; }
+    public readonly record struct Bounds(Vector2 Position, Vector2 Size) { public bool Contains(Vector2 p) => false; }
+}
+namespace KL.SkillSystem
+{
+    public abstract class ModSkill
+    {
+        public Terraria.ModLoader.Mod Mod = new();
+        public Skill Skill;
+        public virtual bool IsPassiveSkill => false;
+        public virtual bool IsToggleable => false;
+        public bool IsEnabled = true;
+        public float CooldownDuration;
+        public int LockCalls;
+        public virtual void OnLockSkill() => LockCalls++;
+        public virtual Type[] PrerequisiteSkills => [];
+        public virtual SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.None;
+        public virtual bool TryUnlockSkill(KLSkillModPlayer p) => UnlockCondition.TryUnlock(p, this);
+        public virtual string GetUnlockConditionDescription(KLSkillModPlayer p) => UnlockCondition.GetDescription(p, this);
+        public virtual bool CanDragInSkillPanel() => Skill.BasicStatus == Skill.SKillBasicStatus.UnLock && !IsPassiveSkill;
+        public int Level { get => Skill.Level; set => Skill.Level = value; }
+        // LIVE_MAX_LEVEL
+        // LIVE_TRY_LEVEL_UP
+    }
+    public sealed class Skill
+    {
+        public static Dictionary<string, Skill> RegisterSkill = [];
+        public enum SKillBasicStatus { Lock, UnLock, Hide }
+        public SKillBasicStatus BasicStatus;
+        public int Level, SkillSlot = -1;
+        public float CurrentCD;
+        public int Stack = 1, MaxStack = 1;
+        public float MaxCD = .3f;
+        public ModSkill ModSkill;
+        // LIVE_SKILL_MAX_LEVEL
+        public Terraria.ModLoader.Mod Mod => ModSkill.Mod;
+        public Asset<Texture2D> SkillIcon => new(PanelGame.Texture(Fixtures.Icon(ModSkill.GetType().Name)));
+        public static Skill NewSkill(Type type, Terraria.ModLoader.Mod mod = null)
+        {
+            var result = new Skill { ModSkill = (ModSkill)Activator.CreateInstance(type) };
+            result.ModSkill.Skill = result;
+            return result;
+        }
+    }
+    public class KLSkillModPlayer
+    {
+        public Player Player = new();
+        public int SkillPoint;
+        public Dictionary<string, Skill> UnlockedSkill = [];
+        public List<Skill> ActiveSkill = Enumerable.Repeat<Skill>(null, 8).ToList();
+        public bool CanCostSkillPoint(int amount) => amount <= 0 || SkillPoint >= amount;
+        public bool TryCostSkillPoint(int amount) { if (!CanCostSkillPoint(amount)) return false; SkillPoint -= Math.Max(0, amount); return true; }
+        public void UnlockSkill(Skill skill) { skill.Level = Math.Max(1, skill.Level); skill.BasicStatus = Skill.SKillBasicStatus.UnLock; UnlockedSkill.TryAdd(skill.ModSkill.GetType().Name, skill); }
+        public void LockSkill(Skill skill)
+        {
+            if (!UnlockedSkill.TryGetValue(skill.ModSkill.GetType().Name, out var owned) || owned.BasicStatus != Skill.SKillBasicStatus.UnLock) return;
+            UnlockedSkill.Remove(skill.ModSkill.GetType().Name);
+            skill.BasicStatus = Skill.SKillBasicStatus.Lock; skill.ModSkill.OnLockSkill();
+        }
+        public void OnSkillsUpdated() { }
+    }
+    public static class KLSkillManager
+    {
+        public static void EquipSkill(List<Skill> skills, Skill skill, int index)
+        {
+            for (int i = 0; i < skills.Count; i++) if (skills[i]?.ModSkill.GetType() == skill.ModSkill.GetType()) skills[i] = null;
+            skills[index] = skill; skill.SkillSlot = index;
+        }
+        public static void UnEquipSkill(List<Skill> skills, int index) => skills[index] = null;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills
+{
+    public abstract partial class ElainaSkill : ModSkill
+    {
+        protected string SkillTexturePath => Fixtures.Icon(GetType().Name);
+        public int MagicPointCost = 3;
+        protected virtual object[] SkillDescriptionArgs => [];
+    }
+    public sealed class ElainaSkillModPlayer : KLSkillModPlayer { public static ElainaSkillModPlayer SkillModPlayer; public static int CurrentSkillIndex = -1; }
+}
+
+// Isolated player fixtures. Production state, descriptions, layout and drawing are linked unchanged.
+[SkillUIInfo(State = 0, Pixels = 0)] public class AshenWitchSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override bool IsPassiveSkill => true;
+    public override bool IsToggleable => true;
+}
+[SkillUIInfo(State = 0, Pixels = 200)] public class MagicMissileSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    // Visual-only fixture for comparing the updated HTML. Never used by the mod.
+    public static bool GrowthPreview, LongDescription;
+    public override Type[] PrerequisiteSkills => GrowthPreview ? [typeof(MultiMissileSkill)] : [];
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel)
+        => GrowthPreview ? SkillUnlockCondition.BySkillPoint(1) : base.GetConstellationUpgradeCondition(nextLevel);
+    public override string GetConstellationDescription()
+    {
+        string text = "依次生成 5 枚飞弹，追击敌人，每枚造成 30 点伤害。\n每次命中附加 1 层印记。累计 3 层时引爆，造成 60 点范围伤害，并回复 8 点魔力。";
+        return !GrowthPreview ? base.GetConstellationDescription() : LongDescription ? string.Join("\n", Enumerable.Repeat(text, 4)) : text;
+    }
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
+        => !GrowthPreview ? [] : [("飞弹伤害","30","36",""),("引爆伤害","60","72",""),("回复魔力","8","10"," MP"),("魔力","18","17"," MP"),("冷却","8","7.4"," 秒")];
+}
+[SkillUIInfo(State = 1, Pixels = 100)] public class MagicBarrierSkill : AshenWitchSkill { public override Type[] PrerequisiteSkills => [typeof(AshenWitchSkill)]; }
+[SkillUIInfo(State = 1, Pixels = 300)] public class WindBladeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    // Explicit free-upgrade fixture, independent of the current project default.
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => SkillUnlockCondition.None;
+}
+[SkillUIInfo(State = 2, Pixels = 200)] public class MultiMissileSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 3, Pixels = 0)] public class HealSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 4, Pixels = 400)] public class WaterLaserSKill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 6, Pixels = 600)] public class FireLaserSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 7, Pixels = 500)] public class IceConeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 8, Pixels = 600)] public class FireBurstSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 12, Pixels = 400)] public class WaterBallSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+public class UnlistedSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo] public class ForeignSkill : ModSkill { }
+[SkillUIInfo] public class UpgradeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override int MaxLevel => 3;
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => SkillUnlockCondition.BySkillPoint(2);
+}
+[SkillUIInfo] public class CycleA : 伊蕾娜.ElainaModSkills.ElainaSkill { public override Type[] PrerequisiteSkills => [typeof(CycleB)]; }
+[SkillUIInfo] public class CycleB : 伊蕾娜.ElainaModSkills.ElainaSkill { public override Type[] PrerequisiteSkills => [typeof(CycleA)]; }
+[SkillUIInfo] public class PaidSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.ByItemsAndSkillPoint(2, new SkillUnlockItem(1, 3));
+}
+[SkillUIInfo] public class DynamicMaxSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public static int Limit = 2;
+    public override int MaxLevel => Limit;
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => SkillUnlockCondition.BySkillPoint(1);
+}
+[SkillUIInfo] public class NullUpgradeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => null;
+}

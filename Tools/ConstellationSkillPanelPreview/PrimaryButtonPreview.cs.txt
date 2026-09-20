@@ -1,0 +1,28 @@
+internal static class PrimaryButtonPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        foreach (float scale in new[] { .86f, 1.25f, 2f })
+        foreach (string mode in new[] { "free", "paid", "missing", "equip", "equipped" })
+        {
+            using var target = new RenderTarget2D(device, (int)Math.Ceiling(316 * scale), (int)Math.Ceiling(78 * scale));
+            device.SetRenderTarget(target); device.Clear(new Color(27, 25, 41));
+            new PanelScene().RenderPrimaryButton(batch, scale, mode, false, false, 0);
+            device.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(output, $"primary-{mode}-{scale:0.00}.png"));
+            target.SaveAsPng(file, target.Width, target.Height);
+        }
+        string folder = Path.Combine(output, "primary-frames"); Directory.CreateDirectory(folder);
+        var scene = new PanelScene();
+        using var animation = new RenderTarget2D(device, 632, 156);
+        for (int frame = 0; frame < 72; frame++)
+        {
+            device.SetRenderTarget(animation); device.Clear(new Color(27, 25, 41));
+            scene.RenderPrimaryButton(batch, 2, "free", frame >= 8 && frame < 58, frame >= 30 && frame < 39, 1f / 60);
+            device.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(folder, $"primary-{frame:000}.png"));
+            animation.SaveAsPng(file, animation.Width, animation.Height);
+        }
+        Console.WriteLine("Primary button FNA check: free/paid/missing/equip/equipped at 86%, 125%, 200%, plus hover/press frames.");
+    }
+}
