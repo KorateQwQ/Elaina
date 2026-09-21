@@ -2,6 +2,18 @@
 
 默认 V 打开 `ConstellationSkillPanel`。旧 `ElainaSkillPanel` 与 `/constellationpreview` 演示保留，正式面板不读取演示 Skills.json。
 
+技能栏右上方新增 **手札** 按钮，显示当前绑定键；它与 V 共用开关入口。打开约 560ms、关闭约 440ms：书从按钮飞出，带弧线、倾斜和 32 段连续弯曲的双面封面；关闭时反向收回。快速按 V 可在中途反向，保持位置、缩放与曲率连续。动画期间根控件接收鼠标以防穿透，子控件与技能栏禁用鼠标操作；完全展开后恢复原生 SUI 布局和命中。
+
+关闭/返回会先取消未保存的布局编辑，再播放合拢；Esc 在编辑模式仍先取消编辑。失焦结束拖动并收敛到动画目标；退出世界保留原有状态重置，立即关闭而不播放动画，不释放框架资产。
+
+开合与控件动画共用 `ConstellationUIClock` 实现，每个计时器仅保存一个 `Stopwatch` 与上次采样刻度，不依赖 `Main.gameTimeCache` 或 `Main.timeForVisualEffects`。开合计时器仍在开始/反向时重启、结束时停止；控件使用独立实例，在面板打开期间持续采样，驱动分类提示线、按钮悬停/按下、被动开关、提示延迟及状态刷新。开合结束不会停止分类动画的计时；关闭时重置，失焦与恢复焦点首帧不推进控件动画。
+
+复古光照模式仍支持此动画：原版在该模式下会调整世界 RT 绘制和场景捕获路径，但不会禁用 FNA 的 `RenderTarget2D`。手札使用 SUI 自己的 RT 池，不读取原版 `screenTarget` 或依赖 `Filters.Scene` 捕获。
+
+封面正反面的 `BookCoverFront.png` / `BookCoverBack.png` 由 HTML 内嵌 SVG 提取，均为 1100×800 预乘 Alpha 图片。封面标题使用项目 Noto Serif SC，与装饰合成后缓存。动画页面 RT 向 SUI `RenderTargetPool` 借还，封面 RT 缓存跨世界复用；模组卸载时归还缓存，并释放本次新增绘制器自行创建的 `BasicEffect`。`ModContent` 的纹理与字体不由面板释放。完整展开走原有直绘路径，动画中不每帧创建纹理、Effect 或网格数组。
+
+专项离线验证：`& Tools/ConstellationSkillPanelPreview/run.ps1 -BookOnly`。此预览链接正式动画与曲面绘制代码，提供连续帧和状态检查；实际 SUI 输入、世界切换和游戏设备生命周期仍需编译重载后验收。背景使用与参考一致的深色遮罩，本次未增加网页的背景模糊采样。
+
 - 自动收录注册表中带 `SkillUIInfo` 的 `ElainaSkill`，按 State / Pixels 排列。空白阶段被压缩；星图可平移缩放。
 - 已解锁技能直接使用角色的 `UnlockedSkill` 实例，装配使用 `ActiveSkill`，技能点使用 `SkillPoint`，沿用 KL 的存档格式与装备通知。
 - 解锁复用 `UnlockCondition` / `TryUnlockSkill` / `UnlockSkill`；前置使用 `PrerequisiteSkills`。缺失或循环依赖不能被当作已满足。

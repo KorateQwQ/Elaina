@@ -65,7 +65,7 @@ internal sealed class ConstellationDrawing
     }
 
     internal Texture2D Texture(string name)
-        => LoadTexture(name is "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
+        => LoadTexture(name is "BookCoverFront" or "BookCoverBack" or "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
             ? "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/" + name : Root + name);
 
     private Texture2D LoadTexture(string path)

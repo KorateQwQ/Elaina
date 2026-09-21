@@ -1,0 +1,136 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class BookPreview
+{
+    private static void Require(bool value, string reason)
+    {
+        if (!value) throw new InvalidOperationException("Book motion: " + reason);
+    }
+
+    internal static void CheckMotion()
+    {
+        var clock = new ConstellationUIClock();
+        Require(clock.Sample() == 0, "inactive clock does not advance");
+        var referenceClock = System.Diagnostics.Stopwatch.StartNew();
+        clock.Restart();
+        System.Threading.Thread.Sleep(20);
+        float firstSample = clock.Sample(), secondSample = clock.Sample();
+        Require(firstSample >= .01f && secondSample >= 0
+            && firstSample + secondSample <= referenceClock.Elapsed.TotalSeconds + .00001,
+            "Stopwatch samples count actual time without counting it twice");
+        clock.Stop();
+        System.Threading.Thread.Sleep(20);
+        Require(clock.Sample() == 0, "hidden interval excluded");
+        referenceClock.Restart(); clock.Restart();
+        Require(clock.Sample() <= referenceClock.Elapsed.TotalSeconds + .00001, "reopen establishes a new origin");
+        var timed = new ConstellationBookMotion(); timed.Request(true);
+        // Uneven drawing intervals; elapsed game-update values are never involved.
+        foreach (float interval in new[] { .004f, .031f, .007f, .058f, .1f }) timed.Advance(interval);
+        Require(Math.Abs(timed.Progress - .2f / .56f) < .00001f, "uneven frames preserve wall-clock progress");
+        float beforeReverse = timed.Progress, beforeCurl = timed.CurlDirection;
+        timed.Request(false); clock.Restart();
+        Require(timed.Progress == beforeReverse && timed.CurlDirection == beforeCurl, "restart preserves reverse pose");
+        timed.Advance(.044f);
+        Require(Math.Abs(timed.Progress - (beforeReverse - .1f)) < .00001f, "reverse duration excludes preceding direction interval");
+        timed.Finish(); clock.Stop();
+        Require(clock.Sample() == 0 && timed.IsClosed, "focus loss stops clock at target");
+        foreach (int fps in new[] { 30, 60, 144 })
+        {
+            var motion = new ConstellationBookMotion();
+            motion.Request(true);
+            int frames = 0;
+            while (motion.Moving && frames < fps * 2) { motion.Advance(1f / fps); frames++; }
+            Require(motion.IsOpen && Math.Abs(frames / (float)fps - .56f) <= 1f / fps + .001f, "opening duration");
+            motion.Request(false); frames = 0;
+            while (motion.Moving && frames < fps * 2) { motion.Advance(1f / fps); frames++; }
+            Require(motion.IsClosed && Math.Abs(frames / (float)fps - .44f) <= 1f / fps + .001f, "closing duration");
+        }
+        var book = new ConstellationBookMotion(); book.Request(true); book.Advance(.31f);
+        float progress = book.Progress, curl = book.CurlDirection, velocity = book.CurlVelocity;
+        Matrix pose = book.Pose(new Vector2(700, 400), .03f);
+        book.Request(false);
+        Require(book.Progress == progress && book.CurlDirection == curl && book.CurlVelocity == velocity
+            && book.Pose(new Vector2(700, 400), .03f) == pose, "reversal must preserve pose and curl");
+        book.Advance(.03f); book.Request(true); book.Advance(.015f); book.Request(false);
+        progress = book.Progress;
+        book.Advance(float.NaN); book.Advance(-1);
+        Require(book.Progress == progress, "invalid time ignored");
+        book.Advance(10); Require(book.IsClosed, "large elapsed interval reaches endpoint");
+        book.Request(true); book.Finish(); Require(book.IsOpen, "focus loss resolves target");
+        book.Reset(); Require(book.IsClosed && !book.TargetOpen, "world reset closes immediately");
+        var a = new ConstellationBookMotion(); var b = new ConstellationBookMotion();
+        a.Request(true); b.Request(true); a.Advance(.3f); b.Advance(.3f); a.Request(false); b.Request(false);
+        a.Advance(.09f); for (int i = 0; i < 9; i++) b.Advance(.01f);
+        Require(Math.Abs(a.CurlDirection - b.CurlDirection) < .00001f && Math.Abs(a.CurlVelocity - b.CurlVelocity) < .0001f,
+            "closed-form curl must be timestep independent");
+        foreach (var screen in new[] { new Vector2(1600, 1000), new Vector2(1280, 720), new Vector2(800, 500) })
+        {
+            var dock = ConstellationBookLayout.DockBounds(screen, (screen - new Vector2(646, 94)) * .95f);
+            Require(dock.Left >= 8 && dock.Top >= 8 && dock.Right <= screen.X - 8 && dock.Bottom <= screen.Y - 8,
+                "button must stay on screen after UI scaling");
+        }
+        Console.WriteLine("Book state checks passed: UI-owned clock, uneven/duplicate samples, reopen, duration, reversal, timestep independence, focus and reset.");
+    }
+
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        CheckMotion();
+        string frames = Path.Combine(output, "book-frames"); Directory.CreateDirectory(frames);
+        var drawing = new ConstellationDrawing(new()) { Batch = batch };
+        using var renderer = new ConstellationBookRenderer(device);
+        using var cover = new RenderTarget2D(device, 1100, 800, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        device.SetRenderTarget(cover); device.Clear(Color.Transparent);
+        batch.Begin(); ConstellationBookRenderer.PaintCover(drawing); batch.End();
+        Save(cover, Path.Combine(output, "book-cover.png"));
+        foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f), (1600, 1000, 2f) })
+        {
+            using var page = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            using var target = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            device.SetRenderTarget(page); device.Clear(Color.Transparent);
+            new PanelScene().Render(batch, width, height, uiScale, "active");
+            float fit = Math.Min(1, Math.Min((width / uiScale - 32) / 1100, (height / uiScale - 32) / 800));
+            float scale = fit * uiScale;
+            Vector2 origin = (new Vector2(width, height) - new Vector2(1100, 800) * scale) / 2;
+            Vector2 screen = new(width / uiScale, height / uiScale);
+            var dockBounds = ConstellationBookLayout.DockBounds(screen, (screen - new Vector2(646, 94)) * .95f);
+            Vector2 dock = new Vector2(dockBounds.X, dockBounds.Y) * uiScale;
+            var motion = new ConstellationBookMotion();
+            for (int frame = 0; frame <= 144; frame++)
+            {
+                // Full opening, full closing, and two quick mid-flight reversals.
+                if (frame is 1 or 80 or 106) motion.Request(true);
+                if (frame is 46 or 96 or 122) motion.Request(false);
+                motion.Advance(1f / 60);
+                device.SetRenderTarget(target); device.Clear(new Color(49, 58, 66));
+                batch.Begin();
+                // A subdued grid makes trajectory, clipping and transparent pixels visible.
+                for (int x = 0; x < width; x += 80) batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value,
+                    new Rectangle(x, 0, 1, height), new Color(62, 73, 83));
+                for (int y = 0; y < height; y += 80) batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value,
+                    new Rectangle(0, y, width, 1), new Color(62, 73, 83));
+                drawing.Origin = dock; drawing.Scale = uiScale;
+                ConstellationBookRenderer.PaintDock(drawing, "V", false, motion.DockGlow);
+                batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(0, 0, width, height),
+                    new Color(8, 10, 18) * (.72f * motion.BackdropAlpha));
+                batch.End();
+                if (motion.IsOpen)
+                {
+                    batch.Begin(); batch.Draw(page, Vector2.Zero, Color.White); batch.End();
+                }
+                else if (!motion.IsClosed)
+                    renderer.Draw(device, page, cover, drawing.Texture("BookCoverBack"), Terraria.GameContent.TextureAssets.MagicPixel.Value,
+                        motion, origin, scale, dock + new Vector2(48, 15) * uiScale, new Vector2(96, 30) * uiScale);
+                device.SetRenderTarget(null);
+                // Full sequence at 100%; representative and reversal frames at other scales.
+                if (width == 1600 && uiScale == 1 || frame % 6 == 0 || frame is 95 or 97 or 105 or 107)
+                    Save(target, Path.Combine(frames, $"book-{width}x{height}-{uiScale:0.00}-{frame:000}.png"));
+            }
+        }
+        Console.WriteLine("FNA book preview: " + frames);
+    }
+
+    private static void Save(RenderTarget2D target, string path)
+    {
+        using var file = File.Create(path); target.SaveAsPng(file, target.Width, target.Height);
+    }
+}

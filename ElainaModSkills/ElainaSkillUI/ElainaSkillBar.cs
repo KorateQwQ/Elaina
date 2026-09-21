@@ -15,7 +15,8 @@ public class ElainaSkillBar : BasicSkillBar
 {
     internal const string ArtPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/BattleBar/";
     private Asset<Texture2D> _rack;
-    public override bool IsInteractable => Main.LocalPlayer.itemAnimation <= 0;
+    public override bool IsInteractable => Main.LocalPlayer.itemAnimation <= 0
+        && !ConstellationSkillPanel.ConstellationSkillPanel.BookMoving;
     public override int MaxSkillSlot { get; set; } = 8;
 
     protected override void OnInitialize()

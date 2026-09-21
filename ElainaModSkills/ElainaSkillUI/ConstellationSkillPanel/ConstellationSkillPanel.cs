@@ -18,7 +18,7 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 [RegisterUI("Vanilla: Radial Hotbars", "Elaina: Constellation Skill Panel", 1000)]
 public sealed partial class ConstellationSkillPanel : BaseBody
 {
-    public override bool IsInteractable => !Main.gameMenu && Main.LocalPlayer.itemAnimation <= 0;
+    public override bool IsInteractable => !Main.gameMenu && (_book.Moving || Main.LocalPlayer.itemAnimation <= 0);
     private ConstellationState _state;
     private ConstellationDrawing _draw;
     private readonly List<(UIView View, Rectangle Area)> _regions = [];
@@ -37,6 +37,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private readonly ConstellationTooltipDelay _tooltipDelay = new();
     private float _toastLife, _lastBlankClick = -1;
     private float _refreshTimer;
+    private readonly ConstellationUIClock _controlsClock = new();
+    private bool _controlsHadFocus;
     private int _detailStamp;
     private HashSet<string> _ancestors = [];
     private const float DesignWidth = 1100, DesignHeight = 800, ScreenMargin = 16;
@@ -74,7 +76,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         }.Join(_viewport);
         _viewport.LeftMouseDown += (_, e) =>
         {
-            if (_state == null) return;
+            if (_state == null || !_book.IsOpen) return;
             _dragStart = Design(e.MousePosition);
             _panStart = _pan;
             _pressedNode = HitNode(_dragStart);
@@ -89,7 +91,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _viewport.LeftMouseUp += (_, e) => { if (_dragging) DragTo(Design(e.MousePosition)); _dragging = false; };
         _viewport.LeftMouseClick += (_, e) =>
         {
-            if (_state == null || _moved) return;
+            if (_state == null || !_book.IsOpen || _moved) return;
             string hit = HitNode(Design(e.MousePosition));
             if (hit != null && hit == _pressedNode) Select(hit);
             else if (hit == null && _pressedNode == null)
@@ -100,7 +102,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         };
         _viewport.MouseWheel += (_, e) =>
         {
-            if (_state == null) return;
+            if (_state == null || !_book.IsOpen) return;
             ChangeZoom(Math.Sign(e.ScrollDelta) * .1f, Design(e.MousePosition));
             e.LockScroll(_viewport);
         };
@@ -150,13 +152,13 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         var view = new PaintView((v, _) =>
         {
             if (_state == null) return;
-            bool hover = v.IsMouseHovering;
+            bool hover = _book.IsOpen && v.IsMouseHovering;
             paint(hover);
             if (hover && tooltip != null) RequestTooltip(tooltip, area, "button:" + area);
         }) { Positioning = Positioning.Absolute }.Join(this);
         view.LeftMouseClick += (_, _) =>
         {
-            if (_state?.IsCurrentPlayer != true || visible?.Invoke() == false) return;
+            if (!_book.IsOpen || _state?.IsCurrentPlayer != true || visible?.Invoke() == false) return;
             click();
             RefreshConditionalButtons();
         };
@@ -193,7 +195,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
 
     protected override void OnExitTree()
     {
-        Close();
+        CloseImmediately();
         _state = null;
         _layoutEditor = null;
         _ancestors.Clear();
@@ -203,10 +205,17 @@ public sealed partial class ConstellationSkillPanel : BaseBody
 
     protected override void UpdateStatus(GameTime gameTime)
     {
-        if (_state == null || !_state.IsCurrentPlayer) { Close(); return; }
+        if (_state == null || !_state.IsCurrentPlayer) { CloseImmediately(); return; }
+        if (!Main.hasFocus) _book.Finish();
+        else _book.Advance(_bookClock.Sample());
+        if (!_book.Moving) _bookClock.Stop();
+        if (_book.IsClosed) { CloseImmediately(); return; }
         RefreshConditionalButtons();
         base.UpdateStatus(gameTime);
-        float delta = Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, .1f);
+        float delta = _controlsClock.Sample();
+        // Consume unfocused time without applying it; the first focused frame resumes at the last pose.
+        if (!Main.hasFocus || !_controlsHadFocus) delta = 0;
+        _controlsHadFocus = Main.hasFocus;
         _draw.AdvanceToggleAnimations(delta);
         _clock += delta;
         _flash = Math.Max(0, _flash - delta);
@@ -240,7 +249,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             if (Editing) CancelLayoutEdit();
             else Close();
         }
-        bool suspended = !Main.hasFocus || !Enabled || !IsInteractable;
+        bool suspended = !Main.hasFocus || !Enabled || !IsInteractable || !_book.IsOpen;
         if (suspended && !_inputSuspended) StopDragging();
         _inputSuspended = suspended;
         if (_dragging)
@@ -248,7 +257,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             DragTo(Design(Main.MouseScreen));
             if (!Main.mouseLeft) _dragging = false;
         }
-        _hoverNode = _viewport.IsMouseHovering ? HitNode(Design(Main.MouseScreen)) : null;
+        _hoverNode = _book.IsOpen && _viewport.IsMouseHovering ? HitNode(Design(Main.MouseScreen)) : null;
     }
 
     private Vector2 Design(Vector2 mouse) => (mouse - Bounds.Position - _origin) / _scale;
@@ -320,8 +329,21 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private void Close()
     {
         _layoutEditor?.Cancel();
+        StopDragging();
+        _tooltipDelay.Reset();
+        _hoverNode = null;
+        RequestBook(false);
+    }
+
+    private void CloseImmediately()
+    {
+        _layoutEditor?.Cancel();
         _draw?.ClearToggleAnimations();
         _tooltipDelay.Reset();
+        _book.Reset();
+        _bookClock.Stop();
+        _controlsClock.Stop();
+        _controlsHadFocus = false;
         Enabled = false; StopDragging(); _lastBlankClick = -1; _toastLife = 0;
     }
     private void Notify(string text) { _toast = text; _toastLife = 3.5f; }
@@ -368,7 +390,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             _draw.Frame(550 - width / 2, 693, width, 38, Lavender * .5f * alpha);
             _draw.FittedText(_toast, 550, 705, width - 30, 12, Ink * alpha, .5f);
         }
-        if (!Main.hasFocus || Main.mouseLeft || _dragging) { _tooltipDelay.Reset(); return; }
+        if (!_book.IsOpen || !Main.hasFocus || Main.mouseLeft || _dragging) { _tooltipDelay.Reset(); return; }
         if (!_tooltipDelay.Ready(_tooltipKey, _clock)) return;
         _draw.Tooltip(_tooltip, Design(Main.MouseScreen), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
     }
@@ -699,7 +721,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     {
         if (Main.dedServ || Main.gameMenu || SilkyUISystem.ServiceProvider == null) return false;
         if (!SilkyUIRenderSystem.Instance.TryGetInstance<ConstellationSkillPanel>(out var body)) return false;
-        if (body.Enabled) body.Close();
+        if (body._book.TargetOpen) body.Close();
         else
         {
             if (body._state == null || !body._state.IsCurrentPlayer)
@@ -707,11 +729,18 @@ public sealed partial class ConstellationSkillPanel : BaseBody
                 body._state = new ConstellationState(ElainaSkillModPlayer.SkillModPlayer);
                 body.LoadLayout();
             }
-            body._state.Refresh();
-            body._ancestors = body._state.Ancestors();
-            body.InvalidateDetail(true);
-            body.Recenter();
+            if (!body.Enabled)
+            {
+                body._state.Refresh();
+                body._ancestors = body._state.Ancestors();
+                body.InvalidateDetail(true);
+                body.Recenter();
+                body._controlsClock.Restart();
+                body._controlsHadFocus = Main.hasFocus;
+            }
             body.Enabled = true;
+            body.RequestBook(true);
+            body.StopDragging();
         }
         return true;
     }
@@ -727,7 +756,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             // on the main thread. Ignore an old world's
             // pending reset if this body has already been rebound to another player.
             if (!ReferenceEquals(body._state, state)) return;
-            body.Close();
+            body.CloseImmediately();
             body._state = null;
             body._layoutEditor = null;
             body.InvalidateDetail(true);

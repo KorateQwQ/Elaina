@@ -2,6 +2,18 @@
 
 运行 `& Tools/ConstellationSkillPanelPreview/run.ps1`。可通过 `-Tml` 指定安装目录，`-Sources` 指定本地 Terraria 源码目录。
 
+`-BookOnly` 链接正式 `ConstellationBookMotion` / `ConstellationBookRenderer`，导出书从手札按钮飞出、翻开、合拢、收回及两次快速反向的 FNA 连续帧。1600×1000 / 100% 输出 145 帧，1280×720 / 100% 和 1600×1000 / 125%、200% 输出代表帧，位于 `output/book-frames`。标题用实际 Noto Serif SC，页面使用正式绘制方法与隔离角色夹具。状态检查覆盖 30/60/144 FPS 时长、反向瞬间位置/曲率/速度连续性、闭式阻尼步长一致性、失焦收敛和世界重置。这不是游戏截图，也不模拟完整 SUI 输入树。
+
+`python Tools/ConstellationSkillPanelPreview/book_contact_sheet.py` 将上述帧生成 `output/book-contact-sheet.jpg` 与 `output/book-animation.webp`。`book_reference.py` 用隐藏 Chrome 捕获当前 HTML 的五个固定开合姿态；它只写 `.vissandbox`，不运行会覆盖正式底图的 `reference.py`。网页与 FNA 的角色内容、字体和手札按钮位置不同，比较的是曲面与动画阶段。
+
+`-BookChecksOnly` 只运行开合状态和独立计时器检查，不启动 FNA 窗口或导出图片。计时器使用实际 Stopwatch 检查采样、停止及重开；动画状态另用确定的时间间隔验证不均匀帧、反向连续性与失焦收敛。正式计时器没有测试时间委托。离线连续帧仍使用固定时间步长，不能用它证明实际游戏帧间隔已变平稳。
+
+正式面板的分类提示线、按钮和被动开关现在也由独立 `ConstellationUIClock` 驱动。`PolishChecks` 验证不均匀/重复绘制间隔下提示线的位置一致，以及快速反向时的位置连续性与 180ms 收敛；可用 `-IconsOnly` 运行包括这些检查的状态回归，不导出连续帧。
+
+`bake_book_cover.py` 从参考 HTML 提取无文字正反封面 SVG，调用 svg-to-png 的 resvg 转换器生成预乘 Alpha PNG，标题由游戏字体绘制。Python 依赖是 svg-to-png 技能的 `scripts/requirements.txt`；可使用隔离环境 `.vissandbox/book-python/Scripts/python.exe` 执行上述脚本。
+
+预览现在直接链接相邻 `SilkyUIFramework` 源码。旧 `-Sources` 默认路径不存在时会尝试用户 Downloads 下的 `tML 2025.06源码与ExampleMod/tModLoader`；其他机器可显式传入路径，不依赖 DLL 反编译副本。
+
 `-PrimaryOnly` 重放正式 `DrawActionButton`，导出免费研习、付费研习、材料不足、装配、已装配在 86% / 125% / 200% 的截图，以及连续悬停/按下帧。`bake_primary_button.py` 重建主按钮切角渐变与装饰覆盖图；点数、槽号和文字仍来自运行时状态。
 
 `-PolishOnly` 导出分类提示线滑动、进修悬停/按下和延迟提示的 FNA 连续帧，并检查三种尺寸下的紧凑材料列表。动态检查使用正式 `ConstellationTween` / `ConstellationTooltipDelay` / 控件绘制；提示位置检查使用正式布局方法。状态测试覆盖快速改选、提示延迟与控件切换、边缘约束和避让材料区。

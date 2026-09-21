@@ -59,7 +59,7 @@ public sealed partial class ConstellationSkillPanel
                 var row = _detailRows[index].Row;
                 if (row == null) return;
                 var mouse = (Main.MouseScreen - v.Bounds.Position) / _scale;
-                var action = v.IsMouseHovering
+                var action = _book.IsOpen && v.IsMouseHovering
                     ? row.Actions.FirstOrDefault(a => a.Area.Contains(mouse.ToPoint())) : null;
                 var oldOrigin = _draw.Origin;
                 _draw.Origin = v.Bounds.Position;
@@ -80,7 +80,7 @@ public sealed partial class ConstellationSkillPanel
             }.Join(_detailScroll.Container);
             view.LeftMouseClick += (_, e) =>
             {
-                if (_state == null || _state.EmptyFilter) return;
+                if (!_book.IsOpen || _state == null || _state.EmptyFilter) return;
                 var row = _detailRows[index].Row;
                 var local = (e.MousePosition - view.Bounds.Position) / _scale;
                 var action = row?.Actions.FirstOrDefault(a => a.Enabled && a.Area.Contains(local.ToPoint()));

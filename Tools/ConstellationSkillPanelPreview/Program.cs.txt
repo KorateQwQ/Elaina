@@ -13,6 +13,7 @@ internal sealed class PanelGame : Game
     private static bool ToggleOnly;
     private static bool PolishOnly;
     private static bool PrimaryOnly;
+    private static bool BookOnly;
     private PanelGame()
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
@@ -36,6 +37,7 @@ internal sealed class PanelGame : Game
         if (_done) return; _done = true;
         string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output"); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (BookOnly) { BookPreview.Run(Device, batch, output); Exit(); return; }
         if (ToggleOnly) { TogglePreview.Run(Device, batch, output); Exit(); return; }
         if (HeadersOnly)
         {
@@ -91,6 +93,8 @@ internal sealed class PanelGame : Game
         ToggleOnly = args.Contains("--toggle-only");
         PolishOnly = args.Contains("--polish-only");
         PrimaryOnly = args.Contains("--primary-only");
+        BookOnly = args.Contains("--book-only");
+        if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Fixtures.Text(); if (!HeadersOnly) PanelChecks.Run();
         using var game = new PanelGame(); game.Run();
     }

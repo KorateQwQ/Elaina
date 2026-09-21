@@ -148,6 +148,20 @@ internal static class PanelChecks
         float before = tween.Value; tween.SetTarget(3);
         Check(tween.Value == before, "category retarget preserves its current position");
         tween.Advance(.18f); Check(tween.Value == 3, "category underline settles in 180ms");
+        var even = new ConstellationTween(0, .18f);
+        var uneven = new ConstellationTween(0, .18f);
+        even.SetTarget(3); uneven.SetTarget(3);
+        for (int i = 0; i < 12; i++) even.Advance(.01f);
+        foreach (float elapsed in new[] { .005f, .04f, 0, .015f, .06f }) uneven.Advance(elapsed);
+        Check(Math.Abs(even.Value - uneven.Value) < .00001f,
+            "category glide depends on elapsed seconds, not number of draw calls");
+        float beforeReverse = uneven.Value;
+        uneven.SetTarget(0); uneven.Advance(0);
+        Check(uneven.Value == beforeReverse, "rapid category reversal preserves the displayed position");
+        uneven.Advance(.09f);
+        Check(uneven.Value > 0 && uneven.Value < beforeReverse, "category reversal glides toward the new target");
+        uneven.Advance(.09f);
+        Check(uneven.Value == 0, "category reversal finishes after 180ms of actual elapsed time");
         var delay = new ConstellationTooltipDelay();
         Check(!delay.Ready("upgrade", 1) && !delay.Ready("upgrade", 1.24f) && delay.Ready("upgrade", 1.26f), "tooltip waits for 250ms hover");
         Check(!delay.Ready("learn", 1.27f), "moving to another control resets tooltip delay");

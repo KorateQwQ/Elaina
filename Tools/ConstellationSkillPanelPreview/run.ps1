@@ -7,10 +7,20 @@ param(
     [switch]$ToggleOnly,
     [switch]$PolishOnly,
     [switch]$PrimaryOnly,
+    [switch]$BookOnly,
+    [switch]$BookChecksOnly,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+if (!(Test-Path -LiteralPath "$Sources/Terraria/UI/Chat/TextSnippet.cs")) {
+    $candidate = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Downloads/tML 2025.06源码与ExampleMod/tModLoader'
+    if (Test-Path -LiteralPath "$candidate/Terraria/UI/Chat/TextSnippet.cs") { $Sources = $candidate }
+    else { throw 'Terraria sources not found. Pass -Sources with the tModLoader source directory.' }
+}
+if (!(Test-Path -LiteralPath "$repo/../SilkyUIFramework/Components/SnippetModule.cs")) {
+    throw 'Place matching SilkyUIFramework source beside this mod before running the preview.'
+}
 $out = Join-Path $repo '.vissandbox/constellation-skill-panel'
 $ui = Join-Path $repo 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -36,7 +46,7 @@ foreach ($name in @('MapPoint','RequestTooltip','DrawChrome','DrawFilter','DrawC
 }
 $scene += "`n}"
 [IO.File]::WriteAllText((Join-Path $out 'Scene.cs'), $scene)
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview')) {
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview')) {
     [IO.File]::WriteAllText((Join-Path $out "$name.cs"), [IO.File]::ReadAllText((Join-Path $PSScriptRoot "$name.cs.txt")))
 }
 # Exercise KL's actual default, upgrade guard and Skill accessor instead of duplicating their rules in a stub.
@@ -62,7 +72,8 @@ function Add-Item([string]$kind, [string]$path) {
     return $node
 }
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
+foreach ($name in @('ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ElainaSkill.Constellation','ConstellationLayout','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
@@ -83,5 +94,7 @@ if ($RequirementsOnly) { $previewArgs += '--requirements-only' }
 if ($ToggleOnly) { $previewArgs += '--toggle-only' }
 if ($PolishOnly) { $previewArgs += '--polish-only' }
 if ($PrimaryOnly) { $previewArgs += '--primary-only' }
+if ($BookOnly) { $previewArgs += '--book-only' }
+if ($BookChecksOnly) { $previewArgs += '--book-checks-only' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }
