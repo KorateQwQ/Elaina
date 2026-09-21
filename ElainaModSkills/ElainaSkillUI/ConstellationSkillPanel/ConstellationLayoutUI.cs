@@ -79,6 +79,7 @@ public sealed partial class ConstellationSkillPanel
             StopDragging();
             if (!_state.DebugResetSkills()) return;
             _ancestors = _state.Ancestors();
+            CenterOn(_state.Current);
             InvalidateDetail(true);
             Notify("所有技能学习状态已重置");
         }, h => DrawDebugButton("reset-skills", h), "清除所有技能学习状态和装配，保留研习点及星图布局", () => !Editing);

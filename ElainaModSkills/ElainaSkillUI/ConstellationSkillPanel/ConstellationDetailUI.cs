@@ -86,7 +86,7 @@ public sealed partial class ConstellationSkillPanel
                 var action = row?.Actions.FirstOrDefault(a => a.Enabled && a.Area.Contains(local.ToPoint()));
                 if (action == null) return;
                 if (Editing && action.Kind != "relation") return;
-                if (action.Kind == "relation") { Select(action.Id); CenterOn(_state.Current); }
+                if (action.Kind == "relation") Select(action.Id);
                 else if (action.Kind == "toggle" && _state.Toggle(action.Id))
                 {
                     InvalidateDetail(false);

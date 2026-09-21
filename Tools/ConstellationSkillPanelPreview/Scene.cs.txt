@@ -11,6 +11,9 @@ internal sealed class PanelScene
     private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
     private float _zoom = .84f, _flash;
     private Vector2 _pan;
+    private bool _focusing;
+    private float _focusElapsed, _focusStartZoom, _focusTargetZoom;
+    private Vector2 _focusStartPan, _focusTargetPan;
     private string _hoverNode, _tooltip;
     private string _tooltipKey;
     private Rectangle? _tooltipAnchor;
@@ -98,6 +101,32 @@ internal sealed class PanelScene
         _pan = new Vector2(MapWidth / 2f, MapHeight / 2f) - new Vector2(_state.Current.x, _state.Current.y) * _zoom;
         if (scenario is "new" or "passive" or "bottom") _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
         if (Editing) _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
+        if (scenario.StartsWith("camera-"))
+        {
+            _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
+            _state.Select(nameof(MagicMissileSkill));
+            CenterOn(_state.Current);
+            bool retarget = scenario == "camera-retarget";
+            float seconds = retarget ? .1f : int.Parse(scenario[7..]) / 1000f;
+            AdvanceCamera(seconds);
+            if (retarget)
+            {
+                Vector2 previousPan = _pan;
+                float previousZoom = _zoom;
+                _state.Select(nameof(WaterLaserSKill));
+                CenterOn(_state.Current);
+                AdvanceCamera(0);
+                if (_pan != previousPan || _zoom != previousZoom) throw new Exception("Camera jumped when retargeting.");
+                for (int i = 0; i < 60; i++) AdvanceCamera(1f / 144);
+            }
+            if (retarget || seconds >= .35f)
+            {
+                Vector2 center = new(MapX + MapWidth / 2f, MapY + MapHeight / 2f);
+                if (Vector2.Distance(MapPoint(_state.Current.x, _state.Current.y), center) > .01f || Math.Abs(_zoom - 1.2f) > .001f)
+                    throw new Exception("Selected skill did not finish centered at the focus zoom.");
+            }
+            _ancestors = _state.Ancestors();
+        }
         float fit = Math.Min(1, Math.Min((width / uiScale - 32) / DesignWidth, (height / uiScale - 32) / DesignHeight));
         float scale = fit * uiScale;
         Vector2 origin = (new Vector2(width, height) - new Vector2(DesignWidth, DesignHeight) * scale) / 2;

@@ -9,6 +9,7 @@ param(
     [switch]$PrimaryOnly,
     [switch]$BookOnly,
     [switch]$BookChecksOnly,
+    [switch]$CameraOnly,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
 $ErrorActionPreference = 'Stop'
@@ -27,7 +28,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $source = [IO.File]::ReadAllText((Join-Path $ui 'ConstellationSkillPanel.cs'))
 $source += "`n" + [IO.File]::ReadAllText((Join-Path $ui 'ConstellationLayoutUI.cs'))
 $scene = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Scene.cs.txt'))
-foreach ($name in @('MapPoint','RequestTooltip','DrawChrome','DrawFilter','DrawCloseButton','CameraControl','DrawMap','DrawEdge','DrawNode','DrawDetails','DrawActionButton','DrawSlot','DrawLoadoutCaption','DrawClearSlot','DrawLayoutHints','DrawLayoutButton','DrawDebugButton')) {
+foreach ($name in @('CenterOn','AdvanceCamera','MapPoint','RequestTooltip','DrawChrome','DrawFilter','DrawCloseButton','CameraControl','DrawMap','DrawEdge','DrawNode','DrawDetails','DrawActionButton','DrawSlot','DrawLoadoutCaption','DrawClearSlot','DrawLayoutHints','DrawLayoutButton','DrawDebugButton')) {
     $match = [regex]::Match($source, '(?m)^    private [^\r\n]*\b' + $name + '\(')
     if (!$match.Success) { throw "Missing drawing method: $name" }
     $start = $match.Index
@@ -96,5 +97,6 @@ if ($PolishOnly) { $previewArgs += '--polish-only' }
 if ($PrimaryOnly) { $previewArgs += '--primary-only' }
 if ($BookOnly) { $previewArgs += '--book-only' }
 if ($BookChecksOnly) { $previewArgs += '--book-checks-only' }
+if ($CameraOnly) { $previewArgs += '--camera-only' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }

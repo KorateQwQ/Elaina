@@ -30,6 +30,9 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private bool _detailDirty = true, _resetDetailScroll = true;
     private float _scale = 1, _zoom = .84f, _clock, _flash;
     private Vector2 _origin, _pan, _dragStart, _panStart, _lastSize;
+    private bool _focusing;
+    private float _focusElapsed, _focusStartZoom, _focusTargetZoom;
+    private Vector2 _focusStartPan, _focusTargetPan;
     private bool _dragging, _moved, _inputSuspended;
     private string _pressedNode, _hoverNode, _toast, _tooltip;
     private string _tooltipKey;
@@ -77,6 +80,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _viewport.LeftMouseDown += (_, e) =>
         {
             if (_state == null || !_book.IsOpen) return;
+            _focusing = false;
             _dragStart = Design(e.MousePosition);
             _panStart = _pan;
             _pressedNode = HitNode(_dragStart);
@@ -250,8 +254,9 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             else Close();
         }
         bool suspended = !Main.hasFocus || !Enabled || !IsInteractable || !_book.IsOpen;
-        if (suspended && !_inputSuspended) StopDragging();
+        if (suspended && !_inputSuspended) StopDragging(false);
         _inputSuspended = suspended;
+        if (!suspended && !_dragging) AdvanceCamera(delta);
         if (_dragging)
         {
             DragTo(Design(Main.MouseScreen));
@@ -297,9 +302,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _ancestors = _state.Ancestors();
         _flash = 0;
         InvalidateDetail(changed);
+        CenterOn(_state.Current);
     }
     private void ChangeZoom(float amount, Vector2? anchor = null)
     {
+        _focusing = false;
         var local = (anchor ?? new Vector2(MapX + MapWidth / 2f, MapY + MapHeight / 2f)) - new Vector2(MapX, MapY);
         var world = (local - _pan) / _zoom;
         _zoom = Math.Clamp(_zoom + amount, .5f, 1.5f);
@@ -309,6 +316,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     }
     private void Recenter()
     {
+        _focusing = false;
         _zoom = .84f;
         _pan = new Vector2((MapWidth - (_state?.WorldSize.X ?? WorldWidth) * _zoom) / 2, 30);
         ClampPan();
@@ -316,12 +324,28 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     }
     private void CenterOn(ConstellationNode s)
     {
-        if (s == null) return;
-        _pan = new Vector2(MapWidth / 2f, MapHeight / 2f) - new Vector2(s.x, s.y) * _zoom;
-        ClampPan();
+        if (s == null || Editing) return;
+        _focusElapsed = 0;
+        _focusStartZoom = _zoom;
+        _focusStartPan = _pan;
+        _focusTargetZoom = Math.Max(_zoom, 1.2f);
+        _focusTargetPan = new Vector2(MapWidth / 2f, MapHeight / 2f) - new Vector2(s.x, s.y) * _focusTargetZoom;
+        _focusing = true;
     }
-    private void StopDragging()
+    private void AdvanceCamera(float delta)
     {
+        if (!_focusing) return;
+        _focusElapsed = Math.Min(.35f, _focusElapsed + Math.Max(0, delta));
+        float t = _focusElapsed / .35f;
+        // Use the same easing for zoom and translation so the selected icon travels straight to center.
+        float eased = t * t * (3 - 2 * t);
+        _zoom = MathHelper.Lerp(_focusStartZoom, _focusTargetZoom, eased);
+        _pan = Vector2.Lerp(_focusStartPan, _focusTargetPan, eased);
+        if (t >= 1) _focusing = false;
+    }
+    private void StopDragging(bool cancelFocus = true)
+    {
+        if (cancelFocus) _focusing = false;
         _dragging = false;
         if (_detailScroll != null)
             _detailScroll.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_detailScroll.ScrollBar, Main.MouseScreen));
@@ -724,23 +748,26 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         if (body._book.TargetOpen) body.Close();
         else
         {
-            if (body._state == null || !body._state.IsCurrentPlayer)
+            bool initializeCamera = body._state == null || !body._state.IsCurrentPlayer;
+            if (initializeCamera)
             {
                 body._state = new ConstellationState(ElainaSkillModPlayer.SkillModPlayer);
                 body.LoadLayout();
+                body.Recenter();
             }
             if (!body.Enabled)
             {
                 body._state.Refresh();
                 body._ancestors = body._state.Ancestors();
                 body.InvalidateDetail(true);
-                body.Recenter();
                 body._controlsClock.Restart();
                 body._controlsHadFocus = Main.hasFocus;
             }
             body.Enabled = true;
             body.RequestBook(true);
             body.StopDragging();
+            // Reopening keeps the last camera pose, including manual pan/zoom and interrupted focus.
+            if (initializeCamera && !body._state.EmptyFilter) body.CenterOn(body._state.Current);
         }
         return true;
     }
