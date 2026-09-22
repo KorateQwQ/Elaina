@@ -79,9 +79,10 @@ internal sealed class FacsimileCraftingInventory
         Counts[item.type] = (int)Math.Min(int.MaxValue, (long)previous + item.stack);
     }
 
-    internal bool TryPlan(Recipe recipe, FacsimileRecipe cached, int dustType, out int dustCost)
+    internal bool TryPlan(Recipe recipe, FacsimileRecipe cached, int dustType,
+        FacsimilePriority priority, out int dustCost)
     {
-        long missing = 0;
+        var neededByRequirement = new int[cached.Requirements.Length];
         for (int i = 0; i < recipe.requiredItem.Count; i++)
         {
             Item ingredient = recipe.requiredItem[i];
@@ -89,13 +90,39 @@ internal sealed class FacsimileCraftingInventory
             // 保留炼药桌及其他模组的省料回调，每种配方条目仅调用一次。
             RecipeLoader.ConsumeIngredient(recipe, ingredient.type, ref needed, false);
             if (needed > 0)
-                missing += Reserve(cached.TypesByIngredient[i], needed);
+            {
+                int requirement = cached.RequirementIndexByIngredient[i];
+                if ((long)neededByRequirement[requirement] + needed > int.MaxValue)
+                    return Fail(out dustCost);
+                neededByRequirement[requirement] += needed;
+            }
         }
-        dustCost = 0;
-        if (missing > int.MaxValue)
-            return false;
+
+        long missing = 0;
+        for (int i = 0; i < cached.Requirements.Length; i++)
+        {
+            int needed = neededByRequirement[i];
+            if (needed <= 0)
+                continue;
+
+            int realMaterials = priority == FacsimilePriority.Dust ? 1 : needed;
+            int unfilled = Reserve(cached.Requirements[i].AcceptedTypes, realMaterials);
+            if (priority == FacsimilePriority.Dust)
+                missing += (long)needed - realMaterials + unfilled;
+            else
+                missing += unfilled;
+            if (missing > int.MaxValue)
+                return Fail(out dustCost);
+        }
+
         dustCost = (int)missing;
         return Reserve(new[] { dustType }, dustCost) == 0;
+    }
+
+    private static bool Fail(out int dustCost)
+    {
+        dustCost = 0;
+        return false;
     }
 
     private int Reserve(int[] accepted, int needed)

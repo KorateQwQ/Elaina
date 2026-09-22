@@ -3,6 +3,12 @@ using System.Collections.Generic;
 
 namespace 伊蕾娜.ElainaModAlchemy.Crafting;
 
+internal enum FacsimilePriority
+{
+    Materials,
+    Dust
+}
+
 /// <summary>与游戏/UI无关的补料规则。此规则不用于 AlchemyRecipe。</summary>
 internal static class FacsimileMaterialRule
 {
@@ -11,13 +17,13 @@ internal static class FacsimileMaterialRule
 
     // 一个材料类型只属于一条需求。重复需求应预先合并；相交而不等价的配方组交回原版。
     internal static bool TryQuote(IReadOnlyList<Requirement> requirements,
-        IReadOnlyDictionary<int, int> owned, int dustType, out Quote quote)
+        IReadOnlyDictionary<int, int> owned, int dustType, FacsimilePriority priority, out Quote quote)
     {
         quote = default;
         if (requirements.Count == 0)
             return false;
 
-        long missing = 0;
+        long dustNeeded = 0;
         double fulfillment = 0;
         for (int i = 0; i < requirements.Count; i++)
         {
@@ -35,13 +41,15 @@ internal static class FacsimileMaterialRule
                 return false;
             int supplied = (int)Math.Min(available, requirement.Stack);
             fulfillment += (double)supplied / requirement.Stack;
-            missing += requirement.Stack - supplied;
+            dustNeeded += priority == FacsimilePriority.Dust
+                ? Math.Max(0, requirement.Stack - 1)
+                : requirement.Stack - supplied;
         }
 
         fulfillment /= requirements.Count;
-        if (fulfillment + 1e-12 < 0.5 || missing > int.MaxValue)
+        if (fulfillment + 1e-12 < 0.5 || dustNeeded > int.MaxValue)
             return false;
-        quote = new Quote((int)missing, fulfillment);
-        return missing == 0 || owned.TryGetValue(dustType, out int dust) && dust >= missing;
+        quote = new Quote((int)dustNeeded, fulfillment);
+        return dustNeeded == 0 || owned.TryGetValue(dustType, out int dust) && dust >= dustNeeded;
     }
 }

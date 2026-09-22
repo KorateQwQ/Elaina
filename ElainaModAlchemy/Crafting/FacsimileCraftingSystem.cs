@@ -97,14 +97,23 @@ public sealed class FacsimileCraftingSystem : ModSystem
 
     private bool HasMaterials(Recipe recipe)
     {
-        if (Recipe.CollectedEnoughItemsToCraftRecipeNew(recipe))
+        bool hasOriginalMaterials = Recipe.CollectedEnoughItemsToCraftRecipeNew(recipe);
+        if (dustType <= 0 || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
+            return hasOriginalMaterials;
+
+        FacsimilePriority priority = GetPriority();
+        if (priority == FacsimilePriority.Materials && hasOriginalMaterials)
             return true;
-        if (dustType <= 0 || !ownedItems.TryGetValue(dustType, out int dust) || dust <= 0 ||
-            !recipes.TryGetValue(recipe, out FacsimileRecipe cached) ||
-            !FacsimileMaterialRule.TryQuote(cached.Requirements, ownedItems, dustType, out var quote))
-            return false;
-        quotes[recipe] = quote;
-        return true;
+
+        if (FacsimileMaterialRule.TryQuote(cached.Requirements, ownedItems, dustType, priority, out var quote) &&
+            quote.Dust > 0)
+        {
+            quotes[recipe] = quote;
+            return true;
+        }
+
+        // 灰赝尘方案不可用时，优先灰赝尘模式仍可回退到完整的原版材料方案。
+        return hasOriginalMaterials;
     }
 
     private void CraftItem(On_Main.orig_CraftItem orig, Recipe recipe)
@@ -127,7 +136,8 @@ public sealed class FacsimileCraftingSystem : ModSystem
             return;
 
         var inventory = new FacsimileCraftingInventory(player);
-        if (!FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, dustType, out var quote))
+        FacsimilePriority priority = GetPriority();
+        if (!FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, dustType, priority, out var quote))
         {
             Recipe.FindRecipes();
             return;
@@ -137,7 +147,7 @@ public sealed class FacsimileCraftingSystem : ModSystem
             orig(recipe);
             return;
         }
-        if (!inventory.TryPlan(recipe, cached, dustType, out _) || !inventory.IsCurrent())
+        if (!inventory.TryPlan(recipe, cached, dustType, priority, out _) || !inventory.IsCurrent())
         {
             Recipe.FindRecipes();
             return;
@@ -183,6 +193,11 @@ public sealed class FacsimileCraftingSystem : ModSystem
     }
 
     internal bool TryGetQuote(Recipe recipe, out FacsimileMaterialRule.Quote quote) => quotes.TryGetValue(recipe, out quote);
+
+    private static FacsimilePriority GetPriority() => Main.LocalPlayer.active &&
+        Main.LocalPlayer.GetModPlayer<FacsimileCraftingPlayer>().PreferDust
+            ? FacsimilePriority.Dust
+            : FacsimilePriority.Materials;
 
     private sealed class StaleFacsimilePlanException : Exception { }
 }

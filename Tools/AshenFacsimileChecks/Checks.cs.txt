@@ -41,30 +41,44 @@ internal static class Checks
             new FacsimileMaterialRule.Requirement(10, new[] { 3 })
         };
         bool Quote(Dictionary<int, int> owned, out FacsimileMaterialRule.Quote result) =>
-            FacsimileMaterialRule.TryQuote(requirements, owned, Dust, out result);
+            FacsimileMaterialRule.TryQuote(requirements, owned, Dust, FacsimilePriority.Materials, out result);
         Assert(Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 15)), out var q) && q.Dust == 15 && Math.Abs(q.Fulfillment - .5) < 1e-12, "exact 50%, one of every material, 15 dust");
         Assert(!Quote(Owned((1, 20), (3, 5), (Dust, 99)), out _), "missing an entire ingredient is rejected");
         Assert(!Quote(Owned((1, 20000), (2, 1), (3, 1), (Dust, 99)), out _), "excess cheap material cannot inflate average");
         Assert(!Quote(Owned((1, 20), (2, 1), (3, 3), (Dust, 99)), out _), "below 50% rejected");
         Assert(!Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 14)), out _), "insufficient dust rejected");
         Assert(Quote(Owned((1, 20), (2, 10), (3, 10)), out q) && q.Dust == 0, "full original materials require no dust");
-        Assert(FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 3), (Dust, 2)), Dust, out q) && q.Dust == 2, "odd single ingredient rounds up threshold");
-        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 2), (Dust, 3)), Dust, out _), "odd single ingredient below half");
-        Assert(!FacsimileMaterialRule.TryQuote(Array.Empty<FacsimileMaterialRule.Requirement>(), Owned((Dust, 99)), Dust, out _), "empty recipe not eligible");
-        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(2, new[] { Dust }) }, Owned((Dust, 1)), Dust, out _), "dust never substitutes itself");
+        Assert(FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 3), (Dust, 2)), Dust, FacsimilePriority.Materials, out q) && q.Dust == 2, "odd single ingredient rounds up threshold");
+        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 2), (Dust, 3)), Dust, FacsimilePriority.Materials, out _), "odd single ingredient below half");
+        Assert(!FacsimileMaterialRule.TryQuote(Array.Empty<FacsimileMaterialRule.Requirement>(), Owned((Dust, 99)), Dust, FacsimilePriority.Materials, out _), "empty recipe not eligible");
+        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(2, new[] { Dust }) }, Owned((Dust, 1)), Dust, FacsimilePriority.Materials, out _), "dust never substitutes itself");
         var twoSingles = new[] { new FacsimileMaterialRule.Requirement(1, new[] { 1 }), new FacsimileMaterialRule.Requirement(1, new[] { 2 }) };
-        Assert(!FacsimileMaterialRule.TryQuote(twoSingles, Owned((1, 1), (Dust, 999)), Dust, out _), "cannot bypass missing prerequisite accessory");
+        Assert(!FacsimileMaterialRule.TryQuote(twoSingles, Owned((1, 1), (Dust, 999)), Dust, FacsimilePriority.Materials, out _), "cannot bypass missing prerequisite accessory");
+
+        var fullMaterials = Owned((1, 10), (2, 10), (Dust, 18));
+        Assert(FacsimileMaterialRule.TryQuote(new[] {
+            new FacsimileMaterialRule.Requirement(10, new[] { 1 }),
+            new FacsimileMaterialRule.Requirement(10, new[] { 2 })
+        }, fullMaterials, Dust, FacsimilePriority.Dust, out q) && q.Dust == 18,
+            "dust priority keeps one material per logical requirement");
+        Assert(!FacsimileMaterialRule.TryQuote(new[] {
+            new FacsimileMaterialRule.Requirement(10, new[] { 1 }),
+            new FacsimileMaterialRule.Requirement(10, new[] { 2 })
+        }, Owned((1, 10), (2, 10), (Dust, 17)), Dust, FacsimilePriority.Dust, out _),
+            "dust priority requires enough dust for the remainder");
 
         var recipe = Recipe((1, 10), (2, 10));
         var cached = FacsimileRecipe.Build(recipe, Dust);
         Assert(cached.Requirements.Length == 2, "real tML Recipe descriptor");
         var duplicate = FacsimileRecipe.Build(Recipe((1, 10), (1, 10)), Dust);
         Assert(duplicate.Requirements.Length == 1 && duplicate.Requirements[0].Stack == 20, "duplicate ingredient rows merge");
-        Assert(!FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 5), (Dust, 100)), Dust, out _), "duplicates cannot count one stock twice");
+        Assert(!FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 5), (Dust, 100)), Dust, FacsimilePriority.Materials, out _), "duplicates cannot count one stock twice");
+        Assert(FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 20), (Dust, 19)), Dust, FacsimilePriority.Dust, out q) && q.Dust == 19,
+            "duplicate rows keep one material for the merged requirement");
         int group = RecipeGroup.RegisterGroup("AshenChecks", new RecipeGroup(() => "test metal", 1, 3));
         recipe.acceptedGroups.Add(group);
         cached = FacsimileRecipe.Build(recipe, Dust);
-        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, Owned((1, 2), (3, 3), (2, 5), (Dust, 10)), Dust, out q) && q.Dust == 10, "mixed group materials add together");
+        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, Owned((1, 2), (3, 3), (2, 5), (Dust, 10)), Dust, FacsimilePriority.Materials, out q) && q.Dust == 10, "mixed group materials add together");
         var overlapping = Recipe((1, 10), (2, 10));
         overlapping.acceptedGroups.Add(group);
         overlapping.acceptedGroups.Add(RecipeGroup.RegisterGroup("AshenChecksOverlap", new RecipeGroup(() => "overlap", 2, 3)));
@@ -86,8 +100,8 @@ internal static class Checks
         recipe.createItem.stack = 50;
         cached = FacsimileRecipe.Build(recipe, Dust);
         var inventory = new FacsimileCraftingInventory(player);
-        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, out q) && q.Dust == 10, "split stacks satisfy threshold; output batch doesn't multiply cost");
-        Assert(inventory.TryPlan(recipe, cached, Dust, out int cost) && cost == 10 && player.inventory[0].stack == 3, "planning has no inventory mutation");
+        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, FacsimilePriority.Materials, out q) && q.Dust == 10, "split stacks satisfy threshold; output batch doesn't multiply cost");
+        Assert(inventory.TryPlan(recipe, cached, Dust, FacsimilePriority.Materials, out int cost) && cost == 10 && player.inventory[0].stack == 3, "planning has no inventory mutation");
         player.inventory[1].stack++;
         Assert(!inventory.IsCurrent(), "stale stack rejects transaction");
         player.inventory[1].stack--;
@@ -96,7 +110,22 @@ internal static class Checks
         inventory.Commit(consumed);
         Assert(player.inventory.Take(4).All(x => x.IsAir) && consumed.Sum(x => x.stack) == 20 && consumed.Where(x => x.type == Dust).Sum(x => x.stack) == 10, "commit consumes exactly original materials and dust");
         inventory = new FacsimileCraftingInventory(player);
-        Assert(!FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, out _), "holding craft cannot reuse depleted ingredients");
+        Assert(!FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, FacsimilePriority.Materials, out _), "holding craft cannot reuse depleted ingredients");
+
+        player.inventory = Enumerable.Range(0, 59).Select(_ => new Item()).ToArray();
+        player.inventory[0] = Item(1, 10);
+        player.inventory[1] = Item(2, 10);
+        player.inventory[2] = Item(Dust, 18);
+        recipe = Recipe((1, 10), (2, 10));
+        cached = FacsimileRecipe.Build(recipe, Dust);
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, FacsimilePriority.Dust, out q) && q.Dust == 18,
+            "dust priority quote matches full material stock");
+        Assert(inventory.TryPlan(recipe, cached, Dust, FacsimilePriority.Dust, out cost) && cost == 18,
+            "dust priority planner keeps one item per logical requirement");
+        inventory.Commit(consumed);
+        Assert(player.inventory[0].stack == 9 && player.inventory[1].stack == 9 && player.inventory[2].IsAir,
+            "dust priority commit leaves one original item per requirement");
 
         player.inventory[0] = Item(1, 5);
         player.inventory[1] = Item(2, 5);
@@ -104,7 +133,7 @@ internal static class Checks
         int callbacks = 0;
         recipe.AddConsumeIngredientCallback((Recipe r, int type, ref int amount, bool decraft) => { callbacks++; amount = 6; });
         inventory = new FacsimileCraftingInventory(player);
-        Assert(inventory.TryPlan(recipe, cached, Dust, out cost) && cost == 2 && callbacks == 2, "conservation callback runs once per ingredient and reduces dust");
+        Assert(inventory.TryPlan(recipe, cached, Dust, FacsimilePriority.Materials, out cost) && cost == 2 && callbacks == 2, "conservation callback runs once per ingredient and reduces dust");
         inventory.Commit(consumed);
         Assert(player.inventory[2].stack == 8, "reduced dust charge committed");
 
@@ -138,7 +167,7 @@ internal static class Checks
         cached = FacsimileRecipe.Build(recipe, Dust);
         recipe.AddConsumeIngredientCallback((Recipe r, int type, ref int amount, bool decraft) => amount = 20);
         inventory = new FacsimileCraftingInventory(player);
-        Assert(!inventory.TryPlan(recipe, cached, Dust, out cost) && player.inventory[0].stack == 5 && player.bank4.item[0].stack == 10,
+        Assert(!inventory.TryPlan(recipe, cached, Dust, FacsimilePriority.Materials, out cost) && player.inventory[0].stack == 5 && player.bank4.item[0].stack == 10,
             "callback increasing consumption cannot partially spend inventory on failure");
 
         player.chest = -1;
@@ -151,7 +180,7 @@ internal static class Checks
             .Invoke(inventory, new object[] { providedDust, 7, null, -1, notify });
         recipe = Recipe((1, 10), (2, 10));
         cached = FacsimileRecipe.Build(recipe, Dust);
-        Assert(inventory.TryPlan(recipe, cached, Dust, out cost) && cost == 10, "additional provider slot participates in plan");
+        Assert(inventory.TryPlan(recipe, cached, Dust, FacsimilePriority.Materials, out cost) && cost == 10, "additional provider slot participates in plan");
         inventory.Commit(consumed);
         Assert(providedDust.stack == 5 && notifications == 1, "additional provider notified with original index and updated item");
         var alchemy = new AlchemyRecipe(1, new AlchemyIngredient(1, 10));

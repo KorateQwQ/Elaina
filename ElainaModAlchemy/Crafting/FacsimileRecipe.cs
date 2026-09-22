@@ -9,11 +9,14 @@ internal sealed class FacsimileRecipe
 {
     internal readonly FacsimileMaterialRule.Requirement[] Requirements;
     internal readonly int[][] TypesByIngredient;
+    internal readonly int[] RequirementIndexByIngredient;
 
-    private FacsimileRecipe(FacsimileMaterialRule.Requirement[] requirements, int[][] typesByIngredient)
+    private FacsimileRecipe(FacsimileMaterialRule.Requirement[] requirements, int[][] typesByIngredient,
+        int[] requirementIndexByIngredient)
     {
         Requirements = requirements;
         TypesByIngredient = typesByIngredient;
+        RequirementIndexByIngredient = requirementIndexByIngredient;
     }
 
     internal static FacsimileRecipe Build(Recipe recipe, int dustType)
@@ -23,6 +26,7 @@ internal sealed class FacsimileRecipe
 
         var requirements = new List<FacsimileMaterialRule.Requirement>();
         var byIngredient = new int[recipe.requiredItem.Count][];
+        var requirementIndex = new int[recipe.requiredItem.Count];
         var owners = new Dictionary<int, int>();
         for (int i = 0; i < recipe.requiredItem.Count; i++)
         {
@@ -55,6 +59,7 @@ internal sealed class FacsimileRecipe
             byIngredient[i] = accepted;
             if (owner >= 0)
             {
+                requirementIndex[i] = owner;
                 var previous = requirements[owner];
                 if (!types.SetEquals(previous.AcceptedTypes) || (long)previous.Stack + item.stack > int.MaxValue)
                     return null;
@@ -62,12 +67,13 @@ internal sealed class FacsimileRecipe
             }
             else
             {
+                requirementIndex[i] = requirements.Count;
                 foreach (int type in accepted)
                     owners.Add(type, requirements.Count);
                 requirements.Add(new(item.stack, accepted));
             }
         }
 
-        return new FacsimileRecipe(requirements.ToArray(), byIngredient);
+        return new FacsimileRecipe(requirements.ToArray(), byIngredient, requirementIndex);
     }
 }
