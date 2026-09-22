@@ -1,0 +1,203 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Mono.Cecil;
+using Terraria;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModAlchemy;
+using 伊蕾娜.ElainaModAlchemy.Crafting;
+using 伊蕾娜.ElainaModAlchemy.item;
+
+internal static class Checks
+{
+    private const int Dust = 5000;
+    private static int passed;
+    private const BindingFlags HiddenStatic = BindingFlags.Static | BindingFlags.NonPublic;
+
+    private static void Assert(bool condition, string name)
+    {
+        if (!condition) throw new Exception(name);
+        passed++;
+        Console.WriteLine("PASS " + name);
+    }
+
+    private static Item Item(int type, int count) => new() { type = type, netID = type, stack = count };
+    private static Recipe Recipe(params (int Type, int Count)[] ingredients)
+    {
+        var recipe = (Recipe)Activator.CreateInstance(typeof(Recipe), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { null }, null);
+        recipe.createItem = Item(100, 1);
+        foreach (var (type, count) in ingredients) recipe.requiredItem.Add(Item(type, count));
+        return recipe;
+    }
+
+    private static Dictionary<int, int> Owned(params (int Type, int Count)[] items) => items.ToDictionary(x => x.Type, x => x.Count);
+
+    public static void Main(string[] args)
+    {
+        var requirements = new[] {
+            new FacsimileMaterialRule.Requirement(20, new[] { 1 }),
+            new FacsimileMaterialRule.Requirement(10, new[] { 2 }),
+            new FacsimileMaterialRule.Requirement(10, new[] { 3 })
+        };
+        bool Quote(Dictionary<int, int> owned, out FacsimileMaterialRule.Quote result) =>
+            FacsimileMaterialRule.TryQuote(requirements, owned, Dust, out result);
+        Assert(Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 15)), out var q) && q.Dust == 15 && Math.Abs(q.Fulfillment - .5) < 1e-12, "exact 50%, one of every material, 15 dust");
+        Assert(!Quote(Owned((1, 20), (3, 5), (Dust, 99)), out _), "missing an entire ingredient is rejected");
+        Assert(!Quote(Owned((1, 20000), (2, 1), (3, 1), (Dust, 99)), out _), "excess cheap material cannot inflate average");
+        Assert(!Quote(Owned((1, 20), (2, 1), (3, 3), (Dust, 99)), out _), "below 50% rejected");
+        Assert(!Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 14)), out _), "insufficient dust rejected");
+        Assert(Quote(Owned((1, 20), (2, 10), (3, 10)), out q) && q.Dust == 0, "full original materials require no dust");
+        Assert(FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 3), (Dust, 2)), Dust, out q) && q.Dust == 2, "odd single ingredient rounds up threshold");
+        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 2), (Dust, 3)), Dust, out _), "odd single ingredient below half");
+        Assert(!FacsimileMaterialRule.TryQuote(Array.Empty<FacsimileMaterialRule.Requirement>(), Owned((Dust, 99)), Dust, out _), "empty recipe not eligible");
+        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(2, new[] { Dust }) }, Owned((Dust, 1)), Dust, out _), "dust never substitutes itself");
+        var twoSingles = new[] { new FacsimileMaterialRule.Requirement(1, new[] { 1 }), new FacsimileMaterialRule.Requirement(1, new[] { 2 }) };
+        Assert(!FacsimileMaterialRule.TryQuote(twoSingles, Owned((1, 1), (Dust, 999)), Dust, out _), "cannot bypass missing prerequisite accessory");
+
+        var recipe = Recipe((1, 10), (2, 10));
+        var cached = FacsimileRecipe.Build(recipe, Dust);
+        Assert(cached.Requirements.Length == 2, "real tML Recipe descriptor");
+        var duplicate = FacsimileRecipe.Build(Recipe((1, 10), (1, 10)), Dust);
+        Assert(duplicate.Requirements.Length == 1 && duplicate.Requirements[0].Stack == 20, "duplicate ingredient rows merge");
+        Assert(!FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 5), (Dust, 100)), Dust, out _), "duplicates cannot count one stock twice");
+        int group = RecipeGroup.RegisterGroup("AshenChecks", new RecipeGroup(() => "test metal", 1, 3));
+        recipe.acceptedGroups.Add(group);
+        cached = FacsimileRecipe.Build(recipe, Dust);
+        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, Owned((1, 2), (3, 3), (2, 5), (Dust, 10)), Dust, out q) && q.Dust == 10, "mixed group materials add together");
+        var overlapping = Recipe((1, 10), (2, 10));
+        overlapping.acceptedGroups.Add(group);
+        overlapping.acceptedGroups.Add(RecipeGroup.RegisterGroup("AshenChecksOverlap", new RecipeGroup(() => "overlap", 2, 3)));
+        Assert(FacsimileRecipe.Build(overlapping, Dust) == null, "ambiguous overlap safely falls back to normal crafting");
+        var dustRecipe = Recipe((Dust, 10));
+        Assert(FacsimileRecipe.Build(dustRecipe, Dust) == null, "recipes using dust are not discounted");
+
+        // Real inventory planner/consumer, with no world or graphics device.
+        Player player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        player.chest = -1;
+        player.inventory = Enumerable.Range(0, 59).Select(_ => new Item()).ToArray();
+        typeof(Player).GetField("modPlayers", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .SetValue(player, Array.Empty<ModPlayer>());
+        player.inventory[0] = Item(1, 3);
+        player.inventory[1] = Item(1, 2);
+        player.inventory[2] = Item(2, 5);
+        player.inventory[3] = Item(Dust, 10);
+        recipe = Recipe((1, 10), (2, 10));
+        recipe.createItem.stack = 50;
+        cached = FacsimileRecipe.Build(recipe, Dust);
+        var inventory = new FacsimileCraftingInventory(player);
+        Assert(FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, out q) && q.Dust == 10, "split stacks satisfy threshold; output batch doesn't multiply cost");
+        Assert(inventory.TryPlan(recipe, cached, Dust, out int cost) && cost == 10 && player.inventory[0].stack == 3, "planning has no inventory mutation");
+        player.inventory[1].stack++;
+        Assert(!inventory.IsCurrent(), "stale stack rejects transaction");
+        player.inventory[1].stack--;
+        Assert(inventory.IsCurrent(), "unchanged inventory can commit");
+        var consumed = new List<Item>();
+        inventory.Commit(consumed);
+        Assert(player.inventory.Take(4).All(x => x.IsAir) && consumed.Sum(x => x.stack) == 20 && consumed.Where(x => x.type == Dust).Sum(x => x.stack) == 10, "commit consumes exactly original materials and dust");
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(!FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, Dust, out _), "holding craft cannot reuse depleted ingredients");
+
+        player.inventory[0] = Item(1, 5);
+        player.inventory[1] = Item(2, 5);
+        player.inventory[2] = Item(Dust, 10);
+        int callbacks = 0;
+        recipe.AddConsumeIngredientCallback((Recipe r, int type, ref int amount, bool decraft) => { callbacks++; amount = 6; });
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(inventory.TryPlan(recipe, cached, Dust, out cost) && cost == 2 && callbacks == 2, "conservation callback runs once per ingredient and reduces dust");
+        inventory.Commit(consumed);
+        Assert(player.inventory[2].stack == 8, "reduced dust charge committed");
+
+        // Duplicate references from providers must not inflate counts.
+        player.inventory[0] = Item(1, 5);
+        player.inventory[1] = player.inventory[0];
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(inventory.Counts[1] == 5, "same Item reference counted only once");
+
+        player.inventory = Enumerable.Range(0, 59).Select(_ => new Item()).ToArray();
+        player.inventory[0] = Item(1, 5);
+        player.inventory[1] = Item(2, 5);
+        player.bank = new Chest();
+        player.bank.item[0] = Item(Dust, 10);
+        player.chest = -2;
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(inventory.Counts[Dust] == 10, "open personal container contributes dust");
+        player.chest = -1;
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(!inventory.Counts.ContainsKey(Dust), "closed personal container does not contribute");
+        player.bank4 = new Chest();
+        player.bank4.item[0] = Item(Dust, 10);
+        player.inventory[2] = Item(Terraria.ID.ItemID.VoidLens, 1);
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(inventory.Counts[Dust] == 10, "enabled void bag contributes dust");
+        player.chest = -5;
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(inventory.Counts[Dust] == 10, "open void vault not counted twice");
+
+        recipe = Recipe((1, 10), (2, 10));
+        cached = FacsimileRecipe.Build(recipe, Dust);
+        recipe.AddConsumeIngredientCallback((Recipe r, int type, ref int amount, bool decraft) => amount = 20);
+        inventory = new FacsimileCraftingInventory(player);
+        Assert(!inventory.TryPlan(recipe, cached, Dust, out cost) && player.inventory[0].stack == 5 && player.bank4.item[0].stack == 10,
+            "callback increasing consumption cannot partially spend inventory on failure");
+
+        player.chest = -1;
+        player.inventory[2] = new Item();
+        inventory = new FacsimileCraftingInventory(player);
+        Item providedDust = Item(Dust, 15);
+        int notifications = 0;
+        ModPlayer.ItemConsumedCallback notify = (item, index) => { if (ReferenceEquals(item, providedDust) && index == 7) notifications++; };
+        typeof(FacsimileCraftingInventory).GetMethod("Add", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(inventory, new object[] { providedDust, 7, null, -1, notify });
+        recipe = Recipe((1, 10), (2, 10));
+        cached = FacsimileRecipe.Build(recipe, Dust);
+        Assert(inventory.TryPlan(recipe, cached, Dust, out cost) && cost == 10, "additional provider slot participates in plan");
+        inventory.Commit(consumed);
+        Assert(providedDust.stack == 5 && notifications == 1, "additional provider notified with original index and updated item");
+        var alchemy = new AlchemyRecipe(1, new AlchemyIngredient(1, 10));
+        Assert(!alchemy.HasIngredients(new[] { Item(1, 5), Item(Dust, 1000) }), "Elaina alchemy does not accept dust");
+        var dustItem = new AshenFacsimileDust();
+        Assert(dustItem.AlchemyRecipe == null && !dustItem.IsRecipeUnlocked(player), "dust acquisition recipe remains unconfigured");
+
+        using var assembly = AssemblyDefinition.ReadAssembly(Path.Combine(args[0], "tModLoader.dll"));
+        var recipeType = assembly.MainModule.Types.Single(x => x.FullName == "Terraria.Recipe");
+        var find = recipeType.Methods.Single(x => x.Name == "FindRecipes");
+        Assert(find.Body.Instructions.Count(i => i.Operand is MethodReference m && m.Name == "CollectedEnoughItemsToCraftRecipeNew") == 1, "installed tML has exactly one targeted IL material check");
+        using (var dynamic = new MonoMod.Utils.DynamicMethodDefinition(typeof(Recipe).GetMethod("FindRecipes")))
+        using (var il = new MonoMod.Cil.ILContext(dynamic.Definition))
+        {
+            var system = new FacsimileCraftingSystem();
+            typeof(FacsimileCraftingSystem).GetMethod("PatchMaterialCheck", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(system, new object[] { il });
+            Assert(dynamic.Generate() != null, "actual IL patch produces a valid method on installed tML");
+        }
+        Assert(typeof(Recipe).GetField("_ownedItems", HiddenStatic)?.GetValue(null) is Dictionary<int, int>, "installed tML material cache matches");
+        Assert(typeof(RecipeLoader).GetField("ConsumedItems", HiddenStatic)?.GetValue(null) is List<Item>, "installed tML consumed-item list matches");
+        foreach (string name in new[] { "PlayerMeetsTileRequirements", "PlayerMeetsEnvironmentConditions" })
+            Assert(typeof(Recipe).GetMethod(name, HiddenStatic)?.CreateDelegate<Func<Player, Recipe, bool>>() != null, "installed tML check " + name);
+        var mainType = assembly.MainModule.Types.Single(x => x.FullName == "Terraria.Main");
+        var craft = mainType.Methods.Single(x => x.Name == "CraftItem");
+        int createIndex = craft.Body.Instructions.ToList().FindIndex(i => i.Operand is MethodReference m && m.DeclaringType.FullName == "Terraria.Recipe" && m.Name == "Create");
+        int onCraftIndex = craft.Body.Instructions.ToList().FindIndex(i => i.Operand is MethodReference m && m.Name == "OnCraft");
+        Assert(createIndex >= 0 && onCraftIndex > createIndex, "installed tML consumes before delivering OnCraft");
+        Assert(File.ReadAllBytes(Path.Combine(args[1], "ElainaModAlchemy/item/Painkiller.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(args[1], "ElainaModAlchemy/item/AshenFacsimileDust.png"))), "temporary icon exactly copies Painkiller");
+        foreach (string language in new[] { "zh-Hans", "en-US" })
+        {
+            var localization = Hjson.HjsonValue.Load(Path.Combine(args[1], $"Localization/{language}_Mods.伊蕾娜.Alchemy.hjson"));
+            string tooltip = localization["Crafting"]["FacsimileCost"];
+            Assert(!string.IsNullOrWhiteSpace((string)localization["Items"]["AshenFacsimileDust"]["DisplayName"]) &&
+                string.Format(tooltip, 15, 50.0).Contains("15"), "localization parses and formats " + language);
+        }
+
+        var benchOwned = Owned((1, 20), (2, 1), (3, 4), (Dust, 15));
+        for (int i = 0; i < 10000; i++) Quote(benchOwned, out _);
+        var timer = new Stopwatch();
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
+        timer.Start();
+        for (int i = 0; i < 1000000; i++) Quote(benchOwned, out _);
+        timer.Stop();
+        long allocatedDuringLoop = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        Console.WriteLine($"BENCH 1,000,000 three-ingredient quotes: {timer.Elapsed.TotalMilliseconds:0.0} ms; allocations: {allocatedDuringLoop} bytes");
+        Console.WriteLine($"{passed} checks passed. This is not an in-game FPS or multiplayer test.");
+    }
+}
