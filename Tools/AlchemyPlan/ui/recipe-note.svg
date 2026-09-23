@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="172" viewBox="0 0 160 172" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="paper" x1="0" y1=".2" x2="1" y2=".7">
+      <stop stop-color="#f2e9d6"/>
+      <stop offset=".23" stop-color="#f9f3e7"/>
+      <stop offset=".73" stop-color="#fbf7ed"/>
+      <stop offset="1" stop-color="#eee3cc"/>
+    </linearGradient>
+    <linearGradient id="lift" x2="0" y2="1">
+      <stop stop-color="#ab8e6266"/>
+      <stop offset="1" stop-color="#9d794e00"/>
+    </linearGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3" seed="12"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope=".075"/></feComponentTransfer>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+    <clipPath id="edge"><path d="M2 2Q79 .4 157 2.2L159 168Q125 158 87 161T1 168Z"/></clipPath>
+  </defs>
+  <path d="M4 5Q79 3 156 5L159 170Q119 165 82 165T2 170Z" fill="#35243e" opacity=".23"/>
+  <path d="M2 2Q79 .4 157 2.2L159 168Q125 158 87 161T1 168Z" fill="url(#paper)" stroke="#bba98b55" stroke-width=".65"/>
+  <g clip-path="url(#edge)">
+    <rect width="160" height="172" fill="#a99a80" filter="url(#grain)" opacity=".3"/>
+    <path d="M11 118.5Q79 118.1 149 118.6M11 132.5Q80 132.9 149 132.4M11 146.7Q79 146.2 149 146.6" fill="none" stroke="#aa9aac" stroke-width=".6" opacity=".3"/>
+    <path d="M1 166Q45 155 86 159T159 167V172H0Z" fill="url(#lift)" opacity=".25"/>
+    <path d="M4 4Q82 2.5 154 4" stroke="#fffdf5" stroke-width=".8" opacity=".7" fill="none"/>
+  </g>
+</svg>

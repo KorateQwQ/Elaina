@@ -1,0 +1,196 @@
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.UI;
+using P = 伊蕾娜.ElainaModAlchemy.UI.AlchemyNotebookPresentation;
+
+// The actual production drawing and measured rows are linked by run.ps1. The only
+// fixtures here are private notebook state and screen placement; no Terraria saves.
+internal sealed class AlchemyPreviewGame : Game
+{
+    internal static string Repo;
+    private static GraphicsDevice Device;
+    private static readonly Dictionary<string, Texture2D> Textures = new(StringComparer.Ordinal);
+    private static readonly RasterizerState ClipRasterizer = new() { CullMode = CullMode.None, ScissorTestEnable = true };
+    private static bool BookOnly;
+    private bool done;
+
+    private AlchemyPreviewGame()
+    {
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        SDL.SDL_HideWindow(Window.Handle);
+        IsFixedTimeStep = false;
+    }
+
+    protected override void LoadContent()
+    {
+        Device = GraphicsDevice;
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(Repo, "../KL/Fonts"));
+        KL.Drawing.FontManager.HarmonyOS_Sans_SC = new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
+        KL.Drawing.FontManager.NotoSerifSC = new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
+        KL.Drawing.FontManager.Gelasio = new(Content.Load<DynamicSpriteFont>("Gelasio"));
+        var pixel = new Texture2D(Device, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        Terraria.GameContent.TextureAssets.MagicPixel = new(pixel);
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        string output = Path.Combine(Repo, ".vissandbox/alchemy-preview/output");
+        Directory.CreateDirectory(output);
+        using var batch = new SpriteBatch(Device);
+        if (BookOnly)
+        {
+            AlchemyBookPreview.Run(Device, batch, output);
+            Exit();
+            return;
+        }
+        string[] scenes = ["new", "potion", "bloodlust", "curio", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "brew-050", "detail-bottom"];
+        foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
+        foreach (string scene in scenes)
+        {
+            using var target = new RenderTarget2D(Device, width, height);
+            Device.SetRenderTarget(target);
+            Device.Clear(new Color(20, 21, 28));
+            Render(batch, width, height, uiScale, scene);
+            Device.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(output, $"{scene}-{width}x{height}-{uiScale:0.00}.png"));
+            target.SaveAsPng(stream, target.Width, target.Height);
+        }
+        Console.WriteLine(output);
+        Exit();
+    }
+
+    internal static void Render(SpriteBatch batch, int width, int height, float uiScale, string scene)
+    {
+        var state = new AlchemyNotebookState(new NotebookFixture(scene));
+        switch (scene)
+        {
+            case "curio": state.SetCategory("curio"); break;
+            case "food": state.SetCategory("food"); break;
+            case "material": state.SetCategory("material"); break;
+            case "acquire": state.Select("flour"); break;
+            case "bloodlust": state.Select("bloodlust"); break;
+            case "detail-bottom": state.Select("painkiller"); break;
+            case "locked": state.Select("focus"); break;
+            case "research-ready": state.Select("painkiller"); break;
+            case "recipe-missing": case "recipe-ready": state.Select("focus"); break;
+        }
+        float fit = Math.Min(1, Math.Min((width / uiScale - 40) / P.DesignWidth, (height / uiScale - 40) / P.DesignHeight));
+        float scale = uiScale * fit;
+        var origin = new Vector2((width - P.DesignWidth * scale) / 2, (height - P.DesignHeight * scale) / 2);
+        var d = new AlchemyDrawing { Batch = batch, Scale = scale, Origin = origin };
+        void Begin(Rectangle? clip = null)
+        {
+            Device.ScissorRectangle = clip ?? new Rectangle(0, 0, width, height);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, ClipRasterizer);
+        }
+        Rectangle Clip(int x, int y, int w, int h) => new((int)(origin.X + x * scale), (int)(origin.Y + y * scale),
+            (int)Math.Ceiling(w * scale), (int)Math.Ceiling(h * scale));
+        void At(float x, float y) => d.Origin = origin + new Vector2(x, y) * scale;
+        float progress = scene switch { "brew-015" => .15f, "brew-050" => .5f, "brew-085" => .85f, _ => 0 };
+        Begin();
+        P.Chrome(d, state);
+        P.Hero(d, state, progress);
+        for (int i = 0; i < AlchemyCatalog.Categories.Count; i++)
+        { At(36 + i * 169, 87); P.Category(d, state, AlchemyCatalog.Categories[i], false); }
+        At(780, 662); P.CraftButton(d, state, false, progress);
+        At(0, 0);
+        if (state.IsUnlocked(state.Current) && state.Current.Craftable)
+        {
+            d.Text("制作批数", 780, 635, 10, AlchemyDrawing.Muted);
+            d.Frame(842, 628, 26, 24, AlchemyDrawing.Lavender * (state.Quantity > 1 ? .35f : .12f));
+            d.Frame(904, 628, 26, 24, AlchemyDrawing.Lavender * (state.Quantity < state.MaxBatches(state.Current) ? .35f : .12f));
+            d.Text("−", 855, 632, 13, AlchemyDrawing.Muted * .4f, .5f);
+            d.Text(state.Quantity.ToString(), 886, 633, 12, AlchemyDrawing.Ink, .5f);
+            d.Text("+", 917, 632, 13, AlchemyDrawing.Muted, .5f);
+            d.Text("最大", 956, 633, 10, AlchemyDrawing.Muted, .5f);
+            d.Text("产出 ×" + state.Quantity * state.Current.Yield, 1052, 635, 10, AlchemyDrawing.Gold, 1);
+        }
+        d.Text(P.Hint(state, progress > 0), 916, 707, 9, AlchemyDrawing.Muted, .5f);
+        var related = state.IsUnlocked(state.Current) ? state.Current.Ingredients.SelectMany(i => i.Choices).Distinct().ToList() : [];
+        if (state.IsUnlocked(state.Current) && related.Count == 0 && state.Current.Material != null) related.Add(state.Current.Material);
+        for (int i = 0; i < related.Count; i++)
+        {
+            var material = AlchemyCatalog.GetMaterial(related[i]);
+            float x = 95 + i * 46;
+            d.Frame(x, 745, 38, 38, AlchemyDrawing.Lavender * .3f);
+            d.Image(material.IconPath, x + 4, 746, 28, 28);
+            d.Text(state.MaterialCount(material.Id).ToString(), x + 35, 771, 9, AlchemyDrawing.Ink, 1);
+        }
+        d.Text("帮助", 755, 755, 10, AlchemyDrawing.Muted, .5f);
+#if DEBUG
+        d.Text("补充素材", 843, 755, 10, AlchemyDrawing.Gold, .5f);
+        d.Text("重置手记", 931, 755, 10, AlchemyDrawing.Gold, .5f);
+#endif
+        d.Text("返回", 1019, 755, 10, AlchemyDrawing.Muted, .5f);
+        d.Diamond(new(1054, 40), 17, AlchemyDrawing.Lavender * .65f);
+        d.Line(new(1050, 36), new(1058, 44), AlchemyDrawing.Lavender);
+        d.Line(new(1050, 44), new(1058, 36), AlchemyDrawing.Lavender);
+        d.LatinText("ESC", 1054, 61, 8, AlchemyDrawing.Muted, .5f);
+        batch.End();
+
+        Begin(Clip(P.CatalogX - 2, P.CatalogY - 2, P.CatalogWidth + 4, P.CatalogHeight + 4));
+        var recipes = state.Visible;
+        for (int i = 0; i < recipes.Count; i++)
+        {
+            float x = P.CatalogX + i % 4 * 168, y = P.CatalogY + i / 4 * 144;
+            At(x, y); P.Card(d, state, recipes[i], false);
+            if (recipes[i].Id == state.SelectedId)
+                P.SelectionQuill(d, P.CardWidth - 7, P.CardHeight - 49);
+        }
+        At(P.CatalogX, P.CatalogY + (int)Math.Ceiling(recipes.Count / 4f) * 144);
+        if (recipes.Count > 0) P.PageNote(d, state);
+        batch.End();
+
+        var rows = P.DetailRows(d, state);
+        float total = rows.Sum(row => row.Height), offset = scene == "detail-bottom" ? Math.Max(0, total - P.DetailHeight) : 0;
+        Begin(Clip(P.DetailX, P.DetailY, P.DetailWidth, P.DetailHeight));
+        float rowY = P.DetailY - offset;
+        foreach (var row in rows) { At(P.DetailX, rowY); row.Paint(d, false); rowY += row.Height; }
+        batch.End();
+        if (total > P.DetailHeight)
+        {
+            Begin(); At(0, 0);
+            float thumb = P.DetailHeight * P.DetailHeight / total;
+            float y = P.DetailY + offset / (total - P.DetailHeight) * (P.DetailHeight - thumb);
+            d.Box(P.DetailX + P.DetailWidth + 3, y, 3, thumb, AlchemyDrawing.Lavender * .35f);
+            batch.End();
+        }
+    }
+
+    internal static Texture2D Texture(string asset)
+    {
+        if (Textures.TryGetValue(asset, out var texture)) return texture;
+        string path = Path.Combine(Repo, asset[(asset.IndexOf('/') + 1)..] + ".png");
+        using var stream = File.OpenRead(path);
+        texture = Texture2D.FromStream(Device, stream);
+        // tML ImageIO.ToRaw preserves partial-alpha RGB and zeros fully clear pixels.
+        var pixels = new Color[texture.Width * texture.Height];
+        texture.GetData(pixels);
+        for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+        texture.SetData(pixels);
+        Textures.Add(asset, texture);
+        return texture;
+    }
+
+    protected override void UnloadContent()
+    {
+        foreach (var texture in Textures.Values) texture.Dispose();
+        Textures.Clear();
+        Terraria.GameContent.TextureAssets.MagicPixel.Value.Dispose();
+        ClipRasterizer.Dispose();
+        base.UnloadContent();
+    }
+
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        Repo = Path.GetFullPath(args[0]);
+        BookOnly = args.Contains("--book-only");
+        using var game = new AlchemyPreviewGame();
+        game.Run();
+    }
+}

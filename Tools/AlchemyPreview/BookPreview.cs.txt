@@ -1,0 +1,153 @@
+using System.Text.Json;
+using 伊蕾娜.ElainaModAlchemy.UI;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class AlchemyBookPreview
+{
+    private static int checks;
+    private static void Require(bool condition, string detail)
+    {
+        if (!condition) throw new InvalidOperationException("Alchemy book motion: " + detail);
+        checks++;
+    }
+
+    private static void CheckMotion()
+    {
+        foreach (int fps in new[] { 30, 60, 144 })
+        {
+            var motion = new ConstellationBookMotion();
+            Require(motion.IsClosed && !motion.Moving, "starts closed");
+            motion.Request(true);
+            int frames = 0;
+            while (motion.Moving && frames < fps * 2) { motion.Advance(1f / fps); frames++; }
+            Require(motion.IsOpen && Math.Abs(frames / (float)fps - .560f) <= 1f / fps + .00001f,
+                "opening duration at " + fps + " FPS");
+            Require(motion.PageAlpha == 1 && motion.CoverAlpha == 0, "settled open page and cover");
+            motion.Request(false); frames = 0;
+            while (motion.Moving && frames < fps * 2) { motion.Advance(1f / fps); frames++; }
+            Require(motion.IsClosed && Math.Abs(frames / (float)fps - .440f) <= 1f / fps + .00001f,
+                "closing duration at " + fps + " FPS");
+            Require(motion.SceneAlpha == 0 && motion.BackdropAlpha == 0, "settled closed transparency");
+        }
+
+        var reverse = new ConstellationBookMotion();
+        reverse.Request(true); reverse.Advance(.24f);
+        float progress = reverse.Progress, curl = reverse.CurlDirection, velocity = reverse.CurlVelocity;
+        Matrix pose = reverse.Pose(new Vector2(410, 230), .03f);
+        reverse.Request(false);
+        Require(reverse.Progress == progress && reverse.CurlDirection == curl && reverse.CurlVelocity == velocity,
+            "request reverse preserves progress, curl, velocity");
+        Require(reverse.Pose(new Vector2(410, 230), .03f) == pose, "request reverse preserves displayed pose");
+        reverse.Advance(.05f);
+        Require(reverse.Progress < progress, "reversal advances toward closed");
+        progress = reverse.Progress; curl = reverse.CurlDirection; velocity = reverse.CurlVelocity;
+        reverse.Request(true);
+        Require(reverse.Progress == progress && reverse.CurlDirection == curl && reverse.CurlVelocity == velocity,
+            "second rapid reverse remains continuous");
+        reverse.Finish();
+        Require(reverse.IsOpen && !reverse.Moving && reverse.CurlVelocity == 0, "finish snaps to target on focus loss");
+        reverse.Reset();
+        Require(reverse.IsClosed && !reverse.TargetOpen, "world reset closes");
+
+        var split = new ConstellationBookMotion(); split.Request(true); split.Advance(.3f); split.Request(false);
+        var lump = new ConstellationBookMotion(); lump.Request(true); lump.Advance(.3f); lump.Request(false);
+        foreach (float seconds in new[] { .004f, .031f, .007f, .058f, .1f }) split.Advance(seconds);
+        lump.Advance(.2f);
+        Require(Math.Abs(split.Progress - lump.Progress) < .00001f && Math.Abs(split.CurlDirection - lump.CurlDirection) < .00001f
+            && Math.Abs(split.CurlVelocity - lump.CurlVelocity) < .0001f, "uneven frames preserve closed-form spring response");
+        float before = split.Progress;
+        split.Advance(float.NaN); split.Advance(float.PositiveInfinity); split.Advance(-1);
+        Require(split.Progress == before, "invalid elapsed times are ignored");
+
+        var clock = new ConstellationUIClock();
+        Require(clock.Sample() == 0, "inactive wall clock");
+        var reference = System.Diagnostics.Stopwatch.StartNew();
+        clock.Restart(); System.Threading.Thread.Sleep(20);
+        float first = clock.Sample(), second = clock.Sample();
+        Require(first >= .01f && second >= 0 && first + second <= reference.Elapsed.TotalSeconds + .0001,
+            "independent clock counts elapsed time once");
+        clock.Stop(); System.Threading.Thread.Sleep(20);
+        Require(clock.Sample() == 0, "closed clock excludes hidden interval");
+    }
+
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        CheckMotion();
+        string frames = Path.Combine(output, "book-frames");
+        Directory.CreateDirectory(frames);
+        var draw = new AlchemyDrawing { Batch = batch };
+        using var renderer = new ConstellationBookRenderer(device);
+        using var cover = new RenderTarget2D(device, 1100, 800, false, SurfaceFormat.Color,
+            DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        device.SetRenderTarget(cover); device.Clear(Color.Transparent);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        AlchemyBookArt.PaintCover(draw);
+        batch.End();
+        device.SetRenderTarget(null);
+        Save(cover, Path.Combine(output, "alchemy-book-cover.png"));
+        var timeline = new List<object>();
+        foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
+        {
+            using var page = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color,
+                DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            using var target = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color,
+                DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            device.SetRenderTarget(page); device.Clear(Color.Transparent);
+            AlchemyPreviewGame.Render(batch, width, height, uiScale, "potion");
+            device.SetRenderTarget(null);
+            float fit = Math.Min(1, Math.Min((width / uiScale - 40) / 1100, (height / uiScale - 40) / 800));
+            float scale = fit * uiScale;
+            Vector2 origin = (new Vector2(width, height) - new Vector2(1100, 800) * scale) / 2;
+            Vector2 screen = new(width / uiScale, height / uiScale);
+            // Same invisible motion origin beside the default skill-bar anchor.
+            var skillDock = ConstellationBookLayout.DockBounds(screen, (screen - new Vector2(646, 94)) * .95f);
+            var bounds = new Rectangle(Math.Max(8, skillDock.X - 104), skillDock.Y, 96, 30);
+            Vector2 dock = new Vector2(bounds.X, bounds.Y) * uiScale;
+            var motion = new ConstellationBookMotion();
+            for (int frame = 0; frame <= 144; frame++)
+            {
+                // Full flight out and back, then two direction reversals before the final close.
+                if (frame is 1 or 80 or 106) motion.Request(true);
+                if (frame is 46 or 96 or 122) motion.Request(false);
+                motion.Advance(1f / 60);
+                device.SetRenderTarget(target); device.Clear(new Color(38, 45, 54));
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone);
+                for (int x = 0; x < width; x += 80)
+                    batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(x, 0, 1, height), new Color(45, 53, 64));
+                for (int y = 0; y < height; y += 80)
+                    batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(0, y, width, 1), new Color(45, 53, 64));
+                draw.Origin = dock; draw.Scale = uiScale;
+                batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(0, 0, width, height),
+                    new Color(8, 10, 18) * (.72f * motion.BackdropAlpha));
+                batch.End();
+                if (motion.IsOpen)
+                {
+                    batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                        DepthStencilState.None, RasterizerState.CullNone);
+                    batch.Draw(page, Vector2.Zero, Color.White); batch.End();
+                }
+                else if (!motion.IsClosed)
+                    renderer.Draw(device, page, cover, draw.Texture(AlchemyBookArt.BackPath),
+                        Terraria.GameContent.TextureAssets.MagicPixel.Value, motion, origin, scale,
+                        dock + new Vector2(48, 15) * uiScale, new Vector2(96, 30) * uiScale);
+                device.SetRenderTarget(null);
+                if (width == 1280 || frame % 6 == 0 || frame is 1 or 34 or 45 or 47 or 73 or 79 or 81 or 95 or 97 or 105 or 107 or 121 or 123 or 143)
+                    Save(target, Path.Combine(frames, $"alchemy-book-{width}x{height}-{uiScale:0.00}-{frame:000}.png"));
+                if (width == 1280) timeline.Add(new { frame, seconds = frame / 60f, motion.Progress,
+                    motion.TargetOpen, motion.CurlDirection, motion.CurlVelocity, motion.Moving });
+            }
+            Require(motion.IsClosed && !motion.Moving, "rendered sequence ends fully closed at " + width + "/" + uiScale);
+        }
+        File.WriteAllText(Path.Combine(output, "alchemy-book-timeline.json"), JsonSerializer.Serialize(timeline, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "alchemy-book-checks.txt"), $"{checks} checks passed: 30/60/144 FPS durations; reversal pose and spring continuity; uneven timing; focus finish/reset; wall-clock; final sequence state.\n");
+        Console.WriteLine($"Alchemy book: {checks} checks passed. FNA frames: " + frames);
+    }
+
+    private static void Save(RenderTarget2D target, string path)
+    {
+        using var stream = File.Create(path);
+        target.SaveAsPng(stream, target.Width, target.Height);
+    }
+}

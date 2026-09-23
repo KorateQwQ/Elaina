@@ -5,7 +5,8 @@ using MonoMod.Cil;
 using Terraria;
 using Terraria.GameContent.Achievements;
 using Terraria.ModLoader;
-using 伊蕾娜.ElainaModAlchemy.item;
+using 伊蕾娜.ElainaModAlchemy.item.Curios;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
 
 namespace 伊蕾娜.ElainaModAlchemy.Crafting;
 
@@ -98,6 +99,11 @@ public sealed class FacsimileCraftingSystem : ModSystem
     private bool HasMaterials(Recipe recipe)
     {
         bool hasOriginalMaterials = Recipe.CollectedEnoughItemsToCraftRecipeNew(recipe);
+        if (AlchemyVanillaRecipes.IsAlchemyRecipe(recipe) && !AlchemyVanillaRecipes.AllowFacsimileDust)
+        {
+            quotes.Remove(recipe);
+            return hasOriginalMaterials;
+        }
         if (dustType <= 0 || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
             return hasOriginalMaterials;
 
@@ -118,6 +124,12 @@ public sealed class FacsimileCraftingSystem : ModSystem
 
     private void CraftItem(On_Main.orig_CraftItem orig, Recipe recipe)
     {
+        if (AlchemyVanillaRecipes.IsAlchemyRecipe(recipe) && !AlchemyVanillaRecipes.AllowFacsimileDust)
+        {
+            quotes.Remove(recipe);
+            orig(recipe);
+            return;
+        }
         // 原料齐全的配方和独立制作系统保持原路径，包括它们的所有扣料钩子。
         if (!quotes.ContainsKey(recipe) || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
         {
@@ -193,6 +205,29 @@ public sealed class FacsimileCraftingSystem : ModSystem
     }
 
     internal bool TryGetQuote(Recipe recipe, out FacsimileMaterialRule.Quote quote) => quotes.TryGetValue(recipe, out quote);
+
+    internal bool HasAlchemyMaterials(Recipe recipe) => HasMaterials(recipe);
+    internal int MaxAlchemyBatches(Recipe recipe, int limit)
+    {
+        if (!recipes.TryGetValue(recipe, out var cached)) return 1;
+        int result = 0;
+        for (int count = 1; count <= limit; count++)
+        {
+            var requirements = new FacsimileMaterialRule.Requirement[cached.Requirements.Length];
+            bool originals = true;
+            for (int i = 0; i < requirements.Length; i++)
+            {
+                var original = cached.Requirements[i];
+                requirements[i] = new FacsimileMaterialRule.Requirement(checked(original.Stack * count), original.AcceptedTypes);
+                long have = 0;
+                foreach (int type in original.AcceptedTypes) have += ownedItems.GetValueOrDefault(type);
+                if (have < requirements[i].Stack) originals = false;
+            }
+            if (!originals && !FacsimileMaterialRule.TryQuote(requirements, ownedItems, dustType, GetPriority(), out _)) break;
+            result = count;
+        }
+        return result;
+    }
 
     private static FacsimilePriority GetPriority() => Main.LocalPlayer.active &&
         Main.LocalPlayer.GetModPlayer<FacsimileCraftingPlayer>().PreferDust

@@ -1,0 +1,184 @@
+using System.Reflection;
+using System.Buffers.Binary;
+using Hjson;
+using Newtonsoft.Json.Linq;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModAlchemy.Buffs;
+using 伊蕾娜.ElainaModAlchemy.item;
+using 伊蕾娜.ElainaModAlchemy.item.Potions;
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+// Real tML types and production item sources, with no Terraria/Main/ModContent stubs.
+internal static class Checks
+{
+    private static int passed;
+    private static readonly CheckMod Mod = new();
+
+    private static void Assert(bool value, string name)
+    {
+        if (!value) throw new InvalidOperationException(name);
+        passed++;
+    }
+
+    private static T Register<T>(T content) where T : ModType
+    {
+        Assert(content.IsLoadingEnabled(Mod), content.Name + " loading enabled");
+        // Mod.AddContent invokes this exact loading and registry path. Avoiding the
+        // outer mod manager also avoids a graphics device, a world, and mod packaging.
+        ((ILoadable)content).Load(Mod);
+        ContentInstance.Register(content);
+        return content;
+    }
+
+    private static T Defaults<T>(T item) where T : AlchemyItem
+    {
+        Register(item);
+        item.SetDefaults();
+        Assert(item.Type >= ItemID.Count && ReferenceEquals(ItemLoader.GetItem(item.Type), item),
+            item.Name + " registered with real ItemLoader");
+        Assert(ModContent.Find<ModItem>(Mod.Name, item.Name) == item, item.Name + " registered lookup");
+        return item;
+    }
+
+    public static void Main(string[] args)
+    {
+        string repo = args[0];
+        int startingBuffCount = BuffLoader.BuffCount;
+        var noEffect = Defaults(new NoEffectPotion());
+        Assert(!noEffect.CanUseItem(null) && !noEffect.Item.consumable && noEffect.Item.buffType == 0 &&
+            noEffect.Item.useStyle == ItemUseStyleID.None && noEffect.Item.buffTime == 0,
+            "A potion without a Buff registers but cannot be drunk or consumed");
+        Assert(noEffect.Item.width == 20 && noEffect.Item.height == 30 && noEffect.Item.rare == ItemRarityID.Blue,
+            "Non-catalog items retain generic defaults");
+        Assert(BuffLoader.BuffCount == startingBuffCount, "No fake Buff was registered for a no-effect potion");
+        Assert(noEffect.AlchemyRecipe == null && !noEffect.IsRecipeUnlocked(null),
+            "Generic item defaults do not add a crafting recipe or unlock progression");
+
+        var production = typeof(AlchemyItem).Assembly.GetTypes()
+            .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(AlchemyItem)) && t.Name != "AshenFacsimileDust" &&
+                t.Namespace?.StartsWith("伊蕾娜.ElainaModAlchemy.item.", StringComparison.Ordinal) == true)
+            .Select(t => (AlchemyItem)Activator.CreateInstance(t)).ToArray();
+        Assert(production.Length == 21, "All 21 production items in this isolated check are present");
+        var futureNames = new HashSet<string> { "ConcentrationPotion", "ResonancePotion", "FeatherlightPotion" };
+        var existingNames = new HashSet<string> { "Painkiller", "BloodthirstPotion", "StarPowerPotion" };
+        foreach (var item in production.Where(i => !existingNames.Contains(i.Name)))
+        {
+            Defaults(item);
+            var entry = AlchemyCatalog.GetRecipe(item.EntryId);
+            Assert(item.Item.width == entry.PixelWidth && item.Item.height == entry.PixelHeight &&
+                item.Item.rare == entry.Rarity, item.Name + " uses catalog dimensions and rarity");
+            Assert(item.Item.maxStack == (item.Name == "AetherDropper" ? 1 : Item.CommonMaxStack) &&
+                item.Item.value == 0 && !item.Item.consumable && item.Item.useStyle == ItemUseStyleID.None,
+                item.Name + " presentation defaults do not consume items");
+            if (futureNames.Contains(item.Name))
+            {
+                Assert(item.GetType().BaseType == typeof(AlchemyPotion) && !item.CanUseItem(null) &&
+                    item.Item.buffType == 0 && item.Item.buffTime == 0, item.Name + " is a future drinkable potion");
+            }
+            else Assert(item.GetType().BaseType == typeof(AlchemyItem), item.Name + " is a non-potion creation");
+        }
+        Assert(BuffLoader.BuffCount == startingBuffCount, "Future potions did not allocate placeholder Buffs");
+
+        // Exercise the real Buff registration/ModContent lookup used by existing potions.
+        var painBuff = Register(new PainkillerBuff());
+        var bloodBuff = Register(new BloodthirstBuff());
+        var starBuff = Register(new StarPowerBuff());
+        Assert(BuffLoader.BuffCount == startingBuffCount + 3 &&
+            ModContent.BuffType<PainkillerBuff>() == painBuff.Type &&
+            ModContent.BuffType<BloodthirstBuff>() == bloodBuff.Type &&
+            ModContent.BuffType<StarPowerBuff>() == starBuff.Type, "Real existing Buff IDs resolve");
+        foreach (var item in production.Where(i => existingNames.Contains(i.Name)))
+        {
+            Defaults(item);
+            int expectedType = item.Name switch
+            {
+                "Painkiller" => painBuff.Type, "BloodthirstPotion" => bloodBuff.Type, _ => starBuff.Type
+            };
+            int expectedTime = item.Name == "Painkiller" ? 30 * 60 : 5 * 60 * 60;
+            Drinkable(item, expectedType, expectedTime);
+        }
+        Drinkable(Defaults(new ConfiguredPotion()), BuffID.Regeneration, 5 * 60 * 60);
+        Drinkable(Defaults(new ShortConfiguredPotion()), BuffID.Regeneration, 120);
+
+        foreach (var item in production)
+        {
+            var entry = AlchemyCatalog.GetRecipe(item.EntryId);
+            Assert(item.LocalizationCategory == "Alchemy.Items", item.Name + " localization category");
+            Assert(item.Texture == entry.PixelPath && item.Texture.EndsWith("_Pixel", StringComparison.Ordinal),
+                item.Name + " game texture is the catalog pixel texture");
+            string file = Path.Combine(repo, item.Texture[(item.Texture.IndexOf('/') + 1)..] + ".png");
+            Assert(File.Exists(file), item.Name + " pixel asset exists");
+            byte[] png = File.ReadAllBytes(file);
+            Assert(BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4)) == entry.PixelWidth &&
+                BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20, 4)) == entry.PixelHeight,
+                item.Name + " pixel asset has catalog resolution");
+        }
+        Assert(typeof(AlchemyItem).Assembly.GetType("伊蕾娜.ElainaModAlchemy.item.AlchemyNotebookItem") == null &&
+            !File.Exists(Path.Combine(repo, "ElainaModAlchemy/item/AlchemyNotebookItem.cs")),
+            "Redundant intermediate item base is removed");
+
+        // These two older concrete classes have player/crafting dependencies outside
+        // this isolated runtime test; check their unchanged base/asset contracts here.
+        foreach (var (folder, name, id) in new[]
+        {
+            ("Potions", "MoonDewElixir", "mana"), ("Curios", "AshenFacsimileDust", "mimic")
+        })
+        {
+            string source = File.ReadAllText(Path.Combine(repo, $"ElainaModAlchemy/item/{folder}/{name}.cs"));
+            Assert(source.Contains($"class {name} : AlchemyItem") && source.Contains($"EntryId => \"{id}\"") &&
+                (!source.Contains("override string LocalizationCategory") || source.Contains("\"Alchemy.Items\"")) &&
+                (!source.Contains("override string Texture") || source.Contains(AlchemyCatalog.GetRecipe(id).PixelPath)),
+                name + " keeps its existing non-Buff base, pixel asset, and localization contract");
+        }
+
+        Console.WriteLine($"Alchemy items: {passed} registration, defaults, inheritance, and pixel asset checks passed; checking localization.");
+        string[] allNames = production.Select(i => i.Name).Concat(new[] { "MoonDewElixir", "AshenFacsimileDust" }).ToArray();
+        foreach (string culture in new[] { "zh-Hans", "en-US" })
+        {
+            var texts = Localization(repo, culture);
+            foreach (string name in allNames)
+            foreach (string field in new[] { "DisplayName", "Tooltip" })
+            {
+                string key = $"Mods.伊蕾娜.Alchemy.Items.{name}.{field}";
+                Assert(texts.TryGetValue(key, out string value) && !string.IsNullOrWhiteSpace(value),
+                    culture + " has nonempty unified localization " + key);
+            }
+            Assert(!texts.Keys.Any(k => k.StartsWith("Mods.伊蕾娜.Alchemy.NotebookItems.", StringComparison.Ordinal)),
+                culture + " has no obsolete NotebookItems localization keys");
+        }
+        Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 21 real item registrations, 3 real Buff registrations, both localization cultures checked.");
+    }
+
+    private static void Drinkable(AlchemyItem item, int buffType, int duration)
+    {
+        Assert(item.CanUseItem(null) && item.Item.consumable && item.ConsumeItem(null), item.Name + " allows normal drinking and consumption");
+        Assert(item.Item.buffType == buffType && item.Item.buffTime == duration, item.Name + " preserves Buff and duration");
+        Assert(item.Item.width == 20 && item.Item.height == 30 && item.Item.rare == ItemRarityID.Blue &&
+            item.Item.useStyle == ItemUseStyleID.DrinkLiquid && item.Item.useTime == 17 &&
+            item.Item.useAnimation == 17 && item.Item.useTurn && item.Item.UseSound == SoundID.Item3 &&
+            item.Item.maxStack == Item.CommonMaxStack, item.Name + " preserves established potion defaults");
+    }
+
+    private static Dictionary<string, string> Localization(string repo, string culture)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string path in Directory.EnumerateFiles(Path.Combine(repo, "Localization"), culture + "_Mods.伊蕾娜.Alchemy*.hjson"))
+        {
+            string prefix = Path.GetFileNameWithoutExtension(path)[(culture.Length + 1)..];
+            JObject json = JObject.Parse(HjsonValue.Parse(File.ReadAllText(path)).ToString());
+            foreach (JValue value in json.DescendantsAndSelf().OfType<JValue>())
+            {
+                string key = prefix + "." + value.Path;
+                Assert(values.TryAdd(key, value.ToString()), culture + " does not define a localization twice: " + key);
+            }
+        }
+        return values;
+    }
+
+    private sealed class CheckMod : Mod { public override string Name => "AlchemyItemChecks"; }
+    private sealed class NoEffectPotion : AlchemyPotion { }
+    private class ConfiguredPotion : AlchemyPotion { protected override int PotionBuffType => BuffID.Regeneration; }
+    private sealed class ShortConfiguredPotion : ConfiguredPotion { protected override int DurationTicks => 120; }
+}

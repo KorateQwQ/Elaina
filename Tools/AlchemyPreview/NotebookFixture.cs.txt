@@ -1,0 +1,36 @@
+using 伊蕾娜.ElainaModAlchemy.UI;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+
+// Offline-only fixtures. No demonstration inventory remains in the production state.
+internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
+{
+    public AlchemyNotebookResult LastResult => null;
+    public bool Request(AlchemyNotebookAction action, string id, int batches = 1) => false;
+    public AlchemyNotebookSnapshot Capture()
+    {
+        bool blank = scene is "new" or "locked" or "research-ready" or "recipe-missing" or "recipe-ready";
+        int level = scene == "level-max" ? 20 : scene is "new" or "locked" ? 1 : 5;
+        var materials = AlchemyCatalog.Materials.ToDictionary(m => m.Id, m => scene == "short" ? 0 : m.Initial);
+        var products = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => r.Id == "mana" ? 3 : 0);
+        var unlocked = AlchemyCatalog.Recipes.Where(r => !blank && (AlchemyProgressionRules.RequiredLevel(r.Id) <= level || r.Id == "bloodlust"))
+            .Select(r => r.Id).ToHashSet();
+        var maximum = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => !unlocked.Contains(r.Id) || !r.Craftable ? 0
+            : r.Ingredients.Min(i => i.Choices.Sum(id => materials[id]) / i.Count));
+        var research = new Dictionary<string, AlchemyResearchStatus>();
+        foreach (var entry in AlchemyCatalog.Recipes)
+        {
+            bool scroll = scene is "recipe-missing" or "recipe-ready";
+            int neededLevel = scroll ? 3 : AlchemyProgressionRules.RequiredLevel(entry.Id);
+            int owned = scene == "recipe-ready" ? 1 : 0;
+            bool ready = level >= neededLevel && (!scroll || owned > 0);
+            research[entry.Id] = new(neededLevel, scroll, true, "炼金配方手稿", owned, 1, true, ready,
+                level < neededLevel ? $"需要炼金等级 {neededLevel}" : scroll && owned == 0 ? "缺少所需配方" : "满足条件，可点击研究");
+        }
+        return new AlchemyNotebookSnapshot
+        {
+            Materials = materials, Products = products, Unlocked = unlocked, Research = research,
+            MaximumBatches = maximum, Level = level, MaximumLevel = 20, Experience = level == 20 || scene == "new" ? 0 : 45,
+            ExperienceToNextLevel = AlchemyProgressionRules.ExperienceToNextLevel(level)
+        };
+    }
+}

@@ -2,6 +2,8 @@
 
 运行 `& Tools/ConstellationSkillPanelPreview/run.ps1`。可通过 `-Tml` 指定安装目录，`-Sources` 指定本地 Terraria 源码目录。
 
+`-OrnamentsOnly` 链接正式 `ConstellationButterflyMotion` 与边框/蝴蝶绘制，并抽取正式 `UpdateButterfly`。导出带书页厚度的新外框、选中蝴蝶、空分类与编辑模式在 1600×1000、1280×720、125% UI 缩放下的画面；`output/butterfly-frames` 包含 100% / 125% 下各 241 帧，从移动、落定到停止及间歇扇翅。状态检查覆盖 30/60/144 FPS、途中改选、落定后翼拍、静止时位置不漂移、暂停/重置和不均匀帧间隔。`python Tools/ConstellationSkillPanelPreview/bake_butterfly.py` 从已有 `butterFly.png` 重建预乘 Alpha 的同款遮罩，保留原始文件。这些是实际 FNA 绘制的离线预览，游戏内 SUI 输入与生命周期另行验收。
+
 `-CameraOnly` 每次从正式面板抽取 `CenterOn` / `AdvanceCamera` 与实际绘制方法，导出聚焦开始、100ms、200ms、350ms 和途中改选后的 FNA 离线帧，覆盖 720p 与 125% UI 缩放；检查最终图标居中、120% 倍率和改选瞬间的位置连续性。输出为 `output/camera-*.png`。使用隔离角色夹具，不模拟完整 SUI 点击、拖拽和开书输入生命周期，这些交互仍需游戏内验证。
 
 `-BookOnly` 链接正式 `ConstellationBookMotion` / `ConstellationBookRenderer`，导出书从手札按钮飞出、翻开、合拢、收回及两次快速反向的 FNA 连续帧。1600×1000 / 100% 输出 145 帧，1280×720 / 100% 和 1600×1000 / 125%、200% 输出代表帧，位于 `output/book-frames`。标题用实际 Noto Serif SC，页面使用正式绘制方法与隔离角色夹具。状态检查覆盖 30/60/144 FPS 时长、反向瞬间位置/曲率/速度连续性、闭式阻尼步长一致性、失焦收敛和世界重置。这不是游戏截图，也不模拟完整 SUI 输入树。

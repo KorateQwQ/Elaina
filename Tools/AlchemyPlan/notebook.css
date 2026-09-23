@@ -1,0 +1,52 @@
+/* Revised alchemy pages; the surrounding spellbook and combat HUD keep their styles. */
+.alchemy-book .header .heading h1{font-size:28px}
+.alchemy-book .header .heading h1 small{font:10px var(--sans);letter-spacing:2px;margin-left:15px;color:#bda7cd}
+.alchemy-book .plan-counter{display:flex;gap:20px;align-items:center;margin-right:12px}
+.plan-counter>div{display:flex;align-items:baseline;gap:7px}.plan-counter b{font:26px Georgia;color:#e6cea5}.plan-counter span{font-size:10px;letter-spacing:1px;color:#baa6cb}.plan-counter>i{height:25px;width:1px;background:#b99bd036}
+.alchemy-book .navigation{align-items:flex-start;gap:0}.alchemy-book .filters{gap:12px}.alchemy-book .filter{min-width:100px}
+.alchemy-book .progress{margin-left:20px;font-size:10px;white-space:nowrap}.alchemy-book .progress b{font-size:18px}
+.plan-art-controls{margin:13px 0 0 auto;display:flex;gap:1px;border:1px solid #b89ccc47;border-radius:3px;padding:2px;background:#20192744}
+.plan-art-controls button{font-size:10px;letter-spacing:1px;padding:5px 10px;border:0;border-radius:2px;background:none;color:#aa94bb}.plan-art-controls button.active{background:#a184bb33;color:#efdbf6}.plan-art-controls button:hover{color:#f0def8}
+.alchemy-book .alc-catalog{padding:13px 31px 0 20px}
+.plan-categories{display:flex;border-bottom:1px solid #b79ccb36;gap:4px;height:39px;position:relative;z-index:2}
+.plan-categories button{flex:1;border:0;background:none;color:#a996b9;font:13px var(--serif);letter-spacing:2px;position:relative}
+.plan-categories button small{font:10px Georgia;letter-spacing:0;margin-left:10px;opacity:.7}.plan-categories button.active{color:#f0d8ac}.plan-categories button.active:after{content:"";position:absolute;height:2px;background:linear-gradient(90deg,transparent,#d8ba84,transparent);bottom:-1px;left:18px;right:18px}
+.plan-page-heading{position:relative;z-index:1;display:flex;align-items:baseline;gap:18px;margin:17px 0 14px}
+.plan-page-heading h2{font:17px var(--serif);font-weight:400;letter-spacing:2px;color:#ddc9e6;margin:0;white-space:nowrap}.plan-page-heading p{margin:0;color:#a994b8;font-size:10px;line-height:17px;letter-spacing:.25px}
+.alchemy-book .alc-shelves{display:block;max-height:429px;overflow-y:auto;overflow-x:hidden;padding:2px 5px 10px 2px;scrollbar-width:thin;scrollbar-color:#8c719854 transparent;overscroll-behavior:contain}
+.alchemy-book .alc-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.alchemy-book .alc-card{height:132px;min-width:0;background:linear-gradient(150deg,#bfa2d415,#1d182608 80%)}
+.alchemy-book .alc-card.selected{background:radial-gradient(ellipse at 50% 25%,#bb90d421,#241c3005),#b99ac510}
+.alchemy-book .alc-frame{margin-top:15px}
+.alchemy-book .alc-name{max-width:100%;margin-top:8px;font-size:12px;letter-spacing:.6px}
+.alchemy-book .alc-meta{gap:10px;font-size:9px;margin-top:5px}.alchemy-book .alc-meta span{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alchemy-book .alc-glyph.acquire{border-color:#b7c9b9;border-radius:50%;transform:none;background:#9eb8a415}
+.plan-page-note{position:relative;border-top:1px solid #baa3872f;margin:18px 7px 0;padding:16px 28px 25px 44px;color:#c3a9cf;background:repeating-linear-gradient(180deg,transparent 0 25px,#b79ba40a 25px 26px)}
+.plan-page-note>svg{position:absolute;left:9px;top:12px;width:22px;height:34px;color:#b49ac1;opacity:.8}.plan-page-note p{font:12px/24px var(--serif);margin:0;letter-spacing:.5px}.plan-page-note small{display:block;text-align:right;font:10px var(--serif);color:#907c9d;margin-top:8px}
+.plan-empty{padding:55px 20px;text-align:center;color:#c1aecf;font:15px var(--serif)}.plan-empty small{display:block;margin-top:14px;font:11px var(--sans);color:#a38bb5}
+.alchemy-book .alc-legend{bottom:14px;gap:20px;font-size:10px;left:23px}
+.alchemy-book .description{height:auto;min-height:0;line-height:21px;margin:0 0 12px;font-size:12px}
+.alchemy-book .alc-detail .detail-scroll{padding-right:6px}
+.alchemy-book .alc-detail .status-tag[data-state=acquire]{color:#b8d0bb}
+.alchemy-book .alc-effects{gap:7px}.alchemy-book .alc-effects li{grid-template-columns:4px minmax(0,1fr);column-gap:7px;row-gap:1px}
+.alchemy-book .alc-effects li b{grid-column:2;max-width:none;text-align:left;line-height:18px;color:#eddbf5}.alchemy-book .alc-effects li.bad b{color:#e7a39f}.alchemy-book .alc-effects li.live b{color:#c2e6ce}
+.alchemy-book .alc-unlock{padding:9px 11px;margin-bottom:12px;border-style:solid;background:#c0a0b607}.alchemy-book .alc-unlock-main{font:12px/18px var(--sans);margin:0;color:#d8c4e2}.plan-source-note{font-size:10px;color:#a690b9;display:block;margin-top:5px}
+.alchemy-book .alc-mat{grid-template-columns:32px minmax(0,1fr) auto;gap:7px;padding:4px;min-height:40px}.plan-mat-art{position:relative;width:32px;height:30px;display:flex;align-items:center}
+.alchemy-book .alc-mat-icon{width:30px;height:30px;background:none;border:0}.alc-mat-icon img{width:29px;height:29px;object-fit:contain}
+.plan-mat-art.pair .alc-mat-icon{width:21px;height:27px}.plan-mat-art.pair .alc-mat-icon img{width:23px;height:23px}.plan-mat-art.pair .alc-mat-icon+span{margin-left:-10px;margin-top:8px}
+.alchemy-book .alc-mat-name{font-size:11px;line-height:16px}.alchemy-book .alc-mat-name small{font-size:9px;line-height:14px}
+.plan-mat-link{font:inherit;color:#e7d2f0;border:0;border-bottom:1px solid #b693d150;background:none;padding:0;text-align:left}.plan-mat-link em{font-size:8px;font-style:normal;color:#a892b7;margin-left:7px}.plan-mat-link:hover{color:#f5e1ff}
+.alchemy-book .alc-mat-count{font-size:10px}.alchemy-book .alc-mat-count b{font-size:12px}
+.alchemy-book .alc-detail .action-hint{font-size:9px;line-height:15px;min-height:15px;white-space:normal}
+.alchemy-book .alc-footer{gap:14px}.alchemy-book .alc-bag{min-width:0;gap:6px}.alchemy-book .alc-chip{padding:0;overflow:hidden}.alchemy-book .alc-chip>img{width:28px;height:28px;object-fit:contain}.alchemy-book button.alc-chip:hover{border-color:#edd4a5}
+.alchemy-book .alc-footer .footer-right{margin-left:auto;gap:11px}.alchemy-book .alc-footer .quiet-button{font-size:10px}
+.alchemy-book .icon-art.pixel-art,.alchemy-book .icon-art.pixel-art img{width:var(--pixel-width);height:var(--pixel-height)}
+.alchemy-book .icon-art.pixel-art img{image-rendering:pixelated;display:block;object-fit:contain}
+.alchemy-book[data-art-mode=pixel] .alc-frame{width:64px;height:64px;margin-top:9px}
+.alchemy-book[data-art-mode=pixel] .alc-detail .detail-icon{width:64px;height:64px}
+.alchemy-book .help-box{width:480px}.alchemy-book .help-box p{font-size:12px;line-height:22px}
+
+/* A single persistent quill travels to the selected item without covering its text. */
+.alchemy-book .plan-selection-quill{position:absolute;left:0;top:0;z-index:7;width:22px;height:42px;pointer-events:none;user-select:none;background:url("__SELECTION_QUILL__") center/contain no-repeat;filter:drop-shadow(.5px 1px .7px #140e263e);transition:transform 440ms cubic-bezier(.2,.78,.2,1),opacity 160ms ease}
+.alchemy-scene[data-state="opening"] .plan-selection-quill,.alchemy-scene[data-state="closing"] .plan-selection-quill{opacity:0}
+@media(prefers-reduced-motion:reduce){.alchemy-book .plan-selection-quill{transition:none}}

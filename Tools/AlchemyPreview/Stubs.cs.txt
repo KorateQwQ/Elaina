@@ -1,0 +1,39 @@
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using ReLogic.Graphics;
+using ReLogic.Content;
+
+namespace ReLogic.Content { public sealed class Asset<T>(T value) { public T Value => value; } }
+namespace Terraria.ModLoader
+{
+    public static class ModContent
+    {
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode)
+            => new((T)(object)AlchemyPreviewGame.Texture(path));
+    }
+}
+namespace Terraria.GameContent
+{
+    public static class TextureAssets { public static Asset<Texture2D> MagicPixel; }
+}
+namespace KL.Drawing
+{
+    public static class FontManager
+    {
+        public static Asset<DynamicSpriteFont> HarmonyOS_Sans_SC, NotoSerifSC, Gelasio;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel
+{
+    // Renderer shares the skill notebook's mesh implementation. Its skill-only
+    // PaintCover/PaintDock entry points are never used in this alchemy host.
+    internal sealed class ConstellationDrawing
+    {
+        private static void Unused() => throw new InvalidOperationException("Skill-only painting is not part of the alchemy preview.");
+        internal void Image(string path, float x, float y, float width, float height, Color? tint = null, float rotation = 0) => Unused();
+        internal void Box(float x, float y, float width, float height, Color color) => Unused();
+        internal void Frame(float x, float y, float width, float height, Color color) => Unused();
+        internal void Text(string text, float x, float y, float size, Color color, float align = 0, float spacing = 0, bool serif = false) => Unused();
+        internal void FittedText(string text, float x, float y, float width, float size, Color color, float align = 0, bool serif = false, float spacing = 0) => Unused();
+    }
+}

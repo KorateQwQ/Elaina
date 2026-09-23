@@ -15,7 +15,7 @@ $null = Add-Item 'Reference' "$Tml/tModLoader.dll"
 $reference = Add-Item 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/Crafting/*.cs"
-foreach ($path in @('AlchemyRecipe.cs','AlchemyIngredient.cs','item/AlchemyItem.cs','item/AshenFacsimileDust.cs')) {
+foreach ($path in @('AlchemyRecipe.cs','AlchemyIngredient.cs','UI/AlchemyCatalog.cs','UI/AlchemyNotebookSnapshot.cs','Gameplay/*.cs','item/AlchemyItem.cs','item/Curios/AshenFacsimileDust.cs')) {
     $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/$path"
 }
 $checks = Add-Item 'Compile' "$PSScriptRoot/Checks.cs.txt"
@@ -30,7 +30,7 @@ $project.Project.PropertyGroup.OutputType = 'Library'
 $items.SelectNodes('Compile') | ForEach-Object { $null = $items.RemoveChild($_) }
 $compile = Add-Item 'Compile' "$repo/**/*.cs"
 $compile.SetAttribute('Exclude', "$repo/obj/**;$repo/bin/**;$repo/.vissandbox/**;$repo/Tools/**")
-foreach ($assembly in @('../KL/bin/Debug/net8.0/KL.dll','../SilkyUIFramework.dll','../Homura/bin/Debug/net8.0/Homura.dll')) {
+foreach ($assembly in @('../KL/bin/Debug/net8.0/KL.dll','../SilkyUIFramework/bin/Debug/net8.0/SilkyUIFramework.dll','../Homura/bin/Debug/net8.0/Homura.dll')) {
     $null = Add-Item 'Reference' (Join-Path $repo $assembly)
 }
 $property = $project.CreateElement('AssemblyName')

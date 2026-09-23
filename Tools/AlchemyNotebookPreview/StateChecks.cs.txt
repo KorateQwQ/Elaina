@@ -1,0 +1,39 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+internal static class StateChecks
+{
+    private static int passed;
+    private static void Check(bool ok, string message) { if (!ok) throw new Exception(message); passed++; }
+    public static void Main()
+    {
+        var state = new AlchemyNotebookState();
+        Check(state.Materials.Count == 0 && state.Products.Count == 0 && !state.CanCraft(), "No production demonstration stock");
+        var source = new Source(); state.Bind(source);
+        Check(!state.IsUnlocked(state.Current) && state.DisplayName(state.Current) != state.Current.Name, "Locked item name stays hidden");
+        Check(state.CanResearch() && state.TryResearch() && source.Action == AlchemyNotebookAction.Research, "Research delegates to the actual source");
+        source.Data = source.Data with { Unlocked = new HashSet<string>{"mana"}, MaximumBatches = new Dictionary<string,int>{{"mana",3}}, Materials = new Dictionary<string,int>{{"moondew",9}}, Products = new Dictionary<string,int>{{"mana",4}} };
+        Check(state.Refresh() && state.CanCraft() && state.Owned(state.Current) == 4 && state.MaterialCount("moondew") == 9, "Snapshot supplies real counts and craft availability");
+        state.SetQuantity(99); Check(state.Quantity == 3, "Quantity clamps to actual availability");
+        Check(state.TryCraft() && source.Action == AlchemyNotebookAction.Craft && source.Batches == 3, "Batch request goes to source without local deduction");
+        Check(state.MaterialCount("moondew") == 9, "UI does not mutate source inventory");
+        source.Data = source.Data with { MaximumBatches = new Dictionary<string,int>{{"mana",0}}, Materials = new Dictionary<string,int>{{"moondew",0}} };
+        Check(state.Refresh() && !state.CanCraft() && state.Quantity == 1, "Live shortage disables crafting");
+        state.SetCategory("food"); Check(state.Visible.Count == 3 && state.Visible.All(r => r.Category == "food"), "Only the four item categories filter entries");
+        state.Select("moondew"); Check(state.Category == "material" && state.Visible.Count == 8, "Material links navigate across categories");
+        source.Data = source.Data with { Level = 5, Experience = 42, ExperienceToNextLevel = 300 }; state.Refresh();
+        Check(state.Level == 5 && state.Experience == 42 && state.ExperienceToNextLevel == 300, "UI shows saved progression values");
+        state.Clear(); Check(state.Materials.Count == 0 && source.Data.Level == 5, "Leaving UI does not reset character progress");
+        Console.WriteLine($"Alchemy UI snapshot: {passed} checks passed.");
+    }
+    private sealed class Source : IAlchemyNotebookSource
+    {
+        public AlchemyNotebookSnapshot Data = new() { Research = new Dictionary<string,AlchemyResearchStatus>{{"mana",new(1,false,true,"",0,0,false,true,"可研究")}} };
+        public AlchemyNotebookAction Action; public int Batches;
+        public AlchemyNotebookSnapshot Capture() => Data;
+        public AlchemyNotebookResult LastResult => null;
+        public bool Request(AlchemyNotebookAction action,string id,int batches=1) { Action=action; Batches=batches; return true; }
+    }
+}

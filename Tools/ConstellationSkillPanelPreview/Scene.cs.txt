@@ -5,6 +5,8 @@ internal sealed class PanelScene
     private ConstellationState _state;
     private ConstellationDetail _detail;
     private readonly ConstellationDrawing _draw = new(new Terraria.ModLoader.Mod());
+    private readonly ConstellationButterflyMotion _butterfly = new();
+    private readonly ConstellationBookMotion _book = new();
     private const float DesignWidth = 1100, DesignHeight = 800;
     private const int MapX = 26, MapY = 208, MapWidth = 727, MapHeight = 473, WorldWidth = 727, WorldHeight = 550;
     private const int SlotLeft = 74, SlotTop = 741, SlotSize = 42, SlotStride = 48, TargetLeft = 464;
@@ -55,6 +57,7 @@ internal sealed class PanelScene
     }
     internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario)
     {
+        _book.Request(true); _book.Finish();
         _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long"));
         if (scenario is "active" or "equipped" or "maxed")
         {
@@ -127,6 +130,7 @@ internal sealed class PanelScene
             }
             _ancestors = _state.Ancestors();
         }
+        UpdateButterfly(0);
         float fit = Math.Min(1, Math.Min((width / uiScale - 32) / DesignWidth, (height / uiScale - 32) / DesignHeight));
         float scale = fit * uiScale;
         Vector2 origin = (new Vector2(width, height) - new Vector2(DesignWidth, DesignHeight) * scale) / 2;

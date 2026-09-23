@@ -2,6 +2,14 @@
 
 默认 V 打开 `ConstellationSkillPanel`。旧 `ElainaSkillPanel` 与 `/constellationpreview` 演示保留，正式面板不读取演示 Skills.json。
 
+外框保留原来的紫色细边和角花颜色，增加内嵌角花、左侧装订凹槽，以及右侧/底部三层同色系叠页，增强书本厚度；内容底图、布局与控件保持原样。边缘装饰最多伸出设计区域 13px，沿用原有 16px 屏幕留白。
+
+选中节点左上方增加与 HTML 同源的蝴蝶：改选时约 420ms 飞到新节点，移动期间持续播放 16 帧扇翅；到达后至少继续 650ms，并完成当前翼拍后停在首帧。静止 4.5–6.2 秒后再扇动一轮。飞行使用星图坐标，随平移/缩放一致变换并接受视口裁剪；快速改选从当前位置接续，失焦暂停，关闭/退出世界重置，空分类隐藏。仅增加选中装饰，不改技能状态或鼠标命中。
+
+`ConstellationButterflyMotion.cs` 管理动画，`ConstellationDrawing.NotebookPage` / `SelectionButterfly` 绘制边框与蝴蝶。`Assets/butterFly.png` 为原始素材，保持不变；`python Tools/ConstellationSkillPanelPreview/bake_butterfly.py` 从其 Alpha 生成与 HTML mask 一致的预乘 `ButterflyMask.png`，运行时交由 ModContent 加载。
+
+专项验证：`& Tools/ConstellationSkillPanelPreview/run.ps1 -OrnamentsOnly`。输出包含实际边框/选中绘制在 720p、100% / 125% UI 缩放下的 FNA 离线画面，以及蝴蝶移动、落定、静止、间歇翼拍连续帧；状态检查覆盖 30/60/144 FPS、快速改选、空分类重置与暂停。正式游戏输入和开关生命周期仍需编译重载后验收。
+
 技能栏右上方新增 **手札** 按钮，显示当前绑定键；它与 V 共用开关入口。打开约 560ms、关闭约 440ms：书从按钮飞出，带弧线、倾斜和 32 段连续弯曲的双面封面；关闭时反向收回。快速按 V 可在中途反向，保持位置、缩放与曲率连续。动画期间根控件接收鼠标以防穿透，子控件与技能栏禁用鼠标操作；完全展开后恢复原生 SUI 布局和命中。
 
 关闭/返回会先取消未保存的布局编辑，再播放合拢；Esc 在编辑模式仍先取消编辑。失焦结束拖动并收敛到动画目标；退出世界保留原有状态重置，立即关闭而不播放动画，不释放框架资产。

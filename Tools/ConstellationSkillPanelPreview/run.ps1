@@ -10,6 +10,7 @@ param(
     [switch]$BookOnly,
     [switch]$BookChecksOnly,
     [switch]$CameraOnly,
+    [switch]$OrnamentsOnly,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
 $ErrorActionPreference = 'Stop'
@@ -28,7 +29,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $source = [IO.File]::ReadAllText((Join-Path $ui 'ConstellationSkillPanel.cs'))
 $source += "`n" + [IO.File]::ReadAllText((Join-Path $ui 'ConstellationLayoutUI.cs'))
 $scene = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Scene.cs.txt'))
-foreach ($name in @('CenterOn','AdvanceCamera','MapPoint','RequestTooltip','DrawChrome','DrawFilter','DrawCloseButton','CameraControl','DrawMap','DrawEdge','DrawNode','DrawDetails','DrawActionButton','DrawSlot','DrawLoadoutCaption','DrawClearSlot','DrawLayoutHints','DrawLayoutButton','DrawDebugButton')) {
+foreach ($name in @('UpdateButterfly','CenterOn','AdvanceCamera','MapPoint','RequestTooltip','DrawChrome','DrawFilter','DrawCloseButton','CameraControl','DrawMap','DrawEdge','DrawNode','DrawDetails','DrawActionButton','DrawSlot','DrawLoadoutCaption','DrawClearSlot','DrawLayoutHints','DrawLayoutButton','DrawDebugButton')) {
     $match = [regex]::Match($source, '(?m)^    private [^\r\n]*\b' + $name + '\(')
     if (!$match.Success) { throw "Missing drawing method: $name" }
     $start = $match.Index
@@ -47,7 +48,7 @@ foreach ($name in @('CenterOn','AdvanceCamera','MapPoint','RequestTooltip','Draw
 }
 $scene += "`n}"
 [IO.File]::WriteAllText((Join-Path $out 'Scene.cs'), $scene)
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview')) {
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview')) {
     [IO.File]::WriteAllText((Join-Path $out "$name.cs"), [IO.File]::ReadAllText((Join-Path $PSScriptRoot "$name.cs.txt")))
 }
 # Exercise KL's actual default, upgrade guard and Skill accessor instead of duplicating their rules in a stub.
@@ -73,8 +74,8 @@ function Add-Item([string]$kind, [string]$path) {
     return $node
 }
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
-foreach ($name in @('ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
+foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ElainaSkill.Constellation','ConstellationLayout','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
@@ -98,5 +99,6 @@ if ($PrimaryOnly) { $previewArgs += '--primary-only' }
 if ($BookOnly) { $previewArgs += '--book-only' }
 if ($BookChecksOnly) { $previewArgs += '--book-checks-only' }
 if ($CameraOnly) { $previewArgs += '--camera-only' }
+if ($OrnamentsOnly) { $previewArgs += '--ornaments-only' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }

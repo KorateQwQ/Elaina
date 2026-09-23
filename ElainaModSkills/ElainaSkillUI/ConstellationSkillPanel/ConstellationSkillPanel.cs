@@ -41,6 +41,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private float _toastLife, _lastBlankClick = -1;
     private float _refreshTimer;
     private readonly ConstellationUIClock _controlsClock = new();
+    private readonly ConstellationButterflyMotion _butterfly = new();
     private bool _controlsHadFocus;
     private int _detailStamp;
     private HashSet<string> _ancestors = [];
@@ -263,6 +264,15 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             if (!Main.mouseLeft) _dragging = false;
         }
         _hoverNode = _book.IsOpen && _viewport.IsMouseHovering ? HitNode(Design(Main.MouseScreen)) : null;
+        if (_book.IsOpen) UpdateButterfly(delta);
+    }
+
+    private void UpdateButterfly(float delta)
+    {
+        var node = _state.Current;
+        bool visible = node != null && (Editing || !_state.EmptyFilter && _state.Status(node) == _state.Filter);
+        _butterfly.SetTarget(visible ? new Vector2(node.x, node.y) : null);
+        _butterfly.Advance(delta);
     }
 
     private Vector2 Design(Vector2 mouse) => (mouse - Bounds.Position - _origin) / _scale;
@@ -363,6 +373,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     {
         _layoutEditor?.Cancel();
         _draw?.ClearToggleAnimations();
+        _butterfly.Reset();
         _tooltipDelay.Reset();
         _book.Reset();
         _bookClock.Stop();
@@ -422,13 +433,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private void DrawChrome()
     {
         var d = _draw;
-        d.Image("NotebookSurface", 0, 0, DesignWidth, DesignHeight);
-        d.Frame(1, 1, 1098, 798, Lavender * .5f);
-        d.Frame(10, 10, 1080, 780, Lavender * .13f);
-        d.PageCorner(new Vector2(-3, -3), 0);
-        d.PageCorner(new Vector2(DesignWidth - 31, -3), MathHelper.PiOver2);
-        d.PageCorner(new Vector2(-3, DesignHeight - 31), -MathHelper.PiOver2);
-        d.PageCorner(new Vector2(DesignWidth - 31, DesignHeight - 31), MathHelper.Pi);
+        d.NotebookPage(DesignWidth, DesignHeight);
         d.Line(new Vector2(32, 83), new Vector2(1068, 83), new Color(186, 158, 208) * (43 / 255f));
         for (int i = 0; i < 161; i++) d.Box(32 + i, 83, 1, 1, new Color(207, 182, 225) * MathHelper.Lerp(140 / 255f, 48 / 255f, i / 160f));
         d.CrossStar(new Vector2(192, 83), new Vector2(4.24f), new Color(203, 179, 222), .5f);
@@ -553,6 +558,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             if (_state.Find(parentId) is { } parent) DrawEdge(parent, skill);
         foreach (var skill in _state.Skills.Where(s => s.id != _state.Selected)) DrawNode(skill);
         if (_state.Current != null) DrawNode(_state.Current);
+        if (_book.IsOpen && _butterfly.Visible)
+            d.SelectionButterfly(MapPoint(_butterfly.Position.X, _butterfly.Position.Y), _butterfly.Frame, _zoom);
     }
 
     private void DrawEdge(ConstellationNode parent, ConstellationNode skill)

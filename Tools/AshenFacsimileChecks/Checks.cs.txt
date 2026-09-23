@@ -7,6 +7,8 @@ using Terraria.ModLoader;
 using 伊蕾娜.ElainaModAlchemy;
 using 伊蕾娜.ElainaModAlchemy.Crafting;
 using 伊蕾娜.ElainaModAlchemy.item;
+using 伊蕾娜.ElainaModAlchemy.item.Curios;
+using 伊蕾娜.ElainaModAlchemy.UI;
 
 internal static class Checks
 {
@@ -186,7 +188,7 @@ internal static class Checks
         var alchemy = new AlchemyRecipe(1, new AlchemyIngredient(1, 10));
         Assert(!alchemy.HasIngredients(new[] { Item(1, 5), Item(Dust, 1000) }), "Elaina alchemy does not accept dust");
         var dustItem = new AshenFacsimileDust();
-        Assert(dustItem.AlchemyRecipe == null && !dustItem.IsRecipeUnlocked(player), "dust acquisition recipe remains unconfigured");
+        Assert(dustItem.EntryId == "mimic", "dust keeps its shared alchemy catalog entry");
 
         using var assembly = AssemblyDefinition.ReadAssembly(Path.Combine(args[0], "tModLoader.dll"));
         var recipeType = assembly.MainModule.Types.Single(x => x.FullName == "Terraria.Recipe");
@@ -209,7 +211,9 @@ internal static class Checks
         int createIndex = craft.Body.Instructions.ToList().FindIndex(i => i.Operand is MethodReference m && m.DeclaringType.FullName == "Terraria.Recipe" && m.Name == "Create");
         int onCraftIndex = craft.Body.Instructions.ToList().FindIndex(i => i.Operand is MethodReference m && m.Name == "OnCraft");
         Assert(createIndex >= 0 && onCraftIndex > createIndex, "installed tML consumes before delivering OnCraft");
-        Assert(File.ReadAllBytes(Path.Combine(args[1], "ElainaModAlchemy/item/Painkiller.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(args[1], "ElainaModAlchemy/item/AshenFacsimileDust.png"))), "temporary icon exactly copies Painkiller");
+        Assert(dustItem.Texture == AlchemyCatalog.GetRecipe("mimic").PixelPath &&
+            File.Exists(Path.Combine(args[1], dustItem.Texture[(dustItem.Texture.IndexOf('/') + 1)..] + ".png")),
+            "dust uses its registered pixel texture after category relocation");
         foreach (string language in new[] { "zh-Hans", "en-US" })
         {
             var localization = Hjson.HjsonValue.Load(Path.Combine(args[1], $"Localization/{language}_Mods.伊蕾娜.Alchemy.hjson"));

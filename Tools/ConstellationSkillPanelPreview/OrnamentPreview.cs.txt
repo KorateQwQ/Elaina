@@ -1,0 +1,84 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class OrnamentPreview
+{
+    private static void Require(bool condition, string reason)
+    {
+        if (!condition) throw new InvalidOperationException("Butterfly: " + reason);
+    }
+
+    private static void CheckMotion()
+    {
+        Vector2 a = new(140, 130), b = new(310, 160), c = new(210, 110);
+        foreach (int fps in new[] { 30, 60, 144 })
+        {
+            var motion = new ConstellationButterflyMotion();
+            motion.SetTarget(a); motion.Advance(1);
+            Require(!motion.Flapping && motion.Frame == 0, "opening settles");
+            motion.SetTarget(b);
+            Require(motion.Flapping && motion.Moving && motion.Position == a, "flight starts without teleporting");
+            for (int i = 0; i < fps / 2; i++) motion.Advance(1f / fps);
+            Require(!motion.Moving && motion.Position == b && motion.Flapping, "arrival continues flapping");
+            for (int i = 0; i < fps * 2; i++) motion.Advance(1f / fps);
+            Require(!motion.Flapping && motion.Frame == 0, "landed wings rest");
+            bool fluttered = false, restedAgain = false;
+            for (int i = 0; i < fps * 9; i++)
+            {
+                motion.Advance(1f / fps);
+                fluttered |= motion.Flapping;
+                restedAgain |= fluttered && !motion.Flapping;
+                Require(motion.Position == b, "idle flutter does not drift");
+            }
+            Require(fluttered && restedAgain, "occasional flutter returns to rest");
+        }
+        var retarget = new ConstellationButterflyMotion();
+        retarget.SetTarget(a); retarget.SetTarget(b); retarget.Advance(.16f);
+        Vector2 before = retarget.Position;
+        retarget.SetTarget(c);
+        Require(retarget.Position == before, "rapid reselection preserves position");
+        retarget.Advance(.5f);
+        Require(retarget.Position == c, "rapid reselection reaches latest target");
+        int frame = retarget.Frame;
+        retarget.Advance(0); retarget.Advance(float.NaN); retarget.Advance(-1);
+        Require(retarget.Frame == frame && retarget.Position == c, "focus pause and invalid intervals preserve pose");
+        retarget.SetTarget(null);
+        Require(!retarget.Visible && !retarget.Flapping && !retarget.Moving, "empty filter clears selection");
+        retarget.SetTarget(a);
+        Require(retarget.Position == a, "reopening does not fly from stale coordinates");
+        var even = new ConstellationButterflyMotion(); var uneven = new ConstellationButterflyMotion();
+        even.SetTarget(a); even.SetTarget(b); uneven.SetTarget(a); uneven.SetTarget(b);
+        for (int i = 0; i < 61; i++) even.Advance(.005f);
+        foreach (float dt in new[] { .017f, .043f, .09f, .155f }) uneven.Advance(dt);
+        Require(Vector2.Distance(even.Position, uneven.Position) < .01f && even.Frame == uneven.Frame, "uneven frame timing");
+        Console.WriteLine("PASS: butterfly flight, retarget, settle, idle flutter, reset and 30/60/144 FPS.");
+    }
+
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        CheckMotion();
+        string folder = Path.Combine(output, "butterfly-frames"); Directory.CreateDirectory(folder);
+        var drawing = new ConstellationDrawing(new()) { Batch = batch };
+        foreach (float scale in new[] { 1f, 1.25f })
+        {
+            drawing.Scale = scale;
+            var motion = new ConstellationButterflyMotion();
+            using var target = new RenderTarget2D(device, (int)(440 * scale), (int)(260 * scale));
+            for (int frame = 0; frame <= 240; frame++)
+            {
+                float time = frame / 30f;
+                motion.SetTarget(time < .3f ? new Vector2(140, 145) : new Vector2(310, 165));
+                motion.Advance(frame == 0 ? 0 : 1f / 30);
+                device.SetRenderTarget(target); device.Clear(new Color(39, 32, 51));
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+                drawing.Text($"{time:0.00}s  {(motion.Moving ? "移动" : motion.Flapping ? "扇动" : "停驻")}", 20, 20, 13, ConstellationDrawing.Ink);
+                foreach (var p in new[] { new Vector2(140, 145), new Vector2(310, 165) })
+                    drawing.Corners(p, 58, 13, ConstellationDrawing.Gold * .7f, MathHelper.PiOver4);
+                drawing.SelectionButterfly(motion.Position, motion.Frame, 1);
+                batch.End(); device.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(folder, $"butterfly-{scale:0.00}-{frame:000}.png"));
+                target.SaveAsPng(stream, target.Width, target.Height);
+            }
+        }
+        Console.WriteLine("FNA butterfly frames: movement, arrival, rest and idle wingbeat at 100% / 125%.");
+    }
+}

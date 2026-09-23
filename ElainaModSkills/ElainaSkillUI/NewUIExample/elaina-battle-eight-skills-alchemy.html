@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#141422">
-<title>魔女手札</title>
+<title>炼金手记 · 魔药与造物</title>
 <style>
 :root{color-scheme:dark;--ink:#eee9f5;--muted:#b2a8c3;--faint:#897d9c;--violet:#cab2ed;--gold:#e6cea5;--line:#ba9ed02b;--serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;--sans:"Microsoft YaHei","PingFang SC",sans-serif}
 *{box-sizing:border-box}body{margin:0;min-width:1180px;min-height:880px;background:#11131e;color:var(--ink);font:13px var(--sans);overflow:auto}button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}button:disabled{cursor:default}button:focus-visible{outline:2px solid #e6cea5;outline-offset:5px}button,div{-webkit-user-select:none;user-select:none}[hidden]{display:none!important}
@@ -791,6 +791,7 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
 .book-scene[data-state="opening"] .page-butterfly:before,
 .book-scene[data-state="closing"] .page-butterfly:before{animation-play-state:paused}
 @media(prefers-reduced-motion:reduce){.book-cover,.book-page-shade{display:none}.book-scene .page-butterfly{transition:none}}
+.alc-art-toggle{margin-left:auto;padding:7px 11px;border:1px solid #b99bd060;border-radius:3px;color:#e1cbee;background:#b99bd014;white-space:nowrap}.alc-art-toggle+.progress{margin-left:0}.alc-art-toggle[aria-pressed="false"]{color:#efdbb5;border-color:#d7b78966}
 </style>
 <style>
 /* The alchemy notebook is a second book: same paper, cover, flight and page furniture. */
@@ -949,6 +950,60 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
 @keyframes alc-chip{35%{border-color:#efdcff;background-color:#d8c2ee33}}
 .alc-footer .footer-right{gap:12px}
 .alc-footer .quiet-button{white-space:nowrap}
+
+/* Revised alchemy pages; the surrounding spellbook and combat HUD keep their styles. */
+.alchemy-book .header .heading h1{font-size:28px}
+.alchemy-book .header .heading h1 small{font:10px var(--sans);letter-spacing:2px;margin-left:15px;color:#bda7cd}
+.alchemy-book .plan-counter{display:flex;gap:20px;align-items:center;margin-right:12px}
+.plan-counter>div{display:flex;align-items:baseline;gap:7px}.plan-counter b{font:26px Georgia;color:#e6cea5}.plan-counter span{font-size:10px;letter-spacing:1px;color:#baa6cb}.plan-counter>i{height:25px;width:1px;background:#b99bd036}
+.alchemy-book .navigation{align-items:flex-start;gap:0}.alchemy-book .filters{gap:12px}.alchemy-book .filter{min-width:100px}
+.alchemy-book .progress{margin-left:20px;font-size:10px;white-space:nowrap}.alchemy-book .progress b{font-size:18px}
+.plan-art-controls{margin:13px 0 0 auto;display:flex;gap:1px;border:1px solid #b89ccc47;border-radius:3px;padding:2px;background:#20192744}
+.plan-art-controls button{font-size:10px;letter-spacing:1px;padding:5px 10px;border:0;border-radius:2px;background:none;color:#aa94bb}.plan-art-controls button.active{background:#a184bb33;color:#efdbf6}.plan-art-controls button:hover{color:#f0def8}
+.alchemy-book .alc-catalog{padding:13px 31px 0 20px}
+.plan-categories{display:flex;border-bottom:1px solid #b79ccb36;gap:4px;height:39px;position:relative;z-index:2}
+.plan-categories button{flex:1;border:0;background:none;color:#a996b9;font:13px var(--serif);letter-spacing:2px;position:relative}
+.plan-categories button small{font:10px Georgia;letter-spacing:0;margin-left:10px;opacity:.7}.plan-categories button.active{color:#f0d8ac}.plan-categories button.active:after{content:"";position:absolute;height:2px;background:linear-gradient(90deg,transparent,#d8ba84,transparent);bottom:-1px;left:18px;right:18px}
+.plan-page-heading{position:relative;z-index:1;display:flex;align-items:baseline;gap:18px;margin:17px 0 14px}
+.plan-page-heading h2{font:17px var(--serif);font-weight:400;letter-spacing:2px;color:#ddc9e6;margin:0;white-space:nowrap}.plan-page-heading p{margin:0;color:#a994b8;font-size:10px;line-height:17px;letter-spacing:.25px}
+.alchemy-book .alc-shelves{display:block;max-height:429px;overflow-y:auto;overflow-x:hidden;padding:2px 5px 10px 2px;scrollbar-width:thin;scrollbar-color:#8c719854 transparent;overscroll-behavior:contain}
+.alchemy-book .alc-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.alchemy-book .alc-card{height:132px;min-width:0;background:linear-gradient(150deg,#bfa2d415,#1d182608 80%)}
+.alchemy-book .alc-card.selected{background:radial-gradient(ellipse at 50% 25%,#bb90d421,#241c3005),#b99ac510}
+.alchemy-book .alc-frame{margin-top:15px}
+.alchemy-book .alc-name{max-width:100%;margin-top:8px;font-size:12px;letter-spacing:.6px}
+.alchemy-book .alc-meta{gap:10px;font-size:9px;margin-top:5px}.alchemy-book .alc-meta span{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alchemy-book .alc-glyph.acquire{border-color:#b7c9b9;border-radius:50%;transform:none;background:#9eb8a415}
+.plan-page-note{position:relative;border-top:1px solid #baa3872f;margin:18px 7px 0;padding:16px 28px 25px 44px;color:#c3a9cf;background:repeating-linear-gradient(180deg,transparent 0 25px,#b79ba40a 25px 26px)}
+.plan-page-note>svg{position:absolute;left:9px;top:12px;width:22px;height:34px;color:#b49ac1;opacity:.8}.plan-page-note p{font:12px/24px var(--serif);margin:0;letter-spacing:.5px}.plan-page-note small{display:block;text-align:right;font:10px var(--serif);color:#907c9d;margin-top:8px}
+.plan-empty{padding:55px 20px;text-align:center;color:#c1aecf;font:15px var(--serif)}.plan-empty small{display:block;margin-top:14px;font:11px var(--sans);color:#a38bb5}
+.alchemy-book .alc-legend{bottom:14px;gap:20px;font-size:10px;left:23px}
+.alchemy-book .description{height:auto;min-height:0;line-height:21px;margin:0 0 12px;font-size:12px}
+.alchemy-book .alc-detail .detail-scroll{padding-right:6px}
+.alchemy-book .alc-detail .status-tag[data-state=acquire]{color:#b8d0bb}
+.alchemy-book .alc-effects{gap:7px}.alchemy-book .alc-effects li{grid-template-columns:4px minmax(0,1fr);column-gap:7px;row-gap:1px}
+.alchemy-book .alc-effects li b{grid-column:2;max-width:none;text-align:left;line-height:18px;color:#eddbf5}.alchemy-book .alc-effects li.bad b{color:#e7a39f}.alchemy-book .alc-effects li.live b{color:#c2e6ce}
+.alchemy-book .alc-unlock{padding:9px 11px;margin-bottom:12px;border-style:solid;background:#c0a0b607}.alchemy-book .alc-unlock-main{font:12px/18px var(--sans);margin:0;color:#d8c4e2}.plan-source-note{font-size:10px;color:#a690b9;display:block;margin-top:5px}
+.alchemy-book .alc-mat{grid-template-columns:32px minmax(0,1fr) auto;gap:7px;padding:4px;min-height:40px}.plan-mat-art{position:relative;width:32px;height:30px;display:flex;align-items:center}
+.alchemy-book .alc-mat-icon{width:30px;height:30px;background:none;border:0}.alc-mat-icon img{width:29px;height:29px;object-fit:contain}
+.plan-mat-art.pair .alc-mat-icon{width:21px;height:27px}.plan-mat-art.pair .alc-mat-icon img{width:23px;height:23px}.plan-mat-art.pair .alc-mat-icon+span{margin-left:-10px;margin-top:8px}
+.alchemy-book .alc-mat-name{font-size:11px;line-height:16px}.alchemy-book .alc-mat-name small{font-size:9px;line-height:14px}
+.plan-mat-link{font:inherit;color:#e7d2f0;border:0;border-bottom:1px solid #b693d150;background:none;padding:0;text-align:left}.plan-mat-link em{font-size:8px;font-style:normal;color:#a892b7;margin-left:7px}.plan-mat-link:hover{color:#f5e1ff}
+.alchemy-book .alc-mat-count{font-size:10px}.alchemy-book .alc-mat-count b{font-size:12px}
+.alchemy-book .alc-detail .action-hint{font-size:9px;line-height:15px;min-height:15px;white-space:normal}
+.alchemy-book .alc-footer{gap:14px}.alchemy-book .alc-bag{min-width:0;gap:6px}.alchemy-book .alc-chip{padding:0;overflow:hidden}.alchemy-book .alc-chip>img{width:28px;height:28px;object-fit:contain}.alchemy-book button.alc-chip:hover{border-color:#edd4a5}
+.alchemy-book .alc-footer .footer-right{margin-left:auto;gap:11px}.alchemy-book .alc-footer .quiet-button{font-size:10px}
+.alchemy-book .icon-art.pixel-art,.alchemy-book .icon-art.pixel-art img{width:var(--pixel-width);height:var(--pixel-height)}
+.alchemy-book .icon-art.pixel-art img{image-rendering:pixelated;display:block;object-fit:contain}
+.alchemy-book[data-art-mode=pixel] .alc-frame{width:64px;height:64px;margin-top:9px}
+.alchemy-book[data-art-mode=pixel] .alc-detail .detail-icon{width:64px;height:64px}
+.alchemy-book .help-box{width:480px}.alchemy-book .help-box p{font-size:12px;line-height:22px}
+
+/* A single persistent quill travels to the selected item without covering its text. */
+.alchemy-book .plan-selection-quill{position:absolute;left:0;top:0;z-index:7;width:22px;height:42px;pointer-events:none;user-select:none;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2236%22%20height%3D%2268%22%20viewBox%3D%220%200%2036%2068%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22feather%22%20x1%3D%22.2%22%20y1%3D%22.1%22%20x2%3D%22.9%22%20y2%3D%22.8%22%3E%0A%20%20%20%20%20%20%3Cstop%20stop-color%3D%22%23f8f0eb%22%2F%3E%3Cstop%20offset%3D%22.46%22%20stop-color%3D%22%23d6c5e2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23aa8dc3%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22nib%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23f0d59e%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23ad8152%22%2F%3E%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Cpath%20d%3D%22M11%2049C8%2036%2014%2015%2031%203c4%2010%201%2022-5%2031l-5%202%202%201-8%2011-1-6Z%22%20fill%3D%22url%28%23feather%29%22%20stroke%3D%22%238c769e%22%20stroke-width%3D%22.85%22%20stroke-linejoin%3D%22round%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M12%2046Q21%2024%2031%206M15%2038l-1-8m4%201-1-9m5%201%201-9m-8%2024%208-4m-4-4%209-5m-4-3%208-7%22%20fill%3D%22none%22%20stroke%3D%22%23947ea7%22%20stroke-width%3D%22.65%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M15%2030q4-12%2011-20%22%20fill%3D%22none%22%20stroke%3D%22%23fff9ef%22%20stroke-width%3D%221%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M13%2044%208%2056%22%20stroke%3D%22%23c9b695%22%20stroke-width%3D%222.5%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Cpath%20d%3D%22m9%2051%204%202-3%207-6%205%201-8Z%22%20fill%3D%22url%28%23nib%29%22%20stroke%3D%22%23826446%22%20stroke-width%3D%22.7%22%20stroke-linejoin%3D%22round%22%2F%3E%0A%20%20%3Cpath%20d%3D%22m10%2054-5%209%22%20stroke%3D%22%23745843%22%20stroke-width%3D%22.65%22%2F%3E%3Ccircle%20cx%3D%229.2%22%20cy%3D%2255.7%22%20r%3D%22.85%22%20fill%3D%22%23745843%22%2F%3E%0A%20%20%3Cpath%20d%3D%22m4%2063-1%203%203-2Z%22%20fill%3D%22%2351435d%22%2F%3E%0A%3C%2Fsvg%3E%0A") center/contain no-repeat;filter:drop-shadow(.5px 1px .7px #140e263e);transition:transform 440ms cubic-bezier(.2,.78,.2,1),opacity 160ms ease}
+.alchemy-scene[data-state="opening"] .plan-selection-quill,.alchemy-scene[data-state="closing"] .plan-selection-quill{opacity:0}
+@media(prefers-reduced-motion:reduce){.alchemy-book .plan-selection-quill{transition:none}}
+
 </style>
 </head>
 <body>
@@ -1119,13 +1174,13 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
 <div class="notebook-underpages notebook-decoration" aria-hidden="true"></div>
 <div class="notebook-binding notebook-decoration" aria-hidden="true"></div>
 <div class="corner tl" aria-hidden="true"><svg><use href="#corner"/></svg></div><div class="corner tr" aria-hidden="true"><svg><use href="#corner"/></svg></div><div class="corner bl" aria-hidden="true"><svg><use href="#corner"/></svg></div><div class="corner br" aria-hidden="true"><svg><use href="#corner"/></svg></div>
-<header class="header" lang="zh-CN"><div class="crest" aria-hidden="true"><svg class="alchemy-crest" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M25.5 6.5h13" stroke-width="1.6"/><path d="M26.5 9.5h11" stroke-width="1"/><path d="M28.5 9.5v13A17 17 0 1 0 35.5 22.5v-13" stroke-width="1.3"/><path d="M16.2 41q3.95-2.4 7.9 0t7.9 0 7.9 0 7.9 0" stroke-width=".85" opacity=".75"/><path d="M32 44.5l1.3 3.4 3.4 1.3-3.4 1.3L32 53.9l-1.3-3.4-3.4-1.3 3.4-1.3Z" fill="currentColor" fill-opacity=".22" stroke-width=".8"/><circle cx="24.5" cy="47.5" r="1.4" stroke-width=".7"/><circle cx="39" cy="51" r=".9" stroke-width=".7"/><path d="M28.5 18c-3.2-2.8-7-2.6-7-.2s3.8 2.6 7 .2Zm7 0c3.2-2.8 7-2.6 7-.2s-3.8 2.6-7 .2Z" stroke-width=".8"/><path d="M29.5 19.5 27 26m7.5-6.5L37 26" stroke-width=".75"/><path d="M20 36.5a12.6 12.6 0 0 1 4.6-7.2" stroke-width=".9" opacity=".6"/><path d="M50 11.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9Z" fill="currentColor" stroke-width=".6"/><circle cx="13" cy="19" r="1" fill="currentColor" stroke="none"/><circle cx="52.5" cy="30" r=".8" fill="currentColor" stroke="none"/></svg></div><div class="heading"><h1>炼金手记</h1><p class="notebook-subtitle"><span>药剂与奇物</span></p></div><div class="header-right"><div class="alc-rank" id="alc-rank"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 13h20" stroke-width="1.3"/><path d="M7.5 13c-.6 7 3 12 8.5 12s9.1-5 8.5-12" stroke-width="1.25"/><path d="M10 25.5 8.5 28M22 25.5l1.5 2.5" stroke-width="1"/><path d="M10.5 17.5q2.75-1.6 5.5 0t5.5 0" stroke-width=".9"/><circle cx="13" cy="9" r="1.4" stroke-width=".9"/><circle cx="18.5" cy="6.5" r="1" stroke-width=".9"/><path d="M22 3.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7Z" stroke-width=".9"/></svg><div class="alc-rank-body"><div class="alc-rank-line"><span class="resource-label">炼金术</span><b class="resource-value" id="alc-level">Lv.1</b></div><div class="alc-xp-track"><i id="alc-xp-fill"></i></div><small id="alc-xp-text"></small></div></div><button class="close" id="alc-close" type="button" aria-label="合上炼金手记"><span class="close-hint">ESC</span></button></div></header>
-<nav class="navigation" aria-label="炼制状态"><div class="filters" id="alc-filters"><button class="filter active" type="button" data-state-filter="all" aria-pressed="true"><i class="state-glyph glyph-all" aria-hidden="true"></i>全部<span class="filter-count">22</span></button><button class="filter" type="button" data-state-filter="ready" aria-pressed="false"><i class="state-glyph glyph-ready" aria-hidden="true"></i>可炼制<span class="filter-count">00</span></button><button class="filter" type="button" data-state-filter="short" aria-pressed="false"><i class="state-glyph glyph-short" aria-hidden="true"></i>缺素材<span class="filter-count">00</span></button><button class="filter" type="button" data-state-filter="locked" aria-pressed="false"><i class="state-glyph glyph-locked" aria-hidden="true"></i>未解锁<span class="filter-count">00</span></button></div><div class="progress" title="已解锁 / 全部"><b id="alc-progress">03</b><em id="alc-total">/ 22</em></div></nav>
+<header class="header" lang="zh-CN"><div class="crest" aria-hidden="true"><svg class="alchemy-crest" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M25.5 6.5h13" stroke-width="1.6"/><path d="M26.5 9.5h11" stroke-width="1"/><path d="M28.5 9.5v13A17 17 0 1 0 35.5 22.5v-13" stroke-width="1.3"/><path d="M16.2 41q3.95-2.4 7.9 0t7.9 0 7.9 0 7.9 0" stroke-width=".85" opacity=".75"/><path d="M32 44.5l1.3 3.4 3.4 1.3-3.4 1.3L32 53.9l-1.3-3.4-3.4-1.3 3.4-1.3Z" fill="currentColor" fill-opacity=".22" stroke-width=".8"/><circle cx="24.5" cy="47.5" r="1.4" stroke-width=".7"/><circle cx="39" cy="51" r=".9" stroke-width=".7"/><path d="M28.5 18c-3.2-2.8-7-2.6-7-.2s3.8 2.6 7 .2Zm7 0c3.2-2.8 7-2.6 7-.2s-3.8 2.6-7 .2Z" stroke-width=".8"/><path d="M29.5 19.5 27 26m7.5-6.5L37 26" stroke-width=".75"/><path d="M20 36.5a12.6 12.6 0 0 1 4.6-7.2" stroke-width=".9" opacity=".6"/><path d="M50 11.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9Z" fill="currentColor" stroke-width=".6"/><circle cx="13" cy="19" r="1" fill="currentColor" stroke="none"/><circle cx="52.5" cy="30" r=".8" fill="currentColor" stroke="none"/></svg></div><div class="heading"><h1>炼金手记<small>魔药与造物</small></h1><p class="notebook-subtitle"><span>配方、奇物与旅途中的一餐</span></p></div><div class="header-right"><div class="plan-counter" id="alc-rank"><div><b id="alc-count-products">15</b><span>造物</span></div><i></i><div><b id="alc-count-materials">8</b><span>素材</span></div></div><button class="close" id="alc-close" type="button" aria-label="合上炼金手记"><span class="close-hint">ESC</span></button></div></header>
+<nav class="navigation" aria-label="炼制状态"><div class="filters" id="alc-filters"><button class="filter active" type="button" data-state-filter="all" aria-pressed="true"><i class="state-glyph glyph-all" aria-hidden="true"></i>全部<span class="filter-count">00</span></button><button class="filter" type="button" data-state-filter="ready" aria-pressed="false"><i class="state-glyph glyph-ready" aria-hidden="true"></i>可炼制<span class="filter-count">00</span></button><button class="filter" type="button" data-state-filter="short" aria-pressed="false"><i class="state-glyph glyph-short" aria-hidden="true"></i>缺素材<span class="filter-count">00</span></button><button class="filter" type="button" data-state-filter="acquire" aria-pressed="false"><i class="state-glyph glyph-acquire" aria-hidden="true"></i>可取得<span class="filter-count">00</span></button></div><div class="plan-art-controls" id="alc-art-controls" role="group" aria-label="图标画风"><button type="button" data-art-mode="pencil" aria-pressed="false">彩铅</button><button type="button" data-art-mode="pixel" aria-pressed="false">像素</button><button type="button" data-art-mode="original" aria-pressed="false">原画</button></div><div class="progress" title="本页显示 / 本页全部"><b id="alc-progress">08</b><em id="alc-total">/ 08</em></div></nav>
 <div class="content"><section class="alc-catalog" id="alc-catalog" aria-label="配方图鉴">
- <div class="alc-shelves" id="alc-shelves"></div>
- <div class="alc-legend" aria-hidden="true"><span><i class="alc-glyph ready"></i>可炼制</span><span><i class="alc-glyph short"></i>缺素材</span><span><i class="alc-glyph locked"></i>未解锁 · 剪影与线索</span></div>
+ <div class="plan-categories" id="alc-categories" role="group" aria-label="造物分类"></div><div class="plan-page-heading"><h2 id="alc-page-title"></h2><p id="alc-page-description"></p></div><div class="alc-shelves" id="alc-shelves"></div>
+ <div class="alc-legend" aria-hidden="true"><span><i class="alc-glyph ready"></i>可炼制</span><span><i class="alc-glyph short"></i>缺素材</span><span><i class="alc-glyph acquire"></i>购买或采集</span></div>
  <span class="notebook-folio notebook-decoration" aria-hidden="true">— 01 —</span>
- <span class="paper-butterfly page-butterfly" id="alc-butterfly" aria-hidden="true" hidden></span>
+ <span class="plan-selection-quill" id="alc-selection-quill" aria-hidden="true" hidden></span>
 </section>
 <aside class="detail alc-detail" id="alc-detail" aria-label="炼制详情">
  <div class="detail-top"><span class="detail-chapter" id="alc-chapter"></span><span class="status-tag" id="alc-status"></span></div>
@@ -1134,17 +1189,17 @@ body{background:#14151c}.world,.world-label{display:none}.game-stage{position:ab
   <p class="description" id="alc-desc"></p>
   <ul class="alc-effects" id="alc-effects"></ul>
   <section class="alc-unlock" id="alc-unlock" hidden></section>
-  <section class="alc-materials"><div class="alc-mats-head"><h3 id="alc-mats-title">所需素材</h3><span id="alc-mats-note"></span></div><ul class="alc-mats" id="alc-mats"></ul></section>
+  <section class="alc-materials" id="alc-material-section"><div class="alc-mats-head"><h3 id="alc-mats-title">所需素材</h3><span id="alc-mats-note"></span></div><ul class="alc-mats" id="alc-mats"></ul></section>
  </div>
  <div class="detail-actions alc-actions">
-  <div class="alc-qty-row" id="alc-qty-row"><span>炼制份数</span><div class="alc-stepper"><button type="button" id="alc-minus" aria-label="减少一份">−</button><input id="alc-qty" type="text" inputmode="numeric" autocomplete="off" value="1" aria-label="炼制份数"><button type="button" id="alc-plus" aria-label="增加一份">＋</button></div><button type="button" class="alc-max" id="alc-max">最大</button><span class="alc-yield" id="alc-yield"></span></div>
+  <div class="alc-qty-row" id="alc-qty-row"><span>制作批数</span><div class="alc-stepper"><button type="button" id="alc-minus" aria-label="减少一份">−</button><input id="alc-qty" type="text" inputmode="numeric" autocomplete="off" value="1" aria-label="炼制份数"><button type="button" id="alc-plus" aria-label="增加一份">＋</button></div><button type="button" class="alc-max" id="alc-max">最大</button><span class="alc-yield" id="alc-yield"></span></div>
   <button class="awaken-button" id="alc-craft" type="button"></button>
   <div class="action-hint" id="alc-hint"></div>
  </div>
 </aside></div>
-<footer class="footer alc-footer"><div class="alc-bag-caption">行囊<small>炼金素材</small></div><div class="alc-bag" id="alc-bag"></div><div class="footer-right"><button class="quiet-button" id="alc-help" type="button">帮助</button><span class="separator"></span><button class="quiet-button" id="alc-restock" type="button">补充素材</button><span class="separator"></span><button class="quiet-button" id="alc-reset" type="button">重置手记</button><span class="separator"></span><button class="quiet-button" id="alc-return" type="button">返回 <kbd class="key">Esc</kbd></button></div></footer>
+<footer class="footer alc-footer"><div class="alc-bag-caption">行囊<small>本次相关</small></div><div class="alc-bag" id="alc-bag"></div><div class="footer-right"><button class="quiet-button" id="alc-help" type="button">帮助</button><span class="separator"></span><button class="quiet-button" id="alc-restock" type="button">补充素材</button><span class="separator"></span><button class="quiet-button" id="alc-reset" type="button">重置手记</button><span class="separator"></span><button class="quiet-button" id="alc-return" type="button">返回 <kbd class="key">Esc</kbd></button></div></footer>
 <div class="toast" id="alc-toast" role="status" aria-live="polite"></div><div class="sr-only" id="alc-announce" aria-live="polite"></div>
-<div class="help-layer" id="alc-help-layer" hidden><section class="help-box" role="dialog" aria-modal="true" aria-labelledby="alc-help-title"><h2 id="alc-help-title">炼金手记</h2><dl><dt>可炼制 · 缺素材 · 未解锁</dt><dd>素材足够炼制至少一份、已解锁但素材不足、尚未解锁。</dd><dt>解锁</dt><dd>获得对应配方，或提升炼金术等级。未解锁的道具只显示剪影、部分名称与线索。</dd><dt>炼制</dt><dd>选中道具并设定份数，素材足够即可炼制。每次炼制都会积累炼金经验。</dd><dt>操作</dt><dd>P 打开 / 合上炼金手记 · Esc 返回<br>方向键在图鉴中移动 · C 切换至魔女手札</dd></dl><button class="awaken-button" id="alc-help-close" type="button">返回</button></section></div>
+<div class="help-layer" id="alc-help-layer" hidden><section class="help-box" role="dialog" aria-modal="true" aria-labelledby="alc-help-title"><h2 id="alc-help-title">炼金手记</h2><p>在魔药、奇物、料理与素材之间翻页。选中条目，右页会写下它的效果、获取阶段和所需素材。</p><dl><dt>彩铅 / 像素 / 原画</dt><dd>切换整页的物品图标。原版素材始终以简洁的彩铅符号表示。</dd><dt>配方与材料</dt><dd>椎骨与腐肉、铁锭与铅锭可以合计使用。点击月露、树脂等素材名称，可查看它们的来处。</dd><dt>演示操作</dt><dd>炼制会扣除展示素材并增加产物；「补充素材」补充行囊，「重置手记」恢复初始数量。</dd><dt>快捷键</dt><dd>P 打开 / 合上手记 · Esc 返回<br>方向键选择条目 · C 切换魔女手札</dd></dl><button class="awaken-button" id="alc-help-close" type="button">返回</button></section></div>
 </section>
 <div class="book-page-shade" id="alchemy-page-shade" aria-hidden="true" hidden></div>
 <div class="book-cover" id="alchemy-cover" aria-hidden="true" hidden>
@@ -1463,7 +1518,7 @@ const ACTIVATION_REQUIREMENTS={moon:['sense'],echo:['moon'],ritual:['echo'],hidd
 for(const skill of skills){skill.growth=GROWTH_TYPES[SKILL_GROWTH[skill.id]];skill.toggleable=skill.id==='sense';skill.activationRequires=ACTIVATION_REQUIREMENTS[skill.id]||[]}
 
 const byId=Object.fromEntries(skills.map(s=>[s.id,s]));
-const INITIAL=['origin','sense','ember'],BUDGET=18,STORAGE='elaina-constellation-v1';
+const INITIAL=['origin','sense','ember'],BUDGET=18,STORAGE='elaina-constellation-v1-plan-v2-main';
 const progression=new SkillProgression(skills,INITIAL,BUDGET);
 let learned=progression.learned,selected='origin',filter='learned',toastTimer,lastFocus;
 const $=id=>document.getElementById(id);
@@ -1471,7 +1526,7 @@ const HEADER_COPY={
  'zh-CN':{title:'魔女手札',subtitle:'术式与心得',resource:'研习点',close:'关闭星图',switchLabel:'切换标题栏为英文',switchText:'EN',next:'en'},
  en:{title:'Witch’s Journal',subtitle:'Spells & Insights',resource:'Study Points',close:'Close star chart',switchLabel:'Switch header to Chinese',switchText:'中',next:'zh-CN'}
 };
-const HEADER_LANGUAGE_STORAGE='elaina-header-language-v1';
+const HEADER_LANGUAGE_STORAGE='elaina-header-language-v1-plan-v2-main';
 let headerLanguage='zh-CN';
 function setHeaderLanguage(language){
  headerLanguage=Object.hasOwn(HEADER_COPY,language)?language:'zh-CN';
@@ -1494,7 +1549,7 @@ setHeaderLanguage(savedHeaderLanguage);
 $('language-toggle').addEventListener('click',()=>setHeaderLanguage(HEADER_COPY[headerLanguage].next));
 // Loadout persists; resources and cooldowns belong to the current simulated battle.
 const SLOT_LABELS=['01','02','03','04','05','06','07','08'],ITEM_NAMES=['魔杖','扫帚','旅行手札'];
-const combat=new CombatState(skills),LOADOUT_STORAGE='elaina-loadout-v1';
+const combat=new CombatState(skills),LOADOUT_STORAGE='elaina-loadout-v1-plan-v2-main';
 combat.progression=progression;
 let targetSlot=0,activeSlot=0,gameNoticeTimer,backgroundUrl=null;
 
@@ -2033,419 +2088,223 @@ document.addEventListener('visibilitychange',()=>{
 /* Alchemy notebook preview. Self-contained; it reads the skill book's globals only to
    share the HUD, the menu hotkeys and a single open book at a time. */
 (()=>{'use strict';
+const ALCHEMY_PLAN={"version":2,"categories":[["potion","魔药","POTIONS"],["curio","奇物","CURIOS"],["food","料理","CUISINE"],["material","素材","INGREDIENTS"]],"assumptions":["未明确产量的药水、工具、奇物按每批 1 件；止痛药每批 3 片。","蜂蜜面包暂按蜂蜜瓶×1、糖×1、面粉×2，产出×2；炖菜与焦糖布蕾每批产出×1。","灰赝尘配方中的微光液滴暂按×1；月露、树脂、月露合剂、灰赝尘、显迹尘采用策划明确的产量。","除止痛药 30 秒、轻羽药水 8 分钟、瓶中雨 45 秒外，未注明持续时间的效果暂不填写时长。","回声花粉已按用户确认删除，共鸣药水保留瓶装水×1、月光草×1、毒刺×1。","隔离药水统一命名为净土露滴。页面展开所有条目以便视觉审阅，获取阶段在详情中注明。"],"materials":[{"id":"water","name":"瓶装水","source":"玻璃瓶 · 水源","glyph":"drop","color":"#9fc6ee","initial":36},{"id":"moonglow","name":"月光草","source":"丛林 · 夜间采集","glyph":"herb","color":"#a8bce5","initial":9},{"id":"star","name":"坠落之星","source":"夜空坠落","glyph":"star","color":"#efd08b","initial":8},{"id":"glowingmushroom","name":"发光蘑菇","source":"发光蘑菇生物群落","glyph":"mushroom","color":"#89c6ec","initial":12},{"id":"daybloom","name":"太阳花","source":"森林地表 · 白昼","glyph":"flower","color":"#e5cd81","initial":10},{"id":"honeyblock","name":"蜂蜜块","source":"蜂蜜与水接触","glyph":"block","color":"#d9aa52","initial":6},{"id":"deathweed","name":"死亡草","source":"腐化或猩红之地","glyph":"herb","color":"#b981b0","initial":7},{"id":"vertebra","name":"椎骨","source":"猩红敌怪掉落","glyph":"bone","color":"#d9beb7","initial":2},{"id":"rottenchunk","name":"腐肉","source":"腐化敌怪掉落","glyph":"chunk","color":"#bc92a4","initial":7},{"id":"crystal","name":"水晶碎块","source":"地下神圣之地","glyph":"crystal","color":"#dab9ed","initial":8},{"id":"blinkroot","name":"闪耀根","source":"地下泥土与土块","glyph":"root","color":"#d8bc70","initial":9},{"id":"lens","name":"晶状体","source":"恶魔眼掉落","glyph":"lens","color":"#d6c8dc","initial":4},{"id":"mandible","name":"蚁狮上颚","source":"沙漠 · 蚁狮","glyph":"fang","color":"#d4ba89","initial":4},{"id":"stinger","name":"毒刺","source":"丛林 · 蜜蜂与尖刺史莱姆","glyph":"fang","color":"#d7cc8c","initial":6},{"id":"feather","name":"羽毛","source":"天空 · 鸟妖","glyph":"feather","color":"#ded5ea","initial":5},{"id":"powder","name":"净化粉","source":"树妖出售","glyph":"dust","color":"#b6d4b3","initial":30},{"id":"glass","name":"玻璃","source":"熔炉 · 沙块","glyph":"pane","color":"#b3d4e1","initial":20},{"id":"iron","name":"铁锭","source":"熔炉 · 铁矿","glyph":"bar","color":"#bac0cc","initial":3},{"id":"lead","name":"铅锭","source":"熔炉 · 铅矿","glyph":"bar","color":"#9aa7c4","initial":7},{"id":"hallowed","name":"神圣锭","source":"机械 Boss 掉落","glyph":"bar","color":"#ecd599","initial":3},{"id":"obsidian","name":"黑曜石","source":"水与熔岩接触","glyph":"crystal","color":"#9d8fb6","initial":6},{"id":"pixiedust","name":"妖精尘","source":"神圣之地 · 妖精","glyph":"dust","color":"#e8c7e2","initial":5},{"id":"bone","name":"骨头","source":"地牢敌怪掉落","glyph":"bone","color":"#d9cfb7","initial":15},{"id":"cloud","name":"云块","source":"天空岛","glyph":"cloud","color":"#dce3ed","initial":30},{"id":"waterleaf","name":"幌菊","source":"沙漠 · 雨天开花","glyph":"flower","color":"#95c5d3","initial":4},{"id":"honey","name":"蜂蜜瓶","source":"玻璃瓶 · 蜂蜜","glyph":"drop","color":"#e6bc5d","initial":4},{"id":"wood","name":"木材","source":"砍伐树木","glyph":"wood","color":"#ba926d","initial":60},{"id":"gel","name":"凝胶","source":"史莱姆掉落","glyph":"gel","color":"#9cb9e5","initial":15},{"id":"moondew","name":"月露","source":"瓶装水×3＋月光草×1 → 月露×3","art":"MoonDew","initial":9,"entry":"moondew"},{"id":"resin","name":"温香树脂","source":"木材×20＋凝胶×2 → 树脂×2","art":"WarmResin","initial":4,"entry":"resin"},{"id":"flour","name":"面粉","source":"商人出售","art":"Flour","initial":8,"entry":"flour"},{"id":"sugar","name":"糖","source":"商人出售","art":"Sugar","initial":9,"entry":"sugar"},{"id":"egg","name":"鸡蛋","source":"商人出售","art":"Egg","initial":5,"entry":"egg"},{"id":"beef","name":"牛肉","source":"旅商 · 固定售卖","art":"Beef","initial":2,"entry":"beef"},{"id":"potato","name":"土豆","source":"旅商 · 固定售卖","art":"Potato","initial":6,"entry":"potato"},{"id":"shimmer","name":"微光液滴","source":"以太滴管 · 从微光中取得","art":"ShimmerDroplet","initial":2,"entry":"shimmer"}],"items":[{"id":"mana","name":"月露合剂","cat":"potion","art":"MoonDewElixir","reuse":"ManaElixir","kind":"专属补给 · 即时回复","stage":"前期","desc":"把星光溶进月露，再用发光蘑菇稳定药液。仅供伊蕾娜饮用的专属魔力补给。","effects":[["专属魔力","回复 100 点"],["使用者","伊蕾娜专属"]],"mats":[["moondew",3],["star",1],["glowingmushroom",3]],"yield":3,"pixelSize":[20,28]},{"id":"painkiller","name":"止痛药","cat":"potion","art":"Painkiller","reuse":"Painkiller","kind":"药片 · 持续恢复","stage":"探索蜂巢后","desc":"太阳花与蜂蜜负责恢复，温香树脂让药效缓慢释放。服用后持续获得恢复效果。","effects":[["持续时间","30 秒"],["每秒恢复","最大生命的 2%"],["全程累计","最大生命的 60%"]],"mats":[["water",1],["daybloom",1],["honeyblock",1],["resin",1]],"yield":3,"assumedYield":true,"pixelSize":[26,22]},{"id":"bloodlust","name":"嗜血药水","cat":"potion","art":"BloodthirstPotion","reuse":"BloodthirstPotion","kind":"战斗药水 · 近战","stage":"肉后解锁","desc":"以承受更多伤害为代价，唤醒近战攻击中的嗜血欲望。","effects":[["近战生命偷取","+5%"],["近战伤害","+10%"],["受到的伤害","+20%","bad"]],"mats":[["water",1],["deathweed",1],[["vertebra","rottenchunk"],3]],"yield":1,"assumedYield":true,"pixelSize":[20,28]},{"id":"starpower","name":"星力药水","cat":"potion","art":"StarPowerPotion","reuse":"StarPowerPotion","kind":"战斗药水 · 魔法","stage":"肉后初期","desc":"水晶放大魔力储备中的星光。魔力上限越高，获得的魔法伤害加成越多。","effects":[["每 1 点魔力上限","+0.05% 魔法伤害"]],"live":"starpower","mats":[["moondew",1],["star",1],["deathweed",1],["crystal",2]],"yield":1,"assumedYield":true,"pixelSize":[20,28]},{"id":"focus","name":"集中药水","cat":"potion","art":"ConcentrationPotion","reuse":"ConcentrationPotion","kind":"战斗药水 · 远程","stage":"肉后解锁","desc":"你的远程攻击方向越接近目标中心，造成的伤害就越高。让每一发都落向瞄准的中心。","effects":[["判定","攻击方向与目标中心的夹角"],["远程伤害","最高 +30%"]],"mats":[["water",1],["blinkroot",1],["lens",1],["mandible",1]],"yield":1,"assumedYield":true,"pixelSize":[20,28]},{"id":"resonance","name":"共鸣药水","cat":"potion","art":"ResonancePotion","reuse":"ResonancePotion","kind":"战斗药水 · 召唤","stage":"探索丛林后","desc":"仆从与哨兵向鞭子标记的敌人集中攻击。持续攻击同一标记目标时，共鸣逐渐增强。","effects":[["攻击鞭子标记目标","伤害 +12%"],["连续攻击 3 秒","逐渐提高至 +24%"],["切换标记目标","重新积累"]],"mats":[["water",1],["moonglow",1],["stinger",1]],"yield":1,"assumedYield":true,"pixelSize":[20,28]},{"id":"featherlight","name":"轻羽药水","cat":"potion","art":"FeatherlightPotion","reuse":"FeatherlightPotion","kind":"旅行药水 · 持续 8 分钟","stage":"探索天空后","desc":"把羽毛的轻盈与日间上升的气流装进瓶中，让飞行与扫帚旅行更加轻快。","effects":[["飞行速度","+20%"],["扫帚速度","+20%"],["持续时间","8 分钟"]],"mats":[["water",1],["blinkroot",1],["feather",1],["daybloom",1]],"yield":1,"assumedYield":true,"pixelSize":[20,28]},{"id":"isolation","name":"净土露滴","cat":"potion","art":"PurificationDew","reuse":"IsolationPotion","kind":"净化药液 · 滴落使用","stage":"肉后初期","desc":"将露滴滴在物块上，净化这一格以及它下方的所有物块，用于制造纵向隔离带。","effects":[["作用位置","目标物块及其下方所有物块"],["用途","净化 · 制造隔离带"]],"mats":[["water",1],["powder",10],["daybloom",1],["crystal",1]],"yield":1,"assumedYield":true,"pixelSize":[20,28]},{"id":"dropper","name":"以太滴管","cat":"curio","art":"AetherDropper","kind":"工具 · 可重复使用","stage":"击败任意机械 Boss 后","desc":"神圣金属让容器能够稳定地保存微光。对着微光吸收一格，再次使用时释放一格。","effects":[["容量","1 格微光"],["使用顺序","先吸收，再释放"],["附带用途","取得微光液滴"]],"mats":[["glass",10],[["iron","lead"],5],["hallowed",3]],"yield":1,"assumedYield":true,"pixelSize":[24,30]},{"id":"mimic","name":"灰赝尘","cat":"curio","art":"AshenFacsimileDust","reuse":"AshenFacsimileDust","kind":"炼金奇物 · 合成辅助","stage":"取得微光后","desc":"借助微光的转化之力，为尚未齐备的材料补上缺失的一部分。","effects":[["材料前提","每种所需材料至少持有 1 件"],["数量前提","总需求已满足至少 50%"],["效果","替代缺少的素材"]],"mats":[["shimmer",1],["obsidian",1],["star",1]],"yield":50,"pixelSize":[28,26]},{"id":"trace","name":"显迹尘","cat":"curio","art":"RevealingDust","kind":"侦察奇物 · 撒出使用","stage":"肉后 · 神圣之地","desc":"撒出闪耀的细尘，让一片区域内的敌对生物和陷阱显出清楚的标记。","effects":[["标记对象","区域内的敌对生物"],["危险提示","区域内的陷阱"]],"mats":[["pixiedust",1],["blinkroot",1],["bone",3]],"yield":3,"pixelSize":[24,25]},{"id":"rain","name":"瓶中雨","cat":"curio","art":"BottledRain","kind":"天气奇物 · 投掷使用","stage":"探索天空后","desc":"摔开瓶子，释放一朵便携的小雨云。雨水照料附近的植物，也替旅人扑灭普通火焰。","effects":[["小雨云","持续 45 秒"],["覆盖区域","附近约 20 格宽"],["玩家","熄灭普通着火"],["幌菊与植物","雨天条件开花 · 加速生长"]],"mats":[["water",1],["cloud",10],["waterleaf",1]],"yield":1,"assumedYield":true,"pixelSize":[22,30]},{"id":"bread","name":"蜂蜜面包","cat":"food","art":"HoneyBread","kind":"料理 · 蜂蜜香甜","stage":"基础料理","desc":"淋上蜂蜜的面包，是伊蕾娜喜欢的甜味补给。不同旅人食用时获得的效果有所不同。","effects":[["伊蕾娜","酒足饭饱 · 恢复 50 生命"],["其他玩家","吃得好 · 不回复生命"]],"mats":[["honey",1],["sugar",1],["flour",2]],"yield":2,"assumedYield":true,"pixelSize":[28,20],"reuse":"HoneyBread"},{"id":"stew","name":"炖菜","cat":"food","art":"BeefStew","kind":"料理 · 热气腾腾","stage":"旅商食材","desc":"伊蕾娜擅长制作的牛肉土豆炖菜。炖得软烂又暖胃，不过并不是她最偏爱的食物。","effects":[["食用效果","很满意"]],"mats":[["beef",1],["potato",3],["water",5]],"yield":1,"assumedYield":true,"pixelSize":[30,27]},{"id":"brulee","name":"焦糖布蕾","cat":"food","art":"CaramelBrulee","kind":"料理 · 焦糖甜点","stage":"基础料理","desc":"轻轻敲开薄脆的焦糖外壳，下面是柔软细腻的蛋奶甜点。","effects":[["食用效果","吃得好"]],"mats":[["sugar",3],["egg",1],["water",1]],"yield":1,"assumedYield":true,"pixelSize":[28,21]},{"id":"moondew","name":"月露","cat":"material","art":"MoonDew","kind":"新素材 · 装瓶基底","stage":"前期","desc":"将月光草浸入瓶装水，得到可以直接使用的装瓶药液基底。","effects":[["设计用途","魔力、星辰、空间类炼金"]],"mats":[["water",3],["moonglow",1]],"yield":3,"outputMaterial":"moondew","pixelSize":[20,28]},{"id":"resin","name":"温香树脂","cat":"material","art":"WarmResin","kind":"新素材 · 炼金锅熬制","stage":"前期","desc":"将木材与凝胶在炼金锅中缓慢熬制，留下温润而微甜的树脂。","effects":[["设计用途","药膏、熏香、扫帚养护"]],"mats":[["wood",20],["gel",2]],"yield":2,"outputMaterial":"resin","pixelSize":[25,24]},{"id":"flour","name":"面粉","cat":"material","art":"Flour","kind":"新食材 · 商人售卖","stage":"商人","desc":"细白的烘焙用面粉，适合揉成甜面团。","effects":[["用于","蜂蜜面包"]],"acquisition":"向商人购买。","material":"flour","pixelSize":[20,26]},{"id":"sugar","name":"糖","cat":"material","art":"Sugar","kind":"新食材 · 商人售卖","stage":"商人","desc":"给面团带来甜味，熬煮后也能形成焦糖外壳。","effects":[["用于","蜂蜜面包、焦糖布蕾"]],"acquisition":"向商人购买。","material":"sugar","pixelSize":[24,22]},{"id":"egg","name":"鸡蛋","cat":"material","art":"Egg","kind":"新食材 · 商人售卖","stage":"商人","desc":"料理与烘焙的基础食材。","effects":[["用于","焦糖布蕾"]],"acquisition":"向商人购买。","material":"egg","pixelSize":[18,24]},{"id":"beef","name":"牛肉","cat":"material","art":"Beef","kind":"新食材 · 旅商固定售卖","stage":"旅商","desc":"适合长时间炖煮的牛肉。","effects":[["用于","炖菜"]],"acquisition":"旅行商人到访时固定售卖。","material":"beef","pixelSize":[26,22]},{"id":"potato","name":"土豆","cat":"material","art":"Potato","kind":"新食材 · 旅商固定售卖","stage":"旅商","desc":"炖煮后软糯绵密，能吸足肉汤的味道。","effects":[["用于","炖菜"]],"acquisition":"旅行商人到访时固定售卖。","material":"potato","pixelSize":[26,22]},{"id":"shimmer","name":"微光液滴","cat":"material","art":"ShimmerDroplet","kind":"新素材 · 微光凝滴","stage":"以太滴管","desc":"从微光中取得的一滴奇异液体，带着转化物质的微弱力量。","effects":[["用于","灰赝尘"]],"acquisition":"使用以太滴管从微光中取得。","material":"shimmer","pixelSize":[20,28]}],"pencilProfile":"hatched"};
+const DEFAULT_ART="pencil",PAGE_VARIANT="main";
+// Revised notebook: presentation and reversible crafting demonstration only.
 const $a=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
-const svgUri=svg=>`data:image/svg+xml,${encodeURIComponent(svg)}`;
-
-/* Potion bottles reuse the supplied RuriPotion.svg; only the liquid and its inner mark change. */
-const FLASK='M20.5 11 V19.74 A14 14 0 1 0 29.5 19.74 V11 Z';
-const FLASK_TOP=`<path d="M14.6 30 A10.8 10.8 0 0 1 18.8 22.6" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-opacity=".8"/><circle cx="14.3" cy="33.6" r=".85" fill="#fff" fill-opacity=".8"/><path d="M22.4 12.6 V15" stroke="#fff" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".55"/><path d="${FLASK}" fill="none" stroke="#221a40" stroke-width="1.6" stroke-linejoin="round"/><rect x="19.3" y="10.2" width="11.4" height="2.2" rx="1" fill="#e6e0ff" stroke="#221a40" stroke-width="1.2"/><path d="M21.2 10.4 V7.6 H28.8 V10.4 Z" fill="#9c6c3e" stroke="#4a2f1a" stroke-width=".8" stroke-linejoin="round"/><rect x="19.8" y="3.6" width="10.4" height="4.6" rx="1.4" fill="url(#k)" stroke="#4a2f1a" stroke-width=".9"/><path d="M21.4 4.9 H27.4" stroke="#f0cf9c" stroke-width=".8" stroke-linecap="round" stroke-opacity=".8"/><circle cx="23.2" cy="6.6" r=".45" fill="#6e4524"/><circle cx="27" cy="6.3" r=".4" fill="#6e4524"/>`;
-const RIBBON=`<path d="M28.6 16.2 C32.6 16.4 35.4 18.6 37.2 21.8 C38.6 24.4 40.6 26 43.8 26.2 L42.8 27.6 L45 29.2 C40.6 29.6 37.6 27.6 35.6 24.6 C33.8 21.8 31.6 19.2 28.4 18.6 Z" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/><path d="M30.4 17 C33.4 17.6 35.4 19.4 36.8 22" fill="none" stroke="#ffd8ea" stroke-width=".6" stroke-linecap="round"/><path d="M20.3 15.6 H29.7 V17.8 H20.3 Z" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/><path d="M24 17.8 C21.6 20 20.2 22.8 19.6 26 C19.2 28.4 17.8 30.4 15.4 31.6 L17 32.6 L15.8 34.6 C19 33.8 21.4 31 22 27.6 C22.6 24.4 23.8 21.6 26 19.4 Z" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/><path d="M22.8 20.2 C21.8 21.8 21.2 23.4 20.8 25.6" fill="none" stroke="#ffd8ea" stroke-width=".6" stroke-linecap="round"/><path d="M24.2 16 C21.4 12.2 16.6 11.6 15.8 14.6 C15 17.6 19.6 19.2 24.2 17.8 Z" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/><path d="M23.2 16.4 C21.2 14.4 18.6 14 18 15.2 C17.6 16.4 20 17.2 23.2 17 Z" fill="#d66e9e"/><path d="M25.8 16 C28.2 10.8 34.6 9.2 36 12.2 C37.4 15.2 32 18.2 25.8 17.8 Z" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/><path d="M26.8 16.2 C28.8 13 32.6 11.8 33.6 13.2 C34.4 14.6 31 16.4 26.8 17 Z" fill="#d66e9e"/><path d="M28.4 12.6 C30.2 11 32.6 10.4 34.4 10.8" fill="none" stroke="#ffd8ea" stroke-width=".6" stroke-linecap="round"/><rect x="23.1" y="14.7" width="3.8" height="3.9" rx="1.2" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/>`;
-const SPARKLES=`<path d="M43 3.4 L43.6 5.4 L45.6 6 L43.6 6.6 L43 8.6 L42.4 6.6 L40.4 6 L42.4 5.4 Z" fill="#e4d8ff" stroke="#5a45a8" stroke-width=".4" stroke-linejoin="round"/><circle cx="9" cy="11" r=".9" fill="#e4d8ff"/>`;
-// c: liquid top, middle, bottom, glow, surface line, bubbles.
-function potion(c,mark){
- const bubble=c[5]||c[4];
- return `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><clipPath id="f"><path d="${FLASK}"/></clipPath><linearGradient id="l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".45" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient><radialGradient id="g" cx="27" cy="38" r="10" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c[3]}" stop-opacity=".6"/><stop offset="1" stop-color="${c[3]}" stop-opacity="0"/></radialGradient><linearGradient id="k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9ab76"/><stop offset="1" stop-color="#9c6c3e"/></linearGradient></defs><path d="${FLASK}" fill="#e6e0ff" fill-opacity=".28"/><g clip-path="url(#f)"><path d="M6 28.5 Q12 26.4 18 28.5 T30 28.5 T42 28.5 T54 28.5 V50 H6 Z" fill="url(#l)"/><rect x="6" y="26" width="40" height="24" fill="url(#g)"/><path d="M6 28.5 Q12 26.4 18 28.5 T30 28.5 T42 28.5" fill="none" stroke="${c[4]}" stroke-width="1" stroke-opacity=".9"/><circle cx="29.5" cy="36" r="1.3" fill="none" stroke="${bubble}" stroke-width=".7" stroke-opacity=".85"/><circle cx="32.5" cy="41" r=".8" fill="${bubble}" fill-opacity=".7"/><circle cx="20.5" cy="41.5" r=".9" fill="none" stroke="${bubble}" stroke-width=".6" stroke-opacity=".75"/>${mark}</g>${FLASK_TOP}${RIBBON}${SPARKLES}</svg>`;
-}
-const MARKS={
- sparkle:'<path d="M22 32.2 L22.55 34.45 L24.8 35 L22.55 35.55 L22 37.8 L21.45 35.55 L19.2 35 L21.45 34.45 Z" fill="#fff" fill-opacity=".9"/>',
- drop:'<path d="M22 31.6c1.5 2.2 2.4 3.4 2.4 4.6a2.4 2.4 0 0 1-4.8 0c0-1.2.9-2.4 2.4-4.6Z" fill="#fff" fill-opacity=".85"/>',
- star:'<path d="M22 31.4l1 2.2 2.4.3-1.8 1.6.5 2.4-2.1-1.2-2.1 1.2.5-2.4-1.8-1.6 2.4-.3Z" fill="#ffe7a8"/><circle cx="27.4" cy="32.6" r=".6" fill="#ffe7a8"/><circle cx="18" cy="38.6" r=".5" fill="#ffe7a8"/>',
- sight:'<g fill="none" stroke="#fff" stroke-opacity=".92" stroke-width=".7"><circle cx="22" cy="35" r="2.3"/><path d="M22 31.3v1.6M22 37.1v1.6M18.3 35h1.6M24.1 35h1.6"/></g>',
- rings:'<circle cx="22" cy="35" r="1" fill="#fff"/><g fill="none" stroke="#fff" stroke-width=".7"><path d="M19.4 32.8a3.4 3.4 0 0 0 0 4.4M24.6 32.8a3.4 3.4 0 0 1 0 4.4" stroke-opacity=".9"/><path d="M17.8 31.6a5.4 5.4 0 0 0 0 6.8M26.2 31.6a5.4 5.4 0 0 1 0 6.8" stroke-opacity=".5"/></g>',
- feather:'<path d="M24.6 31.4c-2.8.2-4.6 2.3-4.8 5.4 3.1-.2 4.9-2.1 4.8-5.4Z" fill="#fff" fill-opacity=".92"/><path d="M19 38.6l4-4.4" stroke="#387fb3" stroke-width=".5" stroke-linecap="round"/>',
- leaf:'<path d="M20 37.6c0-3.4 2.2-5.4 5.2-5.6.1 3.1-2 5.4-5.2 5.6Z" fill="#fff" fill-opacity=".9"/><path d="M20 37.6l3.2-3.3" stroke="#2d7548" stroke-width=".5" stroke-linecap="round"/>',
- heart:'<path d="M22 37.8c-2.5-1.7-3.5-2.9-3.5-4.2a1.8 1.8 0 0 1 3.5-.7 1.8 1.8 0 0 1 3.5.7c0 1.3-1 2.5-3.5 4.2Z" fill="#fff" fill-opacity=".92"/>',
- flame:'<path d="M22 31.2c1.9 2 2.9 3.5 2.9 5a2.9 2.9 0 0 1-5.8 0c0-.9.5-1.8 1.2-2.4.1.8.5 1.3 1 1.5-.3-1.4 0-2.7.7-4.1Z" fill="#fff4d6"/>',
- rune:'<g fill="none" stroke="#fff" stroke-width=".7" stroke-opacity=".95"><path d="M22 31.4l3.1 1.8v3.6L22 38.6l-3.1-1.8v-3.6Z"/><path d="M22 33.4v3.2M20.6 35h2.8"/></g>',
- home:'<path d="M19.4 35.2 22 32.6l2.6 2.6M20.3 34.4v3.2h3.4v-3.2" fill="none" stroke="#fff" stroke-width=".8" stroke-linejoin="round" stroke-linecap="round"/>',
- sky:'<path d="M21 32l.5 1.6 1.6.5-1.6.5L21 36.2l-.5-1.6-1.6-.5 1.6-.5Z" fill="#fff"/><path d="M27.2 36.4l.35 1.1 1.1.35-1.1.35-.35 1.1-.35-1.1-1.1-.35 1.1-.35Z" fill="#ffe7a8"/><circle cx="17.4" cy="38.6" r=".55" fill="#fff"/><circle cx="24.6" cy="40.8" r=".45" fill="#fff"/><circle cx="30.6" cy="32.8" r=".5" fill="#dfe6ff"/><circle cx="14.6" cy="34" r=".4" fill="#dfe6ff"/>'
-};
-const PILLS=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><ellipse cx="25" cy="44" rx="15" ry="2.2" fill="#1a1430" fill-opacity=".35"/><g transform="rotate(32 30 24)"><path d="M30 18.5H23A5.5 5.5 0 0 0 23 29.5H30Z" fill="#b9a6f2"/><path d="M30 18.5H37A5.5 5.5 0 0 1 37 29.5H30Z" fill="#f4efff"/><path d="M30 18.5v11" stroke="#5a45a8" stroke-width=".6"/><rect x="17.5" y="18.5" width="25" height="11" rx="5.5" fill="none" stroke="#221a40" stroke-width="1.3"/><path d="M21.6 21.6h6" stroke="#fff" stroke-opacity=".8" stroke-width="1.2" stroke-linecap="round"/></g><g transform="rotate(-38 22 30)"><path d="M22 24.5H15A5.5 5.5 0 0 0 15 35.5H22Z" fill="#f497c0"/><path d="M22 24.5H29A5.5 5.5 0 0 1 29 35.5H22Z" fill="#fff5fa"/><path d="M22 24.5v11" stroke="#7a3456" stroke-width=".6"/><rect x="9.5" y="24.5" width="25" height="11" rx="5.5" fill="none" stroke="#221a40" stroke-width="1.3"/><path d="M13.6 27.6h5" stroke="#fff" stroke-opacity=".85" stroke-width="1.2" stroke-linecap="round"/></g><circle cx="36.5" cy="37.5" r="5" fill="#fbf7ff" stroke="#221a40" stroke-width="1.2"/><path d="M33.1 37.5h6.8" stroke="#b9a6d8" stroke-width=".8"/><path d="M34 35.4a3.3 3.3 0 0 1 2.5-1.5" stroke="#fff" stroke-width=".8" stroke-linecap="round"/>${SPARKLES}</svg>`;
-const EXTRACTOR=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc6ef"/><stop offset=".5" stop-color="#b79cff"/><stop offset="1" stop-color="#8eeaff"/></linearGradient><linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9c98f"/><stop offset="1" stop-color="#a47640"/></linearGradient><clipPath id="c"><rect x="15.5" y="14" width="19" height="25" rx="3"/></clipPath></defs><ellipse cx="25" cy="46" rx="13" ry="1.8" fill="#1a1430" fill-opacity=".35"/><path d="M35 17.5c4 0 5.5 2.4 5.5 5.5s-1.5 5.5-5.5 5.5" fill="none" stroke="#4a2f1a" stroke-width="2.6" stroke-linecap="round"/><path d="M35 17.5c4 0 5.5 2.4 5.5 5.5s-1.5 5.5-5.5 5.5" fill="none" stroke="#c99a5c" stroke-width="1.2" stroke-linecap="round"/><path d="M22 9.5 23 5h4l1 4.5Z" fill="url(#b)" stroke="#4a2f1a" stroke-width=".8" stroke-linejoin="round"/><rect x="15" y="9" width="20" height="5.5" rx="1.6" fill="url(#b)" stroke="#4a2f1a" stroke-width=".9"/><rect x="15.5" y="14" width="19" height="25" rx="3" fill="#e6e0ff" fill-opacity=".26"/><g clip-path="url(#c)"><path d="M14 25q3.5-2 7 0t7 0 7 0 7 0V40H14Z" fill="url(#s)"/><path d="M14 25q3.5-2 7 0t7 0 7 0" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width=".9"/><path d="M22 29.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6Z" fill="#fff"/><circle cx="29" cy="34" r="1" fill="none" stroke="#fff" stroke-width=".6"/><circle cx="27.5" cy="29" r=".6" fill="#fff" fill-opacity=".8"/></g><path d="M18.5 17v6.5" stroke="#fff" stroke-opacity=".75" stroke-width="1.3" stroke-linecap="round"/><path d="M31.2 18.5h2M31.2 22.5h2M31.2 26.5h2" stroke="#221a40" stroke-width=".6"/><rect x="15.5" y="14" width="19" height="25" rx="3" fill="none" stroke="#221a40" stroke-width="1.5"/><rect x="14" y="38" width="22" height="5.5" rx="1.8" fill="url(#b)" stroke="#4a2f1a" stroke-width=".9"/><circle cx="18" cy="40.8" r=".6" fill="#6e4524"/><circle cx="32" cy="40.8" r=".6" fill="#6e4524"/><path d="M16.2 11.5 11 14l1.8 1.2-.8 2 3.9-2.9" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/>${SPARKLES}</svg>`;
-const MIMIC=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a79db4"/><stop offset="1" stop-color="#5f5770"/></linearGradient></defs><ellipse cx="25" cy="44.5" rx="16" ry="2.2" fill="#1a1430" fill-opacity=".35"/><path d="M26 44c1.6-4.4 4.6-6.8 8-6.8s6.4 2.4 8 6.8Z" fill="#b8b1c4" stroke="#221a40" stroke-width="1.1" stroke-linejoin="round"/><path d="M13.5 20.5c-3 4.5-5 9.5-5 14 0 6 5 9 11.5 9s11.5-3 11.5-9c0-4.5-2-9.5-5-14Z" fill="url(#p)" stroke="#221a40" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 20.5c2.5-1.8 13.5-1.8 16 0-1 2-14.9 2-16 0Z" fill="#cfc8d8" stroke="#221a40" stroke-width="1.1"/><path d="M13 23.2c4 1.4 10 1.4 14 0" fill="none" stroke="#f497c0" stroke-width="1.4" stroke-linecap="round"/><path d="M26 23.4c2.5 1.2 3.8 3 4 5.6M26.4 23.3c3.4-.2 5.5.8 6.6 2.8" fill="none" stroke="#f497c0" stroke-width="1.1" stroke-linecap="round"/><path d="M17 17.5c-1.8-1-1.4-3.4.6-3.6.4-2.2 3.4-2.6 4.3-.6 1.8-.8 3.6.8 2.9 2.6 1.4.6 1.2 2.4-.3 2.6Z" fill="#d9d3e2" fill-opacity=".92" stroke="#221a40" stroke-width=".8" stroke-linejoin="round"/><path d="M12.5 31c.3-2.6 1.3-5 2.8-7" stroke="#fff" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round"/><path d="M20 31l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z" fill="#efeaf5" fill-opacity=".9"/><circle cx="36" cy="33" r=".8" fill="#ffc6ef"/><circle cx="39.4" cy="35.6" r=".6" fill="#8eeaff"/><circle cx="31.5" cy="11" r=".7" fill="#ffc6ef"/>${SPARKLES}</svg>`;
-const SPARK_LEFT='<path d="M8 9.4l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6Z" fill="#e4d8ff" stroke="#5a45a8" stroke-width=".4" stroke-linejoin="round"/>';
-const BREAD=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5cc85"/><stop offset=".6" stop-color="#d4924a"/><stop offset="1" stop-color="#a8652e"/></linearGradient></defs><ellipse cx="25" cy="42.5" rx="17" ry="2.3" fill="#1a1430" fill-opacity=".35"/><path d="M7.5 34.5C7.5 25 15.4 18 25 18s17.5 7 17.5 16.5c0 3.6-2.8 5.8-6.6 5.8H14.1c-3.8 0-6.6-2.2-6.6-5.8Z" fill="url(#t)" stroke="#4a2f1a" stroke-width="1.4" stroke-linejoin="round"/><path d="M9.4 36.6c3.4 2.4 27.8 2.4 31.2 0" fill="none" stroke="#7a4a22" stroke-width=".9" stroke-opacity=".55"/><path d="M15.8 25.2l3.2 4.4M23.6 22.4l2.6 5.4M31.4 23.8l1.6 4.8" stroke="#fbe3b4" stroke-width="1.8" stroke-linecap="round"/><path d="M16.4 25.9l2.6 3.6M24.1 23.3l2.1 4.5M31.8 24.7l1.2 3.9" stroke="#8a5528" stroke-width=".7" stroke-linecap="round"/><path d="M11.8 31.5c.8-4.2 3.6-7.6 7.6-9.2" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.2" stroke-linecap="round"/><path d="M28.6 18.6c3.4.4 6 1.9 7.6 4.3.6 1-.1 2.4-.9 3.2-.3-1-1-1.6-1.7-1.5-.2 1.4-1.2 2.1-2 1.7.3-1.8-.8-3.6-3-4.9Z" fill="#ffcf5a" stroke="#a36a18" stroke-width=".6" stroke-linejoin="round"/><g fill="#fff"><path d="M14 32.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z"/><path d="M36.2 31.2l.4 1 1 .4-1 .4-.4 1-.4-1-1-.4 1-.4Z"/><circle cx="21" cy="34" r=".6"/><circle cx="28.4" cy="31.6" r=".55"/><circle cx="31.8" cy="35" r=".5"/></g>${SPARKLES}</svg>`;
-const STAR_INK=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b6fd6"/><stop offset="1" stop-color="#171a52"/></linearGradient><clipPath id="c"><path d="M12.5 29.5 15 25h20l2.5 4.5V40a3.5 3.5 0 0 1-3.5 3.5H16A3.5 3.5 0 0 1 12.5 40Z"/></clipPath></defs><ellipse cx="25" cy="45.5" rx="15" ry="1.8" fill="#1a1430" fill-opacity=".35"/><path d="M28 21.5 41.4 5.2c1.6-1.9 3.9-.9 3.1 1.4L31.2 23.4Z" fill="#f4eefb" stroke="#221a40" stroke-width="1" stroke-linejoin="round"/><path d="M30 21.8 42.6 6.4" stroke="#b9a6d8" stroke-width=".6"/><path d="M34 16.6l3 .6M36.6 13.4l3 .5M39 10.4l2.6.4" stroke="#b9a6d8" stroke-width=".55"/><path d="M12.5 29.5 15 25h20l2.5 4.5V40a3.5 3.5 0 0 1-3.5 3.5H16A3.5 3.5 0 0 1 12.5 40Z" fill="#e6e0ff" fill-opacity=".26"/><g clip-path="url(#c)"><rect x="10" y="31" width="30" height="14" fill="url(#i)"/><path d="M10 31h30" stroke="#b9c4ff" stroke-width=".8"/><path d="M17 35.5 22.5 38.6 29 35 33.4 39.6" fill="none" stroke="#dfe6ff" stroke-width=".5" stroke-opacity=".8"/><g fill="#fff"><circle cx="17" cy="35.5" r=".7"/><circle cx="22.5" cy="38.6" r=".8"/><circle cx="29" cy="35" r=".7"/><circle cx="33.4" cy="39.6" r=".6"/></g></g><path d="M16 28.6v8" stroke="#fff" stroke-opacity=".7" stroke-width="1.2" stroke-linecap="round"/><path d="M12.5 29.5 15 25h20l2.5 4.5V40a3.5 3.5 0 0 1-3.5 3.5H16A3.5 3.5 0 0 1 12.5 40Z" fill="none" stroke="#221a40" stroke-width="1.5" stroke-linejoin="round"/><rect x="18.5" y="20" width="13" height="5.5" rx="1.4" fill="#9c6c3e" stroke="#4a2f1a" stroke-width=".9"/><path d="M20 21.6h9.5" stroke="#f0cf9c" stroke-width=".7" stroke-opacity=".8"/>${SPARK_LEFT}</svg>`;
-const HAIR_DYE=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="d" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8f889c"/><stop offset=".45" stop-color="#e9e6f0"/><stop offset="1" stop-color="#9a93a8"/></linearGradient><clipPath id="v"><path d="M18 13h12v25a6 6 0 0 1-12 0Z"/></clipPath></defs><ellipse cx="24" cy="46" rx="12" ry="1.8" fill="#1a1430" fill-opacity=".35"/><path d="M35.5 12c4.6 1.6 5.2 5.6 1.2 7.6s-3.8 6.4.6 7.8 4.2 6.4.2 8" fill="none" stroke="#5d566e" stroke-width="3.4" stroke-linecap="round"/><path d="M35.5 12c4.6 1.6 5.2 5.6 1.2 7.6s-3.8 6.4.6 7.8 4.2 6.4.2 8" fill="none" stroke="#d9d4e2" stroke-width="2" stroke-linecap="round"/><path d="M18 13h12v25a6 6 0 0 1-12 0Z" fill="#e6e0ff" fill-opacity=".26"/><g clip-path="url(#v)"><rect x="16" y="21" width="16" height="24" fill="url(#d)"/><path d="M16 21h16" stroke="#fff" stroke-width=".9"/><path d="M22 27l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5Z" fill="#fff"/><circle cx="26.5" cy="34" r=".7" fill="#fff"/><circle cx="21" cy="37" r=".5" fill="#fff" fill-opacity=".8"/></g><path d="M20.4 16v14" stroke="#fff" stroke-opacity=".7" stroke-width="1.2" stroke-linecap="round"/><path d="M18 13h12v25a6 6 0 0 1-12 0Z" fill="none" stroke="#221a40" stroke-width="1.5" stroke-linejoin="round"/><rect x="16.6" y="10.6" width="14.8" height="3" rx="1.2" fill="#e6e0ff" stroke="#221a40" stroke-width="1.1"/><circle cx="24" cy="7.4" r="3.4" fill="#b9a6f2" stroke="#3d2f63" stroke-width=".9"/><path d="M22.6 6.2a1.6 1.6 0 0 1 1.6-1" stroke="#fff" stroke-width=".7" stroke-linecap="round"/><path d="M17.8 17.5h12.4v3H17.8Z" fill="#c3a6e6" stroke="#5a3f7a" stroke-width=".6"/><path d="M17.8 19c-3 .8-4.6 2.6-5 5.2l1.6-.4.2 1.8c1-2.4 2.2-3.8 3.6-4.6Z" fill="#c3a6e6" stroke="#5a3f7a" stroke-width=".6" stroke-linejoin="round"/>${SPARK_LEFT}</svg>`;
-const MIMIC_LURE=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9793f"/><stop offset="1" stop-color="#7a4a26"/></linearGradient></defs><ellipse cx="25" cy="44.5" rx="16" ry="2.2" fill="#1a1430" fill-opacity=".35"/><rect x="10.5" y="27.5" width="29" height="14.5" rx="2.4" fill="url(#w)" stroke="#3b2414" stroke-width="1.3"/><path d="M11.5 25h27v3.2h-27Z" fill="#3a1420"/><path d="M20.8 26.4c1.2 2.9 7.2 2.9 8.4 0Z" fill="#f497c0"/><path d="M12 25l1.9 2.3L15.8 25l1.9 2.3L19.6 25l1.9 2.3L23.4 25l1.9 2.3L27.2 25l1.9 2.3L31 25l1.9 2.3L34.8 25l1.9 2.3L38.6 25Z" fill="#fff8ef" stroke="#3b2414" stroke-width=".55" stroke-linejoin="round"/><path d="M10 24.5c0-5.8 6.6-9.2 15-9.2s15 3.4 15 9.2v1.2H10Z" fill="url(#w)" stroke="#3b2414" stroke-width="1.3" stroke-linejoin="round"/><path d="M23.4 15.4h3.2v10.3h-3.2ZM23.4 27.6h3.2v14.3h-3.2Z" fill="#e8c26a" stroke="#6b4a1a" stroke-width=".6"/><rect x="22.2" y="30.5" width="5.6" height="5" rx="1" fill="#f4d57e" stroke="#6b4a1a" stroke-width=".7"/><circle cx="25" cy="33" r=".8" fill="#6b4a1a"/><path d="M13.6 21.8c1.4-2.6 4.4-4.4 8.4-5" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.1" stroke-linecap="round"/><path d="M25 15.6c-2.6-3.2-6.6-3.4-6.6-1s4 3 6.6 1Zm0 0c2.6-3.2 6.6-3.4 6.6-1s-4 3-6.6 1Z" fill="#f497c0" stroke="#7a3456" stroke-width=".6" stroke-linejoin="round"/><circle cx="25" cy="15.6" r="1.2" fill="#f497c0" stroke="#7a3456" stroke-width=".6"/>${SPARKLES}</svg>`;
-const WISH_SLIP=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><path d="M25 2.5v8" stroke="#f497c0" stroke-width="1.2" stroke-linecap="round"/><path d="M25 6.5c-2.4-2.2-5.2-2-5.2-.2s2.8 2 5.2.2Zm0 0c2.4-2.2 5.2-2 5.2-.2s-2.8 2-5.2.2Z" fill="#f497c0" stroke="#7a3456" stroke-width=".55" stroke-linejoin="round"/><path d="M16.5 10.5h17v31l-8.5-4.2-8.5 4.2Z" fill="#f7efe2" stroke="#6b4a3a" stroke-width="1.2" stroke-linejoin="round"/><path d="M16.5 10.5h17v3.2h-17Z" fill="#c3a6e6" stroke="#6b4a3a" stroke-width=".7" stroke-linejoin="round"/><path d="M25 17.2l1.7 3.5 3.8.6-2.8 2.7.7 3.8-3.4-1.8-3.4 1.8.7-3.8-2.8-2.7 3.8-.6Z" fill="#ffd978" stroke="#b07a2a" stroke-width=".7" stroke-linejoin="round"/><path d="M20 31h10M20 34.4h7.5" stroke="#b9a18a" stroke-width=".8" stroke-linecap="round"/><path d="M19 12.1h12" stroke="#fff" stroke-opacity=".5" stroke-width=".7"/><path d="M25 37.3v3.6" stroke="#b78cf2" stroke-width=".8"/><path d="M25 40.9l-1.8 2L25 46.2l1.8-3.3Z" fill="#b78cf2" stroke="#5a3f7a" stroke-width=".55" stroke-linejoin="round"/>${SPARKLES}</svg>`;
-const INCENSE=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a86b8"/><stop offset="1" stop-color="#4f3f68"/></linearGradient></defs><ellipse cx="25" cy="45.5" rx="14" ry="1.8" fill="#1a1430" fill-opacity=".35"/><path d="M18 40.5l-2.2 4M32 40.5l2.2 4" stroke="#221a40" stroke-width="1.4" stroke-linecap="round"/><path d="M11.5 30.5h27c0 6.6-5.8 11-13.5 11s-13.5-4.4-13.5-11Z" fill="url(#b)" stroke="#221a40" stroke-width="1.3" stroke-linejoin="round"/><path d="M15 34.6c2.6 2.6 17.4 2.6 20 0" fill="none" stroke="#e8d7a8" stroke-width=".8" stroke-opacity=".8"/><ellipse cx="25" cy="30.5" rx="13.5" ry="2.8" fill="#c9b8e0" stroke="#221a40" stroke-width="1.1"/><ellipse cx="25" cy="30.6" rx="10" ry="1.6" fill="#8d8398"/><path d="M25 30.2V17.5" stroke="#8a5a34" stroke-width="1.4" stroke-linecap="round"/><circle cx="25" cy="17" r="1.1" fill="#ffb36b"/><path d="M25 15.4c-2.6-1.8-1.2-4.4.8-5.4s2.4-3.8-.2-5.6" fill="none" stroke="#e7dcff" stroke-width="1.1" stroke-linecap="round" opacity=".85"/><path d="M27.4 13.6c2-1 2.2-3 .8-4.4" fill="none" stroke="#e7dcff" stroke-width=".8" stroke-linecap="round" opacity=".6"/><path d="M39 7.2a4.6 4.6 0 1 0 3.8 7.2 3.7 3.7 0 1 1-3.8-7.2Z" fill="#f1e2b0" stroke="#8a6a2a" stroke-width=".5"/><path d="M17.4 33.2c.4-.9 1.4-1.4 2.6-1.4" stroke="#fff" stroke-opacity=".5" stroke-width=".9" stroke-linecap="round"/><circle cx="10" cy="12" r=".9" fill="#e4d8ff"/><path d="M13 20l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5Z" fill="#e4d8ff"/></svg>`;
-const PUDDING=`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><ellipse cx="25" cy="41" rx="17" ry="4" fill="#f1ecf8" stroke="#221a40" stroke-width="1.2"/><ellipse cx="25" cy="40.4" rx="12.5" ry="2.2" fill="#d9d0ea"/><path d="M14.5 38.6 17.2 23.6c.4-2 2-3.2 4-3.2h7.6c2 0 3.6 1.2 4 3.2l2.7 15c-5.8 2.6-15.2 2.6-21 0Z" fill="#7fb6ff" fill-opacity=".9" stroke="#221a40" stroke-width="1.3" stroke-linejoin="round"/><path d="M18 23.4c1.6-2.2 12.4-2.2 14 0-.6 1.6-13.4 1.6-14 0Z" fill="#4f82d8"/><path d="M18.2 24.8c-.4 3.4.2 4.6 1.2 4.6s1.2-1.6 1.4-3.6Z" fill="#4f82d8"/><path d="M29.6 25c0 2.2.6 3.2 1.4 3.2s1-1 1.1-2.6Z" fill="#4f82d8"/><circle cx="21.6" cy="31.4" r="1.05" fill="#1d2a52"/><circle cx="28.4" cy="31.4" r="1.05" fill="#1d2a52"/><path d="M23.6 33.6q1.4 1.2 2.8 0" stroke="#1d2a52" stroke-width=".85" fill="none" stroke-linecap="round"/><circle cx="19.6" cy="33.6" r="1.1" fill="#f497c0" fill-opacity=".6"/><circle cx="30.4" cy="33.6" r="1.1" fill="#f497c0" fill-opacity=".6"/><path d="M17.4 27l-1.3 8.4" stroke="#fff" stroke-opacity=".75" stroke-width="1.3" stroke-linecap="round"/><circle cx="25" cy="17.8" r="2.3" fill="#f497c0" stroke="#7a3456" stroke-width=".6"/><path d="M25.4 15.6c.5-2 1.7-3 3.3-3.4" stroke="#6b8f5a" stroke-width=".85" fill="none" stroke-linecap="round"/><path d="M24.2 17a.9.9 0 0 1 .9-.7" stroke="#fff" stroke-width=".6" stroke-linecap="round"/>${SPARKLES}</svg>`;
-const ART={
- mana:svgUri(potion(['#a08cf6','#5a4bd2','#2a2180','#d4b8ff','#dcd0ff','#ece4ff'],MARKS.sparkle)),
- pills:svgUri(PILLS),
- bloodlust:svgUri(potion(['#f58a9b','#b3203f','#4f0a1f','#ffb0bd','#ffc9d2','#ffe1e6'],MARKS.drop)),
- starpower:svgUri(potion(['#9dbdff','#3152c8','#131a66','#ffe7a8','#d3e1ff','#fff3cf'],MARKS.star)),
- focus:svgUri(potion(['#a6f2cf','#2e9f7c','#0e4739','#c8ffe6','#d6fff1','#ecfff7'],MARKS.sight)),
- resonance:svgUri(potion(['#ffb6ee','#bf4ab5','#561862','#ffd6f6','#ffd9f4','#fff0fb'],MARKS.rings)),
- featherlight:svgUri(potion(['#f0fcff','#8ed2ef','#387fb3','#ffffff','#ffffff','#ffffff'],MARKS.feather)),
- isolation:svgUri(potion(['#eeffdc','#8dd488','#2d7548','#f3ffd9','#f4ffe4','#ffffff'],MARKS.leaf)),
- extractor:svgUri(EXTRACTOR),
- mimic:svgUri(MIMIC),
- starspring:svgUri(potion(['#dcfbff','#6fd0e6','#1f6f95','#e6fdff','#f0ffff','#ffffff'],MARKS.heart)),
- bread:svgUri(BREAD),
- flameflask:svgUri(potion(['#ffd27a','#f06a2a','#7a1d12','#ffcf8a','#ffe2b0','#fff0cf'],MARKS.flame)),
- ward:svgUri(potion(['#fff0b8','#e0b44a','#7a5418','#fff3c4','#fff6d6','#ffffff'],MARKS.rune)),
- starink:svgUri(STAR_INK),
- homeward:svgUri(potion(['#ffe3c7','#e59a7a','#7b3f52','#ffd9c2','#ffeede','#ffffff'],MARKS.home)),
- bottledsky:svgUri(potion(['#4b5bd6','#1d2270','#090b2e','#9fb4ff','#8fa2ff','#dfe6ff'],MARKS.sky)),
- hairdye:svgUri(HAIR_DYE),
- mimiclure:svgUri(MIMIC_LURE),
- wishslip:svgUri(WISH_SLIP),
- incense:svgUri(INCENSE),
- pudding:svgUri(PUDDING)
-};
-
-/* Preview data. Quantities are per brew; `yield` is how many items one brew produces. */
-const MATERIALS=[
- ['water','瓶装水','#9fc6ee','玻璃瓶 · 任意水源'],['honey','瓶装蜂蜜','#f2c14e','丛林 · 蜂巢'],
- ['moonglow','月光草','#8fd2ff','丛林 · 夜间采集'],['daybloom','太阳花','#f0d27c','森林地表 · 白昼'],
- ['deathweed','死亡草','#c77fa4','腐化或猩红之地 · 血月'],['fireblossom','火焰花','#ff9a5a','地狱 · 灰烬地'],
- ['star','坠落之星','#f1d38e','夜空坠落'],['lens','晶状体','#e7dff0','恶魔眼'],['gel','凝胶','#7fb6ff','史莱姆'],
- ['feather','羽毛','#e4e0ee','鸟妖 · 空岛'],['cobweb','蛛丝','#d4cfdc','地下洞穴'],['powder','净化粉','#b7e4a6','树妖出售'],
- ['amethyst','紫晶','#b78cf2','地下 · 宝石矿'],['ash','灰烬块','#aaa3b3','地狱'],['glass','玻璃','#bfe3ea','熔炉 · 沙块'],
- ['shimmer','微光液滴','#f0b8ff','以太 · 微光湖']
-].map(([id,name,color,source])=>({id,name,color,source}));
-const MAT=Object.fromEntries(MATERIALS.map(m=>[m.id,m]));
-const CATEGORIES=[['recovery','恢复','RECOVERY'],['combat','战斗','COMBAT'],['utility','功能','UTILITY'],['curio','奇物','CURIOS']];
+const escapeHtml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const RECIPES=ALCHEMY_PLAN.items,MATERIALS=ALCHEMY_PLAN.materials,CATEGORIES=ALCHEMY_PLAN.categories;
+const RECIPE=Object.fromEntries(RECIPES.map(r=>[r.id,r])),MAT=Object.fromEntries(MATERIALS.map(m=>[m.id,m]));
 const CAT_NAME=Object.fromEntries(CATEGORIES.map(([id,name])=>[id,name]));
-const hudStats=()=>({mp:typeof combat!=='undefined'?combat.mpMax:100,hp:typeof combat!=='undefined'?combat.hpMax:1200});
-const RECIPES=[
- {id:'mana',cat:'recovery',name:'魔力合剂',mask:'？？合剂',kind:'药剂 · 瞬时回复',art:'mana',tint:'#9d8cf0',
-  desc:'伊蕾娜的专属魔力回复剂。瑠璃色的药液里，漂着细小的星屑。',
-  effects:[['立即回复魔力','45% 上限'],['魔力再生','+50% · 8 秒'],['伊蕾娜专属','不引发魔力病']],
-  live:()=>{const {mp}=hudStats();return [`按当前魔力上限 ${mp}`,`回复 ${Math.round(mp*.45)} 点`]},
-  mats:{water:2,moonglow:1,star:1},yield:2,xp:5,unlock:{initial:true},riddle:'瑠璃色的药液，只有灰之魔女喝得惯。'},
- {id:'painkiller',cat:'recovery',name:'止痛药',mask:'？？药',kind:'药片 · 持续 30 秒',art:'pills',tint:'#f1a7c4',
-  desc:'裹着一层凝胶糖衣的小药片。旅途中难免磕磕碰碰，吞下一片就能慢慢缓过来。',
-  effects:[['持续恢复','每秒 2% 生命上限'],['持续时间','30 秒'],['合计','至多 60% 生命上限']],
-  live:()=>{const {hp}=hudStats();return [`按当前生命上限 ${hp.toLocaleString()}`,`每秒 ${Math.round(hp*.02)} 点`]},
-  mats:{daybloom:2,gel:2,water:1},yield:3,xp:4,unlock:{initial:true},riddle:'裹着糖衣的小小慰藉。'},
- {id:'bloodlust',cat:'combat',name:'嗜血药水',mask:'？？药水',kind:'药水 · 持续 4 分钟',art:'bloodlust',tint:'#e0566f',
-  desc:'猩红的药液带着铁锈味。喝下后心跳会变得很吵——受到的伤害也会变多。',
-  effects:[['受到伤害','+20%','bad'],['近战生命偷取','+5%'],['近战伤害','+10%']],
-  mats:{water:1,deathweed:2,lens:1},yield:1,xp:7,unlock:{recipe:'染血的残页',source:'血月之夜，血腥僵尸偶尔会掉落染血的配方残页。'},riddle:'猩红的气味，会唤醒猎食者的本能。'},
- {id:'starpower',cat:'combat',name:'星力药水',mask:'？？药水',kind:'药水 · 持续 6 分钟',art:'starpower',tint:'#6f8ff0',
-  desc:'把坠落之星的光屑封进夜色里。魔力的容量越大，星光就越亮。',
-  effects:[['每 1 点魔力上限','魔法伤害 +0.05%']],
-  live:()=>{const {mp}=hudStats();return [`按当前魔力上限 ${mp}`,`魔法伤害 +${(mp*.05).toFixed(1)}%`]},
-  mats:{water:1,star:2,moonglow:1},yield:1,xp:8,unlock:{level:3},riddle:'魔力的容量，本身就是力量。'},
- {id:'focus',cat:'combat',name:'集中药水',mask:'？？药水',kind:'药水 · 持续 5 分钟',art:'focus',tint:'#5cc9a0',
-  desc:'屏息、瞄准、放手。远程攻击越是正对目标中心，造成的伤害就越高。',
-  effects:[['远程攻击伤害','最多 +30%'],['攻击方向与目标中心','夹角越小越高']],
-  mats:{water:1,lens:2,daybloom:1},yield:1,xp:7,unlock:{recipe:'猎手的瞄准笔记',source:'军火商会在夜里出售这份配方（需持有任意远程武器）。'},riddle:'瞄准的那一瞬间，世界只剩下一条直线。'},
- {id:'resonance',cat:'combat',name:'共鸣药水',mask:'？？药水',kind:'药水 · 持续 6 分钟',art:'resonance',tint:'#d27ad0',
-  desc:'蛛丝能把细小的震动传得很远。鞭痕落下的地方，仆从与哨兵会彼此呼应。',
-  effects:[['攻击被鞭子标记的敌人','仆从与哨兵 +12%'],['持续攻击同一目标','3 秒内升至 +24%'],['切换标记目标','重新积累']],
-  mats:{water:1,cobweb:3,moonglow:1},yield:1,xp:8,unlock:{recipe:'共振的乐谱',source:'撒旦军队被击退后，酒馆老板会出售这份配方。'},riddle:'鞭痕之上，同伴的攻击会彼此呼应。'},
- {id:'featherlight',cat:'utility',name:'轻羽药水',mask:'？？药水',kind:'药水 · 持续 8 分钟',art:'featherlight',tint:'#8fd3f0',
-  desc:'喝起来像晴天的风。扫帚会变得像羽毛一样轻——骑扫帚旅行的魔女必备。',
-  effects:[['飞行速度','+20%'],['扫帚速度','+20%']],
-  mats:{water:1,feather:2,daybloom:1},yield:1,xp:6,unlock:{level:2},riddle:'让扫帚像羽毛一样轻。'},
- {id:'isolation',cat:'utility',name:'隔离药水',mask:'？？药水',kind:'药水 · 滴落使用',art:'isolation',tint:'#8fd68a',
-  desc:'只要一滴，蔓延的腐化与猩红便会在此止步。滴在物块上后，会一路向下渗透净化。',
-  effects:[['滴落的物块','立即净化'],['其下方的物块','全部净化']],
-  mats:{water:1,powder:3,daybloom:1},yield:1,xp:6,unlock:{recipe:'树妖的嘱托',source:'世界中出现腐化或猩红后，树妖会出售这份配方。'},riddle:'一滴落下，蔓延便止步于此。'},
- {id:'extractor',cat:'utility',name:'微光提取器',mask:'？？？？器',kind:'工具 · 可重复使用',art:'extractor',tint:'#c9a6ff',
-  desc:'用玻璃与凝胶密封的小罐子。能把流动的微光装进罐中，也能再倒出来，用法与水桶相同。',
-  effects:[['第一次使用','吸收 1 格微光'],['再次使用','放出 1 格微光']],
-  mats:{glass:6,gel:3,star:1},yield:1,xp:12,unlock:{level:4},riddle:'能把流动的光装进罐中的器具。'},
- {id:'mimic',cat:'utility',name:'灰赝尘',mask:'？？尘',kind:'素材 · 合成辅助',art:'mimic',tint:'#b1a9bd',
-  desc:'以假乱真的灰色粉末。在工作台前撒上一撮，缺少的那几样材料好像就凑齐了（伊蕾娜炼金不适用）。',
-  effects:[['适用于','泰拉原版合成'],['需持有','至少 1 种所需材料'],['需满足','总需求的 50% 以上'],['效果','以灰赝尘替代缺少的素材']],
-  mats:{ash:4,shimmer:1},yield:5,xp:10,unlock:{level:5},riddle:'以假乱真的灰色粉末。'},
- {id:'starspring',cat:'recovery',name:'星泉清露',mask:'？？清露',kind:'药水 · 瞬时回复',art:'starspring',tint:'#6fd0e6',
-  desc:'用星泉微雨落下时接住的第一捧水调成。清凉微甜，喝下后伤口会轻轻发光。',
-  effects:[['立即回复生命','150 点'],['同时解除','流血 · 中毒'],['药水冷却','比治疗药水短 25%']],
-  mats:{water:1,honey:1,moonglow:1},yield:2,xp:6,unlock:{level:2},riddle:'星雨落下时接住的第一捧水。'},
- {id:'bread',cat:'recovery',name:'蜂蜜星屑面包',mask:'？？？？面包',kind:'食物 · 饱食 10 分钟',art:'bread',tint:'#e9b567',
-  desc:'烤得金黄的面包，抹上蜂蜜，再撒一点星屑。据说某位魔女每天早上都吃不腻。',
-  effects:[['饱食 · 中级','10 分钟'],['立即回复生命','60 点']],
-  mats:{honey:1,daybloom:2,star:1},yield:2,xp:5,unlock:{initial:true},riddle:'旅途中最常见的早餐。'},
- {id:'flameflask',cat:'combat',name:'焰心投掷瓶',mask:'？？投掷瓶',kind:'投掷物 · 范围火焰',art:'flameflask',tint:'#f07a3a',
-  desc:'瓶里封着一小团火焰花的火种。扔出去摔碎的瞬间，会绽开一朵小小的焰花。',
-  effects:[['碎裂时','60 点火焰伤害'],['波及范围','半径 3 格'],['附加','着火 · 5 秒']],
-  mats:{fireblossom:2,gel:2,glass:1},yield:5,xp:5,unlock:{recipe:'爆破专家的草稿',source:'持有任意炸弹时，爆破专家会出售这份配方。'},riddle:'摔碎的瞬间，会开出一朵焰花。'},
- {id:'ward',cat:'combat',name:'结界符水',mask:'？？符水',kind:'药水 · 持续 5 分钟',art:'ward',tint:'#e0b44a',
-  desc:'把紫晶磨成粉，溶进写着结界符文的水里。喝下后，身边会浮起一层看不见的薄膜。',
-  effects:[['防御','+8'],['每 15 秒','抵挡一次伤害的 30%']],
-  mats:{water:1,amethyst:1,moonglow:1},yield:1,xp:8,unlock:{level:3},riddle:'一层看不见的薄膜，替你挨下第一击。'},
- {id:'starink',cat:'utility',name:'星图墨水',mask:'？？墨水',kind:'墨水 · 持续 5 分钟',art:'starink',tint:'#5b6fd6',
-  desc:'死亡草熬成的深紫墨水里，混进一点星屑。涂在地图上，附近的矿脉与宝箱会像星星一样亮起来。',
-  effects:[['矿石与宝箱','在屏幕与地图上发光'],['探测范围','周围 50 格']],
-  mats:{deathweed:1,star:1,glass:1},yield:1,xp:7,unlock:{recipe:'褪色的星图',source:'地下小屋的书架上，偶尔夹着一张褪色的星图。'},riddle:'把地底的宝藏，画成夜空里的星星。'},
- {id:'homeward',cat:'utility',name:'归途瓶',mask:'？？瓶',kind:'药水 · 往返传送',art:'homeward',tint:'#e59a7a',
-  desc:'旅人的往返车票。第一口送你回家；三分钟内喝完剩下的一半，就能回到刚才离开的地方。',
-  effects:[['第一口','传送回出生点或床'],['3 分钟内喝第二口','回到离开的位置'],['吟唱','2 秒']],
-  mats:{water:1,feather:1,amethyst:1},yield:1,xp:6,unlock:{level:3},riddle:'一张可以往返的车票。'},
- {id:'bottledsky',cat:'curio',name:'瓶中星空',mask:'瓶中？？',kind:'照明宠物 · 常驻',art:'bottledsky',tint:'#5a6ae0',
-  desc:'把一小片夜空封进瓶子里。它会跟在你身边轻轻发光，到了夜里还会再亮几分。',
-  effects:[['召唤','漂浮的星空瓶'],['光照','与暗影珠相当'],['夜晚','光照范围 +50%']],
-  mats:{glass:2,star:2,shimmer:1},yield:1,xp:10,unlock:{level:4},riddle:'一小片装进瓶里的夜空。'},
- {id:'hairdye',cat:'curio',name:'灰之发色剂',mask:'？？发色剂',kind:'染发剂 · 永久',art:'hairdye',tint:'#b9b3c6',
-  desc:'染出和灰之魔女一样的发色。在月光下，发梢会泛起淡淡的银光。',
-  effects:[['发色','灰之魔女的灰白色'],['月光下','发梢泛起银光']],
-  mats:{ash:3,water:1,moonglow:1},yield:1,xp:5,unlock:{recipe:'发型师的调色笔记',source:'发型师对你的好感足够高时，会悄悄出售这份配方。'},riddle:'和某位魔女一模一样的发色。'},
- {id:'mimiclure',cat:'curio',name:'宝箱怪诱饵',mask:'？？？诱饵',kind:'陷阱 · 一次性',art:'mimiclure',tint:'#c9864a',
-  desc:'闻起来像蜂蜜，又像金币。放进箱子里，下一次打开时——请做好心理准备。',
-  effects:[['放入箱子','下次开启时引出宝箱怪'],['击败后','额外掉落 1 件战利品'],['困难模式','引出对应地形的宝箱怪']],
-  mats:{gel:3,lens:1,honey:1},yield:1,xp:9,unlock:{level:5},riddle:'闻起来像蜂蜜，又像金币。'},
- {id:'wishslip',cat:'curio',name:'星愿签',mask:'？？签',kind:'消耗品 · 持续 10 分钟',art:'wishslip',tint:'#ffd978',
-  desc:'在细长的纸签上写下愿望，系上一颗紫晶。流星雨的夜晚，愿望好像更容易实现。',
-  effects:[['幸运','+0.2'],['持续时间','10 分钟'],['流星雨之夜','效果翻倍']],
-  mats:{star:1,amethyst:1,cobweb:1},yield:3,xp:6,unlock:{level:2},riddle:'写下愿望，等一颗流星。'},
- {id:'incense',cat:'curio',name:'月露安眠香',mask:'？？安眠香',kind:'家具 · 放在床边',art:'incense',tint:'#a58bd6',
-  desc:'月光草与蜂蜜调成的香，燃起来有淡淡的甜味。在它旁边睡一觉，醒来会格外精神。',
-  effects:[['在床上休息时','时间流逝加快'],['醒来后','生命与魔力再生 +20%'],['安眠持续','5 分钟']],
-  mats:{moonglow:2,honey:1,ash:1},yield:1,xp:7,unlock:{level:4},riddle:'淡淡的甜香，一夜好梦。'},
- {id:'pudding',cat:'curio',name:'凝胶布丁',mask:'？？布丁',kind:'宠物道具 · 一次性',art:'pudding',tint:'#7fb6ff',
-  desc:'软软弹弹的蓝色布丁。喂给一只史莱姆，它就会一蹦一跳地跟着你去旅行。',
-  effects:[['喂给史莱姆','成为跟随你的宠物'],['宠物','不参与战斗']],
-  mats:{gel:4,honey:1,daybloom:1},yield:1,xp:6,unlock:{recipe:'黏糊糊的便条',source:'击败史莱姆王后，偶尔会在一地凝胶里发现这张便条。'},riddle:'软软弹弹，史莱姆的最爱。'}
-];
-const RECIPE=Object.fromEntries(RECIPES.map(r=>[r.id,r]));
-const LEVEL_NEEDS=[20,30,40,50],MAX_LEVEL=LEVEL_NEEDS.length+1,MAX_BREW=99,STORE='elaina-alchemy-notebook-v1';
-const INITIAL={level:1,xp:12,
- materials:{water:16,honey:4,moonglow:6,daybloom:8,deathweed:3,fireblossom:3,star:5,lens:2,gel:10,feather:4,cobweb:3,powder:2,amethyst:2,ash:12,glass:4,shimmer:1},
- products:{mana:3,painkiller:6,bread:2},recipes:[]};
-const RESTOCK={water:8,honey:3,moonglow:4,daybloom:4,deathweed:3,fireblossom:3,star:3,lens:3,gel:6,feather:3,cobweb:4,powder:4,amethyst:2,ash:8,glass:6,shimmer:2};
-const STATE_NAMES={ready:'可炼制',short:'缺素材',locked:'未解锁'};
-let st=fresh(),selected='mana',stateFilter='all',qty=1,brewing=false,toastTimer=null,brewTimer=null,helpReturn=null;
-function fresh(){return JSON.parse(JSON.stringify(INITIAL))}
+const ASSET_ROOT='../../../ElainaModAlchemy/item/ExampleAssets/';
+const STORE='elaina-alchemy-plan-v2-'+PAGE_VARIANT,MAX_BREW=99;
+const STATE_NAMES={ready:'可炼制',short:'缺素材',acquire:'可取得'};
+let st=fresh(),selected='mana',category='potion',stateFilter='all',qty=1,artStyle=DEFAULT_ART;
+let brewing=false,toastTimer=null,brewTimer=null,helpReturn=null;
+function fresh(){return {materials:Object.fromEntries(MATERIALS.map(m=>[m.id,m.initial||0])),products:{mana:3,painkiller:3,bread:2}}}
 function load(){
- let raw;try{raw=JSON.parse(localStorage.getItem(STORE)||'null')}catch{raw=null}
- if(!raw||raw.version!==1)return;
- const next=fresh();
- if(Number.isInteger(raw.level)&&raw.level>=1&&raw.level<=MAX_LEVEL)next.level=raw.level;
- const need=next.level<MAX_LEVEL?LEVEL_NEEDS[next.level-1]:1;
- next.xp=Number.isInteger(raw.xp)&&raw.xp>=0&&next.level<MAX_LEVEL?Math.min(raw.xp,need-1):0;
- for(const m of MATERIALS){const v=raw.materials?.[m.id];if(Number.isInteger(v)&&v>=0)next.materials[m.id]=Math.min(v,9999)}
- for(const r of RECIPES){const v=raw.products?.[r.id];if(Number.isInteger(v)&&v>=0)next.products[r.id]=Math.min(v,9999)}
- if(Array.isArray(raw.recipes))next.recipes=[...new Set(raw.recipes.filter(id=>RECIPE[id]?.unlock.recipe))];
- st=next;
+ let raw;try{raw=JSON.parse(localStorage.getItem(STORE)||'null')}catch{return}
+ if(raw?.version!==2)return;
+ for(const id of Object.keys(st.materials)){const n=raw.materials?.[id];if(Number.isInteger(n)&&n>=0)st.materials[id]=Math.min(9999,n)}
+ for(const r of RECIPES){const n=raw.products?.[r.id];if(Number.isInteger(n)&&n>=0)st.products[r.id]=Math.min(9999,n)}
 }
-function save(){try{localStorage.setItem(STORE,JSON.stringify({version:1,...st}))}catch{}}
+function save(){try{localStorage.setItem(STORE,JSON.stringify({version:2,...st}))}catch{}}
 const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const unlocked=r=>!!(r.unlock.initial||(r.unlock.level&&st.level>=r.unlock.level)||(r.unlock.recipe&&st.recipes.includes(r.id)));
-const maxBrew=r=>Math.min(MAX_BREW,...Object.entries(r.mats).map(([id,n])=>Math.floor((st.materials[id]||0)/n)));
-const stateOf=r=>!unlocked(r)?'locked':maxBrew(r)>0?'ready':'short';
-const xpNeed=()=>st.level<MAX_LEVEL?LEVEL_NEEDS[st.level-1]:null;
-const xpPercent=()=>{const need=xpNeed();return need?Math.min(100,st.xp/need*100):100};
-const unlockLabel=r=>r.unlock.level?`炼金术 Lv.${r.unlock.level}`:'需要配方';
+const choices=row=>Array.isArray(row[0])?row[0]:[row[0]];
+const available=row=>choices(row).reduce((sum,id)=>sum+(st.materials[id]||0),0);
+const maxBrew=r=>r.mats?.length?Math.min(MAX_BREW,...r.mats.map(row=>Math.floor(available(row)/row[1]))):0;
+const stateOf=r=>r.acquisition?'acquire':maxBrew(r)>0?'ready':'short';
+const owned=r=>(r.outputMaterial||r.material)?st.materials[r.outputMaterial||r.material]||0:st.products[r.id]||0;
+const visibleItems=()=>RECIPES.filter(r=>r.cat===category&&(stateFilter==='all'||stateOf(r)===stateFilter));
 const cardEl=id=>$a('alc-shelves').querySelector(`[data-recipe="${id}"]`);
-const GRID=CATEGORIES.map(([id])=>RECIPES.filter(r=>r.cat===id).map(r=>r.id));
-function artHtml(r,locked){
- return locked?`<span class="alc-mystery" aria-hidden="true"><span class="alc-silhouette" style="--art:url('${ART[r.art]}')"></span><span class="alc-q">?</span></span>`
-  :`<span class="icon-art"><img src="${ART[r.art]}" alt="" draggable="false"></span>`;
+function consume(r,count){
+ if(!Number.isInteger(count)||count<1||count>maxBrew(r))return false;
+ for(const row of r.mats){let need=row[1]*count;for(const id of choices(row)){const take=Math.min(st.materials[id]||0,need);st.materials[id]-=take;need-=take}}
+ const bag=r.outputMaterial?st.materials:st.products,key=r.outputMaterial||r.id;
+ bag[key]=Math.min(9999,(bag[key]||0)+r.yield*count);
+ return true;
+}
+function artHtml(r){
+ if(artStyle==='pixel'){
+  const [w,h]=r.pixelSize;
+  return `<span class="icon-art pixel-art" style="--pixel-width:${w*2}px;--pixel-height:${h*2}px"><img src="${ASSET_ROOT+r.art}_Pixel.png" width="${w*2}" height="${h*2}" alt="" draggable="false"></span>`;
+ }
+ return `<span class="icon-art"><img src="${ASSET_ROOT+r.art+(artStyle==='pencil'?'_Pencil.png':'.svg')}" alt="" draggable="false"></span>`;
+}
+function materialArt(m){
+ const src=ASSET_ROOT+(m.art?m.art+'_Pencil.png':'Materials/'+m.id+'_Pencil.png');
+ return `<img src="${src}" alt="" draggable="false">`;
 }
 function offsetWithin(el,ancestor){let x=0,y=0;while(el&&el!==ancestor){x+=el.offsetLeft;y+=el.offsetTop;el=el.offsetParent}return {x,y}}
-
 function renderRank(){
- const need=xpNeed();
- $a('alc-level').textContent=`Lv.${st.level}`;
- $a('alc-xp-fill').style.width=`${xpPercent()}%`;$a('alc-xp-fill').parentElement.classList.toggle('maxed',!need);
- $a('alc-xp-text').textContent=need?`炼金经验 ${st.xp} / ${need}`:'炼金术已臻满级';
- $a('alc-rank').title=need?`炼金术 Lv.${st.level} · 距下一级还需 ${need-st.xp} 经验`:`炼金术 Lv.${st.level} · 满级`;
+ $a('alc-count-products').textContent=String(RECIPES.filter(r=>r.cat!=='material').length);
+ $a('alc-count-materials').textContent=String(RECIPES.filter(r=>r.cat==='material').length);
 }
 function renderFilters(){
- const tally={all:RECIPES.length,ready:0,short:0,locked:0};for(const r of RECIPES)tally[stateOf(r)]++;
+ const counts={all:RECIPES.length,ready:0,short:0,acquire:0};RECIPES.forEach(r=>counts[stateOf(r)]++);
  $a('alc-filters').querySelectorAll('[data-state-filter]').forEach(button=>{
   const key=button.dataset.stateFilter,active=key===stateFilter;
   button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
-  button.querySelector('.filter-count').textContent=pad(tally[key]);
-  button.setAttribute('aria-label',`${key==='all'?'全部':STATE_NAMES[key]}，${tally[key]} 项`);
+  button.disabled=key!=='all'&&counts[key]===0;
+  button.querySelector('.filter-count').textContent=pad(counts[key]);
  });
- $a('alc-progress').textContent=pad(RECIPES.filter(unlocked).length);$a('alc-total').textContent=`/ ${RECIPES.length}`;
+ $a('alc-progress').textContent=pad(visibleItems().length);
+ $a('alc-total').textContent='/ '+pad(RECIPES.filter(r=>r.cat===category).length);
+ $a('alc-art-controls').querySelectorAll('[data-art-mode]').forEach(b=>{const active=b.dataset.artMode===artStyle;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
+ $a('alchemy-panel').dataset.artMode=artStyle;
 }
+function renderCategories(){
+ const focus=document.activeElement?.dataset?.category;
+ $a('alc-categories').innerHTML=CATEGORIES.map(([id,name])=>`<button type="button" data-category="${id}" aria-pressed="${id===category}" class="${id===category?'active':''}">${name}<small>${pad(RECIPES.filter(r=>r.cat===id).length)}</small></button>`).join('');
+ if(focus)$a('alc-categories').querySelector(`[data-category="${focus}"]`)?.focus({preventScroll:true});
+}
+const PAGE_COPY={
+ potion:['随身的魔药','为旅途补充魔力，为战斗调配一点勇气。','“药瓶上系着的丝带，是我认出它们的小记号。”'],
+ curio:['旅途中的奇物','盛住微光，唤来细雨，也让暗处的危险显形。','“所谓炼金，大概就是替寻常事物发现另一种可能。”'],
+ food:['魔女的厨房','热汤与甜点，让漫长的旅途也有值得期待的一餐。','“我擅长炖菜，不过甜点总是更容易让我动心。”'],
+ material:['行囊与素材','基础药液在锅中调制，日常食材向商人购入。','“把每一种材料的来处记清楚，下一次就不用翻遍行囊了。”']
+};
 function cardHtml(r){
- const s=stateOf(r),no=pad(RECIPES.indexOf(r)+1),own=st.products[r.id]||0,can=s==='locked'?0:maxBrew(r),active=r.id===selected;
- const dim=stateFilter!=='all'&&s!==stateFilter;
- const meta=s==='locked'?`<span>${unlockLabel(r)}</span>`:`<span>持有<b>${own}</b></span><span class="can">可制<b>${can}</b></span>`;
- const label=s==='locked'?`No.${no}，未解锁的${r.mask}，${unlockLabel(r)}`:`No.${no} ${r.name}，${STATE_NAMES[s]}，持有 ${own}，可制 ${can} 份`;
- return `<button class="alc-card ${s}${active?' selected':''}${dim?' dimmed':''}" type="button" data-recipe="${r.id}" style="--tint:${r.tint}" aria-pressed="${active}" aria-label="${label}" title="${s==='locked'?r.riddle:r.name}"><span class="alc-no" aria-hidden="true">No.${no}</span><i class="alc-glyph ${s}" aria-hidden="true"></i><span class="alc-frame">${artHtml(r,s==='locked')}</span><span class="alc-name">${s==='locked'?r.mask:r.name}</span><span class="alc-meta">${meta}</span></button>`;
-}
-function noteHtml(){
- const need=xpNeed(),next=RECIPES.filter(r=>r.unlock.level&&!unlocked(r)).sort((a,b)=>a.unlock.level-b.unlock.level)[0];
- const text=next?`“等炼金术到 Lv.${next.unlock.level}，「${next.mask}」那一页大概就读得懂了。”`:'“读得懂的都记下了。剩下的配方，去旅途里找吧。”';
- return `<div class="alc-note"><svg class="alc-note-quill" aria-hidden="true"><use href="#notebook-quill"/></svg><p>${text}</p><div class="alc-note-xp"><span>炼金经验 · Lv.${st.level}</span><b>${need?`${st.xp} / ${need}`:'满级'}</b></div><div class="alc-xp-track${need?'':' maxed'}"><i style="width:${xpPercent()}%"></i></div><small>— 伊蕾娜的批注</small></div>`;
+ const state=stateOf(r),active=r.id===selected,no=pad(RECIPES.indexOf(r)+1),name=escapeHtml(r.name);
+ const info=r.acquisition?`<span>${escapeHtml(r.stage)}</span><span>持有<b>${owned(r)}</b></span>`:`<span>每批<b>×${r.yield}</b></span><span class="can">可制<b>${maxBrew(r)}</b></span>`;
+ return `<button class="alc-card ${state}${active?' selected':''}" type="button" data-recipe="${r.id}" aria-pressed="${active}" aria-label="${name}，${STATE_NAMES[state]}" title="${name} · ${escapeHtml(r.stage)}"><span class="alc-no">No.${no}</span><i class="alc-glyph ${state}" aria-hidden="true"></i><span class="alc-frame">${artHtml(r)}</span><span class="alc-name">${name}</span><span class="alc-meta">${info}</span></button>`;
 }
 function renderCatalog(){
- const focused=document.activeElement?.closest?.('.alc-card')?.dataset.recipe;
- $a('alc-shelves').innerHTML=CATEGORIES.map(([id,name,en])=>`<section class="alc-shelf" aria-label="${name}"><div class="alc-shelf-label" aria-hidden="true"><i></i><span>${name}</span><small>${en}</small></div><div class="alc-row">${RECIPES.filter(r=>r.cat===id).map(cardHtml).join('')}${id==='recovery'?noteHtml():''}</div></section>`).join('');
- if(focused)cardEl(focused)?.focus({preventScroll:true});
- placeButterfly();
+ const focus=document.activeElement?.closest?.('.alc-card')?.dataset.recipe,items=visibleItems(),copy=PAGE_COPY[category];
+ $a('alc-page-title').textContent=copy[0];$a('alc-page-description').textContent=copy[1];
+ $a('alc-shelves').innerHTML=items.length?`<div class="alc-row">${items.map(cardHtml).join('')}</div><div class="plan-page-note"><svg aria-hidden="true"><use href="#notebook-quill"/></svg><p>${copy[2]}</p><small>— 伊蕾娜的手记</small></div>`:'<div class="plan-empty">这一页暂时没有符合条件的条目。<small>试试切换分类，或查看全部。</small></div>';
+ if(focus)cardEl(focus)?.focus({preventScroll:true});
+ placeSelectionQuill();
 }
-function placeButterfly(){
- const marker=$a('alc-butterfly'),card=cardEl(selected);
- marker.hidden=!card||card.classList.contains('dimmed');if(marker.hidden)return;
- const {x,y}=offsetWithin(card,$a('alc-catalog'));
- marker.style.transform=`translate(${x+card.offsetWidth-18}px,${y-13}px) rotate(16deg)`;
+function placeSelectionQuill(){
+ const marker=$a('alc-selection-quill'),card=cardEl(selected),scroller=$a('alc-shelves');
+ marker.hidden=!card;if(!card)return;
+ const height=marker.offsetHeight||42,width=marker.offsetWidth||22;
+ const {x,y}=offsetWithin(card,$a('alc-catalog')),top=y-scroller.scrollTop+card.offsetHeight-height-8;
+ marker.hidden=top<scroller.offsetTop-4||top+height>scroller.offsetTop+scroller.clientHeight+4;
+ marker.style.transform=`translate(${x+card.offsetWidth-Math.round(width/3)}px,${top}px)`;
 }
 function effectRows(r){
- const rows=r.effects.map(([label,value,tone])=>`<li class="${tone||''}"><span>${label}</span><b>${value}</b></li>`);
- if(r.live){const [label,value]=r.live();rows.push(`<li class="live"><span>${label}</span><b>${value}</b></li>`)}
+ const rows=r.effects.map(([name,value,tone])=>`<li class="${tone||''}"><span>${escapeHtml(name)}</span><b>${escapeHtml(value)}</b></li>`);
+ if(r.live==='starpower'){
+  const mp=typeof combat!=='undefined'?combat.mpMax:100,bonus=Number((mp*.05).toFixed(2));
+  rows.push(`<li class="live"><span>当前魔力上限 ${mp}</span><b>魔法伤害 +${bonus}%</b></li>`);
+ }
  return rows.join('');
 }
-function unlockHtml(r){
- if(r.unlock.level){
-  const need=xpNeed(),gap=r.unlock.level-st.level;
-  return `<h3>解锁条件</h3><p class="alc-unlock-main">炼金术达到 <b>Lv.${r.unlock.level}</b></p><div class="alc-unlock-progress"><span>当前 Lv.${st.level}${gap>1?` · 还需升 ${gap} 级`:''}</span><span>${need?`${st.xp} / ${need}`:''}</span></div><div class="alc-xp-track"><i style="width:${xpPercent()}%"></i></div><p class="alc-unlock-note">炼制已解锁的道具，就能积累炼金经验。</p>`;
- }
- return `<h3>解锁条件</h3><p class="alc-unlock-main">获得配方「${r.unlock.recipe}」</p><p class="alc-unlock-note">线索：${r.unlock.source}</p><button class="upgrade-button" type="button" id="alc-find">拾得配方<span>演练</span></button>`;
-}
-function matRows(r,locked){
- // Locked entries reveal one telling ingredient; bottled water is shared by nearly every potion.
- const clue=Object.keys(r.mats).find(id=>id!=='water')||Object.keys(r.mats)[0];
- return Object.entries(r.mats).map(([id,n])=>{
-  if(locked&&id!==clue)return `<li class="alc-mat is-unknown"><span class="alc-mat-icon" aria-hidden="true">?</span><span class="alc-mat-name">未知素材<small>解锁后才会写下</small></span><span class="alc-mat-count">× ${n}</span></li>`;
-  const m=MAT[id],have=st.materials[id]||0,need=n*qty,short=!locked&&have<need;
-  return `<li class="alc-mat${short?' short':''}" style="--mat:${m.color}"><span class="alc-mat-icon" aria-hidden="true"><svg><use href="#am-${id}"/></svg></span><span class="alc-mat-name">${m.name}<small>${m.source}</small></span><span class="alc-mat-count">${locked?`每份 × ${n}`:`<b>${have}</b> / ${need}`}</span></li>`;
+function matRows(r){
+ return (r.mats||[]).map(row=>{
+  const ids=choices(row),name=ids.map(id=>MAT[id].name).join(' / '),have=available(row),need=row[1]*qty,lack=have<need;
+  const icons=ids.map(id=>`<span class="alc-mat-icon">${materialArt(MAT[id])}</span>`).join('');
+  const source=ids.length>1?'二者可合计使用':MAT[ids[0]].source,entry=ids.length===1&&MAT[ids[0]].entry;
+  const heading=entry?`<button type="button" class="plan-mat-link" data-open-entry="${entry}">${escapeHtml(name)}<em>查看</em></button>`:escapeHtml(name);
+  return `<li class="alc-mat${lack?' short':''}"><span class="plan-mat-art${ids.length>1?' pair':''}">${icons}</span><span class="alc-mat-name">${heading}<small title="${escapeHtml(source)}">${escapeHtml(source)}</small></span><span class="alc-mat-count"><b>${have}</b> / ${need}</span></li>`;
  }).join('');
 }
 function renderDetail(){
- const r=RECIPE[selected],s=stateOf(r),locked=s==='locked';
- $a('alc-chapter').textContent=`${CAT_NAME[r.cat]} · No.${pad(RECIPES.indexOf(r)+1)}`;
- const tag=$a('alc-status');tag.textContent=STATE_NAMES[s];tag.dataset.state=s;
- $a('alc-icon').innerHTML=artHtml(r,locked);
- $a('alc-name').textContent=locked?r.mask:r.name;
- $a('alc-type').textContent=locked?`${r.kind.split(' · ')[0]} · ${r.unlock.level?`炼金术 Lv.${r.unlock.level} 解锁`:'尚缺配方'}`:r.kind;
- const desc=$a('alc-desc');desc.textContent=locked?`“${r.riddle}”`:r.desc;desc.classList.toggle('riddle',locked);
- $a('alc-effects').hidden=locked;$a('alc-effects').innerHTML=locked?'':effectRows(r);
- $a('alc-unlock').hidden=!locked;$a('alc-unlock').innerHTML=locked?unlockHtml(r):'';
- $a('alc-mats-title').textContent=locked?'已知素材':'所需素材';
+ const r=RECIPE[selected],state=stateOf(r);
+ $a('alc-chapter').textContent=CAT_NAME[r.cat]+' · No.'+pad(RECIPES.indexOf(r)+1);
+ $a('alc-status').textContent=STATE_NAMES[state];$a('alc-status').dataset.state=state;
+ $a('alc-icon').innerHTML=artHtml(r);$a('alc-name').textContent=r.name;$a('alc-type').textContent=r.kind;
+ $a('alc-desc').textContent=r.desc;$a('alc-desc').classList.remove('riddle');
+ $a('alc-effects').hidden=false;$a('alc-effects').innerHTML=effectRows(r);
+ $a('alc-unlock').hidden=false;
+ $a('alc-unlock').innerHTML=`<h3>${r.acquisition?'获取方式':'获取阶段'}</h3><p class="alc-unlock-main">${escapeHtml(r.acquisition||r.stage)}</p>${r.acquisition?`<small class="plan-source-note">${escapeHtml(r.stage)} · 持有 ${owned(r)}</small>`:''}`;
+ $a('alc-material-section').hidden=!!r.acquisition;
+ $a('alc-mats-title').textContent='所需素材';
  renderBrew();
 }
 function renderBrew(){
- const r=RECIPE[selected],locked=stateOf(r)==='locked',max=locked?0:maxBrew(r);
+ const r=RECIPE[selected],max=maxBrew(r),sourced=!!r.acquisition;
  qty=Math.max(1,Math.min(qty,Math.max(1,max)));
- $a('alc-mats-note').textContent=locked?`已知 1 / ${Object.keys(r.mats).length} 种`:`× ${qty} 份`;
- $a('alc-mats').innerHTML=matRows(r,locked);
- $a('alc-qty-row').hidden=locked;
+ $a('alc-mats-note').textContent=`× ${qty} 批`;$a('alc-mats').innerHTML=matRows(r);
+ $a('alc-qty-row').hidden=sourced;
  const input=$a('alc-qty');if(document.activeElement!==input)input.value=String(qty);
  input.disabled=max<1||brewing;
  $a('alc-minus').disabled=max<1||qty<=1||brewing;$a('alc-plus').disabled=max<1||qty>=max||brewing;$a('alc-max').disabled=max<1||qty>=max||brewing;
- $a('alc-yield').innerHTML=locked?'':`<small>产出</small>× ${r.yield*qty}`;
- const button=$a('alc-craft');button.disabled=locked||max<1||brewing;
- button.innerHTML=brewing?'炼制中…':locked?'尚未解锁':max<1?'素材不足':`炼制 <span class="cost">× ${qty}</span>`;
- const lacking=Object.entries(r.mats).filter(([id,n])=>(st.materials[id]||0)<n*qty).map(([id,n])=>`${MAT[id].name} × ${n*qty-(st.materials[id]||0)}`);
- $a('alc-hint').textContent=locked?(r.unlock.level?`炼金术 Lv.${r.unlock.level} 时解锁`:'获得配方后即可炼制'):brewing?'魔力正在交融…':max<1?`还缺 ${lacking.join('、')}`:`持有 ${st.products[r.id]||0} · 最多可炼制 ${max} 份 · 炼金经验 +${r.xp*qty}`;
- renderBag(r,locked);
+ $a('alc-yield').innerHTML=sourced?'':`<small>产出</small>× ${r.yield*qty}`;
+ const craft=$a('alc-craft');craft.disabled=sourced||max<1||brewing;
+ craft.innerHTML=brewing?'炼制中…':sourced?(r.stage==='商人'?'商人售卖':r.stage==='旅商'?'旅商固定售卖':'以太滴管取得'):max<1?'素材不足':`${r.cat==='food'?'制作':'炼制'} <span class="cost">× ${r.yield*qty}</span>`;
+ const lacking=(r.mats||[]).filter(row=>available(row)<row[1]).map(row=>choices(row).map(id=>MAT[id].name).join(' / '));
+ $a('alc-hint').textContent=sourced?'可在素材页查看食材与药液的获取方式':brewing?'材料正在慢慢交融…':max<1?'还缺 '+lacking.join('、'):`持有 ${owned(r)} · 每批产出 ${r.yield} · 最多可制 ${max} 批`;
+ renderBag(r);
 }
-function renderBag(r,locked){
- const needs=locked?{}:Object.fromEntries(Object.entries(r.mats).map(([id,n])=>[id,n*qty]));
- $a('alc-bag').classList.toggle('focused',!locked);
- $a('alc-bag').innerHTML=MATERIALS.map(m=>{
-  const have=st.materials[m.id]||0,need=needs[m.id],lack=!!need&&have<need;
-  return `<span class="alc-chip${need?' need':''}${lack?' lack':''}" data-mat="${m.id}" style="--mat:${m.color}" role="img" aria-label="${m.name} ${have}${need?`，本次需要 ${need}`:''}" title="${m.name} · 持有 ${have}${need?` · 需要 ${need}`:''}"><svg aria-hidden="true"><use href="#am-${m.id}"/></svg><b>${have>999?'999+':have}</b></span>`;
+function renderBag(r){
+ const ids=[...new Set((r.mats||[]).flatMap(choices))];
+ if(!ids.length&&r.material)ids.push(r.material);
+ $a('alc-bag').classList.toggle('focused',ids.length>0);
+ $a('alc-bag').innerHTML=ids.map(id=>{const m=MAT[id],have=st.materials[id]||0,entry=m.entry;
+  return `<${entry?'button':'span'} ${entry?'type="button"':''} class="alc-chip need" data-mat="${id}"${entry?` data-open-entry="${entry}"`:''} title="${escapeHtml(m.name+' · 持有 '+have+' · '+m.source)}" aria-label="${escapeHtml(m.name)}，持有 ${have}">${materialArt(m)}<b>${have>999?'999+':have}</b></${entry?'button':'span'}>`;
  }).join('');
 }
-function render(){renderRank();renderFilters();renderCatalog();renderDetail()}
-
-function notify(message){clearTimeout(toastTimer);const toast=$a('alc-toast');toast.textContent=message;toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),3400)}
-function flash(id,name,duration){const el=cardEl(id);if(!el)return null;el.classList.add(name);setTimeout(()=>el.classList.remove(name),duration);return el}
-function burst(card){
- if(!card||reducedMotion())return;
- const {x,y}=offsetWithin(card,$a('alc-catalog')),spark=document.createElement('i');
- spark.className='spark-burst';spark.style.left=`${x+card.offsetWidth/2}px`;spark.style.top=`${y+43}px`;
- $a('alc-catalog').appendChild(spark);setTimeout(()=>spark.remove(),1100);
+function render(){
+ if(stateFilter!=='all'&&!RECIPES.some(r=>stateOf(r)===stateFilter))stateFilter='all';
+ renderRank();renderCategories();renderFilters();renderCatalog();renderDetail();
 }
+function notify(message){clearTimeout(toastTimer);const toast=$a('alc-toast');toast.textContent=message;toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),3000)}
 function select(id,{focus=false}={}){
  if(!RECIPE[id])return;
- if(id!==selected){selected=id;qty=1;$a('alc-scroll').scrollTop=0}
- renderCatalog();renderDetail();
- if(focus)cardEl(id)?.focus({preventScroll:true});
- const r=RECIPE[id],s=stateOf(r);
- $a('alc-announce').textContent=s==='locked'?`未解锁的${r.mask}，${unlockLabel(r)}`:`${r.name}，${STATE_NAMES[s]}`;
+ const moved=selected!==id;selected=id;category=RECIPE[id].cat;
+ if(stateFilter!=='all'&&stateOf(RECIPE[id])!==stateFilter)stateFilter='all';
+ if(moved){qty=1;$a('alc-scroll').scrollTop=0}
+ render();
+ if(focus){cardEl(id)?.focus({preventScroll:true});cardEl(id)?.scrollIntoView({block:'nearest',inline:'nearest'})}
+ $a('alc-announce').textContent=RECIPE[id].name+'，'+STATE_NAMES[stateOf(RECIPE[id])];
+}
+function setCategory(id){
+ if(!CAT_NAME[id])return;category=id;stateFilter='all';
+ const entries=visibleItems();if(entries.length&&!entries.some(r=>r.id===selected))selected=entries[0].id;
+ qty=1;$a('alc-scroll').scrollTop=0;$a('alc-shelves').scrollTop=0;render();
 }
 function setFilter(key){
  stateFilter=key;
- if(key!=='all'){const matches=RECIPES.filter(r=>stateOf(r)===key);if(matches.length&&!matches.some(r=>r.id===selected)){selected=matches[0].id;qty=1}}
+ if(key!=='all'&&!visibleItems().length){const first=RECIPES.find(r=>stateOf(r)===key);if(first){category=first.cat;selected=first.id;qty=1}}
+ const entries=visibleItems();if(entries.length&&!entries.some(r=>r.id===selected)){selected=entries[0].id;qty=1}
  render();
 }
-function setQty(value){
- const max=maxBrew(RECIPE[selected]);
- qty=Math.max(1,Math.min(Number.isFinite(value)?Math.round(value):1,Math.max(1,max)));
- renderBrew();
-}
-function gainXp(amount){
- const before=st.level;
- if(st.level<MAX_LEVEL){
-  st.xp+=amount;
-  while(st.level<MAX_LEVEL&&st.xp>=LEVEL_NEEDS[st.level-1]){st.xp-=LEVEL_NEEDS[st.level-1];st.level++}
-  if(st.level>=MAX_LEVEL)st.xp=0;
- }
- return st.level-before;
-}
+function setQty(value){qty=Math.max(1,Math.min(Number.isFinite(value)?Math.round(value):1,Math.max(1,maxBrew(RECIPE[selected]))));renderBrew()}
 function craft(){
- const r=RECIPE[selected];if(brewing||stateOf(r)==='locked')return;
- const count=Math.min(qty,maxBrew(r));if(count<1)return;
- const before=new Set(RECIPES.filter(unlocked).map(x=>x.id));
- for(const [id,n] of Object.entries(r.mats))st.materials[id]-=n*count;
- st.products[r.id]=(st.products[r.id]||0)+r.yield*count;
- const levels=gainXp(r.xp*count);save();
- brewing=true;
- const pane=$a('alc-detail');pane.classList.remove('brewing');void pane.offsetWidth;pane.classList.add('brewing');
- renderBrew();
- clearTimeout(brewTimer);
- brewTimer=setTimeout(()=>{
-  brewing=false;pane.classList.remove('brewing');
-  const newly=RECIPES.filter(x=>unlocked(x)&&!before.has(x.id));
-  render();
-  burst(flash(r.id,'crafted',820));
-  for(const x of newly)flash(x.id,'revealing',1050);
-  for(const id of Object.keys(r.mats))$a('alc-bag').querySelector(`[data-mat="${id}"]`)?.classList.add('pulse');
-  const made=`炼成「${r.name}」× ${r.yield*count}`;
-  notify(levels?`${made} · 炼金术提升至 Lv.${st.level}${newly.length?` · 新的一页：${newly.map(x=>x.name).join('、')}`:''}`:`${made} · 炼金经验 +${r.xp*count}`);
- },reducedMotion()?0:720);
-}
-function findRecipe(){
- const r=RECIPE[selected];if(!r.unlock.recipe||unlocked(r))return;
- st.recipes.push(r.id);save();render();
- const card=flash(r.id,'revealing',1050);burst(card);card?.focus({preventScroll:true});
- notify(`拾得配方「${r.unlock.recipe}」· ${r.name}已记入手记`);
+ const r=RECIPE[selected];if(brewing||r.acquisition)return;
+ const count=Math.min(qty,maxBrew(r));if(!consume(r,count))return;
+ save();brewing=true;$a('alc-detail').classList.add('brewing');renderBrew();
+ clearTimeout(brewTimer);brewTimer=setTimeout(()=>{
+  brewing=false;$a('alc-detail').classList.remove('brewing');render();
+  cardEl(r.id)?.classList.add('crafted');
+  notify(`${r.cat==='food'?'做好了':'炼成'}「${r.name}」× ${r.yield*count}`);
+ },reducedMotion()?0:650);
 }
 function restock(){
- for(const [id,n] of Object.entries(RESTOCK))st.materials[id]=Math.min(9999,(st.materials[id]||0)+n);
- save();render();$a('alc-bag').querySelectorAll('.alc-chip').forEach(chip=>chip.classList.add('pulse'));
- notify('整理行囊 · 旅途中收集的素材已补充');
+ for(const m of MATERIALS)st.materials[m.id]=Math.min(9999,(st.materials[m.id]||0)+Math.max(3,m.initial||3));
+ save();render();notify('行囊中的展示素材已补充');
 }
 function resetNotebook(){
  clearTimeout(brewTimer);brewing=false;$a('alc-detail').classList.remove('brewing');
- st=fresh();selected='mana';stateFilter='all';qty=1;save();render();
- notify('手记已重置 · 炼金术 Lv.1');
+ st=fresh();selected='mana';category='potion';stateFilter='all';qty=1;save();render();notify('炼金手记已重置');
 }
 function openAlcHelp(){helpReturn=document.activeElement;$a('alc-help-layer').hidden=false;$a('alc-help-close').focus()}
 function closeAlcHelp(){$a('alc-help-layer').hidden=true;if(helpReturn?.isConnected)helpReturn.focus({preventScroll:true})}
 function moveSelection(key,from){
- const row=GRID.findIndex(list=>list.includes(from));if(row<0)return;
- let r=row,c=GRID[row].indexOf(from);
- if(key==='ArrowLeft'){if(c>0)c--;else if(r>0){r--;c=GRID[r].length-1}}
- else if(key==='ArrowRight'){if(c<GRID[r].length-1)c++;else if(r<GRID.length-1){r++;c=0}}
- else if(key==='ArrowUp'){if(r>0){r--;c=Math.min(c,GRID[r].length-1)}}
- else if(key==='ArrowDown'){if(r<GRID.length-1){r++;c=Math.min(c,GRID[r].length-1)}}
- select(GRID[r][c],{focus:true});
+ const items=visibleItems(),index=items.findIndex(r=>r.id===from);if(index<0)return;
+ const offset=key==='ArrowLeft'?-1:key==='ArrowRight'?1:key==='ArrowUp'?-4:4;
+ select(items[Math.max(0,Math.min(items.length-1,index+offset))].id,{focus:true});
 }
 
+// WIRE: browser interaction begins here; pure recipe helpers above also support offline checks.
 $a('alc-shelves').addEventListener('click',event=>{const card=event.target.closest('[data-recipe]');if(card)select(card.dataset.recipe)});
+$a('alc-shelves').addEventListener('scroll',placeSelectionQuill,{passive:true});
+$a('alc-categories').addEventListener('click',event=>{const button=event.target.closest('[data-category]');if(button)setCategory(button.dataset.category)});
 $a('alc-filters').addEventListener('click',event=>{const button=event.target.closest('[data-state-filter]');if(button)setFilter(button.dataset.stateFilter)});
-$a('alc-minus').addEventListener('click',()=>setQty(qty-1));
-$a('alc-plus').addEventListener('click',()=>setQty(qty+1));
-$a('alc-max').addEventListener('click',()=>setQty(maxBrew(RECIPE[selected])));
-$a('alc-qty').addEventListener('input',event=>{
- const input=event.target,digits=input.value.replace(/\D/g,'').slice(0,2);
- if(digits!==input.value)input.value=digits;
- if(digits){setQty(Number(digits));if(Number(digits)!==qty)input.value=String(qty)}
-});
+$a('alc-art-controls').addEventListener('click',event=>{const b=event.target.closest('[data-art-mode]');if(!b)return;artStyle=b.dataset.artMode;render();$a('alc-announce').textContent='图标已切换为'+({pencil:'彩铅',pixel:'像素',original:'原画'}[artStyle])});
+for(const container of ['alc-mats','alc-bag'])$a(container).addEventListener('click',event=>{const button=event.target.closest('[data-open-entry]');if(button)select(button.dataset.openEntry)});
+$a('alc-minus').addEventListener('click',()=>setQty(qty-1));$a('alc-plus').addEventListener('click',()=>setQty(qty+1));$a('alc-max').addEventListener('click',()=>setQty(maxBrew(RECIPE[selected])));
+$a('alc-qty').addEventListener('input',event=>{const input=event.target,digits=input.value.replace(/\D/g,'').slice(0,2);input.value=digits;if(digits){setQty(Number(digits));input.value=String(qty)}});
 $a('alc-qty').addEventListener('change',event=>{setQty(Number(event.target.value)||1);event.target.value=String(qty)});
 $a('alc-qty').addEventListener('blur',event=>{event.target.value=String(qty)});
-$a('alc-craft').addEventListener('click',craft);
-$a('alc-unlock').addEventListener('click',event=>{if(event.target.closest('#alc-find'))findRecipe()});
-$a('alc-restock').addEventListener('click',restock);
-$a('alc-reset').addEventListener('click',resetNotebook);
-$a('alc-help').addEventListener('click',openAlcHelp);
-$a('alc-help-close').addEventListener('click',closeAlcHelp);
+$a('alc-craft').addEventListener('click',craft);$a('alc-restock').addEventListener('click',restock);$a('alc-reset').addEventListener('click',resetNotebook);
+$a('alc-help').addEventListener('click',openAlcHelp);$a('alc-help-close').addEventListener('click',closeAlcHelp);
 $a('alc-help-layer').addEventListener('click',event=>{if(event.target===$a('alc-help-layer'))closeAlcHelp()});
+
 /* The skill book's flight, parameterised: the same soft cover, curl and travel to the dock button. */
 const reducedQuery=window.matchMedia('(prefers-reduced-motion: reduce)');
 const ease=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t)};
@@ -2551,7 +2410,7 @@ const flight=new NotebookFlight({
  scene:$a('alchemy-scene'),flightEl:$a('alchemy-flight'),pose:$a('alchemy-pose'),cover:$a('alchemy-cover'),shade:$a('alchemy-page-shade'),
  panel:$a('alchemy-panel'),backdrop:$a('alchemy-backdrop'),dock:$a('alchemy-recall'),hud:$a('game-hud'),
  frontArt:$a('alchemy-front-art'),backArt:$a('alchemy-back-art'),
- focusOpen:()=>cardEl(selected)||$a('alc-shelves'),onOpen:render,onSettled:open=>{if(open)placeButterfly()}
+ focusOpen:()=>cardEl(selected)||$a('alc-shelves'),onOpen:render,onSettled:open=>{if(open)placeSelectionQuill()}
 });
 
 /* Only one book is open at a time; a hotkey for the other book closes this one first. */
@@ -2617,6 +2476,7 @@ document.addEventListener('visibilitychange',()=>{
 reducedQuery.addEventListener('change',event=>{if(event.matches&&flight.frame!==null)flight.finish()});
 
 load();flight.build();flight.paintCover();render();flight.finish(false);
+openBook();
 })();
 </script>
 </body>

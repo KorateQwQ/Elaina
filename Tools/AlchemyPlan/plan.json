@@ -1,0 +1,1154 @@
+{
+  "version": 2,
+  "categories": [
+    [
+      "potion",
+      "魔药",
+      "POTIONS"
+    ],
+    [
+      "curio",
+      "奇物",
+      "CURIOS"
+    ],
+    [
+      "food",
+      "料理",
+      "CUISINE"
+    ],
+    [
+      "material",
+      "素材",
+      "INGREDIENTS"
+    ]
+  ],
+  "assumptions": [
+    "未明确产量的药水、工具、奇物按每批 1 件；止痛药每批 3 片。",
+    "蜂蜜面包暂按蜂蜜瓶×1、糖×1、面粉×2，产出×2；炖菜与焦糖布蕾每批产出×1。",
+    "灰赝尘配方中的微光液滴暂按×1；月露、树脂、月露合剂、灰赝尘、显迹尘采用策划明确的产量。",
+    "除止痛药 30 秒、轻羽药水 8 分钟、瓶中雨 45 秒外，未注明持续时间的效果暂不填写时长。",
+    "回声花粉已按用户确认删除，共鸣药水保留瓶装水×1、月光草×1、毒刺×1。",
+    "隔离药水统一命名为净土露滴。页面展开所有条目以便视觉审阅，获取阶段在详情中注明。"
+  ],
+  "materials": [
+    {
+      "id": "water",
+      "name": "瓶装水",
+      "source": "玻璃瓶 · 水源",
+      "glyph": "drop",
+      "color": "#9fc6ee",
+      "initial": 36
+    },
+    {
+      "id": "moonglow",
+      "name": "月光草",
+      "source": "丛林 · 夜间采集",
+      "glyph": "herb",
+      "color": "#a8bce5",
+      "initial": 9
+    },
+    {
+      "id": "star",
+      "name": "坠落之星",
+      "source": "夜空坠落",
+      "glyph": "star",
+      "color": "#efd08b",
+      "initial": 8
+    },
+    {
+      "id": "glowingmushroom",
+      "name": "发光蘑菇",
+      "source": "发光蘑菇生物群落",
+      "glyph": "mushroom",
+      "color": "#89c6ec",
+      "initial": 12
+    },
+    {
+      "id": "daybloom",
+      "name": "太阳花",
+      "source": "森林地表 · 白昼",
+      "glyph": "flower",
+      "color": "#e5cd81",
+      "initial": 10
+    },
+    {
+      "id": "honeyblock",
+      "name": "蜂蜜块",
+      "source": "蜂蜜与水接触",
+      "glyph": "block",
+      "color": "#d9aa52",
+      "initial": 6
+    },
+    {
+      "id": "deathweed",
+      "name": "死亡草",
+      "source": "腐化或猩红之地",
+      "glyph": "herb",
+      "color": "#b981b0",
+      "initial": 7
+    },
+    {
+      "id": "vertebra",
+      "name": "椎骨",
+      "source": "猩红敌怪掉落",
+      "glyph": "bone",
+      "color": "#d9beb7",
+      "initial": 2
+    },
+    {
+      "id": "rottenchunk",
+      "name": "腐肉",
+      "source": "腐化敌怪掉落",
+      "glyph": "chunk",
+      "color": "#bc92a4",
+      "initial": 7
+    },
+    {
+      "id": "crystal",
+      "name": "水晶碎块",
+      "source": "地下神圣之地",
+      "glyph": "crystal",
+      "color": "#dab9ed",
+      "initial": 8
+    },
+    {
+      "id": "blinkroot",
+      "name": "闪耀根",
+      "source": "地下泥土与土块",
+      "glyph": "root",
+      "color": "#d8bc70",
+      "initial": 9
+    },
+    {
+      "id": "lens",
+      "name": "晶状体",
+      "source": "恶魔眼掉落",
+      "glyph": "lens",
+      "color": "#d6c8dc",
+      "initial": 4
+    },
+    {
+      "id": "mandible",
+      "name": "蚁狮上颚",
+      "source": "沙漠 · 蚁狮",
+      "glyph": "fang",
+      "color": "#d4ba89",
+      "initial": 4
+    },
+    {
+      "id": "stinger",
+      "name": "毒刺",
+      "source": "丛林 · 蜜蜂与尖刺史莱姆",
+      "glyph": "fang",
+      "color": "#d7cc8c",
+      "initial": 6
+    },
+    {
+      "id": "feather",
+      "name": "羽毛",
+      "source": "天空 · 鸟妖",
+      "glyph": "feather",
+      "color": "#ded5ea",
+      "initial": 5
+    },
+    {
+      "id": "powder",
+      "name": "净化粉",
+      "source": "树妖出售",
+      "glyph": "dust",
+      "color": "#b6d4b3",
+      "initial": 30
+    },
+    {
+      "id": "glass",
+      "name": "玻璃",
+      "source": "熔炉 · 沙块",
+      "glyph": "pane",
+      "color": "#b3d4e1",
+      "initial": 20
+    },
+    {
+      "id": "iron",
+      "name": "铁锭",
+      "source": "熔炉 · 铁矿",
+      "glyph": "bar",
+      "color": "#bac0cc",
+      "initial": 3
+    },
+    {
+      "id": "lead",
+      "name": "铅锭",
+      "source": "熔炉 · 铅矿",
+      "glyph": "bar",
+      "color": "#9aa7c4",
+      "initial": 7
+    },
+    {
+      "id": "hallowed",
+      "name": "神圣锭",
+      "source": "机械 Boss 掉落",
+      "glyph": "bar",
+      "color": "#ecd599",
+      "initial": 3
+    },
+    {
+      "id": "obsidian",
+      "name": "黑曜石",
+      "source": "水与熔岩接触",
+      "glyph": "crystal",
+      "color": "#9d8fb6",
+      "initial": 6
+    },
+    {
+      "id": "pixiedust",
+      "name": "妖精尘",
+      "source": "神圣之地 · 妖精",
+      "glyph": "dust",
+      "color": "#e8c7e2",
+      "initial": 5
+    },
+    {
+      "id": "bone",
+      "name": "骨头",
+      "source": "地牢敌怪掉落",
+      "glyph": "bone",
+      "color": "#d9cfb7",
+      "initial": 15
+    },
+    {
+      "id": "cloud",
+      "name": "云块",
+      "source": "天空岛",
+      "glyph": "cloud",
+      "color": "#dce3ed",
+      "initial": 30
+    },
+    {
+      "id": "waterleaf",
+      "name": "幌菊",
+      "source": "沙漠 · 雨天开花",
+      "glyph": "flower",
+      "color": "#95c5d3",
+      "initial": 4
+    },
+    {
+      "id": "honey",
+      "name": "蜂蜜瓶",
+      "source": "玻璃瓶 · 蜂蜜",
+      "glyph": "drop",
+      "color": "#e6bc5d",
+      "initial": 4
+    },
+    {
+      "id": "wood",
+      "name": "木材",
+      "source": "砍伐树木",
+      "glyph": "wood",
+      "color": "#ba926d",
+      "initial": 60
+    },
+    {
+      "id": "gel",
+      "name": "凝胶",
+      "source": "史莱姆掉落",
+      "glyph": "gel",
+      "color": "#9cb9e5",
+      "initial": 15
+    },
+    {
+      "id": "moondew",
+      "name": "月露",
+      "source": "瓶装水×3＋月光草×1 → 月露×3",
+      "art": "MoonDew",
+      "initial": 9,
+      "entry": "moondew"
+    },
+    {
+      "id": "resin",
+      "name": "温香树脂",
+      "source": "木材×20＋凝胶×2 → 树脂×2",
+      "art": "WarmResin",
+      "initial": 4,
+      "entry": "resin"
+    },
+    {
+      "id": "flour",
+      "name": "面粉",
+      "source": "商人出售",
+      "art": "Flour",
+      "initial": 8,
+      "entry": "flour"
+    },
+    {
+      "id": "sugar",
+      "name": "糖",
+      "source": "商人出售",
+      "art": "Sugar",
+      "initial": 9,
+      "entry": "sugar"
+    },
+    {
+      "id": "egg",
+      "name": "鸡蛋",
+      "source": "商人出售",
+      "art": "Egg",
+      "initial": 5,
+      "entry": "egg"
+    },
+    {
+      "id": "beef",
+      "name": "牛肉",
+      "source": "旅商 · 固定售卖",
+      "art": "Beef",
+      "initial": 2,
+      "entry": "beef"
+    },
+    {
+      "id": "potato",
+      "name": "土豆",
+      "source": "旅商 · 固定售卖",
+      "art": "Potato",
+      "initial": 6,
+      "entry": "potato"
+    },
+    {
+      "id": "shimmer",
+      "name": "微光液滴",
+      "source": "以太滴管 · 从微光中取得",
+      "art": "ShimmerDroplet",
+      "initial": 2,
+      "entry": "shimmer"
+    }
+  ],
+  "items": [
+    {
+      "id": "mana",
+      "name": "月露合剂",
+      "cat": "potion",
+      "art": "MoonDewElixir",
+      "reuse": "ManaElixir",
+      "kind": "专属补给 · 即时回复",
+      "stage": "前期",
+      "desc": "把星光溶进月露，再用发光蘑菇稳定药液。仅供伊蕾娜饮用的专属魔力补给。",
+      "effects": [
+        [
+          "专属魔力",
+          "回复 100 点"
+        ],
+        [
+          "使用者",
+          "伊蕾娜专属"
+        ]
+      ],
+      "mats": [
+        [
+          "moondew",
+          3
+        ],
+        [
+          "star",
+          1
+        ],
+        [
+          "glowingmushroom",
+          3
+        ]
+      ],
+      "yield": 3,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "painkiller",
+      "name": "止痛药",
+      "cat": "potion",
+      "art": "Painkiller",
+      "reuse": "Painkiller",
+      "kind": "药片 · 持续恢复",
+      "stage": "探索蜂巢后",
+      "desc": "太阳花与蜂蜜负责恢复，温香树脂让药效缓慢释放。服用后持续获得恢复效果。",
+      "effects": [
+        [
+          "持续时间",
+          "30 秒"
+        ],
+        [
+          "每秒恢复",
+          "最大生命的 2%"
+        ],
+        [
+          "全程累计",
+          "最大生命的 60%"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "daybloom",
+          1
+        ],
+        [
+          "honeyblock",
+          1
+        ],
+        [
+          "resin",
+          1
+        ]
+      ],
+      "yield": 3,
+      "assumedYield": true,
+      "pixelSize": [
+        26,
+        22
+      ]
+    },
+    {
+      "id": "bloodlust",
+      "name": "嗜血药水",
+      "cat": "potion",
+      "art": "BloodthirstPotion",
+      "reuse": "BloodthirstPotion",
+      "kind": "战斗药水 · 近战",
+      "stage": "肉后解锁",
+      "desc": "以承受更多伤害为代价，唤醒近战攻击中的嗜血欲望。",
+      "effects": [
+        [
+          "近战生命偷取",
+          "+5%"
+        ],
+        [
+          "近战伤害",
+          "+10%"
+        ],
+        [
+          "受到的伤害",
+          "+20%",
+          "bad"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "deathweed",
+          1
+        ],
+        [
+          [
+            "vertebra",
+            "rottenchunk"
+          ],
+          3
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "starpower",
+      "name": "星力药水",
+      "cat": "potion",
+      "art": "StarPowerPotion",
+      "reuse": "StarPowerPotion",
+      "kind": "战斗药水 · 魔法",
+      "stage": "肉后初期",
+      "desc": "水晶放大魔力储备中的星光。魔力上限越高，获得的魔法伤害加成越多。",
+      "effects": [
+        [
+          "每 1 点魔力上限",
+          "+0.05% 魔法伤害"
+        ]
+      ],
+      "live": "starpower",
+      "mats": [
+        [
+          "moondew",
+          1
+        ],
+        [
+          "star",
+          1
+        ],
+        [
+          "deathweed",
+          1
+        ],
+        [
+          "crystal",
+          2
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "focus",
+      "name": "集中药水",
+      "cat": "potion",
+      "art": "ConcentrationPotion",
+      "reuse": "ConcentrationPotion",
+      "kind": "战斗药水 · 远程",
+      "stage": "肉后解锁",
+      "desc": "你的远程攻击方向越接近目标中心，造成的伤害就越高。让每一发都落向瞄准的中心。",
+      "effects": [
+        [
+          "判定",
+          "攻击方向与目标中心的夹角"
+        ],
+        [
+          "远程伤害",
+          "最高 +30%"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "blinkroot",
+          1
+        ],
+        [
+          "lens",
+          1
+        ],
+        [
+          "mandible",
+          1
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "resonance",
+      "name": "共鸣药水",
+      "cat": "potion",
+      "art": "ResonancePotion",
+      "reuse": "ResonancePotion",
+      "kind": "战斗药水 · 召唤",
+      "stage": "探索丛林后",
+      "desc": "仆从与哨兵向鞭子标记的敌人集中攻击。持续攻击同一标记目标时，共鸣逐渐增强。",
+      "effects": [
+        [
+          "攻击鞭子标记目标",
+          "伤害 +12%"
+        ],
+        [
+          "连续攻击 3 秒",
+          "逐渐提高至 +24%"
+        ],
+        [
+          "切换标记目标",
+          "重新积累"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "moonglow",
+          1
+        ],
+        [
+          "stinger",
+          1
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "featherlight",
+      "name": "轻羽药水",
+      "cat": "potion",
+      "art": "FeatherlightPotion",
+      "reuse": "FeatherlightPotion",
+      "kind": "旅行药水 · 持续 8 分钟",
+      "stage": "探索天空后",
+      "desc": "把羽毛的轻盈与日间上升的气流装进瓶中，让飞行与扫帚旅行更加轻快。",
+      "effects": [
+        [
+          "飞行速度",
+          "+20%"
+        ],
+        [
+          "扫帚速度",
+          "+20%"
+        ],
+        [
+          "持续时间",
+          "8 分钟"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "blinkroot",
+          1
+        ],
+        [
+          "feather",
+          1
+        ],
+        [
+          "daybloom",
+          1
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "isolation",
+      "name": "净土露滴",
+      "cat": "potion",
+      "art": "PurificationDew",
+      "reuse": "IsolationPotion",
+      "kind": "净化药液 · 滴落使用",
+      "stage": "肉后初期",
+      "desc": "将露滴滴在物块上，净化这一格以及它下方的所有物块，用于制造纵向隔离带。",
+      "effects": [
+        [
+          "作用位置",
+          "目标物块及其下方所有物块"
+        ],
+        [
+          "用途",
+          "净化 · 制造隔离带"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "powder",
+          10
+        ],
+        [
+          "daybloom",
+          1
+        ],
+        [
+          "crystal",
+          1
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "dropper",
+      "name": "以太滴管",
+      "cat": "curio",
+      "art": "AetherDropper",
+      "kind": "工具 · 可重复使用",
+      "stage": "击败任意机械 Boss 后",
+      "desc": "神圣金属让容器能够稳定地保存微光。对着微光吸收一格，再次使用时释放一格。",
+      "effects": [
+        [
+          "容量",
+          "1 格微光"
+        ],
+        [
+          "使用顺序",
+          "先吸收，再释放"
+        ],
+        [
+          "附带用途",
+          "取得微光液滴"
+        ]
+      ],
+      "mats": [
+        [
+          "glass",
+          10
+        ],
+        [
+          [
+            "iron",
+            "lead"
+          ],
+          5
+        ],
+        [
+          "hallowed",
+          3
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        24,
+        30
+      ]
+    },
+    {
+      "id": "mimic",
+      "name": "灰赝尘",
+      "cat": "curio",
+      "art": "AshenFacsimileDust",
+      "reuse": "AshenFacsimileDust",
+      "kind": "炼金奇物 · 合成辅助",
+      "stage": "取得微光后",
+      "desc": "借助微光的转化之力，为尚未齐备的材料补上缺失的一部分。",
+      "effects": [
+        [
+          "材料前提",
+          "每种所需材料至少持有 1 件"
+        ],
+        [
+          "数量前提",
+          "总需求已满足至少 50%"
+        ],
+        [
+          "效果",
+          "替代缺少的素材"
+        ]
+      ],
+      "mats": [
+        [
+          "shimmer",
+          1
+        ],
+        [
+          "obsidian",
+          1
+        ],
+        [
+          "star",
+          1
+        ]
+      ],
+      "yield": 50,
+      "pixelSize": [
+        28,
+        26
+      ]
+    },
+    {
+      "id": "trace",
+      "name": "显迹尘",
+      "cat": "curio",
+      "art": "RevealingDust",
+      "kind": "侦察奇物 · 撒出使用",
+      "stage": "肉后 · 神圣之地",
+      "desc": "撒出闪耀的细尘，让一片区域内的敌对生物和陷阱显出清楚的标记。",
+      "effects": [
+        [
+          "标记对象",
+          "区域内的敌对生物"
+        ],
+        [
+          "危险提示",
+          "区域内的陷阱"
+        ]
+      ],
+      "mats": [
+        [
+          "pixiedust",
+          1
+        ],
+        [
+          "blinkroot",
+          1
+        ],
+        [
+          "bone",
+          3
+        ]
+      ],
+      "yield": 3,
+      "pixelSize": [
+        24,
+        25
+      ]
+    },
+    {
+      "id": "rain",
+      "name": "瓶中雨",
+      "cat": "curio",
+      "art": "BottledRain",
+      "kind": "天气奇物 · 投掷使用",
+      "stage": "探索天空后",
+      "desc": "摔开瓶子，释放一朵便携的小雨云。雨水照料附近的植物，也替旅人扑灭普通火焰。",
+      "effects": [
+        [
+          "小雨云",
+          "持续 45 秒"
+        ],
+        [
+          "覆盖区域",
+          "附近约 20 格宽"
+        ],
+        [
+          "玩家",
+          "熄灭普通着火"
+        ],
+        [
+          "幌菊与植物",
+          "雨天条件开花 · 加速生长"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          1
+        ],
+        [
+          "cloud",
+          10
+        ],
+        [
+          "waterleaf",
+          1
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        22,
+        30
+      ]
+    },
+    {
+      "id": "bread",
+      "name": "蜂蜜面包",
+      "cat": "food",
+      "art": "HoneyBread",
+      "kind": "料理 · 蜂蜜香甜",
+      "stage": "基础料理",
+      "desc": "淋上蜂蜜的面包，是伊蕾娜喜欢的甜味补给。不同旅人食用时获得的效果有所不同。",
+      "effects": [
+        [
+          "伊蕾娜",
+          "酒足饭饱 · 恢复 50 生命"
+        ],
+        [
+          "其他玩家",
+          "吃得好 · 不回复生命"
+        ]
+      ],
+      "mats": [
+        [
+          "honey",
+          1
+        ],
+        [
+          "sugar",
+          1
+        ],
+        [
+          "flour",
+          2
+        ]
+      ],
+      "yield": 2,
+      "assumedYield": true,
+      "pixelSize": [
+        28,
+        20
+      ],
+      "reuse": "HoneyBread"
+    },
+    {
+      "id": "stew",
+      "name": "炖菜",
+      "cat": "food",
+      "art": "BeefStew",
+      "kind": "料理 · 热气腾腾",
+      "stage": "旅商食材",
+      "desc": "伊蕾娜擅长制作的牛肉土豆炖菜。炖得软烂又暖胃，不过并不是她最偏爱的食物。",
+      "effects": [
+        [
+          "食用效果",
+          "很满意"
+        ]
+      ],
+      "mats": [
+        [
+          "beef",
+          1
+        ],
+        [
+          "potato",
+          3
+        ],
+        [
+          "water",
+          5
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        30,
+        27
+      ]
+    },
+    {
+      "id": "brulee",
+      "name": "焦糖布蕾",
+      "cat": "food",
+      "art": "CaramelBrulee",
+      "kind": "料理 · 焦糖甜点",
+      "stage": "基础料理",
+      "desc": "轻轻敲开薄脆的焦糖外壳，下面是柔软细腻的蛋奶甜点。",
+      "effects": [
+        [
+          "食用效果",
+          "吃得好"
+        ]
+      ],
+      "mats": [
+        [
+          "sugar",
+          3
+        ],
+        [
+          "egg",
+          1
+        ],
+        [
+          "water",
+          1
+        ]
+      ],
+      "yield": 1,
+      "assumedYield": true,
+      "pixelSize": [
+        28,
+        21
+      ]
+    },
+    {
+      "id": "moondew",
+      "name": "月露",
+      "cat": "material",
+      "art": "MoonDew",
+      "kind": "新素材 · 装瓶基底",
+      "stage": "前期",
+      "desc": "将月光草浸入瓶装水，得到可以直接使用的装瓶药液基底。",
+      "effects": [
+        [
+          "设计用途",
+          "魔力、星辰、空间类炼金"
+        ]
+      ],
+      "mats": [
+        [
+          "water",
+          3
+        ],
+        [
+          "moonglow",
+          1
+        ]
+      ],
+      "yield": 3,
+      "outputMaterial": "moondew",
+      "pixelSize": [
+        20,
+        28
+      ]
+    },
+    {
+      "id": "resin",
+      "name": "温香树脂",
+      "cat": "material",
+      "art": "WarmResin",
+      "kind": "新素材 · 炼金锅熬制",
+      "stage": "前期",
+      "desc": "将木材与凝胶在炼金锅中缓慢熬制，留下温润而微甜的树脂。",
+      "effects": [
+        [
+          "设计用途",
+          "药膏、熏香、扫帚养护"
+        ]
+      ],
+      "mats": [
+        [
+          "wood",
+          20
+        ],
+        [
+          "gel",
+          2
+        ]
+      ],
+      "yield": 2,
+      "outputMaterial": "resin",
+      "pixelSize": [
+        25,
+        24
+      ]
+    },
+    {
+      "id": "flour",
+      "name": "面粉",
+      "cat": "material",
+      "art": "Flour",
+      "kind": "新食材 · 商人售卖",
+      "stage": "商人",
+      "desc": "细白的烘焙用面粉，适合揉成甜面团。",
+      "effects": [
+        [
+          "用于",
+          "蜂蜜面包"
+        ]
+      ],
+      "acquisition": "向商人购买。",
+      "material": "flour",
+      "pixelSize": [
+        20,
+        26
+      ]
+    },
+    {
+      "id": "sugar",
+      "name": "糖",
+      "cat": "material",
+      "art": "Sugar",
+      "kind": "新食材 · 商人售卖",
+      "stage": "商人",
+      "desc": "给面团带来甜味，熬煮后也能形成焦糖外壳。",
+      "effects": [
+        [
+          "用于",
+          "蜂蜜面包、焦糖布蕾"
+        ]
+      ],
+      "acquisition": "向商人购买。",
+      "material": "sugar",
+      "pixelSize": [
+        24,
+        22
+      ]
+    },
+    {
+      "id": "egg",
+      "name": "鸡蛋",
+      "cat": "material",
+      "art": "Egg",
+      "kind": "新食材 · 商人售卖",
+      "stage": "商人",
+      "desc": "料理与烘焙的基础食材。",
+      "effects": [
+        [
+          "用于",
+          "焦糖布蕾"
+        ]
+      ],
+      "acquisition": "向商人购买。",
+      "material": "egg",
+      "pixelSize": [
+        18,
+        24
+      ]
+    },
+    {
+      "id": "beef",
+      "name": "牛肉",
+      "cat": "material",
+      "art": "Beef",
+      "kind": "新食材 · 旅商固定售卖",
+      "stage": "旅商",
+      "desc": "适合长时间炖煮的牛肉。",
+      "effects": [
+        [
+          "用于",
+          "炖菜"
+        ]
+      ],
+      "acquisition": "旅行商人到访时固定售卖。",
+      "material": "beef",
+      "pixelSize": [
+        26,
+        22
+      ]
+    },
+    {
+      "id": "potato",
+      "name": "土豆",
+      "cat": "material",
+      "art": "Potato",
+      "kind": "新食材 · 旅商固定售卖",
+      "stage": "旅商",
+      "desc": "炖煮后软糯绵密，能吸足肉汤的味道。",
+      "effects": [
+        [
+          "用于",
+          "炖菜"
+        ]
+      ],
+      "acquisition": "旅行商人到访时固定售卖。",
+      "material": "potato",
+      "pixelSize": [
+        26,
+        22
+      ]
+    },
+    {
+      "id": "shimmer",
+      "name": "微光液滴",
+      "cat": "material",
+      "art": "ShimmerDroplet",
+      "kind": "新素材 · 微光凝滴",
+      "stage": "以太滴管",
+      "desc": "从微光中取得的一滴奇异液体，带着转化物质的微弱力量。",
+      "effects": [
+        [
+          "用于",
+          "灰赝尘"
+        ]
+      ],
+      "acquisition": "使用以太滴管从微光中取得。",
+      "material": "shimmer",
+      "pixelSize": [
+        20,
+        28
+      ]
+    }
+  ],
+  "pencilProfile": "hatched"
+}

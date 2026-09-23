@@ -65,7 +65,7 @@ internal sealed class ConstellationDrawing
     }
 
     internal Texture2D Texture(string name)
-        => LoadTexture(name is "BookCoverFront" or "BookCoverBack" or "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
+        => LoadTexture(name is "ButterflyMask" or "BookCoverFront" or "BookCoverBack" or "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
             ? "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/" + name : Root + name);
 
     private Texture2D LoadTexture(string path)
@@ -399,12 +399,55 @@ internal sealed class ConstellationDrawing
             new Vector2(source.Width, source.Height) / 2, extent * Scale / source.Width, SpriteEffects.None, 0);
     }
 
-    // Exact paths from the reference's 32x32 corner symbol, rotated around its center.
+    internal void NotebookPage(float width, float height)
+    {
+        Color paper = Lavender, leather = new(26, 23, 35);
+        // Exposed cover, page block and three fine leaf edges, outside the unchanged content plane.
+        Box(-7, 4, width + 16, height + 8, leather);
+        Line(new Vector2(-8, 4), new Vector2(-8, height + 5), paper * .42f);
+        Line(new Vector2(2, height + 12), new Vector2(width + 5, height + 12), Color.Black * .35f, 2);
+        Line(new Vector2(width + 10, 12), new Vector2(width + 10, height + 7), Color.Black * .3f, 2);
+        Box(5, height, width - 6, 9, new Color(39, 32, 51));
+        Box(width, 7, 7, height - 9, new Color(39, 32, 51));
+        for (int leaf = 0; leaf < 3; leaf++)
+        {
+            float inset = leaf * 3;
+            Color edge = paper * (.38f - leaf * .045f);
+            Line(new Vector2(5, height + inset + 1), new Vector2(width - 1, height + inset + 1), edge);
+            Line(new Vector2(width + inset + 1, 9), new Vector2(width + inset + 1, height - 1), edge);
+            Line(new Vector2(width - 1, height + inset + 1), new Vector2(width + inset + 1, height - 1), edge);
+        }
+        Image("NotebookSurface", 0, 0, width, height);
+        Frame(1, 1, width - 2, height - 2, Lavender * .5f);
+        Frame(10, 10, width - 20, height - 20, Lavender * .13f);
+        Line(new Vector2(12, 2), new Vector2(width - 12, 2), Lavender * .1f);
+        // A narrow recessed binding stays entirely inside the empty left margin.
+        Gradient(2, 22, 5, height - 44, new Color(13, 13, 23) * .8f, LineColor * .35f);
+        Gradient(7, 22, 5, height - 44, LineColor * .35f, new Color(13, 13, 23) * .65f);
+        PageCorner(new Vector2(10, 10), 0);
+        PageCorner(new Vector2(width - 35, 10), MathHelper.PiOver2);
+        PageCorner(new Vector2(10, height - 35), -MathHelper.PiOver2);
+        PageCorner(new Vector2(width - 35, height - 35), MathHelper.Pi);
+    }
+
+    internal void SelectionButterfly(Vector2 node, int frame, float zoom)
+    {
+        var texture = Texture("ButterflyMask");
+        int cell = texture.Width / 4;
+        var source = new Rectangle(frame % 4 * cell, frame / 4 * cell, cell, cell);
+        Vector2 center = node - new Vector2(38, 40) * zoom;
+        Image("Glow", center.X - 19 * zoom, center.Y - 19 * zoom, 38 * zoom, 38 * zoom,
+            new Color(183, 162, 234) * .1f);
+        Batch.Draw(texture, At(center.X, center.Y), source, new Color(229, 217, 245) * .9f,
+            MathHelper.ToRadians(-18), new Vector2(cell / 2f), 34f / cell * zoom * Scale, SpriteEffects.None, 0);
+    }
+
+    // Corner tooling uses the original panel color with the reference's smaller inset form.
     internal void PageCorner(Vector2 topLeft, float rotation)
     {
-        const float scale = 34f / 32;
+        const float scale = 25f / 32;
         var color = new Color(193, 171, 202);
-        Vector2 AtCorner(float x, float y) => topLeft + new Vector2(17)
+        Vector2 AtCorner(float x, float y) => topLeft + new Vector2(12.5f)
             + Vector2.Transform(new Vector2(x - 16, y - 16) * scale, Matrix.CreateRotationZ(rotation));
         void Stroke(float x1, float y1, float x2, float y2, float width = 1)
             => Line(AtCorner(x1, y1), AtCorner(x2, y2), color, width * scale);

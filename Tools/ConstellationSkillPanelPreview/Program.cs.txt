@@ -15,6 +15,7 @@ internal sealed class PanelGame : Game
     private static bool PrimaryOnly;
     private static bool BookOnly;
     private static bool CameraOnly;
+    private static bool OrnamentsOnly;
     private PanelGame()
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
@@ -38,6 +39,7 @@ internal sealed class PanelGame : Game
         if (_done) return; _done = true;
         string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output"); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (OrnamentsOnly) OrnamentPreview.Run(Device, batch, output);
         if (BookOnly) { BookPreview.Run(Device, batch, output); Exit(); return; }
         if (ToggleOnly) { TogglePreview.Run(Device, batch, output); Exit(); return; }
         if (HeadersOnly)
@@ -58,7 +60,8 @@ internal sealed class PanelGame : Game
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
-        string[] scenes = CameraOnly ? ["camera-0", "camera-100", "camera-200", "camera-350", "camera-retarget"]
+        string[] scenes = OrnamentsOnly ? ["camera-350", "empty", "editor"]
+            : CameraOnly ? ["camera-0", "camera-100", "camera-200", "camera-350", "camera-retarget"]
             : RequirementsOnly || PolishOnly ? ["requirements-learn", "requirements-upgrade", "requirements-ready", "requirements-tooltip", "requirements-long"]
             : ["new", "passive", "active", "equipped", "missing", "off", "empty", "bottom", "editor", "editor-moved", "maxed", "growth", "growth-poor", "growth-long"];
         foreach (var (w, h, scale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
@@ -97,6 +100,7 @@ internal sealed class PanelGame : Game
         PrimaryOnly = args.Contains("--primary-only");
         BookOnly = args.Contains("--book-only");
         CameraOnly = args.Contains("--camera-only");
+        OrnamentsOnly = args.Contains("--ornaments-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Fixtures.Text(); if (!HeadersOnly) PanelChecks.Run();
         using var game = new PanelGame(); game.Run();
