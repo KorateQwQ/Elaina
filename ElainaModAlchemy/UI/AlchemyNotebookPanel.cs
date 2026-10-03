@@ -21,6 +21,7 @@ namespace 伊蕾娜.ElainaModAlchemy.UI;
 public sealed partial class AlchemyNotebookPanel : BaseBody
 {
     private readonly AlchemyNotebookState _state = new();
+    private readonly AlchemySelectionQuillMotion _quill = new();
     private readonly List<(UIView View, Rectangle Area)> _regions = [];
     private readonly List<(PaintView View, AlchemyCatalogRecipe Recipe)> _cards = [];
     private readonly List<(PaintView View, AlchemyNotebookRow Row)> _rows = [];
@@ -28,15 +29,14 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private readonly List<UIView> _quantityControls = [];
     private AlchemyDrawing _draw;
     private SUIScrollView _catalog, _detail;
-    private PaintView _note, _helpLayer;
+    private PaintView _helpLayer;
     private AlchemyCatalogMaterial[] _bagMaterials = [];
     private float _scale = 1, _lastScale = 1, _brewTime, _flash, _toastTime;
     private string _craftedId, _toast;
     private bool _dirty = true, _resetScroll = true, _help;
+    private bool _revealSelection;
     private KeyboardState _keyboard;
     private Player _owner;
-    private Vector2 _quill, _quillTarget;
-    private bool _quillReady;
     private float _inventoryRefresh;
     private int _lastResultSequence;
     private const float BrewDuration = .65f;
@@ -57,12 +57,19 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         SetTop(0, 0, .5f);
         Fit(GraphicsDeviceHelper.GetBackBufferSizeByUIScale());
         _draw = new AlchemyDrawing();
-        for (int i = 0; i < AlchemyCatalog.Categories.Count; i++)
+        for (int i = 0; i < Navigation.Count; i++)
         {
-            var category = AlchemyCatalog.Categories[i];
-            Button(new(36 + i * 169, 87, 156, 55), () => { if (Brewing || _state.IsBusy) return; _state.SetCategory(category.Id); Dirty(true); }, (d, h) => Category(d, _state, category, h));
+            var category = Navigation[i];
+            Button(new(36 + i * 118, 87, 110, 55), () =>
+            {
+                if (Brewing || _state.IsBusy) return;
+                _state.SetCategory(category.Id);
+                Dirty(true);
+            }, (d, h) => Category(d, _state, category, h));
         }
         _catalog = Scroll(new(CatalogX, CatalogY, CatalogWidth, CatalogHeight), false);
+        _catalog.Container.FitHeight = false;
+        _catalog.Container.FlexShrink = 0;
         for (int i = 0; i < AlchemyCatalog.Recipes.Count; i++)
         {
             int index = i;
@@ -74,23 +81,28 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             view.LeftMouseClick += (_, _) => { if (_cards[index].Recipe is { } r) Select(r.Id); };
             _cards.Add((view, null));
         }
-        _note = new PaintView((v, batch) => WithLocal(v, batch, d => PageNote(d, _state)))
-        { Border = 0, Padding = new Margin(0), FlexShrink = 0, IgnoreMouseInteraction = true }.Join(_catalog.Container);
+        // The viewport overlay shares the catalog's native clipping and draws
+        // after every card, including when the destination is offscreen.
+        var quillLayer = new PaintView((_, batch) => DrawSelectionQuill(batch))
+        {
+            Positioning = Positioning.Absolute, ZIndex = 1, IgnoreMouseInteraction = true,
+            Border = 0, Padding = new Margin(0), FitWidth = false, FitHeight = false
+        }.Join(_catalog.Mask);
+        quillLayer.SetSize(0, 0, 1, 1);
         _detail = Scroll(new(DetailX, DetailY, DetailWidth, DetailHeight), true);
         _quantityControls.Add(Button(new(842, 628, 26, 24), () => ChangeQuantity(-1), (d, h) => SmallButton(d, "−", h, _state.Quantity > 1)));
         _quantityControls.Add(Button(new(904, 628, 26, 24), () => ChangeQuantity(1), (d, h) => SmallButton(d, "+", h, _state.Quantity < _state.MaxBatches(_state.Current))));
         _quantityControls.Add(Button(new(938, 628, 36, 24), () => { _state.SetQuantity(_state.MaxBatches(_state.Current)); Dirty(false); },
             (d, h) => Label(d, "最大", 18, 5, 10, h ? Ink : Muted, .5f)));
         Button(new(780, 662, 272, 38), PrimaryAction, (d, h) => CraftButton(d, _state, h, BrewProgress));
-        Button(new(1040, 26, 28, 32), Close, (d, h) =>
-        {
-            d.Diamond(new(14, 14), 17, h ? Ink : Lavender * .65f, false);
-            d.Line(new(10, 10), new(18, 18), Lavender);
-            d.Line(new(10, 18), new(18, 10), Lavender);
-            d.LatinText("ESC", 14, 35, 8, Muted, .5f);
-        });
+        Button(CloseButtonBounds, Close, CloseButton);
         Button(new(714, 744, 82, 35), () => _help = true, (d, h) => Label(d, "帮助", 41, 11, 10, h ? Ink : Muted, .5f));
 #if DEBUG
+        Button(DebugLevelUpBounds, () =>
+        {
+            if (Brewing || _state.IsBusy) return;
+            _state.DebugLevelUp(); ProcessResult();
+        }, (d, h) => DebugLevelUpButton(d, _state, h, !Brewing && !_state.IsBusy));
         Button(new(802, 744, 82, 35), () => { if (Brewing || _state.IsBusy) return; _state.DebugRestock(); ProcessResult(); },
             (d, h) => DebugButton(d, "补充素材", h));
         Button(new(890, 744, 82, 35), () =>
@@ -111,7 +123,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
                 if (index >= _bagMaterials.Length) return;
                 var m = _bagMaterials[index];
                 d.Frame(0, 0, 38, 38, h ? Gold * .65f : Lavender * .3f);
-                d.Image(m.IconPath, 4, 1, 28, 28, Color.White);
+                d.MaterialIcon(m.IconPath, 4, 1, 28, 28);
                 Label(d, _state.MaterialCount(m.Id).ToString(), 35, 26, 9, Ink, 1);
             });
             _bag.Add(view);
@@ -178,7 +190,24 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         paint(_draw);
     }
     private void Dirty(bool reset) { _dirty = true; _resetScroll |= reset; }
-    private void Select(string id) { if (Brewing || !_book.IsOpen) return; _state.Select(id); Dirty(true); }
+    private void DrawSelectionQuill(SpriteBatch batch)
+    {
+        if (!_book.IsOpen || _book.Moving) return;
+        var selected = _cards.FirstOrDefault(c => c.Recipe?.Id == _state.SelectedId).View;
+        if (selected == null) { _quill.Reset(); return; }
+        _draw.Batch = batch;
+        _draw.Scale = _scale;
+        _draw.Origin = _quill.ResolvePosition(_state.SelectedId, selected.Bounds.Position,
+            _catalog.Container.InnerBounds.Position, _catalog.Container.ScrollOffset, _scale);
+        SelectionQuill(_draw, CardWidth - 7, CardHeight - 49);
+    }
+    private void Select(string id)
+    {
+        if (Brewing || !_book.IsOpen) return;
+        _state.Select(id);
+        _revealSelection = true;
+        Dirty(true);
+    }
     private void ChangeQuantity(int delta) { if (Brewing || !_book.IsOpen) return; _state.SetQuantity(_state.Quantity + delta); Dirty(false); }
     private void Notify(string message) { _toast = message; _toastTime = 3; }
     private void PrimaryAction()
@@ -203,8 +232,13 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         }
         else
         {
-            Notify(result.Message);
-            if (result.Success && result.Action == AlchemyNotebookAction.Research) { _craftedId = result.EntryId; _flash = 1; }
+            if (result.Success && result.Action == AlchemyNotebookAction.Research)
+            {
+                _toastTime = 0;
+                _craftedId = result.EntryId;
+                _flash = 1;
+            }
+            else Notify(result.Message);
         }
         Dirty(false);
     }
@@ -213,7 +247,6 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     {
         _dirty = false;
         var visible = _state.Visible;
-        _note.Invalid = visible.Count == 0;
         for (int i = 0; i < _cards.Count; i++)
         {
             var view = _cards[i].View;
@@ -245,8 +278,12 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         LayoutViews();
         if (_resetScroll)
         {
-            _catalog.ScrollBar.SetScrollPosition(Vector2.Zero);
+            float offset = _catalog.ScrollBar.CurrentScrollPosition.Y / _scale;
+            if (_revealSelection)
+                offset = AlchemyCatalogLayout.Reveal(_state.Category, _state.SelectedId, offset, CatalogHeight);
+            _catalog.ScrollBar.SetScrollPosition(new(0, offset * _scale));
             _detail.ScrollBar.SetScrollPosition(Vector2.Zero);
+            _revealSelection = false;
             _resetScroll = false;
         }
     }
@@ -260,11 +297,11 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             view.SetSize(area.Width * _scale, area.Height * _scale, 0, 0);
         }
         if (_catalog == null || _detail == null) return;
-        _catalog.Container.Gap = new Size(12 * _scale);
+        _catalog.Container.FitHeight = true;
+        _catalog.Container.Gap = new Size(AlchemyCatalogLayout.Gap * _scale);
         foreach (var (v, _) in _cards) v.SetSize(CardWidth * _scale, CardHeight * _scale, 0, 0);
-        _note.SetSize(660 * _scale, NoteHeight(_draw, _state) * _scale, 0, 0);
-        foreach (var (v, row) in _rows) if (row != null) v.SetSize(DetailWidth * _scale, row.Height * _scale, 0, 0);
-        float catalogContent = _state.Visible.Count == 0 ? 0 : MathF.Ceiling(_state.Visible.Count / 4f) * (CardHeight + 12) + NoteHeight(_draw, _state);
+        foreach (var (v, row) in _rows) if (row != null) v.SetSize(DetailContentWidth * _scale, row.Height * _scale, 0, 0);
+        float catalogContent = AlchemyCatalogLayout.HeightFor(_state.Category);
         SetRange(_catalog, CatalogWidth, CatalogHeight, catalogContent);
         SetRange(_detail, DetailWidth, DetailHeight, _rows.Sum(r => r.Row?.Height ?? 0));
         _lastScale = _scale;
@@ -288,6 +325,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         if (_book.IsClosed) { CloseImmediately(); return; }
         if (!Main.hasFocus || !Main.mouseLeft) StopDragging();
         float dt = Main.hasFocus ? Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f) : 0;
+        _quill.Advance(dt);
         _inventoryRefresh -= dt;
         if (_inventoryRefresh <= 0)
         {
@@ -313,22 +351,15 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             if (Press(Keys.Escape)) { if (_help) _help = false; else Close(); }
             if (!_help && !Brewing && _book.IsOpen)
             {
-                var entries = _state.Visible;
-                int index = entries.ToList().FindIndex(r => r.Id == _state.SelectedId);
-                int offset = Press(Keys.Left) ? -1 : Press(Keys.Right) ? 1 : Press(Keys.Up) ? -4 : Press(Keys.Down) ? 4 : 0;
-                if (offset != 0 && entries.Count > 0) Select(entries[Math.Clamp(index + offset, 0, entries.Count - 1)].Id);
+                int horizontal = Press(Keys.Left) ? -1 : Press(Keys.Right) ? 1 : 0;
+                int vertical = Press(Keys.Up) ? -1 : Press(Keys.Down) ? 1 : 0;
+                if (horizontal != 0 || vertical != 0)
+                    Select(AlchemyCatalogLayout.Move(_state.Category, _state.SelectedId, horizontal, vertical));
             }
         }
         _keyboard = keys;
         base.UpdateStatus(gameTime);
         if (IsMouseHovering || _help || _book.Moving) Main.LocalPlayer.mouseInterface = true;
-        var selected = _cards.FirstOrDefault(c => c.Recipe?.Id == _state.SelectedId).View;
-        if (selected != null)
-        {
-            _quillTarget = (selected.Bounds.Position - Bounds.Position) / _scale + new Vector2(CardWidth - 7, CardHeight - 49);
-            if (!_quillReady) { _quill = _quillTarget; _quillReady = true; }
-            _quill = Vector2.Lerp(_quill, _quillTarget, 1 - MathF.Exp(-dt * 12));
-        }
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
@@ -355,8 +386,6 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         if (_help) return;
         WithLocal(this, spriteBatch, d =>
         {
-            if (_book.IsOpen && _quillReady && _state.Visible.Any(r => r.Id == _state.SelectedId) && _quill.Y >= CatalogY && _quill.Y + QuillHeight <= CatalogY + CatalogHeight)
-                SelectionQuill(d, _quill.X, _quill.Y);
             if (_toastTime <= 0) return;
             float width = Math.Min(640, d.Measure(_toast, 12) + 40), x = (DesignWidth - width) / 2;
             d.Box(x, 676, width, 36, new Color(53, 37, 63));
@@ -376,7 +405,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         d.Frame(310, 190, 480, 418, Lavender * .65f);
         Label(d, "炼金手记", 344, 222, 24, Ink, serif: true);
         float y = 274;
-        foreach (string p in new[] { "在魔药、奇物、料理与素材之间翻页。问号代表未研究的造物，满足等级或配方条件后点击研究。", "制作沿用原版合成材料规则，包括背包、打开的箱子、个人容器、虚空袋及模组提供的材料。", "制作成功后获得产物与炼金经验。研究记录、等级和经验随角色保存；灰赝尘默认不参与炼金。", "P 打开或合上手记 · Esc 返回 · 方向键选择条目。" })
+        foreach (string p in new[] { "全部物品连续排列，滚动即可浏览。点击分类可跳到对应区域；问号条目满足条件后即可研究。", "制作沿用原版合成材料规则，包括背包、打开的箱子、个人容器、虚空袋及模组提供的材料。", "制作成功后获得产物与炼金经验。研究记录、等级和经验随角色保存；灰赝尘默认不参与炼金。", "P 打开或合上手记 · Esc 返回 · 方向键选择条目。" })
             y = d.Paragraph(p, 344, y, 412, 12, Muted, 23) + 16;
         d.Frame(343, 547, 414, 38, Lavender * .5f);
         Label(d, "返回", 550, 558, 14, Ink, .5f, true);
@@ -391,18 +420,11 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     {
         StopDragging();
         _book.Reset();
+        _quill.Reset();
         _bookClock.Stop();
         Enabled = false;
         _help = false;
         _keyboard = default;
-    }
-    private void DebugButton(AlchemyDrawing d, string label, bool hover)
-    {
-#if DEBUG
-        d.Box(0, 3, 82, 29, Gold * (hover ? .13f : .045f));
-        d.Frame(0, 3, 82, 29, Gold * (hover ? .7f : .32f));
-        Label(d, label, 41, 11, 10, hover ? Ink : Gold, .5f);
-#endif
     }
     protected override void OnExitTree() { CloseImmediately(); _owner = null; _state.Clear(); base.OnExitTree(); }
     public static bool TogglePanel()
@@ -412,6 +434,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         if (body._owner != Main.LocalPlayer)
         {
             body.CloseImmediately(); body._state.Bind(new AlchemyNotebookSource(Main.LocalPlayer));
+            body._revealSelection = false;
             body._lastResultSequence = 0; body._brewTime = body._flash = 0; body.Dirty(true);
         }
         else if (body._state.Refresh()) body.Dirty(false);

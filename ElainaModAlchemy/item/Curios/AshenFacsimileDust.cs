@@ -33,8 +33,8 @@ public sealed class AshenFacsimileDust : AlchemyItem
 
     public override void SetDefaults()
     {
-        Item.width = 20;
-        Item.height = 30;
+        Item.width = CatalogEntry.PixelWidth;
+        Item.height = CatalogEntry.PixelHeight;
         Item.maxStack = Item.CommonMaxStack;
         Item.rare = ItemRarityID.Blue;
     }

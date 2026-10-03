@@ -1,14 +1,73 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><defs>
-    <linearGradient id="gold" x2="0" y2="1"><stop stop-color="#f5cf87" /><stop offset=".5" stop-color="#d89a4b" /><stop offset="1" stop-color="#97502d" /></linearGradient>
-    <linearGradient id="purple" x2="0" y2="1"><stop stop-color="#d9b5f1" /><stop offset=".5" stop-color="#a578cd" /><stop offset="1" stop-color="#69518e" /></linearGradient>
-    <linearGradient id="blue" x2="0" y2="1"><stop stop-color="#c0eff3" /><stop offset=".5" stop-color="#79bed8" /><stop offset="1" stop-color="#4c739c" /></linearGradient>
-    <linearGradient id="shimmer" x2="1" y2="1"><stop stop-color="#f5b9db" /><stop offset=".5" stop-color="#bca0ed" /><stop offset="1" stop-color="#8bd3d9" /></linearGradient>
-    <linearGradient id="cream" x2="0" y2="1"><stop stop-color="#fff3d8" /><stop offset=".5" stop-color="#e9d4ac" /><stop offset="1" stop-color="#b3997b" /></linearGradient>
-    <linearGradient id="red" x2="0" y2="1"><stop stop-color="#ec9da0" /><stop offset=".5" stop-color="#b8586b" /><stop offset="1" stop-color="#794255" /></linearGradient>
-    <filter id="pencil-tooth" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50" data-pencil-art="bottled-rain">
+  <defs>
+    <linearGradient id="glass" x1=".12" y1=".05" x2=".9" y2="1">
+      <stop offset="0" stop-color="#e4d7f2" stop-opacity=".85" />
+      <stop offset=".3" stop-color="#b7b4e0" stop-opacity=".66" />
+      <stop offset=".65" stop-color="#79cbd9" stop-opacity=".72" />
+      <stop offset="1" stop-color="#5d7fad" stop-opacity=".9" />
+    </linearGradient>
+    <linearGradient id="water" x1=".1" y1="0" x2=".9" y2="1">
+      <stop offset="0" stop-color="#d5c4ec" />
+      <stop offset=".42" stop-color="#8bd5df" />
+      <stop offset="1" stop-color="#5c91bd" />
+    </linearGradient>
+    <linearGradient id="cloud" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#fffaff" />
+      <stop offset=".55" stop-color="#e7dcf5" />
+      <stop offset="1" stop-color="#abdce5" />
+    </linearGradient>
+    <linearGradient id="lilac" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6c7ef" />
+      <stop offset=".52" stop-color="#b48bd1" />
+      <stop offset="1" stop-color="#765b9b" />
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb7d9" />
+      <stop offset=".55" stop-color="#cf84c6" />
+      <stop offset="1" stop-color="#8d6ab1" />
+    </linearGradient>
+    <radialGradient id="glow" cx=".45" cy=".35" r=".75">
+      <stop offset="0" stop-color="#fff2ff" stop-opacity=".6" />
+      <stop offset=".55" stop-color="#c7a8e8" stop-opacity=".22" />
+      <stop offset="1" stop-color="#75d4dd" stop-opacity="0" />
+    </radialGradient>
+    <clipPath id="inside">
+      <path d="M19.2 10.3h11.6v7.4c0 1.7 6.3 5.1 7.3 10.1v11c0 3.1-2.7 5-6 5H18c-3.3 0-6-1.9-6-5v-11c1-5 7.3-8.4 7.3-10.1Z" />
+    </clipPath>
+  <filter id="pencil-tooth" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
       <feTurbulence type="fractalNoise" baseFrequency="1.35" numOctaves="3" seed="17" result="grain" />
       <feDisplacementMap in="SourceGraphic" in2="grain" scale=".24" xChannelSelector="R" yChannelSelector="G" result="rough" />
       <feColorMatrix in="grain" type="luminanceToAlpha" />
       <feComponentTransfer><feFuncA type="linear" slope=".35" intercept=".65" /></feComponentTransfer>
       <feComposite in="rough" operator="in" />
-    </filter><pattern id="pencil-hatch-0" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#97b2c2" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-1" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#8eaac5" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-2" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#b0a4c7" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern></defs><g filter="url(#pencil-tooth)" stroke-linecap="round" stroke-linejoin="round"><g stroke="#79558f" stroke-width="0.69" stroke-linejoin="round" stroke-linecap="round"><path d="M19 9h12v8l7 8v15q0 5-5 5H17q-5 0-5-5V25l7-8Z" fill="url(#pencil-hatch-0)" fill-opacity=".6" /><path d="M14 36q11-3 22 0v5q0 2-3 2H17q-3 0-3-2Z" fill="url(#pencil-hatch-1)" stroke="none" /><rect x="18" y="5" width="14" height="5" rx="1" fill="url(#pencil-hatch-2)" /><path d="M20 7h9M16 27v8" stroke="#79558f" stroke-width="0.84" stroke-linecap="round" stroke-linejoin="round" /><path d="M20 7h9M16 27v8" stroke="#79558f" stroke-width=".28" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".4" transform="translate(.22 -.16)" /><path d="M18 30a3.2 3.2 0 0 1 .5-6 5 5 0 0 1 9-1.8 4 4 0 0 1 5 6.6l-2.5 1.2Z" fill="#e8daef" stroke="#79558f" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round" /><path d="M18 30a3.2 3.2 0 0 1 .5-6 5 5 0 0 1 9-1.8 4 4 0 0 1 5 6.6l-2.5 1.2Z" fill="none" stroke="#79558f" stroke-width=".28" stroke-linecap="round" stroke-linejoin="round" opacity=".4" transform="translate(.22 -.16)" /><path d="m21 33-1 3m6-3-1 3m6-3-1 3" stroke="#79558f" stroke-width="0.78" stroke-linecap="round" stroke-linejoin="round" /><path d="m21 33-1 3m6-3-1 3m6-3-1 3" stroke="#79558f" stroke-width=".28" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".4" transform="translate(.22 -.16)" /><path d="M19 15h12" stroke="#79558f" stroke-width="0.96" stroke-linecap="round" stroke-linejoin="round" /><path d="M19 15h12" stroke="#79558f" stroke-width=".28" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".4" transform="translate(.22 -.16)" /></g></g></svg>
+    </filter><pattern id="pencil-hatch-0" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#d9c38e" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-1" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#90c0c8" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".24" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".24" /></pattern><pattern id="pencil-hatch-2" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#94c4cb" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-3" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#e8daef" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-4" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#dac490" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-5" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#d59ec5" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-6" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#b198c3" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern><pattern id="pencil-hatch-7" width="3.6" height="3.6" patternUnits="userSpaceOnUse"><rect width="3.6" height="3.6" fill="#b59acd" /><path d="M-.5 3.55 1.1 2.06 2.2 1.24 3.6-.5M3.1 4.1 4.1 3.1" fill="none" stroke="#73518d" stroke-width=".58" opacity=".76" /><path d="M.05 3.6 1.5 2.3 2.5 1.35 3.6.2" fill="none" stroke="#efdcf7" stroke-width=".18" opacity=".4" /></pattern></defs>
+
+  <g filter="url(#pencil-tooth)" stroke-linecap="round" stroke-linejoin="round"><path d="M37.2 8.2l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4Z" fill="url(#pencil-hatch-0)" />
+
+  
+  <path id="rain-glass" d="M19.2 8.7h11.6v9c0 1.7 6.3 4.5 7.3 9.8v11.4c0 3.5-2.9 5.7-6.6 5.7H18.5c-3.7 0-6.6-2.2-6.6-5.7V27.5c1-5.3 7.3-8.1 7.3-9.8Z" fill="url(#pencil-hatch-1)" stroke="#79558f" stroke-width="0.72" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M19.2 8.7h11.6v9c0 1.7 6.3 4.5 7.3 9.8v11.4c0 3.5-2.9 5.7-6.6 5.7H18.5c-3.7 0-6.6-2.2-6.6-5.7V27.5c1-5.3 7.3-8.1 7.3-9.8Z" fill="none" stroke="#79558f" stroke-width=".28" stroke-linejoin="round" stroke-linecap="round" opacity=".4" transform="translate(.22 -.16)" />
+  <g clip-path="url(#inside)">
+    <path id="rain-water" d="M9 40c6-1.3 10.5-.8 16 .3 5-1.1 10-.9 17 .5v6H9Z" fill="url(#pencil-hatch-2)" />
+    <path id="rain-surface" d="M13 40.5c4-.8 8-.5 12 .3 4-.8 8-.6 12 .1" fill="none" stroke="#d9eeee" stroke-opacity=".9" stroke-width=".7" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M16.2 29.5c-2.2-.8-2.1-3.4.1-4.5-.1-2.6 3.1-4.2 4.9-2.2 1.2-3.2 5.8-3.1 6.9.1 3.2-.4 5.1 3 3.1 5.4 1.3 1 .6 2.5-1.1 2.6H17.7c-1.7 0-2.4-.9-1.5-1.4Z" fill="url(#pencil-hatch-3)" stroke="#79558f" stroke-width="0.45" stroke-linejoin="round" stroke-linecap="round" />
+    <path d="M24.6 20.2l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5Z" fill="url(#pencil-hatch-4)" />
+    <circle cx="33.3" cy="28.8" r=".55" fill="url(#pencil-hatch-5)" />
+    <g id="pencil-rain-drops"><g transform="translate(19 32.5) rotate(14) scale(1)"><path d="M0 0C-.3 1.1-1.5 2.1-1.5 3.1A1.5 1.5 0 0 0 1.5 3.1C1.5 2.1.3 1.1 0 0Z" fill="#cff4f3" stroke="#506b97" stroke-width=".55" stroke-linejoin="round" /><path d="M-.25 1.7Q-.9 2.6-.85 3.1" fill="none" stroke="#fff8f3" stroke-width=".6" stroke-linecap="round" /></g><g transform="translate(24.4 34.4) rotate(14) scale(1.06)"><path d="M0 0C-.3 1.1-1.5 2.1-1.5 3.1A1.5 1.5 0 0 0 1.5 3.1C1.5 2.1.3 1.1 0 0Z" fill="#cff4f3" stroke="#506b97" stroke-width=".55" stroke-linejoin="round" /><path d="M-.25 1.7Q-.9 2.6-.85 3.1" fill="none" stroke="#fff8f3" stroke-width=".6" stroke-linecap="round" /></g><g transform="translate(30 32.1) rotate(14) scale(1)"><path d="M0 0C-.3 1.1-1.5 2.1-1.5 3.1A1.5 1.5 0 0 0 1.5 3.1C1.5 2.1.3 1.1 0 0Z" fill="#cff4f3" stroke="#506b97" stroke-width=".55" stroke-linejoin="round" /><path d="M-.25 1.7Q-.9 2.6-.85 3.1" fill="none" stroke="#fff8f3" stroke-width=".6" stroke-linecap="round" /></g></g></g>
+
+  
+  <path d="M18.2 5.1c2.3-.9 11.1-.9 13.6.1l-.3 4.8H18.5Z" fill="url(#pencil-hatch-6)" stroke="#79558f" stroke-width="0.63" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M18.2 5.1c2.3-.9 11.1-.9 13.6.1l-.3 4.8H18.5Z" fill="none" stroke="#79558f" stroke-width=".28" stroke-linejoin="round" stroke-linecap="round" opacity=".4" transform="translate(.22 -.16)" />
+  <path d="M18.7 6.5c3 1 8.8 1 12.5-.1m-12.7 2.1c3.4.9 9.4.9 12.9-.1" fill="none" stroke="#79558f" stroke-opacity=".64" stroke-width="0.372" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M18.4 10.3h13.2M18.5 16.8h12.9" stroke="#79558f" stroke-width="0.69" stroke-linecap="round" stroke-linejoin="round" />
+
+  
+  <path d="M18.4 10.3h13.2M18.5 16.8h12.9" stroke="#79558f" stroke-width=".28" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".4" transform="translate(.22 -.16)" />
+
+  
+  <path d="M15.6 26.5c-.9 2.1-1.1 5.2-.9 8.3m2-11.2c-.3.7-.4 1.3-.4 2" fill="none" stroke="#79558f" stroke-opacity=".78" stroke-width="0.69" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M15.6 26.5c-.9 2.1-1.1 5.2-.9 8.3m2-11.2c-.3.7-.4 1.3-.4 2" fill="none" stroke="#79558f" stroke-opacity=".78" stroke-width=".28" stroke-linecap="round" stroke-linejoin="round" opacity=".4" transform="translate(.22 -.16)" />
+  <path d="M34.6 26.5c.7 2.7.8 5.1.6 7.5" fill="none" stroke="#79558f" stroke-opacity=".35" stroke-width="0.42" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M39.2 19.2c1.3 1 1.7 2.1 1.3 3.2" fill="none" stroke="#79558f" stroke-opacity=".8" stroke-width="0.39" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="40.6" cy="24" r=".55" fill="url(#pencil-hatch-7)" />
+</g></svg>

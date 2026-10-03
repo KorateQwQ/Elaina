@@ -1,0 +1,199 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using SilkyUIFramework;
+using SilkyUIFramework.Attributes;
+using Terraria;
+using Terraria.GameInput;
+using Terraria.UI;
+using 伊蕾娜.System.UI;
+using GameMain = Terraria.Main;
+
+internal static class Checks
+{
+    private static int _passed;
+    private static void Check(bool condition, string reason)
+    {
+        if (!condition) throw new Exception(reason);
+        _passed++;
+    }
+
+    private static void Main()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        CaptureChecks();
+        LayerChecks();
+        foreach (float scale in new[] { 1f, 1.25f, 1.5f, 2f }) ScopeChecks(scale);
+        NativeUIChecks();
+        Console.WriteLine($"PASS: {_passed} UI input checks (real tModLoader input/UI APIs).");
+    }
+
+    private static void CaptureChecks()
+    {
+        var capture = new UIPointerCapture();
+        Check(!capture.Update(true, false, true, true, false), "A vanilla-origin click stays available.");
+        Check(capture.Update(true, true, false, false, false), "Hover alone hides vanilla tooltips.");
+        Check(!capture.Update(true, false, false, false, false), "Leaving a panel without a gesture releases immediately.");
+        for (int button = 0; button < 3; button++)
+        {
+            bool left = button == 0, right = button == 1, middle = button == 2;
+            Check(capture.Update(true, true, left, right, middle), $"Button {button}: press over panel.");
+            Check(capture.Update(true, false, left, right, middle), $"Button {button}: drag outside remains captured.");
+            Check(capture.Update(true, false, false, false, false), $"Button {button}: release cannot leak.");
+            Check(!capture.Update(true, false, false, false, false), $"Button {button}: next frame works normally.");
+        }
+        capture.Update(true, true, true, true, false);
+        capture.Update(true, false, false, true, false);
+        Check(capture.IsCaptured, "Releasing left does not end right-button capture.");
+        Check(!capture.Update(false, true, true, true, true) && !capture.IsCaptured,
+            "Hidden UI, menus or lost focus reset capture.");
+        capture.Update(true, true, true, false, false);
+        capture.Reset();
+        Check(!capture.IsCaptured, "World unload clears capture.");
+    }
+
+    private static void LayerChecks()
+    {
+        var order = new SUIInputLayerOrder();
+        var inventory = new LegacyGameInterfaceLayer("Vanilla: Inventory", () => true);
+        var anchor = new LegacyGameInterfaceLayer("Vanilla: Radial Hotbars", () => true);
+        var map = new LegacyGameInterfaceLayer("Vanilla: Map / Minimap", () => true);
+        var background = new SilkyUILayer(null, "OtherMod: Background", InterfaceScaleType.UI);
+        var foreign = new SilkyUILayer(null, "OtherMod: Panel", InterfaceScaleType.UI);
+        var newPanel = new SilkyUILayer(null, "FutureMod: Panel", InterfaceScaleType.UI);
+        var top = new LegacyGameInterfaceLayer("Vanilla: Mouse Text", () => true);
+        var layers = new List<GameInterfaceLayer> { map, background, inventory, anchor, foreign, newPanel, top };
+        order.Update(layers);
+        Check(order.IsAbove(typeof(ForeignSUI.Panel), inventory.Name), "Another mod's SUI automatically shields inventory.");
+        Check(order.IsAbove(typeof(ForeignSUI.FuturePanel), inventory.Name), "New registered SUI requires no allowlist entry.");
+        Check(order.IsAbove(typeof(ForeignSUI.InheritedPanel), inventory.Name), "Inherited SUI registration is recognized.");
+        Check(!order.IsAbove(typeof(ForeignSUI.Background), inventory.Name), "A lower SUI cannot shield inventory above it.");
+        Check(order.IsAbove(typeof(ForeignSUI.Background), map.Name), "A lower SUI still shields layers underneath it.");
+        Check(!order.IsAbove(typeof(ForeignSUI.Panel), top.Name), "Native layers above SUI keep input.");
+        Check(order.IsAbove(typeof(ForeignSUI.GlobalPanel), inventory.Name), "Global SUI shields lower native layers.");
+        Check(!order.IsAbove(null, inventory.Name), "No hover does not acquire a layer.");
+        Check(!order.IsAbove(typeof(ForeignSUI.Unregistered), inventory.Name), "Unregistered roots do not claim game layers.");
+        Check(!order.IsAbove(typeof(ForeignSUI.Panel), "Vanilla: Missing"), "Missing native layers do not acquire input.");
+        foreign.Active = false;
+        order.Update(layers);
+        Check(!order.IsAbove(typeof(ForeignSUI.Panel), inventory.Name), "Inactive SUI layers do not shield.");
+        foreign.Active = true;
+        order.Update(layers);
+        layers.Remove(foreign); // Another mod edits the shared list after this ModSystem.
+        layers.Insert(0, foreign);
+        Check(!order.IsAbove(typeof(ForeignSUI.Panel), inventory.Name), "Final layer order includes later mods' edits.");
+        layers.Remove(newPanel);
+        order.Update(layers);
+        Check(!order.IsAbove(typeof(ForeignSUI.FuturePanel), inventory.Name), "Removed SUI layers do not shield.");
+        layers = new List<GameInterfaceLayer> { map,
+            new SilkyUILayer(null, "NONE", InterfaceScaleType.UI), inventory, anchor,
+            new SilkyUILayer(null, "NONE", InterfaceScaleType.UI) };
+        order.Update(layers);
+        Check(!order.IsAbove(typeof(ForeignSUI.DuplicateBackground), inventory.Name), "Duplicate SUI names resolve the lower anchor.");
+        Check(order.IsAbove(typeof(ForeignSUI.DuplicatePanel), inventory.Name), "Duplicate SUI names resolve the upper anchor.");
+        order.Clear();
+        Check(!order.IsAbove(typeof(ForeignSUI.Panel), inventory.Name), "World unload discards old layer positions.");
+    }
+
+    private static void Seed(float scale)
+    {
+        // Tests run without a Game instance/graphics device; avoid UIScale's display setter.
+        typeof(GameMain).GetField("_uiScaleUsed", BindingFlags.NonPublic | BindingFlags.Static)!.SetValue(null, scale);
+        GameMain.mouseX = 780; GameMain.mouseY = 450;
+        GameMain.lastMouseX = 778; GameMain.lastMouseY = 448;
+        GameMain.screenWidth = 1920; GameMain.screenHeight = 1080;
+        PlayerInput.CacheOriginalScreenDimensions();
+        PlayerInput.CacheMousePositionForZoom();
+        PlayerInput.MouseX = 780; PlayerInput.MouseY = 450;
+        PlayerInput.SetZoom_UI();
+        GameMain.mouseLeft = GameMain.mouseRight = GameMain.mouseMiddle = true;
+        GameMain.mouseXButton1 = GameMain.mouseXButton2 = true;
+        GameMain.mouseLeftRelease = true; GameMain.mouseRightRelease = false;
+        GameMain.blockMouse = false;
+        PlayerInput.ScrollWheelDeltaForUI = 120; PlayerInput.ScrollWheelDelta = -120;
+    }
+
+    private static string Snapshot() => string.Join("|", new object[] {
+        GameMain.mouseX, GameMain.mouseY, GameMain.lastMouseX, GameMain.lastMouseY,
+        GameMain.screenWidth, GameMain.screenHeight, PlayerInput.MouseX, PlayerInput.MouseY,
+        GameMain.mouseLeft, GameMain.mouseRight, GameMain.mouseMiddle,
+        GameMain.mouseXButton1, GameMain.mouseXButton2,
+        GameMain.mouseLeftRelease, GameMain.mouseRightRelease, GameMain.blockMouse,
+        PlayerInput.ScrollWheelDeltaForUI, PlayerInput.ScrollWheelDelta
+    });
+
+    private static void ScopeChecks(float scale)
+    {
+        Seed(scale);
+        string before = Snapshot();
+        using (new VanillaMouseInputScope())
+        {
+            Check(GameMain.mouseX < 0 && GameMain.mouseY < 0, $"{scale}: native hit tests miss.");
+            Check(!GameMain.mouseLeft && !GameMain.mouseRight && !GameMain.mouseMiddle
+                && !GameMain.mouseXButton1 && !GameMain.mouseXButton2
+                && !GameMain.mouseLeftRelease && !GameMain.mouseRightRelease && GameMain.blockMouse,
+                $"{scale}: native buttons are masked.");
+            Check(PlayerInput.ScrollWheelDelta == 0 && PlayerInput.ScrollWheelDeltaForUI == 0,
+                $"{scale}: native scroll is masked.");
+            PlayerInput.SetZoom_Unscaled();
+            Check(GameMain.mouseX < 0 && GameMain.mouseY < 0, $"{scale}: unscaled zoom cannot expose pointer.");
+            PlayerInput.SetZoom_UI();
+            Check(GameMain.mouseX < 0 && GameMain.mouseY < 0, $"{scale}: UI zoom cannot expose pointer.");
+            string outer = Snapshot();
+            using (new VanillaMouseInputScope()) { PlayerInput.SetZoom_Unscaled(); }
+            Check(Snapshot() == outer, $"{scale}: nested vanilla scopes restore outer state.");
+        }
+        Check(Snapshot() == before, $"{scale}: every input flag and coordinate is restored.");
+        PlayerInput.SetZoom_Unscaled();
+        Check(GameMain.mouseX == 780 && GameMain.mouseY == 450, $"{scale}: raw pointer cache is restored.");
+        PlayerInput.SetZoom_UI();
+        Check(Snapshot() == before, $"{scale}: next layer sees the correct scaled pointer.");
+        try { using var input = new VanillaMouseInputScope(); throw new InvalidOperationException("test"); }
+        catch (InvalidOperationException) { }
+        Check(Snapshot() == before, $"{scale}: exceptions still restore input.");
+    }
+
+    private static void NativeUIChecks()
+    {
+        Seed(1);
+        GameMain.hasFocus = true;
+        var ui = new UserInterface();
+        var state = new UIState();
+        var button = new UIElement();
+        button.Left.Set(700, 0); button.Top.Set(400, 0);
+        button.Width.Set(200, 0); button.Height.Set(100, 0);
+        state.Append(button);
+        int presses = 0, scrolls = 0;
+        button.OnLeftMouseDown += (_, _) => presses++;
+        button.OnScrollWheel += (_, _) => scrolls++;
+        GameMain.mouseLeft = false;
+        ui.SetState(state);
+        var time = new GameTime(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        PlayerInput.ScrollWheelDeltaForUI = 0;
+        ui.Update(time);
+        GameMain.mouseLeft = true;
+        PlayerInput.ScrollWheelDeltaForUI = 120;
+        using (new VanillaMouseInputScope()) ui.Update(time);
+        Check(presses == 0 && scrolls == 0, "Real vanilla UI receives no covered clicks or wheel events.");
+        ui.Update(time);
+        Check(presses == 1 && scrolls == 1, "Real vanilla UI receives input again after scope exits.");
+    }
+}
+
+// These types deliberately live outside the Elaina namespace and have no game assets.
+namespace ForeignSUI
+{
+    [RegisterUI("Vanilla: Radial Hotbars", "OtherMod: Panel")]
+    internal class Panel : SilkyUIFramework.Elements.BaseBody { }
+    internal sealed class InheritedPanel : Panel { }
+    [RegisterUI("Vanilla: Radial Hotbars", "FutureMod: Panel")]
+    internal sealed class FuturePanel : SilkyUIFramework.Elements.BaseBody { }
+    [RegisterUI("Vanilla: Map / Minimap", "OtherMod: Background")]
+    internal sealed class Background : SilkyUIFramework.Elements.BaseBody { }
+    [RegisterGlobalUI("OtherMod: Global")]
+    internal sealed class GlobalPanel : SilkyUIFramework.Elements.BaseBody { }
+    internal sealed class Unregistered : SilkyUIFramework.Elements.BaseBody { }
+    [RegisterUI("Vanilla: Map / Minimap", "NONE")]
+    internal sealed class DuplicateBackground : SilkyUIFramework.Elements.BaseBody { }
+    [RegisterUI("Vanilla: Radial Hotbars", "NONE")]
+    internal sealed class DuplicatePanel : SilkyUIFramework.Elements.BaseBody { }
+}

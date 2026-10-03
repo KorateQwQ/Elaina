@@ -15,7 +15,7 @@ public sealed class AlchemyNotebookState
     public IReadOnlyDictionary<string, int> Materials => _snapshot.Materials;
     public IReadOnlyDictionary<string, int> Products => _snapshot.Products;
     public string SelectedId { get; private set; } = "mana";
-    public string Category { get; private set; } = "potion";
+    public string Category { get; private set; } = "all";
     public int Quantity { get; private set; } = 1;
     public int Revision { get; private set; }
     public int Level => _snapshot.Level;
@@ -26,19 +26,21 @@ public sealed class AlchemyNotebookState
     public int UnlockedCount => _snapshot.Unlocked.Count;
     public AlchemyNotebookResult LastResult => _source?.LastResult;
     public AlchemyCatalogRecipe Current => AlchemyCatalog.GetRecipe(SelectedId);
-    public IReadOnlyList<AlchemyCatalogRecipe> Visible => AlchemyCatalog.Recipes.Where(r => r.Category == Category).ToArray();
+    public IReadOnlyList<AlchemyCatalogRecipe> Visible => Category == "all"
+        ? AlchemyCatalog.Recipes
+        : AlchemyCatalog.Recipes.Where(r => r.Category == Category).ToArray();
 
     public AlchemyNotebookState(IAlchemyNotebookSource source = null) { if (source != null) Bind(source); }
     public void Bind(IAlchemyNotebookSource source)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
-        SelectedId = "mana"; Category = "potion"; Quantity = 1;
+        SelectedId = "mana"; Category = "all"; Quantity = 1;
         Refresh();
     }
     public void Clear()
     {
         _source = null; _snapshot = new(); _stamp = 0;
-        SelectedId = "mana"; Category = "potion"; Quantity = 1; Revision++;
+        SelectedId = "mana"; Category = "all"; Quantity = 1; Revision++;
     }
     public bool Refresh()
     {
@@ -61,7 +63,7 @@ public sealed class AlchemyNotebookState
         recipe != null && _snapshot.Research.TryGetValue(recipe.Id, out var research) ? research : new(1, false, true, "", 0, 0, false, false, "等待角色数据");
     public string DisplayName(AlchemyCatalogRecipe recipe) => IsUnlocked(recipe) ? recipe.Name : "未解锁的造物";
     public static string StateLabel(string key) => key switch
-    { Ready => "可炼制", Short => "缺素材", Acquire => "可取得", Researchable => "可研究", _ => "未解锁" };
+    { Ready => "可炼制", Short => "素材不足", Acquire => "可取得", Researchable => "可研究", _ => "未研究" };
     public string StateOf(AlchemyCatalogRecipe recipe) => !IsUnlocked(recipe) ? Research(recipe).CanResearch ? Researchable : Locked
         : !recipe.Craftable ? Acquire : MaxBatches(recipe) > 0 ? Ready : Short;
     public int MaterialCount(string id) => id != null && Materials.TryGetValue(id, out int count) ? count : 0;
@@ -76,6 +78,9 @@ public sealed class AlchemyNotebookState
     public bool TryResearch() => CanResearch() && Request(AlchemyNotebookAction.Research, 1);
     public bool DebugRestock() => !IsBusy && Current.Craftable && Request(AlchemyNotebookAction.DebugRestock, 1);
     public bool DebugReset() => !IsBusy && Request(AlchemyNotebookAction.DebugReset, 1);
+#if DEBUG
+    public bool DebugLevelUp() => !IsBusy && Level < MaximumLevel && Request(AlchemyNotebookAction.DebugLevelUp, 1);
+#endif
     private bool Request(AlchemyNotebookAction action, int batches)
     {
         bool accepted = _source?.Request(action, SelectedId, batches) == true;
@@ -87,13 +92,14 @@ public sealed class AlchemyNotebookState
         var recipe = AlchemyCatalog.Recipes.FirstOrDefault(r => r.Id == id);
         if (recipe == null) return;
         if (SelectedId != id) Quantity = 1;
-        SelectedId = id; Category = recipe.Category; ClampQuantity(); Revision++;
+        if (Category != "all" && recipe.Category != Category) Category = recipe.Category;
+        SelectedId = id; ClampQuantity(); Revision++;
     }
     public void SetCategory(string id)
     {
-        if (!AlchemyCatalog.Categories.Any(c => c.Id == id)) return;
+        if (id != "all" && !AlchemyCatalog.Categories.Any(c => c.Id == id)) return;
         Category = id;
-        if (Current.Category != id) SelectedId = Visible[0].Id;
+        SelectedId = id == "all" ? Visible[0].Id : Visible.First(r => r.Category == id).Id;
         Quantity = 1; Revision++;
     }
     public void SetQuantity(int quantity)

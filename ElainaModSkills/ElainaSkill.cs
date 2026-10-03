@@ -43,7 +43,6 @@ public abstract partial class ElainaSkill : ModSkill
 
     /// <summary>
     /// 按当前技能对应的曲线获取指定进度的技能伤害。
-
     /// </summary>
     protected int GetSkillDamage(float bossState)
     {
@@ -61,17 +60,26 @@ public abstract partial class ElainaSkill : ModSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.
         ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
 
+    /// <summary>
+    /// 判断技能是否可以从技能面板拖入技能栏。被动技能不能拖入技能栏。
+    /// </summary>
     public override bool CanDragInSkillPanel()
     {
         if(IsPassiveSkill) return false;
         return base.CanDragInSkillPanel();
     }
 
+    /// <summary>
+    /// 在技能冷却时间更新前调用，用于决定是否继续更新冷却时间。
+    /// </summary>
     public override bool PreUpdateCD()
     {
         return base.PreUpdateCD();
     }
 
+    /// <summary>
+    /// 判断技能是否可以使用，并在使用前消耗所需的魔力点数。
+    /// </summary>
     public override bool CanUseSkill()
     {
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
@@ -83,6 +91,9 @@ public abstract partial class ElainaSkill : ModSkill
         return base.CanUseSkill();
     }
 
+    /// <summary>
+    /// 在绘制技能图标后绘制冷却时间等附加信息。
+    /// </summary>
     public override void PostDrawSkillIcon(Vector2 position, Vector2 scale,Color color, Effect effect = null)
     {
         //BasicStatus = Skill.SKillBasicStatus.Learned;
@@ -104,14 +115,23 @@ public abstract partial class ElainaSkill : ModSkill
         base.PostDrawSkillIcon(position, scale,color, effect);
     }
 
+    /// <summary>
+    /// 解锁技能，并同步更新伊蕾娜玩家的技能数据。
+    /// </summary>
     public override void OnUnlockSkill()
     {
         ElainaSkillModPlayer.SkillModPlayer.UnlockSkill(Skill);
         base.OnUnlockSkill();
     }
 
+    /// <summary>
+    /// 获取技能描述所需的本地化格式化参数。
+    /// </summary>
     protected virtual object[] SkillDescriptionArgs => Array.Empty<object>();
 
+    /// <summary>
+    /// 获取技能的本地化名称、等级和描述文本。
+    /// </summary>
     public override bool TryGetToolTip(ref string name, ref string level, ref string desc)
     {
         base.TryGetToolTip(ref name, ref level, ref desc);
@@ -135,6 +155,9 @@ public abstract partial class ElainaSkill : ModSkill
         return true;
     }
 
+    /// <summary>
+    /// 在绘制技能图标前调用，用于准备图标绘制并决定是否继续绘制。
+    /// </summary>
     public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale,Color color, Effect effect = null)
     {
         //EndBeginDrawUI(2,1,shader:effect);

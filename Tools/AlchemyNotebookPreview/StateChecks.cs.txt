@@ -10,6 +10,7 @@ internal static class StateChecks
     public static void Main()
     {
         var state = new AlchemyNotebookState();
+        Check(state.Category == "all" && state.Visible.Count == AlchemyCatalog.Recipes.Count, "Default view includes every category");
         Check(state.Materials.Count == 0 && state.Products.Count == 0 && !state.CanCraft(), "No production demonstration stock");
         var source = new Source(); state.Bind(source);
         Check(!state.IsUnlocked(state.Current) && state.DisplayName(state.Current) != state.Current.Name, "Locked item name stays hidden");
@@ -21,8 +22,34 @@ internal static class StateChecks
         Check(state.MaterialCount("moondew") == 9, "UI does not mutate source inventory");
         source.Data = source.Data with { MaximumBatches = new Dictionary<string,int>{{"mana",0}}, Materials = new Dictionary<string,int>{{"moondew",0}} };
         Check(state.Refresh() && !state.CanCraft() && state.Quantity == 1, "Live shortage disables crafting");
-        state.SetCategory("food"); Check(state.Visible.Count == 3 && state.Visible.All(r => r.Category == "food"), "Only the four item categories filter entries");
-        state.Select("moondew"); Check(state.Category == "material" && state.Visible.Count == 8, "Material links navigate across categories");
+        int allCount = state.Visible.Count;
+        state.SetCategory("food"); Check(state.Visible.Count == 3 && state.Visible.All(r => r.Category == "food"), "Category navigation filters to the selected category");
+        Check(state.Current.Category == "food", "Category navigation selects its first item");
+        state.Select("moondew"); Check(state.Category == "material" && state.Visible.Count == 8, "Material links navigate to the linked category");
+        state.SetCategory("all"); state.Select("moondew");
+        Check(state.Category == "all" && state.Visible.Count == allCount, "Selecting across categories keeps the all view active");
+        Check(AlchemyCatalogLayout.Slots.Select(s => s.Recipe.Id).Distinct().Count() == allCount, "Continuous layout contains each item exactly once");
+        const int viewport = 509;
+        foreach (var category in AlchemyCatalog.Categories)
+        {
+            state.SetCategory(category.Id);
+            float scroll = AlchemyCatalogLayout.CategoryOffset(category.Id, viewport);
+            var first = AlchemyCatalogLayout.For(category.Id).First(s => s.Recipe.Id == state.SelectedId);
+            Check(state.Visible.Count == AlchemyCatalog.Recipes.Count(r => r.Category == category.Id) && first.Y >= scroll && first.Y + AlchemyCatalogLayout.CardHeight <= scroll + viewport,
+                "Category destination reveals its selected card: " + category.Id);
+        }
+        var last = AlchemyCatalogLayout.For("all").Last();
+        float end = AlchemyCatalogLayout.Reveal("all", last.Recipe.Id, 0, viewport);
+        Check(end > 0 && last.Y + AlchemyCatalogLayout.CardHeight <= end + viewport, "Last card can scroll fully into view");
+        Check(AlchemyCatalogLayout.Reveal("all", "mana", 0, viewport) == 0, "Selecting a visible card does not reset scrolling");
+        var foodSlots = AlchemyCatalogLayout.For("food");
+        Check(AlchemyCatalogLayout.Move("food", foodSlots[0].Recipe.Id, 1, 0) == foodSlots[1].Recipe.Id, "Keyboard navigation moves inside the filtered category");
+        Check(AlchemyCatalogLayout.Move("food", foodSlots[^1].Recipe.Id, 1, 0) == foodSlots[^1].Recipe.Id, "Keyboard navigation clamps at the category end");
+        foreach (var a in AlchemyCatalogLayout.Slots)
+            foreach (var b in AlchemyCatalogLayout.Slots.Where(s => s.Recipe.Id != a.Recipe.Id))
+                if (Math.Abs(a.X - b.X) < AlchemyCatalogLayout.CardWidth && Math.Abs(a.Y - b.Y) < AlchemyCatalogLayout.CardHeight)
+                    throw new Exception("Catalog cards overlap");
+        Check(true, "All card bounds are separated");
         source.Data = source.Data with { Level = 5, Experience = 42, ExperienceToNextLevel = 300 }; state.Refresh();
         Check(state.Level == 5 && state.Experience == 42 && state.ExperienceToNextLevel == 300, "UI shows saved progression values");
         state.Clear(); Check(state.Materials.Count == 0 && source.Data.Level == 5, "Leaving UI does not reset character progress");

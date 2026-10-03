@@ -6,19 +6,23 @@ Items: {
 		Tooltip:
 			'''
 			炼金造物
-			常规合成时，每种材料至少持有1件，且各项满足比例的平均值达到50%，即可补足缺料
-			每缺少1件材料消耗1份灰赝尘；材料齐全时不消耗
-			仍需满足工作台和配方条件，不作用于伊蕾娜的炼金系统
+			以微光嬗变之力补全不足的素材
+			每种所需材料至少持有1件，所有所需素材的满足平均值大于50%
+			通过收藏可以在合成时优先使用灰赝尘替代原材料
 			'''
 	}
 
 	Painkiller: {
 		DisplayName: 止痛药
-		Tooltip: 每秒恢复最大生命值的2%
+		Tooltip:
+			'''
+			持续 60 秒
+			每秒恢复最大生命值的1%
+			'''
 	}
 
 	BloodthirstPotion: {
-		DisplayName: 嗜血药剂
+		DisplayName: 嗜血药水
 		Tooltip:
 			'''
 			受到的伤害提高20%
@@ -29,7 +33,12 @@ Items: {
 
 	StarPowerPotion: {
 		DisplayName: 星力药水
-		Tooltip: 每有1点最大魔力，魔法伤害提高0.05%
+		Tooltip:
+			'''
+			最大魔力增加40
+			魔力值越高于生命值，魔法伤害越高，最高提高30%
+			最大加成所需生命差值：300
+			'''
 	}
 
 	MoonDewElixir: {
@@ -37,7 +46,7 @@ Items: {
 		Tooltip:
 			'''
 			仅供伊蕾娜使用
-			将50点魔力补给存入专属魔力药水槽
+			将100点魔力补给存入专属魔力药水槽
 			'''
 	}
 }
@@ -51,7 +60,7 @@ Crafting: {
 Buffs: {
 	PainkillerBuff: {
 		DisplayName: 止痛
-		Description: 每秒恢复最大生命值的2%
+		Description: 每秒恢复最大生命值的1%
 	}
 
 	BloodthirstBuff: {
@@ -61,8 +70,6 @@ Buffs: {
 
 	StarPowerBuff: {
 		DisplayName: 星力
-		Description: 每有1点最大魔力，魔法伤害提高0.05%
+		Description: 魔力值越高于生命值，魔法伤害越高，最高提高30%
 	}
 }
-
-// OnlyNotebook: Mods.伊蕾娜.Alchemy.OnlyNotebook

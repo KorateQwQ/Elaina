@@ -42,6 +42,12 @@ public static class AlchemyCraftingService
             return new(sequence, action, id, unlocked, message);
         }
 #if DEBUG
+        if (action == AlchemyNotebookAction.DebugLevelUp)
+        {
+            if (!progress.DebugLevelUp()) return Fail("炼金等级已满");
+            Recipe.FindRecipes();
+            return new(sequence, action, id, true, $"炼金等级提升至 Lv.{progress.Level}");
+        }
         if (action == AlchemyNotebookAction.DebugReset)
         {
             progress.ResetProgress(); Recipe.FindRecipes();

@@ -11,14 +11,14 @@ public static class AlchemyProgressionRules
     public static int ExperiencePerBatch(string entryId) => 10 + 5 * AlchemyCatalog.GetRecipe(entryId).Rarity;
     public static int RequiredLevel(string entryId) => entryId switch
     {
-        "painkiller" or "stew" or "brulee" => 3,
+        "painkiller" or "rain" => 1,
+        "featherlight" or "trace" => 2,
+        "dropper" or "mimic" => 3,
         "bloodlust" or "focus" => 10,
         "starpower" or "isolation" => 8,
         "resonance" => 5,
-        "featherlight" or "rain" => 4,
-        "dropper" or "shimmer" => 12,
-        "mimic" => 6,
-        "trace" or "beef" or "potato" => 2,
+        "stew" or "brulee" => 3,
+        "shimmer" or "beef" or "potato" => 2,
         _ => 1
     };
 }

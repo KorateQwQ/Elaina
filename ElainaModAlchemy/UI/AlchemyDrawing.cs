@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using KL.Drawing;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -11,7 +12,7 @@ using Terraria.ModLoader;
 namespace 伊蕾娜.ElainaModAlchemy.UI;
 
 // Design-space drawing shared by the native SUI controls and the offline FNA preview.
-// Font advances match the existing constellation notebook. All textures are ModContent-owned.
+// Font advances match the existing constellation notebook. Textures are owned by the game or ModContent.
 internal sealed class AlchemyDrawing
 {
     internal static readonly Color Ink = new(238, 233, 245);
@@ -19,7 +20,7 @@ internal sealed class AlchemyDrawing
     internal static readonly Color Lavender = new(202, 178, 237);
     internal static readonly Color Gold = new(230, 206, 165);
     internal static readonly Color LineColor = new(76, 62, 88);
-    private const string SurfacePath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/NotebookSurface";
+    private const string SurfacePath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookSurface";
     private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Glow";
     private const string DiscPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Disc";
     private readonly Dictionary<string, Texture2D> _textures = new(StringComparer.Ordinal);
@@ -42,11 +43,81 @@ internal sealed class AlchemyDrawing
 
     internal void Image(string path, float x, float y, float width, float height, Color? tint = null, float rotation = 0)
     {
+        if (path.StartsWith(AlchemyCatalog.VanillaItemRoot, StringComparison.Ordinal))
+        {
+            int itemType = int.Parse(path[AlchemyCatalog.VanillaItemRoot.Length..]);
+            Terraria.Main.GetItemDrawFrame(itemType, out var itemTexture, out var frame);
+            float itemFit = Math.Min(width / frame.Width, height / frame.Height);
+            DrawPixel(itemTexture, At(x + width / 2, y + height / 2), tint ?? Color.White,
+                rotation, itemFit * Scale, frame);
+            return;
+        }
         var texture = Texture(path);
         float fit = Math.Min(width / texture.Width, height / texture.Height);
+        if (path.EndsWith("_Pixel", StringComparison.Ordinal))
+        {
+            DrawPixel(texture, At(x + width / 2, y + height / 2), tint ?? Color.White, rotation, fit * Scale);
+            return;
+        }
         Batch.Draw(texture, At(x + width / 2, y + height / 2), null, tint ?? Color.White,
             rotation, new Vector2(texture.Width, texture.Height) / 2, fit * Scale, SpriteEffects.None, 0);
     }
+
+    // Material slots keep their layout while the centered icon uses 75% of its fitted size.
+    internal void MaterialIcon(string path, float x, float y, float width, float height)
+        => Image(path, x + width * .125f, y + height * .125f, width * .75f, height * .75f);
+
+    // Show catalog pixel art at its native size, independent of the old pencil bounds.
+    internal void ItemIcon(string path, float centerX, float centerY, float rotation = 0)
+    {
+        var texture = Texture(path);
+        DrawPixel(texture, At(centerX, centerY), Color.White, rotation, Scale);
+    }
+
+    private void DrawPixel(Texture2D texture, Vector2 center, Color tint, float rotation, float scale,
+        Rectangle? sourceFrame = null)
+    {
+        // Capture Begin's actual state: in Deferred mode the device may still hold
+        // the previous batch's state. Keep SUI's transform and clipping intact.
+        var sort = BatchSortMode(Batch);
+        var blend = BatchBlendState(Batch);
+        var sampler = BatchSamplerState(Batch);
+        var depth = BatchDepthState(Batch);
+        var rasterizer = BatchRasterizerState(Batch);
+        var effect = BatchEffect(Batch);
+        var transform = BatchTransform(Batch);
+        Batch.End();
+        Batch.Begin(SpriteSortMode.Deferred, blend, SamplerState.PointClamp, depth, rasterizer, effect, transform);
+        try
+        {
+            var frame = sourceFrame ?? new Rectangle(0, 0, texture.Width, texture.Height);
+            Batch.Draw(texture, center, frame, tint, rotation,
+                new Vector2(frame.Width, frame.Height) / 2, scale, SpriteEffects.None, 0);
+        }
+        finally
+        {
+            Batch.End();
+            Batch.GraphicsDevice.SamplerStates[0] = sampler;
+            Batch.Begin(sort, blend, sampler, depth, rasterizer, effect, transform);
+        }
+    }
+
+    // FNA has no public batch-state snapshot API. These accessors target the
+    // installed FNA fields without per-frame reflection or state allocations.
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "sortMode")]
+    private static extern ref SpriteSortMode BatchSortMode(SpriteBatch batch);
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "blendState")]
+    private static extern ref BlendState BatchBlendState(SpriteBatch batch);
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "samplerState")]
+    private static extern ref SamplerState BatchSamplerState(SpriteBatch batch);
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "depthStencilState")]
+    private static extern ref DepthStencilState BatchDepthState(SpriteBatch batch);
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "rasterizerState")]
+    private static extern ref RasterizerState BatchRasterizerState(SpriteBatch batch);
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "customEffect")]
+    private static extern ref Effect BatchEffect(SpriteBatch batch);
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "transformMatrix")]
+    private static extern ref Matrix BatchTransform(SpriteBatch batch);
 
     private void Stretch(string path, float x, float y, float width, float height, Color color)
     {
@@ -61,6 +132,21 @@ internal sealed class AlchemyDrawing
     internal void Box(float x, float y, float width, float height, Color color)
         => Batch.Draw(TextureAssets.MagicPixel.Value, At(x, y), new Rectangle(0, 0, 1, 1), color,
             0, Vector2.Zero, new Vector2(width, height) * Scale, SpriteEffects.None, 0);
+
+    internal void RoundedBar(float x, float y, float width, float height, Color color)
+    {
+        if (width <= 0 || height <= 0) return;
+        if (width <= height) { Stretch(DiscPath, x, y, width, height, color); return; }
+        float radius = height / 2;
+        // Clip each disc to its outer half, avoiding translucent overlap with the center.
+        var disc = Texture(DiscPath);
+        int half = disc.Width / 2;
+        Batch.Draw(disc, At(x, y), new Rectangle(0, 0, half, disc.Height), color, 0, Vector2.Zero,
+            new Vector2(radius / half, height / disc.Height) * Scale, SpriteEffects.None, 0);
+        Box(x + radius, y, width - height, height, color);
+        Batch.Draw(disc, At(x + width - radius, y), new Rectangle(half, 0, disc.Width - half, disc.Height), color, 0, Vector2.Zero,
+            new Vector2(radius / (disc.Width - half), height / disc.Height) * Scale, SpriteEffects.None, 0);
+    }
 
     internal void Line(Vector2 a, Vector2 b, Color color, float width = 1)
     {
@@ -77,6 +163,46 @@ internal sealed class AlchemyDrawing
         Line(new Vector2(x + width, y), new Vector2(x + width, y + height), color);
         Line(new Vector2(x + width, y + height), new Vector2(x, y + height), color);
         Line(new Vector2(x, y + height), new Vector2(x, y), color);
+    }
+
+    internal void DashedFrame(float x, float y, float width, float height, Color color)
+    {
+        const float dash = 2, step = 4;
+        for (float offset = 0; offset < width; offset += step)
+        {
+            float end = Math.Min(offset + dash, width);
+            Line(new(x + offset, y), new(x + end, y), color);
+            Line(new(x + offset, y + height), new(x + end, y + height), color);
+        }
+        for (float offset = 0; offset < height; offset += step)
+        {
+            float end = Math.Min(offset + dash, height);
+            Line(new(x, y + offset), new(x, y + end), color);
+            Line(new(x + width, y + offset), new(x + width, y + end), color);
+        }
+    }
+
+    internal void CornerBrackets(float x, float y, float width, float height, Color color)
+    {
+        const float arm = 9;
+        for (int i = 0; i < 4; i++)
+        {
+            bool right = (i & 1) != 0, bottom = (i & 2) != 0;
+            Vector2 corner = new(x + (right ? width : 0), y + (bottom ? height : 0));
+            Line(corner, corner + new Vector2(right ? -arm : arm, 0), color);
+            Line(corner, corner + new Vector2(0, bottom ? -arm : arm), color);
+        }
+    }
+
+    internal void DashedRing(Vector2 center, float radius, Color color)
+    {
+        const int segments = 24;
+        for (int i = 0; i < segments; i += 2)
+        {
+            float start = i * MathHelper.TwoPi / segments, end = (i + 1) * MathHelper.TwoPi / segments;
+            Line(center + new Vector2(MathF.Cos(start), MathF.Sin(start)) * radius,
+                center + new Vector2(MathF.Cos(end), MathF.Sin(end)) * radius, color);
+        }
     }
 
     internal void Ring(Vector2 center, float rx, float ry, Color color, float width = 1)

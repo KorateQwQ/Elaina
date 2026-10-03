@@ -4,7 +4,6 @@ using 伊蕾娜.ElainaModAlchemy.item.Curios;
 using 伊蕾娜.ElainaModAlchemy.item.Foods;
 using 伊蕾娜.ElainaModAlchemy.item.Materials;
 using 伊蕾娜.ElainaModAlchemy.item.Potions;
-using 伊蕾娜.ElainaModAlchemy.item.Tools;
 using 伊蕾娜.ElainaModAlchemy.UI;
 
 namespace 伊蕾娜.ElainaModAlchemy.item;
@@ -34,6 +33,7 @@ public sealed class AlchemyCatalogItemTypes : ModSystem
         "feather" => ItemID.Feather,
         "powder" => ItemID.PurificationPowder,
         "glass" => ItemID.Glass,
+        "aetherblock" => ItemID.ShimmerBlock,
         "iron" => ItemID.IronBar,
         "lead" => ItemID.LeadBar,
         "hallowed" => ItemID.HallowedBar,

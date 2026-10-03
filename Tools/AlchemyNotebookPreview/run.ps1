@@ -13,6 +13,7 @@ $project = @'
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../ElainaModAlchemy/UI/AlchemyCatalog.cs" />
+    <Compile Include="../../ElainaModAlchemy/UI/AlchemyCatalogLayout.cs" />
     <Compile Include="../../ElainaModAlchemy/UI/AlchemyNotebookState.cs" />
     <Compile Include="../../ElainaModAlchemy/UI/AlchemyNotebookSnapshot.cs" />
     <Compile Include="../../Tools/AlchemyNotebookPreview/StateChecks.cs.txt" />

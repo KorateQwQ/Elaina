@@ -1,0 +1,52 @@
+"""Purification Dew's review-only pipette, plus a close-up comparison sheet."""
+from PIL import Image, ImageDraw, ImageFont
+
+
+def svg(c):
+    body='M27.5 23H36.5V38L33.3 48V52H30.7V48L27.5 38Z'
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 64 64">
+  <title>净土露滴 · 滴管候选</title>
+  <desc>斜放的普通滴管，橡胶吸头、金属套环、细玻璃管与绿色药液。</desc>
+  <defs>
+    <clipPath id="tube"><path d="{body}"/></clipPath>
+    <linearGradient id="liquid" gradientUnits="userSpaceOnUse" x1="0" y1="31" x2="0" y2="62"><stop stop-color="{c['light']}"/><stop offset=".4" stop-color="{c['color']}"/><stop offset="1" stop-color="{c['dark']}"/></linearGradient>
+    <linearGradient id="rubber" x1="0" y1="0" x2="1" y2=".3"><stop stop-color="#a4b9aa"/><stop offset=".4" stop-color="#607f70"/><stop offset="1" stop-color="#384f49"/></linearGradient>
+    <linearGradient id="collar" x2="0" y2="1"><stop stop-color="#eee0bc"/><stop offset=".45" stop-color="#b9a17f"/><stop offset="1" stop-color="#8a7487"/></linearGradient>
+  </defs>
+  <g transform="rotate(32 32 31)">
+    <path d="{body}" fill="#e6e0ff" fill-opacity=".38"/>
+    <g clip-path="url(#tube)">
+      <g transform="rotate(-32 32 31)">
+        <path d="M-30 33Q5 32 32 33T90 33V90H-30Z" fill="url(#liquid)"/>
+        <path d="M-30 33Q5 32 32 33T90 33" fill="none" stroke="{c['light']}" stroke-width=".75"/>
+      </g>
+      <path d="M30 26v12l2 9" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width=".8" stroke-linecap="round"/>
+    </g>
+    <path d="{body}" fill="none" stroke="#4b395d" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M25 20V12C25 7 27.5 4 32 4S39 7 39 12V20Z" fill="url(#rubber)" stroke="#4b395d" stroke-width="1.25" stroke-linejoin="round"/>
+    <path d="M28 12q0-4 3-5" fill="none" stroke="#e2ecdc" stroke-width="1.1" stroke-linecap="round"/>
+    <path d="M36 11v6" fill="none" stroke="#3f5c52" stroke-width=".7" stroke-opacity=".6" stroke-linecap="round"/>
+    <rect x="24" y="19" width="16" height="5" rx="1.3" fill="url(#collar)" stroke="#705b71" stroke-width=".85"/>
+    <path d="M26 20.5h12M27 22h2m6 0h2" stroke="#fff" stroke-width=".55" stroke-opacity=".75" stroke-linecap="round"/>
+  </g>
+  <path d="M20.9 52.2c-.6 1.9-3 3.6-3 5.5a3 3 0 0 0 6 0c0-1.9-2.4-3.6-3-5.5Z" fill="url(#liquid)" stroke="#617d69" stroke-width=".75"/>
+  <path d="M19.8 55.9q-1 1.2-.3 2.1" fill="none" stroke="#fff" stroke-width=".65" stroke-linecap="round"/>
+</svg>'''
+
+
+def detail(out):
+    canvas=Image.new('RGB',(780,466),'#272031')
+    draw=ImageDraw.Draw(canvas)
+    font=lambda size: ImageFont.truetype('C:/Windows/Fonts/msyh.ttc',size)
+    draw.text((30,20),'06 · 净土露滴 / 滴管新稿',font=font(27),fill='#eddfee')
+    draw.text((30,65),'橡胶吸头 · 细玻璃管 · 一滴绿色药液',font=font(15),fill='#bfa9c9')
+    for i,key in enumerate(('raw','pencil')):
+        im=Image.open(out/'png'/f'isolation-{key}.png').convert('RGBA')
+        canvas.paste(im,(20+i*256,108),im)
+        draw.text((95+i*256,385),'SVG 原稿' if i==0 else '彩铅预览',font=font(15),fill='#cdb5d7')
+    for i,key in enumerate(('small','tiny','mask')):
+        im=Image.open(out/'png'/f'isolation-{key}.png').convert('RGBA')
+        canvas.paste(im,(619+(46-im.width)//2,131+i*90+(46-im.height)//2),im)
+        draw.text((602,184+i*90),('46px','32px','轮廓剪影')[i],font=font(12),fill='#cdb5d7')
+    draw.text((30,434),'其余五款保留 · 像素图稍后再做 · 尚未替换游戏资源',font=font(12),fill='#9781a4')
+    canvas.save(out/'purification-dropper-detail.png')

@@ -37,8 +37,8 @@ public sealed class AlchemyBuffPlayer : ModPlayer
         }
 
         // 原版每 2 点 lifeRegen 对应每秒恢复 1 点生命。
-        // 保留小数，避免生命上限不是 25 的倍数时损失恢复量。
-        regenerationRemainder += Player.statLifeMax2 * 0.04d;
+        // 保留小数，避免生命上限不是 50 的倍数时损失恢复量。
+        regenerationRemainder += Player.statLifeMax2 * 0.02d;
         int regeneration = (int)regenerationRemainder;
         regenerationRemainder -= regeneration;
         Player.lifeRegen += regeneration;
@@ -46,9 +46,13 @@ public sealed class AlchemyBuffPlayer : ModPlayer
 
     public override void PostUpdateMiscEffects()
     {
-        // 在装备、增益计算之后读取最终魔力上限：200 最大魔力 = 10% 魔法伤害。
+        // 星力同时提高魔力上限，并按当前魔力超过生命值的差额提高魔法伤害。
         if (StarPowerActive)
-            Player.GetDamage(DamageClass.Magic) += Math.Max(0, Player.statManaMax2) * 0.0005f;
+        {
+            Player.statManaMax2 += 40;
+            float difference = Math.Max(0, Player.statMana - Player.statLife);
+            Player.GetDamage(DamageClass.Magic) += Math.Min(1f, difference / 300f) * .30f;
+        }
 
         if (!BloodthirstActive || Player.moonLeech || Player.statLife >= Player.statLifeMax2)
             lifeStealRemainder = 0;

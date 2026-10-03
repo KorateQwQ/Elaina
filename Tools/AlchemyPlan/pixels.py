@@ -10,46 +10,32 @@ def star(d,x,y,color=W):
     d.line([(x-1,y),(x+1,y)],fill=color);d.line([(x,y-1),(x,y+1)],fill=color)
 
 def dropper():
-    im,d=canvas((24,30))
-    d.polygon([(2,24),(4,18),(12,10),(16,14),(8,22),(3,25)],fill=O)
-    d.polygon([(4,22),(5,18),(12,11),(15,14),(8,21)],fill=G)
-    d.line([(5,20),(12,13)],fill=W);d.line([(5,22),(13,14)],fill='#b397d9')
-    d.polygon([(10,11),(15,6),(20,11),(15,16)],fill=O)
-    d.polygon([(11,11),(15,7),(19,11),(15,15)],fill='#d5b16d')
-    d.line([(12,10),(17,13)],fill='#fff0b9')
-    d.polygon([(14,7),(16,2),(19,0),(22,1),(23,4),(22,7),(18,11)],fill=O)
-    d.polygon([(15,7),(17,3),(19,1),(21,2),(22,4),(21,6),(18,9)],fill='#a882c4')
-    d.line([(18,3),(19,2),(20,3)],fill='#e0c1ef')
-    d.polygon([(3,26),(5,28),(4,29),(2,29),(1,28)],fill='#b79edf')
-    return im
+    import importlib.util
+    from pathlib import Path
+    source = Path(__file__).resolve().parents[1] / 'CurioPixel/GenerateAetherDropper.py'
+    spec = importlib.util.spec_from_file_location('upright_aether_dropper', source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.build_sprite()
 
 def revealing_dust():
-    im,d=canvas((24,25))
-    d.polygon([(7,8),(16,8),(19,12),(21,19),(19,23),(15,24),(6,24),(3,21),(2,17),(4,12)],fill=O)
-    d.polygon([(8,9),(15,9),(18,13),(20,19),(18,22),(14,23),(6,23),(4,20),(3,17),(5,12)],fill='#be935a')
-    d.polygon([(7,11),(14,10),(16,13),(16,20),(13,22),(5,20),(4,17)],fill='#e0bd7c')
-    d.line([(6,12),(5,17)],fill='#f8dfa1')
-    d.polygon([(6,6),(8,2),(15,3),(17,6),(14,10),(9,10)],fill=O)
-    d.polygon([(7,6),(9,3),(14,4),(16,6),(13,9),(9,9)],fill='#d5bd8a')
-    d.line([(6,9),(16,9),(19,12)],fill='#bc85ae',width=2)
-    d.line([(7,16),(10,13),(13,13),(16,16),(13,19),(10,19),(7,16)],fill='#fff0bd')
-    d.rectangle((11,15,12,17),fill='#8d6daa')
-    star(d,21,3,'#f0d88d');d.point((1,13),fill='#e9c8df')
-    return im
+    import importlib.util
+    from pathlib import Path
+    source = Path(__file__).resolve().parents[1] / 'CurioPixel/GenerateRevealingDust.py'
+    spec = importlib.util.spec_from_file_location('approved_revealing_dust', source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.build_sprite()
 
 def rain():
-    im,d=canvas((22,30))
-    d.polygon([(7,4),(15,4),(15,10),(20,16),(20,27),(18,29),(4,29),(2,27),(2,16),(7,10)],fill=O)
-    d.polygon([(8,5),(14,5),(14,11),(19,17),(19,26),(17,28),(5,28),(3,26),(3,17),(8,11)],fill=S)
-    d.polygon([(8,7),(13,7),(13,12),(17,16),(17,24),(5,24),(4,17),(8,12)],fill=G)
-    d.rectangle((4,24,18,26),fill='#6194c0');d.line([(6,27),(16,27)],fill='#426990')
-    d.rectangle((6,1,16,5),fill=O);d.rectangle((7,2,15,4),fill='#c9badc');d.line([(8,2),(14,2)],fill=W)
-    d.line([(7,9),(14,9)],fill='#af94c9')
-    d.line([(5,16),(4,18),(4,23)],fill=H)
-    d.polygon([(6,19),(5,18),(6,16),(8,16),(9,14),(12,14),(14,16),(16,16),(17,18),(16,20),(7,20)],fill='#dcecf3')
-    d.line([(8,17),(9,15),(11,15)],fill=W)
-    for x in [8,12,16]:d.line([(x,22),(x-1,24)],fill='#c0e9f2')
-    return im
+    import importlib.util
+    from pathlib import Path
+    source = Path(__file__).resolve().parents[1] / 'CurioPixel/GenerateBottledRain.py'
+    spec = importlib.util.spec_from_file_location('approved_bottled_rain', source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.build_sprite()
+
 
 def croissant():
     im,d=canvas((28,20))
@@ -67,17 +53,37 @@ def croissant():
 
 def stew():
     im,d=canvas((30,27))
-    d.line([(5,14),(1,14),(0,16),(1,18),(5,18)],fill=O,width=2)
-    d.line([(24,14),(28,14),(29,16),(28,18),(24,18)],fill=O,width=2)
-    d.line([(4,15),(2,15),(1,16),(3,17)],fill='#a793b8')
-    d.line([(25,15),(27,15),(28,16),(26,17)],fill='#a793b8')
-    d.polygon([(4,13),(25,13),(24,22),(21,25),(9,26),(6,23)],fill=O)
-    d.polygon([(5,15),(24,15),(23,21),(20,24),(10,25),(7,22)],fill='#8e759d')
-    d.line([(8,22),(11,23),(20,23)],fill='#c9b092')
-    d.line([(6,16),(7,20)],fill='#c6b4d5')
-    d.polygon([(6,11),(23,11),(26,13),(25,16),(22,17),(7,17),(3,15),(3,13)],fill=O)
-    d.polygon([(7,12),(22,12),(25,13),(24,15),(21,16),(8,16),(4,14)],fill='#ceb9d8')
-    d.polygon([(8,13),(21,13),(23,14),(20,15),(9,15),(6,14)],fill='#9e6241')
+    # Explicit mirrored rings keep a 2x2 opening and a one-pixel outline.
+    # Draw behind the pot so both attachments meet the same depth of wall.
+    handle_colors={'O':O,'H':'#c6b4d5','M':'#a793b8','S':'#725d83'}
+    for y,row in enumerate(('.OOOOO','OHMMMO','OM..MO','OM..MO','OSSSSO','.OOOOO'),14):
+        for x,symbol in enumerate(row):
+            if symbol != '.':
+                d.point((x,y),fill=handle_colors[symbol])
+                d.point((29-x,y),fill=handle_colors[symbol])
+
+    # All silhouette spans share x=14.5; widen the steps toward the rounded
+    # base instead of letting a sloping polygon end in a stray bottom pixel.
+    for y,left in [(13,4),(14,4),(15,4),(16,5),(17,5),(18,5),(19,5),(20,5),
+                   (21,6),(22,6),(23,7),(24,8),(25,10)]:
+        d.line([(left,y),(29-left,y)],fill=O)
+    for y,left in [(16,6),(17,6),(18,6),(19,6),(20,6),(21,7),(22,7),(23,8),(24,10)]:
+        d.line([(left,y),(29-left,y)],fill='#8e759d')
+    for y,left,right in [(18,22,23),(19,22,23),(20,21,23),(21,20,22),
+                         (22,18,22),(23,10,21),(24,10,19)]:
+        d.line([(left,y),(right,y)],fill='#725d83')
+    d.line([(6,18),(6,19)],fill='#c6b4d5')
+    d.line([(7,20),(7,21)],fill='#c6b4d5')
+    for y,left,right in [(21,8,8),(22,9,10),(23,11,18),(22,19,20),(21,21,21)]:
+        d.line([(left,y),(right,y)],fill='#c9b092')
+
+    # Center the rim over the bowl and expose the handle openings evenly.
+    for y,left in [(11,6),(12,4),(13,3),(14,3),(15,4),(16,6),(17,8)]:
+        d.line([(left,y),(29-left,y)],fill=O)
+    for y,left in [(12,6),(13,4),(14,4),(15,5),(16,7)]:
+        d.line([(left,y),(29-left,y)],fill='#ceb9d8')
+    for y,left in [(13,7),(14,6),(15,9)]:
+        d.line([(left,y),(29-left,y)],fill='#9e6241')
     d.rectangle((9,12,12,14),fill='#d6b374');d.rectangle((17,12,20,14),fill='#ae6871');d.point((15,14),fill='#99b079')
     d.line([(10,8),(8,6),(9,4),(11,2)],fill='#c6b4d5');d.line([(18,8),(20,6),(18,4),(19,1)],fill='#ad99be')
     return im

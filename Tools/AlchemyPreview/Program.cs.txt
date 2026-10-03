@@ -7,10 +7,13 @@ using P = 伊蕾娜.ElainaModAlchemy.UI.AlchemyNotebookPresentation;
 internal sealed class AlchemyPreviewGame : Game
 {
     internal static string Repo;
+    private static string Tml;
+    private static Microsoft.Xna.Framework.Content.ContentManager VanillaContent, TmlContent;
     private static GraphicsDevice Device;
     private static readonly Dictionary<string, Texture2D> Textures = new(StringComparer.Ordinal);
     private static readonly RasterizerState ClipRasterizer = new() { CullMode = CullMode.None, ScissorTestEnable = true };
     private static bool BookOnly;
+    private static bool QuillOnly;
     private bool done;
 
     private AlchemyPreviewGame()
@@ -28,6 +31,17 @@ internal sealed class AlchemyPreviewGame : Game
         KL.Drawing.FontManager.HarmonyOS_Sans_SC = new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
         KL.Drawing.FontManager.NotoSerifSC = new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
         KL.Drawing.FontManager.Gelasio = new(Content.Load<DynamicSpriteFont>("Gelasio"));
+        VanillaContent = new(Services, Path.GetFullPath(Path.Combine(Tml, "../Terraria/Content")));
+        TmlContent = new(Services, Path.Combine(Tml, "Content"));
+        var vanillaIds = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(
+            File.ReadAllText(Path.Combine(Repo, ".vissandbox/alchemy-preview/vanilla-item-ids.json")));
+        AlchemyCatalog.ItemTypeResolver = id => vanillaIds.GetValueOrDefault(id);
+        foreach (var material in AlchemyCatalog.Materials.Where(m => m.Art is null))
+        {
+            if (material.ItemType <= 0) throw new InvalidOperationException("Missing vanilla item ID: " + material.Id);
+            _ = VanillaItemTexture(material.ItemType);
+        }
+        Console.WriteLine($"Loaded {vanillaIds.Count} vanilla material textures from game XNB assets.");
         var pixel = new Texture2D(Device, 1, 1);
         pixel.SetData(new[] { Color.White });
         Terraria.GameContent.TextureAssets.MagicPixel = new(pixel);
@@ -40,13 +54,20 @@ internal sealed class AlchemyPreviewGame : Game
         string output = Path.Combine(Repo, ".vissandbox/alchemy-preview/output");
         Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (QuillOnly)
+        {
+            AlchemyQuillPreview.Run(Device, batch, output);
+            Exit();
+            return;
+        }
         if (BookOnly)
         {
             AlchemyBookPreview.Run(Device, batch, output);
             Exit();
             return;
         }
-        string[] scenes = ["new", "potion", "bloodlust", "curio", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "brew-050", "detail-bottom"];
+        string[] scenes = ["new", "all", "potion", "bloodlust", "curio", "curio-locked", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "header-reference", "close-hover", "brew-050", "detail-bottom", "catalog-bottom", "catalog-middle"];
+        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials" }).ToArray();
         foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
         foreach (string scene in scenes)
         {
@@ -62,14 +83,20 @@ internal sealed class AlchemyPreviewGame : Game
         Exit();
     }
 
-    internal static void Render(SpriteBatch batch, int width, int height, float uiScale, string scene)
+    internal static void Render(SpriteBatch batch, int width, int height, float uiScale, string scene,
+        AlchemySelectionQuillMotion quill = null, string selectedId = null, float? scrollOffset = null)
     {
         var state = new AlchemyNotebookState(new NotebookFixture(scene));
         switch (scene)
         {
-            case "curio": state.SetCategory("curio"); break;
+            case "curio": case "curio-locked": state.SetCategory("curio"); break;
+            case "curio-dust": state.SetCategory("curio"); state.Select("mimic"); break;
+            case "curio-rain": state.SetCategory("curio"); state.Select("rain"); break;
             case "food": state.SetCategory("food"); break;
             case "material": state.SetCategory("material"); break;
+            case "potion": state.SetCategory("potion"); break;
+            case "vanilla-materials": state.SetCategory("potion"); state.Select("isolation"); break;
+            case "catalog-bottom": state.Select(AlchemyCatalog.Recipes.Last().Id); break;
             case "acquire": state.Select("flour"); break;
             case "bloodlust": state.Select("bloodlust"); break;
             case "detail-bottom": state.Select("painkiller"); break;
@@ -77,6 +104,7 @@ internal sealed class AlchemyPreviewGame : Game
             case "research-ready": state.Select("painkiller"); break;
             case "recipe-missing": case "recipe-ready": state.Select("focus"); break;
         }
+        if (selectedId != null) state.Select(selectedId);
         float fit = Math.Min(1, Math.Min((width / uiScale - 40) / P.DesignWidth, (height / uiScale - 40) / P.DesignHeight));
         float scale = uiScale * fit;
         var origin = new Vector2((width - P.DesignWidth * scale) / 2, (height - P.DesignHeight * scale) / 2);
@@ -94,8 +122,8 @@ internal sealed class AlchemyPreviewGame : Game
         Begin();
         P.Chrome(d, state);
         P.Hero(d, state, progress);
-        for (int i = 0; i < AlchemyCatalog.Categories.Count; i++)
-        { At(36 + i * 169, 87); P.Category(d, state, AlchemyCatalog.Categories[i], false); }
+        for (int i = 0; i < P.Navigation.Count; i++)
+        { At(36 + i * 118, 87); P.Category(d, state, P.Navigation[i], false); }
         At(780, 662); P.CraftButton(d, state, false, progress);
         At(0, 0);
         if (state.IsUnlocked(state.Current) && state.Current.Craftable)
@@ -117,32 +145,48 @@ internal sealed class AlchemyPreviewGame : Game
             var material = AlchemyCatalog.GetMaterial(related[i]);
             float x = 95 + i * 46;
             d.Frame(x, 745, 38, 38, AlchemyDrawing.Lavender * .3f);
-            d.Image(material.IconPath, x + 4, 746, 28, 28);
+            d.MaterialIcon(material.IconPath, x + 4, 746, 28, 28);
             d.Text(state.MaterialCount(material.Id).ToString(), x + 35, 771, 9, AlchemyDrawing.Ink, 1);
         }
         d.Text("帮助", 755, 755, 10, AlchemyDrawing.Muted, .5f);
 #if DEBUG
-        d.Text("补充素材", 843, 755, 10, AlchemyDrawing.Gold, .5f);
-        d.Text("重置手记", 931, 755, 10, AlchemyDrawing.Gold, .5f);
+        At(P.DebugLevelUpBounds.X, P.DebugLevelUpBounds.Y);
+        P.DebugLevelUpButton(d, state, false, progress <= 0 && !state.IsBusy);
+        At(802, 744); P.DebugButton(d, "补充素材", false);
+        At(890, 744); P.DebugButton(d, "重置手记", false);
+        At(0, 0);
 #endif
         d.Text("返回", 1019, 755, 10, AlchemyDrawing.Muted, .5f);
-        d.Diamond(new(1054, 40), 17, AlchemyDrawing.Lavender * .65f);
-        d.Line(new(1050, 36), new(1058, 44), AlchemyDrawing.Lavender);
-        d.Line(new(1050, 44), new(1058, 36), AlchemyDrawing.Lavender);
-        d.LatinText("ESC", 1054, 61, 8, AlchemyDrawing.Muted, .5f);
+        At(P.CloseButtonBounds.X, P.CloseButtonBounds.Y);
+        P.CloseButton(d, scene == "close-hover");
         batch.End();
 
-        Begin(Clip(P.CatalogX - 2, P.CatalogY - 2, P.CatalogWidth + 4, P.CatalogHeight + 4));
-        var recipes = state.Visible;
-        for (int i = 0; i < recipes.Count; i++)
+        float catalogOffset = AlchemyCatalogLayout.Reveal(state.Category, state.SelectedId, 0, P.CatalogHeight);
+        if (scene == "catalog-middle") catalogOffset = (AlchemyCatalogLayout.HeightFor(state.Category) - P.CatalogHeight) / 2f;
+        if (scrollOffset.HasValue) catalogOffset = scrollOffset.Value;
+        Begin(Clip(P.CatalogX, P.CatalogY, P.CatalogWidth, P.CatalogHeight));
+        foreach (var slot in AlchemyCatalogLayout.For(state.Category))
         {
-            float x = P.CatalogX + i % 4 * 168, y = P.CatalogY + i / 4 * 144;
-            At(x, y); P.Card(d, state, recipes[i], false);
-            if (recipes[i].Id == state.SelectedId)
-                P.SelectionQuill(d, P.CardWidth - 7, P.CardHeight - 49);
+            float y = P.CatalogY + slot.Y - catalogOffset;
+            if (y + P.CardHeight < P.CatalogY || y > P.CatalogY + P.CatalogHeight) continue;
+            At(P.CatalogX + slot.X, y); P.Card(d, state, slot.Recipe, false);
         }
-        At(P.CatalogX, P.CatalogY + (int)Math.Ceiling(recipes.Count / 4f) * 144);
-        if (recipes.Count > 0) P.PageNote(d, state);
+        var selectedSlot = AlchemyCatalogLayout.For(state.Category).First(s => s.Recipe.Id == state.SelectedId);
+        At(P.CatalogX + selectedSlot.X, P.CatalogY + selectedSlot.Y - catalogOffset);
+        if (quill != null)
+            d.Origin = quill.ResolvePosition(state.SelectedId, d.Origin,
+                origin + new Vector2(P.CatalogX, P.CatalogY) * scale, new Vector2(0, -catalogOffset * scale), scale);
+        P.SelectionQuill(d, P.CardWidth - 7, P.CardHeight - 49);
+        batch.End();
+        Begin(); At(0, 0);
+        float catalogHeight = AlchemyCatalogLayout.HeightFor(state.Category);
+        if (catalogHeight > P.CatalogHeight)
+        {
+            float catalogThumb = P.CatalogHeight * P.CatalogHeight / catalogHeight;
+            float catalogThumbY = P.CatalogY + catalogOffset / (catalogHeight - P.CatalogHeight)
+                * (P.CatalogHeight - catalogThumb);
+            d.Box(P.CatalogX + P.CatalogWidth - 3, catalogThumbY, 3, catalogThumb, P.Muted * .33f);
+        }
         batch.End();
 
         var rows = P.DetailRows(d, state);
@@ -156,9 +200,17 @@ internal sealed class AlchemyPreviewGame : Game
             Begin(); At(0, 0);
             float thumb = P.DetailHeight * P.DetailHeight / total;
             float y = P.DetailY + offset / (total - P.DetailHeight) * (P.DetailHeight - thumb);
-            d.Box(P.DetailX + P.DetailWidth + 3, y, 3, thumb, AlchemyDrawing.Lavender * .35f);
+            d.Box(P.DetailX + P.DetailWidth - 3, y, 3, thumb, AlchemyDrawing.Lavender * .35f);
             batch.End();
         }
+    }
+
+    internal static Texture2D VanillaItemTexture(int itemType)
+    {
+        string asset = "Images/Item_" + itemType;
+        var content = File.Exists(Path.Combine(TmlContent.RootDirectory, asset + ".xnb"))
+            ? TmlContent : VanillaContent;
+        return content.Load<Texture2D>(asset);
     }
 
     internal static Texture2D Texture(string asset)
@@ -180,6 +232,9 @@ internal sealed class AlchemyPreviewGame : Game
     {
         foreach (var texture in Textures.Values) texture.Dispose();
         Textures.Clear();
+        VanillaContent.Dispose();
+        TmlContent.Dispose();
+        AlchemyCatalog.ItemTypeResolver = null;
         Terraria.GameContent.TextureAssets.MagicPixel.Value.Dispose();
         ClipRasterizer.Dispose();
         base.UnloadContent();
@@ -189,7 +244,9 @@ internal sealed class AlchemyPreviewGame : Game
     private static void Main(string[] args)
     {
         Repo = Path.GetFullPath(args[0]);
+        Tml = Path.GetFullPath(args[1]);
         BookOnly = args.Contains("--book-only");
+        QuillOnly = args.Contains("--quill-only");
         using var game = new AlchemyPreviewGame();
         game.Run();
     }

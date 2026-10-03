@@ -4,6 +4,19 @@ global using ReLogic.Graphics;
 using ReLogic.Content;
 
 namespace ReLogic.Content { public sealed class Asset<T>(T value) { public T Value => value; } }
+namespace Terraria
+{
+    public static class Main
+    {
+        // Offline snapshot of frame zero. Fallen Star is the only animated
+        // material in this catalog (8 vertical frames, each with 2 padding rows).
+        public static void GetItemDrawFrame(int item, out Texture2D texture, out Rectangle frame)
+        {
+            texture = AlchemyPreviewGame.VanillaItemTexture(item);
+            frame = new Rectangle(0, 0, texture.Width, item == 75 ? texture.Height / 8 - 2 : texture.Height);
+        }
+    }
+}
 namespace Terraria.ModLoader
 {
     public static class ModContent

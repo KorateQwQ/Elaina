@@ -1,0 +1,82 @@
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+internal static class AlchemyQuillPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        string directory = Path.Combine(output, "quill-frames");
+        Directory.CreateDirectory(directory);
+        CheckMotion(Path.Combine(directory, "checks.txt"));
+        foreach (var (width, height, uiScale) in new[] { (1280, 720, 1f), (1600, 1000, 1.25f) })
+        {
+            var motion = new AlchemySelectionQuillMotion();
+            using var target = new RenderTarget2D(device, width, height);
+            for (int frame = 0; frame <= 100; frame++)
+            {
+                motion.Advance(1f / 60);
+                int index = frame < 6 ? 0 : frame < 23 ? 7 : 10;
+                float scroll = frame < 15 ? 0 : frame < 29 ? (frame - 15) * 10 :
+                    frame < 85 ? 140 : 140 - (frame - 85) * 8;
+                device.SetRenderTarget(target);
+                device.Clear(new Color(20, 21, 28));
+                AlchemyPreviewGame.Render(batch, width, height, uiScale, "all", motion, AlchemyCatalog.Recipes[index].Id, scroll);
+                device.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(directory, $"quill-{width}-{frame:000}.png"));
+                target.SaveAsPng(stream, width, height);
+            }
+        }
+        Console.WriteLine(directory);
+    }
+
+    private static void CheckMotion(string path)
+    {
+        var checks = new List<string>();
+        void Near(string name, Vector2 actual, Vector2 expected)
+        {
+            if (Vector2.Distance(actual, expected) > .002f)
+                throw new InvalidOperationException($"{name}: {actual} != {expected}");
+            checks.Add("PASS " + name);
+        }
+        Vector2 a = new(0, 0), b = new(504, 166), c = new(336, 332);
+        Vector2 origin = new(250, 180), scroll = Vector2.Zero;
+        float scale = .85f;
+        var motion = new AlchemySelectionQuillMotion();
+        Vector2 Resolve(string id, Vector2 card)
+            => motion.ResolvePosition(id, origin + scroll + card * scale, origin, scroll, scale);
+        Near("first selection snaps to card", Resolve("a", a), origin);
+        scroll = new(0, -70);
+        Near("idle scrolling stays exactly attached", Resolve("a", a), origin + scroll);
+        Near("selection animation starts at previous card", Resolve("b", b), origin + scroll);
+        motion.Advance(.1f);
+        Vector2 expected = b + (a - b) * MathF.Exp(-1.2f);
+        Near("original easing is preserved", Resolve("b", b), origin + scroll + expected * scale);
+        Vector2 before = Resolve("b", b);
+        scroll.Y -= 80;
+        Near("scroll during flight is applied immediately", Resolve("b", b), before + new Vector2(0, -80));
+        before = Resolve("b", b);
+        Near("rapid reselection keeps the current path position", Resolve("c", c), before);
+        scale = 1.25f;
+        Near("UI scaling preserves logical path position", Resolve("c", c), origin + scroll + expected * scale);
+        origin += new Vector2(71, -34);
+        Near("panel movement does not create lag", Resolve("c", c), origin + scroll + expected * scale);
+        motion.Advance(1);
+        Near("animation settles exactly onto destination", Resolve("c", c), origin + scroll + c * scale);
+        if (motion.Moving) throw new InvalidOperationException("Settled animation still moving");
+        scroll.Y += 95;
+        Near("scroll after arrival never restarts animation", Resolve("c", c), origin + scroll + c * scale);
+        Vector2 reflowed = c + new Vector2(-168, -166);
+        Near("same selection follows layout immediately", Resolve("c", reflowed), origin + scroll + reflowed * scale);
+        motion.Reset();
+        Near("reopening starts attached", Resolve("a", a), origin + scroll);
+        foreach (int fps in new[] { 30, 60, 144 })
+        {
+            motion.Reset();
+            Resolve("a", a); Resolve("b", b);
+            for (int i = 0; i < fps / 2; i++) motion.Advance(1f / fps);
+            Near($"frame independent easing at {fps} FPS", Resolve("b", b),
+                origin + scroll + (b + (a - b) * MathF.Exp(-6)) * scale);
+        }
+        File.WriteAllLines(path, checks);
+        Console.WriteLine($"{checks.Count} quill motion checks passed.");
+    }
+}

@@ -7,5 +7,5 @@ public sealed class Painkiller : AlchemyPotion
 {
     public override string EntryId => "painkiller";
     protected override int PotionBuffType => ModContent.BuffType<PainkillerBuff>();
-    protected override int DurationTicks => 30 * 60;
+    protected override int DurationTicks => 60 * 60;
 }

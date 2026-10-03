@@ -61,8 +61,19 @@ LIQUIDS = {
 
 
 def potion(kind):
-    if kind == 'mana':
-        return MANA.build_sprite()
+    if kind == 'bloodlust':
+        with Image.open(HERE.parent / 'PotionBottleDesigns/output/round1/pixel/BloodthirstPotion.png') as image:
+            return image.convert('RGBA')
+    if kind == 'isolation':
+        return load('purification_dew', HERE.parent / 'PotionPixel/GeneratePurificationDewUprightPixel.py').build_sprite()
+    if kind == 'focus':
+        return load('concentration_potion', HERE.parent / 'PotionPixel/GenerateConcentrationPotionPixel.py').build_sprite()
+    if kind in ('resonance', 'featherlight'):
+        sprites = load('approved_round1', HERE.parent / 'PotionPixel/GenerateResonanceAndFeatherlightPixels.py')
+        return getattr(sprites, kind)()
+    if kind in ('mana', 'starpower'):
+        sprites = load('star_and_moon', HERE.parent / 'PotionPixel/GenerateStarAndMoonPotionPixels.py')
+        return sprites.moon_dew() if kind == 'mana' else sprites.starpower()
     colors = dict(MANA.PALETTE)
     colors.update(dict(zip('ndmvl', LIQUIDS[kind])))
     im, d = canvas((20,28))
@@ -117,23 +128,7 @@ def potion(kind):
 
 
 def pills():
-    im,d = canvas((26,22))
-    # Rear violet/cream capsule; front pink/cream capsule crosses it.
-    d.polygon([(9,1),(12,1),(21,7),(23,9),(23,12),(21,14),(18,14),(8,7),(7,5),(7,3)],fill=O)
-    d.polygon([(10,2),(12,2),(16,5),(12,10),(9,7),(8,5),(8,3)],fill='#a18bc9')
-    d.polygon([(16,6),(20,8),(22,10),(22,12),(20,13),(18,13),(13,10)],fill='#e4dcf3')
-    d.line([(10,3),(11,3),(14,5)],fill='#d3c6f0')
-    d.line([(15,6),(12,9)],fill='#64507f')
-    d.polygon([(2,13),(10,7),(13,7),(16,10),(16,13),(7,20),(4,20),(1,17),(1,15)],fill=O)
-    d.polygon([(3,14),(7,11),(11,15),(6,19),(4,19),(2,17),(2,15)],fill=P)
-    d.polygon([(8,11),(11,8),(13,8),(15,10),(15,12),(11,15)],fill='#f4eaf4')
-    d.line([(7,11),(10,14)],fill='#9b547e')
-    d.line([(3,15),(6,13)],fill='#ffdce9')
-    d.polygon([(21,15),(23,15),(25,17),(25,19),(23,21),(20,21),(18,19),(18,17)],fill=O)
-    d.polygon([(21,16),(23,16),(24,17),(24,19),(23,20),(20,20),(19,19),(19,17)],fill='#e4dcf3')
-    d.line([(19,18),(24,18)],fill='#a18bc9')
-    d.line([(21,16),(22,16)],fill=W)
-    return im
+    return load('painkiller_jar', HERE.parent / 'PotionPixel/GeneratePainkillerArt.py').build_sprite()
 
 
 def extractor():
@@ -157,22 +152,8 @@ def extractor():
 
 
 def dust():
-    im,d=canvas((28,26))
-    d.polygon([(7,9),(15,9),(18,13),(19,18),(18,22),(15,24),(6,24),(3,22),(2,18),(3,14)],fill=O)
-    d.polygon([(7,10),(14,10),(17,14),(18,18),(17,21),(14,23),(6,23),(4,21),(3,18),(4,14)],fill='#83738e')
-    d.polygon([(7,11),(12,11),(15,14),(15,19),(12,21),(5,20),(4,17),(5,14)],fill='#b7a9bd')
-    d.line([(6,12),(5,14),(5,18)],fill='#e2d8e4')
-    d.line([(6,10),(14,10),(17,12)],fill=R,width=2)
-    d.line([(6,10),(13,10),(16,11)],fill=P)
-    d.line([(15,11),(19,13),(20,15)],fill=P)
-    d.rectangle((5,8,15,9),fill=O);d.line([(6,8),(14,8)],fill='#d7cbdc')
-    d.polygon([(8,6),(7,5),(8,3),(10,3),(11,1),(13,2),(14,4),(16,4),(16,6)],fill='#b7a9bd')
-    d.line([(9,3),(10,4),(13,4)],fill='#e2d8e4')
-    star(d,10,17,'#ece2ef')
-    d.polygon([(18,24),(20,21),(23,20),(25,21),(27,24)],fill=O)
-    d.polygon([(19,23),(21,21),(23,21),(25,23)],fill='#b7a9bd')
-    d.point((23,18),fill=P);d.point((26,20),fill=H)
-    return im
+    return load('approved_ashen_dust', HERE.parent / 'CurioPixel/GenerateAshenFacsimileDust.py').build_sprite()
+
 
 
 def star_ink():

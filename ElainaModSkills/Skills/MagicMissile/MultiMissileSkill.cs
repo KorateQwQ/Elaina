@@ -1,4 +1,6 @@
+using System;
 using KL.ActionsSystem;
+using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using KL.Utils;
 using Terraria.DataStructures;
@@ -21,6 +23,13 @@ public class MultiMissileSkill : ElainaSkill
 
     // 用于识别超时后才执行的旧回调，避免旧动作占用已被重新分配的位置。
     private readonly int[] reservationVersions = new int[MissileCount];
+
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel)
+    {
+        return base.GetConstellationUpgradeCondition(nextLevel);
+    }
+
+    public override Type[] PrerequisiteSkills =>new[] { typeof(MagicMissileSkill)};
 
     public override void Initialize()
     {

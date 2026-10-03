@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>伊蕾娜 · 魔法护盾</title>
+  <desc>透明背景。通透的冰蓝色球形结界，右上边缘轻微消融，弯曲的亮边与飘散光片形成动态感。纯矢量，可独立编辑。</desc>
+  <defs>
+    <radialGradient id="bubble" cx="0" cy="0" r="1" gradientTransform="translate(97 75) rotate(63) scale(173)">
+      <stop stop-color="#B7F7FF" stop-opacity=".25"/>
+      <stop offset=".47" stop-color="#499BBB" stop-opacity=".10"/>
+      <stop offset=".82" stop-color="#338BB0" stop-opacity=".20"/>
+      <stop offset="1" stop-color="#79E8F4" stop-opacity=".60"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="61" y1="46" x2="204" y2="217" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0FFFF"/>
+      <stop offset=".34" stop-color="#9EEFFA"/>
+      <stop offset=".64" stop-color="#4CABC8"/>
+      <stop offset="1" stop-color="#CDFFFF"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="78" y1="56" x2="161" y2="134" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E6FFFF" stop-opacity=".26"/>
+      <stop offset="1" stop-color="#E6FFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="dissolve-light" x1="165" y1="36" x2="218" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ECFFFF"/>
+      <stop offset=".5" stop-color="#B7F6FF"/>
+      <stop offset="1" stop-color="#80E8F6"/>
+    </linearGradient>
+    <path id="shell" d="M128 30C142 30 155 33 168 39C154 39 151 47 160 55C169 64 181 63 192 69C182 81 197 95 222 101A98 98 0 1 1 128 30Z"/>
+    <clipPath id="shell-clip"><use href="#shell"/></clipPath>
+  </defs>
+
+  <!-- A small part of the upper-right rim dissolves into soft, inward curves. -->
+  <g id="barrier">
+    <use href="#shell" stroke="#66DAED" stroke-opacity=".10" stroke-width="12" stroke-linejoin="round"/>
+    <use href="#shell" fill="url(#bubble)" stroke="url(#rim)" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M43 112A87 87 0 0 1 119 41" stroke="#EDFFFF" stroke-width="3" stroke-linecap="round"/>
+    <path d="M150 213A88 88 0 0 0 215 140" stroke="#A6F5FF" stroke-width="2.5" stroke-linecap="round" opacity=".8"/>
+    <path d="M55 93C79 42 147 34 189 75C162 64 139 79 114 94C90 109 73 109 55 106Z" fill="url(#shine)" clip-path="url(#shell-clip)"/>
+    <path d="M65 174C87 201 123 210 151 199" stroke="#B0F0F9" stroke-opacity=".30" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Thin luminous folds and drifting flecks suggest an evaporating membrane. -->
+  <g id="dissolving-edge" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M168 39C154 39 151 47 160 55C169 64 181 63 192 69C182 81 197 95 222 101" stroke="#92EFFB" stroke-width="9" opacity=".16"/>
+    <path d="M168 39C154 39 151 47 160 55C169 64 181 63 192 69C182 81 197 95 222 101" stroke="url(#dissolve-light)" stroke-width="3"/>
+    <path d="M190 69C181 83 186 95 200 105C190 98 179 97 176 86C174 77 181 72 190 69Z" fill="#B3F7FF" opacity=".22"/>
+    <path d="M160 43C147 55 151 63 163 71C151 68 141 56 160 43Z" fill="#D5FFFF" opacity=".17"/>
+    <path d="M174 31C182 32 187 29 190 22C188 33 188 36 195 40C185 38 179 37 174 31Z" fill="#C8FBFF" opacity=".82"/>
+    <path d="M211 85C220 88 227 87 233 80C229 91 220 96 211 85Z" fill="#A7F3FF" opacity=".7"/>
+    <path d="M204 39L207 33" stroke="#B8F5FF" stroke-width="2" opacity=".45"/>
+  </g>
+
+  <!-- Small glints keep the dissolved edge readable at icon sizes. -->
+  <g id="starlight" fill="#E4FCFF">
+    <path d="M209 47C210 54 212 56 219 57C212 58 210 60 209 67C208 60 206 58 199 57C206 56 208 54 209 47Z"/>
+    <path d="M59 173C60 180 63 183 70 184C63 185 60 188 59 195C58 188 55 185 48 184C55 183 58 180 59 173Z"/>
+  </g>
+</svg>

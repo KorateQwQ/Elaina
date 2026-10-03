@@ -16,8 +16,9 @@ public sealed record AlchemyCatalogIngredient(int Count, params string[] Choices
 public sealed record AlchemyCatalogMaterial(string Id, string Name, string EnglishName,
     string Source, int Initial, string Art = null, string Entry = null)
 {
-    public string IconPath => AlchemyCatalog.PencilRoot +
-        (Art is null ? "Materials/" + Id : Art) + "_Pencil";
+    public string IconPath => Art is null
+        ? AlchemyCatalog.VanillaItemRoot + ItemType
+        : AlchemyCatalog.AssetRoot + Art + "_Pixel";
     public int ItemType => AlchemyCatalog.ResolveItemType(Id);
 }
 
@@ -41,9 +42,11 @@ public sealed record AlchemyCatalogRecipe
     public string Live { get; init; }
     public int PixelWidth { get; init; }
     public int PixelHeight { get; init; }
+    public bool InitialUnlocked { get; init; }
     public IReadOnlyList<AlchemyCatalogIngredient> Ingredients { get; init; } = Array.Empty<AlchemyCatalogIngredient>();
     public IReadOnlyList<AlchemyCatalogEffect> Effects { get; init; } = Array.Empty<AlchemyCatalogEffect>();
-    public string IconPath => AlchemyCatalog.PencilRoot + Art + "_Pencil";
+    public string IconPath => PixelPath;
+    public string LockedIconPath => AlchemyCatalog.MysteryPixelRoot + Art + "_Mystery_Pixel";
     public string PixelPath => AlchemyCatalog.AssetRoot + Art + "_Pixel";
     public int ItemType => AlchemyCatalog.ResolveItemType(Id);
     public bool IsMaterial => Category == "material";
@@ -51,16 +54,19 @@ public sealed record AlchemyCatalogRecipe
 }
 
 /// <summary>
-/// Static copy of Tools/AlchemyPlan/plan.json and the supplied HTML's revised notebook.
+/// Static runtime catalog for the alchemy notebook and its current design data.
 /// Item IDs are resolved only after tModLoader has loaded content. Offline previews can
 /// use every other field without referencing Terraria or loading any game assets.
 /// </summary>
 public static class AlchemyCatalog
 {
     public const string AssetRoot = "伊蕾娜/ElainaModAlchemy/item/ExampleAssets/";
+    public const string VanillaItemRoot = "Terraria/Images/Item_";
     // Derived exclusively from ExampleAssets. AlphaBlend needs premultiplied RGB;
     // retain the original straight-alpha PNGs for the HTML reference.
     public const string PencilRoot = "伊蕾娜/ElainaModAlchemy/UI/Assets/Pencil/";
+    public const string SilhouetteRoot = "伊蕾娜/ElainaModAlchemy/UI/Assets/Silhouettes/";
+    public const string MysteryPixelRoot = "伊蕾娜/ElainaModAlchemy/UI/Assets/MysteryPixel/";
 
     public static Func<string, int> ItemTypeResolver { get; set; }
     public static int ResolveItemType(string id) => ItemTypeResolver?.Invoke(id) ?? 0;
@@ -76,6 +82,7 @@ public static class AlchemyCatalog
     // Filled from the checked-in plan below; no runtime JSON or HTML parsing is needed.
     public static IReadOnlyList<AlchemyCatalogMaterial> Materials { get; } = CreateMaterials();
     public static IReadOnlyList<AlchemyCatalogRecipe> Recipes { get; } = CreateRecipes();
+    public static IEnumerable<string> InitiallyUnlockedIds => Recipes.Where(r => r.InitialUnlocked).Select(r => r.Id);
     private static readonly Dictionary<string, AlchemyCatalogMaterial> MaterialsById = Materials.ToDictionary(m => m.Id, StringComparer.Ordinal);
     private static readonly Dictionary<string, AlchemyCatalogRecipe> RecipesById = Recipes.ToDictionary(r => r.Id, StringComparer.Ordinal);
 
@@ -91,21 +98,14 @@ public static class AlchemyCatalog
         new("daybloom", "太阳花", "Daybloom", "森林地表 · 白昼", 10, null, null),
         new("honeyblock", "蜂蜜块", "Honey Block", "蜂蜜与水接触", 6, null, null),
         new("deathweed", "死亡草", "Deathweed", "腐化或猩红之地", 7, null, null),
-        new("vertebra", "椎骨", "Vertebra", "猩红敌怪掉落", 2, null, null),
-        new("rottenchunk", "腐肉", "Rotten Chunk", "腐化敌怪掉落", 7, null, null),
-        new("crystal", "水晶碎块", "Crystal Shard", "地下神圣之地", 8, null, null),
         new("blinkroot", "闪耀根", "Blinkroot", "地下泥土与土块", 9, null, null),
         new("lens", "晶状体", "Lens", "恶魔眼掉落", 4, null, null),
-        new("mandible", "蚁狮上颚", "Antlion Mandible", "沙漠 · 蚁狮", 4, null, null),
         new("stinger", "毒刺", "Stinger", "丛林 · 蜜蜂与尖刺史莱姆", 6, null, null),
         new("feather", "羽毛", "Feather", "天空 · 鸟妖", 5, null, null),
         new("powder", "净化粉", "Purification Powder", "树妖出售", 30, null, null),
         new("glass", "玻璃", "Glass", "熔炉 · 沙块", 20, null, null),
-        new("iron", "铁锭", "Iron Bar", "熔炉 · 铁矿", 3, null, null),
-        new("lead", "铅锭", "Lead Bar", "熔炉 · 铅矿", 7, null, null),
-        new("hallowed", "神圣锭", "Hallowed Bar", "机械 Boss 掉落", 3, null, null),
+        new("aetherblock", "以太块", "Aether Block", "微光中取得", 3, null, null),
         new("obsidian", "黑曜石", "Obsidian", "水与熔岩接触", 6, null, null),
-        new("pixiedust", "妖精尘", "Pixie Dust", "神圣之地 · 妖精", 5, null, null),
         new("bone", "骨头", "Bone", "地牢敌怪掉落", 15, null, null),
         new("cloud", "云块", "Cloud", "天空岛", 30, null, null),
         new("waterleaf", "幌菊", "Waterleaf", "沙漠 · 雨天开花", 4, null, null),
@@ -126,55 +126,53 @@ public static class AlchemyCatalog
         new()
         {
             Id = "mana", Name = "月露合剂", EnglishName = "Moon Dew Elixir",
-            Category = "potion", Art = "MoonDewElixir", Kind = "专属补给 · 即时回复", Stage = "前期",
-            Description = "把星光溶进月露，再用发光蘑菇稳定药液。仅供伊蕾娜饮用的专属魔力补给。",
-            Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 1, Yield = 3,
-            PixelWidth = 20, PixelHeight = 28,
+            Category = "potion", Art = "MoonDewElixir", Kind = "魔药 · 回复", Stage = "初始直接解锁",
+            Description = "融合了月与星尘的魔力药水，使用后为伊蕾娜储存 100 点备用魔力。无法在战斗中使用。",
+            Note = "这东西的味道不好……——伊蕾娜", Rarity = 1, Yield = 3, InitialUnlocked = true,
+            PixelWidth = 33, PixelHeight = 40,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(3, "moondew"),
-                new(1, "star"),
-                new(3, "glowingmushroom"),
+                new(3, "star"),
+                new(1, "glowingmushroom"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("专属魔力", "回复 100 点"),
-                new("使用者", "伊蕾娜专属"),
+                new("备用魔力", "储存 100 点"),
+                new("使用限制", "无法在战斗中使用"),
             },
         },
         new()
         {
             Id = "painkiller", Name = "止痛药", EnglishName = "Painkiller",
-            Category = "potion", Art = "Painkiller", Kind = "药片 · 持续恢复", Stage = "探索蜂巢后",
-            Description = "太阳花与蜂蜜负责恢复，温香树脂让药效缓慢释放。服用后持续获得恢复效果。",
+            Category = "potion", Art = "Painkiller", Kind = "魔药 · 回复", Stage = "需要炼金等级 1",
+            Description = "提供持续的生命恢复。",
             Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 1, Yield = 3,
-            PixelWidth = 26, PixelHeight = 22,
+            PixelWidth = 32, PixelHeight = 34,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
+                new(1, "moondew"),
                 new(1, "daybloom"),
                 new(1, "honeyblock"),
                 new(1, "resin"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("持续时间", "30 秒"),
-                new("每秒恢复", "最大生命的 2%"),
-                new("全程累计", "最大生命的 60%"),
+                new("持续时间", "60 秒"),
+                new("每秒恢复", "最大生命的 1%"),
             },
         },
         new()
         {
             Id = "bloodlust", Name = "嗜血药水", EnglishName = "Bloodthirst Potion",
-            Category = "potion", Art = "BloodthirstPotion", Kind = "战斗药水 · 近战", Stage = "肉后解锁",
-            Description = "以承受更多伤害为代价，唤醒近战攻击中的嗜血欲望。",
+            Category = "potion", Art = "BloodthirstPotion", Kind = "魔药 · 战斗", Stage = "肉后血月敌人掉落",
+            Description = "大幅提升受到的伤害，但你的近战攻击增加伤害并提供吸血效果。",
             Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 2, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            PixelWidth = 30, PixelHeight = 40,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
+                new(1, "moondew"),
                 new(1, "deathweed"),
-                new(3, "vertebra", "rottenchunk"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
@@ -186,188 +184,172 @@ public static class AlchemyCatalog
         new()
         {
             Id = "starpower", Name = "星力药水", EnglishName = "Star Power Potion",
-            Category = "potion", Art = "StarPowerPotion", Kind = "战斗药水 · 魔法", Stage = "肉后初期",
-            Description = "水晶放大魔力储备中的星光。魔力上限越高，获得的魔法伤害加成越多。",
+            Category = "potion", Art = "StarPowerPotion", Kind = "魔药 · 战斗", Stage = "巫师出售配方",
+            Description = "最大魔力增加；你的魔力值越高于生命值，魔法伤害越高。",
             Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 2, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            PixelWidth = 31, PixelHeight = 36,
             Live = "starpower",
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "moondew"),
                 new(1, "star"),
-                new(1, "deathweed"),
-                new(2, "crystal"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("每 1 点魔力上限", "+0.05% 魔法伤害"),
+                new("最大魔力", "+40"),
+                new("最大魔法伤害", "+30%"),
+                new("所需生命差值", "300"),
             },
         },
         new()
         {
             Id = "focus", Name = "集中药水", EnglishName = "Concentration Potion",
-            Category = "potion", Art = "ConcentrationPotion", Kind = "战斗药水 · 远程", Stage = "肉后解锁",
-            Description = "你的远程攻击方向越接近目标中心，造成的伤害就越高。让每一发都落向瞄准的中心。",
+            Category = "potion", Art = "ConcentrationPotion", Kind = "魔药 · 战斗", Stage = "夜晚军火商出售配方",
+            Description = "你的远程攻击方向距离目标中心越近，造成的伤害就越高。",
             Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 2, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            PixelWidth = 19, PixelHeight = 38,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
-                new(1, "blinkroot"),
+                new(1, "moondew"),
                 new(1, "lens"),
-                new(1, "mandible"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("判定", "攻击方向与目标中心的夹角"),
-                new("远程伤害", "最高 +30%"),
+                new("伤害增幅", "+5% ~ +30%"),
+                new("最大判定角度", "30 度"),
             },
         },
         new()
         {
             Id = "resonance", Name = "共鸣药水", EnglishName = "Resonance Potion",
-            Category = "potion", Art = "ResonancePotion", Kind = "战斗药水 · 召唤", Stage = "探索丛林后",
-            Description = "仆从与哨兵向鞭子标记的敌人集中攻击。持续攻击同一标记目标时，共鸣逐渐增强。",
+            Category = "potion", Art = "ResonancePotion", Kind = "魔药 · 战斗", Stage = "夜晚巫医出售配方",
+            Description = "鞭子命中敌人后赋予共鸣标记，你的召唤物攻击被共鸣的敌人时伤害增加。",
             Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 1, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            PixelWidth = 31, PixelHeight = 39,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
-                new(1, "moonglow"),
+                new(1, "moondew"),
                 new(1, "stinger"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("攻击鞭子标记目标", "伤害 +12%"),
-                new("连续攻击 3 秒", "逐渐提高至 +24%"),
-                new("切换标记目标", "重新积累"),
+                new("标记时间", "3 秒"),
+                new("召唤物伤害", "+20%"),
             },
         },
         new()
         {
             Id = "featherlight", Name = "轻羽药水", EnglishName = "Featherlight Potion",
-            Category = "potion", Art = "FeatherlightPotion", Kind = "旅行药水 · 持续 8 分钟", Stage = "探索天空后",
-            Description = "把羽毛的轻盈与日间上升的气流装进瓶中，让飞行与扫帚旅行更加轻快。",
-            Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 1, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            Category = "potion", Art = "FeatherlightPotion", Kind = "魔药 · 功能", Stage = "需要炼金等级 2",
+            Description = "使你变得身轻如燕，移动速度、飞行速度和扫帚速度增加。",
+            Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 1, Yield = 3,
+            PixelWidth = 19, PixelHeight = 38,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
-                new(1, "blinkroot"),
+                new(1, "moondew"),
                 new(1, "feather"),
                 new(1, "daybloom"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("飞行速度", "+20%"),
-                new("扫帚速度", "+20%"),
-                new("持续时间", "8 分钟"),
+                new("速度增幅", "+20%"),
             },
         },
         new()
         {
             Id = "isolation", Name = "净土露滴", EnglishName = "Purification Dew",
-            Category = "potion", Art = "PurificationDew", Kind = "净化药液 · 滴落使用", Stage = "肉后初期",
-            Description = "将露滴滴在物块上，净化这一格以及它下方的所有物块，用于制造纵向隔离带。",
+            Category = "potion", Art = "PurificationDew", Kind = "魔药 · 功能", Stage = "肉后树妖出售配方",
+            Description = "使用后在目标位置滴下净土露滴，其会下落穿透物块并净化附近所有物块。",
             Note = "药瓶上系着的丝带，是我认出它们的小记号。", Rarity = 2, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            PixelWidth = 19, PixelHeight = 34,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
+                new(1, "moondew"),
                 new(10, "powder"),
                 new(1, "daybloom"),
-                new(1, "crystal"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("作用位置", "目标物块及其下方所有物块"),
-                new("用途", "净化 · 制造隔离带"),
+                new("作用范围", "附近所有物块"),
+                new("特性", "下落时穿透物块"),
             },
         },
         new()
         {
             Id = "dropper", Name = "以太滴管", EnglishName = "Aether Dropper",
-            Category = "curio", Art = "AetherDropper", Kind = "工具 · 可重复使用", Stage = "击败任意机械 Boss 后",
-            Description = "神圣金属让容器能够稳定地保存微光。对着微光吸收一格，再次使用时释放一格。",
+            Category = "curio", Art = "AetherDropper", Kind = "奇物 · 功能", Stage = "需要炼金等级 3",
+            Description = "可以吸收并重新释放微光。",
             Note = "所谓炼金，大概就是替寻常事物发现另一种可能。", Rarity = 2, Yield = 1,
-            PixelWidth = 24, PixelHeight = 30,
+            PixelWidth = 19, PixelHeight = 34,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(10, "glass"),
-                new(5, "iron", "lead"),
-                new(3, "hallowed"),
+                new(3, "aetherblock"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
                 new("容量", "1 格微光"),
-                new("使用顺序", "先吸收，再释放"),
-                new("附带用途", "取得微光液滴"),
             },
         },
         new()
         {
             Id = "mimic", Name = "灰赝尘", EnglishName = "Ashen Facsimile Dust",
-            Category = "curio", Art = "AshenFacsimileDust", Kind = "炼金奇物 · 合成辅助", Stage = "取得微光后",
+            Category = "curio", Art = "AshenFacsimileDust", Kind = "奇物 · 功能", Stage = "需要炼金等级 3",
             Description = "借助微光的转化之力，为尚未齐备的材料补上缺失的一部分。",
             Note = "所谓炼金，大概就是替寻常事物发现另一种可能。", Rarity = 2, Yield = 50,
-            PixelWidth = 28, PixelHeight = 26,
+            PixelWidth = 32, PixelHeight = 32,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "shimmer"),
                 new(1, "obsidian"),
-                new(1, "star"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
                 new("材料前提", "每种所需材料至少持有 1 件"),
                 new("数量前提", "总需求已满足至少 50%"),
-                new("效果", "替代缺少的素材"),
+                new("优先级", "通过收藏优先替代原材料"),
             },
         },
         new()
         {
             Id = "trace", Name = "显迹尘", EnglishName = "Revealing Dust",
-            Category = "curio", Art = "RevealingDust", Kind = "侦察奇物 · 撒出使用", Stage = "肉后 · 神圣之地",
-            Description = "撒出闪耀的细尘，让一片区域内的敌对生物和陷阱显出清楚的标记。",
+            Category = "curio", Art = "RevealingDust", Kind = "奇物 · 功能", Stage = "需要炼金等级 2",
+            Description = "照亮所有敌人与陷阱。",
             Note = "所谓炼金，大概就是替寻常事物发现另一种可能。", Rarity = 2, Yield = 3,
             PixelWidth = 24, PixelHeight = 25,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "pixiedust"),
                 new(1, "blinkroot"),
                 new(3, "bone"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("标记对象", "区域内的敌对生物"),
-                new("危险提示", "区域内的陷阱"),
+                new("照亮半径", "1500"),
+                new("持续时间", "120 秒"),
             },
         },
         new()
         {
             Id = "rain", Name = "瓶中雨", EnglishName = "Bottled Rain",
-            Category = "curio", Art = "BottledRain", Kind = "天气奇物 · 投掷使用", Stage = "探索天空后",
-            Description = "摔开瓶子，释放一朵便携的小雨云。雨水照料附近的植物，也替旅人扑灭普通火焰。",
+            Category = "curio", Art = "BottledRain", Kind = "奇物 · 功能", Stage = "需要炼金等级 1",
+            Description = "释放一朵便携雨云，增快附近所有植物的生长，让水叶草开花。",
             Note = "所谓炼金，大概就是替寻常事物发现另一种可能。", Rarity = 1, Yield = 1,
-            PixelWidth = 22, PixelHeight = 30,
+            PixelWidth = 31, PixelHeight = 38,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "water"),
+                new(1, "moondew"),
                 new(10, "cloud"),
                 new(1, "waterleaf"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("小雨云", "持续 45 秒"),
-                new("覆盖区域", "附近约 20 格宽"),
-                new("玩家", "熄灭普通着火"),
-                new("幌菊与植物", "雨天条件开花 · 加速生长"),
+                new("持续时间", "60 秒"),
             },
         },
         new()
         {
             Id = "bread", Name = "蜂蜜面包", EnglishName = "Honey Bread",
-            Category = "food", Art = "HoneyBread", Kind = "料理 · 蜂蜜香甜", Stage = "基础料理",
+            Category = "food", Art = "HoneyBread", Kind = "料理 · 辅助", Stage = "基础料理",
             Description = "淋上蜂蜜的面包，是伊蕾娜喜欢的甜味补给。不同旅人食用时获得的效果有所不同。",
             Note = "我擅长炖菜，不过甜点总是更容易让我动心。", Rarity = 1, Yield = 2,
             PixelWidth = 28, PixelHeight = 20,
@@ -386,7 +368,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "stew", Name = "炖菜", EnglishName = "Beef Stew",
-            Category = "food", Art = "BeefStew", Kind = "料理 · 热气腾腾", Stage = "旅商食材",
+            Category = "food", Art = "BeefStew", Kind = "料理 · 辅助", Stage = "旅商食材",
             Description = "伊蕾娜擅长制作的牛肉土豆炖菜。炖得软烂又暖胃，不过并不是她最偏爱的食物。",
             Note = "我擅长炖菜，不过甜点总是更容易让我动心。", Rarity = 1, Yield = 1,
             PixelWidth = 30, PixelHeight = 27,
@@ -404,7 +386,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "brulee", Name = "焦糖布蕾", EnglishName = "Caramel Brulee",
-            Category = "food", Art = "CaramelBrulee", Kind = "料理 · 焦糖甜点", Stage = "基础料理",
+            Category = "food", Art = "CaramelBrulee", Kind = "料理 · 辅助", Stage = "基础料理",
             Description = "轻轻敲开薄脆的焦糖外壳，下面是柔软细腻的蛋奶甜点。",
             Note = "我擅长炖菜，不过甜点总是更容易让我动心。", Rarity = 1, Yield = 1,
             PixelWidth = 28, PixelHeight = 21,
@@ -422,9 +404,9 @@ public static class AlchemyCatalog
         new()
         {
             Id = "moondew", Name = "月露", EnglishName = "Moon Dew",
-            Category = "material", Art = "MoonDew", Kind = "新素材 · 装瓶基底", Stage = "前期",
-            Description = "将月光草浸入瓶装水，得到可以直接使用的装瓶药液基底。",
-            Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 3,
+            Category = "material", Art = "MoonDew", Kind = "素材", Stage = "初始解锁",
+            Description = "用瓶装水与月光草制成的药液基底，可直接用于炼金。",
+            Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 3, InitialUnlocked = true,
             PixelWidth = 20, PixelHeight = 28,
             OutputMaterial = "moondew",
             Ingredients = new AlchemyCatalogIngredient[]
@@ -434,15 +416,15 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("设计用途", "魔力、星辰、空间类炼金"),
+                new("用途", "作为药液基底"),
             },
         },
         new()
         {
             Id = "resin", Name = "温香树脂", EnglishName = "Warm Resin",
-            Category = "material", Art = "WarmResin", Kind = "新素材 · 炼金锅熬制", Stage = "前期",
-            Description = "将木材与凝胶在炼金锅中缓慢熬制，留下温润而微甜的树脂。",
-            Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 2,
+            Category = "material", Art = "WarmResin", Kind = "素材", Stage = "初始解锁",
+            Description = "木材和凝胶熬制成的温润树脂。",
+            Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 2, InitialUnlocked = true,
             PixelWidth = 25, PixelHeight = 24,
             OutputMaterial = "resin",
             Ingredients = new AlchemyCatalogIngredient[]
@@ -452,13 +434,13 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("设计用途", "药膏、熏香、扫帚养护"),
+                new("用途", "作为药液辅材"),
             },
         },
         new()
         {
             Id = "flour", Name = "面粉", EnglishName = "Flour",
-            Category = "material", Art = "Flour", Kind = "新食材 · 商人售卖", Stage = "商人",
+            Category = "material", Art = "Flour", Kind = "素材", Stage = "商人",
             Description = "细白的烘焙用面粉，适合揉成甜面团。",
             Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 1,
             PixelWidth = 20, PixelHeight = 26,
@@ -472,7 +454,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "sugar", Name = "糖", EnglishName = "Sugar",
-            Category = "material", Art = "Sugar", Kind = "新食材 · 商人售卖", Stage = "商人",
+            Category = "material", Art = "Sugar", Kind = "素材", Stage = "商人",
             Description = "给面团带来甜味，熬煮后也能形成焦糖外壳。",
             Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 1,
             PixelWidth = 24, PixelHeight = 22,
@@ -486,7 +468,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "egg", Name = "鸡蛋", EnglishName = "Egg",
-            Category = "material", Art = "Egg", Kind = "新食材 · 商人售卖", Stage = "商人",
+            Category = "material", Art = "Egg", Kind = "素材", Stage = "商人",
             Description = "料理与烘焙的基础食材。",
             Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 1,
             PixelWidth = 18, PixelHeight = 24,
@@ -500,7 +482,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "beef", Name = "牛肉", EnglishName = "Beef",
-            Category = "material", Art = "Beef", Kind = "新食材 · 旅商固定售卖", Stage = "旅商",
+            Category = "material", Art = "Beef", Kind = "素材", Stage = "旅商",
             Description = "适合长时间炖煮的牛肉。",
             Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 1,
             PixelWidth = 26, PixelHeight = 22,
@@ -514,7 +496,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "potato", Name = "土豆", EnglishName = "Potato",
-            Category = "material", Art = "Potato", Kind = "新食材 · 旅商固定售卖", Stage = "旅商",
+            Category = "material", Art = "Potato", Kind = "素材", Stage = "旅商",
             Description = "炖煮后软糯绵密，能吸足肉汤的味道。",
             Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 0, Yield = 1,
             PixelWidth = 26, PixelHeight = 22,
@@ -528,7 +510,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "shimmer", Name = "微光液滴", EnglishName = "Shimmer Droplet",
-            Category = "material", Art = "ShimmerDroplet", Kind = "新素材 · 微光凝滴", Stage = "以太滴管",
+            Category = "material", Art = "ShimmerDroplet", Kind = "素材", Stage = "以太滴管",
             Description = "从微光中取得的一滴奇异液体，带着转化物质的微弱力量。",
             Note = "把每一种材料的来处记清楚，下一次就不用翻遍行囊了。", Rarity = 2, Yield = 1,
             PixelWidth = 20, PixelHeight = 28,

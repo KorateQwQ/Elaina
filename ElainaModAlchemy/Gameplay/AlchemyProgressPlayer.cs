@@ -26,7 +26,7 @@ public sealed class AlchemyProgressPlayer : ModPlayer
     {
         Level = 1;
         Experience = 0;
-        _unlocked.Clear();
+        ResetInitialUnlocks();
     }
 
     public override void SaveData(TagCompound tag)
@@ -47,6 +47,7 @@ public sealed class AlchemyProgressPlayer : ModPlayer
         _unlocked.Clear();
         foreach (string id in unlocked.Take(AlchemyCatalog.Recipes.Count))
             if (id != null && AlchemyCatalog.Recipes.Any(r => r.Id == id)) _unlocked.Add(id);
+        foreach (string id in AlchemyCatalog.InitiallyUnlockedIds) _unlocked.Add(id);
     }
 
     public bool IsUnlocked(string id) => id != null && _unlocked.Contains(id);
@@ -114,6 +115,22 @@ public sealed class AlchemyProgressPlayer : ModPlayer
         return added;
     }
 
-    public void ResetProgress() { Level = 1; Experience = 0; _unlocked.Clear(); }
+#if DEBUG
+    public bool DebugLevelUp()
+    {
+        if (Main.dedServ || Player != Main.LocalPlayer || !IsReady || Level >= MaximumLevel) return false;
+        Level++;
+        if (Level == MaximumLevel) Experience = 0;
+        return true;
+    }
+#endif
+
+    public void ResetProgress() { Level = 1; Experience = 0; ResetInitialUnlocks(); }
+
+    private void ResetInitialUnlocks()
+    {
+        _unlocked.Clear();
+        foreach (string id in AlchemyCatalog.InitiallyUnlockedIds) _unlocked.Add(id);
+    }
 
 }

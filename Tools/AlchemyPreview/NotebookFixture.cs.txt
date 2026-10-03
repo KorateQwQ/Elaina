@@ -8,8 +8,8 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
     public bool Request(AlchemyNotebookAction action, string id, int batches = 1) => false;
     public AlchemyNotebookSnapshot Capture()
     {
-        bool blank = scene is "new" or "locked" or "research-ready" or "recipe-missing" or "recipe-ready";
-        int level = scene == "level-max" ? 20 : scene is "new" or "locked" ? 1 : 5;
+        bool blank = scene is "new" or "locked" or "research-ready" or "recipe-missing" or "recipe-ready" or "curio-locked";
+        int level = scene is "level-max" or "curio-dust" or "curio-rain" or "vanilla-materials" ? 20 : scene is "new" or "locked" ? 1 : scene == "header-reference" ? 3 : 5;
         var materials = AlchemyCatalog.Materials.ToDictionary(m => m.Id, m => scene == "short" ? 0 : m.Initial);
         var products = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => r.Id == "mana" ? 3 : 0);
         var unlocked = AlchemyCatalog.Recipes.Where(r => !blank && (AlchemyProgressionRules.RequiredLevel(r.Id) <= level || r.Id == "bloodlust"))
@@ -29,8 +29,9 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
         return new AlchemyNotebookSnapshot
         {
             Materials = materials, Products = products, Unlocked = unlocked, Research = research,
-            MaximumBatches = maximum, Level = level, MaximumLevel = 20, Experience = level == 20 || scene == "new" ? 0 : 45,
-            ExperienceToNextLevel = AlchemyProgressionRules.ExperienceToNextLevel(level)
+            MaximumBatches = maximum, Level = level, MaximumLevel = 20,
+            Experience = scene == "header-reference" ? 35 : level == 20 || scene == "new" ? 0 : 45,
+            ExperienceToNextLevel = scene == "header-reference" ? 40 : AlchemyProgressionRules.ExperienceToNextLevel(level)
         };
     }
 }
