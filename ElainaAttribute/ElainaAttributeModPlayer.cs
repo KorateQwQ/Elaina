@@ -137,7 +137,7 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     public override void PostHurt(Player.HurtInfo info)
     {
         InBattleState();
-        PauseMagicRecovery();
+        //PauseMagicRecovery();
         base.PostHurt(info);
     }
 
@@ -244,7 +244,7 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
         }
 
         InBattleState();
-        PauseMagicRecovery();
+        //PauseMagicRecovery();
         return consumed;
     }
 

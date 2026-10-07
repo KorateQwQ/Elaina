@@ -22,12 +22,14 @@ public class MagicMissile : KLProjectile
 {
     private int count = 0;
     private bool draw = false;
+    private TrailManager.TrailHandle managedTrail;
 
     private float scale = 0.5f;
     private float totalAlpha = 0;
     Effect effect;
     Asset<Texture2D> waterNoise;
     Asset<Texture2D> headClip;
+    Asset<Texture2D> headGlow;
     Asset<Texture2D> trail;
 
 
@@ -36,7 +38,8 @@ public class MagicMissile : KLProjectile
         effect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/MagicMissileEffect", AssetRequestMode.ImmediateLoad)
             .Value;
         waterNoise ??= ModContent.Request<Texture2D>("伊蕾娜/Effects/Tex/水波", AssetRequestMode.ImmediateLoad);
-        headClip ??= ModContent.Request<Texture2D>("KL/Effects/Tex/射灯", AssetRequestMode.ImmediateLoad);
+        headClip ??= ModContent.Request<Texture2D>("KL/Effects/Tex/射灯_alpha", AssetRequestMode.ImmediateLoad);
+        headGlow ??= ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/Skills/MagicMissile/SoftGlow", AssetRequestMode.ImmediateLoad);
         trail ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/LightTrail");
 
         //projectile.ignoreWater = true;//无视水
@@ -56,7 +59,9 @@ public class MagicMissile : KLProjectile
         //Projectile.extraUpdates = ;
         Projectile.alpha = 0;
 
-        TrailLength = 15;
+        TrailSampleCount = 24;
+        TrailMaxLength = 320f;
+        managedTrail = null;
         scale = 0.0f;
         totalAlpha = 0;
 
@@ -140,34 +145,39 @@ public class MagicMissile : KLProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
-        Color borderColor = new Color(0, 0, 0, 255);
         base.PreDraw(ref lightColor);
-        if (trail != null && OldCenter.Length > 2 && OldCenter != null)
+        if (trail != null && OldCenter is { Length: > 1 })
         {
-            if (DrawSystem.GetShouldBloom())
-            {
-                TrailEffect(TextureAssets.MagicPixel.Value, OldCenter, borderColor,
-                    borderColor,
-                    1.5f, 0f, startAlpha: 1f, endAlpha: -0.5f, drawTimes: 1,
-                    uTime: new Vector2(1 - (count % 120) / 30f, 0),
-                    blendState: 2);
-            }
-
-
-            TrailEffect(trail.Value, OldCenter, GetColor(new Color(255, 160, 239, 255)),
-                new Color(255, 160, 239, 255) * 0f,
-                6, 2f, startAlpha: DrawSystem.GetShouldBloom() ? 1.3f : 0f, endAlpha: 3f, drawTimes: 1,
-                uTime: new Vector2(1 - (count % 120) / 30f, 0),
-                blendState: 1);
+            TrailManager.CreateOrUpdateTrail(
+                ref managedTrail,
+                OldCenter,
+                lifetime: 10,
+                trail.Value,
+                DrawManagedTrail,
+                bloom: true);
         }
+        LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissile", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        return false;
+    }
 
-        float clipValue = 0.4f;
-
-        Vector2 time = new Vector2((count % 120) / 40f, 0);
-        
+    private void DrawVisual()
+    {
         DrawMagicMissile();
         EndBeginDraw();
-        return false;
+    }
+
+    private static void DrawManagedTrail(Texture2D texture, Vector2[] points, float _)
+    {
+        if (points.Length < 2)
+            return;
+
+        int animation = (int)Main.GameUpdateCount;
+        TrailEffect(texture, points,
+            new Vector4(new Vector3(1f, 0.5f, 0.9f) * 1.5f, 1f),
+            new Vector4(1f, 0.4f, 0.9f, 0f),
+            6f, 2f, startAlpha: 1f, endAlpha: 3f, drawTimes: 1,
+            uTime: new Vector2(1f - (animation % 120) / 30f, 0f), blendState: 1);
     }
 
     void DrawMagicMissile()
@@ -179,14 +189,14 @@ public class MagicMissile : KLProjectile
         Texture2D waterNoise3 = ModContent
             .Request<Texture2D>("KL/Effects/Tex/Noise/Eff_Noise_11", AssetRequestMode.ImmediateLoad).Value;
 
-        Texture2D ball = ModContent.Request<Texture2D>("KL/Effects/Tex/射灯_alpha", AssetRequestMode.ImmediateLoad).Value;
+        Texture2D ball = headClip.Value;
         Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.rotation);
         Vector2 totalMove = move * -57*scale;
         Vector2 scale2 = new Vector2(0.35f, 0.40f)*scale;
-        
-        EndBeginDraw(DrawSystem.GetShouldBloom()?2:1, 1);
 
-        RadialDissolve(new Vector4(new Vector3(1, 0.5f, 0.8f) * (DrawSystem.GetShouldBloom() ? 7.5f : 1.5f), 1.0f),
+        EndBeginDraw(2, 1);
+
+        RadialDissolve(new Vector4(new Vector3(1, 0.4f, 0.9f) * 7.5f, 1.0f),
             waterNoise, 0.2f,
             new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
             sweepDirection: new Vector2(1, 0),
@@ -196,7 +206,7 @@ public class MagicMissile : KLProjectile
         DrawInWorld(ball, Projectile.Center + totalMove, Color.White, new Vector2(1.0f, 0.5f) * scale2,
             Projectile.rotation);
 
-        RadialDissolve(new Vector4(new Vector3(1, 0.5f, 0.8f) * (DrawSystem.GetShouldBloom() ? 3.5f : 1.5f), 1.0f),
+        RadialDissolve(new Vector4(new Vector3(1, 0.6f, 0.8f) *3.5f, 1.0f),
             waterNoise, 0.2f,
             new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
             sweepDirection: new Vector2(1, 0),

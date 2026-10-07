@@ -32,7 +32,14 @@ public class MagicMissleSpawner : KLProjectile
         get => (State)Projectile.ai[0];
         set => Projectile.ai[0] = (int)value;
     }
-    
+    private TrailManager.TrailHandle managedTrail;
+    Texture2D trail;
+
+    public override void Load()
+    {
+        base.Load();
+    }
+
     public override void SetDefaults()
     {
         //TrailLength = 100;
@@ -42,7 +49,10 @@ public class MagicMissleSpawner : KLProjectile
         Projectile.rotation = Main.rand.NextFloat(-3.14f, 3.14f);
         Projectile.tileCollide = false;
         Projectile.friendly = false;
-        TrailLength = 30;
+        TrailLength = 20;
+        TrailSampleCount = 50;
+        trail ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/Eff_Trail_1679", AssetRequestMode.ImmediateLoad).Value;
+
         base.SetDefaults();
     }
 
@@ -69,7 +79,10 @@ public class MagicMissleSpawner : KLProjectile
             case State.Normal:
             {
                 Projectile.timeLeft = 60;
-                if (time > 10000) time = 0;
+                if (time > 1000000)
+                {
+                    RPC("ToDeadState",KLNetModule.NetSendType.ClientToAll);
+                }
                 FindTarget();
             }break;
             case State.Dead:
@@ -110,6 +123,31 @@ public class MagicMissleSpawner : KLProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        // Sample this draw's center before the manager copies OldCenter.
+        base.PreDraw(ref lightColor);
+        if (OldCenter is { Length: > 1 })
+        {
+            trail = ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/streak_026_4r", AssetRequestMode.ImmediateLoad).Value;
+            var trailState = (
+                Texture: trail,
+                TimeOffset: VisualTime);
+            
+            TrailManager.CreateOrUpdateTrail(
+                ref managedTrail,
+                OldCenter,
+                lifetime: 10,
+                trailState,
+                DrawManagedTrail,
+                bloom: true);
+        }
+        
+        LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissileSpawner", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        return false;
+    }
+
+    void DrawVisual()
+    {
         int startTime = 5;
         switch (state)
         {
@@ -136,16 +174,20 @@ public class MagicMissleSpawner : KLProjectile
             }break;
         }
         EndBeginDraw();
-
-        return base.PreDraw(ref lightColor);
     }
-
+    
+    private static void DrawManagedTrail((Texture2D Texture, int TimeOffset) state, Vector2[] points, float _)
+    {
+        if (points.Length < 2)
+            return;
+        TrailEffect(state.Texture, points, new Color(255, 100, 239, 255).ToVector4()*2.2f, new Color(255, 200, 239, 0).ToVector4(), 13, 0.1f, drawTimes: 1,
+            uTime: new Vector2((1-state.TimeOffset%1200/40f), 0), startAlpha: 1.0f, endAlpha: 1.0f, blendState: 2);
+    }
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
-
     void DrawStartStar(int start)
     {
         Texture2D line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine").Value;
@@ -164,20 +206,14 @@ public class MagicMissleSpawner : KLProjectile
             rotation = MathHelper.Lerp(2.2f, 2.6f, (startTime-20)/20f);
         }
         
-        Color color = new Color(255, 160, 239,155);
-
-        float timeEffect = MathHelper.Lerp(1, 0, startTime / 20f);
-
-        Vector2 toward = new Vector2(1, 0).RotatedBy(Projectile.rotation+rotation);
-        float radius = MathHelper.Lerp(100, 300, startTime / 20f);
-        int count = (int)(25*timeEffect);
+        Color color = new Color(255, 160, 239,255);
 
         Vector2 totalScale =new Vector2(MathHelper.Lerp(0.35f, 1.2f, startTime / 20f),MathHelper.Lerp(0.2f, 0.2f, startTime / 20f));
         float middleHeight = 1f;
         float subHeight = 0.1f;
 
         // FuzzyEdge 参数：保持 + 消融效果
-        Vector4 imageColor = new Color(255, 160, 239, 155).ToVector4() * MathHelper.Lerp(4.5f, 2.5f, startTime / 20f);
+        Vector4 imageColor = new Vector4(new Color(255, 160, 239, 255).ToVector3() * MathHelper.Lerp(10.5f, 7.5f, startTime / 20f),1);
 
         // edgeNoiseStrength 控制消融：前 12 帧保持完整，后 8 帧慢慢消融
         float edgeNoiseStrength;
@@ -198,7 +234,7 @@ public class MagicMissleSpawner : KLProjectile
         Vector2 edgeNoiseOffset = new Vector2(0.4f, 0);
         int edgeDirection = 0;
 
-        EndBeginDraw(1,1);
+        EndBeginDraw(2,1);
         effect.SetValue("ImageColor", imageColor);
         effect.SetValue("Intensity", edgeNoiseStrength);
         effect.SetValue("NoiseOffset", new Vector2(0.0f,0));
@@ -208,12 +244,9 @@ public class MagicMissleSpawner : KLProjectile
 
         effect.SetTexture(1, noise);
         effect.Apply();
-        //ClipEffect(edgeNoiseStrength,imageColor:imageColor,mask:noise,maskScale: edgeNoiseScale);
-
-
         DrawInWorld(line,Projectile.Center,color,totalScale,Projectile.rotation+rotation);
 
-        EndBeginDraw(1,1);
+        EndBeginDraw(2,1);
         effect.SetValue("NoiseOffset", new Vector2(0.5f,0));
         effect.Apply();
 
@@ -227,7 +260,7 @@ public class MagicMissleSpawner : KLProjectile
         Texture2D line = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.noi_1");
         Texture2D noise = AssetManager.GetTexture("KL.Effects.Tex.cellnoise");
 
-        Color color = new Color(255, 160, 239,155);
+        Color color = new Color(255, 160, 239,255);
         int startTime = time - start;
 
         float radius = MathHelper.Lerp(20, 40, startTime / 20f)*0.01f;
@@ -236,35 +269,21 @@ public class MagicMissleSpawner : KLProjectile
         float count = 35 * MathHelper.Lerp(1, 0, startTime / 20f);
 
         float length =MathHelper.Lerp(1, 0, startTime / 20f);
-        EndBeginDraw(2,1);
-        CircleRingEffect(0.06f,outerRadius:radius,ringColor:new Vector4(new Vector3(0.5f),1),texScale:new Vector2(0.5f,4),
-            swapUV:true,noiseTex:noise,edgeNoiseStrength:noiseStr);
-        DrawInWorld(line,Projectile.Center);
-
+        
         EndBeginDraw(1,1);
-        CircleRingEffect(0.06f,outerRadius:radius,ringColor:color.ToVector4()*(DrawSystem.GetShouldBloom()?2.5f:1.5f),texScale:new Vector2(0.5f,4),
+        CircleRingEffect(0.06f,outerRadius:radius,ringColor:color.ToVector4()*2.5f,texScale:new Vector2(0.5f,4),
             swapUV:true,noiseTex:noise,edgeNoiseStrength:noiseStr);
         DrawInWorld(line,Projectile.Center);
 
     }
-
+    
     void DrawMagicBall()
     {
 
         Texture2D waterNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/水波").Value;
         Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/MagicMissileEffect", AssetRequestMode.ImmediateLoad).Value;
         Asset<Texture2D> headClip = ModContent.Request<Texture2D>("KL/Effects/Tex/background", AssetRequestMode.ImmediateLoad);
-        Asset<Texture2D> trail = ModContent.Request<Texture2D>("KL/Effects/Tex/air", AssetRequestMode.ImmediateLoad);
 
-        //Vector2 time = new Vector2( (count % 120) / 40f,0);
-        if(OldCenter!=null&&OldCenter.Length>2)
-        {
-            TrailEffect(trail.Value, OldCenter, new Color(0, 0, 0, 255), Color.White * 0f, 7, 0.1f, drawTimes: 1,
-                uTime: new Vector2(1 - (time % 120) / 30f, 0), startAlpha: 1f, endAlpha: 0.0f, blendState: 2);
-            
-            TrailEffect(trail.Value, OldCenter, new Color(255, 107, 239, 255), Color.White * 0f, 7, 0.1f, drawTimes: 1,
-                uTime: new Vector2(1 - (time % 120) / 30f, 0), startAlpha: 2.5f, endAlpha: 0.0f, blendState: 1);
-        }
         Lighting.AddLight(Projectile.Center, new Vector3(1f,0.7f,0.8f)*DrawManager.FrameTime(0.5f,1.5f,60));
 
         // 新的 shader 参数（根据截图）
@@ -297,15 +316,12 @@ public class MagicMissleSpawner : KLProjectile
             float elastic = progress * (1f + 0.8f * overshoot); // 添加弹性效果
             totalScale = 0.20f * elastic;
         }
-
+        
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(new Vector4(0,0,0,1));
-        DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale*1.00f));
-        
-        
-        EndBeginDraw(1, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(circleColor*1.8f);
-        DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale));
+        effect.Parameters["CircleColor"].SetValue(circleColor*1.4f);
+        effect.Parameters["DistortionStrength"].SetValue(0.04f);
+
+        DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale)*1.1f);
         
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
         effect.Parameters["CircleColor"].SetValue(Vector4.One*1.0f);
@@ -342,20 +358,28 @@ public class MagicMissleSpawner : KLProjectile
         }
 
         Vector2 targetVec = target - Projectile.Center;
-        if (targetVec.Length()<1f)
+        float distance = targetVec.Length();
+        if (distance < 1f)
         {
             Projectile.velocity = Vector2.Zero;
             return;
         }
 
-        if (targetVec.Length() > 2000f)
+        if (distance > 2000f)
         {
             Projectile.Center = target;
+            Projectile.velocity = Vector2.Zero;
             return;
         }
-        // 计算基础速度，距离越远速度越快，但不超过最大值20
-        float speed = MathHelper.SmoothStep(1f, Math.Max(Owner.velocity.Length()*0.8f,20f) , Math.Min(targetVec.Length() / 200f, 1f));
-        Projectile.velocity = Vector2.Normalize(targetVec) * speed;
+
+        // 近距离保留滞后；相距200像素时略快于主人，避免高速移动时持续掉队。
+        const float catchUpDistance = 200f;
+        float catchUpSpeed = Math.Max(Owner.velocity.Length() * 1.1f, 20f);
+        float speed = MathHelper.SmoothStep(1f, catchUpSpeed, Math.Min(distance / catchUpDistance, 1f));
+        // 超过追赶距离后继续加速，不再把远距离速度封顶。
+        speed += Math.Max(distance - catchUpDistance, 0f) * 0.1f;
+        // 单次移动不越过目标，避免靠近槽位时来回抖动。
+        Projectile.velocity = targetVec / distance * Math.Min(speed, distance);
     }
     public override void OnSpawn(IEntitySource source)
     {

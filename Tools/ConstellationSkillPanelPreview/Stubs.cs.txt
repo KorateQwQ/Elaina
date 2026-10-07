@@ -4,6 +4,7 @@ global using ReLogic.Graphics;
 global using SilkyUIFramework.Helper;
 global using PlainSnippet = Terraria.GameContent.UI.Chat.PlainTagHandler.PlainSnippet;
 global using Terraria;
+global using Terraria.Localization;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using ReLogic.Content;
@@ -35,10 +36,16 @@ namespace Terraria
         public static Player LocalPlayer;
         public static Vector2 MouseScreen => new(-100);
     }
-    public sealed class Player { public bool active = true; public Item[] inventory = Enumerable.Range(0, 58).Select(_ => new Item()).ToArray(); }
+    public sealed class Player
+    {
+        public bool active = true;
+        public Item[] inventory = Enumerable.Range(0, 58).Select(_ => new Item()).ToArray();
+        public T GetModPlayer<T>() where T : new() => new();
+    }
     public sealed class Item { public int type, stack; public bool IsAir => stack <= 0; public void TurnToAir() { type = stack = 0; } }
     public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
 }
+namespace 伊蕾娜.System { public sealed class ElainaStatePlayer { public void DebugResetProgress() { } } }
 namespace Terraria.ID { public static class ItemID { public const int Wood = 9; } }
 namespace Terraria.Localization
 {

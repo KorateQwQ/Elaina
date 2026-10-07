@@ -1,11 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using Terraria;
 using Terraria.Audio;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModAlchemy.item.Potions;
 using 伊蕾娜.System;
 
 namespace 伊蕾娜.ElainaAttribute;
@@ -14,46 +14,60 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
 {
     public const int MaxCharges = 5;
 
-    private List<int> restoreAmounts = new(MaxCharges);
+    private int chargeCount;
 
-    public int ChargeCount => restoreAmounts.Count;
+    public int ChargeCount => chargeCount;
+    private float ChargeRestoreAmount => Player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint * 0.5f;
+    public long TotalRestoreAmount => (long)MathF.Ceiling(chargeCount * ChargeRestoreAmount);
 
-    public long TotalRestoreAmount
+    public bool CanStoreCharge()
     {
-        get
-        {
-            long total = 0;
-            foreach (int amount in restoreAmounts)
-            {
-                total += amount;
-            }
-
-            return total;
-        }
-    }
-
-    public bool CanStoreCharge(int restoreAmount)
-    {
-        return restoreAmount > 0 && !Player.dead
+        return !Player.dead && !Player.GetModPlayer<ElainaAttributeModPlayer>().InBattle
             && Player.GetModPlayer<ElainaModplayer>().Elaina
             && ChargeCount < MaxCharges;
     }
 
-    public bool TryStoreCharge(int restoreAmount)
+    public bool TryStoreCharge()
     {
-        if (!CanStoreCharge(restoreAmount))
+        if (!CanStoreCharge())
         {
             return false;
         }
 
-        restoreAmounts.Add(restoreAmount);
+        chargeCount++;
         return true;
+    }
+
+    public override void PostUpdate()
+    {
+        if (Main.dedServ || Player.whoAmI != Main.myPlayer || !CanStoreCharge()) return;
+
+        int elixirType = ModContent.ItemType<MoonDewElixir>();
+        bool consumed = false;
+        for (int slot = 0; slot < Math.Min(50, Player.inventory.Length) && CanStoreCharge(); slot++)
+        {
+            Item item = Player.inventory[slot];
+            if (item.type != elixirType || !item.favorited) continue;
+
+            bool consumedSlot = false;
+            while (item.stack > 0 && CanStoreCharge() && ItemLoader.ConsumeItem(item, Player))
+            {
+                consumed = consumedSlot = true;
+                if (--item.stack == 0) item.TurnToAir();
+            }
+
+            if (consumedSlot && Main.netMode == NetmodeID.MultiplayerClient)
+                NetMessage.SendData(MessageID.SyncEquipment, number: Player.whoAmI,
+                    number2: PlayerItemSlotID.Inventory0 + slot, number3: item.prefix);
+        }
+
+        if (consumed) Recipe.FindRecipes();
     }
 
     internal float PreviewRecovery(float currentMagic, float targetMagic, out int chargesNeeded)
     {
         chargesNeeded = 0;
-        foreach (int amount in restoreAmounts)
+        for (int i = 0; i < chargeCount; i++)
         {
             if (currentMagic >= targetMagic)
             {
@@ -61,7 +75,7 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
             }
 
             // 施法费用尚未结算，此处不按魔力上限裁剪。
-            currentMagic += amount;
+            currentMagic += ChargeRestoreAmount;
             chargesNeeded++;
         }
 
@@ -78,8 +92,7 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
         }
 
         float magicBefore = attributePlayer.MagicPoint;
-        int restoreAmount = restoreAmounts[0];
-        attributePlayer.RegenMagicPoint(restoreAmount);
+        attributePlayer.RegenMagicPoint(ChargeRestoreAmount);
         attributePlayer.InBattleState();
         ConsumeCharges(1, attributePlayer.MagicPoint - magicBefore);
 
@@ -93,7 +106,7 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
             return;
         }
 
-        restoreAmounts.RemoveRange(0, count);
+        chargeCount -= count;
 
         if (Player.whoAmI == Main.myPlayer && Main.netMode != NetmodeID.Server)
         {
@@ -104,48 +117,36 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
 
     public override void Initialize()
     {
-        restoreAmounts = new List<int>(MaxCharges);
+        chargeCount = 0;
     }
 
     public override void SaveData(TagCompound tag)
     {
-        tag["restoreAmounts"] = new List<int>(restoreAmounts);
+        tag["chargeCount"] = chargeCount;
     }
 
     public override void LoadData(TagCompound tag)
     {
-        restoreAmounts.Clear();
-        foreach (int amount in tag.GetList<int>("restoreAmounts"))
+        if (tag.ContainsKey("chargeCount"))
         {
-            if (amount > 0 && ChargeCount < MaxCharges)
-            {
-                restoreAmounts.Add(amount);
-            }
+            chargeCount = Math.Clamp(tag.GetInt("chargeCount"), 0, MaxCharges);
+            return;
         }
+
+        chargeCount = 0;
+        foreach (int amount in tag.GetList<int>("restoreAmounts"))
+            if (amount > 0 && chargeCount < MaxCharges) chargeCount++;
     }
 
     public override void CopyClientState(ModPlayer targetCopy)
     {
-        ((ElainaManaElixirPlayer)targetCopy).restoreAmounts = new List<int>(restoreAmounts);
+        ((ElainaManaElixirPlayer)targetCopy).chargeCount = chargeCount;
     }
 
     public override void SendClientChanges(ModPlayer clientPlayer)
     {
-        var previous = (ElainaManaElixirPlayer)clientPlayer;
-        if (ChargeCount != previous.ChargeCount)
-        {
+        if (ChargeCount != ((ElainaManaElixirPlayer)clientPlayer).ChargeCount)
             SyncPlayer(-1, -1, false);
-            return;
-        }
-
-        for (int i = 0; i < ChargeCount; i++)
-        {
-            if (restoreAmounts[i] != previous.restoreAmounts[i])
-            {
-                SyncPlayer(-1, -1, false);
-                return;
-            }
-        }
     }
 
     public override void SyncPlayer(int toWho, int fromWho, bool newPlayer)
@@ -154,10 +155,6 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
         packet.Write((byte)伊蕾娜.MessageType.ManaElixirCharges);
         packet.Write(Player.whoAmI);
         packet.Write((byte)ChargeCount);
-        foreach (int amount in restoreAmounts)
-        {
-            packet.Write(amount);
-        }
 
         packet.Send(toWho, fromWho);
     }
@@ -176,20 +173,8 @@ public sealed class ElainaManaElixirPlayer : ModPlayer
             return;
         }
 
-        var amounts = new List<int>(MaxCharges);
-        for (int i = 0; i < count; i++)
-        {
-            int amount = reader.ReadInt32();
-            if (amount <= 0)
-            {
-                return;
-            }
-
-            amounts.Add(amount);
-        }
-
         var elixirPlayer = Main.player[playerIndex].GetModPlayer<ElainaManaElixirPlayer>();
-        elixirPlayer.restoreAmounts = amounts;
+        elixirPlayer.chargeCount = count;
         if (Main.netMode == NetmodeID.Server)
         {
             elixirPlayer.SyncPlayer(-1, sender, false);

@@ -1,4 +1,5 @@
 using System;
+using KL.Drawing;
 using KL.Extensions;
 using KL.Utils;
 using Terraria.GameContent;
@@ -95,6 +96,8 @@ public class WindSlash : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        LayerDrawRequestSystem.RequestBloom(GetType().FullName, LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawWind);
         DrawWind();
         EndBeginDraw();
         return base.PreDraw(ref lightColor);
@@ -102,30 +105,24 @@ public class WindSlash : ElainaBasicProjectile
 
     private void DrawWind()
     {
-        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation())*1;
+        Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.velocity.ToRotation())*1f;
         float additiveProgress = MathHelper.Clamp(Projectile.localAI[0] / 10f, 0f, 1f);
         float additiveAlpha = additiveProgress * additiveProgress * (3f - 2f * additiveProgress);
         float baseProgress = MathHelper.Clamp(Projectile.localAI[0] / 15f, 0f, 1f);
         float baseAlpha = baseProgress * baseProgress * (3f - 2f * baseProgress);
         float appearScale = MathHelper.Lerp(0.78f, 1f, additiveAlpha);
-        float offset = -8f * appearScale;
+        float offset = -3f * appearScale;
         Vector2 drawScale = new(0.9f * appearScale,0.6f * appearScale);
         Vector2 topScale = new(0.8f * appearScale, 0.8f * appearScale);
         Color pink = new(255, 160, 239, 255);
         
-        // 先铺黑底，避免后续 additive 绘制产生颜色曝光。
-        EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
-        DrawCrescentFan(new Vector4(new Color(255, 120, 239).ToVector3() * 0.8f, 0.9f * baseAlpha), 1f, move*1.0f, topScale*1f);
-        DrawArcFlame(new Vector4(new Color(255, 120, 239).ToVector3() * 0.5f, 0.5f * baseAlpha), move, offset*1.0f, drawScale*1.0f,VisualTime);
-        DrawWindTrails(new Color(255, 160, 239)* 0.8f * baseAlpha, new Color(255, 160, 239)* 0.5f * baseAlpha, 0.8f * baseAlpha, 0f, 2);
-
         // 黑底完成后再绘制 additive 高光。
         EndBeginDraw(1, 1, ss: SamplerState.LinearClamp);
         DrawCrescentFan(new Color(255, 160, 239, 255).ToVector4() * additiveAlpha, 1f, move, topScale);
 
         DrawArcFlame(new Vector4(new Color(255, 180, 239).ToVector3() * 0.9f, 1.0f * additiveAlpha), move, offset+0, drawScale,VisualTime+0);
         
-        DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.3f * additiveAlpha, 0.0f, 1);
+        DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.5f * additiveAlpha, 0.0f, 1);
     }
 
     private void DrawCrescentFan(Vector4 effectColor, float positionScale, Vector2 move, Vector2 scale)
@@ -141,7 +138,7 @@ public class WindSlash : ElainaBasicProjectile
         crescentFan.SetValue("EffectColor", effectColor);
         crescentFan.SetValue("EdgeSoftness", 0.1f);
         crescentFan.Apply();
-        DrawInWorld(fadeTexture, Projectile.Center + move * -27f * positionScale,
+        DrawInWorld(fadeTexture, Projectile.Center + move * -25f * positionScale,
             color: Color.White, scale: scale, rotation: Projectile.velocity.ToRotation());
     }
 

@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ModLoader;
+using 伊蕾娜.System;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
@@ -67,13 +68,35 @@ public sealed partial class ConstellationSkillPanel
             Recenter();
             Notify("已恢复默认位置，点击保存后生效");
         }, h => DrawLayoutButton("reset", h), "恢复模组默认布局，可取消；保存后才覆盖本地布局", () => Editing);
-        Button(new Rectangle(667, 741, 174, 40), () =>
+        Button(new Rectangle(667, 741, 70, 40), () =>
         {
             if (Editing || !_state.DebugGrantStudyPoints()) return;
             InvalidateDetail(false);
             Notify("研习点已增加，当前 " + _state.Points);
         }, h => DrawDebugButton("points", h), "获得100研习点", () => !Editing);
-        Button(new Rectangle(850, 741, 91, 40), () =>
+        Button(new Rectangle(746, 741, 48, 40), () =>
+        {
+            if (Editing) return;
+            var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
+            if (!playerState.DebugLevelUp())
+            {
+                Notify($"当前等级已达到上限 Lv. {playerState.GetMaxLevel()}");
+                return;
+            }
+            Notify($"角色等级提升至 Lv. {playerState.GetLevel()}");
+        }, h => DrawDebugButton("level", h), "提升角色当前等级", () => !Editing);
+        Button(new Rectangle(799, 741, 76, 40), () =>
+        {
+            if (Editing) return;
+            var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
+            if (!playerState.DebugAdvanceMaxLevel(out string bossName, out float bossState))
+            {
+                Notify("没有可推进的下一个 Boss");
+                return;
+            }
+            Notify($"等级上限提升至 Lv. {playerState.GetMaxLevel()} · {bossName} · state {bossState:0.##}");
+        }, h => DrawDebugButton("cap", h), "推进到 KL boss checklist 中的下一个 Boss，并提升等级上限", () => !Editing);
+        Button(new Rectangle(880, 741, 61, 40), () =>
         {
             if (Editing) return;
             StopDragging();
@@ -81,8 +104,8 @@ public sealed partial class ConstellationSkillPanel
             _ancestors = _state.Ancestors();
             CenterOn(_state.Current);
             InvalidateDetail(true);
-            Notify("所有技能学习状态已重置");
-        }, h => DrawDebugButton("reset-skills", h), "清除所有技能学习状态和装配，保留研习点及星图布局", () => !Editing);
+            Notify("技能与角色进度已重置 · 等级 1 · 经验 0");
+        }, h => DrawDebugButton("reset-skills", h), "清除技能、装配及角色保存的 Progress／进度记录；角色等级回到 1、经验归零，不改变世界 Boss 击杀状态", () => !Editing);
 #endif
     }
 
@@ -116,11 +139,25 @@ public sealed partial class ConstellationSkillPanel
     {
 #if DEBUG
         if (Editing) return;
-        float x = kind == "points" ? 667 : 850, width = kind == "points" ? 174 : 91;
-        Color color = kind == "points" ? Gold : new Color(214, 177, 155);
+        float x = kind switch { "points" => 667, "level" => 746, "cap" => 799, _ => 880 };
+        float width = kind switch { "points" => 70, "level" => 48, "cap" => 76, _ => 61 };
+        Color color = kind switch
+        {
+            "points" => Gold,
+            "level" => new Color(191, 220, 201),
+            "cap" => new Color(224, 194, 153),
+            _ => new Color(214, 177, 155)
+        };
         _draw.Box(x, 746, width, 30, color * (hover ? .13f : .045f));
         _draw.Frame(x, 746, width, 30, color * (hover ? .7f : .32f));
-        _draw.Text(kind == "points" ? "获得100研习点" : "重置", x + width / 2, 755, 11, hover ? Ink : color, .5f);
+        string label = kind switch
+        {
+            "points" => "研习点",
+            "level" => "升级",
+            "cap" => "上限+",
+            _ => "重置"
+        };
+        _draw.Text(label, x + width / 2, 755, 10, hover ? Ink : color, .5f);
 #endif
     }
 

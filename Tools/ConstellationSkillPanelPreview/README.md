@@ -26,6 +26,8 @@
 
 默认以 Debug 配置验证调试按钮及加点/重置行为。`-Configuration Release -IconsOnly` 编译并验证 Release 不包含调试状态修改方法。重置检查涵盖未展示技能、装配、等级、冷却、取消学习回调、隐藏模板恢复、点数/布局保留、重复重置与重新学习。所有操作仅在隔离角色夹具上执行。
 
+等级栏由正式的 `ConstellationDrawing.PlayerLevel` 绘制，场景使用 `Lv. 120 / 上限 120`、`经验 0 / 100`，覆盖三位等级和值分隔符的排版。该预览只提供隔离的固定角色数值；角色 Progress、ProgressSet、当前等级和经验的重置由正式 Debug 构建验证。
+
 `-HeadersOnly` 仅重放正式顶部绘制，检查研习点书本图标、标签和 0 / 9999 点数在 86%、100%、125% 比例下的布局；不重复整套状态检查和全界面截图。`bake_study_book.py` 调用 svg-to-png 技能的 resvg 转换器（可用 `--converter` 指定），再离线转换为游戏需要的预乘 Alpha PNG。
 
 链接正式 `ConstellationState`、`ConstellationDrawing`、`ConstellationDetail`、`ElainaSkill.Constellation`，每次从正式 UI 重新抽取地图、节点、详情标题和装配栏绘制方法。富文本链接实际 SUI 解析与布局组件、KL 图标片段、Terraria 文本片段；加载实际 XNB 字体与技能 PNG。原生窗口隐藏并自动退出。

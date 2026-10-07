@@ -39,6 +39,15 @@ public class FireTornado : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        return false;
+    }
+
+    private void DrawVisual()
+    {
         Asset<Texture2D> wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/Eff_Noise_57");
         Asset<Texture2D> wind1 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind1");
         Asset<Texture2D> wind2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind2");
@@ -74,7 +83,7 @@ public class FireTornado : ElainaBasicProjectile
             DrawInWorld(windSlash.Value,Projectile.Center+windSlashOffset+new Vector2(0,-slashHeight*150),color: new Color(50,10,0,255),new Vector2(1.5f,slashHeight)*tornadoScale);
             
             EndBeginDraw();
-            return false;
+            return;
         }
 
 
@@ -99,7 +108,7 @@ public class FireTornado : ElainaBasicProjectile
         DrawInWorld(waterNoi.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,70,20,255)*(1-totalFadeTime),new Vector2(1.3f,2.3f)*2.0f);
         
         float light = 1.0f;
-        if (Projectile.timeLeft < 30) light = MathHelper.Lerp(0.0f, 1.0f, Projectile.timeLeft / 30f);
+        if (Projectile.timeLeft < 30) light = MathHelper.Lerp(1.0f, 1.0f, Projectile.timeLeft / 30f);
         //绘制高亮核心
         //高亮残片
         EndBeginDraw(1,1,ss:SamplerState.LinearWrap);
@@ -108,13 +117,13 @@ public class FireTornado : ElainaBasicProjectile
             dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(0.5f),dissolveThreshold:GetDissolveAmount(0.5f),dissolveEdgeWidth:0.00f,
             noiseTex:displaceNoi.Value,displaceNoiseScale:new Vector2(1.1f),displaceAmount:0.05f,displaceNoiseBias:0,displaceNoiseContrast:1,displaceNoiseSpeed:new Vector2(-0.3f));
         
-        DrawInWorld(cellnoise.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,70,11,255),new Vector2(0.4f,1.2f)*1.6f);
+        DrawInWorld(cellnoise.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,100,30,255),new Vector2(0.4f,1.2f)*1.6f);
         //高亮旋风
-        TornadoEffect(new Vector4(1.5f*light),false,  rotTime,2.5f,new Vector2(0.4f),-1.4f,new Vector2(1),1.0f,horizontalFadeRange:0.02f,verticalFadeRange:0.1f,
+        TornadoEffect(new Vector4(2.5f*light),false,  rotTime,2.5f,new Vector2(0.4f),-1.4f,new Vector2(1),1.0f,horizontalFadeRange:0.02f,verticalFadeRange:0.1f,
             maxInset:0.25f,bezierP0:new Vector2(-5,0),bezierP1:new Vector2(2.85f,0.45f),bezierP2:new Vector2(3f,0.95f),bezierP3:new Vector2(-8,1),
             noiseTex:displaceNoi.Value,displaceNoiseScale:new Vector2(1.1f),displaceAmount:0.05f,displaceNoiseBias:0,displaceNoiseContrast:1,displaceNoiseSpeed:new Vector2(-0.3f),
-            dissolveTex:PerLinNoiseX,dissolveThreshold:GetDissolveAmount(),dissolveEdgeWidth:0.00f);
-        DrawInWorld(wind1.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,70,20,255),new Vector2(1.3f,2.3f)*2.0f);
+            dissolveTex:PerLinNoiseX,dissolveThreshold:GetDissolveAmount(0.0f),dissolveEdgeWidth:0.00f);
+        DrawInWorld(wind1.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,100,30,255),new Vector2(1.3f,2.3f)*2.0f);
         
 
 
@@ -151,7 +160,7 @@ public class FireTornado : ElainaBasicProjectile
         EndBeginDraw();
         EndBeginDraw();
 
-        return base.PreDraw(ref lightColor);
+        return;
     }
 
     float GetDissolveAmount(float currentDissolve = 0)
@@ -167,7 +176,7 @@ public class FireTornado : ElainaBasicProjectile
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
-        behindNPCsAndTiles.Add(index);
+        //behindNPCsAndTiles.Add(index);
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
 }

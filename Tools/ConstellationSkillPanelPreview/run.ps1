@@ -76,7 +76,8 @@ function Add-Item([string]$kind, [string]$path) {
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
 foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
-foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ElainaSkill.Constellation','ConstellationLayout','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
+foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
 foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
 $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Helper/TextSnippetHelper.cs"

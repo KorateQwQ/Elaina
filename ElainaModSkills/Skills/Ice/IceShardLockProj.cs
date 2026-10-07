@@ -7,12 +7,12 @@ using KL.Dusts.Burst;
 using KL.Dusts.Glow;
 using KL.Dusts.Smoke;
 using KL.Dusts.Stone;
+using KL.SkillSystem.SilkyUI;
 using KL.Utils;
 using Terraria.ID;
 
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
-
 public class IceShardLockProj : ElainaBasicProjectile
 {
     private readonly List<VisualUnit> units = new();

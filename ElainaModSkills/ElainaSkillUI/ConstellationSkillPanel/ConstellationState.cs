@@ -133,6 +133,7 @@ internal sealed class ConstellationState
         }
         _player.UnlockedSkill.Clear();
         for (int i = 0; i < _player.ActiveSkill.Count; i++) _player.ActiveSkill[i] = null;
+        _player.Player.GetModPlayer<global::伊蕾娜.System.ElainaStatePlayer>().DebugResetProgress();
         ElainaSkillModPlayer.CurrentSkillIndex = -1;
         Refresh();
         TargetSlot = 0;

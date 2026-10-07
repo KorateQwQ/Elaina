@@ -1,3 +1,4 @@
+using System;
 using KL.ActionsSystem;
 using KL.ActionsSystem.TemplateActions;
 using KL.Drawing;
@@ -22,11 +23,16 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 [SkillUIInfo(State = 0, Pixels = 200)]
 public class MagicMissileSkill : ElainaSkill
 {
+    private const float AttackIntervalSeconds = 0.3f;
+    private const int FullDpsLevel = 5;
+    private const int StableDpsLevel = 65;
+    private const float InitialDpsRatio = 1f;
+    private const float EndgameDpsRatio = 0.6f;
+
     public override void Initialize()
     {
         MagicPointCost = 3;
-        CurrentCD = 0.3f;
-        MaxCD = 0.3f;
+        MaxCD = AttackIntervalSeconds;
         base.Initialize();
     }
     public override void ResetEffects(Player player)
@@ -42,10 +48,11 @@ public class MagicMissileSkill : ElainaSkill
 
     public override bool CanUseSkill()
     {
+        MagicPointCost = 3;
+
         return base.CanUseSkill();
     }
 
-    //每秒三次攻击，再根据五发额外伤害的被动，大概得到期望dps/4.2的单发伤害
     public override bool PreUseSkill(IEntitySource source)
     {
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
@@ -56,7 +63,7 @@ public class MagicMissileSkill : ElainaSkill
                 1,
                 ModContent.ProjectileType<MagicMissile>(),
                 _ => WandCenter+new Vector2(0,0),
-                damage:GetDamage(),//DpsHelper.GetSkillDamage(GetType().Name,1)
+                damage:GetDamage(),
                 2,
                 player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 15f));
         //每帧固定回蓝时间
@@ -85,16 +92,37 @@ public class MagicMissileSkill : ElainaSkill
                 Log($"{info.Value.displayName} state: {info.Value.progression} maxLevel: {PlayerLevelCapHelper.GetLevelCap(info.Value.progression)}");
             }
         }*/
-        
+        PrintText(localPlayer.GetModPlayer<ElainaStatePlayer>().GetLevel());
         return base.PreUseSkill(source);
     }
 
-    int GetDamage()
+    /// <summary>角色等级对应的 DPS 占比：前五级保持完整基准，之后平滑下降，65 级起保持 60%。</summary>
+    public static float GetDpsRatio(int playerLevel)
     {
-        int level = 10;//角色等级
-        float attackTotalTime = 0.333f * 5;//5次攻击需要的时间
-        int attackCount = 7;//五次攻击触发被动，额外造成200%伤害，因此可算作7次攻击,因此cd可以等同于0.24s
-        return KLDpsHelper.GetSingleHitDamage(KLDpsHelper.GetLevelDps(level), attackTotalTime, attackCount);
+        float progress = Math.Clamp((Math.Max(1, playerLevel) - FullDpsLevel)
+            / (float)(StableDpsLevel - FullDpsLevel), 0f, 1f);
+        float smoothProgress = progress * progress * (3f - 2f * progress);
+        return InitialDpsRatio + (EndgameDpsRatio - InitialDpsRatio) * smoothProgress;
+    }
+
+    /// <summary>指定角色等级的普通飞弹理论 DPS，不包含追加伤害、装备、暴击或敌方防御。</summary>
+    public static float GetDps(int playerLevel)
+    {
+        playerLevel = Math.Max(1, playerLevel);
+        return KLDpsHelper.GetLevelDps(playerLevel) * GetDpsRatio(playerLevel);
+    }
+
+    /// <summary>按指定角色等级计算一枚普通飞弹的基础伤害。</summary>
+    public static int GetDamage(int playerLevel)
+    {
+        return Math.Max(1, KLDpsHelper.GetSingleHitDamage(
+            GetDps(playerLevel), AttackIntervalSeconds, 1));
+    }
+
+    private int GetDamage()
+    {
+        int playerLevel = (int)Player.GetModPlayer<ElainaStatePlayer>().GetLevel();
+        return GetDamage(playerLevel);
     }
     public override bool PreUpdateCD()
     {   

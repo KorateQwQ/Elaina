@@ -10,7 +10,6 @@ using Terraria.Localization;
 using Terraria.ModLoader;
 using Terraria.UI.Chat;
 using 伊蕾娜.ElainaAttribute;
-using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -131,15 +130,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
             DrawDiamond(center, new Vector2(13f), emptyColor,
                 border: 1f, filled: false, borderColor: BorderColor * (charged ? 1f : 0.45f));
         }
-
-        // 与物品共用贴图引用，ManaElixir 更换贴图时资源槽会一起更新。
-        Texture2D icon = ModContent.Request<Texture2D>(
-            ModContent.GetInstance<ManaElixir>().Texture, AssetRequestMode.ImmediateLoad).Value;
-        float iconScale = Math.Min(28f / icon.Width, 30f / icon.Height);
-        /*
-        spriteBatch.Draw(icon, iconCenter, null, Color.White, 0f,
-            icon.Size() * 0.5f, iconScale, SpriteEffects.None, 0f);
-            */
 
         string text = $"{elixirPlayer.TotalRestoreAmount}";//elixirRestoreText.Format(elixirPlayer.TotalRestoreAmount);
         DynamicSpriteFont font = FontManager.HarmonyOS_Sans_SC.Value;

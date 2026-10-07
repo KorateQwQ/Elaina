@@ -1,0 +1,229 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+internal static class Program
+{
+    static void Main(string[] args)
+    {
+        using var game = new Probe(args[0], args[1]);
+        game.Run();
+    }
+
+    internal static Assembly CompilePipeline(string kl)
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            using System;
+            using System.Collections.Generic;
+            using System.Reflection;
+            using Microsoft.Xna.Framework;
+            using Microsoft.Xna.Framework.Graphics;
+            using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing {
+            public class ModSystem {}
+            public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+            public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+            public static class Main {
+                public static DeviceContext instance, graphics;
+                public static SpriteBatch spriteBatch;
+                public static int screenWidth, screenHeight;
+                public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                public static ViewContext GameViewMatrix = new();
+            }
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class PreviewOptions { public static bool PreserveBackbuffer = true; }
+            public partial class DrawSystem {
+                public void Run(float strength, int iterations, bool bloomEnabled) {
+                    SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "ReColorEffect");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += "}}\n";
+        source += File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs"));
+        // Replace the file-scoped namespace because the generated source already has block namespaces.
+        source = source.Replace("namespace KL.Drawing;", "namespace KL.Drawing {") + "\n}";
+        // The unfixed comparison disables only the new preservation setting in the actual method body.
+        source = source.Replace("presentation.RenderTargetUsage = RenderTargetUsage.PreserveContents;",
+            "if (PreviewOptions.PreserveBackbuffer) presentation.RenderTargetUsage = RenderTargetUsage.PreserveContents;");
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("BloomPipelineProbe", [CSharpSyntaxTree.ParseText(source)], references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+}
+
+internal sealed class Probe : Game
+{
+    const int Width = 640, Height = 360;
+    readonly string kl, output;
+    readonly Assembly pipeline;
+    SpriteBatch batch;
+    Texture2D pixel, glow;
+    ContentManager effects;
+    object renderer;
+    Type main, draw, helper, queue, options;
+    MethodInfo run, request;
+    int callbackCount;
+    bool done;
+    readonly Color background = new(52, 112, 144);
+    internal Probe(string kl, string output)
+    {
+        this.kl = kl; this.output = output;
+        pipeline = Program.CompilePipeline(kl);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        glow = new Texture2D(GraphicsDevice, 48, 48, false, SurfaceFormat.Vector4);
+        var data = new Vector4[48 * 48];
+        for (int y = 0; y < 48; y++) for (int x = 0; x < 48; x++) {
+            float a = Math.Clamp(1 - new Vector2(x - 23.5f, y - 23.5f).Length() / 22, 0, 1);
+            data[y * 48 + x] = new Vector4(5 * a, .5f * a, 3 * a, a);
+        }
+        glow.SetData(data);
+        main = pipeline.GetType("KL.Drawing.Main"); draw = pipeline.GetType("KL.Drawing.DrawSystem");
+        helper = pipeline.GetType("KL.Drawing.DrawHelper"); queue = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem");
+        options = pipeline.GetType("KL.Drawing.PreviewOptions");
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", Width); Set(main, "screenHeight", Height);
+        effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
+        renderer = Activator.CreateInstance(draw); run = draw.GetMethod("Run");
+        request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters().Last().ParameterType == typeof(Action));
+    }
+    void Enqueue(bool endsBatch = false, bool throws = false)
+    {
+        Action callback = () => {
+            callbackCount++;
+            batch.Draw(glow, new Vector2(320, 145), null, Color.White, 0, new Vector2(24), 1, SpriteEffects.None, 0);
+            if (endsBatch) batch.End();
+            if (throws) throw new InvalidOperationException("Expected probe exception");
+        };
+        request.Invoke(null, ["probe", Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), 3),
+            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback]);
+    }
+    void Background()
+    {
+        GraphicsDevice.SetRenderTarget(null); GraphicsDevice.Clear(background);
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend);
+        batch.Draw(pixel, new Rectangle(0, 255, Width, 105), new Color(43, 102, 58));
+        batch.Draw(pixel, new Rectangle(65, 145, 70, 110), new Color(194, 170, 91));
+        batch.Draw(pixel, new Rectangle(55, 128, 90, 20), new Color(218, 210, 173));
+        batch.End();
+    }
+    Color[] Pixels()
+    {
+        var pixels = new Color[Width * Height]; GraphicsDevice.GetBackBufferData(pixels); return pixels;
+    }
+    void Save(string name)
+    {
+        using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(Pixels());
+        using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
+    }
+    void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
+    void Render(float strength, int iterations, bool enabled = true) => run.Invoke(renderer, [strength, iterations, enabled]);
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.DiscardContents;
+        Set(draw, "CanUseRender", false);
+        Set(options, "PreserveBackbuffer", false);
+        Background(); Enqueue(); Render(1, 5); Save("before-discard");
+        Check(Pixels()[4 * Width + 4] != background, "Unfixed path did not reproduce discarded scene");
+        Set(options, "PreserveBackbuffer", true);
+        foreach (int iteration in new[] { 2, 5, 7 }) {
+            Background(); var before = Pixels(); int count = callbackCount;
+            Enqueue(endsBatch: iteration == 7); Render(1, iteration);
+            Check(Pixels()[4 * Width + 4] == before[4 * Width + 4], "Background lost");
+            Check(callbackCount == count + 1, "Callback not executed exactly once");
+            Check(GraphicsDevice.GetRenderTargets().Length == 0, "Backbuffer not restored");
+            Check(GraphicsDevice.PresentationParameters.RenderTargetUsage == RenderTargetUsage.DiscardContents, "Usage not restored");
+            if (iteration == 5) { Save("after-preserve"); Enqueue(); Render(1, iteration); Save("after-second-layer");
+                Check(Pixels()[4 * Width + 4] == background, "Second bloom lost background"); }
+            Console.WriteLine($"PASS backbuffer iteration={iteration}");
+        }
+        Background(); Enqueue(); Render(0, 5); var zero = Pixels(); Save("strength-zero");
+        Background(); Enqueue(); Render(2, 5); var strong = Pixels(); Save("strength-two");
+        Check(zero.Where((color, index) => color != strong[index]).Any(), "Bloom strength had no effect");
+        Background(); Enqueue(); Render(1, 5, false); Check(Pixels()[4 * Width + 4] == background, "Disabled bloom lost scene");
+        Background(); batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
+        Enqueue(); Render(1, 5); batch.Draw(pixel, new Rectangle(10, 10, 8, 8), Color.White); batch.End();
+        Check(Pixels()[12 * Width + 12] == Color.White, "SpriteBatch was not restored");
+        Background(); var viewport = new Viewport(2, 3, Width - 4, Height - 6); var scissor = new Rectangle(8, 9, 240, 180);
+        GraphicsDevice.Viewport = viewport; GraphicsDevice.ScissorRectangle = scissor;
+        Enqueue(throws: true);
+        try { Render(1, 5); throw new Exception("Expected callback failure"); }
+        catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { }
+        Check(GraphicsDevice.PresentationParameters.RenderTargetUsage == RenderTargetUsage.DiscardContents, "Exception leaked usage");
+        Check(GraphicsDevice.Viewport.Equals(viewport) && GraphicsDevice.ScissorRectangle == scissor, "Exception leaked viewport/scissor");
+        Check(GraphicsDevice.GetRenderTargets().Length == 0, "Exception leaked target");
+        GraphicsDevice.Viewport = new Viewport(0, 0, Width, Height);
+        GraphicsDevice.ScissorRectangle = new Rectangle(0, 0, Width, Height);
+        using var scene = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        Set(draw, "CanUseRender", true); GraphicsDevice.SetRenderTarget(scene); GraphicsDevice.Clear(background);
+        Enqueue(); Render(1, 5);
+        Check(ReferenceEquals(GraphicsDevice.GetRenderTargets()[0].RenderTarget, scene), "Scene target not restored");
+        var scenePixels = new Color[Width * Height]; scene.GetData(scenePixels);
+        Check(scenePixels[4 * Width + 4] == background, "Scene-target path lost background");
+        GraphicsDevice.SetRenderTarget(null);
+        Console.WriteLine("PASS strength, disabled bloom, active/ended batch, exception restoration, scene-target path");
+        Console.WriteLine("FNA offline probe only; game lighting and projectile AI are not simulated. Output: " + output);
+        Exit();
+    }
+    protected override void UnloadContent()
+    {
+        effects?.Dispose(); glow?.Dispose(); pixel?.Dispose(); batch?.Dispose();
+    }
+}

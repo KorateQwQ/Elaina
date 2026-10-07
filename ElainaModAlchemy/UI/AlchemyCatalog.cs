@@ -127,19 +127,19 @@ public static class AlchemyCatalog
         {
             Id = "mana", Name = "月露合剂", EnglishName = "Moon Dew Elixir",
             Category = "potion", Art = "MoonDewElixir", Kind = "魔药 · 回复", Stage = "初始直接解锁",
-            Description = "融合了月与星尘的魔力药水，使用后为伊蕾娜储存 100 点备用魔力。无法在战斗中使用。",
+            Description = "融合了月与星尘的魔力药水。脱战后可将其存入药水槽；收藏后会自动补满充能。每格恢复最大独特魔力的 50%。",
             Note = "这东西的味道不好……——伊蕾娜", Rarity = 1, Yield = 3, InitialUnlocked = true,
             PixelWidth = 33, PixelHeight = 40,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(3, "moondew"),
-                new(3, "star"),
+                new(1, "star"),
                 new(1, "glowingmushroom"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("备用魔力", "储存 100 点"),
-                new("使用限制", "无法在战斗中使用"),
+                new("每格恢复", "最大独特魔力的 50%"),
+                new("使用限制", "仅脱战时可补充药水槽"),
             },
         },
         new()

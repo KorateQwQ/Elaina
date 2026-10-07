@@ -11,6 +11,7 @@ using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria;
 using Terraria.ModLoader;
+using 伊蕾娜.System;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
@@ -460,6 +461,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.LatinText(_state.Learned.Count.ToString("00"), 1007, 104, 19, new Color(233, 215, 246));
         d.LatinText($"/ {_state.Skills.Length}", 1038, 109, 12, new Color(155, 138, 168));
         d.Line(new Vector2(26, 145), new Vector2(1074, 145), new Color(183, 149, 209) * (27 / 255f));
+        DrawPlayerLevel();
         d.Line(new Vector2(26, 725), new Vector2(1074, 725), LineColor);
         d.Line(new Vector2(753, 146), new Vector2(753, 724), Lavender * .25f);
         d.CrossStar(new Vector2(753, 146), new Vector2(8, 10), Lavender, .25f, false);
@@ -476,6 +478,14 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         DrawLayoutHints();
         d.Frame(1030, 753, 31, 17, LineColor);
         d.Text("Esc", 1045, 756, 9, Muted, .5f);
+    }
+
+    private void DrawPlayerLevel()
+    {
+        var d = _draw;
+        var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
+        d.PlayerLevel(playerState.GetLevel(), playerState.GetMaxLevel(),
+            playerState.GetExperience(), playerState.GetExperienceToNextLevel());
     }
 
     private void DrawFilter(int index, string filter, bool hover)

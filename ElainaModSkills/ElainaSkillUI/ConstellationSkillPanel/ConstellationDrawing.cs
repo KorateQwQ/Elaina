@@ -493,6 +493,35 @@ internal sealed class ConstellationDrawing
             size / 48f * Scale, SpriteEffects.None, 0);
 
     // Header Latin text uses the project's Georgia-compatible face, not CJK serif digits.
+    // Shared by the notebook and its FNA preview. All coordinates are design pixels.
+    internal void PlayerLevel(int currentLevel, int maxLevel, int experience, int experienceMax)
+    {
+        const float left = 620, right = 834, width = right - left;
+        Line(new Vector2(603, 98), new Vector2(603, 134), LineColor * .6f);
+        Text("角色等级", left, 98, 10, DetailLabel, serif: true, spacing: .6f);
+
+        // Reserve the cap label first; measure the current value instead of assuming two digits.
+        string cap = maxLevel.ToString();
+        float capLeft = right - LatinWidth(cap, 12);
+        float capLabelLeft = capLeft - 7 - Measure("上限", 9);
+        Text("上限", capLabelLeft, 100, 9, Muted);
+        LatinText(cap, right, 97, 12, DetailValue, 1);
+        string level = currentLevel.ToString();
+        const float levelLeft = left + 57;
+        float levelSize = Math.Min(23, 23 * Math.Max(1, capLabelLeft - 14 - levelLeft) / Math.Max(1, LatinWidth(level, 23)));
+        LatinText(level, levelLeft, 91 + (23 - levelSize) * .5f, levelSize, Gold);
+
+        Text("经验", left, 119, 9, DetailLabel, spacing: .6f);
+        // A single measured run keeps digits and the separator together at every scale.
+        LatinText($"{experience} / {experienceMax}", right, 116, 11, DetailValue, 1);
+        const float y = 134;
+        Box(left, y, width, 3, new Color(183, 153, 206) * .15f);
+        float progress = experienceMax > 0 ? MathHelper.Clamp(experience / (float)experienceMax, 0, 1) : 0;
+        if (progress > 0)
+            Gradient(left, y, width * progress, 3,
+                new Color(157, 128, 181), new Color(212, 188, 233));
+    }
+
     internal float LatinWidth(string text, float size, float spacing = 0)
         => SlotLabelWidth(text, size) + Math.Max(0, text.Length - 1) * spacing;
 

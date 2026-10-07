@@ -55,6 +55,11 @@ internal sealed class PanelScene
         DrawChrome(); DrawCloseButton(false);
         batch.End();
     }
+
+    // The panel delegates the header layout to ConstellationDrawing; this fixture supplies
+    // the reported high-level state so the preview covers the former overlap case.
+    private void DrawPlayerLevel() => _draw.PlayerLevel(120, 120, 0, 100);
+
     internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario)
     {
         _book.Request(true); _book.Finish();
