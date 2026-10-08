@@ -46,19 +46,23 @@ internal sealed class PanelScene
         batch.End();
         Terraria.Main.mouseLeft = false;
     }
-    internal void RenderHeader(SpriteBatch batch, float scale, int points)
+    private int _playerLevel = 120, _playerCap = 120, _playerExperience;
+    internal void RenderHeader(SpriteBatch batch, float scale, int points, int level = 120, int cap = 120, int experience = 0)
     {
         _state = Fixtures.State(true);
+        _playerLevel = level; _playerCap = cap; _playerExperience = experience;
         伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer.SkillPoint = points;
         _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = Vector2.Zero;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
         DrawChrome(); DrawCloseButton(false);
+        string[] filters = ["learned", "ready", "locked", "hidden"];
+        for (int i = 0; i < filters.Length; i++) DrawFilter(i, filters[i], false);
         batch.End();
     }
 
     // The panel delegates the header layout to ConstellationDrawing; this fixture supplies
     // the reported high-level state so the preview covers the former overlap case.
-    private void DrawPlayerLevel() => _draw.PlayerLevel(120, 120, 0, 100);
+    private void DrawPlayerLevel() => _draw.PlayerLevel(_playerLevel, _playerCap, _playerExperience, 100);
 
     internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario)
     {

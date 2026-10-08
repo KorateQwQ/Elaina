@@ -492,34 +492,35 @@ internal sealed class ConstellationDrawing
         => Batch.DrawString(FontManager.Gelasio.Value, text, At(x, y), color, 0, Vector2.Zero,
             size / 48f * Scale, SpriteEffects.None, 0);
 
-    // Header Latin text uses the project's Georgia-compatible face, not CJK serif digits.
-    // Shared by the notebook and its FNA preview. All coordinates are design pixels.
+    // Masthead counterpart of character-progression in the approved level-preview HTML.
+    // Share the actual drawing with the FNA fixture; only the fixture substitutes player data.
     internal void PlayerLevel(int currentLevel, int maxLevel, int experience, int experienceMax)
     {
-        const float left = 620, right = 834, width = right - left;
-        Line(new Vector2(603, 98), new Vector2(603, 134), LineColor * .6f);
-        Text("角色等级", left, 98, 10, DetailLabel, serif: true, spacing: .6f);
+        const float sealX = 592, left = 637, right = 768, width = right - left;
+        Line(new Vector2(544, 15), new Vector2(544, 69), new Color(197, 173, 139) * (48 / 255f));
 
-        // Reserve the cap label first; measure the current value instead of assuming two digits.
-        string cap = maxLevel.ToString();
-        float capLeft = right - LatinWidth(cap, 12);
-        float capLabelLeft = capLeft - 7 - Measure("上限", 9);
-        Text("上限", capLabelLeft, 100, 9, Muted);
-        LatinText(cap, right, 97, 12, DetailValue, 1);
+        // A single quiet diamond repeats the notebook tooling without enclosing another panel.
+        Corners(new Vector2(sealX, 41), 36, 18, new Color(205, 177, 138) * (66 / 255f), MathHelper.PiOver4);
+        LatinText("LV.", sealX, 19, 8, new Color(188, 167, 141), .5f, 2);
         string level = currentLevel.ToString();
-        const float levelLeft = left + 57;
-        float levelSize = Math.Min(23, 23 * Math.Max(1, capLabelLeft - 14 - levelLeft) / Math.Max(1, LatinWidth(level, 23)));
-        LatinText(level, levelLeft, 91 + (23 - levelSize) * .5f, levelSize, Gold);
+        float levelSize = Math.Min(28, 28 * 56 / Math.Max(1, LatinWidth(level, 28)));
+        LatinText(level, sealX, 29 + (28 - levelSize) * .5f, levelSize, new Color(240, 222, 186), .5f);
 
-        Text("经验", left, 119, 9, DetailLabel, spacing: .6f);
-        // A single measured run keeps digits and the separator together at every scale.
-        LatinText($"{experience} / {experienceMax}", right, 116, 11, DetailValue, 1);
-        const float y = 134;
-        Box(left, y, width, 3, new Color(183, 153, 206) * .15f);
+        Text("角色等级", left, 24, 11, new Color(213, 197, 215), serif: true, spacing: 1);
+        string cap = maxLevel.ToString();
+        float capLabelLeft = right - LatinWidth(cap, 10) - 4 - Measure("上限", 9);
+        Text("上限", capLabelLeft, 26, 9, new Color(158, 144, 172));
+        LatinText(cap, right, 24, 10, new Color(184, 167, 192), 1);
+
+        Text("经验", left, 45, 9, new Color(169, 154, 182), spacing: .5f);
+        string experienceText = $"{experience} / {experienceMax}";
+        float experienceWidth = right - left - Measure("经验", 9, .5f) - 10;
+        float experienceSize = Math.Min(10, 10 * experienceWidth / Math.Max(1, LatinWidth(experienceText, 10)));
+        LatinText(experienceText, right, 43, experienceSize, new Color(203, 189, 211), 1);
+        Box(left, 62, width, 3, new Color(196, 171, 208) * (38 / 255f));
         float progress = experienceMax > 0 ? MathHelper.Clamp(experience / (float)experienceMax, 0, 1) : 0;
         if (progress > 0)
-            Gradient(left, y, width * progress, 3,
-                new Color(157, 128, 181), new Color(212, 188, 233));
+            Gradient(left, 62, width * progress, 3, new Color(165, 138, 187), new Color(228, 207, 167));
     }
 
     internal float LatinWidth(string text, float size, float spacing = 0)

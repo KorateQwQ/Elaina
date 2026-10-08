@@ -47,3 +47,9 @@
 正式详情链接 `ConstellationRichText`，使用实际 KL 富文本与图标片段、项目字体，按参考的 20/21 像素行距排版。`growth` / `growth-poor` / `growth-long` 是隔离的视觉夹具，用示例值检查五行成长对比、消耗、资金不足与滚动裁剪；它们不为正式技能添加演示伤害或升级规则。常规 `active` / `passive` 等场景仍检查未提供成长对比时的实际界面行为。
 
 `-RequirementsOnly` 专项导出研习、进修、需求满足、边缘多行提示和长材料名称，包含小屏与 UI 缩放。状态检查链接正式需求解析器和 KL 消耗规则，覆盖跨背包槽统计、嵌套组合需求、红绿状态、部分材料增加后的刷新、动态研习费用传递、失败时不扣费以及自定义说明中的“研习点”命名。免费进修测试使用显式返回 None 的夹具，默认费用测试保留项目当前的木材×10＋研习点×20。
+
+## 标题栏角色成长（2026-10-08）
+
+`& Tools/ConstellationSkillPanelPreview/run.ps1 -HeadersOnly` 重放正式 `DrawChrome` / `DrawFilter` / `ConstellationDrawing.PlayerLevel`，沿用 KL 的 Noto Serif SC、HarmonyOS Sans SC 与 Gelasio 字体。标题栏等级布局对应 `elaina-battle-eight-skills-level-preview.html`：淡金菱形等级、右侧上限与经验、3px 渐变进度条；星图收录独立位于详情页上方。游戏仍从 `ElainaStatePlayer` 实时读取等级与经验，预览只注入隔离夹具。
+
+输出 `output/study-header-{研习点}-lv{等级}-xp{经验}-{缩放}.png`，覆盖 1/24/99/120 级、0/65/99/100 经验、0/9999 研习点和 86%/100%/125% 缩放，共 30 张。此模式无需加载全场景的技能图标；常规全场景检查若因旧夹具引用缺失的 `AshenWitchSkill_Gray.png` 中断，不能视为全场景验证通过。所有图像为实际 FNA 绘制的离线预览，不是游戏截图，实际 SUI 输入和游戏重载需另验。

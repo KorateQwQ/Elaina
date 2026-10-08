@@ -46,12 +46,13 @@ internal sealed class PanelGame : Game
         {
             foreach (float scale in new[] { .86f, 1f, 1.25f })
             foreach (int points in new[] { 0, 9999 })
+            foreach (var (level, cap, experience) in new[] { (1, 10, 0), (24, 30, 65), (99, 120, 99), (120, 120, 0), (120, 120, 100) })
             {
                 using var target = new RenderTarget2D(Device, (int)Math.Ceiling(1100 * scale), (int)Math.Ceiling(146 * scale));
                 Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
-                new PanelScene().RenderHeader(batch, scale, points);
+                new PanelScene().RenderHeader(batch, scale, points, level, cap, experience);
                 Device.SetRenderTarget(null);
-                using var stream = File.Create(Path.Combine(output, $"study-header-{points}-{scale:0.00}.png"));
+                using var stream = File.Create(Path.Combine(output, $"study-header-{points}-lv{level}-xp{experience}-{scale:0.00}.png"));
                 target.SaveAsPng(stream, target.Width, target.Height);
             }
             Console.WriteLine(output); Exit(); return;

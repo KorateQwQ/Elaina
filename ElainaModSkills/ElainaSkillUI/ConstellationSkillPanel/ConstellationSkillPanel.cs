@@ -451,17 +451,28 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.Image("StudyBook", labelLeft - 37, 28.5f, 27, 27, Gold);
         d.Text(pointLabel, labelLeft, 36, 11, new Color(196, 183, 206), spacing: 1);
         d.LatinText(dust, dustLeft, 29, 25, new Color(239, 223, 190));
-        for (int i = 0; i < _state.Skills.Length; i++)
-            if (_state.Learned.Contains(_state.Skills[i].id))
-                d.Image("Glow", 908 + i * 7, 108, 14, 14, new Color(210, 170, 245) * .5f);
-        for (int i = 0; i < _state.Skills.Length; i++)
-            d.CrossStar(new Vector2(915 + i * 7, 115), new Vector2(4.24f),
-                _state.Learned.Contains(_state.Skills[i].id) ? new Color(234, 211, 250) : new Color(131, 113, 143), .5f,
-                _state.Learned.Contains(_state.Skills[i].id));
-        d.LatinText(_state.Learned.Count.ToString("00"), 1007, 104, 19, new Color(233, 215, 246));
-        d.LatinText($"/ {_state.Skills.Length}", 1038, 109, 12, new Color(155, 138, 168));
-        d.Line(new Vector2(26, 145), new Vector2(1074, 145), new Color(183, 149, 209) * (27 / 255f));
         DrawPlayerLevel();
+
+        // Collection belongs to the index row, above the detail page, not to character XP.
+        const float collectionLeft = 791, collectionRight = 1045;
+        d.Line(new Vector2(775, 89), new Vector2(775, 141), new Color(197, 173, 139) * (36 / 255f));
+        d.Text("星图收录", collectionLeft, 104, 10, new Color(184, 167, 196), serif: true, spacing: 1.5f);
+        string total = $"/ {_state.Skills.Length}";
+        float learnedRight = collectionRight - d.LatinWidth(total, 11) - 6;
+        string learned = _state.Learned.Count.ToString("00");
+        float starsRight = learnedRight - d.LatinWidth(learned, 22) - 18;
+        float starStep = (starsRight - collectionLeft - 4) / Math.Max(1, _state.Skills.Length - 1);
+        for (int i = 0; i < _state.Skills.Length; i++)
+        {
+            bool lit = _state.Learned.Contains(_state.Skills[i].id);
+            var center = new Vector2(collectionLeft + 3 + i * starStep, 126);
+            if (lit) d.Image("Glow", center.X - 5, center.Y - 5, 10, 10, new Color(213, 170, 255) * .2f);
+            d.CrossStar(center, new Vector2(5.66f),
+                lit ? new Color(234, 214, 245) : new Color(138, 118, 155), .5f, lit);
+        }
+        d.LatinText(learned, learnedRight, 102, 22, new Color(230, 213, 240), 1);
+        d.LatinText(total, collectionRight, 112, 11, new Color(159, 142, 172), 1);
+        d.Line(new Vector2(26, 145), new Vector2(1074, 145), new Color(183, 149, 209) * (27 / 255f));
         d.Line(new Vector2(26, 725), new Vector2(1074, 725), LineColor);
         d.Line(new Vector2(753, 146), new Vector2(753, 724), Lavender * .25f);
         d.CrossStar(new Vector2(753, 146), new Vector2(8, 10), Lavender, .25f, false);
