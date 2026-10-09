@@ -153,14 +153,18 @@ public sealed partial class ConstellationSkillPanel : BaseBody
 
     }
 
-    private void Button(Rectangle area, Action click, Action<bool> paint, string tooltip = null, Func<bool> visible = null)
+    private void Button(Rectangle area, Action click, Action<bool> paint, string tooltip = null, Func<bool> visible = null, Func<string> dynamicTooltip = null)
     {
         var view = new PaintView((v, _) =>
         {
             if (_state == null) return;
             bool hover = _book.IsOpen && v.IsMouseHovering;
             paint(hover);
-            if (hover && tooltip != null) RequestTooltip(tooltip, area, "button:" + area);
+            if (hover)
+            {
+                string text = dynamicTooltip?.Invoke() ?? tooltip;
+                if (text != null) RequestTooltip(text, area, "button:" + area);
+            }
         }) { Positioning = Positioning.Absolute }.Join(this);
         view.LeftMouseClick += (_, _) =>
         {

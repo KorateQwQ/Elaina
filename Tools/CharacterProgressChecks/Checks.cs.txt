@@ -1,0 +1,94 @@
+using System.Collections;
+using System.Reflection;
+using KL.Utils;
+using Terraria;
+using Terraria.ID;
+using Terraria.Localization;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.System;
+
+static class Checks
+{
+    static int passed;
+    static void Check(bool value, string reason)
+    {
+        if (!value) throw new Exception(reason);
+        passed++;
+    }
+
+    static void Main()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        var manager = typeof(KLGameStateManager);
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var originals = (IDictionary)manager.GetField("origBossInfos", flags)!.GetValue(null)!;
+        var originalType = manager.GetNestedType("OrigBossChecklistBossInfo", BindingFlags.NonPublic)!;
+        var bosses = KLGameStateManager.GetBossInfos();
+        // World predicates must never be evaluated by character progression.
+        Func<bool> forbiddenWorldRead = () => throw new Exception("Read world boss state!");
+        void Original(int id, float progress)
+        {
+            originals.Add(id, Activator.CreateInstance(originalType, progress, forbiddenWorldRead));
+            ((LocalizedText[])typeof(Lang).GetField("_npcNameCache", flags)!.GetValue(null)!)[id] = Language.GetOrRegister("ProgressChecks.NPC" + id, () => "NPC" + id);
+        }
+        KLGameStateManager.BossChecklistBossInfo Boss(string key, float progress, bool isBoss = true)
+        {
+            var info = new KLGameStateManager.BossChecklistBossInfo {
+                progression = progress, isBoss = isBoss,
+                displayName = Language.GetOrRegister("ProgressChecks." + key, () => key)
+            };
+            typeof(KLGameStateManager.BossChecklistBossInfo).GetField("key", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(info, key);
+            typeof(KLGameStateManager.BossChecklistBossInfo).GetField("downed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(info, forbiddenWorldRead);
+            bosses[key] = info;
+            return info;
+        }
+
+        var player = new ElainaStatePlayer();
+        player.DebugResetProgress();
+        Check(!player.DebugGetNextBoss(out _, out _), "Uninitialized lists have no next stage.");
+        Original(NPCID.KingSlime, 1);
+        Original(NPCID.EyeofCthulhu, 2);
+        Original(NPCID.EaterofWorldsHead, 3);
+        Original(NPCID.EaterofWorldsBody, 3);
+        Original(NPCID.BrainofCthulhu, 3);
+        Original(NPCID.Retinazer, 9);
+        Original(NPCID.Spazmatism, 9);
+        Original(NPCID.MoonLordCore, 18);
+        Check(player.GetMaxLevel() == 5, "Reset cap is 5.");
+        Check(player.DebugGetNextBoss(out var name, out var state) && state == 1 && name == "NPC50", "Empty external list uses original King Slime.");
+        Check(player.DebugGetNextBossTooltip().Contains("5 → Lv. 10"), "Tooltip predicts the new cap.");
+        Check(player.Progress == 0 && player.ProgressSet.Count == 0, "Preview never mutates character.");
+        player.CurrentLevel = 5;
+        player.Experience = 42;
+        Check(player.DebugAdvanceMaxLevel(out _, out state) && state == 1, "Advance to King Slime.");
+        Check(player.Progress == 1 && player.GetMaxLevel() == 10 && player.ProgressSet.SequenceEqual(new[] { 1f }), "Advance progress, record and cap together.");
+        Check(player.CurrentLevel == 5 && player.Experience == 42, "Raising cap does not grant levels or erase XP.");
+        Check(player.DebugGetNextBossTooltip().Contains("NPC4"), "Tooltip immediately moves on to Eye.");
+        player.DebugAdvanceMaxLevel(out _, out _);
+        Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 3 && name.Contains(" / "), "Evil bosses share one stage.");
+        Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 9 && name.Contains(" / "), "Segments and equal states are skipped; twins share a stage.");
+        player.DebugAdvanceMaxLevel(out _, out _);
+        Check(!player.DebugAdvanceMaxLevel(out _, out _) && player.Progress == 18, "Final boss is a non-mutating no-op.");
+        player.DebugResetProgress();
+        Check(player.DebugGetNextBoss(out _, out state) && state == 1 && player.CurrentLevel == 1 && player.Experience == 0, "Reset returns to first boss.");
+
+        Boss("Later", 2);
+        Boss("Event", .25f, false);
+        Boss("First", .5f);
+        Boss("SameStage", .5f);
+        Check(player.DebugAdvanceMaxLevel(out name, out state) && state == .5f && name == "First", "External bosses use sorted character progress and stable ties, not events or world state.");
+        Check(player.GetMaxLevel() == KLGameStateManager.GetLevelCap(.5f), "Fractional progression obeys KL cap mapping even when unchanged.");
+        Check(player.DebugGetNextBoss(out name, out state) && name == "Later" && state == 2, "Equal progression is not advanced twice.");
+        player.DebugAdvanceMaxLevel(out _, out _);
+        Check(!player.DebugGetNextBoss(out _, out _), "Do not mix vanilla fallback states into an active external list.");
+        var save = new TagCompound();
+        player.SaveData(save);
+        var loaded = new ElainaStatePlayer();
+        loaded.LoadData(save);
+        Check(loaded.Progress == player.Progress && loaded.GetMaxLevel() == player.GetMaxLevel() && loaded.ProgressSet.SequenceEqual(player.ProgressSet), "Save/load retains advanced progress and cap.");
+        loaded.DebugResetProgress();
+        Check(loaded.DebugGetNextBoss(out _, out state) && state == .5f, "Reset on external list starts at character zero.");
+        Check(player.Progress == 2, "Resetting another character does not change this one.");
+        Console.WriteLine($"PASS: {passed} character progress checks against production assemblies.");
+    }
+}

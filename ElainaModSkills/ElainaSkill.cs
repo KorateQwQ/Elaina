@@ -41,6 +41,58 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public int MagicPointCost = 0;
 
+    /// <summary>按技能类名自动使用 JSON 配置；特殊技能可关闭或覆写对应接口。</summary>
+    protected virtual bool UsesLiveBalance => true;
+    protected virtual string BalanceId => GetType().Name;
+    protected virtual DamageClass BalanceDamageClass => DamageClass.Magic;
+
+    /// <summary>配置存在时自动限制当前可升级等级；不裁剪已学等级，不代替首次解锁条件。</summary>
+    public override int MaxLevel => GetConfiguredMaxLevel();
+
+    protected int GetConfiguredMaxLevel()
+    {
+        var config = SkillBalanceSystem.Current;
+        if (!UsesLiveBalance || Main.gameMenu || Player == null
+            || !config.Skills.TryGetValue(BalanceId, out var entry))
+            return base.MaxLevel;
+        int characterLevel = Player.GetModPlayer<ElainaStatePlayer>().GetLevel();
+        return Math.Max(1, config.GetSkillLevelCap(entry, characterLevel));
+    }
+
+    protected void ApplyBalanceConfiguration()
+    {
+        if (!UsesLiveBalance) return;
+        if (SkillBalanceSystem.TryGetSkill(BalanceId, out SkillBalanceEntry entry))
+        {
+            MagicPointCost = entry.ManaCost;
+            MaxCD = (float)entry.BaseCooldown;
+        }
+        // 不修改 CurrentCD / CooldownDuration：已开始的冷却继续，新一轮才使用新的基准 CD。
+    }
+
+    /// <summary>按技能实际等级返回已应用装备增伤的单发伤害；未学习时预览 Lv1，可指定等级预览。</summary>
+    protected int GetConfiguredDamage(int? hitCount = null, int? skillLevel = null) =>
+        SkillBalanceSystem.GetPlayerDamage(Player, BalanceId, skillLevel ?? Math.Max(1, Level), BalanceDamageClass, hitCount);
+
+    /// <summary>按技能实际等级读取基础周期 DPS，不含装备；可指定等级预览。</summary>
+    protected float GetConfiguredDps(int? skillLevel = null) =>
+        SkillBalanceSystem.GetBaseDps(skillLevel ?? Math.Max(1, Level), BalanceId);
+
+    /// <summary>耗蓝、周期、发数和伤害使用同一快照，便于新技能在一次施法中读取。</summary>
+    protected bool TryGetConfiguredBalance(out SkillBalanceResult result, int? hitCount = null, int? skillLevel = null) =>
+        SkillBalanceSystem.TryGetPlayerBalance(Player, BalanceId, skillLevel ?? Math.Max(1, Level), BalanceDamageClass, out result, hitCount);
+
+    public override void Initialize()
+    {
+        ApplyBalanceConfiguration();
+        base.Initialize();
+    }
+
+    public override void ResetEffects(Player player)
+    {
+        base.ResetEffects(player);
+    }
+
     /// <summary>
     /// 按当前技能对应的曲线获取指定进度的技能伤害。
     /// </summary>
@@ -82,6 +134,7 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public override bool CanUseSkill()
     {
+        if (UsesLiveBalance && !SkillBalanceSystem.TryGetSkill(BalanceId, out _)) return false;
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
         if (MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(MagicPointCost, false))
         {

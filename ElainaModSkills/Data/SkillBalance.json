@@ -2,8 +2,33 @@
   "schema": "elaina-mage-balance-v2",
   "configuration": {
     "version": 2,
+    "basicAttacks": [
+      {
+        "id": "MagicMissileSkill",
+        "name": "魔法飞弹",
+        "ratio": 0.8,
+        "cost": 3,
+        "interval": 0.3,
+        "shots": 1,
+        "unlockStageCap": 5,
+        "unlockLevel": 1,
+        "levelsPerPhase": 2
+      },
+      {
+        "id": "IceConeSkill",
+        "name": "冰锥",
+        "ratio": 1.1,
+        "cost": 10,
+        "interval": 0.5,
+        "shots": 3,
+        "unlockStageCap": 10,
+        "unlockLevel": 20,
+        "levelsPerPhase": 2
+      }
+    ],
+    "selectedBasicAttackId": "MagicMissileSkill",
     "preset": "spectre",
-    "baseDps": 1800,
+    "baseDps": 3500,
     "baseCrit": 4,
     "slots": 7,
     "v": {
@@ -11,6 +36,11 @@
       "damage": 30,
       "crit": 10,
       "proc": 0,
+      "nebula": {
+        "damage": 3,
+        "mana": 3,
+        "life": 3
+      },
       "items": [
         {
           "id": "sorcerer",
@@ -40,18 +70,18 @@
           "id": "utility",
           "prefix": "menacing"
         }
-      ],
-      "nebula": {
-        "damage": 3,
-        "mana": 3,
-        "life": 3
-      }
+      ]
     },
     "e": {
       "armor": "nebula",
       "damage": 30,
       "crit": 10,
       "proc": 0,
+      "nebula": {
+        "damage": 3,
+        "mana": 3,
+        "life": 3
+      },
       "items": [
         {
           "id": "sorcerer",
@@ -81,12 +111,7 @@
           "id": "utility",
           "prefix": "arcane"
         }
-      ],
-      "nebula": {
-        "damage": 3,
-        "mana": 3,
-        "life": 3
-      }
+      ]
     },
     "baseMana": 400,
     "extraMana": 0,
@@ -99,6 +124,7 @@
     "hurtMana": 0,
     "rate": 4,
     "skillStats": true,
+    "nebulaManaBridge": false,
     "combat": {
       "duration": 300,
       "startPercent": 100,
@@ -111,17 +137,19 @@
       "hurtMode": "periodic",
       "hurtTotal": 0,
       "hurtInterval": 10,
-      "hurtPerHit": 50,
+      "hurtPerHit": 100,
       "hurtEvents": "15:100\n45:80"
     },
     "skills": [
       {
+        "shots": 1,
+        "id": "WaterBallSkill",
         "name": "水球魔法",
         "enabled": true,
-        "cost": 100,
-        "k": 0.8,
+        "cost": 200,
+        "k": 3,
         "realization": 100,
-        "cd": 10,
+        "cd": 5,
         "cast": 1,
         "delay": 0,
         "duration": 0,
@@ -130,13 +158,13 @@
         "first": 0,
         "priority": 4,
         "hit": 100,
-        "shots": 1,
-        "id": "WaterBallSkill",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       },
       {
+        "shots": 1,
+        "id": "WindTornadoSkill",
         "name": "风龙卷",
         "enabled": false,
         "cost": 50,
@@ -151,17 +179,17 @@
         "first": 0,
         "priority": 4,
         "hit": 100,
-        "shots": 1,
-        "id": "WindTornadoSkill",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       },
       {
+        "shots": 1,
+        "id": "FireBurstSkill",
         "name": "炎爆（按每层循环）",
-        "enabled": true,
+        "enabled": false,
         "cost": 40,
-        "k": 1.2,
+        "k": 0.5,
         "realization": 100,
         "cd": 15,
         "cast": 0.1,
@@ -172,17 +200,17 @@
         "first": 0,
         "priority": 3,
         "hit": 100,
-        "shots": 1,
-        "id": "FireBurstSkill",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       },
       {
+        "shots": 1,
+        "id": "IceShardLockSkill",
         "name": "冰凌锁",
-        "enabled": true,
+        "enabled": false,
         "cost": 50,
-        "k": 1.2,
+        "k": 0.5,
         "realization": 100,
         "cd": 30,
         "cast": 0.2,
@@ -193,17 +221,17 @@
         "first": 0,
         "priority": 2,
         "hit": 100,
-        "shots": 1,
-        "id": "IceShardLockSkill",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       },
       {
+        "shots": 1,
+        "id": "MultiMissileSkill",
         "name": "倾泻魔力飞弹",
-        "enabled": true,
+        "enabled": false,
         "cost": 200,
-        "k": 0.5,
+        "k": 0.15,
         "realization": 100,
         "cd": 30,
         "cast": 5,
@@ -214,17 +242,17 @@
         "first": 0,
         "priority": 5,
         "hit": 100,
-        "shots": 1,
-        "id": "MultiMissileSkill",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       },
       {
+        "shots": 1,
+        "id": "FireTornadoSkill",
         "name": "火焰龙卷",
         "enabled": false,
         "cost": 150,
-        "k": 1,
+        "k": 0.7,
         "realization": 75,
         "cd": 120,
         "cast": 1,
@@ -235,13 +263,13 @@
         "first": 15,
         "priority": 1,
         "hit": 100,
-        "shots": 1,
-        "id": "FireTornadoSkill",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       },
       {
+        "shots": 1,
+        "id": "prototype.Lightning",
         "name": "天雷",
         "enabled": false,
         "cost": 400,
@@ -256,28 +284,11 @@
         "first": 20,
         "priority": 7,
         "hit": 90,
-        "shots": 1,
-        "id": "prototype.Lightning",
+        "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 1,
-        "unlockStageCap": 5
+        "levelsPerPhase": 1
       }
     ],
-    "nebulaManaBridge": false,
-    "basicAttacks": [
-      {
-        "id": "MagicMissileSkill",
-        "name": "魔法飞弹",
-        "ratio": 0.8,
-        "cost": 3,
-        "interval": 0.3,
-        "shots": 1,
-        "unlockLevel": 1,
-        "levelsPerPhase": 2,
-        "unlockStageCap": 5
-      }
-    ],
-    "selectedBasicAttackId": "MagicMissileSkill",
     "progression": {
       "phaseSize": 5,
       "previewLevel": 10

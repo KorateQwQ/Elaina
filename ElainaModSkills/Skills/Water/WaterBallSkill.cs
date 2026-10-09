@@ -11,13 +11,11 @@ public class WaterBallSkill: ElainaSkill
 {
     public override void Initialize()
     {
-        MaxCD = 0.5f;
         base.Initialize();
     }
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
-        MagicPointCost = 390;
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 
@@ -27,7 +25,7 @@ public class WaterBallSkill: ElainaSkill
         float startRotation = directionToMouse.ToRotation()*Main.LocalPlayer.gravDir;
 
         localPlayer.GetModPlayer<ActionModPlayer>()
-            .StartAction(new Action_WaterBall(), rotation: startRotation);
+            .StartAction(new Action_WaterBall(GetConfiguredDamage()), rotation: startRotation);
 
         return base.PreUseSkill(source);
     }

@@ -5,6 +5,7 @@ using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
@@ -17,7 +18,6 @@ public class IceConeSkill : ElainaSkill
 
     public override void Initialize()
     {
-        MaxCD = 1;
         CurrentCD = 0;
         base.Initialize();
     }
@@ -29,23 +29,16 @@ public class IceConeSkill : ElainaSkill
 
     public override void OnRightClickInSkillPanel()
     {
-        if (ElainaSkillModPlayer.SkillModPlayer.UnlockedSkill.ContainsKey(this.GetType().Name))
-        {
-            ElainaSkillModPlayer.SkillModPlayer.LockSkill(Skill);
-        }
-        else ElainaSkillModPlayer.SkillModPlayer.UnlockSkill(Skill);
-
         base.OnRightClickInSkillPanel();
     }
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
-        Player localPlayer = Main.LocalPlayer;
-        ShootIceShardLock3D(localPlayer, Main.MouseWorld);
-        //ShootIceCone3D(localPlayer, Main.MouseWorld);
-        //ShootIceCone(localPlayer, Main.MouseWorld);
+        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
+            return false;
 
-        return false;
+        ShootIceCone(Player, Main.MouseWorld);
+        return base.PreUseSkill(source);
     }
     
 
@@ -67,7 +60,7 @@ public class IceConeSkill : ElainaSkill
     }
     
 
-    public void ShootIceCone(Player player, Vector2 aimTarget, int damage = 10, float knockback = 2f,
+    public void ShootIceCone(Player player, Vector2 aimTarget, int? damage = null, float knockback = 2f,
         float baseSpeed = 25f)
     {
         Vector2 directionToMouse = aimTarget - player.MountedCenter;
@@ -100,6 +93,8 @@ public class IceConeSkill : ElainaSkill
             spawnPositions[i] = player.MountedCenter + offsets[i];
         }
 
+        // 按本动作实际生成的发数分摊，不再手写技能名字，也不让每发领取整次预算。
+        int damagePerShot = damage ?? GetConfiguredDamage(hitCount: spawnPositions.Length);
         AnimAction animAction = new Action_SimpleSlash();
         int count = 0;
         foreach (Vector2 spawnPosition in spawnPositions)
@@ -109,7 +104,7 @@ public class IceConeSkill : ElainaSkill
                 1 + count,
                 ModContent.ProjectileType<IceConeProj>(),
                 _ => cachedSpawnPosition,
-                damage,
+                damagePerShot,
                 knockback,
                 _ => (aimTarget - cachedSpawnPosition).SafeNormalize(aimDirection) * baseSpeed));
             count += 3;

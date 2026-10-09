@@ -16,13 +16,13 @@ public sealed class Action_WaterBall : ElainaAction
     private bool freezeAimRotation;
     private int actionToken;
 
-    public Action_WaterBall() : base(HoldFrame + RecoveryFrame + 1)
+    public Action_WaterBall(int damage = 10) : base(HoldFrame + RecoveryFrame + 1)
     {
         AddNode(new ShootActionNode(
             1,
             ModContent.ProjectileType<WaterBall>(),
             _ => WandCenter,
-            damage: 10,
+            damage: damage,
             knockback: 2f,
             player => player.DirectionTo(Main.MouseWorld) * 15f,
             projectile =>

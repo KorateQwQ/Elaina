@@ -13,7 +13,7 @@ public abstract partial class ElainaSkill
     public virtual Vector2? ConstellationPosition => null;
 
     /// <summary>各等级的解锁要求。None 或 null 表示没有额外消耗，但仍会应用 MaxLevel。</summary>
-    public virtual SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);
+    public virtual SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.ByItemsAndSkillPoint(20);//SkillUnlockCondition.ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);
 
     /// <summary>可选的战斗数值，在指定等级下计算。不自动推导伤害。</summary>
     public virtual (string Label, string Value)[] GetConstellationStats(int level) => [];

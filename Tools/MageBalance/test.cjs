@@ -18,10 +18,11 @@ let count = 0;
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-7, `${a} != ${b}`);
 function test(name, fn) { fn(); count++; console.log('PASS', name); }
 function naked() {
- const s = B.defaults(); s.baseDps=1000;
+ const s = B.defaults(); s.baseDps=1000; s.basicAttacks[0].ratio=1; // isolate legacy balance arithmetic from the new 0.8 default
  for(const side of ['v','e']) { s[side].armor='none'; s[side].items.forEach(x=>{x.id='empty';x.prefix='none';}); }
  return s;
 }
+test('MagicMissileSkill defaults to 80% of the reference DPS and is not an active skill',()=>{const s=B.defaults();near(s.basicAttacks[0].ratio,.8);near(B.calculate(s).auto/s.baseDps/B.gear(s,'e').multiplier,.8);assert.equal(s.skills.some(x=>x.id==='MagicMissileSkill'),false);});
 test('Both naked outputs equal B, including baseline crit normalization',()=>{const r=B.calculate(naked());near(r.vanilla,1000);near(r.elaina,1000);near(r.required,0);});
 test('Naked base mana does not count as equipment growth',()=>near(B.calculate(naked()).effective,0));
 test('Single Menacing adds 4 percentage points, not a separate multiplier',()=>{const s=naked();s.v.damage=50;s.v.items[0]={id:'utility',prefix:'menacing'};near(B.calculate(s).vanilla,1540);});
@@ -57,7 +58,7 @@ test('Growth does not mutate configuration',()=>{const s=B.defaults(),before=JSO
 test('Marginals do not mutate configuration',()=>{const s=B.defaults(),before=JSON.stringify(s);B.marginal(s);assert.equal(JSON.stringify(s),before);});
 test('All default presets produce finite results',()=>{for(const key of Object.keys(B.presets)){const r=B.calculate(B.defaults(key));assert.ok(Number.isFinite(r.vanilla)&&Number.isFinite(r.elaina)&&Number.isFinite(r.required));}});
 test('Static IDs are unique',()=>{const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);assert.equal(ids.length,new Set(ids).size);});
-test('Standalone has no external script/style/network dependency',()=>{assert.ok(!/<script[^>]+src=|<link[^>]+href=|\bfetch\(/.test(html));});
+test('Standalone has no remote script or stylesheet dependency; fixed saving uses a relative loopback endpoint',()=>{assert.ok(!/<script[^>]+src=|<link[^>]+href=/.test(html));assert.ok(html.includes("fetch('/api/skill-balance'"));});
 test('Injury defaults to zero and preserves original results',()=>{const s=B.defaults(),r=B.calculate(s);near(s.hurtMana,0);near(r.lostDps,0);near(r.unhurtDps,r.elaina);});
 test('Injury subtracts spent mana, not effective mana',()=>{const s=naked();s.extraMana=100;s.quality=.5;s.hurtMana=20;const r=B.calculate(s);near(r.rawBudget,80);near(r.effective,40);near(r.lostDps,20);});
 test('Injury never reduces mana maximum, regeneration or auto DPS',()=>{const s=B.defaults(),a=B.calculate(s);s.hurtMana=100;const b=B.calculate(s);near(a.maxMana,b.maxMana);near(a.recovery,b.recovery);near(a.auto,b.auto);near(a.vanilla,b.vanilla);});
@@ -69,17 +70,23 @@ test('Partially realized skills weight both mana and damage',()=>{const s=naked(
 test('No skills or budget produces finite zero injury loss',()=>{const s=naked();s.mode='skills';s.skills.forEach(x=>x.enabled=false);s.hurtMana=200;const r=B.calculate(s);near(r.retained,0);near(r.effective,0);near(r.lostDps,0);});
 test('Missing injury property remains compatible in the engine',()=>{const s=B.defaults();delete s.hurtMana;near(B.calculate(s).lostDps,0);});
 
-function combatBase(){const s=naked();s.skills.forEach(x=>x.enabled=false);Object.assign(s.combat,{duration:10,potions:0,regenMode:'manual',regen:0,autoCost:0,autoInterval:.5});return s;}
+function setCombat(s,values){
+ const {autoCost,autoInterval,...combat}=values;Object.assign(s.combat,combat);
+ if(autoCost!==undefined)s.basicAttacks[0].cost=autoCost;
+ if(autoInterval!==undefined)s.basicAttacks[0].interval=autoInterval;
+}
+function combatBase(){const s=naked();s.skills.forEach(x=>x.enabled=false);setCombat(s,{duration:10,potions:0,regenMode:'manual',regen:0,autoCost:0,autoInterval:.5});return s;}
 function onlySkill(s){const x=s.skills[0];Object.assign(x,{enabled:true,cost:100,k:1,cd:10,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100});return x;}
 function ledger(r){near(r.initialMana+r.regenEffective+r.potionEffective-r.autoMana-r.skillMana-r.hurtPaid,r.endMana);assert.ok(r.endMana>=-1e-7&&r.endMana<=r.maxMana+1e-7);}
 test('Combat naked free auto reproduces base DPS',()=>{const r=C.run(combatBase());near(r.dps,1000);near(r.autoCount,20);ledger(r);});
-test('Combat fixed mana limits attack count',()=>{const s=combatBase();s.combat.autoCost=50;const r=C.run(s);near(r.autoCount,4);near(r.endMana,0);near(r.firstShortage,2);ledger(r);});
-test('Combat zero opening mana means no free paid attacks',()=>{const s=combatBase();s.combat.startPercent=0;s.combat.autoCost=3;near(C.run(s).autoDamage,0);});
-test('Combat five potions add exactly 2.5 pools when fully spent',()=>{const s=combatBase();Object.assign(s.combat,{duration:20,potions:5,autoCost:50});const r=C.run(s);near(r.usedPotions,5);near(r.autoCount,14);near(r.potionEffective,500);near(r.fifthPotionTime,6);near(r.lastPotionTime,6);ledger(r);});
-test('Atomic payment does not waste insufficient potion charges',()=>{const s=combatBase();Object.assign(s.combat,{startPercent:0,potions:1,autoCost:200});const r=C.run(s);near(r.usedPotions,0);near(r.potionsLeft,1);near(r.autoCount,0);});
-test('Atomic payment can use several bottles at once',()=>{const s=combatBase();Object.assign(s.combat,{duration:1,startPercent:0,potions:5,autoCost:200});const r=C.run(s);near(r.autoCount,2);near(r.usedPotions,4);ledger(r);});
+test('Combat fixed mana limits attack count',()=>{const s=combatBase();s.basicAttacks[0].cost=50;const r=C.run(s);near(r.autoCount,4);near(r.endMana,0);near(r.firstShortage,2);ledger(r);});
+test('Combat zero opening mana means no free paid attacks',()=>{const s=combatBase();s.combat.startPercent=0;s.basicAttacks[0].cost=3;near(C.run(s).autoDamage,0);});
+test('Combat five potions add exactly 2.5 pools when fully spent',()=>{const s=combatBase();setCombat(s,{duration:20,potions:5,autoCost:50});const r=C.run(s);near(r.usedPotions,5);near(r.autoCount,14);near(r.potionEffective,500);near(r.fifthPotionTime,6);near(r.lastPotionTime,6);ledger(r);});
+test('Atomic payment does not waste insufficient potion charges',()=>{const s=combatBase();setCombat(s,{startPercent:0,potions:1,autoCost:200});const r=C.run(s);near(r.usedPotions,0);near(r.potionsLeft,1);near(r.autoCount,0);});
+test('Atomic payment can use several bottles at once',()=>{const s=combatBase();setCombat(s,{duration:1,startPercent:0,potions:5,autoCost:200});const r=C.run(s);near(r.autoCount,2);near(r.usedPotions,4);ledger(r);});
 test('Cost above maximum is never cast in resource simulation',()=>{const s=combatBase();onlySkill(s).cost=201;const r=C.run(s);near(r.skills[0].count,0);assert.equal(r.invalid.length,1);});
 test('Unrestricted reference still shows impossible skill potential',()=>{const s=combatBase();onlySkill(s).cost=201;near(C.run(s,true).skills[0].count,1);});
+test('WaterBall proposal: cost100 cd10 K0.8 means 1440 extra plus 720 occupancy at B900',()=>{const s=combatBase();s.baseDps=900;s.basicAttacks[0].ratio=.8;const skill=onlySkill(s);skill.k=.8;near(B.skillDamageBudget(s,skill),2160);near(C.run(s).skillDamage,2160);});
 test('Cast occupancy is compensated once, not added over uninterrupted autos',()=>{const s=combatBase();onlySkill(s);const r=C.run(s);near(r.autoDamage,9000);near(r.skillDamage,3000);near(r.dps,1200);});
 test('Cooldown bounds cast count and excludes an action at the end',()=>{const s=combatBase();s.combat.duration=30;onlySkill(s);near(C.run(s,true).skills[0].count,3);});
 test('Initial empty charges recover after a full cooldown',()=>{const s=combatBase();s.combat.duration=20;onlySkill(s).initialCharges=0;const r=C.run(s,true);near(r.skills[0].count,1);near(r.events.find(e=>e.type==='cast').time,10);});
@@ -91,15 +98,15 @@ test('Hit rate affects damage but not cost',()=>{const s=combatBase();onlySkill(
 test('Legacy realization and injury do not double-discount combat',()=>{const s=combatBase();onlySkill(s);const a=C.run(s);s.skills[0].realization=0;s.hurtMana=10000;s.use=0;near(C.run(s).dps,a.dps);});
 test('Uniform injuries integrate their full requested total',()=>{const s=combatBase();s.combat.hurtTotal=100;const r=C.run(s);near(r.hurtRequested,100);near(r.hurtPaid,100);near(r.endMana,100);ledger(r);});
 test('Insufficient defensive mana never goes negative',()=>{const s=combatBase();s.combat.hurtTotal=500;const r=C.run(s);near(r.hurtPaid,200);near(r.uncoveredHurt,300);near(r.endMana,0);});
-test('Periodic injuries occur at intervals, not at time zero or T',()=>{const s=combatBase();Object.assign(s.combat,{duration:30,hurtMode:'periodic',hurtInterval:10,hurtPerHit:40});near(C.run(s).hurtRequested,80);});
-test('Explicit injury event at zero precedes casting',()=>{const s=combatBase();Object.assign(s.combat,{hurtMode:'events',hurtEvents:'0:200',autoCost:3});const r=C.run(s);near(r.hurtPaid,200);near(r.autoCount,0);});
+test('Periodic injuries occur at intervals, not at time zero or T',()=>{const s=combatBase();setCombat(s,{duration:30,hurtMode:'periodic',hurtInterval:10,hurtPerHit:40});near(C.run(s).hurtRequested,80);});
+test('Explicit injury event at zero precedes casting',()=>{const s=combatBase();setCombat(s,{hurtMode:'events',hurtEvents:'0:200',autoCost:3});const r=C.run(s);near(r.hurtPaid,200);near(r.autoCount,0);});
 test('Injury in the final subframe is not lost',()=>{const s=combatBase();s.combat.hurtMode='events';s.combat.hurtEvents='9.999:40';near(C.run(s).hurtRequested,40);});
 test('Malformed and out-of-battle injury lines are reported',()=>{const s=combatBase();s.combat.hurtMode='events';s.combat.hurtEvents='bad\n12:40\n5:20';const r=C.run(s);assert.equal(r.injuryErrors.length,2);near(r.hurtRequested,20);});
 test('Full mana regeneration is counted as waste',()=>{const s=combatBase();s.combat.regen=10;const r=C.run(s);near(r.regenWaste,100);near(r.regenEffective,0);ledger(r);});
 test('Active reserve prevents skill spending but permits ordinary attack',()=>{const s=combatBase();onlySkill(s);s.combat.reserve=150;const r=C.run(s);near(r.skillMana,0);near(r.dps,1000);});
-test('Save strategy can stop autos to accumulate for a ready skill',()=>{const s=combatBase();onlySkill(s);Object.assign(s.combat,{startPercent:0,regen:10,autoCost:3,duration:20,policy:'save'});const save=C.run(s);s.combat.policy='flow';const flow=C.run(s);assert.ok(save.skills[0].count>flow.skills[0].count);ledger(save);ledger(flow);});
+test('Save strategy can stop autos to accumulate for a ready skill',()=>{const s=combatBase();onlySkill(s);setCombat(s,{startPercent:0,regen:10,autoCost:3,duration:20,policy:'save'});const save=C.run(s);s.combat.policy='flow';const flow=C.run(s);assert.ok(save.skills[0].count>flow.skills[0].count);ledger(save);ledger(flow);});
 test('Skill priority chooses the first action deterministically',()=>{const s=combatBase();onlySkill(s);s.skills[2].enabled=true;s.skills[2].priority=1;s.skills[0].priority=2;assert.match(C.run(s,true).events.find(e=>e.type==='cast').text,/炎爆/);});
-test('Adding an unpayable skill does not invent extra damage',()=>{const s=combatBase();s.combat.startPercent=0;s.combat.autoCost=0;const a=C.run(s);onlySkill(s);near(C.run(s).dps,a.dps);});
+test('Adding an unpayable skill does not invent extra damage',()=>{const s=combatBase();s.combat.startPercent=0;s.basicAttacks[0].cost=0;const a=C.run(s);onlySkill(s);near(C.run(s).dps,a.dps);});
 test('Regen and potion settings do not alter unlimited reference output',()=>{const s=B.defaults();const a=C.run(s,true);s.combat.potions=0;s.combat.regenMode='manual';s.combat.regen=0;near(C.run(s,true).dps,a.dps);});
 test('Total damage equals its contributors',()=>{const s=B.defaults();s.e.proc=123;const r=C.run(s);near(r.totalDamage,r.autoDamage+r.skillDamage+r.procDamage);near(r.dps*r.T,r.totalDamage);ledger(r);});
 test('Simulation does not mutate input',()=>{const s=B.defaults(),before=JSON.stringify(s);C.compare(s);assert.equal(JSON.stringify(s),before);});
@@ -114,23 +121,188 @@ test('Current-code preset does not silently restore special mana',()=>{const s=B
 test('Optional Nebula bridge adds exactly 30/s to special regeneration',()=>{const s=B.defaults('nebula'),a=C.run(s);s.nebulaManaBridge=true;const r=C.run(s);near(r.regen,a.regen+30);near(r.nebulaRegen,30);near(B.calculate(s).recovery,r.regen);near(r.maxMana,a.maxMana);ledger(r);});
 test('Manual base regen plus Nebula is added exactly once',()=>{const s=B.defaults('nebula');s.nebulaManaBridge=true;s.combat.regenMode='manual';s.combat.regen=7;const r=C.run(s);near(r.baseRegen,7);near(r.regen,37);});
 test('Nebula life buff does not create damage, mana or absorb injuries',()=>{const s=B.defaults('nebula');s.combat.hurtTotal=200;const a=C.run(s);s.e.nebula.life=0;const r=C.run(s);near(r.totalDamage,a.totalDamage);near(r.hurtPaid,a.hurtPaid);near(r.endMana,a.endMana);});
-test('Nebula 15% vanilla reduction never discounts special skill or auto cost',()=>{const s=combatBase();s.e.armor='nebula';onlySkill(s);s.combat.autoCost=2;const r=C.run(s);near(r.skillMana,r.skills[0].count*100);near(r.autoMana,r.autoCount*2);});
+test('Nebula 15% vanilla reduction never discounts special skill or auto cost',()=>{const s=combatBase();s.e.armor='nebula';onlySkill(s);s.basicAttacks[0].cost=2;const r=C.run(s);near(r.skillMana,r.skills[0].count*100);near(r.autoMana,r.autoCount*2);});
 test('Graduate preset uses KL 3500 base and full buffs on both sides',()=>{const s=B.defaults('nebula');near(s.baseDps,3500);assert.equal(s.v.armor,'nebula');assert.equal(s.e.armor,'nebula');near(B.gear(s,'v').nebulaDamage,45);near(B.gear(s,'e').nebulaLifeRegen,9);});
 test('Zero mana stacks cannot grant bridge recovery',()=>{const s=B.defaults('nebula');s.nebulaManaBridge=true;s.e.nebula.mana=0;near(C.run(s).nebulaRegen,0);});
-console.log(`\n${count} model/static tests passed.`);
 console.log('Default result:', JSON.stringify(B.calculate(B.defaults()),null,2));
 
+function iceDesign() {const s=B.defaults();s.baseDps=1000;const ice={...B.newBasic('IceConeBasic','冰锥'),ratio:.8,cost:10,interval:.5,shots:3};s.basicAttacks.push(ice);s.selectedBasicAttackId=ice.id;return s;}
+test('Ice basic: 0.5 seconds / 3 shots / 10 mana distributes one DPS budget',()=>{const s=iceDesign(),r=B.basicBudget(s);near(r.dps,800);near(r.total,400);near(r.perShot,400/3);near(r.manaPerSecond,20);});
+test('More shots never multiply the basic attack total damage',()=>{const s=iceDesign();s.basicAttacks[1].shots=6;near(B.basicBudget(s).total,400);near(B.basicBudget(s).perShot,400/6);});
+test('Basic mana cost is independent of DPS pricing',()=>{const s=iceDesign();s.basicAttacks[1].cost=30;near(B.basicBudget(s).dps,800);near(B.basicBudget(s).manaPerSecond,60);});
+test('Independent basic DPS and interval edits',()=>{const s=iceDesign();Object.assign(s.basicAttacks[1],{ratio:.6,interval:1});near(B.basicBudget(s).dps,600);near(B.basicBudget(s).total,600);near(s.basicAttacks[0].ratio,.8);near(s.basicAttacks[0].cost,3);near(s.basicAttacks[0].interval,.3);});
+test('Selected basic drives simulation once and preserves MagicMissile config',()=>{const s=iceDesign();s.skills=[];setCombat(s,{duration:10,regenMode:'manual',regen:0,startPercent:100,potions:0});s.baseMana=1000;const r=C.run(s);near(r.autoCount,20);near(r.autoMana,200);near(r.autoDamage,800*B.gear(s,'e').multiplier*10);near(s.basicAttacks[0].cost,3);});
+test('Basic IDs are unique across all skill categories',()=>{const s=iceDesign();assert.ok(B.validBasics(s));s.skills[0].id='IceConeBasic';assert.equal(B.validBasics(s),false);});
+test('Invalid basic counts, bounds and selection are rejected',()=>{for(const value of [0,1.5,101,NaN]){const s=iceDesign();s.basicAttacks[1].shots=value;assert.equal(B.validBasics(s),false);}const s=iceDesign();s.selectedBasicAttackId='missing';assert.equal(B.validBasics(s),false);});
+test('Generic basic entries are the sole runtime source',()=>{const s=B.defaults();s.basicAttacks[0].ratio=.6;s.basicAttacks[0].cost=7;s.basicAttacks[0].interval=.4;near(B.basicBudget(s).dps,s.baseDps*.6);near(B.selectedBasic(s).cost,7);near(B.selectedBasic(s).interval,.4);});
+test('Missile progression has two upgrades per stage excluding learned level',()=>{const r=B.newBasic();assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[1,3,5,8,10,13,15]);near(B.skillLevelAt(r,5),3);near(B.skillLevelAt(r,10),5);});
+test('Ice phase cap and first level are distinct',()=>{const r={...B.newBasic(),unlockStageCap:10,unlockLevel:6};assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[6,8,10,13,15]);near(B.skillLevelAt(r,5),0);near(B.skillLevelAt(r,8),2);r.unlockLevel=10;assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[10,13,15]);});
+test('Progression does not duplicate integer gates or truncate at 64 skills',()=>{const r={...B.newBasic(),levelsPerPhase:10};const nodes=B.progressionNodes(r,1,1000);assert.equal(new Set(nodes).size,nodes.length);near(B.skillLevelAt(r,1000,1),1000);});
+test('Level curve and rounded damage expose weak early upgrades',()=>{const s=B.defaults(),r=s.basicAttacks[0];near(B.levelDps(1),22);near(B.levelDps(3),26);near(B.levelDps(5),30);near(B.levelDps(10),50);near(B.levelDps(1000),3500);assert.deepEqual([1,3,5].map(l=>B.progressionBudget(s,r,l).integerHit),[5,6,7]);});
+test('Progression preview does not alter current pricing or runtime simulation',()=>{const s=B.defaults(),before=B.basicBudget(s).dps;B.progressionBudget(s,s.basicAttacks[0],1);near(B.basicBudget(s).dps,before);});
+console.log(`\n${count} model/static tests passed.`);
 async function browserTests(){
  // Isolated disposable browser for this local HTML; no user browser profile or session is used.
- const runtime = process.env.CODEX_NODE_MODULES || 'C:/Users/korateleng/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules';
+ const runtime = process.env.CODEX_NODE_MODULES || path.join(require('node:os').homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
  const {chromium}=require(path.join(runtime,'playwright'));
  const browser=await chromium.launch({headless:true, channel:process.env.BALANCE_BROWSER_CHANNEL || 'chrome'});
  try {
   fs.mkdirSync(path.join(__dirname,'test-output'),{recursive:true});
   const page=await browser.newPage({viewport:{width:1440,height:1100},deviceScaleFactor:1});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const resetPage=async(accept=true)=>{
+   await page.locator('#moreActions summary').click();
+   page.once('dialog',dialog=>accept?dialog.accept():dialog.dismiss());
+   await page.locator('#reset').click();
+   assert.equal(await page.locator('#moreActions').evaluate(el=>el.open),false);
+  };
   await page.goto(pathToFileURL(htmlPath).href);
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  assert.equal(await page.locator('#import,#importFile,#export').count(),0,'Obsolete import/export UI is removed');
+  assert.equal(await page.locator('header button:visible').count(),2,'Only save and reload are primary buttons');
+  assert.equal(await page.locator('#reset').isVisible(),false);
+  await page.locator('#moreActions summary').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#reset').isVisible(),true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#reset').isVisible(),false);
+  assert.equal(await page.locator('#moreActions summary').evaluate(el=>el===document.activeElement),true);
+  await page.locator('#moreActions summary').click();
+  await page.locator('h1').click();
+  assert.equal(await page.locator('#reset').isVisible(),false);
+  await page.locator('#baseDps').fill('1234');
+  await resetPage(false);
+  assert.equal(await page.locator('#baseDps').inputValue(),'1234','Cancel reset preserves edits');
+  await page.screenshot({path:path.join(__dirname,'test-output','toolbar-desktop.png'),clip:{x:0,y:0,width:1440,height:260}});
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#moreActions summary').click();
+  await page.screenshot({path:path.join(__dirname,'test-output','toolbar-mobile.png')});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({width:1440,height:1100});
+  await resetPage();
+
+  const progressionPanel=page.locator('#progressionPanel');
+  const progressionToggle=progressionPanel.locator('summary');
+  assert.equal(await progressionPanel.evaluate(el=>el.open),false,'Progression preview starts collapsed');
+  assert.equal(await page.locator('#progressionPhaseSize').isVisible(),false);
+  const collapsedHeight=(await progressionPanel.boundingBox()).height;
+  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-collapsed.png')});
+  await progressionToggle.click();
+  assert.equal(await progressionPanel.evaluate(el=>el.open),true);
+  assert.ok((await progressionPanel.boundingBox()).height>collapsedHeight+200,'Collapsing must reclaim preview space');
+
+  // Configurable skill progression: two upgrades per five-level phase for small attacks.
+  await page.getByRole('button',{name:'添加冰锥示例',exact:true}).click();
+  assert.equal(await page.locator('#progressionRows tr').count(),B.defaults().skills.length+2);
+  assert.equal(await page.getByRole('spinbutton',{name:'冰锥普攻首级角色等级',exact:true}).inputValue(),'6');
+  assert.equal(await page.getByRole('spinbutton',{name:'冰锥普攻每阶段新增技能等级',exact:true}).inputValue(),'2');
+  const progressionText=await page.locator('#progressionRows tr').filter({hasText:'冰锥普攻'}).innerText();
+  assert.match(progressionText,/Lv1→6、Lv2→8、Lv3→10/);
+  assert.match(progressionText,/Lv3（角色 10）/);
+  await page.getByRole('spinbutton',{name:'魔法飞弹首级角色等级',exact:true}).fill('1');
+  await page.getByRole('spinbutton',{name:'魔法飞弹每阶段新增技能等级',exact:true}).fill('2');
+  const missileProgression=await page.locator('#progressionRows tr').filter({hasText:'魔法飞弹'}).innerText();
+  assert.match(missileProgression,/Lv1→1、Lv2→3、Lv3→5/);
+  assert.match(missileProgression,/Lv5（角色 10）/);
+  await page.locator('#progressionPanel').screenshot({path:path.join(__dirname,'test-output','progression-design.png')});
+  assert.equal(await progressionPanel.evaluate(el=>el.open),true,'Editing must not close the preview');
+  await progressionToggle.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#progressionPhaseSize').isVisible(),false);
+  await page.setViewportSize({width:390,height:844});
+  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-collapsed-mobile.png')});
+  await progressionToggle.click();
+  assert.equal(await page.locator('#progressionPhaseSize').isVisible(),true);
+  assert.equal(await page.getByRole('spinbutton',{name:'魔法飞弹每阶段新增技能等级',exact:true}).inputValue(),'2');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-expanded-mobile.png')});
+  await progressionToggle.click();
+  await page.setViewportSize({width:1440,height:1100});
+  await page.reload();
+  assert.equal(await progressionPanel.evaluate(el=>el.open),false,'Reload returns to compact default');
+  await resetPage();
+
+  // Independent ordinary-attack design, persistence, deletion and backward migration.
+  await page.locator('#baseDps').fill('1000');
+  await page.getByRole('button',{name:'添加冰锥示例',exact:true}).click();
+  assert.equal(await page.locator('#basicRows tr').count(),2);
+  assert.equal(await page.locator('#basicDps1').innerText(),'800');
+  assert.equal(await page.locator('#basicTotal1').innerText(),'400');
+  assert.equal(await page.locator('#basicHit1').innerText(),'133.33');
+  assert.equal(await page.locator('#basicMana1').innerText(),'20');
+  await page.getByRole('spinbutton',{name:'冰锥普攻目标DPS倍率',exact:true}).fill('0.6');
+  assert.equal(await page.locator('#basicDps1').innerText(),'600');
+  assert.equal(await page.locator('#basicHit1').innerText(),'100');
+  const basicSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')));
+  near(basicSaved.basicAttacks[0].ratio,.8);near(basicSaved.basicAttacks[0].cost,3);near(basicSaved.basicAttacks[0].interval,.3);
+  await page.locator('#basicTable').evaluate(el=>el.closest('section').scrollIntoView());
+  await page.locator('[aria-label="普通攻击设计"]').screenshot({path:path.join(__dirname,'test-output','basic-design.png')});
+  await resetPage();
+  await page.evaluate(value=>localStorage.setItem('elaina-mage-balance-v2',JSON.stringify(value)),basicSaved);
+  await page.reload();
+  assert.equal(await page.locator('#basicHit1').innerText(),'100');
+  await page.locator('#preset').selectOption('jungle');
+  assert.equal(await page.locator('#basicRows tr').count(),2,'Changing stage must preserve ordinary attack drafts');
+  await page.locator('#baseDps').fill('1000');
+
+  await page.reload();
+  assert.equal(await page.locator('#basicHit1').innerText(),'100');
+  assert.equal(await page.getByRole('radio',{name:'使用冰锥普攻作为参考普攻'}).isChecked(),true);
+  await page.getByRole('button',{name:'添加普通攻击',exact:true}).click();
+  assert.equal(await page.locator('#basicRows tr').count(),3);
+  await page.getByRole('button',{name:'删除普攻新普攻 1',exact:true}).click();
+  assert.equal(await page.getByRole('radio',{name:'使用魔法飞弹作为参考普攻'}).isChecked(),true);
+  await page.getByRole('button',{name:'删除普攻冰锥普攻',exact:true}).click();
+  await resetPage();
+
+  await page.evaluate(()=>{
+   window.testFile={name:'SkillBalance.json',text:'',picks:0,writes:0};
+   window.showOpenFilePicker=async()=>{window.testFile.picks++;return [{name:window.testFile.name,
+    queryPermission:async()=>window.testFile.denied?'denied':'granted',requestPermission:async()=>window.testFile.denied?'denied':'granted',
+    getFile:async()=>({text:async()=>window.testFile.text}),
+    createWritable:async()=>({write:async text=>{if(window.testFile.fail)throw new Error('test write failure');window.testFile.pending=text;},close:async()=>{window.testFile.text=window.testFile.pending;window.testFile.writes++;},abort:async()=>{}})
+   }];};
+  });
+  await page.getByRole('button',{name:'保存到模组',exact:true}).click();
+  await page.waitForFunction(()=>!document.getElementById('saveMod').disabled);
+  assert.match(await page.locator('#fileStatus').innerText(),/已保存/);
+  const savedDirect=await page.evaluate(()=>JSON.parse(window.testFile.text));
+  assert.equal(savedDirect.schema,'elaina-mage-balance-v2');
+  assert.equal(savedDirect.configuration.autoRatio,undefined);
+  assert.deepEqual(Object.keys(savedDirect).sort(),['configuration','schema'],'Save contains parameters, not calculated logs');
+  await page.getByRole('button',{name:'保存到模组',exact:true}).click();
+  await page.waitForFunction(()=>!document.getElementById('saveMod').disabled);
+  assert.equal(await page.evaluate(()=>window.testFile.picks),1,'Subsequent saves reuse the selected handle');
+  assert.equal(await page.evaluate(()=>window.testFile.writes),2);
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(()=>window.testFile.writes===3);
+  const beforeResetFile=await page.evaluate(()=>window.testFile.text);
+  await resetPage();
+  assert.equal(await page.evaluate(()=>window.testFile.text),beforeResetFile,'Reset does not overwrite the mod file');
+  assert.match(await page.locator('#status').innerText(),/尚未写入模组文件/);
+  await page.locator('#baseDps').fill('1234');
+  await page.getByRole('button',{name:'重新读取',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('baseDps').value!=='1234');
+  assert.equal(await page.locator('#baseDps').inputValue(),String(savedDirect.configuration.baseDps));
+  await page.evaluate(()=>{window.testFile.denied=true;});
+  await page.getByRole('button',{name:'保存到模组',exact:true}).click();
+  await page.waitForFunction(()=>!document.getElementById('saveMod').disabled);
+  assert.match(await page.locator('#fileStatus').innerText(),/未获得/);
+  assert.equal(await page.evaluate(()=>window.testFile.writes),3,'Denied permission must not write');
+  await page.evaluate(()=>{window.testFile.denied=false;window.testFile.fail=true;});
+  await page.getByRole('button',{name:'保存到模组',exact:true}).click();
+  await page.waitForFunction(()=>!document.getElementById('saveMod').disabled);
+  assert.match(await page.locator('#fileStatus').innerText(),/test write failure/);
+  assert.equal(await page.evaluate(()=>window.testFile.writes),3,'Failed write must not close or report success');
+  await page.evaluate(()=>{window.testFile.fail=false;});
+
+  await page.evaluate(()=>{window.testFile.denied=false;window.testFile.name='wrong.json';});
+  await page.getByRole('button',{name:'更换…',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('请选择模组'));
+  assert.match(await page.locator('#fileStatus').innerText(),/请选择模组/);
+  await page.evaluate(()=>{window.showOpenFilePicker=async()=>{throw new DOMException('cancel','AbortError');};});
+  await page.getByRole('button',{name:'更换…',exact:true}).click();
+  assert.match(await page.locator('#fileStatus').innerText(),/已取消/);
 
   // Bulk prefixes change only the requested side's active, occupied slots.
   const values=async(side,prop)=>page.locator('#'+side+'Slots select[data-prop="'+prop+'"]').evaluateAll(els=>els.map(el=>el.value));
@@ -164,7 +336,7 @@ async function browserTests(){
   assert.match(await page.locator('#ePrefixStatus').innerText(),/4 个/);
   await page.locator('#slots').selectOption('7');
   assert.equal((await values('e','prefix'))[6],'lucky');
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  await resetPage();
 
   // Graduate preset, three independent buff stacks and explicit special-mana adaptation.
   await page.locator('#preset').selectOption('nebula');
@@ -202,7 +374,7 @@ async function browserTests(){
   await page.locator('#vNebulaLife').selectOption('1');
   await page.getByRole('button',{name:'复制左侧装备 · 前缀转奥秘'}).click();
   assert.equal(await page.locator('#eNebulaLife').inputValue(),'1');
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  await resetPage();
   // Exercise the new resource-limited simulation before the legacy-budget regression suite.
   const initialSim=await page.locator('#simActual').innerText();
   const initialIdeal=await page.locator('#simIdeal').innerText();
@@ -217,7 +389,7 @@ async function browserTests(){
   await page.locator('#battleStart').fill('0');
   assert.equal(await page.locator('#simActual').innerText(),'0');
   await page.locator('#battlePolicy').selectOption('save');
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  await resetPage();
   await page.getByText('受伤损蓝：均匀损失、周期受击或指定时间',{exact:true}).click();
   await page.locator('#battleHurtTotal').fill('500');
   assert.notEqual(await page.locator('#simActual').innerText(),initialSim);
@@ -236,7 +408,7 @@ async function browserTests(){
   await page.reload();
   assert.equal(await page.getByRole('spinbutton',{name:'模拟水球魔法CD',exact:true}).inputValue(),'30');
   assert.equal(await page.locator('#battleHurtMode').inputValue(),'periodic');
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  await resetPage();
   await page.locator('#legacyResults > summary').click();
   await page.locator('#vDps').waitFor();
   const beforeHurt=await page.locator('#eDps').innerText();
@@ -280,7 +452,7 @@ async function browserTests(){
   assert.match(await page.locator('#vSummary').innerText(),/追击未自动计入/);
   await page.locator('#vSlots select[data-prop="id"]').nth(1).selectOption('sorcerer');
   assert.match(await page.locator('#vSummary').innerText(),/重复装备/);
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  await resetPage();
   const out=path.join(__dirname,'test-output');fs.mkdirSync(out,{recursive:true});
   await page.locator('#hurtMana').fill('60');
   await page.getByText('受伤损蓝：均匀损失、周期受击或指定时间',{exact:true}).evaluate(el=>el.parentElement.open=true);
@@ -294,25 +466,57 @@ async function browserTests(){
   await page.locator('#mode').selectOption('skills');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
   await page.setViewportSize({width:1440,height:1100});
-  await page.getByRole('button',{name:'恢复默认'}).click();
-  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'导出当前试算'}).click()]);
-  assert.equal(download.suggestedFilename(),'elaina-mage-balance.json');
-  const downloadPath=await download.path();const exported=JSON.parse(fs.readFileSync(downloadPath,'utf8'));
-  assert.equal(exported.schema,'elaina-mage-balance-v1');near(exported.combat.actual.dps,C.run(B.defaults()).dps);near(exported.result.elaina,B.calculate(B.defaults()).elaina);
+  await resetPage();
+  const exported={schema:'elaina-mage-balance-v2',configuration:B.defaults()};
+  assert.ok(await page.getByText('魔力转换率 K',{exact:true}).count());
+  await page.getByRole('button',{name:'添加主动技能'}).click();
+  const added=page.locator('#rotationRows tr').last();
+  await added.getByRole('textbox',{name:/技能名称/}).fill('<试炼&飞弹>');
+  await added.getByRole('textbox',{name:/技能 ID/}).fill('ExperimentalSkill');
+  await added.getByRole('checkbox').check();
+  await added.getByRole('spinbutton',{name:'模拟<试炼&飞弹>蓝耗'}).fill('100');
+  assert.equal(await page.locator('#rotationRows tr').count(),B.defaults().skills.length+1);
+  assert.equal(await page.locator('#rotationRows img').count(),0,'User-provided skill names must be escaped');
+  await page.reload();
+  assert.equal(await page.locator('#rotationRows tr').count(),B.defaults().skills.length+1);
+  assert.equal(await page.locator('#rotationRows tr').last().getByRole('textbox',{name:/技能 ID/}).inputValue(),'ExperimentalSkill');
+  const extraExport={schema:'elaina-mage-balance-v2',configuration:await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')))};
+  assert.equal(extraExport.configuration.skills.at(-1).name,'<试炼&飞弹>');
+  await resetPage();
 
-  // Import/export round-trip, legacy migration and transactional rejection.
-  const importPayload=async(value,name='configuration.json')=>{
-   const [chooser]=await Promise.all([page.waitForEvent('filechooser'),page.getByRole('button',{name:'导入配置',exact:true}).click()]);
-   await chooser.setFiles({name,mimeType:'application/json',buffer:Buffer.from(typeof value==='string'?value:JSON.stringify(value))});
-   await page.waitForFunction(()=>!document.getElementById('import').disabled);
+
+  // Exercise the remaining file-reload path using an isolated in-memory handle.
+  const loadPayload=async(value)=>{
+   const payload=value&&typeof value==='object'&&!Array.isArray(value)&&!Object.hasOwn(value,'schema')?{schema:'elaina-mage-balance-v2',configuration:value}:value;
+   await page.evaluate(text=>{
+    window.showOpenFilePicker=async()=>[{name:'SkillBalance.json',queryPermission:async()=> 'granted',requestPermission:async()=> 'granted',getFile:async()=>({text:async()=>text})}];
+    document.getElementById('fileStatus').textContent='';
+   },typeof payload==='string'?payload:JSON.stringify(payload));
+   await page.locator('#linkMod').click();
+   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已关联'));
+   await page.locator('#fileStatus').evaluate(el=>el.textContent='');
+   await page.locator('#loadMod').click();
+   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent!=='');
   };
   await page.locator('#extraMana').fill('900');
-  await importPayload(exported);
+  const duplicate=B.clone(extraExport.configuration);duplicate.skills.at(-1).id=duplicate.skills[0].id;
+  await loadPayload(duplicate);assert.match(await page.locator('#fileStatus').innerText(),/读取失败/);
+  const malicious=B.clone(extraExport.configuration);malicious.skills.at(-1).name='<img src=x onerror=window.injected=1>';
+  await loadPayload(malicious);
+  assert.equal(await page.locator('#rotationRows img,#rotationResults img,#combatEvents img,#skillRows img').count(),0,'Names must not be interpreted as HTML');
+  assert.equal(await page.evaluate(()=>window.injected),undefined);
+  const empty=B.clone(extraExport.configuration);empty.skills=[];await loadPayload(empty);
+  assert.equal(await page.locator('#rotationRows tr').count(),0,'Zero active skills is a valid auto-only plan');
+  await loadPayload(extraExport);
+  assert.equal(await page.locator('#rotationRows tr').count(),B.defaults().skills.length+1,'Extra skills must survive file reload');
+  await page.locator('#rotationRows tr').last().getByRole('button',{name:/删除/}).click();
+  assert.equal(await page.locator('#rotationRows tr').count(),B.defaults().skills.length);
+  await loadPayload(exported);
   assert.equal(await page.locator('#extraMana').inputValue(),'0');
-  assert.match(await page.locator('#status').innerText(),/已导入/);
-  near(Number((await page.locator('#simActual').innerText()).replaceAll(',','')),Math.round(exported.combat.actual.dps*10)/10);
+  assert.match(await page.locator('#fileStatus').innerText(),/已读取/);
+  near(Number((await page.locator('#simActual').innerText()).replaceAll(',','')),Math.round(C.run(exported.configuration).dps*10)/10);
   const customized=B.defaults('nebula');customized.extraMana=240;customized.nebulaManaBridge=true;customized.combat.duration=180;customized.e.nebula.life=1;customized.skills[0].cost=130;
-  await importPayload({schema:'elaina-mage-balance-v1',configuration:customized,result:{elaina:-123},combat:{actual:{dps:-123}}});
+  await loadPayload({schema:'elaina-mage-balance-v2',configuration:customized,result:{elaina:-123},combat:{actual:{dps:-123}}});
   assert.equal(await page.locator('#preset').inputValue(),'nebula');
   assert.equal(await page.locator('#battleDuration').inputValue(),'180');
   assert.equal(await page.locator('#eNebulaLife').inputValue(),'1');
@@ -321,36 +525,27 @@ async function browserTests(){
   await page.reload();
   assert.equal(await page.locator('#extraMana').inputValue(),'240');
   const retained=await page.locator('#simActual').innerText();
-  for(const bad of ['{bad json',null,[],{schema:'future',configuration:customized},{version:1}, {...customized,baseDps:1000001},{...customized,preset:'toString'},{...customized,skills:[null]}]){
-   await importPayload(bad===null?'null':bad);
-   assert.match(await page.locator('#status').innerText(),/导入失败，当前配置未改变/);
+  for(const bad of ['{bad json',null,[],{schema:'future',configuration:customized},{version:2}, {...customized,baseDps:1000001},{...customized,preset:'toString'},{...customized,skills:[null]}]){
+   await loadPayload(bad===null?'null':bad);
+   assert.match(await page.locator('#fileStatus').innerText(),/读取失败，当前配置未改变/);
    assert.equal(await page.locator('#extraMana').inputValue(),'240');
    assert.equal(await page.locator('#simActual').innerText(),retained);
   }
-  const invalidArmor=B.clone(customized);invalidArmor.e.armor='constructor';await importPayload(invalidArmor);
-  assert.match(await page.locator('#status').innerText(),/导入失败/);
-  const legacyImport=B.clone(customized);delete legacyImport.nebulaManaBridge;delete legacyImport.combat;delete legacyImport.v.nebula;delete legacyImport.e.nebula;delete legacyImport.hurtMana;
-  for(const row of legacyImport.skills)for(const k of ['cd','cast','delay','duration','maxCharges','initialCharges','first','priority','hit'])delete row[k];
-  await importPayload('﻿'+JSON.stringify(legacyImport));
-  assert.match(await page.locator('#status').innerText(),/已导入/);
-  assert.equal(await page.locator('#extraMana').inputValue(),'240');
-  assert.equal(await page.locator('#battleDuration').inputValue(),'120');
-  assert.equal(await page.locator('#nebulaManaBridge').isChecked(),false);
+  const invalidArmor=B.clone(customized);invalidArmor.e.armor='constructor';await loadPayload(invalidArmor);
+  assert.match(await page.locator('#fileStatus').innerText(),/读取失败/);
+  const legacyImport=B.clone(customized);legacyImport.version=1;
+  await loadPayload({schema:'elaina-mage-balance-v1',configuration:legacyImport});
+  assert.match(await page.locator('#fileStatus').innerText(),/读取失败/);
   // Re-selecting the same file remains possible; unknown payload keys are not stored.
-  await importPayload({...customized,unexpected:'discard me'});
-  await importPayload({...customized,unexpected:'discard me'});
-  assert.equal(await page.evaluate(()=>Object.hasOwn(JSON.parse(localStorage.getItem('elaina-mage-balance-v1')),'unexpected')),false);
-  await page.getByRole('button',{name:'恢复默认'}).click();
+  await loadPayload({...customized,unexpected:'discard me'});
+  await loadPayload({...customized,unexpected:'discard me'});
+  assert.equal(await page.evaluate(()=>Object.hasOwn(JSON.parse(localStorage.getItem('elaina-mage-balance-v2')),'unexpected')),false);
+  await resetPage();
   await page.locator('#extraMana').fill('120');
-  await page.evaluate(()=>{const key='elaina-mage-balance-v1';const legacy=JSON.parse(localStorage.getItem(key));delete legacy.hurtMana;delete legacy.combat;delete legacy.nebulaManaBridge;delete legacy.v.nebula;delete legacy.e.nebula;for(const row of legacy.skills)for(const k of ['cd','cast','delay','duration','maxCharges','initialCharges','first','priority','hit'])delete row[k];localStorage.setItem(key,JSON.stringify(legacy));});
-  await page.reload();
-  await page.locator('#legacyResults').evaluate(el=>el.open=true);
-  assert.equal(await page.locator('#extraMana').inputValue(),'120');
-  assert.equal(await page.locator('#hurtMana').inputValue(),'0');
-  assert.equal(await page.locator('#battlePotions').inputValue(),'5');
-  assert.equal(await page.getByRole('spinbutton',{name:'模拟水球魔法CD',exact:true}).inputValue(),'20');
+  await loadPayload(JSON.parse(fs.readFileSync(path.join(__dirname,'elaina-mage-balance.json'),'utf8')));
+  assert.match(await page.locator('#fileStatus').innerText(),/已读取/,'Existing saved JSON must remain readable');
   assert.deepEqual(errors,[]);
-  console.log('Browser smoke passed: budget/skill updates, presets, slot count, copy, persistence, duplicate warning, export, desktop/mobile layout; zero JS errors.');
+  console.log('Browser smoke passed: budget/skill updates, presets, slot count, copy, persistence, duplicate warning, compact toolbar, file reload, desktop/mobile layout; zero JS errors.');
  } finally {await browser.close();}
 }
 if(process.argv.includes('--browser'))browserTests().catch(e=>{console.error(e);process.exitCode=1;});

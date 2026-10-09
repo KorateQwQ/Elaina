@@ -91,11 +91,12 @@ public sealed partial class ConstellationSkillPanel
             var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
             if (!playerState.DebugAdvanceMaxLevel(out string bossName, out float bossState))
             {
-                Notify("没有可推进的下一个 Boss");
+                Notify($"角色 Progress {playerState.Progress:0.##} · 当前 Boss 列表中没有更高进度的 Boss");
                 return;
             }
-            Notify($"等级上限提升至 Lv. {playerState.GetMaxLevel()} · {bossName} · state {bossState:0.##}");
-        }, h => DrawDebugButton("cap", h), "推进到 KL boss checklist 中的下一个 Boss，并提升等级上限", () => !Editing);
+            Notify($"角色进度推进至 {bossName} · Progress {bossState:0.##} · 等级上限 Lv. {playerState.GetMaxLevel()}");
+        }, h => DrawDebugButton("cap", h), visible: () => !Editing,
+            dynamicTooltip: () => Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().DebugGetNextBossTooltip());
         Button(new Rectangle(880, 741, 61, 40), () =>
         {
             if (Editing) return;

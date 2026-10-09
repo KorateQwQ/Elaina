@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using KL.Utils;
 using KL.Utils.Net;
 using Terraria;
@@ -133,24 +132,28 @@ public class ElainaStatePlayer : KLModPlayer
         return true;
     }
 
+    public bool DebugGetNextBoss(out string bossName, out float bossState)
+    {
+        return KLGameStateManager.TryGetNextBoss(Progress, out bossName, out bossState);
+    }
+
+    public string DebugGetNextBossTooltip()
+    {
+        if (!DebugGetNextBoss(out string bossName, out float bossState))
+            return $"角色 Progress {Progress:0.##} · 当前 Boss 列表中没有更高进度的 Boss";
+
+        return $"下一个 Boss：{bossName} · 角色 Progress {Progress:0.##} → {bossState:0.##}"
+            + $"\n等级上限 Lv. {GetMaxLevel()} → Lv. {KLGameStateManager.GetLevelCap(bossState)}"
+            + "\n仅推进当前角色，不改变世界 Boss 击杀状态";
+    }
+
     public bool DebugAdvanceMaxLevel(out string bossName, out float bossState)
     {
-        bossName = null;
-        bossState = Progress;
+        if (!DebugGetNextBoss(out bossName, out bossState)) return false;
 
-        var nextBoss = KLGameStateManager.GetBossInfos().Values
-            .Where(info => info.isBoss && info.progression > Progress)
-            .OrderBy(info => info.progression)
-            .ThenBy(info => info.displayName?.Value)
-            .FirstOrDefault();
-        if (nextBoss == null) return false;
-
-        Progress = nextBoss.progression;
-        bossState = nextBoss.progression;
-        bossName = nextBoss.displayName?.Value ?? "未知 Boss";
+        UpdateProgress(bossState);
         ProgressSet ??= [];
         if (!ProgressSet.Contains(bossState)) ProgressSet.Add(bossState);
-        NormalizeLevel();
         return true;
     }
 #endif

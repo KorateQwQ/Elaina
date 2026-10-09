@@ -13,6 +13,7 @@ using Terraria.GameContent;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
 using 伊蕾娜.ElainaModSkills.Skills.Fire;
 using 伊蕾娜.ElainaModSkills.Skills.Lightning;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
@@ -23,16 +24,10 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 [SkillUIInfo(State = 0, Pixels = 200)]
 public class MagicMissileSkill : ElainaSkill
 {
-    private const float AttackIntervalSeconds = 0.3f;
-    private const int FullDpsLevel = 5;
-    private const int StableDpsLevel = 65;
-    private const float InitialDpsRatio = 1f;
-    private const float EndgameDpsRatio = 0.6f;
+    protected override DamageClass BalanceDamageClass => ModContent.GetInstance<ElainaBasicDamage>();
 
     public override void Initialize()
     {
-        MagicPointCost = 3;
-        MaxCD = AttackIntervalSeconds;
         base.Initialize();
     }
     public override void ResetEffects(Player player)
@@ -48,8 +43,6 @@ public class MagicMissileSkill : ElainaSkill
 
     public override bool CanUseSkill()
     {
-        MagicPointCost = 3;
-
         return base.CanUseSkill();
     }
 
@@ -84,7 +77,7 @@ public class MagicMissileSkill : ElainaSkill
         float startRotation = directionToMouse.ToRotation()*Main.LocalPlayer.gravDir;
 
         localPlayer.GetModPlayer<ActionModPlayer>().StartAction(animAction,rotation: startRotation);
-        
+
         /*foreach (var info in KLGameStateManager.GetBossInfos())
         {
             if (info.Value.isBoss)
@@ -92,40 +85,29 @@ public class MagicMissileSkill : ElainaSkill
                 Log($"{info.Value.displayName} state: {info.Value.progression} maxLevel: {PlayerLevelCapHelper.GetLevelCap(info.Value.progression)}");
             }
         }*/
-        PrintText(localPlayer.GetModPlayer<ElainaStatePlayer>().GetLevel());
+        //PrintText(localPlayer.GetModPlayer<ElainaStatePlayer>().GetLevel());
         return base.PreUseSkill(source);
     }
 
-    /// <summary>角色等级对应的 DPS 占比：前五级保持完整基准，之后平滑下降，65 级起保持 60%。</summary>
-    public static float GetDpsRatio(int playerLevel)
+
+    /// <summary>指定技能等级的普通飞弹理论 DPS，不包含追加伤害、装备、暴击或敌方防御。</summary>
+    public static float GetDps(int skillLevel)
     {
-        float progress = Math.Clamp((Math.Max(1, playerLevel) - FullDpsLevel)
-            / (float)(StableDpsLevel - FullDpsLevel), 0f, 1f);
-        float smoothProgress = progress * progress * (3f - 2f * progress);
-        return InitialDpsRatio + (EndgameDpsRatio - InitialDpsRatio) * smoothProgress;
+        return SkillBalanceSystem.GetBaseDps(skillLevel, nameof(MagicMissileSkill));
     }
 
-    /// <summary>指定角色等级的普通飞弹理论 DPS，不包含追加伤害、装备、暴击或敌方防御。</summary>
-    public static float GetDps(int playerLevel)
+    /// <summary>按指定技能等级计算一枚普通飞弹的基础伤害。</summary>
+    public static int GetDamage(int skillLevel)
     {
-        playerLevel = Math.Max(1, playerLevel);
-        return KLDpsHelper.GetLevelDps(playerLevel) * GetDpsRatio(playerLevel);
-    }
-
-    /// <summary>按指定角色等级计算一枚普通飞弹的基础伤害。</summary>
-    public static int GetDamage(int playerLevel)
-    {
-        return Math.Max(1, KLDpsHelper.GetSingleHitDamage(
-            GetDps(playerLevel), AttackIntervalSeconds, 1));
+        return SkillBalanceSystem.GetBaseDamage(skillLevel, nameof(MagicMissileSkill));
     }
 
     private int GetDamage()
     {
-        int playerLevel = (int)Player.GetModPlayer<ElainaStatePlayer>().GetLevel();
-        return GetDamage(playerLevel);
+        return GetConfiguredDamage();
     }
     public override bool PreUpdateCD()
-    {   
+    {
         //PrintText(CurrentCD);
         //MaxCD = 2;
         //CurrentCD = 1;
@@ -145,5 +127,5 @@ public class MagicMissileSkill : ElainaSkill
         base.PostDrawSkillIcon(position, scale,color,  effect);
         //base.PostDrawSkillIcon(position, scale, effect);
     }
-    
+
 }
