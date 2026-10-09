@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>伊蕾娜 · 法师配装成长实验室</title>
+<style>
+:root{color-scheme:dark;--bg:#10141d;--panel:#181e2a;--panel2:#202838;--line:#303a4d;--text:#eaf0fa;--muted:#aab6c9;--blue:#80b6ff;--purple:#c3a0ff;--green:#9ddcba;--orange:#f1bd78;--red:#ffaaaa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.65 'Segoe UI','Microsoft YaHei',sans-serif}main{max-width:1450px;margin:auto;padding:32px}h1,h2,h3,p{margin:0}h1{font-size:27px;letter-spacing:1px}h2{font-size:17px}h3{font-size:14px}header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}.eyebrow{color:var(--purple);font:11px/1.6 monospace;letter-spacing:2px;margin-bottom:5px}.sub{color:var(--muted);margin-top:6px}button,input,select{font:inherit}button,select,input[type=number]{color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 10px}button{cursor:pointer}button:hover{border-color:var(--purple)}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--purple);outline-offset:3px}input[type=number]{width:100%;min-width:0}select{width:100%;min-width:0}input[type=checkbox],input[type=range]{accent-color:var(--purple)}input[type=range]{width:100%}.actions{display:flex;gap:8px;flex-wrap:wrap}.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:20px}.topbar{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:16px;align-items:end;margin-bottom:20px}label.field{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px}label.field b{color:var(--text);font-weight:500}.columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}.title{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}.tag{font-size:11px;color:var(--muted);padding:3px 8px;border:1px solid var(--line);border-radius:20px}.vanilla{color:var(--blue)}.elaina{color:var(--purple)}.fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}.slot{display:grid;grid-template-columns:22px minmax(0,1fr) 118px;align-items:center;gap:8px;margin:7px 0}.slotnum{color:var(--muted);font-family:monospace}.slot select{font-size:12px}.summary{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.summary strong{color:var(--text)}.section{margin-top:20px}.budgetlayout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}.note{font-size:12px;color:var(--muted);line-height:1.8}.check{display:flex;align-items:flex-start;gap:8px;font-size:12px;margin:10px 0;color:var(--muted)}.check input{margin-top:5px}.results{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:16px;margin-bottom:20px}.metric{padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:12px}.metric .number{font-size:32px;font-weight:650;line-height:1.3;font-variant-numeric:tabular-nums}.metric .label{font-size:12px;color:var(--muted);margin-bottom:8px}.metric .detail{font-size:12px;color:var(--muted);margin-top:8px}.vis{display:grid;grid-template-columns:1fr 1.2fr;gap:24px}.bars{margin-top:24px}.barrow{margin-bottom:22px}.barhead{display:flex;justify-content:space-between;font-size:12px;margin-bottom:7px}.track{display:flex;height:28px;background:var(--bg);border-radius:5px;overflow:hidden}.segment{height:100%;transition:width .18s}.legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:14px}.dot{display:inline-block;width:9px;height:9px;margin-right:6px;border-radius:2px}.chart{width:100%;height:260px;display:block}.chart text{fill:var(--muted);font:12px 'Segoe UI','Microsoft YaHei',sans-serif}.chart .grid{stroke:var(--line);stroke-width:1}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:500}td input[type=number]{min-width:70px;max-width:95px}td:last-child{text-align:right;font-variant-numeric:tabular-nums}.callout{border-left:3px solid var(--purple);padding:10px 14px;background:var(--panel2);border-radius:0 7px 7px 0;margin-top:12px;font-size:12px;color:var(--muted)}.warn{color:var(--orange)}.good{color:var(--green)}details{margin-top:16px}summary{cursor:pointer;color:var(--muted)}.formula{font-family:Consolas,monospace;font-size:13px;line-height:2;color:var(--text);padding:14px;background:var(--bg);border-radius:8px;margin:12px 0}.sources{font-size:12px;overflow-wrap:anywhere}.sources li{margin:7px 0}.footer{margin-top:24px;color:var(--muted);font-size:12px}.smallbtn{font-size:12px;padding:5px 9px}.hidden{display:none!important}#status{color:var(--green);font-size:12px;min-height:20px}.splitstats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.splitstats div{background:var(--bg);padding:12px;border-radius:8px;font-size:12px}.splitstats strong{font-size:20px;display:block;color:var(--text)}.rangehead{display:flex;justify-content:space-between;gap:12px}.rangehead output{color:var(--purple)}
+@media(max-width:1000px){main{padding:20px}.vis,.budgetlayout{grid-template-columns:1fr}.topbar{grid-template-columns:1fr 1fr}.fields{grid-template-columns:1fr 1fr}.slot{grid-template-columns:18px minmax(0,1fr) 105px}}
+@media(max-width:720px){main{padding:14px}header{align-items:flex-start;flex-direction:column}h1{font-size:23px}.columns,.results{grid-template-columns:1fr}.panel{padding:15px}.metric .number{font-size:28px}.topbar{gap:12px}.fields{gap:10px}.chart{height:235px}}
+@media(prefers-reduced-motion:reduce){.segment{transition:none}}
+
+textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:10px;resize:vertical;width:100%}.combatfields{grid-template-columns:repeat(5,minmax(0,1fr))}.combatstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:18px}.combatstats>div{background:var(--bg);padding:12px;border-radius:8px;color:var(--muted);font-size:12px}.combatstats strong{display:block;color:var(--text);font-size:19px;margin-top:5px}.rotationtable{min-width:1320px}.rotationtable td:nth-child(2){min-width:170px}.rotationtable td input[type=number]{width:76px}.eventtable{max-height:340px;overflow:auto}#legacyResults>summary{padding:12px 0}#manaTimeline{height:290px}.combatresults{margin-top:20px}
+@media(max-width:1000px){.combatfields{grid-template-columns:repeat(3,minmax(0,1fr))}.combatstats{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.combatfields{grid-template-columns:1fr 1fr}.combatstats strong{font-size:16px}.title{flex-wrap:wrap}}
+</style>
+</head>
+<body><main>
+<header><div><div class="eyebrow">ELAINA / BALANCE LAB</div><h1>法师配装成长实验室</h1><p class="sub">相同裸装普攻 · 原版堆伤害 · 伊蕾娜用魔力购买额外技能输出</p></div><div><div class="actions"><button id="import" type="button" title="选择导出的 JSON，校验成功后替换当前配置">导入配置</button><input id="importFile" type="file" accept=".json,application/json" hidden><button id="export">导出当前试算</button><button id="reset">恢复默认</button></div><div id="status" role="status"></div></div></header>
+<section class="panel topbar" aria-label="共同基准">
+<label class="field">参考配装（切换会重置两侧装备）<select id="preset"></select></label>
+<label class="field">双方裸装 DPS · B<input id="baseDps" type="number" min="1" max="1000000" step="10"></label>
+<label class="field">裸装暴击率（已包含在 B 内）%<input id="baseCrit" type="number" min="0" max="100" step="1"></label>
+<label class="field">饰品槽数量<select id="slots"><option value="5">5 格</option><option value="6">6 格</option><option value="7">7 格</option></select></label>
+</section>
+
+<section id="combatPanel" class="section" aria-label="战斗续航模拟">
+<div class="title"><h2>战斗续航 · 五瓶药能撑多久？</h2><span class="tag">60 Hz 资源时间轴 / 与下方配装实时联动</span></div>
+<div class="results" aria-live="polite">
+ <div class="metric"><div class="label">原版法师 · 同期配装参考 DPS</div><div class="number vanilla" id="simVanilla">—</div><div class="detail">按正常持续攻击，不模拟原版补蓝停手</div></div>
+ <div class="metric"><div class="label">伊蕾娜 · 受魔力约束的平均 DPS</div><div class="number elaina" id="simActual">—</div><div class="detail" id="simActualDetail"></div></div>
+ <div class="metric"><div class="label">同时间、同策略 · 不限魔力参考 DPS</div><div class="number" id="simIdeal">—</div><div class="detail" id="simIdealDetail"></div></div>
+</div>
+<div class="panel">
+ <div class="fields combatfields">
+  <label class="field">战斗时长 / 秒<input id="battleDuration" data-combat="duration" type="number" min="1" max="600" step="10"></label>
+  <label class="field">开场魔力 / 上限 %<input id="battleStart" data-combat="startPercent" type="number" min="0" max="100" step="10"></label>
+  <label class="field">携带药剂 / 瓶<input id="battlePotions" data-combat="potions" type="number" min="0" max="5" step="1"></label>
+  <label class="field">每瓶回复 / 最大魔力 %<input id="battlePotionPercent" data-combat="potionPercent" type="number" min="0" max="100" step="5"></label>
+  <label class="field">回蓝方式<select id="battleRegenMode" data-combat="regenMode"><option value="mod">模组规则：5 + 上限 × 2%/秒</option><option value="manual">手动指定</option></select></label>
+  <label class="field">手动基础回蓝 / 魔力每秒<input id="battleRegen" data-combat="regen" type="number" min="0" max="1000" step="1"></label>
+  <label class="field">普攻单次蓝耗<input id="battleAutoCost" data-combat="autoCost" type="number" min="0" max="10000" step="1"></label>
+  <label class="field">普攻完整间隔 / 秒<input id="battleAutoInterval" data-combat="autoInterval" type="number" min="0.05" max="10" step="0.05"></label>
+  <label class="field">主动技能保留魔力<input id="battleReserve" data-combat="reserve" type="number" min="0" max="10000" step="20"></label>
+  <label class="field">最高优先级技能缺蓝时<select id="battlePolicy" data-combat="policy"><option value="flow">尝试其他技能，或继续普攻</option><option value="save">停止低优先级输出，攒蓝等待</option></select></label>
+ </div>
+ <div class="actions"><button class="smallbtn" data-battle-duration="60">短战 60 秒</button><button class="smallbtn" data-battle-duration="120">标准 120 秒</button><button class="smallbtn" data-battle-duration="180">长战 180 秒</button><button class="smallbtn" data-battle-duration="300">持久战 300 秒</button></div>
+ <p class="note" style="margin-top:10px">付款不足时自动尝试用药，可连续用多瓶；全部药剂仍不足则不浪费药。主动技能预留限制不约束普攻或受伤损蓝。生命转魔力关闭，不计算脱战回满或受伤暂停回复。</p>
+ <details><summary>受伤损蓝：均匀损失、周期受击或指定时间</summary>
+ <div class="fields">
+  <label class="field">损蓝模式<select id="battleHurtMode" data-combat="hurtMode"><option value="uniform">全场总损失，均匀分摊</option><option value="periodic">周期受击</option><option value="events">指定时间事件</option></select></label>
+  <label class="field" data-hurt-mode="uniform">全场请求损蓝总量<input id="battleHurtTotal" data-combat="hurtTotal" type="number" min="0" max="100000" step="20"></label>
+  <label class="field" data-hurt-mode="periodic">受击间隔 / 秒<input id="battleHurtInterval" data-combat="hurtInterval" type="number" min="0.1" max="600" step="1"></label>
+  <label class="field" data-hurt-mode="periodic">每次请求损蓝<input id="battleHurtPerHit" data-combat="hurtPerHit" type="number" min="0" max="100000" step="20"></label>
+ </div>
+ <label class="field" data-hurt-mode="events">每行“秒数:损蓝量”，例如 15:100<textarea id="battleHurtEvents" data-combat="hurtEvents" rows="4" maxlength="5000"></textarea></label>
+ <p class="note">这里填实际时间轴上请求扣除的魔力，不提前减去后续回复。蓝不足时只能扣到 0，剩余部分记为“防御未承担”。受伤不会自动触发药剂或产生负魔力。旧快速预算里的净损失不在这里重复扣除。</p>
+ </details>
+ <div class="callout" id="simWarnings"></div>
+</div>
+<div class="panel section">
+ <div class="title"><h2>魔力与药剂时间轴</h2><span class="tag" id="simCapacity"></span></div>
+ <svg id="manaTimeline" class="chart" role="img" aria-label="战斗中当前魔力随时间变化，标出药剂使用时间"></svg>
+ <div class="legend"><span><i class="dot" style="background:var(--purple)"></i>当前魔力</span><span><i class="dot" style="background:var(--green)"></i>用药时刻（竖线）</span><span>受伤与施法明细见下方事件表</span></div>
+ <div class="combatstats">
+  <div>首次缺蓝延误<strong id="simFirstShortage">—</strong></div><div>最后一瓶药耗尽<strong id="simPotionEnd">—</strong></div><div>剩余魔力 / 药剂<strong id="simRemaining">—</strong></div><div>回复溢出 / 防御未承担<strong id="simWaste">—</strong></div>
+ </div>
+ <div id="simLedger" class="callout"></div>
+</div>
+<div class="panel section">
+ <div class="title"><h2>技能释放计划</h2><span class="tag">示例参数 · 非当前实装数值</span></div>
+ <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label></div>
+ <label class="check"><input id="skillStats" type="checkbox">技能额外伤害继承装备伤害与暴击；占手补偿始终按当前参考普攻计算。</label>
+ <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>蓝耗</th><th>CD/充能秒</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th>性质 K</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
+ <p class="note">优先级数字越小越先释放。CD 从施放开始计时，储存次数按顺序逐层恢复；首次释放时间不阻止提前充能。零占手仍占 1 帧；伤害预算使用相同的有效占手时长。持续伤害从占手结束＋延迟后均匀结算，战斗结束后的伤害不计。命中率只影响伤害，不减少蓝耗；旧预算的“兑现率”不参与此模拟。</p>
+ <h3 style="margin-top:18px">实际释放与伤害</h3><div class="tablewrap"><table><thead><tr><th>技能</th><th>实际 / 不限蓝次数</th><th>实际耗蓝</th><th>已兑现伤害</th><th>缺蓝等待段数</th></tr></thead><tbody id="rotationResults"></tbody></table></div>
+ <details><summary>查看施法、用药、受伤与缺蓝事件</summary><p id="simEventCount" class="note"></p><div class="tablewrap eventtable"><table><thead><tr><th>时间 / 秒</th><th>事件</th><th>事件后魔力</th></tr></thead><tbody id="combatEvents"></tbody></table></div></details>
+ <details><summary>模拟口径与局限</summary><p class="note" style="margin-top:10px">采用 1/60 秒步长。普攻按完整攻击间隔占手，成功付款后在动作结束造成伤害；技能占手时不普攻。技能总伤害 = 普攻 DPS × 占手 + 阶段 B × 0.002 × 单次蓝耗 × 基准 CD × 性质 × 技能装备倍率，整次再乘命中率。药剂与扣费同时结算，余额再裁剪上限。星云所选强化假定开场即有且全程保持；可选特殊回蓝适配按平均每秒回复模拟，不额外应用原版减耗。不模拟死亡、击退、打断、敌人防御或生命转魔力；手填套装特效按持续背景 DPS 计入。不限蓝仅移除资源限制，仍遵守时长、占手、CD、优先级、命中和伤害落点，不代表全局最优输出；不同实际调度可能使其不是严格上界。</p></details>
+</div>
+</section>
+<details id="legacyResults" class="section"><summary>快速预算结果（旧模式，不验证续航；仅用于属性定价）</summary>
+<section class="results" aria-label="拟算结果" aria-live="polite">
+<div class="metric"><div class="label">原版法师 · 配装后武器 DPS</div><div class="number vanilla" id="vDps">—</div><div class="detail" id="vDetail"></div></div>
+<div class="metric"><div class="label">伊蕾娜 · 普攻＋技能净增 DPS</div><div class="number elaina" id="eDps">—</div><div class="detail" id="eDetail"></div></div>
+<div class="metric"><div class="label">对齐原版所需的等效技能蓝耗 E*</div><div class="number" id="required">—</div><div class="detail" id="requiredDetail"></div></div>
+</section>
+<section class="panel vis">
+<div><h2>输出从哪里来</h2><div class="bars" id="bars"></div><div class="legend"><span><i class="dot" style="background:var(--blue)"></i>原版武器</span><span><i class="dot" style="background:#8970b5"></i>伊蕾娜普攻</span><span><i class="dot" style="background:var(--purple)"></i>技能净增</span></div><div id="comparison" class="callout"></div></div>
+<div><h2>从保命前缀逐步转向输出</h2><svg class="chart" id="growth" role="img" aria-label="不同输出前缀数量下的原版与伊蕾娜 DPS 成长曲线"></svg><p class="note">横轴：原版换成险恶、伊蕾娜换成奥秘的槽位数；其他槽位均为护佑。装备与其他参数不变。线图是替换实验，不强制修改下方配装。</p></div>
+</section>
+</details>
+<section class="columns section">
+<div class="panel"><div class="title"><h2 class="vanilla">原版法师</h2><span class="tag">武器输出路线</span></div><label class="field">护甲套装<select id="vArmor"></select></label><div id="vNebula" class="hidden">
+<div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="v" aria-label="原版法师星云强化全满">三种全满</button></div>
+<div class="fields"><label class="field">伤害强化<select id="vNebulaDamage" data-nebula-side="v" data-nebula-kind="damage" aria-label="原版法师伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="vNebulaMana" data-nebula-side="v" data-nebula-kind="mana" aria-label="原版法师魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="vNebulaLife" data-nebula-side="v" data-nebula-kind="life" aria-label="原版法师生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><p class="note" id="vNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="原版法师批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="menacing" aria-label="原版法师全险恶">全险恶</button><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="arcane" aria-label="原版法师全奥秘">全奥秘</button></div><p class="note" id="vPrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="vSlots"></div><div class="fields">
+<label class="field">额外伤害加成 %<input id="vDamage" type="number" min="-90" max="1000" step="1"></label>
+<label class="field">额外暴击百分点<input id="vCrit" type="number" min="-100" max="100" step="1"></label>
+<label class="field">套装特效额外 DPS<input id="vProc" type="number" min="0" max="1000000" step="10"></label>
+</div><p class="note">额外项可填药剂、增益、武器前缀等。武器前缀若已计入 B，不要重复填写。机动／生存占位不加输出；不为原版加入攻速轴。</p><div class="summary" id="vSummary"></div></div>
+<div class="panel"><div class="title"><h2 class="elaina">伊蕾娜</h2><button id="copy" class="smallbtn">复制左侧装备 · 前缀转奥秘</button></div><label class="field">护甲套装<select id="eArmor"></select></label><div id="eNebula" class="hidden">
+<div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="e" aria-label="伊蕾娜星云强化全满">三种全满</button></div>
+<div class="fields"><label class="field">伤害强化<select id="eNebulaDamage" data-nebula-side="e" data-nebula-kind="damage" aria-label="伊蕾娜伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="eNebulaMana" data-nebula-side="e" data-nebula-kind="mana" aria-label="伊蕾娜魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="eNebulaLife" data-nebula-side="e" data-nebula-kind="life" aria-label="伊蕾娜生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><label class="check"><input id="nebulaManaBridge" type="checkbox">将星云回蓝转为特殊魔力（仅预览适配假设，当前代码未接入）</label><p class="note" id="eNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="伊蕾娜批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="menacing" aria-label="伊蕾娜全险恶">全险恶</button><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="arcane" aria-label="伊蕾娜全奥秘">全奥秘</button></div><p class="note" id="ePrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="eSlots"></div><div class="fields">
+<label class="field">额外伤害加成 %<input id="eDamage" type="number" min="-90" max="1000" step="1"></label>
+<label class="field">额外暴击百分点<input id="eCrit" type="number" min="-100" max="100" step="1"></label>
+<label class="field">套装特效额外 DPS<input id="eProc" type="number" min="0" max="1000000" step="10"></label>
+<label class="field">裸装基础魔力<input id="baseMana" type="number" min="0" max="2000" step="20"></label>
+<label class="field">额外特殊魔力上限<input id="extraMana" type="number" min="0" max="10000" step="20"></label>
+<label class="field">普攻 / 裸装基准<input id="autoRatio" type="number" min="0" max="5" step="0.05"></label>
+</div><p class="note">原版最大魔力按当前模组的 1:1 转换率计入特殊魔力。额外特殊魔力可填生命转化等；不会自动认为这部分资源没有生存代价。</p><div class="summary" id="eSummary"></div></div>
+</section>
+<section class="panel section">
+<div class="title"><h2>旧模式 · 快速预算定价（不参与战斗模拟）</h2><span class="tag">不计攻速 · 不计减耗 · 不以 CD 属性额外放大 DPS</span></div>
+<div class="budgetlayout"><div>
+<label class="field">计算方式<select id="mode"><option value="budget">预算拟算：先不配置每个技能</option><option value="skills">技能清单：按实际蓝耗与性质系数计算</option></select></label>
+<div id="budgetControls"><div class="fields">
+<label class="field">用于兑换的魔力来源<select id="budgetSource"><option value="added">仅配装新增魔力</option><option value="total">包含裸装储备的总魔力</option><option value="manual">手动指定技能耗蓝预算</option></select></label>
+<label class="field">预留、不投入技能的魔力<input id="reserve" type="number" min="0" max="10000" step="20"></label>
+<label class="field">手动预算<input id="manualBudget" type="number" min="0" max="10000" step="20"></label>
+<label class="field">平均性质系数 K<input id="quality" type="number" min="0" max="3" step="0.05"></label>
+</div><label class="field"><span class="rangehead"><span>预算兑换率（实际投入技能的比例）</span><output id="useLabel"></output></span><input id="use" type="range" min="0" max="100" step="1"></label>
+<p class="note" id="budgetExplain"></p></div>
+<div class="fields"><label class="field">受伤净损失魔力（仅旧预算）<input id="hurtMana" type="number" min="0" max="10000" step="20"></label></div>
+<p class="note">受伤损失从原计划用于技能的蓝量中扣除，不降低最大魔力、自然回蓝或普攻。填入同一预算口径下、未由额外回蓝补回的净损失；不要与预留魔力重复扣除。</p>
+<p class="note">伤害兑换系数与技能装备继承开关，统一使用上方“技能释放计划”的设置。</p>
+</div><div>
+<div class="splitstats"><div>最大特殊魔力<strong id="mana">—</strong></div><div>等效技能蓝耗 E<strong id="effective">—</strong></div></div>
+<div class="callout" id="modelNotice"></div>
+<div class="splitstats"><div>无受伤损蓝时总 DPS<strong id="unhurtDps">—</strong></div><div>受伤损蓝减少的 DPS<strong class="warn" id="hurtDps">—</strong></div></div><p class="note" id="hurtExplain" style="margin-top:10px"></p>
+<div class="splitstats"><div>再加 20 魔力的 DPS 增量<strong id="marginalMana">—</strong></div><div>再加 4% 伤害的 DPS 增量<strong id="marginalDamage">—</strong></div></div>
+<p class="note" style="margin-top:10px">局部增量在伊蕾娜同一套配置上比较，不消耗额外槽位；用于判断两种属性的边际价格，不代表可以免费同时获得。技能清单模式不因增加魔力上限而自动增加施放次数。</p>
+</div></div>
+<div id="skillControls" class="hidden"><div class="tablewrap"><table><thead><tr><th>启用</th><th>技能（示例，非当前实装数值）</th><th>单次蓝耗 M</th><th>性质 K</th><th>兑现率 %</th><th>受伤后等效蓝耗</th></tr></thead><tbody id="skillRows"></tbody></table></div><p class="note">兑现率 = 相对基准循环的实际释放频率 × 伤害命中比例，100% 表示按设计循环完整兑现。不另外乘冷却缩减。受伤损蓝按各技能预计耗蓝等比例削减，不模拟优先保留某个技能。占手补偿与损失普攻相抵，因此此处只统计净增伤害。不同技能的 CD 可以不同，不把这一表的蓝耗合计当成“每秒耗蓝”。</p><div id="skillWarnings" class="callout"></div></div>
+</section>
+<section class="panel section"><h2>快速预算公式与数据来源</h2>
+<div class="formula">G = (1 + 伤害加成) × (1 + 配装后暴击率) / (1 + 裸装暴击率)<br>原版 DPS = B × G原版 + 额外特效 DPS<br>伊蕾娜 DPS = B × 普攻倍率 × G伊蕾娜 + B × (每20魔力增幅 / 20) × E × G技能 + 额外特效 DPS<br>计划蓝量 P = 预算 × 兑换率，或 Σ(技能蓝耗 × 兑现率)<br>受伤后保留比例 q = P &gt; 0 ? max(0, P − 受伤净损失) / P : 0<br>E = q × [计划蓝量 P × 平均性质系数，或 Σ(技能蓝耗 × 性质系数 × 兑现率)]</div>
+<p class="note">这是按你的定价规则建立的期望 DPS 拟算，不是完整战斗模拟。双方假定双倍暴击，暴击率最多 100%，B 已包含裸装暴击期望。忽略防御、取整、多节目标、溅射、走位损失；默认原版正常持续攻击，不额外扣魔力病或补蓝停手。幽灵追击等特殊效果需手工加入；星云伤害强化已按所选层数自动计入，不要重复手填。护甲带来的伤害与暴击不会因为伊蕾娜走魔力路线而消失。</p>
+<details><summary>为什么最大魔力不能偷偷当成技能实际消耗？</summary><p class="note" style="margin-top:12px">“20 最大魔力”是资源容量，“消耗 20 魔力”才是技能定价单位。预算模式显式假设：选定的魔力预算按当前兑换率映射为一组技能的等效消耗；用它估算配装成长是否偏高或偏低。它不证明所有技能都能持续按 CD 释放。清单模式从技能出发，适合已有技能配置后复核。自然回复、药剂、护盾耗蓝和释放时序需要另行验证，不能在没有释放周期的情况下推出可持续 DPS。</p></details>
+<details><summary>读取本地源码的装备数据与模型边界</summary><div class="sources"><p class="note" style="margin-top:12px">版本依据：工作区提供的 tML 2025.06 源码；不是声称与其他版本完全一致。预设是合法阶段的参考组合，不声称是最优配装；手动改装不强制限制进度和饰品兼容性。相同非占位饰品重复装备会给出警告。</p><ul>
+<li>Terraria/Player.cs：丛林套 +6% 伤害、+12 暴击、+80 魔力；精金法师套 +20%、+19、+80；神圣法师套 +19%、+19、+100；幽灵面具套 +25%、+17、+60。仅静态属性。</li>
+<li>同文件：巫师徽章 +15% 魔法伤害；复仇者徽章 +12% 伤害；天界徽章 +15% 魔法伤害；星力手环、魔力再生手环、魔法手铐、天界手铐均 +20 最大魔力。</li>
+<li>星云依据：Player.cs 11442–11456（装备），8514、8541（生命和伤害强化），16394–16407（星云魔力计数器每 6/层数 帧回 1 蓝），16281、16302（每 120 生命回复计数回 1 HP）。Item.cs 29649–29674：防御 14+18+14=46。</li>
+<li>同文件 GrantPrefixBenefits：险恶 +4% 伤害；幸运 +4 暴击；奥秘 +20 魔力；护佑 +4 防御（只显示，不直接换算生存 DPS）。</li>
+<li>KL/Utils/KLDpsHelper.cs：阶段基准预设。伊蕾娜/ElainaAttribute/ElainaMagicAttributes.cs：原版魔力 1:1 转换、战斗回复 5 + 最大魔力 × 2%/秒（只展示，不加到 DPS）。</li>
+<li>星云套静态 +26% 伤害、+16 暴击、+60 魔力；满层伤害强化 +45%（与装备加算），原版回蓝 +30/秒，生命回复 +9/秒。默认不桥接特殊魔力；可显式启用预览适配。幽灵追击仍需手填。</li>
+</ul><p class="note" id="sourcePath"></p></div></details>
+</section><footer class="footer">本地独立工具 · 无网络依赖 · 自动保存在当前浏览器 · 仅新增分析工具，不修改游戏数值或正式技能代码。</footer>
+</main>
+<script id="balance-engine">
+'use strict';
+const Balance = (() => {
+const armors={none:{name:'无护甲',damage:0,crit:0,mana:0},jungle:{name:'丛林套',damage:6,crit:12,mana:80},adamantite:{name:'精金法师套',damage:20,crit:19,mana:80},hallowed:{name:'神圣法师套',damage:19,crit:19,mana:100},spectre:{name:'幽灵面具套 · 不含追击',damage:25,crit:17,mana:60},nebula:{name:'星云套 · 强化层数可调',damage:26,crit:16,mana:60,armorDefense:46,manaReduction:15,moveSpeed:10}};
+const accessories={utility:{name:'机动／生存饰品（占位）',damage:0,crit:0,mana:0},empty:{name:'空槽（无前缀收益）',damage:0,crit:0,mana:0},sorcerer:{name:'巫师徽章 · +15% 伤害',damage:15,crit:0,mana:0},avenger:{name:'复仇者徽章 · +12% 伤害',damage:12,crit:0,mana:0},celestial:{name:'天界徽章 · +15% 伤害',damage:15,crit:0,mana:0},band:{name:'星力手环 · +20 魔力',damage:0,crit:0,mana:20},regen:{name:'魔力再生手环 · +20 魔力',damage:0,crit:0,mana:20},cuffs:{name:'魔法手铐 · +20 魔力',damage:0,crit:0,mana:20},celestialCuffs:{name:'天界手铐 · +20 魔力',damage:0,crit:0,mana:20},flower:{name:'魔力花 · 无直接伤害／容量',damage:0,crit:0,mana:0}};
+const prefixes={warding:{name:'护佑 · +4 防御',damage:0,crit:0,mana:0,defense:4},menacing:{name:'险恶 · +4% 伤害',damage:4,crit:0,mana:0,defense:0},arcane:{name:'奥秘 · +20 魔力',damage:0,crit:0,mana:20,defense:0},lucky:{name:'幸运 · +4 暴击',damage:0,crit:4,mana:0,defense:0},none:{name:'无前缀',damage:0,crit:0,mana:0,defense:0}};
+const presets={jungle:{name:'肉前 · 丛林法师（骷髅王参考）',armor:'jungle',base:200,slots:5,items:['regen','flower','utility','utility','utility']},adamantite:{name:'肉后初期 · 精金法师（双子参考）',armor:'adamantite',base:450,slots:6,items:['sorcerer','flower','cuffs','utility','utility','utility']},hallowed:{name:'机械后 · 神圣法师（世纪之花参考）',armor:'hallowed',base:900,slots:6,items:['sorcerer','avenger','cuffs','utility','utility','utility']},spectre:{name:'石巨人后 · 幽灵法师（四柱参考）',armor:'spectre',base:1800,slots:6,items:['sorcerer','avenger','celestial','utility','utility','utility']},nebula:{name:'毕业 · 星云法师（三种强化各 3 层）',armor:'nebula',base:3500,slots:6,items:['sorcerer','avenger','celestial','utility','utility','utility']}};
+const clone=x=>JSON.parse(JSON.stringify(x));
+const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
+function defaults(key='hallowed'){
+ const p=presets[key]||presets.hallowed;
+ const build=(side)=>({armor:p.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:Array.from({length:7},(_,i)=>({id:p.items[i]||'utility',prefix:i<3?(side==='v'?'menacing':'arcane'):'warding'}))});
+ return {version:1,preset:key,baseDps:p.base,baseCrit:4,slots:p.slots,v:build('v'),e:build('e'),baseMana:200,extraMana:0,autoRatio:1,mode:'budget',budgetSource:'added',reserve:0,manualBudget:160,quality:1,use:100,hurtMana:0,rate:4,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regen:12.6,autoCost:3,autoInterval:.3,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
+ {name:'水球魔法',enabled:true,cost:100,k:1,realization:100,cd:20,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
+ {name:'风龙卷',enabled:false,cost:100,k:.55,realization:100,cd:25,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
+ {name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,realization:100,cd:12,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
+ {name:'冰凌锁',enabled:false,cost:100,k:.75,realization:100,cd:25,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
+ {name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,realization:100,cd:25,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
+ {name:'火焰龙卷',enabled:false,cost:300,k:1.2,realization:75,cd:75,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
+ {name:'天雷',enabled:false,cost:400,k:1,realization:90,cd:90,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}]};
+}
+function gear(s,side){
+ const g=s[side],a=armors[g.armor]||armors.none;
+ const nebula=g.armor==='nebula'?(g.nebula||{damage:3,mana:3,life:3}):{damage:0,mana:0,life:0};
+ const nebulaDamage=15*nebula.damage,nebulaManaRegen=10*nebula.mana,nebulaLifeRegen=3*nebula.life;
+ let damage=a.damage+g.damage+nebulaDamage,crit=a.crit+g.crit,mana=a.mana,defense=0;
+ for(const row of g.items.slice(0,s.slots)){
+  const item=accessories[row.id]||accessories.empty;if(row.id==='empty')continue;
+  const p=prefixes[row.prefix]||prefixes.none;
+  damage+=item.damage+p.damage;crit+=item.crit+p.crit;mana+=item.mana+p.mana;defense+=p.defense;
+ }
+ const finalCrit=clamp(s.baseCrit+crit,0,100);
+ const multiplier=Math.max(0,1+damage/100)*(1+finalCrit/100)/(1+s.baseCrit/100);
+ return {damage,crit:finalCrit,mana,defense,multiplier,nebulaDamage,nebulaManaRegen,nebulaLifeRegen,armorDefense:a.armorDefense||0,manaReduction:a.manaReduction||0,moveSpeed:a.moveSpeed||0};
+}
+function calculate(s){
+ const v=gear(s,'v'),e=gear(s,'e');
+ const maxMana=Math.max(0,s.baseMana+e.mana+s.extraMana);
+ let plannedBudget;
+ if(s.mode==='skills')plannedBudget=s.skills.filter(x=>x.enabled).reduce((sum,x)=>sum+x.cost*x.realization/100,0);
+ else plannedBudget=Math.max(0,(s.budgetSource==='manual'?s.manualBudget:s.budgetSource==='total'?maxMana:Math.max(0,maxMana-s.baseMana))-s.reserve)*s.use/100;
+ const hurtRequested=Math.max(0,Number(s.hurtMana)||0);
+ const hurtApplied=Math.min(plannedBudget,hurtRequested);
+ const rawBudget=Math.max(0,plannedBudget-hurtApplied);
+ const retained=plannedBudget>0?rawBudget/plannedBudget:0;
+ const unhurtEffective=s.mode==='skills'?s.skills.filter(x=>x.enabled).reduce((sum,x)=>sum+x.cost*x.k*x.realization/100,0):plannedBudget*s.quality;
+ const effective=unhurtEffective*retained;
+ const skillMultiplier=s.skillStats?e.multiplier:1, rate=s.rate/100/20;
+ const vanilla=s.baseDps*v.multiplier+s.v.proc,auto=s.baseDps*s.autoRatio*e.multiplier;
+ const extra=s.baseDps*rate*effective*skillMultiplier;
+ const elaina=auto+extra+s.e.proc;
+ const lostDps=s.baseDps*rate*(unhurtEffective-effective)*skillMultiplier;
+ const unhurtDps=elaina+lostDps;
+ const gap=Math.max(0,vanilla-auto-s.e.proc);
+ const required=gap===0?0:rate*skillMultiplier>0?gap/(s.baseDps*rate*skillMultiplier):Infinity;
+ return {v,e,maxMana,plannedBudget,rawBudget,hurtRequested,hurtApplied,retained,unhurtEffective,lostDps,unhurtDps,effective,skillMultiplier,vanilla,auto,extra,elaina,required,ratio:elaina/vanilla,recovery:5+maxMana*.02+(s.nebulaManaBridge?e.nebulaManaRegen:0)};
+}
+function marginal(s){const original=calculate(s);let m=clone(s),d=clone(s);m.extraMana+=20;d.e.damage+=4;return {mana:calculate(m).elaina-original.elaina,damage:calculate(d).elaina-original.elaina};}
+function growth(s){return Array.from({length:s.slots+1},(_,count)=>{const copy=clone(s);for(let i=0;i<s.slots;i++){copy.v.items[i].prefix=i<count?'menacing':'warding';copy.e.items[i].prefix=i<count?'arcane':'warding';}return {count,...calculate(copy)};});}
+return {armors,accessories,prefixes,presets,clone,clamp,defaults,gear,calculate,marginal,growth};
+})();
+if(typeof module!=='undefined')module.exports=Balance;
+</script>
+
+<script id="combat-engine">
+'use strict';
+const Combat=(()=>{
+ const EPS=1e-8,STEP=1/60;
+ function injuries(c){
+  const events=[],errors=[];
+  if(c.hurtMode==='periodic')for(let t=c.hurtInterval;t<c.duration-EPS;t+=c.hurtInterval)events.push({time:t,amount:c.hurtPerHit});
+  if(c.hurtMode==='events')c.hurtEvents.split(/\n/).forEach((line,i)=>{
+   if(!line.trim())return;
+   const m=line.trim().match(/^(\d+(?:\.\d+)?)\s*[:：,，]\s*(\d+(?:\.\d+)?)$/);
+   if(!m){errors.push(`第 ${i+1} 行格式错误，需“秒数:损蓝量”`);return;}
+   const time=+m[1],amount=+m[2];
+   if(!Number.isFinite(time)||!Number.isFinite(amount)||amount>100000){errors.push(`第 ${i+1} 行数值超限`);return;}
+   if(time>=c.duration){errors.push(`第 ${i+1} 行在战斗结束后，不计入`);return;}
+   events.push({time,amount});
+  });
+  return {events:events.sort((a,b)=>a.time-b.time),errors};
+ }
+ function run(s,unlimited=false){
+  const c=s.combat,T=c.duration,b=Balance.calculate(s),M=b.maxMana;
+  const baseRegen=c.regenMode==='mod'?5+M*.02:c.regen;
+  const nebulaRegen=s.nebulaManaBridge?b.e.nebulaManaRegen:0;
+  const regen=baseRegen+nebulaRegen;
+  let mana=M*c.startPercent/100,potions=Math.floor(c.potions),busyUntil=0;
+  let autoDamage=0,skillDamage=0,autoCount=0,autoMana=0,skillMana=0;
+  let regenEffective=0,regenWaste=0,potionEffective=0,potionWaste=0,hurtPaid=0,hurtRequested=0;
+  let firstShortage=null,lastPotionTime=null,fifthPotionTime=null,usedPotions=0,autoBlocked=false;
+  const initialMana=mana,inj=injuries(c),events=[],samples=[],pending=[],dots=[];
+  let injuryIndex=0;
+  const skills=s.skills.map((x,i)=>({...x,index:i,charges:Math.min(x.maxCharges,x.initialCharges),rechargeAt:x.initialCharges<x.maxCharges?x.cd:Infinity,count:0,damage:0,mana:0,blocks:0,blocked:false}));
+  const priority=skills.filter(x=>x.enabled).sort((a,b)=>a.priority-b.priority||a.index-b.index);
+  const invalid=priority.filter(x=>x.cost>M+EPS||x.cost+c.reserve>M+EPS).map(x=>x.name);
+  const log=(time,type,text,amount=0)=>events.push({time,type,text,amount,mana});
+  function shortage(time,row){
+   if(firstShortage===null)firstShortage=time;
+   if(row){if(!row.blocked){row.blocked=true;row.blocks++;log(time,'shortage',`${row.name}缺蓝，暂缓释放`);}}
+   else if(!autoBlocked){autoBlocked=true;log(time,'shortage','普攻缺蓝，等待回复');}
+  }
+  function pay(cost,time,reserve=0){
+   if(unlimited)return true;
+   if(cost>M+EPS||cost+reserve>M+EPS)return false;
+   const target=cost+reserve,restore=M*c.potionPercent/100;
+   const needed=mana+EPS>=target?0:restore>0?Math.ceil((target-mana-EPS)/restore):Infinity;
+   // Match transactional Check/Consume: never drink if all available charges cannot fund this action.
+   if(needed>potions)return false;
+   const balance=mana+needed*restore-cost;
+   const waste=Math.max(0,balance-M);
+   mana=Math.min(M,Math.max(0,balance));
+   potionEffective+=needed*restore-waste;potionWaste+=waste;
+   for(let n=0;n<needed;n++){
+    potions--;usedPotions++;lastPotionTime=potions===0?time:lastPotionTime;
+    if(usedPotions===5)fifthPotionTime=time;
+    log(time,'potion',`使用第 ${usedPotions} 瓶药（${Math.round(restore)} 魔力）`,restore);
+   }
+   return true;
+  }
+  function hit(d){if(d.index<0)autoDamage+=d.damage;else{skills[d.index].damage+=d.damage;skillDamage+=d.damage;}}
+  function settle(time){for(let i=pending.length-1;i>=0;i--)if(pending[i].time<=time+EPS){hit(pending[i]);pending.splice(i,1);}}
+  function hurt(time,amount,emit=true){
+   if(unlimited)return;
+   const paid=Math.min(mana,amount);mana-=paid;hurtPaid+=paid;hurtRequested+=amount;
+   if(emit)log(time,'hurt',`受伤：请求损蓝 ${amount.toFixed(1)}，实际 ${paid.toFixed(1)}`,paid);
+  }
+  function sample(time){samples.push({time,mana,damage:autoDamage+skillDamage+s.e.proc*time,potions});}
+  sample(0);
+  const sampleEvery=Math.max(1,Math.ceil(T/STEP/360));
+  const steps=Math.ceil(T/STEP-EPS);
+  for(let tick=0;tick<steps;tick++){
+   const t=tick*STEP,dt=Math.min(STEP,T-t),end=t+dt;
+   settle(t);
+   while(injuryIndex<inj.events.length&&inj.events[injuryIndex].time<=t+EPS){const v=inj.events[injuryIndex++];hurt(t,v.amount);}
+   for(const x of priority)while(x.rechargeAt<=t+EPS&&x.charges<x.maxCharges){x.charges++;x.rechargeAt=x.charges<x.maxCharges?x.rechargeAt+x.cd:Infinity;}
+   if(t+EPS>=busyUntil){
+    let acted=false,hold=false;
+    for(const x of priority){
+     if(t+EPS<x.first||x.charges<1)continue;
+     if(!unlimited&&(x.cost>M+EPS||x.cost+c.reserve>M+EPS))continue;
+     if(!pay(x.cost,t,c.reserve)){
+      shortage(t,x);if(c.policy==='save'){hold=true;break;}continue;
+     }
+     x.blocked=false;x.count++;x.mana+=x.cost;skillMana+=x.cost;
+     if(x.charges===x.maxCharges)x.rechargeAt=t+x.cd;
+     x.charges--;
+     const occupy=Math.max(STEP,x.cast);
+     const damage=(b.auto*occupy+s.baseDps*(s.rate/100/20)*x.cost*x.cd*x.k*b.skillMultiplier)*x.hit/100;
+     const start=t+occupy+x.delay;
+     if(x.duration>0)dots.push({index:x.index,start,end:start+x.duration,rate:damage/x.duration});
+     else pending.push({index:x.index,time:start,damage});
+     busyUntil=t+occupy;acted=true;
+     log(t,'cast',`释放${x.name} · 消耗 ${x.cost}`,x.cost);break;
+    }
+    if(!acted&&!hold){
+     if(pay(c.autoCost,t)){
+      const interval=Math.max(STEP,c.autoInterval);autoCount++;autoMana+=c.autoCost;autoBlocked=false;
+      pending.push({index:-1,time:t+interval,damage:b.auto*interval});busyUntil=t+interval;
+     }else shortage(t,null);
+    }
+   }
+   // Continuous effects contribute only within [0,T]. No credit for future impacts.
+   for(let i=dots.length-1;i>=0;i--){const d=dots[i],overlap=Math.max(0,Math.min(end,d.end)-Math.max(t,d.start));if(overlap>0)hit({index:d.index,damage:overlap*d.rate});if(d.end<=end+EPS)dots.splice(i,1);}
+   while(injuryIndex<inj.events.length&&inj.events[injuryIndex].time<end-EPS){const v=inj.events[injuryIndex++];hurt(v.time,v.amount);}
+   if(!unlimited&&c.hurtMode==='uniform')hurt(t,c.hurtTotal/T*dt,false);
+   if(!unlimited){const gain=Math.min(M-mana,regen*dt);mana+=gain;regenEffective+=gain;regenWaste+=regen*dt-gain;}
+   settle(end);
+   if(tick%sampleEvery===0)sample(end);
+  }
+  if(samples[samples.length-1].time<T-EPS)sample(T);
+  const totalDamage=autoDamage+skillDamage+s.e.proc*T;
+  return {unlimited,T,maxMana:M,regen,baseRegen,nebulaRegen,initialMana,endMana:mana,potionsLeft:potions,usedPotions,firstShortage,lastPotionTime,fifthPotionTime,autoDamage,skillDamage,procDamage:s.e.proc*T,totalDamage,dps:totalDamage/T,autoCount,autoMana,skillMana,regenEffective,regenWaste,potionEffective,potionWaste,hurtPaid,hurtRequested,uncoveredHurt:Math.max(0,hurtRequested-hurtPaid),skills:skills.map(x=>({name:x.name,enabled:x.enabled,count:x.count,damage:x.damage,mana:x.mana,blocks:x.blocks})),events,samples,invalid,injuryErrors:inj.errors};
+ }
+ function compare(s){return {actual:run(s),ideal:run(s,true),vanilla:Balance.calculate(s).vanilla};}
+ return {injuries,run,compare,STEP};
+})();
+if(typeof module!=='undefined')module.exports=Combat;
+</script>
+
+<script id="balance-ui">
+(() => {
+const $=id=>document.getElementById(id),fmt=(n,d=0)=>Number.isFinite(n)?n.toLocaleString('zh-CN',{maximumFractionDigits:d}):'无法达到';
+const key='elaina-mage-balance-v1';let s=Balance.defaults();
+function migrateConfiguration(value){
+ if(!value||typeof value!=='object'||Array.isArray(value)||value.version!==1)return value;
+ const saved=Balance.clone(value),d=Balance.defaults();
+ if(!('nebulaManaBridge' in saved))saved.nebulaManaBridge=false;
+ for(const side of ['v','e'])if(saved[side]&&typeof saved[side]==='object'&&!('nebula' in saved[side]))saved[side].nebula={damage:3,mana:3,life:3};
+ if(!('hurtMana' in saved))saved.hurtMana=0;
+ if(!('combat' in saved))saved.combat=d.combat;
+ if(Array.isArray(saved.skills))saved.skills.forEach((row,i)=>{if(row&&typeof row==='object'&&!Array.isArray(row)&&d.skills[i])for(const k of Object.keys(d.skills[i]))if(!(k in row))row[k]=d.skills[i][k];});
+ return saved;
+}
+try{const saved=migrateConfiguration(JSON.parse(localStorage.getItem(key)));if(validSaved(saved))s=saved;}catch(_){}
+
+function validSaved(x){
+ if(!x||x.version!==1||typeof x.nebulaManaBridge!=='boolean')return false;
+ const d=Balance.defaults();
+ for(const k of Object.keys(d))if(!(k in x))return false;
+ for(const k of ['baseDps','baseCrit','slots','baseMana','extraMana','autoRatio','reserve','manualBudget','quality','use','hurtMana','rate'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
+ if(x.baseDps<1||x.baseDps>1000000||x.baseMana>2000||x.extraMana>10000||x.reserve>10000||x.manualBudget>10000||x.baseCrit<0||x.baseCrit>100||![5,6,7].includes(x.slots)||x.use<0||x.use>100||x.rate<0||x.rate>20||x.quality<0||x.quality>3||x.autoRatio<0||x.autoRatio>5||x.baseMana<0||x.extraMana<0||x.reserve<0||x.manualBudget<0||x.hurtMana<0||x.hurtMana>10000)return false;
+ const c=x.combat;if(!c||typeof c!=='object')return false;
+ const bounds={duration:[1,600],startPercent:[0,100],potions:[0,5],potionPercent:[0,100],regen:[0,1000],autoCost:[0,10000],autoInterval:[.05,10],reserve:[0,10000],hurtTotal:[0,100000],hurtInterval:[.1,600],hurtPerHit:[0,100000]};
+ for(const [key,[min,max]] of Object.entries(bounds))if(typeof c[key]!=='number'||!Number.isFinite(c[key])||c[key]<min||c[key]>max)return false;
+ if(!Number.isInteger(c.potions)||!['mod','manual'].includes(c.regenMode)||!['flow','save'].includes(c.policy)||!['uniform','periodic','events'].includes(c.hurtMode)||typeof c.hurtEvents!=='string'||c.hurtEvents.length>5000)return false;
+ const skillBounds={cd:[.1,600],cast:[0,60],delay:[0,120],duration:[0,120],maxCharges:[1,10],initialCharges:[0,10],first:[0,600],priority:[1,99],hit:[0,100]};
+ if(!Array.isArray(x.skills)||!x.skills.every(r=>r&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&Number.isInteger(r.priority)))return false;
+ if(!['budget','skills'].includes(x.mode)||!['added','total','manual'].includes(x.budgetSource)||typeof x.skillStats!=='boolean'||!Object.hasOwn(Balance.presets,x.preset))return false;
+ for(const side of ['v','e']){const g=x[side];if(!g||!g.nebula||!['damage','mana','life'].every(k=>Number.isInteger(g.nebula[k])&&g.nebula[k]>=0&&g.nebula[k]<=3)||!Object.hasOwn(Balance.armors,g.armor)||!Array.isArray(g.items)||g.items.length!==7)return false;if(!['damage','crit','proc'].every(k=>typeof g[k]==='number'&&Number.isFinite(g[k]))||g.damage< -90||g.damage>1000||g.crit< -100||g.crit>100||g.proc<0||g.proc>1000000)return false;if(!g.items.every(r=>r&&Object.hasOwn(Balance.accessories,r.id)&&Object.hasOwn(Balance.prefixes,r.prefix)))return false;}
+ return Array.isArray(x.skills)&&x.skills.length===d.skills.length&&x.skills.every((r,i)=>r.name===d.skills[i].name&&typeof r.enabled==='boolean'&&['cost','k','realization'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=3&&r.realization>=0&&r.realization<=100);
+}
+function options(data){return Object.entries(data).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');}
+$('preset').innerHTML=options(Balance.presets);
+for(const side of ['v','e'])$(side+'Armor').innerHTML=options(Balance.armors);
+const direct=['baseDps','baseCrit','slots','baseMana','extraMana','autoRatio','mode','budgetSource','reserve','manualBudget','quality','use','hurtMana','rate','skillStats','nebulaManaBridge'];
+
+let latestCombat;
+const rotationFields=[['cost',0,10000,10,'蓝耗'],['cd',.1,600,.1,'CD'],['cast',0,60,.1,'占手'],['delay',0,120,.1,'延迟'],['duration',0,120,.5,'持续'],['k',0,3,.05,'性质'],['hit',0,100,5,'命中'],['maxCharges',1,10,1,'储存上限'],['initialCharges',0,10,1,'开场次数'],['first',0,600,1,'首次释放'],['priority',1,99,1,'优先级']];
+function rotation(){
+ $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input type="checkbox" aria-label="模拟启用${row.name}" data-skill-index="${i}" data-skill-field="enabled" ${row.enabled?'checked':''}></td><td>${row.name}</td>${rotationFields.map(([key,min,max,step,label])=>`<td><input type="number" aria-label="模拟${row.name}${label}" min="${min}" max="${max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"></td>`).join('')}</tr>`).join('');
+ $('rotationRows').querySelectorAll('input').forEach(el=>el.addEventListener('input',()=>{
+  if(el.type!=='checkbox'&&el.value==='')return;
+  const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
+  let value=el.type==='checkbox'?el.checked:Balance.clamp(el.value,+el.min,+el.max);
+  if(['maxCharges','initialCharges','priority'].includes(key))value=Math.floor(value);
+  row[key]=value;row.initialCharges=Math.min(row.maxCharges,row.initialCharges);update();
+ }));
+}
+function syncRotationInputs(){
+ for(const el of document.querySelectorAll('[data-skill-index]')){
+  const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
+  if(key==='enabled')el.checked=row[key];
+  else if(el!==document.activeElement)el.value=row[key];
+  if(key==='initialCharges')el.max=row.maxCharges;
+ }
+ for(const el of $('skillRows').querySelectorAll('input')){
+  const value=s.skills[el.dataset.i][el.dataset.p];
+  if(el.type==='checkbox')el.checked=value;else if(el!==document.activeElement)el.value=value;
+ }
+}
+function combatSync(){for(const el of document.querySelectorAll('[data-combat]'))el.value=s.combat[el.dataset.combat];rotation();}
+for(const el of document.querySelectorAll('[data-combat]'))el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{
+ if(el.type==='number'&&el.value==='')return;
+ const key=el.dataset.combat;
+ s.combat[key]=el.type==='number'?Balance.clamp(el.value,+el.min,+el.max):el.value;
+ if(key==='potions')s.combat[key]=Math.floor(s.combat[key]);update();
+});
+for(const button of document.querySelectorAll('[data-battle-duration]'))button.addEventListener('click',()=>{s.combat.duration=+button.dataset.battleDuration;$('battleDuration').value=s.combat.duration;update();});
+function drawTimeline(){
+ if(!latestCombat)return;
+ const r=latestCombat.actual,svg=$('manaTimeline'),w=Math.max(290,svg.clientWidth||700),h=290,l=58,right=18,top=25,bottom=42;
+ const x=t=>l+t/r.T*(w-l-right),y=m=>h-bottom-m/Math.max(1,r.maxMana)*(h-top-bottom);
+ let out='<title>当前魔力时间轴，绿色竖线标记自动用药时间</title>';
+ for(let i=0;i<=4;i++){const value=r.maxMana*i/4;out+=`<line class="grid" x1="${l}" x2="${w-right}" y1="${y(value)}" y2="${y(value)}"/><text x="${l-8}" y="${y(value)+4}" text-anchor="end">${fmt(value)}</text>`;}
+ for(let i=0;i<=4;i++){const t=r.T*i/4;out+=`<text x="${x(t)}" y="${h-bottom+21}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${fmt(t,1)}</text>`;}
+ for(const e of r.events.filter(x=>x.type==='potion'))out+=`<line x1="${x(e.time)}" x2="${x(e.time)}" y1="${top}" y2="${h-bottom}" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"><title>${fmt(e.time,2)} 秒：${e.text}</title></line>`;
+ out+=`<path d="${r.samples.map((p,i)=>`${i?'L':'M'}${x(p.time)},${y(p.mana)}`).join(' ')}" fill="none" stroke="var(--purple)" stroke-width="2.3"/>`;
+ for(let i=0;i<r.samples.length;i+=Math.max(1,Math.floor(r.samples.length/24))){const p=r.samples[i];out+=`<circle tabindex="0" cx="${x(p.time)}" cy="${y(p.mana)}" r="3" fill="var(--purple)" aria-label="${fmt(p.time,1)} 秒，魔力 ${fmt(p.mana,1)}"><title>${fmt(p.time,1)} 秒 · 魔力 ${fmt(p.mana,1)} · 剩 ${p.potions} 瓶药</title></circle>`;}
+ out+=`<text x="${l}" y="14">魔力</text><text x="${w/2}" y="${h-3}" text-anchor="middle">战斗时间 / 秒</text>`;
+ svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML=out;
+}
+function updateCombat(){
+ syncRotationInputs();latestCombat=Combat.compare(s);
+ const {actual:a,ideal:i,vanilla:v}=latestCombat,when=t=>t===null?'未发生':fmt(t,2)+' 秒';
+ $('simVanilla').textContent=fmt(v,1);$('simActual').textContent=fmt(a.dps,1);$('simIdeal').textContent=fmt(i.dps,1);
+ $('simActualDetail').textContent=`普攻 ${fmt(a.autoDamage/a.T)} + 技能 ${fmt(a.skillDamage/a.T)} + 特效 ${fmt(s.e.proc)}；${v>0?'相对原版 '+fmt(a.dps/v*100,1)+'%':'原版基准为 0'}`;
+ $('simIdealDetail').textContent=`同策略移除资源限制；${i.dps>0?'实际 / 参考 '+fmt(a.dps/i.dps*100,1)+'%':'参考伤害为 0'}，非最优解保证`;
+ $('simFirstShortage').textContent=when(a.firstShortage);
+ $('simPotionEnd').textContent=s.combat.potions===0?'未携带':a.lastPotionTime===null?`尚余 ${a.potionsLeft} 瓶`:when(a.lastPotionTime);
+ $('simRemaining').textContent=`${fmt(a.endMana,1)} / ${a.potionsLeft} 瓶`;
+ $('simWaste').textContent=`${fmt(a.regenWaste+a.potionWaste,1)} / ${fmt(a.uncoveredHurt,1)}`;
+ $('simCapacity').textContent=`魔力上限 ${fmt(a.maxMana)} · 回蓝 ${fmt(a.regen,1)}/秒${a.nebulaRegen>0?'（基础 '+fmt(a.baseRegen,1)+' + 星云 '+fmt(a.nebulaRegen,1)+'）':''}`;
+ $('simLedger').textContent=`资源账：开场 ${fmt(a.initialMana,1)} + 有效自然回复 ${fmt(a.regenEffective,1)} + 有效药剂回复 ${fmt(a.potionEffective,1)} − 普攻 ${fmt(a.autoMana,1)} − 技能 ${fmt(a.skillMana,1)} − 受伤实际损蓝 ${fmt(a.hurtPaid,1)} = 结束 ${fmt(a.endMana,1)}。${a.firstShortage===null?'本次策略未因可支付技能或普攻缺蓝而等待；不代表所有被禁用或超上限的技能可持续。':'存在资源延误；第五瓶药用完与第一次缺蓝不是同一件事。'}`;
+ const warnings=[...a.injuryErrors,...(a.invalid.length?['无法支付（费用或费用＋预留超过上限）：'+a.invalid.join('、')+'。已跳过实际施放。']:[]),...(s.combat.autoCost>a.maxMana?['普攻单次蓝耗超过魔力上限，无法释放。']:[])];
+ $('simWarnings').textContent=warnings.length?warnings.join('；'):'设置有效。模拟只统计已付款、在战斗结束前实际命中的伤害；可添加更多技能观察资源竞争，而不是直接叠加纸面 DPS。';
+ $('simWarnings').classList.toggle('warn',warnings.length>0);
+ if(s.e.armor==='nebula')$('simWarnings').textContent+=' 星云：按所选强化全程维持；'+(s.nebulaManaBridge?'已启用特殊回蓝适配假设（并非当前游戏实装）。':'当前代码的星云强化只回原版魔力，未给特殊魔力加回复；可在伊蕾娜配装中打开适配开关。');
+ $('battleRegen').disabled=s.combat.regenMode!=='manual';
+ for(const el of document.querySelectorAll('[data-hurt-mode]'))el.classList.toggle('hidden',el.dataset.hurtMode!==s.combat.hurtMode);
+ $('rotationResults').innerHTML=a.skills.map((x,n)=>x.enabled?`<tr><td>${x.name}</td><td>${x.count} / ${i.skills[n].count}</td><td>${fmt(x.mana,1)}</td><td>${fmt(x.damage,1)}</td><td>${x.blocks}</td></tr>`:'').join('')+`<tr><td>普攻</td><td>${a.autoCount} / ${i.autoCount}</td><td>${fmt(a.autoMana,1)}</td><td>${fmt(a.autoDamage,1)}</td><td>—</td></tr>`;
+ $('simEventCount').textContent=`共 ${a.events.length} 条事件，显示前 120 条。导出包含完整事件与时间轴；均匀损蓝以总账显示，不逐帧列事件。`;
+ $('combatEvents').innerHTML=a.events.slice(0,120).map(e=>`<tr><td>${fmt(e.time,2)}</td><td>${e.text}</td><td>${fmt(e.mana,1)}</td></tr>`).join('');
+ drawTimeline();
+}
+
+function save(){try{localStorage.setItem(key,JSON.stringify(s));}catch(_){$('status').textContent='浏览器未允许本地保存；可使用导出。';}}
+function slots(){for(const side of ['v','e']){
+ $(side+'Slots').innerHTML=s[side].items.slice(0,s.slots).map((r,i)=>`<div class="slot"><span class="slotnum">${i+1}</span><select aria-label="${side==='v'?'原版':'伊蕾娜'}饰品 ${i+1}" data-side="${side}" data-index="${i}" data-prop="id">${options(Balance.accessories)}</select><select aria-label="${side==='v'?'原版':'伊蕾娜'}前缀 ${i+1}" data-side="${side}" data-index="${i}" data-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('');
+ $(side+'Slots').querySelectorAll('select').forEach(el=>{el.value=s[side].items[el.dataset.index][el.dataset.prop];el.addEventListener('change',()=>{s[side].items[el.dataset.index][el.dataset.prop]=el.value;update();});});
+}}
+function skills(){
+ $('skillRows').innerHTML=s.skills.map((r,i)=>`<tr><td><input aria-label="启用${r.name}" type="checkbox" data-i="${i}" data-p="enabled" ${r.enabled?'checked':''}></td><td>${r.name}</td><td><input aria-label="${r.name}蓝耗" type="number" min="0" max="10000" step="10" data-i="${i}" data-p="cost" value="${r.cost}"></td><td><input aria-label="${r.name}性质系数" type="number" min="0" max="3" step="0.05" data-i="${i}" data-p="k" value="${r.k}"></td><td><input aria-label="${r.name}兑现率" type="number" min="0" max="100" step="5" data-i="${i}" data-p="realization" value="${r.realization}"></td><td id="skillValue${i}"></td></tr>`).join('');
+ $('skillRows').querySelectorAll('input').forEach(el=>el.addEventListener('input',()=>{if(el.type!=='checkbox'&&el.value==='')return;s.skills[el.dataset.i][el.dataset.p]=el.type==='checkbox'?el.checked:Balance.clamp(el.value,+el.min,+el.max);update();}));
+}
+function syncNebula(){
+ for(const el of document.querySelectorAll('[data-nebula-side]'))el.value=s[el.dataset.nebulaSide].nebula[el.dataset.nebulaKind];
+}
+for(const el of document.querySelectorAll('[data-nebula-side]'))el.addEventListener('change',()=>{s[el.dataset.nebulaSide].nebula[el.dataset.nebulaKind]=+el.value;update();});
+for(const button of document.querySelectorAll('[data-nebula-full]'))button.addEventListener('click',()=>{s[button.dataset.nebulaFull].nebula={damage:3,mana:3,life:3};syncNebula();update();});
+function sync(){
+ syncNebula();
+ for(const side of ['v','e'])$(side+'PrefixStatus').textContent='仅修改当前启用的非空饰品槽，不更换装备。';
+ $('preset').value=s.preset;
+ for(const id of direct){if($(id).type==='checkbox')$(id).checked=s[id];else $(id).value=s[id];}
+ for(const side of ['v','e']){ $(side+'Armor').value=s[side].armor;for(const prop of ['damage','crit','proc'])$(side+prop[0].toUpperCase()+prop.slice(1)).value=s[side][prop];}
+ slots();skills();combatSync();update(false);
+}
+function drawChart(){
+ const svg=$('growth'),w=Math.max(300,svg.clientWidth||600),h=260,left=58,right=18,top=25,bottom=48;
+ const rows=Balance.growth(s),max=Math.max(...rows.flatMap(r=>[r.vanilla,r.elaina]),1)*1.15;
+ const x=n=>left+n/s.slots*(w-left-right),y=n=>h-bottom-n/max*(h-top-bottom);
+ let out=`<title>输出前缀数量与 DPS；实线原版，虚线伊蕾娜</title>`;
+ for(let i=0;i<=4;i++){const value=max*i/4,yy=y(value);out+=`<line class="grid" x1="${left}" x2="${w-right}" y1="${yy}" y2="${yy}"/><text x="${left-8}" y="${yy+4}" text-anchor="end">${fmt(value)}</text>`;}
+ for(const r of rows){out+=`<text x="${x(r.count)}" y="${h-bottom+23}" text-anchor="middle">${r.count}</text>`;}
+ out+=`<text x="${left}" y="13">DPS</text><text x="${w/2}" y="${h-5}" text-anchor="middle">输出前缀数 / 个</text>`;
+ for(const [field,color,dash,name] of [['vanilla','var(--blue)','','原版'],['elaina','var(--purple)','7 4','伊蕾娜']]){
+ out+=`<path d="${rows.map((r,i)=>`${i?'L':'M'}${x(r.count)},${y(r[field])}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="${dash}"/>`;
+ for(const r of rows)out+=`<circle tabindex="0" cx="${x(r.count)}" cy="${y(r[field])}" r="4" fill="${color}" aria-label="${name} ${r.count} 个输出前缀 ${fmt(r[field])} DPS"><title>${name} · ${r.count} 个输出前缀 · ${fmt(r[field],1)} DPS</title></circle>`;
+ }
+ svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML=out;
+}
+function duplicates(side){const items=s[side].items.slice(0,s.slots).map(x=>x.id).filter(x=>!['utility','empty'].includes(x));return [...new Set(items.filter((v,i)=>items.indexOf(v)!==i))].map(id=>Balance.accessories[id].name.split(' · ')[0]);}
+function update(persist=true){
+ const r=Balance.calculate(s),m=Balance.marginal(s),gap=(r.ratio-1)*100;
+ for(const side of ['v','e']){
+  const g=r[side];$(side+'Nebula').classList.toggle('hidden',s[side].armor!=='nebula');
+  $(side+'NebulaInfo').textContent=`套装静态：+26% 魔法伤害、+16 暴击、+60 魔力、46 防御、+10% 移速、−15% 原版魔力消耗。强化：+${g.nebulaDamage}% 加算伤害、+${g.nebulaManaRegen} 原版魔力/秒、+${g.nebulaLifeRegen} 生命/秒。${side==='e'?(s.nebulaManaBridge?'当前额外加入 '+g.nebulaManaRegen+' 特殊魔力/秒，属于预览适配假设。':'当前不恢复特殊魔力；勾选开关可测试未来适配。'):'原版默认持续攻击，回蓝不再额外乘到 DPS。'}生命回复、护甲防御和移速仅展示，不转为伤害或自动抵消受伤；−15% 减耗不作用于特殊魔力。所选层数假定开场已收集、全程维持，不模拟掉落、拾取与掉层。`;
+ }
+
+ $('vDps').textContent=fmt(r.vanilla,1);$('eDps').textContent=fmt(r.elaina,1);
+ $('vDetail').textContent=`裸装的 ${fmt(r.vanilla/s.baseDps,2)} 倍 · 武器 ${fmt(r.vanilla-s.v.proc)} + 特效 ${fmt(s.v.proc)}`;
+ $('eDetail').textContent=`普攻 ${fmt(r.auto)} + 技能 ${fmt(r.extra)} + 特效 ${fmt(s.e.proc)}`;
+ $('required').textContent=fmt(r.required,1);
+ $('requiredDetail').textContent=`当前 E = ${fmt(r.effective,1)}；E 是蓝耗×性质×兑现，不是魔力上限。`;
+ $('comparison').textContent=`当前假设下，伊蕾娜比原版${gap>=0?'高':'低'} ${fmt(Math.abs(gap),1)}%。这是属性与预算的差异，不是实战胜率或平衡结论。`;
+ const max=Math.max(r.vanilla,r.elaina,1);
+ const bar=(label,total,parts)=>`<div class="barrow"><div class="barhead"><span>${label}</span><strong>${fmt(total,1)} DPS</strong></div><div class="track">${parts.map(([value,color,name])=>`<span class="segment" title="${name}: ${fmt(value,1)} DPS" style="width:${value/max*100}%;background:${color}"></span>`).join('')}</div></div>`;
+ $('bars').innerHTML=bar('原版 · 武器＋手动特效',r.vanilla,[[r.vanilla-s.v.proc,'var(--blue)','武器'],[s.v.proc,'var(--green)','特效']])+bar('伊蕾娜 · 普攻＋技能＋手动特效',r.elaina,[[r.auto,'#8970b5','普攻'],[r.extra,'var(--purple)','技能净增'],[s.e.proc,'var(--green)','特效']]);
+ for(const side of ['v','e']){const g=r[side],dupes=duplicates(side);$(side+'Summary').innerHTML=`伤害 <strong>+${fmt(g.damage,1)}%</strong> · 总暴击 <strong>${fmt(g.crit,1)}%</strong> · 装备魔力 <strong>+${fmt(g.mana)}</strong> · 前缀防御 <strong>+${g.defense}</strong>${dupes.length?`<br><span class="warn">重复装备：${dupes.join('、')}。此配置仅作属性试算，不是合法配装。</span>`:''}${s[side].armor==='spectre'?'<br><span class="warn">幽灵追击未自动计入；左、右额外特效均可手动补充。</span>':''}`;}
+ $('mana').textContent=fmt(r.maxMana);$('effective').textContent=fmt(r.effective,1);
+ $('unhurtDps').textContent=fmt(r.unhurtDps,1);$('hurtDps').textContent='−'+fmt(r.lostDps,1);
+ $('hurtExplain').textContent=`计划技能蓝量 ${fmt(r.plannedBudget,1)} − 受伤占用 ${fmt(r.hurtApplied,1)} = 剩余 ${fmt(r.rawBudget,1)}；保留 ${fmt(r.retained*100,1)}% 技能预算。${r.hurtRequested>r.plannedBudget?'输入损失超过计划技能蓝量，技能收益归零；超出部分不继续扣普攻。':''}${s.mode==='skills'?'清单按预计耗蓝等比例削减，仅作敏感性拟算；若兑现率已含受伤影响，请将此项设为 0，避免重复扣除。':''}`;
+ $('marginalMana').textContent='+'+fmt(m.mana,1);$('marginalDamage').textContent='+'+fmt(m.damage,1);
+ $('useLabel').textContent=s.use+'%';
+ $('budgetControls').classList.toggle('hidden',s.mode!=='budget');$('skillControls').classList.toggle('hidden',s.mode!=='skills');$('manualBudget').disabled=s.budgetSource!=='manual';
+ $('budgetExplain').textContent=`计划投入 ${fmt(r.plannedBudget,1)} − 受伤占用 ${fmt(r.hurtApplied,1)} = ${fmt(r.rawBudget,1)} 魔力，再乘性质系数 ${fmt(s.quality,2)}。预留与兑换率先处理，受伤净损失只扣一次。`;
+ $('modelNotice').textContent=s.mode==='budget'?`预算模式是一条显式设计假设：将${s.budgetSource==='added'?'配装新增魔力':s.budgetSource==='total'?'总魔力储备':'手动预算'}映射到技能等效耗蓝，不是已证明的持续循环。当前战斗回蓝 ${fmt(r.recovery,1)}/秒，仅供参考，不额外加算 DPS。`:`清单模式：仅按所勾选技能的蓝耗和兑现率计算。最大魔力不会自动变成额外施法；加魔力后的收益需通过调整清单兑现率体现。`;
+ s.skills.forEach((row,i)=>$('skillValue'+i).textContent=row.enabled?fmt(row.cost*row.k*row.realization/100*r.retained,1):'—');
+ const tooLarge=s.skills.filter(x=>x.enabled&&x.cost>r.maxMana).map(x=>x.name);
+ $('skillWarnings').textContent=tooLarge.length?`警告：${tooLarge.join('、')}的单次蓝耗超过魔力上限，按当前模组支付规则无法释放；上方仍显示输入的理论预算，不能视为可实现结果。`:'单次支付未超上限。但此处不模拟持续回蓝与释放时序，不能据此证明所有技能都能按基准循环使用。';
+ drawChart();updateCombat();if(persist)save();
+}
+for(const id of direct)$(id).addEventListener($(id).tagName==='SELECT'?'change':'input',()=>{
+ const el=$(id);if(el.type==='number'&&el.value==='')return;
+ s[id]=el.type==='checkbox'?el.checked:el.type==='number'||el.type==='range'?Balance.clamp(el.value,el.min===''?-Infinity:+el.min,el.max===''?Infinity:+el.max):id==='slots'?+el.value:el.value;
+ if(id==='slots')slots();update();
+});
+for(const side of ['v','e']){
+ $(side+'Armor').addEventListener('change',()=>{s[side].armor=$(side+'Armor').value;update();});
+ for(const prop of ['damage','crit','proc']){const el=$(side+prop[0].toUpperCase()+prop.slice(1));el.addEventListener('input',()=>{if(el.value==='')return;s[side][prop]=Balance.clamp(el.value,+el.min,+el.max);update();});}
+}
+$('preset').addEventListener('change',()=>{s=Balance.defaults($('preset').value);sync();save();$('status').textContent='已载入参考配置，可继续修改。';});
+$('reset').addEventListener('click',()=>{s=Balance.defaults();sync();save();$('status').textContent='已恢复默认配置。';});
+for(const button of document.querySelectorAll('[data-prefix-side]'))button.addEventListener('click',()=>{
+ const side=button.dataset.prefixSide,prefix=button.dataset.prefixValue;
+ let count=0;
+ for(const item of s[side].items.slice(0,s.slots))if(item.id!=='empty'){item.prefix=prefix;count++;}
+ slots();update();
+ $(side+'PrefixStatus').textContent=count?`已将 ${count} 个已装备饰品设为${prefix==='menacing'?'险恶':'奥秘'}，结果已更新并保存。`:'当前没有已装备饰品，未修改前缀。';
+});
+$('copy').addEventListener('click',()=>{s.e=Balance.clone(s.v);s.e.items.forEach(r=>{if(['menacing','lucky'].includes(r.prefix))r.prefix='arcane';});sync();save();$('status').textContent='已复制装备，输出前缀替换为奥秘。';});
+$('import').addEventListener('click',()=>{$('importFile').value='';$('importFile').click();});
+$('importFile').addEventListener('change',async()=>{
+ const file=$('importFile').files[0];if(!file)return;
+ const button=$('import');button.disabled=true;
+ const previous=s;
+ try{
+  if(file.size>20*1024*1024)throw new Error('文件超过 20 MB，请选择本工具导出的配置 JSON。');
+  let parsed;
+  try{parsed=JSON.parse((await file.text()).replace(/^\uFEFF/,''));}catch(_){throw new Error('无法解析 JSON，请选择“导出当前试算”生成的文件。');}
+  if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('文件不包含有效配置。');
+  let value=parsed;
+  if(Object.hasOwn(parsed,'schema')||Object.hasOwn(parsed,'configuration')){
+   if(parsed.schema!=='elaina-mage-balance-v1'||!Object.hasOwn(parsed,'configuration'))throw new Error('不支持的文件格式或版本。');
+   value=parsed.configuration;
+  }
+  const next=migrateConfiguration(value);
+  if(!validSaved(next))throw new Error('配置字段缺失、数值超出范围或版本不兼容。');
+  // Discard unknown fields and never trust imported calculated results or markup.
+  function keepKnown(template,input){
+   if(Array.isArray(template))return template.map((v,i)=>keepKnown(v,input[i]));
+   if(template&&typeof template==='object')return Object.fromEntries(Object.keys(template).map(k=>[k,keepKnown(template[k],input[k])]));
+   return input;
+  }
+  const clean=keepKnown(Balance.defaults(),next);
+  Combat.compare(clean); // Validate calculation before replacing current state.
+  s=clean;sync();
+  try{localStorage.setItem(key,JSON.stringify(s));$('status').textContent=`已导入 ${file.name}，替换当前配置并重新计算；已保存。`;}
+  catch(_){$('status').textContent='配置已导入并重新计算，但浏览器不允许保存；请保留 JSON 文件。';}
+ }catch(error){
+  if(s!==previous){s=previous;sync();}
+  $('status').textContent='导入失败，当前配置未改变：'+error.message;
+ }finally{button.disabled=false;$('importFile').value='';}
+});
+$('export').addEventListener('click',()=>{const result=Balance.calculate(s);const output={combat:latestCombat,schema:'elaina-mage-balance-v1',configuration:s,result,notes:['资源时间轴是简化模拟，不等于实际游戏战斗。旧预算结果不验证续航。','预算模式将所选魔力映射为技能蓝耗，是显式设计假设。','无攻速、减耗或冷却属性增伤；星云按配置自动计入，特殊回蓝桥接是可选预览假设，其余未支持的套装特效需手填。']};const blob=new Blob([JSON.stringify(output,(k,v)=>typeof v==='number'&&!Number.isFinite(v)?null:v,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='elaina-mage-balance.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('status').textContent='已导出配置与计算结果。';});
+$('sourcePath').textContent='装备核验文件：C:/Users/korateleng/Downloads/tML 2025.06源码与ExampleMod/tModLoader/Terraria/Player.cs（护甲约 10819–11456 行；饰品约 12205–12660 行；前缀 GrantPrefixBenefits）。';
+$('legacyResults').addEventListener('toggle',drawChart);
+let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{drawChart();drawTimeline();},100);});sync();
+})();
+</script>
+</body></html>
