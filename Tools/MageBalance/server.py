@@ -35,6 +35,12 @@ def validate_payload(payload):
     if not isinstance(progression, dict): raise ValueError("progression 缺失。")
     number(progression, "phaseSize", 1, 20, True)
     number(progression, "previewLevel", 1, 1000, True)
+    combat = c.get("combat")
+    if not isinstance(combat, dict):
+        raise ValueError("combat 缺失。")
+    if "regenPercent" not in combat:
+        combat["regenPercent"] = 2
+    number(combat, "regenPercent", 0, 100)
     rows = c.get("skills")
     if not isinstance(rows, list) or len(rows) > 32:
         raise ValueError("skills 必须是最多 32 项的数组。")
@@ -72,6 +78,9 @@ def validate_payload(payload):
         ids.add(key)
         number(row, "cost", 0, 10000, True)
         number(row, "cd", .1, 600)
+        if "cdRatio" not in row:
+            row["cdRatio"] = 1
+        number(row, "cdRatio", 0, 1)
         number(row, "k", 0, 3)
         number(row, "cast", 0, 60)
         number(row, "shots", 1, 100, True)

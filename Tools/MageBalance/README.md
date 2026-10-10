@@ -30,7 +30,7 @@ C# 已自动接入这些节点：角色实际等级限制技能可升级上限�
 使用 `schema: elaina-mage-balance-v2`、`configuration.version: 2`。不再保留 `autoRatio`、`combat.autoCost`、`combat.autoInterval` 或 v1 兼容路径。
 
 - `basicAttacks`：每项包括 `id`、`name`、`ratio`、`cost`、`interval`、`shots`、`unlockStageCap`、`unlockLevel`、`levelsPerPhase`。
-- `skills`：主动技能每项包括 `id`、`name`、`cost`、`cd`、`cast`、`k`、`shots`、`unlockStageCap`、`unlockLevel`、`levelsPerPhase`，以及仅供网页模拟的启用、命中率、持续时间、充能等参数。
+- `skills`：主动技能每项包括 `id`、`name`、`cost`、`cd`、`cdRatio`、`cast`、`k`、`shots`、`unlockStageCap`、`unlockLevel`、`levelsPerPhase`，以及仅供网页模拟的启用、命中率、持续时间、充能等参数。`cdRatio` 缺省时按 1 读取，以兼容旧配置。
 - 所有技能 ID 全局唯一。飞弹不是解析器特例，可以与其他技能一样修改/删除；至少保留一项普攻。
 - `selectedBasicAttackId`：模拟中使用的普攻，也用于主动技能占手补偿定价；不会把所选普攻的参数覆盖到另一个技能 ID。
 - 网页的阶段 B、配装和 `skillStats` 是试算数据；游戏用玩家真实等级限制升级，用技能实际等级映射伤害基准，并应用玩家实际装备。
@@ -41,9 +41,12 @@ C# 已自动接入这些节点：角色实际等级限制技能可升级上限�
 
 例如 B=1000、0.8B、0.5 秒、3 发、整次耗蓝 10：DPS=800，整次=400，每发≈133.33，每秒耗蓝=20。
 
-主动：`整次基础伤害 = 参考普攻基础DPS × max(1/60, cast) + B × (rate / 100 / 20) × cost × cd × k`。`shots` 对整次预算做等额分摊，不改变整次总预算。
+主动：`整次基础伤害 = 参考普攻基础DPS × max(1/60, cast) + B × (rate / 100 / 20) × cost × cd × cdRatio × k`。`cdRatio` 是 CD 伤害折算率，范围 0–1；它只影响由 CD 换算出的额外伤害，不改变实际 CD、充能或技能释放时机。默认 1（100%），功能型长 CD 技能可设为 0.25–0.75。`shots` 对整次预算做等额分摊，不改变整次总预算。
 
 发数必须与实际命中设计一致，配置不会自动生成弹幕或改变动作。游戏伤害最终按整数处理，小伤害/大量分段可能有取整误差。范围、多目标、防御、命中率、暴击与实际动画不是基础预算的一部分。网页沿用裸装 B 含基础暴击期望的口径；C# 返回的基础 DPS 不预乘暴击，不应把网页带装备的期望伤害直接作为弹幕 damage。
+
+
+战斗模拟的释放策略包括按优先级、缺蓝攒蓝，以及“节约型”。节约型把普通攻击也作为候选动作，按预计总伤害除以耗蓝比较；只有技能性价比高于普通攻击时才优先释放技能，同效率时优先 CD 更长者。它只改变模拟释放顺序，不改变技能伤害、实际 CD 或耗蓝。高性价比技能暂时无法支付时继续普通攻击，普通攻击本身也无法支付时才等待回蓝；超过魔力上限的无效技能不会阻止其他技能。
 
 ## C# 统一读取
 

@@ -14,7 +14,7 @@ public enum SkillBalanceKind { BasicAttack, Active }
 
 /// <summary>所有技能共用的定价定义；BaseCooldown 对普攻表示完整攻击周期，HitCount 是整次预算的等额命中数。</summary>
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, int ManaCost,
-    double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0);
+    double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1);
 
 /// <summary>本地不可变配置；只接受 v2，不读取网页配装、等级、模拟结果作为游戏属性。</summary>
 public sealed class SkillBalanceConfig
@@ -40,7 +40,7 @@ public sealed class SkillBalanceConfig
     public static SkillBalanceConfig Fallback => new(4, 5, "MagicMissileSkill",
     [
         new("MagicMissileSkill", "魔法飞弹", SkillBalanceKind.BasicAttack, 3, .3, 1, LevelsPerPhase: 2, DpsRatio: .8),
-        new("WaterBallSkill", "水球魔法", SkillBalanceKind.Active, 100, 10, 1, ConversionRate: .8, OccupySeconds: 1)
+        new("WaterBallSkill", "水球魔法", SkillBalanceKind.Active, 100, 10, 1, ConversionRate: .8, OccupySeconds: 1, CdDamageRatio: 1)
     ]);
 
     public static bool TryParse(string json, out SkillBalanceConfig config, out string error)
@@ -85,7 +85,7 @@ public sealed class SkillBalanceConfig
                 var (id, name) = ReadIdentity(row, ids);
                 skills.Add(new(id, name, SkillBalanceKind.Active, Integer(row, "cost", 0, 10000),
                     Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
-                    ConversionRate: Number(row, "k", 0, 3), OccupySeconds: Number(row, "cast", 0, 60)));
+                    ConversionRate: Number(row, "k", 0, 3), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1)));
             }
             config = new(rate, phaseSize, reference, skills);
             return true;
@@ -113,6 +113,11 @@ public sealed class SkillBalanceConfig
         if (value.ValueKind != JsonValueKind.Object) throw new FormatException(name + " 必须是对象。");
     }
 
+    private static double OptionalNumber(JsonElement value, string key, double min, double max, double fallback)
+    {
+        return value.TryGetProperty(key, out JsonElement field) ? Number(value, key, min, max) : fallback;
+    }
+
     private static double Number(JsonElement value, string key, double min, double max)
     {
         JsonElement field = value.GetProperty(key);
@@ -129,14 +134,14 @@ public sealed class SkillBalanceConfig
         return (int)number;
     }
 
-    /// <summary>未取整的整次基础伤害；普攻与主动技能仅在定价公式上不同。</summary>
+    /// <summary>未取整的整次基础伤害；主动技能的 CD 只按 CdDamageRatio 折算为伤害预算，实际冷却不变。</summary>
     public double GetSkillDamage(double baselineDps, SkillBalanceEntry skill)
     {
         double baseline = Math.Max(0, baselineDps);
         if (skill.Kind == SkillBalanceKind.BasicAttack)
             return baseline * skill.DpsRatio * skill.BaseCooldown;
         double referenceRatio = Skills[ReferenceBasicAttackId].DpsRatio;
-        double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.ConversionRate;
+        double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.CdDamageRatio * skill.ConversionRate;
         return baseline * (referenceRatio * Math.Max(1d / 60, skill.OccupySeconds) + extraRatio);
     }
 

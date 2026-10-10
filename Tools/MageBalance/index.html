@@ -81,15 +81,16 @@ textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px soli
   <label class="field">开场魔力 / 上限 %<input id="battleStart" data-combat="startPercent" type="number" min="0" max="100" step="10"></label>
   <label class="field">携带药剂 / 瓶<input id="battlePotions" data-combat="potions" type="number" min="0" max="5" step="1"></label>
   <label class="field">每瓶回复 / 最大魔力 %<input id="battlePotionPercent" data-combat="potionPercent" type="number" min="0" max="100" step="5"></label>
-  <label class="field">回蓝方式<select id="battleRegenMode" data-combat="regenMode"><option value="mod">模组规则：5 + 上限 × 2%/秒</option><option value="manual">手动指定</option></select></label>
+  <label class="field">回蓝方式<select id="battleRegenMode" data-combat="regenMode"><option value="mod">模组规则：5 + 上限 × 可调百分比/秒</option><option value="manual">手动指定</option></select></label>
+  <label class="field">模组规则百分比回蓝 / 上限每秒 %<input id="battleRegenPercent" data-combat="regenPercent" type="number" min="0" max="100" step="0.1"></label>
   <label class="field">手动基础回蓝 / 魔力每秒<input id="battleRegen" data-combat="regen" type="number" min="0" max="1000" step="1"></label>
 
 
   <label class="field">主动技能保留魔力<input id="battleReserve" data-combat="reserve" type="number" min="0" max="10000" step="20"></label>
-  <label class="field">最高优先级技能缺蓝时<select id="battlePolicy" data-combat="policy"><option value="flow">尝试其他技能，或继续普攻</option><option value="save">停止低优先级输出，攒蓝等待</option></select></label>
+  <label class="field">技能释放策略<select id="battlePolicy" data-combat="policy"><option value="flow">按优先级：尝试其他技能，或继续普攻</option><option value="save">按优先级：缺蓝时停止低优先级输出，攒蓝等待</option><option value="efficiency">节约型：按伤害 / 耗蓝性价比释放</option></select></label>
  </div>
  <div class="actions"><button class="smallbtn" data-battle-duration="60">短战 60 秒</button><button class="smallbtn" data-battle-duration="120">标准 120 秒</button><button class="smallbtn" data-battle-duration="180">长战 180 秒</button><button class="smallbtn" data-battle-duration="300">持久战 300 秒</button></div>
- <p class="note" style="margin-top:10px">付款不足时自动尝试用药，可连续用多瓶；全部药剂仍不足则不浪费药。主动技能预留限制不约束普攻或受伤损蓝。生命转魔力关闭，不计算脱战回满或受伤暂停回复。</p>
+ <p class="note" style="margin-top:10px">付款不足时自动尝试用药，可连续用多瓶；全部药剂仍不足则不浪费药。主动技能预留限制不约束普攻或受伤损蓝。节约型把普通攻击也作为候选动作，按预计总伤害 ÷ 耗蓝比较；只有技能性价比高于普通攻击时才优先释放。同效率时优先 CD 更长的技能；高性价比技能暂时无法支付时继续普通攻击，普通攻击本身也无法支付时才等待回蓝。生命转魔力关闭，不计算脱战回满或受伤暂停回复。</p>
  <details><summary>受伤损蓝：均匀损失、周期受击或指定时间</summary>
  <div class="fields">
   <label class="field">损蓝模式<select id="battleHurtMode" data-combat="hurtMode"><option value="uniform">全场总损失，均匀分摊</option><option value="periodic">周期受击</option><option value="events">指定时间事件</option></select></label>
@@ -114,8 +115,8 @@ textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px soli
 <div class="panel section">
  <div class="title"><h2>技能释放计划</h2><div class="actions"><span class="tag">已接入飞弹、水球 · 其他技能仍需迁移</span><button id="addSkill" type="button">添加主动技能</button></div></div>
  <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label></div>
- <label class="check"><input id="skillStats" type="checkbox">技能额外伤害继承装备伤害与暴击；占手补偿始终按当前参考普攻计算。</label>
- <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>等额命中数</th><th>蓝耗</th><th>CD/充能秒</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th title="魔力转换率 K：相对于每 20 魔力基准增幅的倍率，并非技能的总 DPS 倍率">魔力转换率 K</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th><th title="按当前配装计算，不扣命中率；多段或持续技能为整次施放的总预算">单次伤害预算</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
+ <label class="check"><input id="skillStats" type="checkbox">技能额外伤害继承装备伤害与暴击；CD 伤害折算率只影响额外伤害，不影响占手补偿；占手补偿始终按当前参考普攻计算。</label>
+ <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>等额命中数</th><th>蓝耗</th><th>CD/充能秒</th><th>CD伤害折算率</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th title="魔力转换率 K：相对于每 20 魔力基准增幅的倍率，并非技能的总 DPS 倍率">魔力转换率 K</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th><th title="按当前配装计算，不扣命中率；多段或持续技能为整次施放的总预算">单次伤害预算</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
  <p class="note">技能 ID 与游戏内类名对应，不能重复；名称仅用于展示。普通飞弹 MagicMissileSkill 是普攻，不添加到主动技能表：其 DPS 倍率、蓝耗、动作时长和发数在上方“普通攻击设计”调整，避免重复计算。魔力转换率 K 只控制主动技能额外伤害的定价（1 = 采用当前每 20 魔力基准增幅），不是普攻的 0.8 DPS 倍率。“单次伤害预算”按当前配装、不扣命中率；多段或持续技能显示整次施放总预算，不是每一段各获得此伤害。</p>
  <p class="note">优先级数字越小越先释放。CD 从施放开始计时，储存次数按顺序逐层恢复；首次释放时间不阻止提前充能。零占手仍占 1 帧；伤害预算使用相同的有效占手时长。持续伤害从占手结束＋延迟后均匀结算，战斗结束后的伤害不计。命中率只影响伤害，不减少蓝耗；旧预算的“兑现率”不参与此模拟。</p>
  <h3 style="margin-top:18px">实际释放与伤害</h3><div class="tablewrap"><table><thead><tr><th>技能</th><th>实际 / 不限蓝次数</th><th>实际耗蓝</th><th>已兑现伤害</th><th>缺蓝等待段数</th></tr></thead><tbody id="rotationResults"></tbody></table></div>
@@ -173,7 +174,7 @@ textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px soli
 <div class="splitstats"><div>再加 20 魔力的 DPS 增量<strong id="marginalMana">—</strong></div><div>再加 4% 伤害的 DPS 增量<strong id="marginalDamage">—</strong></div></div>
 <p class="note" style="margin-top:10px">局部增量在伊蕾娜同一套配置上比较，不消耗额外槽位；用于判断两种属性的边际价格，不代表可以免费同时获得。技能清单模式不因增加魔力上限而自动增加施放次数。</p>
 </div></div>
-<div id="skillControls" class="hidden"><div class="tablewrap"><table><thead><tr><th>启用</th><th>技能（预览配置，逐个接入游戏）</th><th>单次蓝耗 M</th><th>魔力转换率 K</th><th>兑现率 %</th><th>受伤后等效蓝耗</th></tr></thead><tbody id="skillRows"></tbody></table></div><p class="note">兑现率 = 相对基准循环的实际释放频率 × 伤害命中比例，100% 表示按设计循环完整兑现。不另外乘冷却缩减。受伤损蓝按各技能预计耗蓝等比例削减，不模拟优先保留某个技能。占手补偿与损失普攻相抵，因此此处只统计净增伤害。不同技能的 CD 可以不同，不把这一表的蓝耗合计当成“每秒耗蓝”。</p><div id="skillWarnings" class="callout"></div></div>
+<div id="skillControls" class="hidden"><div class="tablewrap"><table><thead><tr><th>启用</th><th>技能（预览配置，逐个接入游戏）</th><th>单次蓝耗 M</th><th>魔力转换率 K</th><th>CD 伤害折算率</th><th>兑现率 %</th><th>受伤后等效蓝耗</th></tr></thead><tbody id="skillRows"></tbody></table></div><p class="note">兑现率 = 相对基准循环的实际释放频率 × 伤害命中比例，100% 表示按设计循环完整兑现。不另外乘冷却缩减。受伤损蓝按各技能预计耗蓝等比例削减，不模拟优先保留某个技能。占手补偿与损失普攻相抵，因此此处只统计净增伤害。CD 伤害折算率只影响按 CD 分配的额外伤害，不改变真实 CD、充能或释放时机；默认 100%，功能型长 CD 技能可单独降低。不把这一表的蓝耗合计当成“每秒耗蓝”。</p><div id="skillWarnings" class="callout"></div></div>
 </section>
 <section class="panel section"><h2>快速预算公式与数据来源</h2>
 <div class="formula">G = (1 + 伤害加成) × (1 + 配装后暴击率) / (1 + 裸装暴击率)<br>原版 DPS = B × G原版 + 额外特效 DPS<br>伊蕾娜 DPS = B × 普攻倍率 × G伊蕾娜 + B × (每20魔力增幅 / 20) × E × G技能 + 额外特效 DPS<br>计划蓝量 P = 预算 × 兑换率，或 Σ(技能蓝耗 × 兑现率)<br>受伤后保留比例 q = P &gt; 0 ? max(0, P − 受伤净损失) / P : 0<br>E = q × [计划蓝量 P × 平均魔力转换率 K，或 Σ(技能蓝耗 × 魔力转换率 K × 兑现率)]</div>
@@ -184,7 +185,7 @@ textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px soli
 <li>同文件：巫师徽章 +15% 魔法伤害；复仇者徽章 +12% 伤害；天界徽章 +15% 魔法伤害；星力手环、魔力再生手环、魔法手铐、天界手铐均 +20 最大魔力。</li>
 <li>星云依据：Player.cs 11442–11456（装备），8514、8541（生命和伤害强化），16394–16407（星云魔力计数器每 6/层数 帧回 1 蓝），16281、16302（每 120 生命回复计数回 1 HP）。Item.cs 29649–29674：防御 14+18+14=46。</li>
 <li>同文件 GrantPrefixBenefits：险恶 +4% 伤害；幸运 +4 暴击；奥秘 +20 魔力；护佑 +4 防御（只显示，不直接换算生存 DPS）。</li>
-<li>KL/Utils/KLDpsHelper.cs：阶段基准预设。伊蕾娜/ElainaAttribute/ElainaMagicAttributes.cs：原版魔力 1:1 转换、战斗回复 5 + 最大魔力 × 2%/秒（只展示，不加到 DPS）。</li>
+<li>KL/Utils/KLDpsHelper.cs：阶段基准预设。伊蕾娜/ElainaAttribute/ElainaMagicAttributes.cs：原版魔力 1:1 转换、战斗回复 5 + 最大魔力 × 可调百分比/秒（只展示，不加到 DPS）。</li>
 <li>星云套静态 +26% 伤害、+16 暴击、+60 魔力；满层伤害强化 +45%（与装备加算），原版回蓝 +30/秒，生命回复 +9/秒。默认不桥接特殊魔力；可显式启用预览适配。幽灵追击仍需手填。</li>
 </ul><p class="note" id="sourcePath"></p></div></details>
 </section><footer class="footer">纯本机工具 · 浏览器自动备份与模组 JSON 分开保存 · 新 C# 接入需重编译模组一次，之后仅 Debug 构建会热读取固定 JSON，Release 使用打包配置，配置不参与联机同步；已生成的弹幕和正在进行的冷却不回溯改变。</footer>
@@ -197,7 +198,7 @@ const accessories={utility:{name:'机动／生存饰品（占位）',damage:0,cr
 const prefixes={warding:{name:'护佑 · +4 防御',damage:0,crit:0,mana:0,defense:4},menacing:{name:'险恶 · +4% 伤害',damage:4,crit:0,mana:0,defense:0},arcane:{name:'奥秘 · +20 魔力',damage:0,crit:0,mana:20,defense:0},lucky:{name:'幸运 · +4 暴击',damage:0,crit:4,mana:0,defense:0},none:{name:'无前缀',damage:0,crit:0,mana:0,defense:0}};
 const presets={jungle:{name:'肉前 · 丛林法师（骷髅王参考）',armor:'jungle',base:200,slots:5,items:['regen','flower','utility','utility','utility']},adamantite:{name:'肉后初期 · 精金法师（双子参考）',armor:'adamantite',base:450,slots:6,items:['sorcerer','flower','cuffs','utility','utility','utility']},hallowed:{name:'机械后 · 神圣法师（世纪之花参考）',armor:'hallowed',base:900,slots:6,items:['sorcerer','avenger','cuffs','utility','utility','utility']},spectre:{name:'石巨人后 · 幽灵法师（四柱参考）',armor:'spectre',base:1800,slots:6,items:['sorcerer','avenger','celestial','utility','utility','utility']},nebula:{name:'毕业 · 星云法师（三种强化各 3 层）',armor:'nebula',base:3500,slots:6,items:['sorcerer','avenger','celestial','utility','utility','utility']}};
 const clone=x=>JSON.parse(JSON.stringify(x));
-const newSkill=(id,name)=>({id,name,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,realization:100,cd:10,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
+const newSkill=(id,name)=>({id,name,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,realization:100,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
 function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,cost:3,interval:.3,shots:1};}
 function basicRows(s){return s.basicAttacks;}
@@ -235,20 +236,20 @@ function progressionNodes(row,phaseSize=5,limit=1000){
 function skillLevelAt(row,characterLevel,phaseSize=5){return progressionNodes(row,phaseSize,characterLevel).length;}
 function progressionBudget(s,row,level){
  const baseline=levelDps(level),basic=s.basicAttacks.includes(row),period=basic?row.interval:row.cd;
- const total=basic?baseline*row.ratio*period:baseline*(selectedBasic(s).ratio*Math.max(1/60,row.cast)+(s.rate/100/20)*row.cost*row.cd*row.k);
+ const total=basic?baseline*row.ratio*period:baseline*(selectedBasic(s).ratio*Math.max(1/60,row.cast)+(s.rate/100/20)*row.cost*row.cd*row.cdRatio*row.k);
  return {baseline,total,dps:total/period,perShot:total/row.shots,integerHit:total>0?Math.max(1,Math.floor(total/row.shots)):0};
 }
 function defaults(key='hallowed'){
  const p=presets[key]||presets.hallowed;
  const build=(side)=>({armor:p.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:Array.from({length:7},(_,i)=>({id:p.items[i]||'utility',prefix:i<3?(side==='v'?'menacing':'arcane'):'warding'}))});
- return {version:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[newBasic('MagicMissileSkill','魔法飞弹')],selectedBasicAttackId:'MagicMissileSkill',preset:key,baseDps:p.base,baseCrit:4,slots:p.slots,v:build('v'),e:build('e'),baseMana:200,extraMana:0,mode:'budget',budgetSource:'added',reserve:0,manualBudget:160,quality:1,use:100,hurtMana:0,rate:4,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,realization:100,cd:20,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,realization:100,cd:25,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,realization:100,cd:12,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'IceShardLockSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,realization:100,cd:25,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,realization:100,cd:25,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,realization:75,cd:75,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,realization:90,cd:90,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}]};
+ return {version:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[newBasic('MagicMissileSkill','魔法飞弹')],selectedBasicAttackId:'MagicMissileSkill',preset:key,baseDps:p.base,baseCrit:4,slots:p.slots,v:build('v'),e:build('e'),baseMana:200,extraMana:0,mode:'budget',budgetSource:'added',reserve:0,manualBudget:160,quality:1,use:100,hurtMana:0,rate:4,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,realization:100,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,realization:100,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,realization:100,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'IceShardLockSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,realization:100,cd:25,cdRatio:1,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,realization:100,cd:25,cdRatio:1,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,realization:75,cd:75,cdRatio:1,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
+ {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,realization:90,cd:90,cdRatio:1,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}]};
 }
 function gear(s,side){
  const g=s[side],a=armors[g.armor]||armors.none;
@@ -284,11 +285,11 @@ function calculate(s){
  const unhurtDps=elaina+lostDps;
  const gap=Math.max(0,vanilla-auto-s.e.proc);
  const required=gap===0?0:rate*skillMultiplier>0?gap/(s.baseDps*rate*skillMultiplier):Infinity;
- return {v,e,maxMana,plannedBudget,rawBudget,hurtRequested,hurtApplied,retained,unhurtEffective,lostDps,unhurtDps,effective,skillMultiplier,vanilla,auto,extra,elaina,required,ratio:elaina/vanilla,recovery:5+maxMana*.02+(s.nebulaManaBridge?e.nebulaManaRegen:0)};
+ return {v,e,maxMana,plannedBudget,rawBudget,hurtRequested,hurtApplied,retained,unhurtEffective,lostDps,unhurtDps,effective,skillMultiplier,vanilla,auto,extra,elaina,required,ratio:elaina/vanilla,recovery:5+maxMana*(Number(s.combat.regenPercent)||0)/100+(s.nebulaManaBridge?e.nebulaManaRegen:0)};
 }
 // One cast's expected total damage, before hit-rate and timing truncation; not per projectile/hit.
 function skillDamageBudget(s,skill,result=calculate(s)){
- return result.auto*Math.max(1/60,skill.cast)+s.baseDps*(s.rate/100/20)*skill.cost*skill.cd*skill.k*result.skillMultiplier;
+ return result.auto*Math.max(1/60,skill.cast)+s.baseDps*(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k*result.skillMultiplier;
 }
 function marginal(s){const original=calculate(s);let m=clone(s),d=clone(s);m.extraMana+=20;d.e.damage+=4;return {mana:calculate(m).elaina-original.elaina,damage:calculate(d).elaina-original.elaina};}
 function growth(s){return Array.from({length:s.slots+1},(_,count)=>{const copy=clone(s);for(let i=0;i<s.slots;i++){copy.v.items[i].prefix=i<count?'menacing':'warding';copy.e.items[i].prefix=i<count?'arcane':'warding';}return {count,...calculate(copy)};});}
@@ -317,7 +318,7 @@ const Combat=(()=>{
  }
  function run(s,unlimited=false){
   const basic=Balance.selectedBasic(s),c=s.combat,T=c.duration,b=Balance.calculate(s),M=b.maxMana;
-  const baseRegen=c.regenMode==='mod'?5+M*.02:c.regen;
+  const baseRegen=c.regenMode==='mod'?5+M*(Number(c.regenPercent)||0)/100:c.regen;
   const nebulaRegen=s.nebulaManaBridge?b.e.nebulaManaRegen:0;
   const regen=baseRegen+nebulaRegen;
   let mana=M*c.startPercent/100,potions=Math.floor(c.potions),busyUntil=0;
@@ -328,6 +329,20 @@ const Combat=(()=>{
   let injuryIndex=0;
   const skills=s.skills.map((x,i)=>({...x,index:i,charges:Math.min(x.maxCharges,x.initialCharges),rechargeAt:x.initialCharges<x.maxCharges?x.cd:Infinity,count:0,damage:0,mana:0,blocks:0,blocked:false}));
   const priority=skills.filter(x=>x.enabled).sort((a,b)=>a.priority-b.priority||a.index-b.index);
+  const basicEfficiency=basic.cost>EPS?b.auto*basic.interval/basic.cost:b.auto>0?Infinity:0;
+  const efficiency=(x)=>{const damage=Balance.skillDamageBudget(s,x,b)*x.hit/100;return x.cost>EPS?damage/x.cost:damage>0?Infinity:0};
+  const actionOrder=()=>c.policy==='efficiency'?priority.filter(x=>efficiency(x)>basicEfficiency+EPS).sort((a,b)=>efficiency(b)-efficiency(a)||b.cd-a.cd||a.index-b.index):priority;
+  function futureReserve(x,time){
+   if(c.policy!=='efficiency')return 0;
+   const score=efficiency(x);let reserve=0;
+   for(const other of priority){
+    if(other===x||efficiency(other)<=score+EPS||other.cost>M+EPS||other.cost+c.reserve>M+EPS)continue;
+    const becomesReady=other.charges<1&&other.rechargeAt<Infinity&&other.rechargeAt<T-EPS&&other.rechargeAt>=time-EPS;
+    const unlocks=other.charges<1&&time+EPS<other.first&&other.first<T-EPS;
+    if(becomesReady||unlocks)reserve+=other.cost;
+   }
+   return reserve;
+  }
   const invalid=priority.filter(x=>x.cost>M+EPS||x.cost+c.reserve>M+EPS).map(x=>x.name);
   const log=(time,type,text,amount=0)=>events.push({time,type,text,amount,mana});
   function shortage(time,row){
@@ -371,11 +386,15 @@ const Combat=(()=>{
    for(const x of priority)while(x.rechargeAt<=t+EPS&&x.charges<x.maxCharges){x.charges++;x.rechargeAt=x.charges<x.maxCharges?x.rechargeAt+x.cd:Infinity;}
    if(t+EPS>=busyUntil){
     let acted=false,hold=false;
-    for(const x of priority){
+    for(const x of actionOrder()){
      if(t+EPS<x.first||x.charges<1)continue;
      if(!unlimited&&(x.cost>M+EPS||x.cost+c.reserve>M+EPS))continue;
-     if(!pay(x.cost,t,c.reserve)){
-      shortage(t,x);if(c.policy==='save'){hold=true;break;}continue;
+     const actionReserve=c.reserve+futureReserve(x,t);
+     if(!pay(x.cost,t,actionReserve)){
+      shortage(t,x);
+      if(c.policy==='save'){hold=true;break;}
+      if(c.policy==='efficiency')break;
+      continue;
      }
      x.blocked=false;x.count++;x.mana+=x.cost;skillMana+=x.cost;
      if(x.charges===x.maxCharges)x.rechargeAt=t+x.cd;
@@ -423,8 +442,9 @@ try{const saved=normalizeProgression(JSON.parse(localStorage.getItem(key)));if(v
 function normalizeProgression(value){
  if(!value||typeof value!=='object')return value;
  value.progression=value.progression||{phaseSize:5,previewLevel:10};
+  if(value.combat&&typeof value.combat==='object'&&value.combat.regenPercent==null)value.combat.regenPercent=2;
  for(const row of (Array.isArray(value.basicAttacks)?value.basicAttacks:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=row.id==='IceConeSkill'?10:5;if(!('unlockLevel' in row))row.unlockLevel=row.id==='IceConeSkill'?6:1;if(row.levelsPerPhase==null)row.levelsPerPhase=2;}
- for(const row of (Array.isArray(value.skills)?value.skills:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=5;if(!('unlockLevel' in row))row.unlockLevel=1;if(row.levelsPerPhase==null)row.levelsPerPhase=1;}
+ for(const row of (Array.isArray(value.skills)?value.skills:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=5;if(!('unlockLevel' in row))row.unlockLevel=1;if(row.levelsPerPhase==null)row.levelsPerPhase=1;if(row.cdRatio==null)row.cdRatio=1;}
  return value;
 }
 function validSaved(x){
@@ -435,14 +455,14 @@ function validSaved(x){
  if(x.baseDps<1||x.baseDps>1000000||x.baseMana>2000||x.extraMana>10000||x.reserve>10000||x.manualBudget>10000||x.baseCrit<0||x.baseCrit>100||![5,6,7].includes(x.slots)||x.use<0||x.use>100||x.rate<0||x.rate>20||x.quality<0||x.quality>3||x.baseMana<0||x.extraMana<0||x.reserve<0||x.manualBudget<0||x.hurtMana<0||x.hurtMana>10000)return false;
  const p=x.progression;if(!p||!Number.isInteger(p.phaseSize)||p.phaseSize<1||p.phaseSize>20||!Number.isInteger(p.previewLevel)||p.previewLevel<1||p.previewLevel>1000)return false;
  const c=x.combat;if(!c||typeof c!=='object'||!Balance.validBasics(x))return false;
- const bounds={duration:[1,600],startPercent:[0,100],potions:[0,5],potionPercent:[0,100],regen:[0,1000],reserve:[0,10000],hurtTotal:[0,100000],hurtInterval:[.1,600],hurtPerHit:[0,100000]};
+ const bounds={duration:[1,600],startPercent:[0,100],potions:[0,5],potionPercent:[0,100],regenPercent:[0,100],regen:[0,1000],reserve:[0,10000],hurtTotal:[0,100000],hurtInterval:[.1,600],hurtPerHit:[0,100000]};
  for(const [key,[min,max]] of Object.entries(bounds))if(typeof c[key]!=='number'||!Number.isFinite(c[key])||c[key]<min||c[key]>max)return false;
- if(!Number.isInteger(c.potions)||!['mod','manual'].includes(c.regenMode)||!['flow','save'].includes(c.policy)||!['uniform','periodic','events'].includes(c.hurtMode)||typeof c.hurtEvents!=='string'||c.hurtEvents.length>5000)return false;
- const skillBounds={unlockStageCap:[1,1000],unlockLevel:[1,1000],levelsPerPhase:[1,10],shots:[1,100],cd:[.1,600],cast:[0,60],delay:[0,120],duration:[0,120],maxCharges:[1,10],initialCharges:[0,10],first:[0,600],priority:[1,99],hit:[0,100]};
+ if(!Number.isInteger(c.potions)||!['mod','manual'].includes(c.regenMode)||!['flow','save','efficiency'].includes(c.policy)||!['uniform','periodic','events'].includes(c.hurtMode)||typeof c.hurtEvents!=='string'||c.hurtEvents.length>5000)return false;
+ const skillBounds={unlockStageCap:[1,1000],unlockLevel:[1,1000],levelsPerPhase:[1,10],shots:[1,100],cd:[.1,600],cdRatio:[0,1],cast:[0,60],delay:[0,120],duration:[0,120],maxCharges:[1,10],initialCharges:[0,10],first:[0,600],priority:[1,99],hit:[0,100]};
  if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&Number.isInteger(r.priority)))return false;
  if(!['budget','skills'].includes(x.mode)||!['added','total','manual'].includes(x.budgetSource)||typeof x.skillStats!=='boolean'||!Object.hasOwn(Balance.presets,x.preset))return false;
  for(const side of ['v','e']){const g=x[side];if(!g||!g.nebula||!['damage','mana','life'].every(k=>Number.isInteger(g.nebula[k])&&g.nebula[k]>=0&&g.nebula[k]<=3)||!Object.hasOwn(Balance.armors,g.armor)||!Array.isArray(g.items)||g.items.length!==7)return false;if(!['damage','crit','proc'].every(k=>typeof g[k]==='number'&&Number.isFinite(g[k]))||g.damage< -90||g.damage>1000||g.crit< -100||g.crit>100||g.proc<0||g.proc>1000000)return false;if(!g.items.every(r=>r&&Object.hasOwn(Balance.accessories,r.id)&&Object.hasOwn(Balance.prefixes,r.prefix)))return false;}
- return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','realization'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=3&&r.realization>=0&&r.realization<=100);
+ return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','realization','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=3&&r.realization>=0&&r.realization<=100&&r.cdRatio>=0&&r.cdRatio<=1);
 }
 function keepKnown(template,input,property=''){
  if(Array.isArray(template))return ['skills','basicAttacks'].includes(property)?input.map(v=>keepKnown(template[0],v)):template.map((v,i)=>keepKnown(v,input[i]));
@@ -455,7 +475,7 @@ for(const side of ['v','e'])$(side+'Armor').innerHTML=options(Balance.armors);
 const direct=['baseDps','baseCrit','slots','baseMana','extraMana','mode','budgetSource','reserve','manualBudget','quality','use','hurtMana','rate','skillStats','nebulaManaBridge'];
 
 let latestCombat;
-const rotationFields=[['shots',1,100,1,'等额命中数'],['cost',0,10000,10,'蓝耗'],['cd',.1,600,.1,'CD'],['cast',0,60,.1,'占手'],['delay',0,120,.1,'延迟'],['duration',0,120,.5,'持续'],['k',0,3,.05,'魔力转换率'],['hit',0,100,5,'命中'],['maxCharges',1,10,1,'储存上限'],['initialCharges',0,10,1,'开场次数'],['first',0,600,1,'首次释放'],['priority',1,99,1,'优先级']];
+const rotationFields=[['shots',1,100,1,'等额命中数'],['cost',0,10000,10,'蓝耗'],['cd',.1,600,.1,'CD'],['cdRatio',0,1,.05,'CD伤害折算率'],['cast',0,60,.1,'占手'],['delay',0,120,.1,'延迟'],['duration',0,120,.5,'持续'],['k',0,3,.05,'魔力转换率'],['hit',0,100,5,'命中'],['maxCharges',1,10,1,'储存上限'],['initialCharges',0,10,1,'开场次数'],['first',0,600,1,'首次释放'],['priority',1,99,1,'优先级']];
 function rotation(){
  $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input type="checkbox" aria-label="模拟启用${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="enabled" ${row.enabled?'checked':''}></td><td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>${rotationFields.map(([key,min,max,step,label])=>`<td><input type="number" aria-label="模拟${escapeHtml(row.name)}${label}" min="${min}" max="${max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"></td>`).join('')}<td id="skillDamage${i}"></td><td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('');
  $('rotationRows').querySelectorAll('input').forEach(el=>el.addEventListener(el.type==='text'?'change':'input',()=>{
@@ -531,6 +551,8 @@ function updateCombat(){
  $('simWarnings').classList.toggle('warn',warnings.length>0);
  if(s.e.armor==='nebula')$('simWarnings').textContent+=' 星云：按所选强化全程维持；'+(s.nebulaManaBridge?'已启用特殊回蓝适配假设（并非当前游戏实装）。':'当前代码的星云强化只回原版魔力，未给特殊魔力加回复；可在伊蕾娜配装中打开适配开关。');
  $('battleRegen').disabled=s.combat.regenMode!=='manual';
+  $('battleRegenPercent').disabled=s.combat.regenMode!=='mod';
+  $('battleRegenMode').options[0].textContent=`模组规则：5 + 上限 × ${fmt(s.combat.regenPercent,1)}%/秒`;
  for(const el of document.querySelectorAll('[data-hurt-mode]'))el.classList.toggle('hidden',el.dataset.hurtMode!==s.combat.hurtMode);
  $('rotationResults').innerHTML=a.skills.map((x,n)=>x.enabled?`<tr><td>${escapeHtml(x.name)}</td><td>${x.count} / ${i.skills[n].count}</td><td>${fmt(x.mana,1)}</td><td>${fmt(x.damage,1)}</td><td>${x.blocks}</td></tr>`:'').join('')+`<tr><td>普攻 · ${escapeHtml(Balance.selectedBasic(s).name)}</td><td>${a.autoCount} / ${i.autoCount}</td><td>${fmt(a.autoMana,1)}</td><td>${fmt(a.autoDamage,1)}</td><td>—</td></tr>`;
  $('simEventCount').textContent=`共 ${a.events.length} 条事件，显示前 120 条。结果随参数实时重算；均匀损蓝以总账显示，不逐帧列事件。`;
@@ -610,7 +632,7 @@ function slots(){for(const side of ['v','e']){
 }}
 function skills(){
  progressionRows();
- $('skillRows').innerHTML=s.skills.map((r,i)=>`<tr><td><input aria-label="启用${escapeHtml(r.name)}" type="checkbox" data-i="${i}" data-p="enabled" ${r.enabled?'checked':''}></td><td>${escapeHtml(r.name)}</td><td><input aria-label="${escapeHtml(r.name)}蓝耗" type="number" min="0" max="10000" step="10" data-i="${i}" data-p="cost" value="${r.cost}"></td><td><input aria-label="${escapeHtml(r.name)}魔力转换率" type="number" min="0" max="3" step="0.05" data-i="${i}" data-p="k" value="${r.k}"></td><td><input aria-label="${escapeHtml(r.name)}兑现率" type="number" min="0" max="100" step="5" data-i="${i}" data-p="realization" value="${r.realization}"></td><td id="skillValue${i}"></td></tr>`).join('');
+ $('skillRows').innerHTML=s.skills.map((r,i)=>`<tr><td><input aria-label="启用${escapeHtml(r.name)}" type="checkbox" data-i="${i}" data-p="enabled" ${r.enabled?'checked':''}></td><td>${escapeHtml(r.name)}</td><td><input aria-label="${escapeHtml(r.name)}蓝耗" type="number" min="0" max="10000" step="10" data-i="${i}" data-p="cost" value="${r.cost}"></td><td><input aria-label="${escapeHtml(r.name)}魔力转换率" type="number" min="0" max="3" step="0.05" data-i="${i}" data-p="k" value="${r.k}"></td><td><input aria-label="${escapeHtml(r.name)}CD伤害折算率" type="number" min="0" max="1" step="0.05" data-i="${i}" data-p="cdRatio" value="${r.cdRatio}"></td><td><input aria-label="${escapeHtml(r.name)}兑现率" type="number" min="0" max="100" step="5" data-i="${i}" data-p="realization" value="${r.realization}"></td><td id="skillValue${i}"></td></tr>`).join('');
  $('skillRows').querySelectorAll('input').forEach(el=>el.addEventListener('input',()=>{if(el.type!=='checkbox'&&el.value==='')return;s.skills[el.dataset.i][el.dataset.p]=el.type==='checkbox'?el.checked:Balance.clamp(el.value,+el.min,+el.max);update();}));
 }
 function syncNebula(){

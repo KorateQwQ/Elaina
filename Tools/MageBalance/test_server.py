@@ -52,6 +52,32 @@ class BasicDesignTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.validate_payload(self.payload)
 
+    def test_regen_percent_defaults_and_validates(self):
+        self.c["combat"].pop("regenPercent", None)
+        server.validate_payload(self.payload)
+        self.assertEqual(self.c["combat"]["regenPercent"], 2)
+        self.c["combat"]["regenPercent"] = 1.5
+        server.validate_payload(self.payload)
+        self.assertEqual(self.c["combat"]["regenPercent"], 1.5)
+        for value in [-.1, 100.1, "2"]:
+            self.c["combat"]["regenPercent"] = value
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    server.validate_payload(self.payload)
+
+    def test_cd_ratio_defaults_and_validates(self):
+        self.c["skills"][0].pop("cdRatio", None)
+        server.validate_payload(self.payload)
+        self.assertEqual(self.c["skills"][0]["cdRatio"], 1)
+        self.c["skills"][0]["cdRatio"] = .5
+        server.validate_payload(self.payload)
+        self.assertEqual(self.c["skills"][0]["cdRatio"], .5)
+        for value in [-.1, 1.1, "0.5"]:
+            self.c["skills"][0]["cdRatio"] = value
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    server.validate_payload(self.payload)
+
     def test_missile_has_no_special_case(self):
         self.c["basicAttacks"][0]["shots"] = 3
         server.validate_payload(self.payload)
