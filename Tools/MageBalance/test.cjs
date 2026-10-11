@@ -18,11 +18,15 @@ let count = 0;
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-7, `${a} != ${b}`);
 function test(name, fn) { fn(); count++; console.log('PASS', name); }
 function naked() {
- const s = B.defaults(); s.baseDps=1000; s.basicAttacks[0].ratio=1; // isolate legacy balance arithmetic from the new 0.8 default
+ const s = B.defaults(); s.baseDps=1000; s.basicAttacks[0].ratio=1;s.basicAttacks[0].ratioCurve=[]; // isolate legacy balance arithmetic from the level curve
  for(const side of ['v','e']) { s[side].armor='none'; s[side].items.forEach(x=>{x.id='empty';x.prefix='none';}); }
  return s;
 }
-test('MagicMissileSkill defaults to 80% of the reference DPS and is not an active skill',()=>{const s=B.defaults();near(s.basicAttacks[0].ratio,.8);near(B.calculate(s).auto/s.baseDps/B.gear(s,'e').multiplier,.8);assert.equal(s.skills.some(x=>x.id==='MagicMissileSkill'),false);});
+test('MagicMissileSkill follows its level curve down to 60% at Lv50 and is not an active skill',()=>{const s=B.defaults(),r=s.basicAttacks[0];near(r.ratio,.6);assert.deepEqual(Array.from(r.ratioCurve,p=>Array.from(p)),[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]);near(B.calculate(s).auto/s.baseDps/B.gear(s,'e').multiplier,.6);near(B.basicBudget(B.defaults('jungle')).ratio,.8-.1/15*10);assert.equal(s.skills.some(x=>x.id==='MagicMissileSkill'),false);});
+test('Ratio curve interpolates linearly and clamps at both ends',()=>{const r=B.defaults().basicAttacks[0];near(B.basicRatio(r,0),1);near(B.basicRatio(r,1),1);near(B.basicRatio(r,5.5),.95);near(B.basicRatio(r,30),.8-.1/15*10);near(B.basicRatio(r,50),.6);near(B.basicRatio(r,95),.6);r.ratioCurve=[];near(B.basicRatio(r,1),.6);delete r.ratioCurve;near(B.basicRatio(r,1),.6);});
+test('dpsLevel inverts the KL level table',()=>{for(const l of [1,3,5,12,30,50,65,94])near(B.dpsLevel(B.levelDps(l)),l);near(B.dpsLevel(20),0);near(B.dpsLevel(200),30);near(B.dpsLevel(450),50);near(B.dpsLevel(99999),95);});
+test('Curve text parses loosely and round-trips; invalid curves are rejected',()=>{assert.deepEqual(Array.from(B.parseCurve('1:1, 10：0.9；20 : .8'),p=>Array.from(p)),[[1,1],[10,.9],[20,.8]]);assert.deepEqual(Array.from(B.parseCurve('')),[]);const c=[[1,1],[50,.6]];assert.deepEqual(Array.from(B.parseCurve(B.formatCurve(c)),p=>Array.from(p)),c);for(const t of ['10:1, 5:.9','1:1, 1:.9','0:1','1001:1','1:6','1.5:1','abc','1:-1'])assert.equal(B.parseCurve(t),null,t);assert.equal(B.validCurve(Array.from({length:17},(_,i)=>[i+1,1])),false);const s=B.defaults();s.basicAttacks[0].ratioCurve=[[10,1],[5,1]];assert.equal(B.validBasics(s),false);s.basicAttacks[0].ratioCurve=[[1,1]];assert.ok(B.validBasics(s));});
+test('Active skill damage has no occupancy compensation by default; occupyRatio prices cast time in B',()=>{const s=naked(),x=s.skills[0];Object.assign(x,{cost:100,k:1,cd:10,cdRatio:1,cast:1});near(s.occupyRatio,0);near(B.skillDamageBudget(s,x),2000);s.occupyRatio=.5;near(B.skillDamageBudget(s,x),2500);x.cast=0;near(B.skillDamageBudget(s,x),2000+500/60);s.occupyRatio=0;s.basicAttacks[0].ratio=3;near(B.skillDamageBudget(s,x),2000);});
 test('Both naked outputs equal B, including baseline crit normalization',()=>{const r=B.calculate(naked());near(r.vanilla,1000);near(r.elaina,1000);near(r.required,0);});
 test('Naked base mana does not count as equipment growth',()=>near(B.calculate(naked()).effective,0));
 test('Single Menacing adds 4 percentage points, not a separate multiplier',()=>{const s=naked();s.v.damage=50;s.v.items[0]={id:'utility',prefix:'menacing'};near(B.calculate(s).vanilla,1540);});
@@ -43,7 +47,7 @@ test('Zero conversion disables bonus output',()=>{const s=B.defaults();s.use=0;n
 test('Total pool mode explicitly includes baseline mana',()=>{const s=naked();s.budgetSource='total';near(B.calculate(s).effective,200);near(B.calculate(s).extra,400);});
 test('Common stats on skills can be disabled',()=>{const s=naked();s.e.damage=50;s.extraMana=100;s.skillStats=false;near(B.calculate(s).extra,200);s.skillStats=true;near(B.calculate(s).extra,300);});
 test('Preset skill list sums cost times quality times realization',()=>{const s=naked();s.mode='skills';near(B.calculate(s).effective,157);near(B.calculate(s).extra,314);});
-test('Cooldown damage ratio reduces only the cooldown-priced skill damage',()=>{const s=naked();const skill=s.skills[0];const full=B.skillDamageBudget(s,skill);skill.cdRatio=.5;const half=B.skillDamageBudget(s,skill);const occupy=B.calculate(s).auto*Math.max(1/60,skill.cast);near(half,occupy+(full-occupy)*.5);});
+test('Cooldown damage ratio reduces only the cooldown-priced skill damage',()=>{const s=naked();const skill=s.skills[0];const full=B.skillDamageBudget(s,skill);skill.cdRatio=.5;const half=B.skillDamageBudget(s,skill);const occupy=0;near(half,occupy+(full-occupy)*.5);s.occupyRatio=1;skill.cdRatio=1;const full1=B.skillDamageBudget(s,skill);skill.cdRatio=.5;const occupy1=s.baseDps*Math.max(1/60,skill.cast);near(B.skillDamageBudget(s,skill),occupy1+(full1-occupy1)*.5);});
 test('Skill list ignores automatic mana budget parameters',()=>{const s=naked();s.mode='skills';s.use=0;s.quality=0;s.reserve=10000;near(B.calculate(s).effective,157);});
 test('Skill realization affects only its own contribution',()=>{const s=naked();s.mode='skills';s.skills.forEach(x=>x.enabled=false);s.skills[0].enabled=true;s.skills[0].realization=50;near(B.calculate(s).effective,50);});
 test('No mana marginal gain is invented for unchanged skill list',()=>{const s=naked();s.mode='skills';near(B.marginal(s).mana,0);});
@@ -87,15 +91,15 @@ test('Atomic payment does not waste insufficient potion charges',()=>{const s=co
 test('Atomic payment can use several bottles at once',()=>{const s=combatBase();setCombat(s,{duration:1,startPercent:0,potions:5,autoCost:200});const r=C.run(s);near(r.autoCount,2);near(r.usedPotions,4);ledger(r);});
 test('Cost above maximum is never cast in resource simulation',()=>{const s=combatBase();onlySkill(s).cost=201;const r=C.run(s);near(r.skills[0].count,0);assert.equal(r.invalid.length,1);});
 test('Unrestricted reference still shows impossible skill potential',()=>{const s=combatBase();onlySkill(s).cost=201;near(C.run(s,true).skills[0].count,1);});
-test('WaterBall proposal: cost100 cd10 K0.8 means 1440 extra plus 720 occupancy at B900',()=>{const s=combatBase();s.baseDps=900;s.basicAttacks[0].ratio=.8;const skill=onlySkill(s);skill.k=.8;near(B.skillDamageBudget(s,skill),2160);near(C.run(s).skillDamage,2160);});
-test('Cast occupancy is compensated once, not added over uninterrupted autos',()=>{const s=combatBase();onlySkill(s);const r=C.run(s);near(r.autoDamage,9000);near(r.skillDamage,3000);near(r.dps,1200);});
+test('WaterBall proposal: cost100 cd10 K0.8 means 1440 at B900, plus 720 only with occupyRatio 0.8',()=>{const s=combatBase();s.baseDps=900;const skill=onlySkill(s);skill.k=.8;near(B.skillDamageBudget(s,skill),1440);near(C.run(s).skillDamage,1440);s.occupyRatio=.8;near(B.skillDamageBudget(s,skill),2160);near(C.run(s).skillDamage,2160);});
+test('Cast time costs autos and is compensated only through occupyRatio',()=>{const s=combatBase();onlySkill(s);let r=C.run(s);near(r.autoDamage,9000);near(r.skillDamage,2000);near(r.dps,1100);s.occupyRatio=1;r=C.run(s);near(r.autoDamage,9000);near(r.skillDamage,3000);near(r.dps,1200);});
 test('Cooldown bounds cast count and excludes an action at the end',()=>{const s=combatBase();s.combat.duration=30;onlySkill(s);near(C.run(s,true).skills[0].count,3);});
 test('Initial empty charges recover after a full cooldown',()=>{const s=combatBase();s.combat.duration=20;onlySkill(s).initialCharges=0;const r=C.run(s,true);near(r.skills[0].count,1);near(r.events.find(e=>e.type==='cast').time,10);});
 test('Five stored charges refill serially, not five per cooldown',()=>{const s=combatBase();s.combat.duration=25;Object.assign(onlySkill(s),{cast:.1,maxCharges:5,initialCharges:5});near(C.run(s,true).skills[0].count,7);});
 test('First release time is respected',()=>{const s=combatBase();s.combat.duration=30;onlySkill(s).first=15;const r=C.run(s,true);near(r.skills[0].count,2);near(r.events.find(e=>e.type==='cast').time,15);});
 test('Damage after battle end is not credited',()=>{const s=combatBase();Object.assign(onlySkill(s),{cast:1,delay:20});const r=C.run(s);near(r.skills[0].count,1);near(r.skillDamage,0);});
-test('DoT is clipped at battle end',()=>{const s=combatBase();Object.assign(onlySkill(s),{cast:1,delay:0,duration:20});near(C.run(s).skillDamage,3000*9/20);});
-test('Hit rate affects damage but not cost',()=>{const s=combatBase();onlySkill(s).hit=50;const r=C.run(s);near(r.skillDamage,1500);near(r.skillMana,100);});
+test('DoT is clipped at battle end',()=>{const s=combatBase();Object.assign(onlySkill(s),{cast:1,delay:0,duration:20});near(C.run(s).skillDamage,2000*9/20);});
+test('Hit rate affects damage but not cost',()=>{const s=combatBase();onlySkill(s).hit=50;const r=C.run(s);near(r.skillDamage,1000);near(r.skillMana,100);});
 test('Legacy realization and injury do not double-discount combat',()=>{const s=combatBase();onlySkill(s);const a=C.run(s);s.skills[0].realization=0;s.hurtMana=10000;s.use=0;near(C.run(s).dps,a.dps);});
 test('Uniform injuries integrate their full requested total',()=>{const s=combatBase();s.combat.hurtTotal=100;const r=C.run(s);near(r.hurtRequested,100);near(r.hurtPaid,100);near(r.endMana,100);ledger(r);});
 test('Insufficient defensive mana never goes negative',()=>{const s=combatBase();s.combat.hurtTotal=500;const r=C.run(s);near(r.hurtPaid,200);near(r.uncoveredHurt,300);near(r.endMana,0);});
@@ -108,8 +112,11 @@ test('Active reserve prevents skill spending but permits ordinary attack',()=>{c
 test('Save strategy can stop autos to accumulate for a ready skill',()=>{const s=combatBase();onlySkill(s);setCombat(s,{startPercent:0,regen:10,autoCost:3,duration:20,policy:'save'});const save=C.run(s);s.combat.policy='flow';const flow=C.run(s);assert.ok(save.skills[0].count>flow.skills[0].count);ledger(save);ledger(flow);});
 test('Skill priority chooses the first action deterministically',()=>{const s=combatBase();onlySkill(s);s.skills[2].enabled=true;s.skills[2].priority=1;s.skills[0].priority=2;assert.match(C.run(s,true).events.find(e=>e.type==='cast').text,/炎爆/);});
 test('Efficiency strategy ignores priority and chooses higher damage per mana',()=>{const s=combatBase();s.basicAttacks[0].cost=100;s.basicAttacks[0].interval=1;s.skills.forEach(x=>x.enabled=false);const a=s.skills[0],b=s.skills[1];Object.assign(a,{enabled:true,cost:100,k:.2,cd:10,cdRatio:1,priority:1});Object.assign(b,{enabled:true,cost:50,k:1,cd:30,cdRatio:1,priority:9});s.combat.policy='efficiency';const first=C.run(s,true).events.find(e=>e.type==='cast');assert.match(first.text,/风龙卷/);});
-test('Efficiency strategy keeps ordinary attacks while a better skill waits for mana',()=>{const s=combatBase();s.basicAttacks[0].cost=5;s.basicAttacks[0].interval=.5;s.skills.forEach(x=>x.enabled=false);const high=s.skills[0];Object.assign(high,{enabled:true,cost:100,k:3,cd:20,cdRatio:1,priority:9});setCombat(s,{startPercent:25,regen:15,duration:12,policy:'efficiency'});const r=C.run(s);assert.ok(r.autoCount>0);assert.ok(r.skills[0].count>0);});
-test('Efficiency strategy prefers ordinary attacks when they have higher mana efficiency',()=>{const s=combatBase();s.basicAttacks[0].cost=1;s.basicAttacks[0].interval=.5;s.skills.forEach(x=>x.enabled=false);const skill=s.skills[0];Object.assign(skill,{enabled:true,cost:100,k:.01,cd:10,cdRatio:1,priority:1});s.combat.policy='efficiency';const r=C.run(s,true);assert.equal(r.skills[0].count,0);assert.ok(r.autoCount>0);});
+test('Efficiency strategy keeps ordinary attacks while a better skill waits for mana',()=>{const s=combatBase();s.basicAttacks[0].cost=5;s.basicAttacks[0].interval=.5;s.skills.forEach(x=>x.enabled=false);const high=s.skills[0];Object.assign(high,{enabled:true,cost:100,k:3,cd:20,cdRatio:1,priority:9});setCombat(s,{startPercent:25,regen:15,duration:14,policy:'efficiency'});const r=C.run(s);assert.ok(r.autoCount>0);assert.ok(r.skills[0].count>0);});
+test('Efficiency strategy still casts skills weaker per mana than sustainable autos',()=>{const s=combatBase();const x=onlySkill(s);x.k=1;setCombat(s,{autoCost:1,regen:10,policy:'efficiency'});const r=C.run(s);assert.ok(r.skills[0].count>0);near(r.autoCount,18);assert.equal(r.events.some(e=>e.text==='普攻缺蓝，等待回复'),false);ledger(r);});
+test('Efficiency strategy protects autos until the end before funding skills',()=>{const s=combatBase();onlySkill(s);setCombat(s,{autoCost:10,policy:'efficiency'});const eff=C.run(s);assert.equal(eff.skills[0].count,0);near(eff.autoCount,20);s.combat.policy='flow';const flow=C.run(s);assert.ok(flow.skills[0].count>0);assert.ok(eff.dps>flow.dps);ledger(eff);});
+test('Efficiency strategy spends only the surplus beyond the auto reserve',()=>{const s=combatBase();onlySkill(s);setCombat(s,{autoCost:10,duration:5,policy:'efficiency'});const r=C.run(s);near(r.skills[0].count,1);near(r.autoCount,8);near(r.endMana,20);ledger(r);});
+test('Efficiency strategy skips skills with no net gain over autos',()=>{const s=combatBase();const x=onlySkill(s);x.k=0;s.combat.policy='efficiency';const r=C.run(s,true);assert.equal(r.skills[0].count,0);near(r.autoCount,20);});
 test('Adding an unpayable skill does not invent extra damage',()=>{const s=combatBase();s.combat.startPercent=0;s.basicAttacks[0].cost=0;const a=C.run(s);onlySkill(s);near(C.run(s).dps,a.dps);});
 test('Regen and potion settings do not alter unlimited reference output',()=>{const s=B.defaults();const a=C.run(s,true);s.combat.potions=0;s.combat.regenMode='manual';s.combat.regen=0;near(C.run(s,true).dps,a.dps);});
 test('Total damage equals its contributors',()=>{const s=B.defaults();s.e.proc=123;const r=C.run(s);near(r.totalDamage,r.autoDamage+r.skillDamage+r.procDamage);near(r.dps*r.T,r.totalDamage);ledger(r);});
@@ -134,16 +141,37 @@ function iceDesign() {const s=B.defaults();s.baseDps=1000;const ice={...B.newBas
 test('Ice basic: 0.5 seconds / 3 shots / 10 mana distributes one DPS budget',()=>{const s=iceDesign(),r=B.basicBudget(s);near(r.dps,800);near(r.total,400);near(r.perShot,400/3);near(r.manaPerSecond,20);});
 test('More shots never multiply the basic attack total damage',()=>{const s=iceDesign();s.basicAttacks[1].shots=6;near(B.basicBudget(s).total,400);near(B.basicBudget(s).perShot,400/6);});
 test('Basic mana cost is independent of DPS pricing',()=>{const s=iceDesign();s.basicAttacks[1].cost=30;near(B.basicBudget(s).dps,800);near(B.basicBudget(s).manaPerSecond,60);});
-test('Independent basic DPS and interval edits',()=>{const s=iceDesign();Object.assign(s.basicAttacks[1],{ratio:.6,interval:1});near(B.basicBudget(s).dps,600);near(B.basicBudget(s).total,600);near(s.basicAttacks[0].ratio,.8);near(s.basicAttacks[0].cost,3);near(s.basicAttacks[0].interval,.3);});
+test('Independent basic DPS and interval edits',()=>{const s=iceDesign();Object.assign(s.basicAttacks[1],{ratio:.6,interval:1});near(B.basicBudget(s).dps,600);near(B.basicBudget(s).total,600);near(s.basicAttacks[0].ratio,.6);near(s.basicAttacks[0].cost,3);near(s.basicAttacks[0].interval,.3);});
 test('Selected basic drives simulation once and preserves MagicMissile config',()=>{const s=iceDesign();s.skills=[];setCombat(s,{duration:10,regenMode:'manual',regen:0,startPercent:100,potions:0});s.baseMana=1000;const r=C.run(s);near(r.autoCount,20);near(r.autoMana,200);near(r.autoDamage,800*B.gear(s,'e').multiplier*10);near(s.basicAttacks[0].cost,3);});
 test('Basic IDs are unique across all skill categories',()=>{const s=iceDesign();assert.ok(B.validBasics(s));s.skills[0].id='IceConeBasic';assert.equal(B.validBasics(s),false);});
 test('Invalid basic counts, bounds and selection are rejected',()=>{for(const value of [0,1.5,101,NaN]){const s=iceDesign();s.basicAttacks[1].shots=value;assert.equal(B.validBasics(s),false);}const s=iceDesign();s.selectedBasicAttackId='missing';assert.equal(B.validBasics(s),false);});
-test('Generic basic entries are the sole runtime source',()=>{const s=B.defaults();s.basicAttacks[0].ratio=.6;s.basicAttacks[0].cost=7;s.basicAttacks[0].interval=.4;near(B.basicBudget(s).dps,s.baseDps*.6);near(B.selectedBasic(s).cost,7);near(B.selectedBasic(s).interval,.4);});
+test('Generic basic entries are the sole runtime source',()=>{const s=B.defaults();s.basicAttacks[0].ratioCurve=[];s.basicAttacks[0].ratio=.6;s.basicAttacks[0].cost=7;s.basicAttacks[0].interval=.4;near(B.basicBudget(s).dps,s.baseDps*.6);near(B.selectedBasic(s).cost,7);near(B.selectedBasic(s).interval,.4);});
 test('Missile progression has two upgrades per stage excluding learned level',()=>{const r=B.newBasic();assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[1,3,5,8,10,13,15]);near(B.skillLevelAt(r,5),3);near(B.skillLevelAt(r,10),5);});
 test('Ice phase cap and first level are distinct',()=>{const r={...B.newBasic(),unlockStageCap:10,unlockLevel:6};assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[6,8,10,13,15]);near(B.skillLevelAt(r,5),0);near(B.skillLevelAt(r,8),2);r.unlockLevel=10;assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[10,13,15]);});
 test('Progression does not duplicate integer gates or truncate at 64 skills',()=>{const r={...B.newBasic(),levelsPerPhase:10};const nodes=B.progressionNodes(r,1,1000);assert.equal(new Set(nodes).size,nodes.length);near(B.skillLevelAt(r,1000,1),1000);});
-test('Level curve and rounded damage expose weak early upgrades',()=>{const s=B.defaults(),r=s.basicAttacks[0];near(B.levelDps(1),22);near(B.levelDps(3),26);near(B.levelDps(5),30);near(B.levelDps(10),50);near(B.levelDps(1000),3500);assert.deepEqual([1,3,5].map(l=>B.progressionBudget(s,r,l).integerHit),[5,6,7]);});
+test('Level curve and rounded damage expose weak early upgrades',()=>{const s=B.defaults(),r=s.basicAttacks[0];near(B.levelDps(1),22);near(B.levelDps(3),26);near(B.levelDps(5),30);near(B.levelDps(10),50);near(B.levelDps(1000),3500);assert.deepEqual([1,3,5].map(l=>B.progressionBudget(s,r,l).integerHit),[6,7,8]);near(B.progressionBudget(s,r,1).ratio,1);near(B.progressionBudget(s,r,50).ratio,.6);assert.equal(B.progressionBudget(s,s.skills[0],1).ratio,null);});
 test('Progression preview does not alter current pricing or runtime simulation',()=>{const s=B.defaults(),before=B.basicBudget(s).dps;B.progressionBudget(s,s.basicAttacks[0],1);near(B.basicBudget(s).dps,before);});
+function ladderBase(regen){
+ const s=combatBase();setCombat(s,{duration:100,startPercent:0,regen});
+ [[100,10],[100,20],[60,2]].forEach(([cost,cd],i)=>Object.assign(s.skills[i],{enabled:true,cost,cd,k:1,cdRatio:1,cast:.1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:i+1,hit:100}));
+ return s;
+}
+test('Mana ladder pours skill mana by value per mana and stops at the marginal skill',()=>{const L=C.ladder(ladderBase(30));assert.deepEqual(Array.from(L.rows,x=>x.value),[20,10,2]);near(L.income,30);near(L.demand,45);assert.deepEqual(Array.from(L.rows,x=>x.fill),[1,1,.5]);assert.equal(L.marginal,L.rows[2]);near(L.overflow,0);});
+test('Mana ladder reports overflow when every skill is fully funded',()=>{const L=C.ladder(ladderBase(50));assert.equal(L.marginal,null);near(L.overflow,5);});
+test('Mana ladder income subtracts autos and injuries and spreads the opening pool and potions',()=>{const s=ladderBase(30);setCombat(s,{startPercent:100,potions:2,potionPercent:50,autoCost:5,autoInterval:.5,hurtMode:'uniform',hurtTotal:200});const L=C.ladder(s);near(L.income,30-10-2+(200+200)/100);});
+test('Mana ladder skips unaffordable or non-positive skills when pouring',()=>{const s=ladderBase(30);s.skills[1].cost=201;s.skills[0].hit=0;const L=C.ladder(s);assert.equal(L.rows.find(x=>x.index===1).usable,false);assert.equal(L.rows.find(x=>x.index===0).positive,false);near(L.rows.find(x=>x.index===2).fill,1);});
+test('Break-even line separates arcane wins from menacing wins for a never-saturating sink',()=>{
+ const sink=(v)=>{const s=B.defaults();s.skills.forEach(x=>x.enabled=false);Object.assign(s.skills[0],{enabled:true,cost:20,cd:1,k:v,cdRatio:1,cast:.1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100});setCombat(s,{duration:300,potions:0,regenMode:'mod',regenPercent:2,policy:'efficiency',hurtMode:'uniform',hurtTotal:0});return s;};
+ const ratio=(v)=>{const a=sink(v),m=B.clone(a);m.e.items.forEach(x=>{if(x.prefix==='arcane')x.prefix='menacing';});return C.run(a).dps/C.run(m).dps;};
+ const V=C.ladder(sink(10)).threshold;assert.ok(Number.isFinite(V)&&V>0);assert.ok(ratio(V*.5)<1);assert.ok(ratio(V*1.5)>1);
+ const all=(s,prefix)=>{const c=B.clone(s);c.e.items.slice(0,c.slots).forEach(x=>{if(x.id!=='empty')x.prefix=prefix;});return C.run(c).dps;};
+ const D=C.prefixDuel(sink(V*1.5)),slots=sink(1).e.items.slice(0,sink(1).slots).filter(x=>x.id!=='empty').length;
+ assert.equal(D.slots,slots);near(D.lead,all(sink(V*1.5),'arcane')/all(sink(V*1.5),'menacing')-1);near(D.diff,D.arcane.dps-D.menacing.dps);assert.ok(C.prefixDuel(sink(V*.5)).lead<0);
+});
+test('Prefix duel leaves the page loadout untouched and skips empty slots',()=>{
+ const s=ladderBase(30);s.e.items[0].id='empty';s.e.items[1].prefix='warding';const before=JSON.stringify(s);
+ const D=C.prefixDuel(s);assert.equal(JSON.stringify(s),before);assert.equal(D.slots,s.e.items.slice(0,s.slots).filter(x=>x.id!=='empty').length);
+});
 console.log(`\n${count} model/static tests passed.`);
 async function browserTests(){
  // Isolated disposable browser for this local HTML; no user browser profile or session is used.
@@ -238,7 +266,7 @@ async function browserTests(){
   assert.equal(await page.locator('#basicDps1').innerText(),'600');
   assert.equal(await page.locator('#basicHit1').innerText(),'100');
   const basicSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')));
-  near(basicSaved.basicAttacks[0].ratio,.8);near(basicSaved.basicAttacks[0].cost,3);near(basicSaved.basicAttacks[0].interval,.3);
+  near(basicSaved.basicAttacks[0].ratio,.6);assert.equal(basicSaved.basicAttacks[0].ratioCurve.length,5);near(basicSaved.basicAttacks[0].cost,3);near(basicSaved.basicAttacks[0].interval,.3);
   await page.locator('#basicTable').evaluate(el=>el.closest('section').scrollIntoView());
   await page.locator('[aria-label="普通攻击设计"]').screenshot({path:path.join(__dirname,'test-output','basic-design.png')});
   await resetPage();
@@ -247,6 +275,15 @@ async function browserTests(){
   assert.equal(await page.locator('#basicHit1').innerText(),'100');
   await page.locator('#preset').selectOption('jungle');
   assert.equal(await page.locator('#basicRows tr').count(),2,'Changing stage must preserve ordinary attack drafts');
+  await page.locator('[data-prefix-side="e"][data-prefix-value="menacing"]').click();
+  const duration=await page.locator('#battleDuration').inputValue();
+  await page.locator('#battleDuration').fill(String(Number(duration)+7));
+  await page.locator('#preset').selectOption('adamantite');
+  const ePrefixes=await page.locator('#eSlots select[data-prop="prefix"]').evaluateAll(xs=>xs.map(x=>x.value));
+  assert.equal(ePrefixes.length,6);assert.ok(ePrefixes.every(x=>x==='menacing'),'Changing gear preset must keep prefixes: '+ePrefixes);
+  assert.equal(await page.locator('#battleDuration').inputValue(),String(Number(duration)+7),'Changing gear preset must keep combat settings');
+  assert.equal(await page.locator('#baseDps').inputValue(),'450');
+  await page.locator('#preset').selectOption('jungle');
   await page.locator('#baseDps').fill('1000');
 
   await page.reload();
@@ -257,6 +294,36 @@ async function browserTests(){
   await page.getByRole('button',{name:'删除普攻新普攻 1',exact:true}).click();
   assert.equal(await page.getByRole('radio',{name:'使用魔法飞弹作为参考普攻'}).isChecked(),true);
   await page.getByRole('button',{name:'删除普攻冰锥普攻',exact:true}).click();
+  await resetPage();
+
+  // Missile ratio curve: editable text, fixed ratio disabled while a curve exists, chart drawn, legacy saves migrate.
+  await page.locator('#baseDps').fill('900');
+  const curveBox=page.getByRole('textbox',{name:'魔法飞弹倍率曲线',exact:true});
+  const missileRatio=page.getByRole('spinbutton',{name:'魔法飞弹目标DPS倍率',exact:true});
+  assert.equal(await curveBox.inputValue(),'1:1, 10:0.9, 20:0.8, 35:0.7, 50:0.6');
+  assert.equal(await missileRatio.isDisabled(),true);
+  assert.equal(await page.locator('#basicDps0').innerText(),'540');
+  assert.match(await page.locator('#basicSummary').innerText(),/Lv65/);
+  assert.ok(await page.locator('#basicCurve path, #basicCurve polyline').count()>0,'Curve chart is drawn');
+  await curveBox.fill('1:1，100：0.5');await curveBox.press('Tab');
+  near(Number(await page.locator('#basicDps0').innerText()),Math.round(900*(1-.5*64/99)*100)/100);
+  assert.equal(await curveBox.inputValue(),'1:1, 100:0.5');
+  await curveBox.fill('100:1, 5:.5');await curveBox.press('Tab');
+  assert.equal(await curveBox.inputValue(),'1:1, 100:0.5','Invalid curve text restores the previous curve');
+  assert.match(await page.locator('#status').innerText(),/曲线/);
+  await curveBox.fill('');await curveBox.press('Tab');
+  assert.equal(await missileRatio.isDisabled(),false);
+  assert.equal(await page.locator('#basicDps0').innerText(),'540');
+  assert.equal(errors.length,0,errors.join(' | '));
+  const legacy=await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')));
+  delete legacy.occupyRatio;legacy.basicAttacks.forEach(r=>delete r.ratioCurve);legacy.baseDps=777;
+  await page.evaluate(value=>localStorage.setItem('elaina-mage-balance-v2',JSON.stringify(value)),legacy);
+  await page.reload();
+  assert.equal(await page.locator('#baseDps').inputValue(),'777','Saves without curve or occupyRatio still load');
+  assert.equal(await page.locator('#occupyRatio').inputValue(),'0');
+  assert.equal(await page.getByRole('textbox',{name:'魔法飞弹倍率曲线',exact:true}).inputValue(),'');
+  await page.locator('#occupyRatio').fill('1');
+  near((await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')))).occupyRatio,1);
   await resetPage();
 
   await page.evaluate(()=>{
@@ -339,7 +406,12 @@ async function browserTests(){
   assert.deepEqual(await values('e','prefix'),['warding','menacing','menacing','menacing','menacing']);
   assert.match(await page.locator('#ePrefixStatus').innerText(),/4 个/);
   await page.locator('#slots').selectOption('7');
-  assert.equal((await values('e','prefix'))[6],'lucky');
+  assert.deepEqual((await values('e','prefix')).slice(5),['menacing','menacing'],'Uniform visible prefixes extend to newly opened slots');
+  await page.locator('#eSlots select[data-prop="prefix"]').nth(6).selectOption('lucky');
+  await page.locator('#slots').selectOption('6');
+  await page.locator('#eSlots select[data-prop="prefix"]').nth(1).selectOption('warding');
+  await page.locator('#slots').selectOption('7');
+  assert.equal((await values('e','prefix'))[6],'lucky','Mixed visible prefixes keep the stored prefix of reopened slots');
   await resetPage();
 
   // Graduate preset, three independent buff stacks and explicit special-mana adaptation.
@@ -407,6 +479,9 @@ async function browserTests(){
   await page.getByRole('checkbox',{name:'模拟启用冰凌锁',exact:true}).check();
   await page.getByRole('spinbutton',{name:'模拟冰凌锁蓝耗',exact:true}).fill('500');
   assert.match(await page.locator('#simWarnings').innerText(),/无法支付/);
+  assert.match(await page.locator('#ladderRows').innerText(),/冰凌锁[\s\S]*无法释放/);
+  assert.match(await page.locator('#ladderSummary').innerText(),/技能可用蓝/);
+  assert.match(await page.locator('#ladderSummary').innerText(),/奥秘 vs 险恶[\s\S]*奥秘(领先|落后) [\d.]+%/);
   await page.getByRole('spinbutton',{name:'模拟水球魔法CD',exact:true}).fill('30');
   await page.getByRole('spinbutton',{name:'模拟水球魔法命中',exact:true}).fill('50');
   await page.reload();

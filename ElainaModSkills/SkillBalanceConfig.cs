@@ -12,9 +12,11 @@ namespace 伊蕾娜.ElainaModSkills;
 
 public enum SkillBalanceKind { BasicAttack, Active }
 
-/// <summary>所有技能共用的定价定义；BaseCooldown 对普攻表示完整攻击周期，HitCount 是整次预算的等额命中数。</summary>
+/// <summary>所有技能共用的定价定义；BaseCooldown 对普攻表示完整攻击周期，HitCount 是整次预算的等额命中数。
+/// RatioCurve 为空时普攻固定使用 DpsRatio，否则按角色等级在节点间线性插值、超出两端取端点。</summary>
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, int ManaCost,
-    double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1);
+    double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null);
 
 /// <summary>本地不可变配置；只接受 v2，不读取网页配装、等级、模拟结果作为游戏属性。</summary>
 public sealed class SkillBalanceConfig
@@ -27,20 +29,24 @@ public sealed class SkillBalanceConfig
     public double RatePer20 { get; }
     public int CharacterPhaseSize { get; }
     public string ReferenceBasicAttackId { get; }
+    /// <summary>主动技能每秒占手给予的基准 DPS 倍率；0 表示不做占手补偿，伤害全部来自魔力转换。</summary>
+    public double OccupyRatio { get; }
     public FrozenDictionary<string, SkillBalanceEntry> Skills { get; }
 
-    private SkillBalanceConfig(double rate, int characterPhaseSize, string referenceBasicAttackId, IEnumerable<SkillBalanceEntry> skills)
+    private SkillBalanceConfig(double rate, int characterPhaseSize, string referenceBasicAttackId, double occupyRatio, IEnumerable<SkillBalanceEntry> skills)
     {
         RatePer20 = rate;
         CharacterPhaseSize = characterPhaseSize;
         ReferenceBasicAttackId = referenceBasicAttackId;
+        OccupyRatio = occupyRatio;
         Skills = skills.ToFrozenDictionary(x => x.Id, StringComparer.Ordinal);
     }
 
-    public static SkillBalanceConfig Fallback => new(4, 5, "MagicMissileSkill",
+    public static SkillBalanceConfig Fallback => new(4, 5, "MagicMissileSkill", 0,
     [
-        new("MagicMissileSkill", "魔法飞弹", SkillBalanceKind.BasicAttack, 3, .3, 1, LevelsPerPhase: 2, DpsRatio: .8),
-        new("WaterBallSkill", "水球魔法", SkillBalanceKind.Active, 100, 10, 1, ConversionRate: .8, OccupySeconds: 1, CdDamageRatio: 1)
+        new("MagicMissileSkill", "魔法飞弹", SkillBalanceKind.BasicAttack, 3, .3, 1, LevelsPerPhase: 2, DpsRatio: .6,
+            RatioCurve: [(1, 1), (10, .9), (20, .8), (35, .7), (50, .6)]),
+        new("WaterBallSkill", "水球魔法", SkillBalanceKind.Active, 100, 10, 1, ConversionRate: 3.3, OccupySeconds: 1, CdDamageRatio: 1)
     ]);
 
     public static bool TryParse(string json, out SkillBalanceConfig config, out string error)
@@ -60,6 +66,7 @@ public sealed class SkillBalanceConfig
             RequireObject(c, "configuration");
             Number(c, "version", 2, 2);
             double rate = Number(c, "rate", 0, 20);
+            double occupyRatio = OptionalNumber(c, "occupyRatio", 0, 5, 0);
             JsonElement progression = c.GetProperty("progression");
             RequireObject(progression, "progression");
             int phaseSize = Integer(progression, "phaseSize", 1, 20);
@@ -72,7 +79,8 @@ public sealed class SkillBalanceConfig
             {
                 var (id, name) = ReadIdentity(row, ids);
                 skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Integer(row, "cost", 0, 10000),
-                    Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5)));
+                    Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
+                    RatioCurve: ReadRatioCurve(row)));
             }
             string reference = c.GetProperty("selectedBasicAttackId").GetString();
             if (reference == null || !ids.Contains(reference))
@@ -85,9 +93,9 @@ public sealed class SkillBalanceConfig
                 var (id, name) = ReadIdentity(row, ids);
                 skills.Add(new(id, name, SkillBalanceKind.Active, Integer(row, "cost", 0, 10000),
                     Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
-                    ConversionRate: Number(row, "k", 0, 3), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1)));
+                    ConversionRate: Number(row, "k", 0, 10), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1)));
             }
-            config = new(rate, phaseSize, reference, skills);
+            config = new(rate, phaseSize, reference, occupyRatio, skills);
             return true;
         }
         catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or KeyNotFoundException or ArgumentException)
@@ -106,6 +114,28 @@ public sealed class SkillBalanceConfig
         if (string.IsNullOrWhiteSpace(name) || name.Length > 64)
             throw new FormatException("技能名称不能为空或超过 64 字符。");
         return (id, name);
+    }
+
+    /// <summary>可选的 [[角色等级, 倍率], ...]；等级为严格递增整数，缺省或空数组表示固定倍率。</summary>
+    private static (int Level, double Ratio)[] ReadRatioCurve(JsonElement row)
+    {
+        if (!row.TryGetProperty("ratioCurve", out JsonElement curve) || curve.ValueKind == JsonValueKind.Null) return [];
+        if (curve.ValueKind != JsonValueKind.Array || curve.GetArrayLength() > 16)
+            throw new FormatException("ratioCurve 必须是最多 16 项的数组。");
+        var points = new (int Level, double Ratio)[curve.GetArrayLength()];
+        int index = 0;
+        foreach (JsonElement point in curve.EnumerateArray())
+        {
+            if (point.ValueKind != JsonValueKind.Array || point.GetArrayLength() != 2)
+                throw new FormatException("ratioCurve 的每项必须是 [等级, 倍率]。");
+            double level = point[0].ValueKind == JsonValueKind.Number ? point[0].GetDouble() : double.NaN;
+            double ratio = point[1].ValueKind == JsonValueKind.Number ? point[1].GetDouble() : double.NaN;
+            if (!(level >= 1 && level <= 1000) || level != Math.Truncate(level) || !(ratio >= 0 && ratio <= 5)
+                || index > 0 && level <= points[index - 1].Level)
+                throw new FormatException("ratioCurve 等级必须是 1..1000 的递增整数，倍率必须在 0..5 范围内。");
+            points[index++] = ((int)level, ratio);
+        }
+        return points;
     }
 
     private static void RequireObject(JsonElement value, string name)
@@ -134,20 +164,36 @@ public sealed class SkillBalanceConfig
         return (int)number;
     }
 
-    /// <summary>未取整的整次基础伤害；主动技能的 CD 只按 CdDamageRatio 折算为伤害预算，实际冷却不变。</summary>
-    public double GetSkillDamage(double baselineDps, SkillBalanceEntry skill)
+    /// <summary>普攻在指定角色等级的目标 DPS 倍率；无曲线时为固定 DpsRatio。</summary>
+    public static double GetDpsRatio(SkillBalanceEntry skill, double characterLevel)
+    {
+        IReadOnlyList<(int Level, double Ratio)> curve = skill.RatioCurve;
+        if (curve == null || curve.Count == 0) return skill.DpsRatio;
+        if (characterLevel <= curve[0].Level) return curve[0].Ratio;
+        for (int i = 1; i < curve.Count; i++)
+        {
+            if (characterLevel > curve[i].Level) continue;
+            var (fromLevel, fromRatio) = curve[i - 1];
+            var (toLevel, toRatio) = curve[i];
+            return fromRatio + (toRatio - fromRatio) * (characterLevel - fromLevel) / (toLevel - fromLevel);
+        }
+        return curve[^1].Ratio;
+    }
+
+    /// <summary>未取整的整次基础伤害；characterLevel 是该技能等级映射出的伤害基准等级，只影响带曲线的普攻倍率。
+    /// 主动技能的 CD 只按 CdDamageRatio 折算为伤害预算，实际冷却不变。</summary>
+    public double GetSkillDamage(double baselineDps, SkillBalanceEntry skill, int characterLevel)
     {
         double baseline = Math.Max(0, baselineDps);
         if (skill.Kind == SkillBalanceKind.BasicAttack)
-            return baseline * skill.DpsRatio * skill.BaseCooldown;
-        double referenceRatio = Skills[ReferenceBasicAttackId].DpsRatio;
+            return baseline * GetDpsRatio(skill, characterLevel) * skill.BaseCooldown;
         double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.CdDamageRatio * skill.ConversionRate;
-        return baseline * (referenceRatio * Math.Max(1d / 60, skill.OccupySeconds) + extraRatio);
+        return baseline * (OccupyRatio * Math.Max(1d / 60, skill.OccupySeconds) + extraRatio);
     }
 
-    /// <summary>按配置完整周期折算的基础 DPS；主动技能包含占手补偿，不是净额外 DPS。</summary>
-    public double GetSkillDps(double baselineDps, SkillBalanceEntry skill) =>
-        GetSkillDamage(baselineDps, skill) / skill.BaseCooldown;
+    /// <summary>按配置完整周期折算的基础 DPS；主动技能包含 OccupyRatio 占手部分，不是净额外 DPS。</summary>
+    public double GetSkillDps(double baselineDps, SkillBalanceEntry skill, int characterLevel) =>
+        GetSkillDamage(baselineDps, skill, characterLevel) / skill.BaseCooldown;
 
     /// <summary>技能升级节点；角色门槛同时是该技能等级的伤害基准等级，不代替 Boss 解锁条件。</summary>
     public IEnumerable<int> GetSkillLevelNodes(SkillBalanceEntry skill, int maxCharacterLevel = 1000)

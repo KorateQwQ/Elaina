@@ -30,6 +30,15 @@ public class MagicMissileSkill : ElainaSkill
     {
         base.Initialize();
     }
+
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
+    {
+        // 与技能描述一致，使用含装备增伤的单发伤害
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        return [("伤害", current.ToString(), next.ToString(), "")];
+    }
+
     public override void ResetEffects(Player player)
     {
         //MagicPointCost = 5;//(int)(player.statMana*0.2)+200;

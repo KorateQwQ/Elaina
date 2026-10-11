@@ -134,10 +134,12 @@ internal sealed class ConstellationState
         _player.UnlockedSkill.Clear();
         for (int i = 0; i < _player.ActiveSkill.Count; i++) _player.ActiveSkill[i] = null;
         _player.Player.GetModPlayer<global::伊蕾娜.System.ElainaStatePlayer>().DebugResetProgress();
+        // Re-run skill initialization so skills learned by default (e.g. AshenWitch) are granted again.
+        _player.LearnInitialSkills();
         ElainaSkillModPlayer.CurrentSkillIndex = -1;
         Refresh();
         TargetSlot = 0;
-        Selected = Skills.FirstOrDefault()?.id;
+        Selected = Skills.FirstOrDefault(s => Learned.Contains(s.id))?.id ?? Skills.FirstOrDefault()?.id;
         Filter = Status(Current);
         _player.OnSkillsUpdated();
         return true;

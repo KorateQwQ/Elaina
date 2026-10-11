@@ -56,6 +56,17 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         return false;
     }
 
+    /// <summary>按各技能的初始化规则，自动习得初始即已学习的技能。</summary>
+    public void LearnInitialSkills()
+    {
+        foreach (Skill template in Skill.RegisterSkill.Values)
+        {
+            if (template?.ModSkill is not ElainaSkill modSkill || !modSkill.LearnedOnInitialize(Player)) continue;
+            // 注册表中的是共享模板，需要为玩家创建独立实例。
+            UnlockSkill(Skill.NewSkill(modSkill.GetType(), template.Mod));
+        }
+    }
+
     public override void Load()
     {
         On_Player.QuickGrapple += On_PlayerOnQuickGrapple;

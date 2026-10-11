@@ -24,6 +24,22 @@ def number(obj, key, lo, hi, integer=False):
         raise ValueError(f"{key} 必须是整数。")
     return value
 
+def ratio_curve(row):
+    curve = row.get("ratioCurve")
+    if curve is None:
+        return
+    if not isinstance(curve, list) or len(curve) > 16:
+        raise ValueError("ratioCurve 必须是最多 16 项的数组。")
+    previous = 0
+    for point in curve:
+        if not isinstance(point, list) or len(point) != 2:
+            raise ValueError("ratioCurve 的每项必须是 [等级, 倍率]。")
+        level = number({"level": point[0]}, "level", 1, 1000, True)
+        number({"ratio": point[1]}, "ratio", 0, 5)
+        if level <= previous:
+            raise ValueError("ratioCurve 等级必须严格递增。")
+        previous = level
+
 def validate_payload(payload):
     if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
         raise ValueError("不支持的配置格式。")
@@ -31,6 +47,9 @@ def validate_payload(payload):
     if not isinstance(c, dict) or c.get("version") != 2:
         raise ValueError("配置版本无效。")
     number(c, "rate", 0, 20)
+    if "occupyRatio" not in c:
+        c["occupyRatio"] = 0
+    number(c, "occupyRatio", 0, 5)
     progression = c.get("progression")
     if not isinstance(progression, dict): raise ValueError("progression 缺失。")
     number(progression, "phaseSize", 1, 20, True)
@@ -58,6 +77,7 @@ def validate_payload(payload):
             raise ValueError("普攻名称不能为空或超过 64 字符。")
         basic_ids.add(key)
         number(row, "ratio", 0, 5)
+        ratio_curve(row)
         number(row, "cost", 0, 10000, True)
         number(row, "interval", .05, 10)
         number(row, "shots", 1, 100, True)
@@ -81,7 +101,7 @@ def validate_payload(payload):
         if "cdRatio" not in row:
             row["cdRatio"] = 1
         number(row, "cdRatio", 0, 1)
-        number(row, "k", 0, 3)
+        number(row, "k", 0, 10)
         number(row, "cast", 0, 60)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)

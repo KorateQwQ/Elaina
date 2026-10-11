@@ -88,6 +88,9 @@ public abstract partial class ElainaSkill : ModSkill
         base.Initialize();
     }
 
+    /// <summary>技能初始化（新角色、重置技能）时是否自动习得。</summary>
+    public virtual bool LearnedOnInitialize(Player player) => false;
+
     public override void ResetEffects(Player player)
     {
         base.ResetEffects(player);

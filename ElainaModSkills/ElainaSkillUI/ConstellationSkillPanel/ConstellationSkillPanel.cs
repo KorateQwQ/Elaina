@@ -430,7 +430,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             _draw.Frame(550 - width / 2, 693, width, 38, Lavender * .5f * alpha);
             _draw.FittedText(_toast, 550, 705, width - 30, 12, Ink * alpha, .5f);
         }
-        if (!_book.IsOpen || !Main.hasFocus || Main.mouseLeft || _dragging) { _tooltipDelay.Reset(); return; }
+        if (!_book.IsOpen || !Main.hasFocus || Main.mouseLeft || _dragging || string.IsNullOrEmpty(_tooltip)) { _tooltipDelay.Reset(); return; }
         if (!_tooltipDelay.Ready(_tooltipKey, _clock)) return;
         _draw.Tooltip(_tooltip, Design(Main.MouseScreen), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
     }

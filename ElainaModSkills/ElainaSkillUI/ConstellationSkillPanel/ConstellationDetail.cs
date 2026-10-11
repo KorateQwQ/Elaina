@@ -117,8 +117,7 @@ internal sealed class ConstellationDetail
                     d.LatinText(points.ToString(), Width - 10, 11, 11, new Color(224, 201, 158) * alpha, 1);
                 }
                 else if (requirements.Rows.Count == 0) d.Text("无消耗", Width - 10, 12, 10, new Color(184, 166, 202) * alpha, 1);
-            }, new ConstellationDetailAction(new Rectangle(0, 0, Width, 35), "upgrade", node.id,
-                maxed ? "已满级" : requirements.ActionTooltip($"进修至 {level + 1} 级"), enabled));
+            }, new ConstellationDetailAction(new Rectangle(0, 0, Width, 35), "upgrade", node.id, null, enabled));
             if (!maxed && requirements.Rows.Count > 0) RequirementsBlock("进修所需", requirements);
         }
         else RequirementsBlock("研习所需", state.Requirements(node.id, false));

@@ -78,6 +78,48 @@ class BasicDesignTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     server.validate_payload(self.payload)
 
+    def test_conversion_rate_accepts_up_to_ten(self):
+        for value in [3.5, 10]:
+            self.c["skills"][0]["k"] = value
+            server.validate_payload(self.payload)
+        for value in [-.1, 10.1]:
+            self.c["skills"][0]["k"] = value
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    server.validate_payload(self.payload)
+
+    def test_ratio_curve_round_trips_and_validates(self):
+        curve = [[1, 1], [10, .9], [20, .8], [35, .7], [50, .6]]
+        self.c["basicAttacks"][0]["ratioCurve"] = curve
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "balance.json"
+            server.atomic_save(path, self.payload)
+            restored = json.loads(path.read_text(encoding="utf-8"))["configuration"]
+        self.assertEqual(restored["basicAttacks"][0]["ratioCurve"], curve)
+        for value in [[], None]:
+            self.c["basicAttacks"][0]["ratioCurve"] = value
+            server.validate_payload(self.payload)
+        bad = [[[10, 1], [5, .5]], [[1, 1], [1, .5]], [[0, 1]], [[1001, 1]], [[1.5, 1]], [[1, 5.1]], [[1, -1]],
+               [[1]], [[1, 1, 1]], [["1", 1]], [[1, True]], {"1": 1}, "1:1", [[i, 1] for i in range(1, 18)]]
+        for value in bad:
+            self.c["basicAttacks"][0]["ratioCurve"] = value
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    server.validate_payload(self.payload)
+
+    def test_occupy_ratio_defaults_and_validates(self):
+        self.c.pop("occupyRatio", None)
+        server.validate_payload(self.payload)
+        self.assertEqual(self.c["occupyRatio"], 0)
+        for value in [0, 1, 5]:
+            self.c["occupyRatio"] = value
+            server.validate_payload(self.payload)
+        for value in [-.1, 5.1, "1", None]:
+            self.c["occupyRatio"] = value
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    server.validate_payload(self.payload)
+
     def test_missile_has_no_special_case(self):
         self.c["basicAttacks"][0]["shots"] = 3
         server.validate_payload(self.payload)

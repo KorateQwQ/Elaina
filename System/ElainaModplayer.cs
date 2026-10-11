@@ -158,7 +158,7 @@ namespace 伊蕾娜
                 Player.ConsumedManaCrystals = 4;
                 Player.GetModPlayer<ElainaModplayer>().Elaina = true;
                 Player.GetModPlayer<EXPmodplayer>().Reset();
-                Player.GetModPlayer<ElainaSkillModPlayer>().UnlockSkill(Skill.NewSkill(typeof(AshenWitchSkill),伊蕾娜.ElainaModInstance));
+                Player.GetModPlayer<ElainaSkillModPlayer>().LearnInitialSkills();
                 return
                 [
                     new Item(ModContent.ItemType<ElainaHat>()),

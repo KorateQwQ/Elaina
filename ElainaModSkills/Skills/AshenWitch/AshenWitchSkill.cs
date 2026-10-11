@@ -24,22 +24,15 @@ public class AshenWitchSkill : ElainaSkill
     {
         MaxCD = -1;
         MagicPointCost = -1;
-        KLGameStateManager.OnBossLoot += OnKillBoss;
+        //KLGameStateManager.OnBossLoot += OnKillBoss;
         base.Initialize();
     }
+
+    public override bool LearnedOnInitialize(Player player) => player.GetModPlayer<ElainaModplayer>().Elaina;
 
     public override void ResetEffects(Player player)
     {
         LostMaxLife = 0;
-        if (player.GetModPlayer<ElainaModplayer>().Elaina)
-        {
-            BasicStatus = Skill.SKillBasicStatus.UnLock;
-            if (Level < 1)
-            {
-                Level = 1;
-            }
-        }
-
         base.ResetEffects(player);
     }
 
@@ -69,7 +62,7 @@ public class AshenWitchSkill : ElainaSkill
         base.UpdateEquips(player);
     }
 
-    private void OnKillBoss(NPC self, List<int> killers, int realMaxHp)
+    /*private void OnKillBoss(NPC self, List<int> killers, int realMaxHp)
     {
         List<int> materialTypes = KLGameStateManager.FindMaterialsByBoss(self);
         List<int> weaponTypes = KLGameStateManager.FindWeaponsByBoss(self, KLGameStateManager.StateItemType.MagicWeapon);
@@ -93,7 +86,7 @@ public class AshenWitchSkill : ElainaSkill
         }
 
         UnlockCondition = SkillUnlockCondition.ByItemsAndSkillPoint(0, unlockItems.ToArray());
-    }
+    }*/
 
     public override void OnRightClickInSkillPanel()
     {

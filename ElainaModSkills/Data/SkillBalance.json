@@ -2,39 +2,54 @@
   "schema": "elaina-mage-balance-v2",
   "configuration": {
     "version": 2,
+    "progression": {
+      "phaseSize": 5,
+      "previewLevel": 10
+    },
     "basicAttacks": [
       {
         "id": "MagicMissileSkill",
         "name": "魔法飞弹",
-        "ratio": 0.8,
-        "cost": 3,
-        "interval": 0.3,
-        "shots": 1,
         "unlockStageCap": 5,
         "unlockLevel": 1,
-        "levelsPerPhase": 2
+        "levelsPerPhase": 2,
+        "ratio": 0.6,
+        "cost": 2,
+        "interval": 0.3,
+        "shots": 1,
+        "ratioCurve": [
+          [
+            1,
+            1
+          ],
+          [
+            50,
+            0.6
+          ]
+        ]
       },
       {
         "id": "IceConeSkill",
         "name": "冰锥",
-        "ratio": 1.1,
-        "cost": 10,
-        "interval": 0.5,
-        "shots": 3,
         "unlockStageCap": 10,
         "unlockLevel": 20,
-        "levelsPerPhase": 2
+        "levelsPerPhase": 2,
+        "ratio": 0.9,
+        "cost": 5,
+        "interval": 0.5,
+        "shots": 3,
+        "ratioCurve": []
       }
     ],
     "selectedBasicAttackId": "MagicMissileSkill",
-    "preset": "spectre",
-    "baseDps": 3500,
+    "preset": "jungle",
+    "baseDps": 200,
     "baseCrit": 4,
-    "slots": 7,
+    "slots": 5,
     "v": {
-      "armor": "nebula",
-      "damage": 30,
-      "crit": 10,
+      "armor": "jungle",
+      "damage": 0,
+      "crit": 0,
       "proc": 0,
       "nebula": {
         "damage": 3,
@@ -43,15 +58,11 @@
       },
       "items": [
         {
-          "id": "sorcerer",
+          "id": "regen",
           "prefix": "menacing"
         },
         {
-          "id": "avenger",
-          "prefix": "menacing"
-        },
-        {
-          "id": "celestial",
+          "id": "flower",
           "prefix": "menacing"
         },
         {
@@ -60,22 +71,26 @@
         },
         {
           "id": "utility",
-          "prefix": "menacing"
+          "prefix": "warding"
         },
         {
           "id": "utility",
-          "prefix": "menacing"
+          "prefix": "warding"
         },
         {
           "id": "utility",
-          "prefix": "menacing"
+          "prefix": "warding"
+        },
+        {
+          "id": "utility",
+          "prefix": "warding"
         }
       ]
     },
     "e": {
-      "armor": "nebula",
-      "damage": 30,
-      "crit": 10,
+      "armor": "jungle",
+      "damage": 0,
+      "crit": 0,
       "proc": 0,
       "nebula": {
         "damage": 3,
@@ -84,27 +99,27 @@
       },
       "items": [
         {
-          "id": "sorcerer",
+          "id": "regen",
           "prefix": "arcane"
         },
         {
-          "id": "avenger",
+          "id": "flower",
           "prefix": "arcane"
         },
         {
-          "id": "celestial",
+          "id": "utility",
           "prefix": "arcane"
         },
         {
-          "id": "cuffs",
+          "id": "utility",
           "prefix": "arcane"
         },
         {
-          "id": "celestialCuffs",
+          "id": "utility",
           "prefix": "arcane"
         },
         {
-          "id": "band",
+          "id": "utility",
           "prefix": "arcane"
         },
         {
@@ -113,7 +128,7 @@
         }
       ]
     },
-    "baseMana": 400,
+    "baseMana": 50,
     "extraMana": 0,
     "mode": "budget",
     "budgetSource": "added",
@@ -126,7 +141,7 @@
     "skillStats": true,
     "nebulaManaBridge": false,
     "combat": {
-      "duration": 300,
+      "duration": 60,
       "startPercent": 100,
       "potions": 5,
       "potionPercent": 50,
@@ -135,22 +150,26 @@
       "regen": 12.6,
       "reserve": 0,
       "policy": "flow",
-      "hurtMode": "periodic",
+      "hurtMode": "uniform",
       "hurtTotal": 0,
       "hurtInterval": 10,
-      "hurtPerHit": 100,
+      "hurtPerHit": 40,
       "hurtEvents": "15:100\n45:80"
     },
     "skills": [
       {
+        "unlockStageCap": 5,
+        "unlockLevel": 1,
+        "levelsPerPhase": 1,
         "shots": 1,
         "id": "WaterBallSkill",
         "name": "水球魔法",
         "enabled": true,
-        "cost": 200,
+        "cost": 100,
         "k": 3,
         "realization": 100,
-        "cd": 5,
+        "cd": 10,
+        "cdRatio": 1,
         "cast": 1,
         "delay": 0,
         "duration": 0,
@@ -158,13 +177,12 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 4,
-        "hit": 100,
+        "hit": 100
+      },
+      {
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
-      },
-      {
         "shots": 1,
         "id": "WindTornadoSkill",
         "name": "风龙卷",
@@ -173,6 +191,7 @@
         "k": 0.55,
         "realization": 100,
         "cd": 25,
+        "cdRatio": 1,
         "cast": 0.3,
         "delay": 0,
         "duration": 5,
@@ -180,21 +199,21 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 4,
-        "hit": 100,
+        "hit": 100
+      },
+      {
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
-      },
-      {
         "shots": 1,
         "id": "FireBurstSkill",
         "name": "炎爆（按每层循环）",
-        "enabled": false,
-        "cost": 40,
-        "k": 0.5,
+        "enabled": true,
+        "cost": 30,
+        "k": 2,
         "realization": 100,
         "cd": 15,
+        "cdRatio": 1,
         "cast": 0.1,
         "delay": 0,
         "duration": 0,
@@ -202,21 +221,21 @@
         "initialCharges": 5,
         "first": 0,
         "priority": 3,
-        "hit": 100,
+        "hit": 100
+      },
+      {
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
-      },
-      {
         "shots": 1,
         "id": "IceShardLockSkill",
         "name": "冰凌锁",
         "enabled": false,
         "cost": 50,
-        "k": 0.5,
+        "k": 2,
         "realization": 100,
         "cd": 30,
+        "cdRatio": 1,
         "cast": 0.2,
         "delay": 1,
         "duration": 5,
@@ -224,21 +243,21 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 2,
-        "hit": 100,
+        "hit": 100
+      },
+      {
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
-      },
-      {
         "shots": 1,
         "id": "MultiMissileSkill",
         "name": "倾泻魔力飞弹",
         "enabled": false,
         "cost": 200,
-        "k": 0.15,
+        "k": 1,
         "realization": 100,
         "cd": 30,
+        "cdRatio": 1,
         "cast": 5,
         "delay": 0,
         "duration": 5,
@@ -246,21 +265,21 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 5,
-        "hit": 100,
+        "hit": 100
+      },
+      {
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
-      },
-      {
         "shots": 1,
         "id": "FireTornadoSkill",
         "name": "火焰龙卷",
         "enabled": false,
-        "cost": 150,
-        "k": 0.7,
+        "cost": 300,
+        "k": 0.5,
         "realization": 75,
-        "cd": 120,
+        "cd": 180,
+        "cdRatio": 1,
         "cast": 1,
         "delay": 0,
         "duration": 8,
@@ -268,13 +287,12 @@
         "initialCharges": 1,
         "first": 15,
         "priority": 1,
-        "hit": 100,
+        "hit": 100
+      },
+      {
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
-      },
-      {
         "shots": 1,
         "id": "prototype.Lightning",
         "name": "天雷",
@@ -283,6 +301,7 @@
         "k": 1,
         "realization": 90,
         "cd": 90,
+        "cdRatio": 1,
         "cast": 2,
         "delay": 1,
         "duration": 10,
@@ -290,16 +309,53 @@
         "initialCharges": 1,
         "first": 20,
         "priority": 7,
-        "hit": 90,
+        "hit": 90
+      },
+      {
+        "id": "CustomSkill1",
+        "name": "雷龙召唤",
         "unlockStageCap": 5,
         "unlockLevel": 1,
         "levelsPerPhase": 1,
-        "cdRatio": 1
+        "shots": 1,
+        "enabled": false,
+        "cost": 200,
+        "k": 1,
+        "realization": 100,
+        "cd": 5,
+        "cdRatio": 1,
+        "cast": 1,
+        "delay": 0,
+        "duration": 5,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 9,
+        "hit": 100
+      },
+      {
+        "id": "CustomSkill2",
+        "name": "多重射击",
+        "unlockStageCap": 5,
+        "unlockLevel": 1,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "enabled": false,
+        "cost": 10,
+        "k": 5,
+        "realization": 100,
+        "cd": 12,
+        "cdRatio": 1,
+        "cast": 0.166,
+        "delay": 0,
+        "duration": 0,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 9,
+        "hit": 100
       }
     ],
-    "progression": {
-      "phaseSize": 5,
-      "previewLevel": 10
-    }
+    "occupyRatio": 0
   }
 }

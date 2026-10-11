@@ -92,23 +92,22 @@ public sealed class SkillBalanceSystem : ModSystem
         return start + (end - start) * (state - lower);
     }
 
-    private static double GetBaselineDps(SkillBalanceConfig config, SkillBalanceEntry entry, int skillLevel) =>
-        GetCharacterBaselineDps(config.GetSkillCharacterLevel(entry, skillLevel));
-
     /// <summary>按技能实际等级映射伤害节点，不含装备、暴击、命中、防御或资源限制。</summary>
     public static float GetBaseDps(int skillLevel, string id)
     {
         SkillBalanceConfig config = Current;
-        return config.Skills.TryGetValue(id, out SkillBalanceEntry entry)
-            ? (float)config.GetSkillDps(GetBaselineDps(config, entry, skillLevel), entry) : 0;
+        if (!config.Skills.TryGetValue(id, out SkillBalanceEntry entry)) return 0;
+        int characterLevel = config.GetSkillCharacterLevel(entry, skillLevel);
+        return (float)config.GetSkillDps(GetCharacterBaselineDps(characterLevel), entry, characterLevel);
     }
 
     /// <summary>按技能实际等级映射的单发基础伤害；默认按配置发数分摊。</summary>
     public static int GetBaseDamage(int skillLevel, string id, int? hitCount = null)
     {
         SkillBalanceConfig config = Current;
-        return config.Skills.TryGetValue(id, out SkillBalanceEntry entry)
-            ? SkillBalanceConfig.ToHitDamage(config.GetSkillDamage(GetBaselineDps(config, entry, skillLevel), entry), hitCount ?? entry.HitCount) : 0;
+        if (!config.Skills.TryGetValue(id, out SkillBalanceEntry entry)) return 0;
+        int characterLevel = config.GetSkillCharacterLevel(entry, skillLevel);
+        return SkillBalanceConfig.ToHitDamage(config.GetSkillDamage(GetCharacterBaselineDps(characterLevel), entry, characterLevel), hitCount ?? entry.HitCount);
     }
 
     /// <summary>按技能实际等级一次读取同一份配置；玩家只提供装备增伤，不再提供伤害基准等级。</summary>
@@ -122,9 +121,9 @@ public sealed class SkillBalanceSystem : ModSystem
         if (hits < 1) throw new ArgumentOutOfRangeException(nameof(hitCount));
         int characterLevel = config.GetSkillCharacterLevel(entry, skillLevel);
         double baseline = GetCharacterBaselineDps(characterLevel);
-        double baseDamage = config.GetSkillDamage(baseline, entry);
+        double baseDamage = config.GetSkillDamage(baseline, entry, characterLevel);
         double damage = player.GetTotalDamage(damageClass).ApplyTo((float)baseDamage);
-        result = new(entry, config.GetSkillDps(baseline, entry), baseDamage, damage, hits,
+        result = new(entry, config.GetSkillDps(baseline, entry, characterLevel), baseDamage, damage, hits,
             SkillBalanceConfig.ToHitDamage(damage, hits), skillLevel, characterLevel);
         return true;
     }

@@ -26,6 +26,13 @@ const cases = [1,2,5,7,20].map(phaseSize => {
  s.basicAttacks.push({...B.newBasic('DenseSkill','Dense'),unlockStageCap:3,unlockLevel:10,levelsPerPhase:10});
  return fixture(s);
 });
+// Non-default pricing: occupancy compensation on, plus a non-monotonic curve that starts after Lv1 and ends before the table does.
+cases.push((()=>{
+ const s = B.defaults();
+ s.occupyRatio = .75;
+ s.basicAttacks.push({...B.newBasic('IceConeSkill','Ice'),unlockStageCap:10,unlockLevel:6,levelsPerPhase:2,ratio:1.1,ratioCurve:[[3,1.2],[17,.5],[40,.9]],interval:.5,shots:3});
+ return fixture(s);
+})());
 cases.push(fixture(JSON.parse(fs.readFileSync(path.join(root,'ElainaModSkills/Data/SkillBalance.json'),'utf8').replace(/^\uFEFF/, '')).configuration));
 
 const parent = fs.readFileSync(path.join(root,'ElainaModSkills/ElainaSkill.cs'),'utf8');
@@ -77,9 +84,9 @@ foreach (var fixture in fixtures.EnumerateArray())
             Check(config.GetSkillLevelCap(entry, node) == level, "Incorrect cap at upgrade gate");
             Check(config.GetSkillLevelCap(entry, node-1) == level-1, "Cap advanced before gate");
             Near(SkillBalanceSystem.GetBaseDps(level, id), row.GetProperty("dps").GetDouble());
-            Near(config.GetSkillDamage(KLDpsHelper.GetLevelDps(node), entry), row.GetProperty("total").GetDouble());
+            Near(config.GetSkillDamage(KLDpsHelper.GetLevelDps(node), entry, node), row.GetProperty("total").GetDouble());
             int hit = SkillBalanceSystem.GetBaseDamage(level, id), expectedHit = row.GetProperty("hit").GetInt32();
-            Check(hit == expectedHit, $"Incorrect per-hit rounding: {id} Lv{level} node{node}, got {hit}, expected {expectedHit}; baseline={KLDpsHelper.GetLevelDps(node)} total={config.GetSkillDamage(KLDpsHelper.GetLevelDps(node), entry):R}");
+            Check(hit == expectedHit, $"Incorrect per-hit rounding: {id} Lv{level} node{node}, got {hit}, expected {expectedHit}; baseline={KLDpsHelper.GetLevelDps(node)} total={config.GetSkillDamage(KLDpsHelper.GetLevelDps(node), entry, node):R}");
         }
     });
 }
@@ -120,13 +127,57 @@ Test("Equipment damage is applied exactly once before hit splitting and rounding
     Check(SkillBalanceSystem.GetPlayerDamage(player,ice.Id,20,damageClass,7) == result.DamagePerHit, "Convenience API disagrees");
     player.DamageMultiplier = 1;
 });
-Test("Active skill pricing maps its own level, including occupancy compensation", () =>
+Test("Active skill pricing maps its own level and ignores the reference basic ratio", () =>
 {
     var entry = current.Skills["WaterBallSkill"];
     Check(SkillBalanceSystem.TryGetPlayerBalance(player,entry.Id,3,damageClass,out var result), "Missing active result");
     int node = current.GetSkillCharacterLevel(entry,3);
-    Near(result.BaseCastDamage,current.GetSkillDamage(KLDpsHelper.GetLevelDps(node),entry));
+    Near(result.BaseCastDamage,current.GetSkillDamage(KLDpsHelper.GetLevelDps(node),entry,node));
     Check(result.CharacterLevel == node, "Active uses a basic attack gate");
+    Near(current.OccupyRatio,0);
+    Near(result.BaseCastDamage,KLDpsHelper.GetLevelDps(node)*(current.RatePer20/100/20)*entry.ManaCost*entry.BaseCooldown*entry.CdDamageRatio*entry.ConversionRate);
+});
+Test("Ratio curve interpolates between points and clamps at both ends; empty curve uses the fixed ratio", () =>
+{
+    Near(SkillBalanceConfig.GetDpsRatio(missile,0),1);
+    Near(SkillBalanceConfig.GetDpsRatio(missile,1),1);
+    Near(SkillBalanceConfig.GetDpsRatio(missile,5.5),.95);
+    Near(SkillBalanceConfig.GetDpsRatio(missile,30),.8-.1/15*10);
+    Near(SkillBalanceConfig.GetDpsRatio(missile,50),.6);
+    Near(SkillBalanceConfig.GetDpsRatio(missile,1000),.6);
+    Near(SkillBalanceConfig.GetDpsRatio(missile with {RatioCurve=null},1),missile.DpsRatio);
+    Near(SkillBalanceConfig.GetDpsRatio(ice,1),ice.DpsRatio);
+});
+Test("OccupyRatio adds B times cast seconds to active skills only", () =>
+{
+    var payload = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    payload["configuration"]["occupyRatio"] = 1;
+    Check(store.Apply(payload.ToJsonString()), "occupyRatio configuration was not accepted");
+    var next = SkillBalanceSystem.Current;
+    var water = next.Skills["WaterBallSkill"];
+    double b = KLDpsHelper.GetLevelDps(10);
+    Near(next.GetSkillDamage(b,water,10)-current.GetSkillDamage(b,current.Skills[water.Id],10),b*Math.Max(1d/60,water.OccupySeconds));
+    Near(next.GetSkillDamage(b,next.Skills[missile.Id],10),current.GetSkillDamage(b,missile,10));
+    store.Apply(fixtures[2].GetProperty("json").GetString());
+});
+Test("Invalid curves and occupyRatio are rejected; null curve means none", () =>
+{
+    var good = SkillBalanceSystem.Current;
+    foreach (string bad in new[]{"[[10,1],[5,0.5]]","[[1,1],[1,0.5]]","[[0,1]]","[[1,6]]","[[1.5,1]]","[[1]]","{}","[" + string.Join(",",Enumerable.Range(1,17).Select(i=>$"[{i},1]")) + "]"})
+    {
+        var payload = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+        payload["configuration"]["basicAttacks"][0]["ratioCurve"] = JsonNode.Parse(bad);
+        Check(!store.Apply(payload.ToJsonString()) && ReferenceEquals(good,SkillBalanceSystem.Current), "Accepted bad curve " + bad);
+    }
+    var negative = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    negative["configuration"]["occupyRatio"] = -1;
+    Check(!store.Apply(negative.ToJsonString()), "Accepted negative occupyRatio");
+    var nulled = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    nulled["configuration"]["basicAttacks"][0]["ratioCurve"] = null;
+    nulled["configuration"].AsObject().Remove("occupyRatio");
+    Check(store.Apply(nulled.ToJsonString()), "Null curve or missing occupyRatio was rejected");
+    Check(SkillBalanceSystem.Current.Skills[missile.Id].RatioCurve.Count == 0 && SkillBalanceSystem.Current.OccupyRatio == 0, "Null curve or missing occupyRatio misread");
+    store.Apply(fixtures[2].GetProperty("json").GetString());
 });
 Test("Changing player cap does not truncate an already learned damage level", () =>
 {
@@ -159,6 +210,7 @@ Test("Hot configuration changes update both level caps and damage mapping withou
     row["unlockLevel"] = 2;
     row["levelsPerPhase"] = 1;
     row["ratio"] = .4;
+    row.AsObject().Remove("ratioCurve");
     Check(store.Apply(payload.ToJsonString()), "Live configuration was not accepted");
     var next = SkillBalanceSystem.Current;
     var entry = next.Skills[missile.Id];
