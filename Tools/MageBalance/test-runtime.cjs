@@ -160,6 +160,23 @@ Test("OccupyRatio adds B times cast seconds to active skills only", () =>
     Near(next.GetSkillDamage(b,next.Skills[missile.Id],10),current.GetSkillDamage(b,missile,10));
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });
+Test("Fractional mana costs and K above 10 are accepted and priced exactly", () =>
+{
+    var payload = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    payload["configuration"]["basicAttacks"][0]["cost"] = 2.5;
+    payload["configuration"]["skills"][0]["cost"] = 12.5;
+    payload["configuration"]["skills"][0]["k"] = 40;
+    Check(store.Apply(payload.ToJsonString()), "Fractional cost or K 40 was rejected");
+    var next = SkillBalanceSystem.Current;
+    var water = next.Skills[payload["configuration"]["skills"][0]["id"].GetValue<string>()];
+    Near(next.Skills[missile.Id].ManaCost,2.5);
+    Near(water.ManaCost,12.5);
+    double b = KLDpsHelper.GetLevelDps(10);
+    Near(next.GetSkillDamage(b,water,10),b*(next.OccupyRatio*Math.Max(1d/60,water.OccupySeconds)+(next.RatePer20/100/20)*12.5*water.BaseCooldown*water.CdDamageRatio*40));
+    payload["configuration"]["skills"][0]["k"] = 100.5;
+    Check(!store.Apply(payload.ToJsonString()), "K above 100 was accepted");
+    store.Apply(fixtures[2].GetProperty("json").GetString());
+});
 Test("Invalid curves and occupyRatio are rejected; null curve means none", () =>
 {
     var good = SkillBalanceSystem.Current;
@@ -177,6 +194,40 @@ Test("Invalid curves and occupyRatio are rejected; null curve means none", () =>
     nulled["configuration"].AsObject().Remove("occupyRatio");
     Check(store.Apply(nulled.ToJsonString()), "Null curve or missing occupyRatio was rejected");
     Check(SkillBalanceSystem.Current.Skills[missile.Id].RatioCurve.Count == 0 && SkillBalanceSystem.Current.OccupyRatio == 0, "Null curve or missing occupyRatio misread");
+    store.Apply(fixtures[2].GetProperty("json").GetString());
+});
+Test("Stage loadouts are parsed in order, optional, and invalid rows reject the whole file", () =>
+{
+    var good = SkillBalanceSystem.Current;
+    Check(good.Loadouts.Count == SkillBalanceConfig.LoadoutStages, "Loadouts were not read");
+    for (int i = 0; i < good.Loadouts.Count; i++)
+    {
+        var l = good.Loadouts[i];
+        Check(l.Stage == i + 1 && l.Items.Count == 7 && l.Slots is >= 5 and <= 7 && l.BaseMana % 20 == 0, "Loadout row misread");
+    }
+    var payload = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    var row = payload["configuration"]["loadouts"][2];
+    row["maxLife"] = 405; row["baseMana"] = 160; row["items"][0]["prefix"] = "menacing";
+    Check(store.Apply(payload.ToJsonString()), "Valid loadout edit was rejected");
+    var edited = SkillBalanceSystem.Current.Loadouts[2];
+    Check(edited.MaxLife == 405 && edited.BaseMana == 160 && edited.Items[0].Prefix == "menacing", "Edited loadout misread");
+    var bad = new (string Path, string Value)[]
+    {
+        ("stage","5"),("name","\" \""),("armor","\"../x\""),("slots","8"),("items","[]"),("baseMana","30"),("baseMana","220"),
+        ("maxLife","390"),("maxLife","403"),("maxLife","520"),("name","1")
+    };
+    foreach (var (key, value) in bad)
+    {
+        var next = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+        next["configuration"]["loadouts"][0][key] = JsonNode.Parse(value);
+        Check(!store.Apply(next.ToJsonString()), $"Accepted bad loadout {key}={value}");
+    }
+    var shortList = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    shortList["configuration"]["loadouts"].AsArray().RemoveAt(18);
+    Check(!store.Apply(shortList.ToJsonString()), "Accepted 18 loadouts");
+    var missing = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    missing["configuration"].AsObject().Remove("loadouts");
+    Check(store.Apply(missing.ToJsonString()) && SkillBalanceSystem.Current.Loadouts.Count == 0, "Missing loadouts were not optional");
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });
 Test("Changing player cap does not truncate an already learned damage level", () =>

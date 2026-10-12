@@ -6,6 +6,7 @@ using KL.Utils;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
@@ -31,12 +32,24 @@ public class MultiMissileSkill : ElainaSkill
 
     public override Type[] PrerequisiteSkills =>new[] { typeof(MagicMissileSkill)};
 
+    // 魔力飞弹需达到 5 级
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<MagicMissileSkill>(5));
+
+    // 法球发射的是普通魔力飞弹，增伤按飞弹的伤害类结算
+    protected override DamageClass BalanceDamageClass => ModContent.GetInstance<ElainaBasicDamage>();
+
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
+    {
+        // 与技能描述一致，使用含装备增伤的单枚法球伤害
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        return [("伤害", current.ToString(), next.ToString(), "")];
+    }
+
     public override void Initialize()
     {
-        MaxCD = 0.15f;
-        MaxStack = 1;
-        MagicPointCost = 3;
-
+        // 储存层数由 SkillBalance.json 的 maxCharges / initialCharges 决定
         for (int i = 0; i < MissileCount; i++)
         {
             slotOccupied[i] = false;
@@ -65,7 +78,7 @@ public class MultiMissileSkill : ElainaSkill
                 emptySlot = i;
                 break;
             }
-        }
+        } 
         // 如果所有位置都被占满，无法使用技能
         if (emptySlot == -1)
         {
@@ -109,7 +122,7 @@ public class MultiMissileSkill : ElainaSkill
             1,
             ModContent.ProjectileType<MagicMissleSpawner>(),
             _ => spawnPosition,
-            damage: 100,
+            damage: GetConfiguredDamage(),
             2,
             _ => Vector2.Zero,
             configureProjectile: projectile =>
@@ -251,6 +264,12 @@ public class MultiMissileSkill : ElainaSkill
 
         return count;
     }
+
+    protected override object[] SkillDescriptionArgs => new object[]
+    {
+        MissileCount,
+        GetConfiguredDamage(),
+    };
 
     public override void PostDrawSkillIcon(Vector2 position, Vector2 scale, Color color, Effect effect = null)
     {

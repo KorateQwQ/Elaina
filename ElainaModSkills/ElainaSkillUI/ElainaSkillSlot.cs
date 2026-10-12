@@ -52,15 +52,15 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
 
     public override void DrawChildren(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        // The existing skill hook owns cooldown text and any skill-specific overlays.
-        if (GetSkill() is { } modSkill) modSkill.SelectedInSkillBar = true;
         base.DrawChildren(gameTime, spriteBatch);
         SkillBarDrawing.DrawSlotFrame(spriteBatch, _ornaments.Value,
             Bounds.Center, _selected, HasSkill, _hover, _selectionTime);
-        if (GetSlotSkill() is { MaxStack: > 1 } skill)
-            UIDrawKit.DrawText(spriteBatch, UIDrawKit.NumberFont, $"{skill.Stack}",
-                Bounds.Center + new Vector2(18, 16), Color.White, 14f / 48f, new Vector2(.5f));
+        if (GetSlotSkill() is { } skill)
+            SkillBarDrawing.DrawSkillState(spriteBatch, StateArt, UIDrawKit.NumberFont, Bounds.Center,
+                skill.CurrentCD, skill.CooldownRemainingFraction, skill.Stack, skill.MaxStack, ElainaSkillManager.ShowCD);
     }
+
+    private static SkillBarDrawing.StateArt StateArt => new(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill);
 
     public ElainaSkillSlot AddSkillToSlot(Skill skill)
     {

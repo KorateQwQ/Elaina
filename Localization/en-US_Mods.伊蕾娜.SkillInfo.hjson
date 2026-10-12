@@ -8,16 +8,23 @@ SkillName: {
 	MultiMissileSkill: Multi-Shot
 	AshenWitchSkill: Ashen Witch
 	MagicBarrierSkill: Magic Barrier
-	WindBladeSkill: Wind Blade
+	WindSlashSkill: Wind Blade
+	AlchemySkill: Alchemy
+	FlightSkill: Flight Magic
+	DollControlSkill: Doll Control
 }
 
 SkillDesc: {
 	MagicMissileSkill:
 		'''
 		Deals {0} magic damage to the target.
-		Passive: After Magic Missile hits 5 times consecutively, it deals additional damage equal to 200% of Magic Missile's damage and restores {1}% of lost [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. If Magic Missile directly kills an enemy, it also restores some [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力].
+		Passive: Magic Missile ignores enemy defense. After hitting the same target 5 times consecutively, it deals splash damage equal to 200% of Magic Missile's damage to other nearby enemies (the main target is not affected).
 		'''
-	MultiMissileSkill: Deals magic damage to the target.
+	MultiMissileSkill:
+		'''
+		Summons a floating magic orb that follows you, up to {0} at a time.
+		Each orb fires a Magic Missile at the nearest enemy, dealing {1} magic damage.
+		'''
 	AshenWitchSkill:
 		'''
 		When enabled, Ashen Witch lets Elaina use [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. Its base maximum equals vanilla maximum mana, and each point of maximum life removed by Ashen Witch grants 1 additional maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. Her extra life gain is reduced by 50%. When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] is insufficient, each 1% of maximum life restores 1% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力].
@@ -28,7 +35,11 @@ SkillDesc: {
 		Requires the Ashen Witch skill to be enabled.
 		Activate the barrier just before taking damage. It reduces damage based on the life lost to Ashen Witch and consumes [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] equal to the damage blocked by the barrier.
 		'''
-	WindBladeSkill: Deals {0} magic damage to the target.
+	WindSlashSkill:
+		'''
+		Unleashes a piercing wind blade that deals {0} magic damage to every enemy in its path.
+		Weaker enemies are knocked back along the blade's direction.
+		'''
 }
 
 SkillType: {

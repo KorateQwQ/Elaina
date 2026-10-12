@@ -610,6 +610,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         bool hidden = status == "hidden", selected = s.id == _state.Selected, hover = s.id == _hoverNode;
         bool insight = !hidden && !s.Active, owned = _state.Learned.Contains(s.id);
         bool off = !Editing && owned && !_state.Availability(s.id).Ok;
+        // Unlearned nodes stay dormant even when their filter tab is active; only learned art is lit.
+        bool dormant = !Editing && !owned && !hidden;
         var p = MapPoint(s.x, s.y);
         float alpha = Editing || status == _state.Filter ? 1 : hover ? .8f : .18f;
         Color accent = (selected || status == "ready" ? Gold : hover ? Ink : Lavender) * alpha;
@@ -630,11 +632,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         else
         {
             d.Corners(p, (selected ? 58 : 54) * _zoom, (selected ? 13 : 9) * _zoom,
-                accent * (selected || hover ? 1 : status == "locked" ? .42f : .7f), MathHelper.PiOver4);
+                accent * (selected || hover ? 1 : status == "locked" ? .42f : dormant ? .5f : .7f), MathHelper.PiOver4);
             d.Corners(p, 56 * _zoom, 7 * _zoom, accent * .4f);
         }
-        d.SkillIcon(s, p, (hidden ? 38 : 50) * _zoom, (hidden ? Muted : Color.White) * alpha
-            * (off ? .38f : status == "locked" ? .48f : 1), hidden, off || status == "locked");
+        float tint = off ? .38f : status == "locked" ? .48f : dormant ? selected || hover ? .82f : .6f : 1;
+        d.SkillIcon(s, p, (hidden ? 38 : 50) * _zoom, (hidden ? Muted : Color.White) * alpha * tint, hidden, off || dormant);
         if (selected && !insight) d.CrossStar(p - new Vector2(0, 48 * _zoom), new Vector2(7 * _zoom), Gold * alpha, .5f);
         if (selected && _flash > 0) d.Ring(p, (30 + (1 - _flash) * 45) * _zoom,
             (30 + (1 - _flash) * 45) * _zoom, Gold * _flash * .7f, 1.5f);

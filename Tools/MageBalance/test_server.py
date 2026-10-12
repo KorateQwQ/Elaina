@@ -78,11 +78,11 @@ class BasicDesignTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     server.validate_payload(self.payload)
 
-    def test_conversion_rate_accepts_up_to_ten(self):
-        for value in [3.5, 10]:
+    def test_conversion_rate_accepts_up_to_hundred(self):
+        for value in [3.5, 40, 100]:
             self.c["skills"][0]["k"] = value
             server.validate_payload(self.payload)
-        for value in [-.1, 10.1]:
+        for value in [-.1, 100.1]:
             self.c["skills"][0]["k"] = value
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
@@ -119,6 +119,53 @@ class BasicDesignTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     server.validate_payload(self.payload)
+
+    def test_loadouts_round_trip_and_are_optional(self):
+        self.assertEqual(len(self.c["loadouts"]), server.LOADOUT_STAGES)
+        self.c["loadouts"][2]["maxLife"] = 405
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "balance.json"
+            server.atomic_save(path, self.payload)
+            restored = json.loads(path.read_text(encoding="utf-8"))["configuration"]
+        self.assertEqual(restored["loadouts"], self.c["loadouts"])
+        self.c.pop("loadouts")
+        self.c.pop("stage", None)
+        server.validate_payload(self.payload)
+
+    def test_reject_invalid_loadouts(self):
+        def edit(path, value):
+            def apply(c):
+                target = c["loadouts"]
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+            return apply
+        cases = [
+            lambda c: c["loadouts"].pop(),
+            lambda c: c.update(loadouts={}),
+            lambda c: c.update(stage=20),
+            lambda c: c.update(stage=1.5),
+            edit([3, "stage"], 5),
+            edit([0, "stage"], True),
+            edit([0, "name"], " "),
+            edit([0, "name"], "x" * 65),
+            edit([0, "armor"], "../x"),
+            edit([0, "slots"], 8),
+            edit([0, "items"], []),
+            edit([0, "items", 0, "id"], 3),
+            edit([0, "items", 0, "prefix"], "a b"),
+            edit([0, "baseMana"], 30),
+            edit([0, "baseMana"], 220),
+            edit([0, "maxLife"], 390),
+            edit([0, "maxLife"], 403),
+            edit([0, "maxLife"], 520),
+        ]
+        for index, mutate in enumerate(cases):
+            payload = copy.deepcopy(self.payload)
+            mutate(payload["configuration"])
+            with self.subTest(case=index):
+                with self.assertRaises(ValueError):
+                    server.validate_payload(payload)
 
     def test_missile_has_no_special_case(self):
         self.c["basicAttacks"][0]["shots"] = 3

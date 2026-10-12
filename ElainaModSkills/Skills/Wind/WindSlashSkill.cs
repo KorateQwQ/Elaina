@@ -1,3 +1,4 @@
+using System;
 using KL.ActionsSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
@@ -8,40 +9,31 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 [SkillUIInfo(State = 1, Pixels = 300)]
 
-public class WindBladeSkill : ElainaSkill
+public class WindSlashSkill : ElainaSkill
 {
-    public override void Initialize()
+    /// <summary>风刃击退力度；原版按 knockBackResist 衰减，Boss 等免疫击退的敌人不受影响。</summary>
+    private const float SlashKnockback = 6f;
+
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
-
-        // 冷却时间：1秒
-        MaxCD = 0.5f;
-
-        // 魔力消耗
-        MagicPointCost = 10;
-        base.Initialize();
-
-    }
-
-    public override bool CanUseSkill()
-    {
-        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false))
-            return false;
-        return base.CanUseSkill();
+        // 与技能描述一致，使用含装备增伤的单次伤害
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        return [("伤害", current.ToString(), next.ToString(), "")];
     }
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
-
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
-        
-        AnimAction animAction = new Action_SimpleShoot(10);
+
+        AnimAction animAction = new Action_SimpleShoot(24);
         animAction.AddNode(new ShootActionNode(
             1,
             ModContent.ProjectileType<WindSlash>(),
             _ => WandCenter,
-            damage: 100,
-            2,
+            damage: GetConfiguredDamage(),
+            SlashKnockback,
             player => new Vector2(1, 0).RotatedBy((Main.MouseWorld - player.MountedCenter).ToRotation()) * 20f)
         );
 
@@ -50,5 +42,8 @@ public class WindBladeSkill : ElainaSkill
         return base.PreUseSkill(source);
     }
 
-    protected override object[] SkillDescriptionArgs => new object[] { 100 }; // 伤害值参数
+    protected override object[] SkillDescriptionArgs => new object[]
+    {
+        GetConfiguredDamage(),
+    };
 }

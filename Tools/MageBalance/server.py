@@ -40,6 +40,39 @@ def ratio_curve(row):
             raise ValueError("ratioCurve 等级必须严格递增。")
         previous = level
 
+LOADOUT_STAGES = 19
+TOKEN = r"[A-Za-z][A-Za-z0-9_]{0,63}"
+
+def loadouts(c):
+    """Optional per-stage recommended gear; ids are page keys, mapped to items by the mod."""
+    rows = c.get("loadouts")
+    if rows is None:
+        return
+    if not isinstance(rows, list) or len(rows) != LOADOUT_STAGES:
+        raise ValueError(f"loadouts 必须是 {LOADOUT_STAGES} 项的数组。")
+    for index, row in enumerate(rows, 1):
+        if not isinstance(row, dict) or row.get("stage") != index or isinstance(row.get("stage"), bool):
+            raise ValueError(f"loadouts 第 {index} 项的 stage 必须是 {index}。")
+        name = row.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 64:
+            raise ValueError("配装名称不能为空或超过 64 字符。")
+        if not isinstance(row.get("armor"), str) or not re.fullmatch(TOKEN, row["armor"]):
+            raise ValueError("配装护甲 ID 无效。")
+        if row.get("slots") not in (5, 6, 7) or isinstance(row.get("slots"), bool):
+            raise ValueError("配装饰品槽必须是 5、6 或 7。")
+        items = row.get("items")
+        if not isinstance(items, list) or len(items) != 7:
+            raise ValueError("配装饰品必须是 7 项的数组。")
+        for item in items:
+            if not isinstance(item, dict) or not all(isinstance(item.get(k), str) and re.fullmatch(TOKEN, item[k]) for k in ("id", "prefix")):
+                raise ValueError("配装饰品 ID 或前缀无效。")
+        mana = number(row, "baseMana", 20, 200, True)
+        if mana % 20:
+            raise ValueError("基础魔力必须是 20 的倍数（魔力水晶）。")
+        life = number(row, "maxLife", 100, 500, True)
+        if life % 20 if life <= 400 else life % 5:
+            raise ValueError("最大生命 400 以内按 20、之后按 5 一档。")
+
 def validate_payload(payload):
     if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
         raise ValueError("不支持的配置格式。")
@@ -54,6 +87,9 @@ def validate_payload(payload):
     if not isinstance(progression, dict): raise ValueError("progression 缺失。")
     number(progression, "phaseSize", 1, 20, True)
     number(progression, "previewLevel", 1, 1000, True)
+    if "stage" in c:
+        number(c, "stage", 1, LOADOUT_STAGES, True)
+    loadouts(c)
     combat = c.get("combat")
     if not isinstance(combat, dict):
         raise ValueError("combat 缺失。")
@@ -78,7 +114,7 @@ def validate_payload(payload):
         basic_ids.add(key)
         number(row, "ratio", 0, 5)
         ratio_curve(row)
-        number(row, "cost", 0, 10000, True)
+        number(row, "cost", 0, 10000)
         number(row, "interval", .05, 10)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)
@@ -96,12 +132,12 @@ def validate_payload(payload):
         if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 64:
             raise ValueError("技能名称不能为空或超过 64 字符。")
         ids.add(key)
-        number(row, "cost", 0, 10000, True)
+        number(row, "cost", 0, 10000)
         number(row, "cd", .1, 600)
         if "cdRatio" not in row:
             row["cdRatio"] = 1
         number(row, "cdRatio", 0, 1)
-        number(row, "k", 0, 10)
+        number(row, "k", 0, 100)
         number(row, "cast", 0, 60)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)

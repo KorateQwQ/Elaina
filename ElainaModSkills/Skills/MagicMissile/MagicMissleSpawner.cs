@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria.DataStructures;
 using Terraria.GameContent;
+using Terraria.ID;
 using Terraria.ModLoader;
 using 伊蕾娜.Managers;
 
@@ -33,10 +34,29 @@ public class MagicMissleSpawner : KLProjectile
         set => Projectile.ai[0] = (int)value;
     }
     private TrailManager.TrailHandle managedTrail;
-    Texture2D trail;
+
+    private static Texture2D trail;
+    private static Texture2D starLine;
+    private static Texture2D starNoise;
+    private static Effect fuzzyEdge;
+    private static Texture2D circleTexture;
+    private static Texture2D circleNoise;
+    private static Texture2D ballTexture;
+    private static Effect ballEffect;
 
     public override void Load()
     {
+        if (Main.netMode != NetmodeID.Server)
+        {
+            trail = AssetManager.GetTexture("KL/Effects/Tex/Trail/streak_026_4r");
+            starLine = AssetManager.GetTexture("KL/Effects/Tex/Sparkle/ShotLine");
+            starNoise = AssetManager.GetTexture("KL.Effects.Tex.voronoiOrigin");
+            fuzzyEdge = AssetManager.GetEffect("KL.Effects.Content.FuzzyEdge");
+            circleTexture = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.noi_1");
+            circleNoise = AssetManager.GetTexture("KL.Effects.Tex.cellnoise");
+            ballTexture = AssetManager.GetTexture("KL/Effects/Tex/水波");
+            ballEffect = AssetManager.GetEffect("伊蕾娜/Effects/Content/MagicMissileEffect");
+        }
         base.Load();
     }
 
@@ -51,7 +71,6 @@ public class MagicMissleSpawner : KLProjectile
         Projectile.friendly = false;
         TrailLength = 20;
         TrailSampleCount = 50;
-        trail ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/Eff_Trail_1679", AssetRequestMode.ImmediateLoad).Value;
 
         base.SetDefaults();
     }
@@ -125,9 +144,8 @@ public class MagicMissleSpawner : KLProjectile
     {
         // Sample this draw's center before the manager copies OldCenter.
         base.PreDraw(ref lightColor);
-        if (OldCenter is { Length: > 1 })
+        if (trail != null && OldCenter is { Length: > 1 })
         {
-            trail = ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/streak_026_4r", AssetRequestMode.ImmediateLoad).Value;
             var trailState = (
                 Texture: trail,
                 TimeOffset: VisualTime);
@@ -190,14 +208,13 @@ public class MagicMissleSpawner : KLProjectile
     }
     void DrawStartStar(int start)
     {
-        Texture2D line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine").Value;
-        Texture2D noise = AssetManager.GetTexture("KL.Effects.Tex.voronoiOrigin");
-        Effect effect = AssetManager.GetEffect("KL.Effects.Content.FuzzyEdge");
+        Texture2D line = starLine;
+        Texture2D noise = starNoise;
+        Effect effect = fuzzyEdge;
 
         int startTime = time - start;
         if(startTime>40)return;
-        Asset<Texture2D> line2 = TextureAssets.Extra[98];
-        
+
         float progress = startTime / 20f;
         float easedProgress = 1f - (1f - progress) * (1f - progress);
         float rotation = MathHelper.Lerp(0.7f, 2.2f, easedProgress);
@@ -257,8 +274,8 @@ public class MagicMissleSpawner : KLProjectile
 
     void DrawStartCircle(int start)
     {
-        Texture2D line = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.noi_1");
-        Texture2D noise = AssetManager.GetTexture("KL.Effects.Tex.cellnoise");
+        Texture2D line = circleTexture;
+        Texture2D noise = circleNoise;
 
         Color color = new Color(255, 160, 239,255);
         int startTime = time - start;
@@ -280,9 +297,8 @@ public class MagicMissleSpawner : KLProjectile
     void DrawMagicBall()
     {
 
-        Texture2D waterNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/水波").Value;
-        Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/MagicMissileEffect", AssetRequestMode.ImmediateLoad).Value;
-        Asset<Texture2D> headClip = ModContent.Request<Texture2D>("KL/Effects/Tex/background", AssetRequestMode.ImmediateLoad);
+        Texture2D waterNoise = ballTexture;
+        Effect effect = ballEffect;
 
         Lighting.AddLight(Projectile.Center, new Vector3(1f,0.7f,0.8f)*DrawManager.FrameTime(0.5f,1.5f,60));
 

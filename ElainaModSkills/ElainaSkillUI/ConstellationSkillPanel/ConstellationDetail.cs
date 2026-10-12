@@ -37,7 +37,7 @@ internal sealed class ConstellationDetail
         RichParagraph(node.ModSkill.GetConstellationDescription(), Compact ? 8 : 12);
         if (node.Active)
         {
-            string mana = node.ModSkill.MagicPointCost < 0 ? "--" : node.ModSkill.MagicPointCost.ToString();
+            string mana = node.ModSkill.MagicPointCost < 0 ? "--" : node.ModSkill.MagicPointCost.ToString("0.##");
             string cooldown = node.Skill.MaxCD < 0 ? "--" : Number(node.Skill.MaxCD);
             float secondX = drawing.LatinWidth(mana, 23) + 5 + drawing.Measure("MP", 10) + 34;
             Add(Compact ? 59 : 75, (d, _) =>

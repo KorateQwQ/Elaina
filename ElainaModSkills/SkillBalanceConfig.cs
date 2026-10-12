@@ -13,18 +13,29 @@ namespace 伊蕾娜.ElainaModSkills;
 public enum SkillBalanceKind { BasicAttack, Active }
 
 /// <summary>所有技能共用的定价定义；BaseCooldown 对普攻表示完整攻击周期，HitCount 是整次预算的等额命中数。
-/// RatioCurve 为空时普攻固定使用 DpsRatio，否则按角色等级在节点间线性插值、超出两端取端点。</summary>
-public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, int ManaCost,
+/// RatioCurve 为空时普攻固定使用 DpsRatio，否则按角色等级在节点间线性插值、超出两端取端点。
+/// MaxCharges / InitialCharges 为主动技能的储存层数上限与新习得时的可用层数，普攻固定为 1。</summary>
+public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, double ManaCost,
     double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
-    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null);
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1);
 
-/// <summary>本地不可变配置；只接受 v2，不读取网页配装、等级、模拟结果作为游戏属性。</summary>
+/// <summary>阶段推荐配装中的一个饰品；Id 与 Prefix 是网页键名（如 sorcerer / arcane），由 Loadout 映射到物品与前缀。</summary>
+public sealed record SkillLoadoutItem(string Id, string Prefix);
+
+/// <summary>第 Stage 个进度阶段的推荐配装与属性；Items 固定 7 项，只有前 Slots 项生效。
+/// BaseMana 按魔力水晶 20 一档，MaxLife 400 以内按生命水晶 20 一档、之后按生命果 5 一档。</summary>
+public sealed record SkillLoadout(int Stage, string Name, string Armor, int Slots, IReadOnlyList<SkillLoadoutItem> Items, int BaseMana, int MaxLife);
+
+/// <summary>本地不可变配置；只接受 v2。网页的模拟配装、等级与结果不作为游戏属性，
+/// 只有可选的 loadouts 供快捷配装面板按阶段换装。</summary>
 public sealed class SkillBalanceConfig
 {
     public const int MaxJsonBytes = 32 * 1024;
     public const string Schema = "elaina-mage-balance-v2";
     public const string ResourcePath = "ElainaModSkills/Data/SkillBalance.json";
+    public const int LoadoutStages = 19;
     private static readonly Regex IdPattern = new("^[A-Za-z][A-Za-z0-9_.-]{0,63}$", RegexOptions.CultureInvariant);
+    private static readonly Regex KeyPattern = new("^[A-Za-z][A-Za-z0-9_]{0,63}$", RegexOptions.CultureInvariant);
 
     public double RatePer20 { get; }
     public int CharacterPhaseSize { get; }
@@ -32,9 +43,13 @@ public sealed class SkillBalanceConfig
     /// <summary>主动技能每秒占手给予的基准 DPS 倍率；0 表示不做占手补偿，伤害全部来自魔力转换。</summary>
     public double OccupyRatio { get; }
     public FrozenDictionary<string, SkillBalanceEntry> Skills { get; }
+    /// <summary>按阶段排列的推荐配装，下标为 Stage − 1；配置缺少 loadouts 时为空。</summary>
+    public IReadOnlyList<SkillLoadout> Loadouts { get; }
 
-    private SkillBalanceConfig(double rate, int characterPhaseSize, string referenceBasicAttackId, double occupyRatio, IEnumerable<SkillBalanceEntry> skills)
+    private SkillBalanceConfig(double rate, int characterPhaseSize, string referenceBasicAttackId, double occupyRatio, IEnumerable<SkillBalanceEntry> skills,
+        IReadOnlyList<SkillLoadout> loadouts = null)
     {
+        Loadouts = loadouts ?? [];
         RatePer20 = rate;
         CharacterPhaseSize = characterPhaseSize;
         ReferenceBasicAttackId = referenceBasicAttackId;
@@ -78,7 +93,7 @@ public sealed class SkillBalanceConfig
             foreach (JsonElement row in basics.EnumerateArray())
             {
                 var (id, name) = ReadIdentity(row, ids);
-                skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Integer(row, "cost", 0, 10000),
+                skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Number(row, "cost", 0, 10000),
                     Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
                     RatioCurve: ReadRatioCurve(row)));
             }
@@ -91,11 +106,12 @@ public sealed class SkillBalanceConfig
             foreach (JsonElement row in actives.EnumerateArray())
             {
                 var (id, name) = ReadIdentity(row, ids);
-                skills.Add(new(id, name, SkillBalanceKind.Active, Integer(row, "cost", 0, 10000),
+                skills.Add(new(id, name, SkillBalanceKind.Active, Number(row, "cost", 0, 10000),
                     Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
-                    ConversionRate: Number(row, "k", 0, 10), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1)));
+                    ConversionRate: Number(row, "k", 0, 100), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
+                    MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1)));
             }
-            config = new(rate, phaseSize, reference, occupyRatio, skills);
+            config = new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
             return true;
         }
         catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or KeyNotFoundException or ArgumentException)
@@ -138,6 +154,53 @@ public sealed class SkillBalanceConfig
         return points;
     }
 
+    /// <summary>可选的 19 阶段配装；任一项不合法时整份配置被拒绝，与网页和 server.py 的校验一致。</summary>
+    private static SkillLoadout[] ReadLoadouts(JsonElement c)
+    {
+        if (!c.TryGetProperty("loadouts", out JsonElement rows)) return [];
+        if (rows.ValueKind != JsonValueKind.Array || rows.GetArrayLength() != LoadoutStages)
+            throw new FormatException($"loadouts 必须是 {LoadoutStages} 项的数组。");
+        var loadouts = new SkillLoadout[LoadoutStages];
+        int stage = 0;
+        foreach (JsonElement row in rows.EnumerateArray())
+        {
+            stage++;
+            RequireObject(row, "配装");
+            if (Integer(row, "stage", 1, LoadoutStages) != stage)
+                throw new FormatException($"loadouts 第 {stage} 项的 stage 必须是 {stage}。");
+            string name = row.GetProperty("name").GetString();
+            if (string.IsNullOrWhiteSpace(name) || name.Length > 64)
+                throw new FormatException("配装名称不能为空或超过 64 字符。");
+            string armor = Key(row, "armor");
+            int slots = Integer(row, "slots", 5, 7);
+            JsonElement items = row.GetProperty("items");
+            if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() != 7)
+                throw new FormatException("配装饰品必须是 7 项的数组。");
+            var list = new SkillLoadoutItem[7];
+            int index = 0;
+            foreach (JsonElement item in items.EnumerateArray())
+            {
+                RequireObject(item, "配装饰品");
+                list[index++] = new(Key(item, "id"), Key(item, "prefix"));
+            }
+            int mana = Integer(row, "baseMana", 20, 200), life = Integer(row, "maxLife", 100, 500);
+            if (mana % 20 != 0)
+                throw new FormatException("基础魔力必须是 20 的倍数（魔力水晶）。");
+            if (life % (life <= 400 ? 20 : 5) != 0)
+                throw new FormatException("最大生命 400 以内按 20、之后按 5 一档。");
+            loadouts[stage - 1] = new(stage, name, armor, slots, list, mana, life);
+        }
+        return loadouts;
+    }
+
+    private static string Key(JsonElement value, string key)
+    {
+        JsonElement field = value.GetProperty(key);
+        string text = field.ValueKind == JsonValueKind.String ? field.GetString() : null;
+        if (text == null || !KeyPattern.IsMatch(text)) throw new FormatException(key + " 必须是网页中的配装键名。");
+        return text;
+    }
+
     private static void RequireObject(JsonElement value, string name)
     {
         if (value.ValueKind != JsonValueKind.Object) throw new FormatException(name + " 必须是对象。");
@@ -155,6 +218,11 @@ public sealed class SkillBalanceConfig
             || !double.IsFinite(number) || number < min || number > max)
             throw new FormatException($"{key} 必须在 {min}..{max} 范围内。");
         return number;
+    }
+
+    private static int OptionalInteger(JsonElement value, string key, int min, int max, int fallback)
+    {
+        return value.TryGetProperty(key, out _) ? Integer(value, key, min, max) : fallback;
     }
 
     private static int Integer(JsonElement value, string key, int min, int max)

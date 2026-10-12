@@ -10,6 +10,7 @@ using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria.DataStructures;
 using Terraria.GameContent;
+using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.Dusts;
@@ -20,27 +21,43 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
 public class MagicMissile : KLProjectile
 {
+    /// <summary>被动溅射伤害倍率（基于飞弹单发伤害）。</summary>
+    private const float SplashDamageMultiplier = 2f;
+    /// <summary>被动溅射半径（像素，约10格）。</summary>
+    private const float SplashRadius = 160f;
+
     private int count = 0;
     private bool draw = false;
     private TrailManager.TrailHandle managedTrail;
 
     private float scale = 0.5f;
     private float totalAlpha = 0;
-    Effect effect;
-    Asset<Texture2D> waterNoise;
-    Asset<Texture2D> headClip;
-    Asset<Texture2D> headGlow;
-    Asset<Texture2D> trail;
 
+    private static Texture2D dissolveNoise;
+    private static Texture2D waterRipple;
+    private static Texture2D innerNoise;
+    private static Texture2D headClip;
+    private static Texture2D trail;
+    private static Texture2D flower;
+
+
+    public override void Load()
+    {
+        if (Main.netMode != NetmodeID.Server)
+        {
+            dissolveNoise = AssetManager.GetTexture("KL/Effects/Tex/Noise/1");
+            waterRipple = AssetManager.GetTexture("KL/Effects/Tex/水波");
+            innerNoise = AssetManager.GetTexture("KL/Effects/Tex/Noise/Eff_Noise_11");
+            headClip = AssetManager.GetTexture("KL/Effects/Tex/射灯_alpha");
+            trail = AssetManager.GetTexture("KL/Effects/Tex/Trail/LightTrail");
+            flower = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flo_1");
+        }
+        base.Load();
+    }
 
     public override void SetDefaults()
     {
-        effect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/MagicMissileEffect", AssetRequestMode.ImmediateLoad)
-            .Value;
-        waterNoise ??= ModContent.Request<Texture2D>("伊蕾娜/Effects/Tex/水波", AssetRequestMode.ImmediateLoad);
-        headClip ??= ModContent.Request<Texture2D>("KL/Effects/Tex/射灯_alpha", AssetRequestMode.ImmediateLoad);
-        headGlow ??= ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/Skills/MagicMissile/SoftGlow", AssetRequestMode.ImmediateLoad);
-        trail ??= ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/LightTrail");
+
 
         //projectile.ignoreWater = true;//无视水
         Projectile.friendly = true; //可以攻击敌人
@@ -135,10 +152,6 @@ public class MagicMissile : KLProjectile
 
     void DrawFlower(float rotation = 0)
     {
-        Texture2D flower = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flo_1");
-        Texture2D flowerEdge = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flower_Edge");
-
-
         DrawInWorld(flower, Main.MouseWorld, new Color(255, 255, 255, 255), scale: new Vector2(1f), rotation: rotation);
         //DrawInWorld(flowerEdge,Main.MouseWorld,new Color(255, 255, 255,255),scale:new Vector2(0.5f),rotation:rotation);
     }
@@ -152,7 +165,7 @@ public class MagicMissile : KLProjectile
                 ref managedTrail,
                 OldCenter,
                 lifetime: 10,
-                trail.Value,
+                trail,
                 DrawManagedTrail,
                 bloom: true);
         }
@@ -182,14 +195,7 @@ public class MagicMissile : KLProjectile
 
     void DrawMagicMissile()
     {
-        Texture2D waterNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/1", AssetRequestMode.ImmediateLoad)
-            .Value;
-        Texture2D waterNoise2 =
-            ModContent.Request<Texture2D>("KL/Effects/Tex/水波", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D waterNoise3 = ModContent
-            .Request<Texture2D>("KL/Effects/Tex/Noise/Eff_Noise_11", AssetRequestMode.ImmediateLoad).Value;
-
-        Texture2D ball = headClip.Value;
+        Texture2D ball = headClip;
         Vector2 move = new Vector2(1, 0).RotatedBy(Projectile.rotation);
         Vector2 totalMove = move * -57*scale;
         Vector2 scale2 = new Vector2(0.35f, 0.40f)*scale;
@@ -197,20 +203,20 @@ public class MagicMissile : KLProjectile
         EndBeginDraw(2, 1);
 
         RadialDissolve(new Vector4(new Vector3(1, 0.4f, 0.9f) * 7.5f, 1.0f),
-            waterNoise, 0.2f,
+            dissolveNoise, 0.2f,
             new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
             sweepDirection: new Vector2(1, 0),
-            imageTex: waterNoise3, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
+            imageTex: innerNoise, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
             internalTextureScale: new Vector2(1.5f));
 
         DrawInWorld(ball, Projectile.Center + totalMove, Color.White, new Vector2(1.0f, 0.5f) * scale2,
             Projectile.rotation);
 
         RadialDissolve(new Vector4(new Vector3(1, 0.6f, 0.8f) *3.5f, 1.0f),
-            waterNoise, 0.2f,
+            dissolveNoise, 0.2f,
             new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
             sweepDirection: new Vector2(1, 0),
-            imageTex: waterNoise2, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
+            imageTex: waterRipple, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
             internalTextureScale: new Vector2(1.5f));
 
         DrawInWorld(ball, Projectile.Center + move * 10 + totalMove, Color.White, new Vector2(0.8f, 0.3f) * scale2,
@@ -225,17 +231,45 @@ public class MagicMissile : KLProjectile
             Projectile.Center + dir * width / 2, width);
     }
 
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        // 魔法飞弹无视敌人防御，避免前期低伤害被防御吃掉大半
+        modifiers.ScalingArmorPenetration += 1f;
+        base.ModifyHitNPC(target, ref modifiers);
+    }
+
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        bool fullMark = target.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark(target);
-        if (fullMark)
-        {
-            //Main.player[Projectile.owner].GetModPlayer<ElainaAttributeModPlayer>().RegenPercentMagicPoint(15,true);
-            Projectile.damage *= 2;
-            Projectile.Damage();
-        }
+        // 被动：同一目标累计命中5次后，对周围其他敌人造成一次溅射伤害
+        if (target.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark(target))
+            SplashDamage(target);
 
         base.OnHitNPC(target, hit, damageDone);
+    }
+
+    private void SplashDamage(NPC mainTarget)
+    {
+        int damage = (int)(Projectile.damage * SplashDamageMultiplier);
+        foreach (NPC npc in Main.ActiveNPCs)
+        {
+            // 溅射不对主目标生效
+            if (npc.whoAmI == mainTarget.whoAmI || npc.friendly || npc.dontTakeDamage)
+                continue;
+            if (Vector2.Distance(npc.Center, mainTarget.Center) > SplashRadius)
+                continue;
+
+            int hitDirection = npc.Center.X >= mainTarget.Center.X ? 1 : -1;
+            NPC.HitModifiers modifiers = npc.GetIncomingStrikeModifiers(Projectile.DamageType, hitDirection);
+            modifiers.ScalingArmorPenetration += 1f;
+            NPC.HitInfo hitInfo = modifiers.ToHitInfo(damage, false, 0f);
+            npc.StrikeNPC(hitInfo);
+            if (Main.netMode != NetmodeID.SinglePlayer)
+                NetMessage.SendStrikeNPC(npc, hitInfo);
+
+            KLBasicDust.SpawnDust(npc.Center, ModContent.DustType<BurstPoint>(),
+                Main.rand.NextVector2Circular(0.1f, 0.1f),
+                lifeTime: 12, color: new Color(255, 150, 239, 0), scale: new Vector2(1.3f));
+        }
     }
 
     public override void OnKill(int timeLeft)

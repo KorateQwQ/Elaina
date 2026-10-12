@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -114,6 +115,125 @@ internal static class SkillBarDrawing
                 new Rectangle(x, y, cornerSize, cornerSize), color,
                 0, Vector2.Zero, .5f, SpriteEffects.None, 0);
         }
+    }
+
+    /// <summary>冷却叠加层所需的实心纹理：1x1 白像素、径向柔光点、抗锯齿菱形。</summary>
+    public readonly record struct StateArt(Texture2D Pixel, Texture2D Glow, Texture2D Diamond);
+
+    /// <summary>
+    /// 冷却与层数叠加层：扫描指针标出恢复进度；层数 ≤ <see cref="MaxPips"/> 时用菱形刻度，否则用角标；
+    /// 只有无层可用时才在中心显示倒计时，避免可释放的技能被大号数字盖住。
+    /// </summary>
+    public static void DrawSkillState(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+        Vector2 center, float cooldown, float remaining, int stack, int maxStack, bool showNumber)
+    {
+        bool recovering = cooldown > 0 && remaining > 0;
+        float progress = recovering ? 1 - remaining : 0;
+        if (recovering) DrawSweepHand(batch, art, center, progress, stack > 0);
+        if (maxStack > MaxPips) DrawChargeBadge(batch, art, font, center, stack);
+        else if (maxStack > 1) DrawChargePips(batch, art, center, stack, maxStack, progress);
+        if (recovering && stack <= 0 && showNumber) DrawCountdown(batch, art, font, center, cooldown);
+    }
+
+    private const int MaxPips = 5;
+    private const float IconHalf = 25;
+    private static readonly Color Ink = new(20, 14, 30);
+    private static readonly Color Lilac = new(232, 216, 255);
+
+    private static void DrawSweepHand(SpriteBatch batch, StateArt art, Vector2 center, float progress, bool usable)
+    {
+        // 与 CDEffect 的扇区边界对齐：十二点方向顺时针；只画外半段，避免划过图标主体。
+        float angle = progress * MathHelper.TwoPi;
+        Vector2 ray = new(MathF.Sin(angle), -MathF.Cos(angle));
+        Vector2 tip = center + ray * (IconHalf / Math.Max(Math.Abs(ray.X), Math.Abs(ray.Y)));
+        Color light = new Color(240, 224, 255, 0) * (usable ? .55f : .8f);
+        Line(batch, art, Vector2.Lerp(center, tip, .3f), Vector2.Lerp(center, tip, .6f), 1, light * .3f);
+        Line(batch, art, Vector2.Lerp(center, tip, .6f), tip, 1.25f, light);
+        Glow(batch, art, tip, new Vector2(7), light);
+    }
+
+    private static void DrawChargePips(SpriteBatch batch, StateArt art, Vector2 center,
+        int stack, int maxStack, float progress)
+    {
+        const float spacing = 8;
+        Vector2 row = center + new Vector2(0, 21);
+        Glow(batch, art, row, new Vector2((maxStack - 1) * spacing + 26, 20), Color.Black);
+        for (int i = 0; i < maxStack; i++)
+        {
+            Vector2 pip = row + new Vector2((i - (maxStack - 1) / 2f) * spacing, 0);
+            if (i < stack)
+            {
+                Glow(batch, art, pip, new Vector2(11), new Color(196, 150, 255, 0) * .55f);
+                Diamond(batch, art, pip, new Vector2(5, 7), Lilac);
+                continue;
+            }
+            Diamond(batch, art, pip, new Vector2(5, 7), new Color(150, 128, 182) * .75f);
+            Diamond(batch, art, pip, new Vector2(3, 4.5f), Ink);
+            // 正在恢复的一层由内向外长出。
+            if (i == stack && progress > 0)
+                Diamond(batch, art, pip, new Vector2(5, 7) * progress, Lilac * (.4f + .4f * progress));
+        }
+    }
+
+    private static void DrawChargeBadge(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+        Vector2 center, int stack)
+    {
+        const float scale = 12f / 48f;
+        string text = stack.ToString();
+        int width = (int)MathF.Ceiling(font.MeasureString(text).X * scale) + 13;
+        var chip = new Rectangle((int)center.X + 27 - width, (int)center.Y + 15, width, 12);
+        bool empty = stack <= 0;
+        batch.Draw(art.Pixel, chip, Ink * .88f);
+        Color edge = new Color(176, 150, 214) * (empty ? .35f : .6f);
+        batch.Draw(art.Pixel, new Rectangle(chip.X, chip.Y, chip.Width, 1), edge);
+        batch.Draw(art.Pixel, new Rectangle(chip.X, chip.Bottom - 1, chip.Width, 1), edge * .6f);
+        batch.Draw(art.Pixel, new Rectangle(chip.X, chip.Y, 1, chip.Height), edge * .8f);
+        batch.Draw(art.Pixel, new Rectangle(chip.Right - 1, chip.Y, 1, chip.Height), edge * .8f);
+        Vector2 pip = new(chip.X + 5, chip.Center.Y);
+        Diamond(batch, art, pip, new Vector2(4, 6), empty ? new Color(96, 82, 116) : Lilac);
+        OutlinedText(batch, font, text, pip + new Vector2(4, 0),
+            empty ? new Color(140, 124, 160) : new Color(246, 238, 255), scale, new Vector2(0, .5f));
+    }
+
+    private static void DrawCountdown(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+        Vector2 center, float seconds)
+    {
+        string text = seconds >= 10 ? $"{MathF.Ceiling(seconds):0}" : $"{seconds:0.0}";
+        Glow(batch, art, center, new Vector2(46, 34), Color.Black * .65f);
+        OutlinedText(batch, font, text, center, new Color(248, 240, 255), 16f / 48f, new Vector2(.5f));
+    }
+
+    private static void OutlinedText(SpriteBatch batch, DynamicSpriteFont font, string text,
+        Vector2 position, Color color, float scale, Vector2 anchor)
+    {
+        Vector2 origin = font.MeasureString(text) * anchor;
+        Color outline = Ink * (.9f * color.A / 255f);
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * MathHelper.PiOver4;
+            batch.DrawString(font, text, position + new Vector2(MathF.Cos(angle), MathF.Sin(angle)), outline,
+                0, origin, scale, SpriteEffects.None, 0);
+        }
+        batch.DrawString(font, text, position, color, 0, origin, scale, SpriteEffects.None, 0);
+    }
+
+    private static void Line(SpriteBatch batch, StateArt art, Vector2 a, Vector2 b, float thickness, Color color)
+    {
+        Vector2 delta = b - a;
+        batch.Draw(art.Pixel, a, null, color, MathF.Atan2(delta.Y, delta.X),
+            new Vector2(0, .5f), new Vector2(delta.Length(), thickness), SpriteEffects.None, 0);
+    }
+
+    private static void Glow(SpriteBatch batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
+        Stretch(batch, art.Glow, center, size, color);
+
+    private static void Diamond(SpriteBatch batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
+        Stretch(batch, art.Diamond, center, size, color);
+
+    private static void Stretch(SpriteBatch batch, Texture2D texture, Vector2 center, Vector2 size, Color color)
+    {
+        Vector2 source = new(texture.Width, texture.Height);
+        batch.Draw(texture, center, null, color, 0, source / 2, size / source, SpriteEffects.None, 0);
     }
 
     private static float ArrivalPulse(float seconds)

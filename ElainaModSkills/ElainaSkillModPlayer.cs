@@ -64,6 +64,16 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
             if (template?.ModSkill is not ElainaSkill modSkill || !modSkill.LearnedOnInitialize(Player)) continue;
             // 注册表中的是共享模板，需要为玩家创建独立实例。
             UnlockSkill(Skill.NewSkill(modSkill.GetType(), template.Mod));
+
+            int slot = modSkill.InitialSkillSlot;
+            if (slot < 0 || slot >= MaxSkillSlot
+                || !UnlockedSkill.TryGetValue(modSkill.GetType().Name, out Skill owned)) continue;
+            // 新角色的技能栏此时尚未展开为固定槽位。
+            while (ActiveSkill.Count < MaxSkillSlot) ActiveSkill.Add(null);
+            if (ActiveSkill[slot] != null || owned.IsEquipSkill) continue;
+            // 新角色创建时仍在菜单中，直接写入槽位，不触发技能栏刷新事件。
+            ActiveSkill[slot] = owned;
+            owned.SkillSlot = slot;
         }
     }
 
@@ -209,7 +219,8 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         }
 
         Skill skill = GetActiveSkill[CurrentSkillIndex];
-        if (skill.InCD || skill.ModSkill is not ElainaSkill elainaSkill)
+        // InCD 只表示层数未满；只要还有一层就允许释放。
+        if (skill.Stack <= 0 || skill.ModSkill is not ElainaSkill elainaSkill)
         {
             return false;
         }
@@ -237,7 +248,8 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         if (index < 0 || index >= GetActiveSkill.Count || GetActiveSkill[index] == null||Main.myPlayer!=Player.whoAmI) return;
 
         Skill skill = GetActiveSkill[index];
-        if (skill.InCD || skill.ModSkill is not ElainaSkill elainaSkill)
+        // InCD 只表示层数未满；只要还有一层就允许释放。
+        if (skill.Stack <= 0 || skill.ModSkill is not ElainaSkill elainaSkill)
         {
             return;
         }

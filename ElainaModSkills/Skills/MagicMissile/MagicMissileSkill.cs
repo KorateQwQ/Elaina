@@ -26,6 +26,14 @@ public class MagicMissileSkill : ElainaSkill
 {
     protected override DamageClass BalanceDamageClass => ModContent.GetInstance<ElainaBasicDamage>();
 
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        SkillUnlockCondition.None;
+
+    public override bool LearnedOnInitialize(Player player) => player.GetModPlayer<ElainaModplayer>().Elaina;
+
+    // 开局默认装备在技能一号位
+    public override int InitialSkillSlot => 0;
+
     public override void Initialize()
     {
         base.Initialize();

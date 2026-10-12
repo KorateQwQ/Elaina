@@ -11,6 +11,7 @@ using ReLogic.Graphics;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaAttribute;
 
 namespace 伊蕾娜.ElainaModSkills;
@@ -32,14 +33,9 @@ public abstract partial class ElainaSkill : ModSkill
     protected Asset<Texture2D> _extraIcon;
 
     /// <summary>
-    /// 是否已经装备在技能栏中，可以用来判定是否显示cd。
-    /// </summary>
-    public bool SelectedInSkillBar = false;
-    
-    /// <summary>
     /// 释放技能消耗的魔力点数。
     /// </summary>
-    public int MagicPointCost = 0;
+    public float MagicPointCost = 0;
 
     /// <summary>按技能类名自动使用 JSON 配置；特殊技能可关闭或覆写对应接口。</summary>
     protected virtual bool UsesLiveBalance => true;
@@ -64,10 +60,15 @@ public abstract partial class ElainaSkill : ModSkill
         if (!UsesLiveBalance) return;
         if (SkillBalanceSystem.TryGetSkill(BalanceId, out SkillBalanceEntry entry))
         {
-            MagicPointCost = entry.ManaCost;
+            MagicPointCost = (float)entry.ManaCost;
             MaxCD = (float)entry.BaseCooldown;
+            MaxStack = entry.MaxCharges;
+            if (Stack > MaxStack) Stack = MaxStack;
+            // 上限提高时若没有在恢复，从完整冷却开始恢复，否则框架会在下一帧白给一层。
+            if (Stack < MaxStack && CurrentCD <= 0)
+                CurrentCD = CooldownDuration = MaxCD;
         }
-        // 不修改 CurrentCD / CooldownDuration：已开始的冷却继续，新一轮才使用新的基准 CD。
+        // 不修改正在进行的 CurrentCD / CooldownDuration：已开始的冷却继续，新一轮才使用新的基准 CD。
     }
 
     /// <summary>按技能实际等级返回已应用装备增伤的单发伤害；未学习时预览 Lv1，可指定等级预览。</summary>
@@ -84,12 +85,24 @@ public abstract partial class ElainaSkill : ModSkill
 
     public override void Initialize()
     {
+        if (UsesLiveBalance && SkillBalanceSystem.TryGetSkill(BalanceId, out SkillBalanceEntry entry))
+            Stack = Math.Min(entry.InitialCharges, entry.MaxCharges);
         ApplyBalanceConfiguration();
         base.Initialize();
     }
 
+    public override void DeserializeData(TagCompound tag)
+    {
+        base.DeserializeData(tag);
+        // 存档里的 MaxCD / MaxStack 是旧版本数值，以当前配置为准，只保留层数与剩余冷却。
+        ApplyBalanceConfiguration();
+    }
+
     /// <summary>技能初始化（新角色、重置技能）时是否自动习得。</summary>
     public virtual bool LearnedOnInitialize(Player player) => false;
+
+    /// <summary>初始化习得后默认装备的技能栏位置，-1 表示不装备。</summary>
+    public virtual int InitialSkillSlot => -1;
 
     public override void ResetEffects(Player player)
     {
@@ -112,8 +125,27 @@ public abstract partial class ElainaSkill : ModSkill
         return GetSkillDamage(1f);
     }
 
-    public override SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.
+    public override SkillUnlockCondition UnlockCondition { get; set; } = DefaultUnlockCost;
+
+    /// <summary>首次习得的默认消耗。</summary>
+    protected static SkillUnlockCondition DefaultUnlockCost => SkillUnlockCondition.
         ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
+
+    /// <summary>习得条件：角色当前等级达到指定等级。</summary>
+    protected static SkillUnlockCondition RequireCharacterLevel(int level) => SkillUnlockCondition.Custom(
+        (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetLevel() >= level,
+        description: (_, _) => $"角色等级达到 Lv.{level}");
+
+    /// <summary>习得条件：角色等级上限（由 Boss 进度决定）达到指定等级。</summary>
+    protected static SkillUnlockCondition RequireCharacterLevelCap(int levelCap) => SkillUnlockCondition.Custom(
+        (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() >= levelCap,
+        description: (_, _) => $"角色等级上限达到 Lv.{levelCap}");
+
+    /// <summary>习得条件：指定技能已习得且等级达到指定等级。</summary>
+    protected static SkillUnlockCondition RequireSkillLevel<TSkill>(int level) where TSkill : ElainaSkill => SkillUnlockCondition.Custom(
+        (skillPlayer, _) => skillPlayer?.UnlockedSkill != null
+            && skillPlayer.UnlockedSkill.TryGetValue(typeof(TSkill).Name, out Skill skill) && skill.Level >= level,
+        description: (_, _) => $"「{Language.GetTextValue($"Mods.伊蕾娜.SkillInfo.SkillName.{typeof(TSkill).Name}")}」达到 Lv.{level}");
 
     /// <summary>
     /// 判断技能是否可以从技能面板拖入技能栏。被动技能不能拖入技能栏。
@@ -129,6 +161,10 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public override bool PreUpdateCD()
     {
+#if DEBUG
+        // 配置只在 Debug 下热重载，同步耗蓝、基准 CD 与层数上限；Release 配置加载后不变。
+        ApplyBalanceConfiguration();
+#endif
         return base.PreUpdateCD();
     }
 
@@ -159,15 +195,8 @@ public abstract partial class ElainaSkill : ModSkill
             DrawInScreen(ExtraIcon.Value,position ,color,scale);
 
         }*/
+        // 冷却倒计时与层数由技能栏槽位统一绘制（SkillBarDrawing.DrawSkillState）。
         EndBeginDrawUI(ss:SamplerState.LinearClamp);
-        if (SelectedInSkillBar&&CurrentCD > 0&&ElainaSkillManager.ShowCD)
-        {
-            DynamicSpriteFont font = FontManager.NotoSerifSC.Value;
-            string text = $"{CurrentCD:F1}";
-            Main.spriteBatch.DrawString(font, text, position, Color.White,0,
-                font.MeasureString(text)*new Vector2(0.5f,0.5f),22f / 48f,SpriteEffects.None,0);
-        }
-        SelectedInSkillBar = false;
         base.PostDrawSkillIcon(position, scale,color, effect);
     }
 
@@ -198,7 +227,7 @@ public abstract partial class ElainaSkill : ModSkill
         string maxCD = MaxCD <0 ? "--" : $"{MaxCD}s";
         string magicPointName = Language.GetText(
             "Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint").Value;
-        string magicPointCost = MagicPointCost < 0 ? "--" : $"{MagicPointCost} {magicPointName}";
+        string magicPointCost = MagicPointCost < 0 ? "--" : $"{MagicPointCost:0.##} {magicPointName}";
         desc = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillTotalInfo").WithFormatArgs(type, maxCD, magicPointCost).Value;
         desc += Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}")
             .WithFormatArgs(SkillDescriptionArgs).Value;

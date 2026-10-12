@@ -48,8 +48,16 @@ public class WindSlash : ElainaBasicProjectile
         Projectile.friendly = true;
         Projectile.penetrate = -1;
         Projectile.usesLocalNPCImmunity = true;
-        Projectile.localNPCHitCooldown = 30;
+        // 每道风刃对同一敌人只结算一次，与配置中单次命中的伤害预算一致
+        Projectile.localNPCHitCooldown = -1;
         base.SetDefaults();
+    }
+
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        // 击退方向跟随风刃飞行方向，而不是敌人相对玩家的位置
+        modifiers.HitDirectionOverride = Projectile.velocity.X >= 0 ? 1 : -1;
+        base.ModifyHitNPC(target, ref modifiers);
     }
 
     public override void OnSpawn_AllClient()
