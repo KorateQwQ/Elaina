@@ -37,12 +37,16 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public float MagicPointCost = 0;
 
-    /// <summary>按技能类名自动使用 JSON 配置；特殊技能可关闭或覆写对应接口。</summary>
+    /// <summary>
+    /// 按技能类名自动使用 JSON 配置；特殊技能可关闭或覆写对应接口。
+    /// </summary>
     protected virtual bool UsesLiveBalance => true;
     protected virtual string BalanceId => GetType().Name;
     protected virtual DamageClass BalanceDamageClass => DamageClass.Magic;
 
-    /// <summary>配置存在时自动限制当前可升级等级；不裁剪已学等级，不代替首次解锁条件。</summary>
+    /// <summary>
+    /// 配置存在时自动限制当前可升级等级；不裁剪已学等级，不代替首次解锁条件。
+    /// </summary>
     public override int MaxLevel => GetConfiguredMaxLevel();
 
     protected int GetConfiguredMaxLevel()
@@ -71,7 +75,9 @@ public abstract partial class ElainaSkill : ModSkill
         // 不修改正在进行的 CurrentCD / CooldownDuration：已开始的冷却继续，新一轮才使用新的基准 CD。
     }
 
-    /// <summary>按技能实际等级返回已应用装备增伤的单发伤害；未学习时预览 Lv1，可指定等级预览。</summary>
+    /// <summary>
+    /// 按技能实际等级返回已应用装备增伤的单发伤害；未学习时预览 Lv1，可指定等级预览。
+    /// </summary>
     protected int GetConfiguredDamage(int? hitCount = null, int? skillLevel = null) =>
         SkillBalanceSystem.GetPlayerDamage(Player, BalanceId, skillLevel ?? Math.Max(1, Level), BalanceDamageClass, hitCount);
 
@@ -79,7 +85,9 @@ public abstract partial class ElainaSkill : ModSkill
     protected float GetConfiguredDps(int? skillLevel = null) =>
         SkillBalanceSystem.GetBaseDps(skillLevel ?? Math.Max(1, Level), BalanceId);
 
-    /// <summary>耗蓝、周期、发数和伤害使用同一快照，便于新技能在一次施法中读取。</summary>
+    /// <summary>
+    /// 耗蓝、周期、发数和伤害使用同一快照，便于新技能在一次施法中读取。
+    /// </summary>
     protected bool TryGetConfiguredBalance(out SkillBalanceResult result, int? hitCount = null, int? skillLevel = null) =>
         SkillBalanceSystem.TryGetPlayerBalance(Player, BalanceId, skillLevel ?? Math.Max(1, Level), BalanceDamageClass, out result, hitCount);
 
@@ -98,7 +106,9 @@ public abstract partial class ElainaSkill : ModSkill
         ApplyBalanceConfiguration();
     }
 
-    /// <summary>技能初始化（新角色、重置技能）时是否自动习得。</summary>
+    /// <summary>
+    /// 技能初始化（新角色、重置技能）时是否自动习得。
+    /// </summary>
     public virtual bool LearnedOnInitialize(Player player) => false;
 
     /// <summary>初始化习得后默认装备的技能栏位置，-1 表示不装备。</summary>

@@ -12,6 +12,7 @@ namespace 伊蕾娜.Items.Armors.新版身体
     {
         private static Asset<Texture2D> ElainaBodyTexture;
         private static Asset<Texture2D> ElainaFrontHandTexture;
+        private static Asset<Texture2D> ElainaBackHandTexture;
         private static Asset<Texture2D> ElainaSittingBodyTexture;
         public override bool GetDefaultVisibility(PlayerDrawSet drawInfo)
         {
@@ -82,6 +83,28 @@ namespace 伊蕾娜.Items.Armors.新版身体
                 }
             }
             Vector2 bodyOrigin = bodyTexture.Size() * origin;
+
+            //如果身体帧数大于等于7则在身体后方绘制左手
+            if (bodyTexture == ElainaBodyTexture && drawInfo.drawPlayer.bodyFrame.Y / 56 >= 7 && !drawInfo.drawPlayer.compositeBackArm.enabled && drawInfo.drawPlayer.itemAnimation <= 0)
+            {
+                int backHandFrame = drawInfo.drawPlayer.bodyFrame.Y - 7 * 56;
+                if (backHandFrame + 56 <= ElainaBackHandTexture.Value.Height)
+                {
+                    drawInfo.DrawDataCache.Add(new DrawData(
+                        ElainaBackHandTexture.Value,
+                        ps.Floor(),
+                        new Rectangle(0, backHandFrame, 40, 56),
+                        drawInfo.colorArmorBody,
+                        drawInfo.drawPlayer.bodyRotation + graRotation,
+                        bodyOrigin,
+                        1f,
+                        SE,
+                        0
+                    )
+                    { shader = drawInfo.drawPlayer.cBody });
+                }
+            }
+
             drawInfo.DrawDataCache.Add(new DrawData(
                 bodyTexture.Value, // The texture to render.
                 ps.Floor(), // Position to render at.
@@ -123,6 +146,7 @@ namespace 伊蕾娜.Items.Armors.新版身体
             ElainaBodyTexture = Mod.Assets.Request<Texture2D>("Items/Armors/新版身体/身体部分");
             ElainaSittingBodyTexture = Mod.Assets.Request<Texture2D>("Items/Armors/新版身体/坐姿");
             ElainaFrontHandTexture = Mod.Assets.Request<Texture2D>("Items/Armors/新版身体/Elaina_FrontHand_Running");
+            ElainaBackHandTexture = Mod.Assets.Request<Texture2D>("Items/Armors/新版身体/Elaina_BackHand_Running");
             base.Load();
         }
     }
