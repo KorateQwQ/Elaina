@@ -217,14 +217,14 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <section class="columns section">
 <div class="panel"><div class="title"><h2 class="vanilla">原版法师</h2><span class="tag">武器输出路线</span></div><label class="field">护甲套装<select id="vArmor"></select></label><div id="vNebula" class="hidden">
 <div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="v" aria-label="原版法师星云强化全满">三种全满</button></div>
-<div class="fields"><label class="field">伤害强化<select id="vNebulaDamage" data-nebula-side="v" data-nebula-kind="damage" aria-label="原版法师伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="vNebulaMana" data-nebula-side="v" data-nebula-kind="mana" aria-label="原版法师魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="vNebulaLife" data-nebula-side="v" data-nebula-kind="life" aria-label="原版法师生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><p class="note" id="vNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="原版法师批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="menacing" aria-label="原版法师全险恶">全险恶</button><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="arcane" aria-label="原版法师全奥秘">全奥秘</button></div><p class="note" id="vPrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="vSlots"></div><div class="fields">
+<div class="fields"><label class="field">伤害强化<select id="vNebulaDamage" data-nebula-side="v" data-nebula-kind="damage" aria-label="原版法师伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="vNebulaMana" data-nebula-side="v" data-nebula-kind="mana" aria-label="原版法师魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="vNebulaLife" data-nebula-side="v" data-nebula-kind="life" aria-label="原版法师生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><p class="note" id="vNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="原版法师批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="damage" aria-label="原版法师全增伤" title="按当前伤害与暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="arcane" aria-label="原版法师全奥秘">全奥秘</button></div><p class="note" id="vPrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="vSlots"></div><div class="fields">
 <label class="field">额外伤害加成 %<input id="vDamage" type="number" min="-90" max="1000" step="1"></label>
 <label class="field">额外暴击百分点<input id="vCrit" type="number" min="-100" max="100" step="1"></label>
 <label class="field">套装特效额外 DPS<input id="vProc" type="number" min="0" max="1000000" step="10"></label>
 </div><p class="note">额外项可填药剂、增益、武器前缀等。武器前缀若已计入 B，不要重复填写。机动／生存占位不加输出；不为原版加入攻速轴。</p><div class="summary" id="vSummary"></div></div>
 <div class="panel"><div class="title"><h2 class="elaina">伊蕾娜</h2><button id="copy" class="smallbtn">复制左侧装备 · 前缀转奥秘</button></div><label class="field">护甲套装<select id="eArmor"></select></label><div id="eNebula" class="hidden">
 <div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="e" aria-label="伊蕾娜星云强化全满">三种全满</button></div>
-<div class="fields"><label class="field">伤害强化<select id="eNebulaDamage" data-nebula-side="e" data-nebula-kind="damage" aria-label="伊蕾娜伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="eNebulaMana" data-nebula-side="e" data-nebula-kind="mana" aria-label="伊蕾娜魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="eNebulaLife" data-nebula-side="e" data-nebula-kind="life" aria-label="伊蕾娜生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><label class="check"><input id="nebulaManaBridge" type="checkbox">将星云回蓝转为特殊魔力（仅预览适配假设，当前代码未接入）</label><p class="note" id="eNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="伊蕾娜批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="menacing" aria-label="伊蕾娜全险恶">全险恶</button><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="arcane" aria-label="伊蕾娜全奥秘">全奥秘</button></div><p class="note" id="ePrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="eSlots"></div><div class="fields">
+<div class="fields"><label class="field">伤害强化<select id="eNebulaDamage" data-nebula-side="e" data-nebula-kind="damage" aria-label="伊蕾娜伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="eNebulaMana" data-nebula-side="e" data-nebula-kind="mana" aria-label="伊蕾娜魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="eNebulaLife" data-nebula-side="e" data-nebula-kind="life" aria-label="伊蕾娜生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><label class="check"><input id="nebulaManaBridge" type="checkbox">将星云回蓝转为特殊魔力（仅预览适配假设，当前代码未接入）</label><p class="note" id="eNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="伊蕾娜批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="damage" aria-label="伊蕾娜全增伤" title="按当前伤害与暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="arcane" aria-label="伊蕾娜全奥秘">全奥秘</button></div><p class="note" id="ePrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="eSlots"></div><div class="fields">
 <label class="field">额外伤害加成 %<input id="eDamage" type="number" min="-90" max="1000" step="1"></label>
 <label class="field">额外暴击百分点<input id="eCrit" type="number" min="-100" max="100" step="1"></label>
 <label class="field">套装特效额外 DPS<input id="eProc" type="number" min="0" max="1000000" step="10"></label>
@@ -324,10 +324,10 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  <details open class="glossary"><summary>名词说明（鼠标悬停表头 ⓘ 也能看到）</summary><dl>
   <dt>每蓝价值 = CD × CD伤害折算率 × K</dt><dd>每花 1 点蓝换到的额外伤害（乘 B × 0.002 × 装备倍率就是伤害值）。蓝耗大小不改变它；占手时长不计入它，读条时少打的普攻（扣除占手补偿后）在“每蓝净伤害”中扣除。命中率低于 100% 会扣减，表中“每蓝净伤害”已扣。K 统一时，<b>CD 越短的技能每蓝越不值钱</b>。</dd>
   <dt>蓝需求 = 蓝耗 ÷ CD</dt><dd>CD 一好就放时，这个技能每秒吃掉多少蓝。它决定技能“能吸多少蓝”，与它“每蓝值多少”是两回事。</dd>
-  <dt>宽 / 窄</dt><dd><b>宽</b>：蓝需求 ≥ 技能可用蓝的 50%，余蓝再多也消化得了，适合当“蓄水池”，奥秘多出来的蓝就靠它变成伤害。<b>窄</b>：蓝需求 &lt; 15%，奥秘和险恶都很容易放满，主要抬升整体强度，几乎不拉开两者差距。<b>中</b>：介于两者。</dd>
+  <dt>宽 / 窄</dt><dd><b>宽</b>：蓝需求 ≥ 技能可用蓝的 50%，余蓝再多也消化得了，适合当“蓄水池”，奥秘多出来的蓝就靠它变成伤害。<b>窄</b>：蓝需求 &lt; 15%，奥秘和增伤都很容易放满，主要抬升整体强度，几乎不拉开两者差距。<b>中</b>：介于两者。</dd>
   <dt>技能可用蓝 / 秒</dt><dd>回蓝 − 普攻每秒耗蓝 − 受伤损蓝每秒 + （开场蓝 + 全部药剂）÷ 战斗时长。普攻优先，剩下的才轮到技能。</dd>
   <dt>阶梯与边际技能</dt><dd>把技能可用蓝按顺位从高到低“倒”进技能，每个技能最多吃到它的蓝需求。蓝在哪一级用完，那一级就是<b>边际技能</b>：多出来的蓝（例如奥秘带来的）都流向它，所以<b>奥秘的收益由边际技能的价值决定</b>，而不是由最强的技能决定。</dd>
-  <dt>盈亏线</dt><dd>把一个饰品从险恶换成奥秘刚好打平时，边际技能需要的每蓝价值。边际技能 ≥ 盈亏线 → 奥秘占优；低于 → 险恶占优。回蓝百分比越高、战斗越短、药越多，盈亏线越低；普攻越强、其他伤害越多，盈亏线越高。</dd>
+  <dt>盈亏线</dt><dd>把一个饰品从增伤（按当前伤害与暴击取险恶或幸运中更高的一个）换成奥秘刚好打平时，边际技能需要的每蓝价值。边际技能 ≥ 盈亏线 → 奥秘占优；低于 → 增伤占优。回蓝百分比越高、战斗越短、药越多，盈亏线越低；普攻越强、其他伤害越多，盈亏线越高。</dd>
   <dt>溢出</dt><dd>全部技能按 CD 放满后蓝还有剩。多出的魔力没有去处，奥秘必然落后。解决办法：加一个宽的、价值高于盈亏线的技能当蓄水池，或提高现有技能的蓝耗。</dd>
   <dt>新增技能会怎样</dt><dd><b>价值高于边际技能</b>：拿走低价值技能的蓝，DPS 上升；蓝变得更紧缺，奥秘优势变大。<b>价值低于边际技能</b>：节约型打法下基本不放，DPS 不变；按优先级打法时如果排在前面，会抢走高价值技能的蓝，DPS 反而下降，此时不如一个无消耗的 buff。<b>蓝溢出时</b>：任何正收益技能都有用，宽的最好。</dd>
   <dt>局限</dt><dd>这是稳态估算，按“蓝先给价值高的技能”的理想打法计算；“按优先级”策略实际按优先级花蓝，以上方实际模拟次数为准。盈亏线按当前配装估算，通常略偏保守（实测奥秘打平所需的价值略低）。短战斗主要在花开场蓝，阶梯只作参考。</dd>
@@ -538,6 +538,20 @@ function gear(s,side){
  const multiplier=Math.max(0,1+damage/100)*(1+finalCrit/100)/(1+s.baseCrit/100);
  return {damage,crit:finalCrit,mana,defense,multiplier,nebulaDamage,nebulaManaRegen,nebulaLifeRegen,armorDefense:a.armorDefense||0,manaReduction:a.manaReduction||0,moveSpeed:a.moveSpeed||0};
 }
+// 增伤前缀：在当前总伤害与封顶后暴击下，再加一条险恶或幸运时倍率更高的那个；打平取险恶。
+function damagePrefixStep(s,side){
+ const g=gear(s,side),base=Math.max(0,1+g.damage/100);
+ const menacing=base>0?Math.max(0,1+(g.damage+prefixes.menacing.damage)/100)/base:1;
+ const lucky=(1+clamp(g.crit+prefixes.lucky.crit,0,100)/100)/(1+g.crit/100);
+ return lucky>menacing*(1+1e-12)?{prefix:'lucky',ratio:lucky}:{prefix:'menacing',ratio:menacing};
+}
+function equippedSlots(s,side){return s[side].items.slice(0,s.slots).map((x,i)=>x.id==='empty'?-1:i).filter(i=>i>=0);}
+// 全增伤：先清空这些槽的前缀，再逐槽按 damagePrefixStep 选择；伤害与暴击是乘法关系，逐条贪心即为最优分配。
+function applyDamagePrefixes(s,side,slots=equippedSlots(s,side)){
+ for(const i of slots)s[side].items[i].prefix='none';
+ for(const i of slots)s[side].items[i].prefix=damagePrefixStep(s,side).prefix;
+ return slots.map(i=>s[side].items[i].prefix);
+}
 function calculate(s){
  const v=gear(s,'v'),e=gear(s,'e');
  const maxMana=Math.max(0,s.baseMana+e.mana+s.extraMana);
@@ -549,7 +563,7 @@ function calculate(s){
 function skillDamageBudget(s,skill,result=calculate(s)){
  return s.baseDps*(s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
 }
-return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,defaults,gear,calculate,skillDamageBudget};
+return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
 })();
 if(typeof module!=='undefined')module.exports=Balance;
 </script>
@@ -703,15 +717,17 @@ const Combat=(()=>{
   return {unlimited,T,maxMana:M,regen,baseRegen,nebulaRegen,initialMana,endMana:mana,potionsLeft:potions,usedPotions,firstShortage,lastPotionTime,fifthPotionTime,autoDamage,skillDamage,procDamage:s.e.proc*T,totalDamage,dps:totalDamage/T,autoCount,autoMana,skillMana,regenEffective,regenWaste,potionEffective,potionWaste,hurtPaid,hurtRequested,uncoveredHurt:Math.max(0,hurtRequested-hurtPaid),skills:skills.map(x=>({name:x.name,enabled:x.enabled,count:x.count,damage:x.damage,mana:x.mana,blocks:x.blocks})),events,samples,invalid,injuryErrors:inj.errors};
  }
  function compare(s){return {actual:run(s),ideal:run(s,true),vanilla:Balance.calculate(s).vanilla};}
- // Same Elaina loadout and combat settings, every equipped accessory set to arcane vs menacing.
+ // Same Elaina loadout and combat settings, every equipped accessory set to arcane vs the best damage prefix per slot.
  function prefixDuel(s){
-  const slots=s.e.items.slice(0,s.slots).map((x,i)=>x.id==='empty'?-1:i).filter(i=>i>=0);
-  const as=prefix=>{const copy=Balance.clone(s);for(const i of slots)copy.e.items[i].prefix=prefix;return run(copy);};
-  const arcane=as('arcane'),menacing=as('menacing'),diff=arcane.dps-menacing.dps;
-  return {slots:slots.length,arcane,menacing,diff,lead:menacing.dps>EPS?diff/menacing.dps:0};
+  const slots=Balance.equippedSlots(s,'e');
+  const arcaneCopy=Balance.clone(s),damageCopy=Balance.clone(s);
+  for(const i of slots)arcaneCopy.e.items[i].prefix='arcane';
+  const picks=Balance.applyDamagePrefixes(damageCopy,'e',slots);
+  const arcane=run(arcaneCopy),damage=run(damageCopy),diff=arcane.dps-damage.dps;
+  return {slots:slots.length,arcane,damage,menacingCount:picks.filter(x=>x==='menacing').length,luckyCount:picks.filter(x=>x==='lucky').length,diff,lead:damage.dps>EPS?diff/damage.dps:0};
  }
  // Steady-state mana ladder: rank skills by net damage per mana, pour the mana flow left for skills down the ranks,
- // and compare the rung where it runs out against the break-even value of swapping one menacing slot for arcane.
+ // and compare the rung where it runs out against the break-even value of swapping one damage-prefix slot for arcane.
  function ladder(s,a=run(s),ideal=run(s,true)){
   const c=s.combat,T=c.duration,b=Balance.calculate(s),basic=Balance.selectedBasic(s),M=a.maxMana;
   const unit=s.baseDps*(s.rate/100/20)*b.skillMultiplier;
@@ -734,14 +750,14 @@ const Combat=(()=>{
    const take=Math.min(x.demand,left);x.fill=x.demand>EPS?take/x.demand:1;left-=take;
    if(!marginal&&x.fill<1-1e-6)marginal=x;
   }
-  // One slot swap: +arcane mana raises regen, potion size and the opening pool; +menacing damage scales every multiplied hit.
-  const dm=Balance.prefixes.arcane.mana,dd=Balance.prefixes.menacing.damage/100;
+  // One slot swap: +arcane mana raises regen, potion size and the opening pool; the better of menacing/lucky scales every multiplied hit.
+  const dm=Balance.prefixes.arcane.mana,step=Balance.damagePrefixStep(s,'e');
   const extraFlow=(c.regenMode==='mod'?dm*(Number(c.regenPercent)||0)/100:0)+dm*(c.startPercent/100+Math.floor(c.potions)*c.potionPercent/100)/T;
   const multiplied=(a.autoDamage+(s.skillStats?a.skillDamage:0))/T;
-  const menacingGain=multiplied*dd/Math.max(EPS,1+b.e.damage/100);
-  const threshold=extraFlow*unit>EPS?menacingGain/(extraFlow*unit):Infinity;
+  const damageGain=multiplied*(step.ratio-1);
+  const threshold=extraFlow*unit>EPS?damageGain/(extraFlow*unit):Infinity;
   return {income,basicRate,hurtRate:hurtTotal/T,poolRate,regen:a.regen,demand:rows.filter(x=>x.usable&&x.positive).reduce((sum,x)=>sum+x.demand,0),
-   overflow:marginal?0:left,marginal,threshold,extraFlow,menacingGain,unit,rows};
+   overflow:marginal?0:left,marginal,threshold,extraFlow,damageGain,damagePrefix:step.prefix,unit,rows};
  }
  return {injuries,run,compare,ladder,prefixDuel,STEP};
 })();
@@ -862,11 +878,11 @@ function drawTimeline(){
 }
 // Plain-language reading of the mana ladder; these hints are the main guide when adding or retuning skills.
 function duelLine(D,vanilla){
- if(!D.slots)return '<p class="warn">奥秘 vs 险恶：伊蕾娜当前没有已装备饰品，无法对比。先在下方伊蕾娜配装中装备饰品。</p>';
+ if(!D.slots)return '<p class="warn">奥秘 vs 增伤：伊蕾娜当前没有已装备饰品，无法对比。先在下方伊蕾娜配装中装备饰品。</p>';
  const sign=x=>(x>=0?'+':'−')+fmt(Math.abs(x),1),ahead=D.diff>=0,per=D.lead/D.slots;
  const rel=x=>vanilla>0?'，原版的 '+fmt(x/vanilla*100,1)+'%':'';
  const close=Math.abs(D.lead)<.02?' 差距小于 2%，战斗时长、受伤或药剂数量稍有变化就可能翻转。':'';
- return `<p class="duel">奥秘 vs 险恶（伊蕾娜 ${D.slots} 个已装备饰品全部换成同一前缀，其余设置不变，逐帧模拟）：全奥秘 <strong>${fmt(D.arcane.dps,1)}</strong> DPS${rel(D.arcane.dps)}；全险恶 <strong>${fmt(D.menacing.dps,1)}</strong> DPS${rel(D.menacing.dps)} → <span class="${ahead?'good':'warn'}">奥秘${ahead?'领先':'落后'} <strong>${fmt(Math.abs(D.lead)*100,1)}%</strong>（${sign(D.diff)} DPS，平均每条 ${sign(per*100)}%）</span>。${close}</p>`;
+ return `<p class="duel">奥秘 vs 增伤（伊蕾娜 ${D.slots} 个已装备饰品全部换成奥秘，或按当前伤害与暴击逐条选险恶／幸运，其余设置不变，逐帧模拟）：全奥秘 <strong>${fmt(D.arcane.dps,1)}</strong> DPS${rel(D.arcane.dps)}；全增伤（险恶 ${D.menacingCount}、幸运 ${D.luckyCount}）<strong>${fmt(D.damage.dps,1)}</strong> DPS${rel(D.damage.dps)} → <span class="${ahead?'good':'warn'}">奥秘${ahead?'领先':'落后'} <strong>${fmt(Math.abs(D.lead)*100,1)}%</strong>（${sign(D.diff)} DPS，平均每条 ${sign(per*100)}%）</span>。${close}</p>`;
 }
 function renderLadder(L,D,vanilla){
  const V=L.threshold,hasV=Number.isFinite(V),pct=x=>fmt(x*100)+'%';
@@ -875,15 +891,15 @@ function renderLadder(L,D,vanilla){
  const lines=[duelLine(D,vanilla),`<p>技能可用蓝 ≈ <strong>${fmt(L.income,1)}/秒</strong>（回蓝 ${fmt(L.regen,1)} − 普攻 ${fmt(L.basicRate,1)} − 受伤 ${fmt(L.hurtRate,1)} + 开场蓝与药剂摊到每秒 ${fmt(L.poolRate,1)}）；全部技能按 CD 放满共需 <strong>${fmt(L.demand,1)}/秒</strong>。</p>`];
  if(!live.length)lines.push('<p class="warn">没有可释放且净收益为正的技能，魔力只能用于普攻，奥秘没有收益。</p>');
  else if(L.income<=1e-6)lines.push('<p class="warn">普攻和受伤已经吃光回蓝，技能只能花开场蓝和药剂。可提高回蓝、降低普攻蓝耗，或减少受伤损蓝。</p>');
- else if(!L.marginal)lines.push(`<p class="warn">⚠ 蓝溢出：全部技能放满后每秒还剩约 ${fmt(L.overflow,1)} 蓝没有去处，多出的魔力不再变成伤害，奥秘必然落后险恶。建议加入一个<b>宽</b>的、每蓝价值 ≥ ${hasV?fmt(V,1):'盈亏线'} 的技能当蓄水池，或提高现有技能的蓝耗。</p>`);
+ else if(!L.marginal)lines.push(`<p class="warn">⚠ 蓝溢出：全部技能放满后每秒还剩约 ${fmt(L.overflow,1)} 蓝没有去处，多出的魔力不再变成伤害，奥秘必然落后增伤。建议加入一个<b>宽</b>的、每蓝价值 ≥ ${hasV?fmt(V,1):'盈亏线'} 的技能当蓄水池，或提高现有技能的蓝耗。</p>`);
  else{
   const m=L.marginal,ok=hasV&&m.effective>=V;
-  lines.push(`<p>蓝在 ${quote(m)} 这一级用完（理论分到 ${pct(m.fill)}），它是<b>边际技能</b>：每蓝价值 <strong>${fmt(m.effective,1)}</strong> ${ok?'≥':'&lt;'} 盈亏线 <strong>${hasV?fmt(V,1):'—'}</strong> → <span class="${ok?'good':'warn'}">持续战斗中${ok?'奥秘占优':'奥秘不如险恶'}</span>。</p>`);
+  lines.push(`<p>蓝在 ${quote(m)} 这一级用完（理论分到 ${pct(m.fill)}），它是<b>边际技能</b>：每蓝价值 <strong>${fmt(m.effective,1)}</strong> ${ok?'≥':'&lt;'} 盈亏线 <strong>${hasV?fmt(V,1):'—'}</strong> → <span class="${ok?'good':'warn'}">持续战斗中${ok?'奥秘占优':'奥秘不如增伤'}</span>。</p>`);
   if(!ok&&hasV)lines.push(`<p>想让奥秘占优：把 ${quote(m)} 的 K 或 CD 提高到每蓝价值 ≥ ${fmt(V,1)}，或加入价值更高的技能让蓝更紧缺。</p>`);
  }
  const inverted=live.filter(x=>live.some(y=>y.perMana>x.perMana+1e-9&&y.priority>x.priority));
  if(s.combat.policy!=='efficiency'&&inverted.length)lines.push(`<p class="warn">当前策略按优先级花蓝：${inverted.map(quote).join('、')} 价值较低却排在更高价值技能前面，实际会先抢走蓝（见下表提示）。可改用节约型，或调整优先级。</p>`);
- if(hasV)lines.push(`<p class="note">盈亏线怎么来的：险恶每条 +4% 约多 ${fmt(L.menacingGain,1)} DPS；奥秘每条 +20 上限约多 ${fmt(L.extraFlow,2)} 蓝/秒，每蓝价值 1 点 ≈ ${fmt(L.unit,2)} 伤害。两者相等时的每蓝价值就是盈亏线。</p>`);
+ if(hasV)lines.push(`<p class="note">盈亏线怎么来的：按当前伤害与暴击，增伤每条选${L.damagePrefix==='lucky'?'幸运 +4 暴击':'险恶 +4% 伤害'}，约多 ${fmt(L.damageGain,1)} DPS；奥秘每条 +20 上限约多 ${fmt(L.extraFlow,2)} 蓝/秒，每蓝价值 1 点 ≈ ${fmt(L.unit,2)} 伤害。两者相等时的每蓝价值就是盈亏线。</p>`);
  $('ladderSummary').innerHTML=lines.join('');
  $('ladderRows').innerHTML=L.rows.map((x,n)=>{
   const tips=[],tip=(cls,text)=>tips.push(`<span class="tip ${cls}">${text}</span>`);
@@ -894,11 +910,11 @@ function renderLadder(L,D,vanilla){
    if(x===L.marginal)tip('info','边际技能：多出来的蓝都流向这里，奥秘的收益看它。');
    else if(L.marginal&&Math.abs(x.perMana-L.marginal.perMana)<=1e-6*Math.max(1,Math.abs(x.perMana)))tip('info',`与边际技能 ${quote(L.marginal)} 每蓝价值相同：余蓝在它们之间怎么分都不影响 DPS。`);
    else if(L.marginal&&x.fill<=1e-6)tip('warn','排在边际技能之后，理论上分不到蓝：节约打法基本不放；按优先级先放它会抢走高价值技能的蓝、降低 DPS，此时不如一个无消耗 buff。');
-   if(hasV&&x.effective<V)tip('warn',`每蓝价值低于盈亏线 ${fmt(V,1)}：一旦靠它消化余蓝，奥秘就不如险恶。可提高 K 或 CD。`);
+   if(hasV&&x.effective<V)tip('warn',`每蓝价值低于盈亏线 ${fmt(V,1)}：一旦靠它消化余蓝，奥秘就不如增伤。可提高 K 或 CD。`);
    const better=live.filter(y=>y.perMana>x.perMana+1e-9&&y.priority>x.priority);
    if(better.length)tip(s.combat.policy==='efficiency'?'':'warn',`优先级排在价值更高的 ${better.map(quote).join('、')} 前面：按优先级释放时会先抢走它们的蓝。`);
    if(width[1]==='宽'&&(!hasV||x.effective>=V))tip('good',x.fill<=1e-6?'宽且价值够：后备蓄水池，蓝变多后由它接住余蓝，防止溢出。':'宽且价值够：合格的蓄水池，能把奥秘多出来的蓝变成伤害。');
-   if(width[1]==='窄'&&x.fill>=1-1e-6)tip('','窄：很快放满，主要抬升整体强度，不拉开奥秘与险恶的差距。');
+   if(width[1]==='窄'&&x.fill>=1-1e-6)tip('','窄：很快放满，主要抬升整体强度，不拉开奥秘与增伤的差距。');
   }
   return `<tr class="${x===L.marginal?'marginal':''}"><td>${n+1}</td><td>${escapeHtml(x.name)}</td><td>${fmt(x.value,1)}${Math.abs(x.effective-x.value)>.05?`<br><span class="note">净 ${fmt(x.effective,1)}</span>`:''}</td><td>${Number.isFinite(x.perMana)?fmt(x.perMana,1):'—'}</td><td>${Number.isFinite(x.demand)?fmt(x.demand,2):'—'}</td><td><span class="widetag ${width[0]}">${width[1]}</span> ${Number.isFinite(x.share)?pct(x.share):''}</td><td>${x.usable&&x.positive?pct(x.fill):'不放'}</td><td>${x.count} / ${x.full}</td><td>${tips.join('')||'<span class="tip">—</span>'}</td></tr>`;
  }).join('')||'<tr><td colspan="9">没有启用的主动技能。</td></tr>';
@@ -1058,13 +1074,17 @@ function update(persist=true){
  s.skills.forEach((row,i)=>{$("skillDamage"+i).textContent=fmt(Balance.skillDamageBudget(s,row,r),1);});
  updateCombat();if(persist)save();
 }
-// Opening more slots: if every visible equipped slot shares one prefix (e.g. "all menacing"), the new slots follow it.
+// Opening more slots: if every visible equipped slot is a damage prefix ("all damage"), the new slots pick menacing/lucky
+// for the grown loadout; otherwise if they share one prefix (e.g. "all arcane"), the new slots follow it.
 function resizeSlots(count){
- for(const side of ['v','e']){
-  const used=[...new Set(s[side].items.slice(0,s.slots).filter(x=>x.id!=='empty').map(x=>x.prefix))];
-  if(used.length===1)s[side].items.slice(s.slots,count).forEach(x=>{x.prefix=used[0];});
- }
+ const old=s.slots,used={};
+ for(const side of ['v','e'])used[side]=[...new Set(s[side].items.slice(0,old).filter(x=>x.id!=='empty').map(x=>x.prefix))];
  s.slots=count;
+ for(const side of ['v','e']){
+  const u=used[side];
+  if(u.length&&u.every(p=>p==='menacing'||p==='lucky'))Balance.applyDamagePrefixes(s,side,Balance.equippedSlots(s,side).filter(i=>i>=old));
+  else if(u.length===1)s[side].items.slice(old,count).forEach(x=>{x.prefix=u[0];});
+ }
 }
 for(const id of direct)$(id).addEventListener($(id).tagName==='SELECT'?'change':'input',()=>{
  const el=$(id);if(el.type==='number'&&el.value==='')return;
@@ -1119,7 +1139,7 @@ function renderLoadoutEditor(){
   <label class="field">饰品槽数量<select id="loadoutSlots"><option value="5">5 格</option><option value="6">6 格（专家 · 恶魔之心）</option><option value="7">7 格（大师）</option></select></label>
  </div>
  <h3 class="subhead">饰品与前缀</h3>
- <div class="actions" role="group" aria-label="本阶段批量设置前缀"><button type="button" class="smallbtn" data-loadout-prefix="arcane">全奥秘</button><button type="button" class="smallbtn" data-loadout-prefix="menacing">全险恶</button><button type="button" class="smallbtn" data-loadout-prefix="warding">全护佑</button></div>
+ <div class="actions" role="group" aria-label="本阶段批量设置前缀"><button type="button" class="smallbtn" data-loadout-prefix="arcane">全奥秘</button><button type="button" class="smallbtn" data-loadout-prefix="damage" title="按本阶段装备与实验室额外加成的伤害、暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-loadout-prefix="warding">全护佑</button></div>
  <div class="loadoutslots">${l.items.map((item,i)=>`<div class="slot${i>=l.slots?' inactive':''}"><span class="slotnum">${i+1}</span><select aria-label="阶段配装饰品 ${i+1}" data-loadout-index="${i}" data-loadout-prop="id">${options(Balance.accessories)}</select><select aria-label="阶段配装前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('')}</div>
  <p class="note">灰色槽位超出当前槽数，不参与计算也不会在游戏中装备。“机动／生存（占位）”与“空槽”在游戏换装时保留玩家原有饰品。</p>
  <h3 class="subhead">角色属性</h3>
@@ -1132,9 +1152,10 @@ function renderLoadoutEditor(){
  for(const el of $('loadoutEditor').querySelectorAll('[data-loadout-index]'))el.value=l.items[+el.dataset.loadoutIndex][el.dataset.loadoutProp];
  updateLoadoutStats();
 }
+// The lab state with this stage's Elaina gear, so manual extras, base crit and nebula stacks still count.
+function loadoutProbe(l){const probe=Balance.clone(s);probe.slots=l.slots;probe.e.armor=l.armor;probe.e.items=Balance.clone(l.items);return probe;}
 function updateLoadoutStats(){
- const l=currentLoadout(),probe=Balance.clone(s);
- probe.slots=l.slots;probe.e.armor=l.armor;probe.e.items=Balance.clone(l.items);
+ const l=currentLoadout(),probe=loadoutProbe(l);
  const g=Balance.gear(probe,'e'),crystals=(l.baseMana-20)/20,life=Math.min(15,Math.floor((Math.min(l.maxLife,400)-100)/20)),fruit=Math.max(0,Math.floor((l.maxLife-400)/5));
  const used=l.items.slice(0,l.slots).map(x=>x.id).filter(x=>!['utility','empty'].includes(x)),dupes=[...new Set(used.filter((x,i)=>used.indexOf(x)!==i))].map(id=>Balance.accessories[id].name.split(' · ')[0]);
  $('loadoutStats').innerHTML=`<div>装备伤害<strong>+${fmt(g.damage,1)}%</strong></div><div>装备暴击<strong>+${fmt(g.crit-s.baseCrit,1)}</strong></div><div>魔力上限<strong>${fmt(l.baseMana+g.mana)}</strong><small>基础 ${l.baseMana} + 装备 ${fmt(g.mana)}</small></div><div>最大生命<strong>${l.maxLife}</strong><small>生命水晶 ${life} · 生命果 ${fruit}</small></div><div>魔力水晶<strong>${crystals}</strong><small>/ 9</small></div><div>前缀防御<strong>+${g.defense}</strong></div>${dupes.length?`<p class="warn">重复装备：${dupes.join('、')}。游戏内不能同时装备相同饰品，换装时会跳过重复项。</p>`:''}`;
@@ -1166,7 +1187,8 @@ $('loadoutEditor').addEventListener('change',event=>{
 $('loadoutEditor').addEventListener('click',event=>{
  const el=event.target.closest('button');if(!el)return;
  const l=currentLoadout();
- if(el.dataset.loadoutPrefix){for(const item of l.items.slice(0,l.slots))if(item.id!=='empty')item.prefix=el.dataset.loadoutPrefix;loadoutChanged(true);}
+ if(el.dataset.loadoutPrefix==='damage'){const probe=loadoutProbe(l);Balance.applyDamagePrefixes(probe,'e');probe.e.items.forEach((item,i)=>{l.items[i].prefix=item.prefix;});loadoutChanged(true);}
+ else if(el.dataset.loadoutPrefix){for(const item of l.items.slice(0,l.slots))if(item.id!=='empty')item.prefix=el.dataset.loadoutPrefix;loadoutChanged(true);}
  else if(el.id==='loadoutReset'){s.loadouts[l.stage-1]=Balance.loadoutDefault(l.stage);loadoutChanged(true);$('status').textContent=`已恢复阶段 ${two(l.stage)} 的默认配装与属性。`;}
  else if(el.id==='loadoutCopyPrev'&&l.stage>1){const prev=s.loadouts[l.stage-2];Object.assign(l,Balance.clone({armor:prev.armor,slots:prev.slots,items:prev.items,baseMana:prev.baseMana,maxLife:prev.maxLife}));loadoutChanged(true);$('status').textContent=`已将阶段 ${two(l.stage-1)} 的护甲、饰品、前缀与属性复制到阶段 ${two(l.stage)}（名称保留）。`;}
  else if(el.id==='loadoutUse'){switchStage(l.stage);showTab('lab');}
@@ -1182,10 +1204,13 @@ $('reset').addEventListener('click',()=>{
 });
 for(const button of document.querySelectorAll('[data-prefix-side]'))button.addEventListener('click',()=>{
  const side=button.dataset.prefixSide,prefix=button.dataset.prefixValue;
- let count=0;
- for(const item of s[side].items.slice(0,s.slots))if(item.id!=='empty'){item.prefix=prefix;count++;}
+ let count=0,label='奥秘';
+ if(prefix==='damage'){
+  const picks=Balance.applyDamagePrefixes(s,side);count=picks.length;
+  label=`增伤（险恶 ${picks.filter(x=>x==='menacing').length} 个、幸运 ${picks.filter(x=>x==='lucky').length} 个，按当前伤害与暴击选择）`;
+ }else for(const item of s[side].items.slice(0,s.slots))if(item.id!=='empty'){item.prefix=prefix;count++;}
  slots();update();
- $(side+'PrefixStatus').textContent=count?`已将 ${count} 个已装备饰品设为${prefix==='menacing'?'险恶':'奥秘'}，结果已更新并保存。`:'当前没有已装备饰品，未修改前缀。';
+ $(side+'PrefixStatus').textContent=count?`已将 ${count} 个已装备饰品设为${label}，结果已更新并保存。`:'当前没有已装备饰品，未修改前缀。';
 });
 $('copy').addEventListener('click',()=>{s.e=Balance.clone(s.v);s.e.items.forEach(r=>{if(['menacing','lucky'].includes(r.prefix))r.prefix='arcane';});sync();save();$('status').textContent='已复制装备，输出前缀替换为奥秘。';});
 let modConnected=false,localFile=null;

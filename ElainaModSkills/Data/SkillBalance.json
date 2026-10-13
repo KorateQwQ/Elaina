@@ -4,7 +4,7 @@
     "version": 2,
     "progression": {
       "phaseSize": 5,
-      "previewLevel": 5
+      "previewLevel": 65
     },
     "basicAttacks": [
       {
@@ -77,12 +77,13 @@
         "shots": 1
       }
     ],
-    "selectedBasicAttackId": "MagicMissileSkill",
-    "baseDps": 30,
+    "selectedBasicAttackId": "IceConeSkill",
+    "stage": 13,
+    "baseDps": 900,
     "baseCrit": 4,
-    "slots": 5,
+    "slots": 6,
     "v": {
-      "armor": "wizardAmethyst",
+      "armor": "hallowed",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -93,28 +94,28 @@
       },
       "items": [
         {
+          "id": "sorcerer",
+          "prefix": "lucky"
+        },
+        {
+          "id": "avenger",
+          "prefix": "lucky"
+        },
+        {
+          "id": "cuffs",
+          "prefix": "lucky"
+        },
+        {
           "id": "utility",
-          "prefix": "menacing"
+          "prefix": "lucky"
+        },
+        {
+          "id": "utility",
+          "prefix": "lucky"
         },
         {
           "id": "utility",
           "prefix": "menacing"
-        },
-        {
-          "id": "utility",
-          "prefix": "menacing"
-        },
-        {
-          "id": "utility",
-          "prefix": "warding"
-        },
-        {
-          "id": "utility",
-          "prefix": "warding"
-        },
-        {
-          "id": "utility",
-          "prefix": "warding"
         },
         {
           "id": "utility",
@@ -123,7 +124,7 @@
       ]
     },
     "e": {
-      "armor": "wizardAmethyst",
+      "armor": "hallowed",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -134,7 +135,15 @@
       },
       "items": [
         {
-          "id": "utility",
+          "id": "sorcerer",
+          "prefix": "arcane"
+        },
+        {
+          "id": "avenger",
+          "prefix": "arcane"
+        },
+        {
+          "id": "cuffs",
           "prefix": "arcane"
         },
         {
@@ -151,19 +160,11 @@
         },
         {
           "id": "utility",
-          "prefix": "arcane"
-        },
-        {
-          "id": "utility",
-          "prefix": "arcane"
-        },
-        {
-          "id": "utility",
-          "prefix": "arcane"
+          "prefix": "warding"
         }
       ]
     },
-    "baseMana": 50,
+    "baseMana": 200,
     "extraMana": 0,
     "rate": 4,
     "occupyRatio": 0,
@@ -193,7 +194,7 @@
         "shots": 1,
         "id": "WaterBallSkill",
         "name": "水球魔法",
-        "enabled": false,
+        "enabled": true,
         "cost": 100,
         "k": 3,
         "cd": 10,
@@ -214,7 +215,7 @@
         "shots": 1,
         "id": "WindTornadoSkill",
         "name": "风龙卷",
-        "enabled": false,
+        "enabled": true,
         "cost": 50,
         "k": 0.55,
         "cd": 25,
@@ -235,7 +236,7 @@
         "shots": 1,
         "id": "FireBurstSkill",
         "name": "炎爆（按每层循环）",
-        "enabled": false,
+        "enabled": true,
         "cost": 30,
         "k": 2,
         "cd": 15,
@@ -256,7 +257,7 @@
         "shots": 1,
         "id": "IceShardLockSkill",
         "name": "冰凌锁",
-        "enabled": false,
+        "enabled": true,
         "cost": 50,
         "k": 2,
         "cd": 30,
@@ -361,7 +362,7 @@
         "shots": 1,
         "id": "MultiMissileSkill",
         "name": "多重射击",
-        "enabled": false,
+        "enabled": true,
         "cost": 10,
         "k": 40,
         "cd": 1,
@@ -376,7 +377,6 @@
         "hit": 100
       }
     ],
-    "stage": 1,
     "loadouts": [
       {
         "stage": 1,
@@ -648,7 +648,7 @@
         "stage": 8,
         "name": "魔法帽钻石长袍陨石护腿 + 巫师徽章",
         "armor": "magicDiamondMeteor",
-        "slots": 5,
+        "slots": 6,
         "items": [
           {
             "id": "sorcerer",

@@ -184,13 +184,36 @@ test('Mana ladder pours skill mana by value per mana and stops at the marginal s
 test('Mana ladder reports overflow when every skill is fully funded',()=>{const L=C.ladder(ladderBase(50));assert.equal(L.marginal,null);near(L.overflow,5);});
 test('Mana ladder income subtracts autos and injuries and spreads the opening pool and potions',()=>{const s=ladderBase(30);setCombat(s,{startPercent:100,potions:2,potionPercent:50,autoCost:5,autoInterval:.5,hurtMode:'uniform',hurtTotal:200});const L=C.ladder(s);near(L.income,30-10-2+(200+200)/100);});
 test('Mana ladder skips unaffordable or non-positive skills when pouring',()=>{const s=ladderBase(30);s.skills[1].cost=201;s.skills[0].hit=0;const L=C.ladder(s);assert.equal(L.rows.find(x=>x.index===1).usable,false);assert.equal(L.rows.find(x=>x.index===0).positive,false);near(L.rows.find(x=>x.index===2).fill,1);});
-test('Break-even line separates arcane wins from menacing wins for a never-saturating sink',()=>{
+test('Break-even line separates arcane wins from damage-prefix wins for a never-saturating sink',()=>{
  const sink=(v)=>{const s=B.defaults();s.skills.forEach(x=>x.enabled=false);Object.assign(s.skills[0],{enabled:true,cost:20,cd:1,k:v,cdRatio:1,cast:.1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100});setCombat(s,{duration:300,potions:0,regenMode:'mod',regenPercent:2,policy:'efficiency',hurtMode:'uniform',hurtTotal:0});return s;};
- const ratio=(v)=>{const a=sink(v),m=B.clone(a);m.e.items.forEach(x=>{if(x.prefix==='arcane')x.prefix='menacing';});return C.run(a).dps/C.run(m).dps;};
+ const ratio=(v)=>{const a=sink(v),m=B.clone(a);B.applyDamagePrefixes(m,'e',B.equippedSlots(m,'e').filter(i=>m.e.items[i].prefix==='arcane'));return C.run(a).dps/C.run(m).dps;};
  const V=C.ladder(sink(10)).threshold;assert.ok(Number.isFinite(V)&&V>0);assert.ok(ratio(V*.5)<1);assert.ok(ratio(V*1.5)>1);
- const all=(s,prefix)=>{const c=B.clone(s);c.e.items.slice(0,c.slots).forEach(x=>{if(x.id!=='empty')x.prefix=prefix;});return C.run(c).dps;};
+ const all=(s,prefix)=>{const c=B.clone(s);if(prefix==='damage')B.applyDamagePrefixes(c,'e');else c.e.items.slice(0,c.slots).forEach(x=>{if(x.id!=='empty')x.prefix=prefix;});return C.run(c).dps;};
  const D=C.prefixDuel(sink(V*1.5)),slots=sink(1).e.items.slice(0,sink(1).slots).filter(x=>x.id!=='empty').length;
- assert.equal(D.slots,slots);near(D.lead,all(sink(V*1.5),'arcane')/all(sink(V*1.5),'menacing')-1);near(D.diff,D.arcane.dps-D.menacing.dps);assert.ok(C.prefixDuel(sink(V*.5)).lead<0);
+ assert.equal(D.slots,slots);assert.equal(D.menacingCount+D.luckyCount,slots);near(D.lead,all(sink(V*1.5),'arcane')/all(sink(V*1.5),'damage')-1);near(D.diff,D.arcane.dps-D.damage.dps);assert.ok(C.prefixDuel(sink(V*.5)).lead<0);
+});
+test('Damage prefix picks menacing or lucky from current damage and capped crit',()=>{
+ const s=naked();s.e.items[0]={id:'utility',prefix:'none'};
+ s.e.damage=50;assert.equal(B.damagePrefixStep(s,'e').prefix,'lucky');near(B.damagePrefixStep(s,'e').ratio,1.08/1.04);
+ s.e.damage=0;assert.equal(B.damagePrefixStep(s,'e').prefix,'menacing');near(B.damagePrefixStep(s,'e').ratio,1.04);
+ s.e.damage=0;s.e.crit=0;s.baseCrit=0;assert.equal(B.damagePrefixStep(s,'e').prefix,'menacing','A tie keeps menacing');
+ s.e.damage=200;s.e.crit=96;s.baseCrit=4;assert.equal(B.damagePrefixStep(s,'e').prefix,'menacing','Crit capped at 100 gains nothing from lucky');
+ s.e.damage=300;s.e.crit=94;assert.equal(B.damagePrefixStep(s,'e').prefix,'lucky','Lucky is clipped at the crit cap');near(B.damagePrefixStep(s,'e').ratio,2/1.98);
+});
+test('All-damage assignment matches the best menacing/lucky mix and ignores empty or hidden slots',()=>{
+ for(const [armor,damage,crit,items] of [['hallowed',0,0,['sorcerer','avenger','celestial','utility','utility','utility']],['spectreDarkArtist',0,0,['utility','utility','utility','utility','utility','utility']],['meteor',0,0,['sorcerer','avenger','utility','utility','utility','utility']],['none',0,80,['utility','utility','utility','utility','utility','utility']]]){
+  const s=naked();s.slots=6;s.e.armor=armor;s.e.damage=damage;s.e.crit=crit;items.forEach((id,i)=>{s.e.items[i]={id,prefix:'arcane'};});s.e.items[2].id='empty';s.e.items[6]={id:'utility',prefix:'warding'};
+  const picks=B.applyDamagePrefixes(s,'e'),slots=B.equippedSlots(s,'e');
+  assert.equal(picks.length,5);assert.equal(s.e.items[2].prefix,'arcane');assert.equal(s.e.items[6].prefix,'warding');
+  let best=0;for(let mask=0;mask<1<<slots.length;mask++){const c=B.clone(s);slots.forEach((i,n)=>{c.e.items[i].prefix=mask>>n&1?'lucky':'menacing';});best=Math.max(best,B.gear(c,'e').multiplier);}
+  near(B.gear(s,'e').multiplier,best);
+ }
+ const mixed=naked();mixed.e.crit=10;mixed.e.items.forEach(x=>{x.id='utility';});const picks=B.applyDamagePrefixes(mixed,'e');
+ assert.ok(picks.includes('menacing')&&picks.includes('lucky'),'Balanced damage and crit mix both prefixes');
+});
+test('Ladder break-even uses the damage prefix that the current gear prefers',()=>{
+ const s=ladderBase(30),L=C.ladder(s),step=B.damagePrefixStep(s,'e');
+ assert.equal(L.damagePrefix,step.prefix);const a=C.run(s);near(L.damageGain,(a.autoDamage+a.skillDamage)/a.T*(step.ratio-1));
 });
 test('Prefix duel leaves the page loadout untouched and skips empty slots',()=>{
  const s=ladderBase(30);s.e.items[0].id='empty';s.e.items[1].prefix='warding';const before=JSON.stringify(s);
@@ -428,14 +451,16 @@ async function browserTests(){
   const initialVItems=await values('v','id'),initialEItems=await values('e','id');
   const initialEPrefixes=await values('e','prefix');
   const beforePrefixDps=await page.locator('#simVanilla').innerText();
-  await page.getByRole('button',{name:'原版法师全险恶',exact:true}).click();
-  assert.ok((await values('v','prefix')).every(v=>v==='menacing'));
+  const isDamage=v=>v==='menacing'||v==='lucky';
+  await page.getByRole('button',{name:'原版法师全增伤',exact:true}).click();
+  assert.ok((await values('v','prefix')).every(isDamage));
+  assert.match(await page.locator('#vPrefixStatus').innerText(),/增伤（险恶 \d+ 个、幸运 \d+ 个/);
   assert.deepEqual(await values('e','prefix'),initialEPrefixes);
   assert.notEqual(await page.locator('#simVanilla').innerText(),beforePrefixDps);
   await page.getByRole('button',{name:'原版法师全奥秘',exact:true}).click();
   assert.ok((await values('v','prefix')).every(v=>v==='arcane'));
-  await page.getByRole('button',{name:'伊蕾娜全险恶',exact:true}).click();
-  assert.ok((await values('e','prefix')).every(v=>v==='menacing'));
+  await page.getByRole('button',{name:'伊蕾娜全增伤',exact:true}).click();
+  assert.ok((await values('e','prefix')).every(isDamage));
   const beforeArcane=await page.locator('#simCapacity').innerText();
   await page.getByRole('button',{name:'伊蕾娜全奥秘',exact:true}).click();
   assert.ok((await values('e','prefix')).every(v=>v==='arcane'));
@@ -450,11 +475,13 @@ async function browserTests(){
   await page.locator('#slots').selectOption('5');
   await page.locator('#eSlots select[data-prop="id"]').first().selectOption('empty');
   await page.locator('#eSlots select[data-prop="prefix"]').first().selectOption('warding');
-  await page.getByRole('button',{name:'伊蕾娜全险恶',exact:true}).click();
-  assert.deepEqual(await values('e','prefix'),['warding','menacing','menacing','menacing','menacing']);
+  await page.getByRole('button',{name:'伊蕾娜全增伤',exact:true}).click();
+  const damagePicks=await values('e','prefix');
+  assert.equal(damagePicks[0],'warding');assert.ok(damagePicks.slice(1).every(isDamage));
   assert.match(await page.locator('#ePrefixStatus').innerText(),/4 个/);
   await page.locator('#slots').selectOption('7');
-  assert.deepEqual((await values('e','prefix')).slice(5),['menacing','menacing'],'Uniform visible prefixes extend to newly opened slots');
+  assert.deepEqual((await values('e','prefix')).slice(0,5),damagePicks,'Opening slots keeps the visible damage prefixes');
+  assert.ok((await values('e','prefix')).slice(5).every(isDamage),'All-damage visible prefixes extend to newly opened slots');
   await page.locator('#eSlots select[data-prop="prefix"]').nth(6).selectOption('lucky');
   await page.locator('#slots').selectOption('6');
   await page.locator('#eSlots select[data-prop="prefix"]').nth(1).selectOption('warding');
@@ -529,7 +556,7 @@ async function browserTests(){
   assert.match(await page.locator('#simWarnings').innerText(),/无法支付/);
   assert.match(await page.locator('#ladderRows').innerText(),/冰凌锁[\s\S]*无法释放/);
   assert.match(await page.locator('#ladderSummary').innerText(),/技能可用蓝/);
-  assert.match(await page.locator('#ladderSummary').innerText(),/奥秘 vs 险恶[\s\S]*奥秘(领先|落后) [\d.]+%/);
+  assert.match(await page.locator('#ladderSummary').innerText(),/奥秘 vs 增伤[\s\S]*全增伤（险恶 \d+、幸运 \d+）[\s\S]*奥秘(领先|落后) [\d.]+%/);
   await page.getByRole('spinbutton',{name:'模拟水球魔法CD',exact:true}).fill('30');
   await page.getByRole('spinbutton',{name:'模拟水球魔法命中',exact:true}).fill('50');
   await page.reload();
@@ -573,7 +600,10 @@ async function browserTests(){
   await page.locator('[data-loadout-index="1"][data-loadout-prop="id"]').selectOption('sorcerer');
   assert.match(await page.locator('#loadoutStats').innerText(),/重复装备/);
   await page.locator('[data-loadout-index="1"][data-loadout-prop="id"]').selectOption('celestialCuffs');
-  await page.getByRole('button',{name:'全险恶',exact:true}).click();
+  await page.getByRole('button',{name:'全增伤',exact:true}).click();
+  const stageDamage=(()=>{const p=B.defaults();Object.assign(p.e,{armor:'jungle'});p.slots=5;p.e.items=B.loadoutDefault(3).items;p.e.items[0].id='sorcerer';p.e.items[1].id='celestialCuffs';return Array.from(B.applyDamagePrefixes(p,'e'));})();
+  assert.ok(stageDamage.includes('lucky'),'Jungle stage gear prefers lucky for some slots');
+  assert.deepEqual(await page.locator('[data-loadout-prop="prefix"]').evaluateAll(els=>els.slice(0,5).map(el=>el.value)),stageDamage,'Stage all-damage uses this stage gear plus lab extras');
   assert.match(await page.locator('#loadoutList [data-loadout-stage="3"]').innerText(),/克苏鲁之眼后/);
   assert.equal(await page.locator('#eArmor').inputValue(),'hallowed','Editing another stage does not touch the lab');
   await page.getByRole('button',{name:'在实验室中查看',exact:true}).click();
@@ -583,7 +613,7 @@ async function browserTests(){
   assert.equal(await page.locator('#vArmor').inputValue(),'jungle');
   assert.equal(await page.locator('#baseMana').inputValue(),'160');
   assert.equal(await page.locator('#baseDps').inputValue(),'80');
-  assert.ok((await values('e','prefix')).every(v=>v==='menacing'));
+  assert.deepEqual(await values('e','prefix'),stageDamage);
   assert.match(await page.locator('#eStageInfo').innerText(),/基础魔力 160、最大生命 410/);
   await page.getByRole('tab',{name:'配装与属性配置'}).click();
   assert.match(await page.locator('#loadoutEditor h2').innerText(),/克苏鲁之眼后/);
