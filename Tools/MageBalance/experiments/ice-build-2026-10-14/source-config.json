@@ -1,0 +1,1240 @@
+{
+  "schema": "elaina-mage-balance-v2",
+  "configuration": {
+    "version": 2,
+    "progression": {
+      "phaseSize": 5,
+      "previewLevel": 95
+    },
+    "basicAttacks": [
+      {
+        "id": "MagicMissileSkill",
+        "name": "魔法飞弹",
+        "unlockStageCap": 5,
+        "unlockLevel": 1,
+        "levelsPerPhase": 2,
+        "ratio": 0.6,
+        "ratioCurve": [
+          [
+            1,
+            1
+          ],
+          [
+            50,
+            0.6
+          ]
+        ],
+        "cost": 2,
+        "interval": 0.3,
+        "shots": 1
+      },
+      {
+        "id": "IceConeSkill",
+        "name": "冰锥",
+        "unlockStageCap": 35,
+        "unlockLevel": 31,
+        "levelsPerPhase": 2,
+        "ratio": 0.9,
+        "ratioCurve": [],
+        "cost": 4.5,
+        "interval": 0.5,
+        "shots": 3
+      },
+      {
+        "id": "WindSlashSkill",
+        "name": "风刃",
+        "unlockStageCap": 20,
+        "unlockLevel": 16,
+        "levelsPerPhase": 2,
+        "ratio": 0.5,
+        "ratioCurve": [],
+        "cost": 2.5,
+        "interval": 0.4,
+        "shots": 1
+      },
+      {
+        "id": "WaterLaserSKill",
+        "name": "水流术",
+        "unlockStageCap": 30,
+        "unlockLevel": 26,
+        "levelsPerPhase": 2,
+        "ratio": 0.7,
+        "ratioCurve": [],
+        "cost": 1.5,
+        "interval": 0.2,
+        "shots": 1
+      },
+      {
+        "id": "FireLaserSkill",
+        "name": "火焰射线",
+        "unlockStageCap": 40,
+        "unlockLevel": 36,
+        "levelsPerPhase": 2,
+        "ratio": 0.7,
+        "ratioCurve": [],
+        "cost": 3,
+        "interval": 0.3,
+        "shots": 1
+      }
+    ],
+    "selectedBasicAttackId": "WaterLaserSKill",
+    "stage": 19,
+    "baseDps": 3500,
+    "baseCrit": 4,
+    "slots": 6,
+    "v": {
+      "armor": "nebula",
+      "damage": 0,
+      "crit": 0,
+      "proc": 0,
+      "nebula": {
+        "damage": 3,
+        "mana": 3,
+        "life": 3
+      },
+      "items": [
+        {
+          "id": "sorcerer",
+          "prefix": "lucky"
+        },
+        {
+          "id": "avenger",
+          "prefix": "lucky"
+        },
+        {
+          "id": "celestial",
+          "prefix": "lucky"
+        },
+        {
+          "id": "utility",
+          "prefix": "lucky"
+        },
+        {
+          "id": "utility",
+          "prefix": "lucky"
+        },
+        {
+          "id": "utility",
+          "prefix": "lucky"
+        },
+        {
+          "id": "utility",
+          "prefix": "lucky"
+        }
+      ]
+    },
+    "e": {
+      "armor": "nebula",
+      "damage": 0,
+      "crit": 0,
+      "proc": 0,
+      "nebula": {
+        "damage": 3,
+        "mana": 3,
+        "life": 3
+      },
+      "items": [
+        {
+          "id": "sorcerer",
+          "prefix": "arcane"
+        },
+        {
+          "id": "avenger",
+          "prefix": "arcane"
+        },
+        {
+          "id": "celestial",
+          "prefix": "arcane"
+        },
+        {
+          "id": "utility",
+          "prefix": "arcane"
+        },
+        {
+          "id": "utility",
+          "prefix": "arcane"
+        },
+        {
+          "id": "utility",
+          "prefix": "arcane"
+        },
+        {
+          "id": "utility",
+          "prefix": "arcane"
+        }
+      ]
+    },
+    "baseMana": 200,
+    "extraMana": 0,
+    "rate": 4,
+    "occupyRatio": 0,
+    "skillStats": true,
+    "nebulaManaBridge": false,
+    "combat": {
+      "duration": 300,
+      "startPercent": 100,
+      "potions": 5,
+      "potionPercent": 30,
+      "regenMode": "mod",
+      "regenPercent": 2.5,
+      "regen": 12.6,
+      "reserve": 0,
+      "policy": "efficiency",
+      "hurtMode": "periodic",
+      "hurtTotal": 0,
+      "hurtInterval": 20,
+      "hurtPerHit": 50,
+      "hurtEvents": "15:100\n45:80"
+    },
+    "skills": [
+      {
+        "unlockStageCap": 65,
+        "unlockLevel": 61,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "WaterBallSkill",
+        "name": "水球魔法",
+        "enabled": true,
+        "cost": 150,
+        "k": 5,
+        "cd": 15,
+        "cdRatio": 1,
+        "cast": 1,
+        "delay": 0,
+        "duration": 0,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 4,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 65,
+        "unlockLevel": 61,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "WindTornadoSkill",
+        "name": "风龙卷",
+        "enabled": false,
+        "cost": 50,
+        "k": 0.55,
+        "cd": 25,
+        "cdRatio": 1,
+        "cast": 0.3,
+        "delay": 0,
+        "duration": 5,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 4,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 50,
+        "unlockLevel": 46,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "FireBurstSkill",
+        "name": "炎爆（按每层循环）",
+        "enabled": false,
+        "cost": 50,
+        "k": 10,
+        "cd": 5,
+        "cdRatio": 1,
+        "cast": 0.1,
+        "delay": 0,
+        "duration": 0,
+        "maxCharges": 5,
+        "initialCharges": 5,
+        "first": 0,
+        "priority": 3,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 40,
+        "unlockLevel": 36,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "IceShardLockSkill",
+        "name": "冰凌锁",
+        "enabled": true,
+        "cost": 100,
+        "k": 5,
+        "cd": 30,
+        "cdRatio": 1,
+        "cast": 0.2,
+        "delay": 1,
+        "duration": 5,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 2,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 80,
+        "unlockLevel": 76,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "customskill",
+        "name": "倾泻魔力飞弹",
+        "enabled": false,
+        "cost": 200,
+        "k": 1,
+        "cd": 30,
+        "cdRatio": 1,
+        "cast": 5,
+        "delay": 0,
+        "duration": 5,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 5,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 90,
+        "unlockLevel": 86,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "FireTornadoSkill",
+        "name": "火焰龙卷",
+        "enabled": false,
+        "cost": 300,
+        "k": 0.5,
+        "cd": 180,
+        "cdRatio": 1,
+        "cast": 1,
+        "delay": 0,
+        "duration": 8,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 15,
+        "priority": 1,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 95,
+        "unlockLevel": 91,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "prototype.Lightning",
+        "name": "天雷",
+        "enabled": true,
+        "cost": 400,
+        "k": 1,
+        "cd": 90,
+        "cdRatio": 1,
+        "cast": 2,
+        "delay": 1,
+        "duration": 10,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 20,
+        "priority": 7,
+        "hit": 90
+      },
+      {
+        "unlockStageCap": 95,
+        "unlockLevel": 91,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "CustomSkill1",
+        "name": "雷龙召唤",
+        "enabled": false,
+        "cost": 200,
+        "k": 1,
+        "cd": 5,
+        "cdRatio": 1,
+        "cast": 1,
+        "delay": 0,
+        "duration": 5,
+        "maxCharges": 1,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 9,
+        "hit": 100
+      },
+      {
+        "unlockStageCap": 10,
+        "unlockLevel": 6,
+        "levelsPerPhase": 1,
+        "shots": 1,
+        "id": "MultiMissileSkill",
+        "name": "多重射击",
+        "enabled": false,
+        "cost": 10,
+        "k": 40,
+        "cd": 1,
+        "cdRatio": 1,
+        "cast": 0.167,
+        "delay": 0,
+        "duration": 0,
+        "maxCharges": 15,
+        "initialCharges": 1,
+        "first": 0,
+        "priority": 9,
+        "hit": 100
+      }
+    ],
+    "loadouts": [
+      {
+        "stage": 1,
+        "name": "巫师帽紫晶长袍",
+        "armor": "wizardAmethyst",
+        "slots": 5,
+        "items": [
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "empty",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "empty",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          }
+        ],
+        "baseMana": 100,
+        "maxLife": 100
+      },
+      {
+        "stage": 2,
+        "name": "魔法帽黄玉长袍",
+        "armor": "magicTopaz",
+        "slots": 5,
+        "items": [
+          {
+            "id": "band",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "empty",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 160
+      },
+      {
+        "stage": 3,
+        "name": "魔法帽钻石长袍",
+        "armor": "magicDiamond",
+        "slots": 5,
+        "items": [
+          {
+            "id": "band",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "naturesGift",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 200
+      },
+      {
+        "stage": 4,
+        "name": "巫师帽钻石长袍",
+        "armor": "wizardDiamond",
+        "slots": 5,
+        "items": [
+          {
+            "id": "band",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 240
+      },
+      {
+        "stage": 5,
+        "name": "陨石法师",
+        "armor": "meteor",
+        "slots": 5,
+        "items": [
+          {
+            "id": "band",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "utility",
+            "prefix": "none",
+            "vPrefix": "none"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 280
+      },
+      {
+        "stage": 6,
+        "name": "丛林法师",
+        "armor": "jungle",
+        "slots": 5,
+        "items": [
+          {
+            "id": "regen",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 300
+      },
+      {
+        "stage": 7,
+        "name": "丛林法师 + 天界手铐",
+        "armor": "jungle",
+        "slots": 5,
+        "items": [
+          {
+            "id": "celestialCuffs",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "regen",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 340
+      },
+      {
+        "stage": 8,
+        "name": "魔法帽钻石长袍陨石护腿 + 巫师徽章（恶魔之心 6 槽）",
+        "armor": "magicDiamondMeteor",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "celestialCuffs",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 400
+      },
+      {
+        "stage": 9,
+        "name": "秘银法师",
+        "armor": "mythril",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "celestialCuffs",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 400
+      },
+      {
+        "stage": 10,
+        "name": "精金法师",
+        "armor": "adamantite",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "cuffs",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 400
+      },
+      {
+        "stage": 11,
+        "name": "钛金法师",
+        "armor": "titanium",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "celestialCuffs",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 420
+      },
+      {
+        "stage": 12,
+        "name": "精金头胸 + 禁戒护腿",
+        "armor": "forbiddenMix",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "celestialCuffs",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "flower",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 440
+      },
+      {
+        "stage": 13,
+        "name": "神圣法师",
+        "armor": "hallowed",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "cuffs",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      },
+      {
+        "stage": 14,
+        "name": "幽灵法师 + 石巨人之眼",
+        "armor": "spectre",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "eyeGolem",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      },
+      {
+        "stage": 15,
+        "name": "幽灵法师 + 毁灭者徽章",
+        "armor": "spectre",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "destroyer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      },
+      {
+        "stage": 16,
+        "name": "幽灵头身 + 暗黑艺术家护腿",
+        "armor": "spectreDarkArtist",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "destroyer",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      },
+      {
+        "stage": 17,
+        "name": "幽灵暗黑混搭 + 天界石",
+        "armor": "spectreDarkArtist",
+        "slots": 6,
+        "items": [
+          {
+            "id": "celestial",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "destroyer",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "celestialStone",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "menacing"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      },
+      {
+        "stage": 18,
+        "name": "幽灵法师（四柱参考）",
+        "armor": "spectre",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "celestial",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      },
+      {
+        "stage": 19,
+        "name": "星云法师（三种强化各 3 层）",
+        "armor": "nebula",
+        "slots": 6,
+        "items": [
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "avenger",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "celestial",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "utility",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 500
+      }
+    ],
+    "ashenWitch": true,
+    "maxLife": 500
+  }
+}

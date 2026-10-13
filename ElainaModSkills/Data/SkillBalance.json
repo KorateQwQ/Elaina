@@ -4,7 +4,7 @@
     "version": 2,
     "progression": {
       "phaseSize": 5,
-      "previewLevel": 65
+      "previewLevel": 95
     },
     "basicAttacks": [
       {
@@ -77,13 +77,13 @@
         "shots": 1
       }
     ],
-    "selectedBasicAttackId": "IceConeSkill",
-    "stage": 13,
-    "baseDps": 900,
+    "selectedBasicAttackId": "WaterLaserSKill",
+    "stage": 19,
+    "baseDps": 3500,
     "baseCrit": 4,
     "slots": 6,
     "v": {
-      "armor": "hallowed",
+      "armor": "nebula",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -102,7 +102,7 @@
           "prefix": "lucky"
         },
         {
-          "id": "cuffs",
+          "id": "celestial",
           "prefix": "lucky"
         },
         {
@@ -115,16 +115,16 @@
         },
         {
           "id": "utility",
-          "prefix": "menacing"
+          "prefix": "lucky"
         },
         {
           "id": "utility",
-          "prefix": "warding"
+          "prefix": "lucky"
         }
       ]
     },
     "e": {
-      "armor": "hallowed",
+      "armor": "nebula",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -143,7 +143,7 @@
           "prefix": "arcane"
         },
         {
-          "id": "cuffs",
+          "id": "celestial",
           "prefix": "arcane"
         },
         {
@@ -160,7 +160,7 @@
         },
         {
           "id": "utility",
-          "prefix": "warding"
+          "prefix": "arcane"
         }
       ]
     },
@@ -174,7 +174,7 @@
       "duration": 300,
       "startPercent": 100,
       "potions": 5,
-      "potionPercent": 50,
+      "potionPercent": 30,
       "regenMode": "mod",
       "regenPercent": 2.5,
       "regen": 12.6,
@@ -195,9 +195,9 @@
         "id": "WaterBallSkill",
         "name": "水球魔法",
         "enabled": true,
-        "cost": 100,
-        "k": 3,
-        "cd": 10,
+        "cost": 150,
+        "k": 5,
+        "cd": 15,
         "cdRatio": 1,
         "cast": 1,
         "delay": 0,
@@ -215,7 +215,7 @@
         "shots": 1,
         "id": "WindTornadoSkill",
         "name": "风龙卷",
-        "enabled": true,
+        "enabled": false,
         "cost": 50,
         "k": 0.55,
         "cd": 25,
@@ -236,10 +236,10 @@
         "shots": 1,
         "id": "FireBurstSkill",
         "name": "炎爆（按每层循环）",
-        "enabled": true,
-        "cost": 30,
-        "k": 2,
-        "cd": 15,
+        "enabled": false,
+        "cost": 50,
+        "k": 10,
+        "cd": 5,
         "cdRatio": 1,
         "cast": 0.1,
         "delay": 0,
@@ -258,8 +258,8 @@
         "id": "IceShardLockSkill",
         "name": "冰凌锁",
         "enabled": true,
-        "cost": 50,
-        "k": 2,
+        "cost": 100,
+        "k": 5,
         "cd": 30,
         "cdRatio": 1,
         "cast": 0.2,
@@ -320,7 +320,7 @@
         "shots": 1,
         "id": "prototype.Lightning",
         "name": "天雷",
-        "enabled": false,
+        "enabled": true,
         "cost": 400,
         "k": 1,
         "cd": 90,
@@ -362,7 +362,7 @@
         "shots": 1,
         "id": "MultiMissileSkill",
         "name": "多重射击",
-        "enabled": true,
+        "enabled": false,
         "cost": 10,
         "k": 40,
         "cd": 1,
@@ -386,31 +386,38 @@
         "items": [
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "empty",
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "empty",
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
-          },
-          {
-            "id": "utility",
-            "prefix": "warding"
-          },
-          {
-            "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           }
         ],
         "baseMana": 100,
@@ -424,31 +431,38 @@
         "items": [
           {
             "id": "band",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
+          },
+          {
+            "id": "empty",
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
-          },
-          {
-            "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           }
         ],
         "baseMana": 200,
@@ -462,31 +476,38 @@
         "items": [
           {
             "id": "band",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "naturesGift",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           }
         ],
         "baseMana": 200,
@@ -500,31 +521,38 @@
         "items": [
           {
             "id": "band",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           }
         ],
         "baseMana": 200,
@@ -538,31 +566,38 @@
         "items": [
           {
             "id": "band",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "none",
+            "vPrefix": "none"
           }
         ],
         "baseMana": 200,
@@ -576,31 +611,38 @@
         "items": [
           {
             "id": "regen",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -614,31 +656,38 @@
         "items": [
           {
             "id": "celestialCuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "regen",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -646,37 +695,44 @@
       },
       {
         "stage": 8,
-        "name": "魔法帽钻石长袍陨石护腿 + 巫师徽章",
+        "name": "魔法帽钻石长袍陨石护腿 + 巫师徽章（恶魔之心 6 槽）",
         "armor": "magicDiamondMeteor",
         "slots": 6,
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "celestialCuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           }
         ],
         "baseMana": 200,
@@ -684,37 +740,44 @@
       },
       {
         "stage": 9,
-        "name": "秘银法师（恶魔之心 6 槽）",
+        "name": "秘银法师",
         "armor": "mythril",
         "slots": 6,
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "celestialCuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -728,31 +791,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "cuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           }
         ],
         "baseMana": 200,
@@ -766,31 +836,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "celestialCuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -804,31 +881,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "celestialCuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "flower",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           }
         ],
         "baseMana": 200,
@@ -842,31 +926,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "cuffs",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -880,31 +971,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "eyeGolem",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -918,31 +1016,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "destroyer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           }
         ],
         "baseMana": 200,
@@ -956,31 +1061,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "destroyer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -994,31 +1106,38 @@
         "items": [
           {
             "id": "celestial",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "destroyer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "celestialStone",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -1032,31 +1151,38 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "celestial",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           }
         ],
         "baseMana": 200,
@@ -1070,36 +1196,45 @@
         "items": [
           {
             "id": "sorcerer",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "avenger",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "celestial",
-            "prefix": "arcane"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           },
           {
             "id": "utility",
-            "prefix": "warding"
+            "prefix": "arcane",
+            "vPrefix": "lucky"
           }
         ],
         "baseMana": 200,
         "maxLife": 500
       }
-    ]
+    ],
+    "ashenWitch": true,
+    "maxLife": 500
   }
 }

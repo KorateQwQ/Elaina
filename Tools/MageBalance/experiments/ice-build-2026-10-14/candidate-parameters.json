@@ -1,0 +1,59 @@
+{
+  "experimentOnly": true,
+  "description": "Do not replace the live config with this file. Full-combo expected budgets; wet/freeze mechanics are not encoded here.",
+  "activePatches": {
+    "ball": {
+      "k": 1.8,
+      "cast": 1.35,
+      "first": 1
+    },
+    "lock": {
+      "k": 3.2,
+      "cd": 20,
+      "first": 4
+    },
+    "thunder": {
+      "cost": 300,
+      "cd": 60,
+      "k": 0.75,
+      "first": 5
+    }
+  },
+  "basics": [
+    {
+      "id": "WaterLaserSKill",
+      "name": "水流术",
+      "unlockStageCap": 30,
+      "unlockLevel": 26,
+      "levelsPerPhase": 2,
+      "ratio": 0.7,
+      "ratioCurve": [],
+      "cost": 1.5,
+      "interval": 0.2,
+      "shots": 1
+    },
+    {
+      "id": "IceConeSkill",
+      "name": "冰锥",
+      "unlockStageCap": 35,
+      "unlockLevel": 31,
+      "levelsPerPhase": 2,
+      "ratio": 0.9,
+      "ratioCurve": [],
+      "cost": 4.5,
+      "interval": 0.5,
+      "shots": 3
+    }
+  ],
+  "assumptions": {
+    "injuries": 0,
+    "potions": 5,
+    "potionRestorePercent": 30,
+    "regen": "5 + maxMana * 2.5% / s",
+    "basicPattern": "5 water casts (1 second), then 8 ice casts (4 seconds); repeat in available basic hand time",
+    "fullCombo": "Ice lock budget is already full-freeze damage; thunder gets 100% realized hits. No extra damage multiplier. Wet/freeze uptime not simulated.",
+    "policy": "lock > thunder > ball; wait for an affordable skill that is ready but lacks mana; basics fill other windows",
+    "opening": "water ball first available at 1s, ice lock at 4s, thunder at 5s; availability does not guarantee actual cast time",
+    "scope": "Theoretical fixed-combo model; not in-game measurement, not proof of a global best loadout or policy."
+  }
+}

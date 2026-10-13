@@ -1,0 +1,163 @@
+'use strict';
+// Generate report tables from saved results rather than duplicating numbers.
+const fs=require('node:fs'),path=require('node:path');
+const r=JSON.parse(fs.readFileSync(path.join(__dirname,'results-v2.json'),'utf8'));
+const f=(n,d=2)=>n.toFixed(d),pct=n=>f(n*100)+'%';
+const names={water:'水流术',ice:'冰锥术',ball:'水球魔法',lock:'冰凌锁',thunder:'天雷'};
+const a=r.baseline.arcane,d=r.baseline.damage;
+const rows=p=>`| 全奥秘 | ${f(p.arcane.dps)} | ${f(p.arcane.ratio,3)} 倍 |\n| 全增伤 | ${f(p.damage.dps)} | ${f(p.damage.ratio,3)} 倍 |`;
+const text=`# 冰法第二轮：冻结引爆与天雷持续耗蓝
+
+2026-10-14。固定 300 秒、不受击；沿用第一轮配装快照和原版基准 ${f(a.vanilla)} DPS。
+
+推荐：水球保持 150 蓝 / 15 秒 / K=1.8；冰凌锁伤害改为 3.2B + 剩余冻结秒数 × 2.5B；天雷 120 秒 CD、持续 30 秒、每秒 15 蓝，完整预算 43.2B。两种普攻保持原数值。
+
+当前无帽配装为原版的 ${f(a.ratio,3)}～${f(d.ratio,3)} 倍，带帽子为 ${f(r.hat.arcane.ratio,3)}～${f(r.hat.damage.ratio,3)} 倍。同一循环下奥秘落后 ${pct(-r.baseline.lead)}，带帽子落后 ${pct(-r.hat.lead)}。未声称奥秘已经胜过增伤，未计入防御收益。
+
+本轮只创建独立实验脚本、参数与报告，没有把新机制写入游戏或正式实验室页面。旧报告保留，但旧的“满联动固定倍率”结果不能替代本轮状态模型。
+
+## 用户明确的规则与本次补充假设
+
+用户规则：冻结基础 CD 45 秒，水流和水球可以缩短它；约 30 秒来自当前攻击频率，**不是硬下限**。冻结持续 4 秒，冰凌锁提前结束冻结并按剩余时间获得额外伤害。天雷 CD 120 秒，持续攻击 30 秒并持续扣蓝。
+
+为使试算可运行，以下仍未确定的参数由本次暂定，全部可以独立修改：
+
+| 项目 | 暂定规则 |
+|---|---|
+| 水流减冻结 CD | 每次实际攻击命中减少 1/15 秒，约 0.0667 秒 |
+| 水球减冻结 CD | 每次水球命中减少 3 秒 |
+| CD 起算 | 从进入冻结状态起计；提前引爆不重置 CD，也不返还额外冷却 |
+| 冻结触发 | CD 完成后的下一次冰锥攻击命中触发；没有加入未提供数值的冻结积累条 |
+| 潮湿持续 | 水流 5 秒、水球 15 秒；任一来源都让天雷完整锁定 |
+| 冰凌锁 | 100 蓝，自身 CD 20 秒，施法 0.2 秒；施法完成时消耗剩余冻结并记录伤害，1 秒后命中 |
+| 天雷占手 | 施法 2 秒，额外延迟 1 秒，此后 30 秒离手攻击，可以同时施放其他技能 |
+| 天雷付款 | 起手费用 0；每帧支付 15/60 蓝，可以自动用药；付不起当帧费用则提前结束，不补算之后伤害 |
+| 无潮湿的天雷 | 暂按 50% 伤害兑现率，属于敏感性假设，不是游戏实测命中率 |
+
+减 CD 只由实际命中产生，不会因为带着技能就自动拿到减 CD，也不会提前把未来命中算进去。相同来源可以反复减少正在进行的 CD，但不会存储负冷却到下一轮。水球按整次一次效果计，冰锥三发共同分摊单次伤害。
+
+## 冻结频率校准
+
+冻结计时每秒自然前进 1 秒，另加水系命中的减 CD：
+
+\`实际经过时间 + 水流命中数 / 15 + 水球命中数 × 3 ≥ 45 秒\`
+
+这只是 CD 就绪条件，真正冻结还要等待下一次冰锥命中。没有任何 \`max(30秒, ...)\` 限制。
+
+- 独立速度校准：以当前 0.2 秒水流、15 秒水球 CD、1.35 秒水球占手连续攻击，在不受魔力限制且不施放天雷的条件下，冻结间隔为 ${f(Math.min(...r.calibration.freezeIntervals))}～${f(Math.max(...r.calibration.freezeIntervals))} 秒。
+- 将水流周期测试性缩为 0.1 秒，同一模型能达到 ${f(Math.min(...r.accelerated.freezeIntervals))}～${f(Math.max(...r.accelerated.freezeIntervals))} 秒。此用例专门验证“30 秒不是硬上限”，不作为正常配装结果。
+- 正常混合循环、全奥秘的实际冻结间隔：${a.freezeIntervals.map(x=>f(x)).join('、')} 秒，300 秒共冻结 ${a.freezeCount} 次。
+
+最快冻结不等于最高总 DPS：为了额外减 CD 持续用水流，就会少打倍率更高的冰锥。正常循环不应强行每 30 秒获得一次冻结。
+
+## 推荐数值
+
+| 技能 | 耗蓝 | 周期 / CD | 伤害参数 |
+|---|---:|---:|---|
+| 水流术 | 1.5 / 次 | 0.2 秒 | 0.7B DPS；每次减冻结 CD 约 0.0667 秒 |
+| 冰锥术 | 4.5 / 次 | 0.5 秒 | 0.9B DPS；整次三发合计 |
+| 水球魔法 | 150 / 次 | 15 秒 | K=1.8，整次 8.1B；每次减冻结 CD 3 秒 |
+| 冰凌锁 | 100 / 次 | 自身 CD 20 秒 | 3.2B + 剩余冻结时间 × 2.5B/秒 |
+| 天雷 | 15 / 秒，满程 450 | 120 秒 | 持续 30 秒；总预算 43.2B，即作用期间 1.44B/秒 |
+
+全局 rate=4%、CD 伤害折算率=1、占手补偿=0。天雷如果仍用页面公式定价，完整一轮耗蓝应填 **450**，K=**0.4**：0.002 × 450 × 120 × 0.4 = 43.2B。游戏中付款需改成持续支付；旧页面仍一次性付款，直接填写不能复现本次资源曲线。
+
+冰凌锁不再用单一 K 表达全部伤害。若仅需描述当前 100 蓝、20 秒 CD 下的基础 3.2B，可对应基础 K=0.8，冻结额外伤害另算；不能再把旧 K=3.2 的全额预算叠上来。3.2B 与 2.5B/秒都应由技能等级基准 B 驱动，再共同应用装备倍率。
+
+例如冻结剩余 4 秒时理论上是 13.2B；本模型 0.2 秒施法完成后立即引爆，通常剩 3.8 秒，所以实际单次是 **12.7B**。剩余 2 秒时则是 **8.2B**。冻结被消耗后，该次冻结不能再次触发高伤。
+
+## 300 秒结果
+
+共同配置：满蓝开场，5 瓶各恢复上限 30% 的药剂，回蓝 5 + 魔力上限 × 2.5%/秒；双方星云伤害层数 3，星云回蓝不转入特殊魔力。原版模型为常量武器输出基准，不另模拟原版武器回蓝。
+
+当前无帽配装：星云套、巫师徽章、复仇者徽章、天界徽章，其余机动/生存占位；6 条有效前缀。全奥秘魔力上限 ${a.M}、回蓝 ${a.regen}/秒；全增伤魔力上限 ${d.M}、回蓝 ${d.regen}/秒。
+
+| 前缀 | DPS | 相对原版 |
+|---|---:|---:|
+${rows(r.baseline)}
+
+用帽子替换伊蕾娜侧一个机动占位，原版装备不变：
+
+| 前缀 | DPS | 相对原版 |
+|---|---:|---:|
+${rows(r.hat)}
+
+参考打法：冰凌锁优先抢冻结窗口；天雷、水球就绪时尝试释放；冻结预计接近就绪时预留 100 蓝；平时用冰锥，冻结当前剩余 CD 不超过 15 秒时转水流加速；潮湿即将断掉时补水流。缺蓝会延后施放，不保证所有技能按 CD 放满。
+
+| 项目 | 全奥秘 | 全增伤 |
+|---|---:|---:|
+${Object.keys(names).map(k=>`| ${names[k]}施放次数 | ${a.records[k].count} | ${d.records[k].count} |`).join('\n')}
+| 冻结次数 | ${a.freezeCount} | ${d.freezeCount} |
+| 冰凌锁平均引爆剩余秒数 | ${f(a.averageRemaining)} | ${f(d.averageRemaining)} |
+| 天雷实际持续总秒数 | ${f(a.thunderPaidSeconds)} | ${f(d.thunderPaidSeconds)} |
+| 天雷持续期间潮湿覆盖 | ${pct(a.thunderWetCoverage)} | ${pct(d.thunderWetCoverage)} |
+| 等待 / 无动作秒数 | ${f(a.idleSeconds)} | ${f(d.idleSeconds)} |
+| 使用药剂 | ${a.usedPotions} | ${d.usedPotions} |
+
+全奥秘的天雷窗口为 ${a.clouds.map(c=>f(c.start)+'～'+f(c.end)+'秒').join('、')}。三次各持续 30 秒，总共消耗 **1350 蓝**，这些消耗已经与其他技能共享同一魔力池，没有预扣整次费用，也没有免费雷击。
+
+全奥秘魔力账：${f(a.ledger.initial)} 开场 + ${f(a.ledger.natural)} 有效回蓝 + ${f(a.ledger.potion)} 药剂 − ${f(a.ledger.spent)} 消耗 = ${f(a.ledger.end)} 结束。
+
+## 检查释放策略是否偏袒某种前缀
+
+每种前缀各测 ${r.bestTested.casesPerPrefix} 套规则：三种普攻分配、三类资源策略、两种水球/天雷优先级，预留策略再比较 2 / 4 / 8 秒窗口。以下是所测最高值，不是全局最优证明。
+
+| 装备 | 奥秘 DPS / 倍率 | 增伤 DPS / 倍率 | 奥秘差距 |
+|---|---:|---:|---:|
+| 当前无帽 | ${f(r.bestTested.arcane.dps)} / ${f(r.bestTested.arcane.ratio,3)} | ${f(r.bestTested.damage.dps)} / ${f(r.bestTested.damage.ratio,3)} | ${pct(r.bestTested.lead)} |
+| 带帽子 | ${f(r.hatBestTested.arcane.dps)} / ${f(r.hatBestTested.arcane.ratio,3)} | ${f(r.hatBestTested.damage.dps)} / ${f(r.hatBestTested.damage.ratio,3)} | ${pct(r.hatBestTested.lead)} |
+
+本轮达到的是“奥秘输出不输太多”，不是“奥秘纯输出必胜”。已经用于输出的魔力不能再重复计入护盾；防御端仍需另做受击测试。
+
+## 引爆早晚与拆掉组件
+
+冻结触发后故意多等几秒再尝试引爆，其他规则不变：
+
+| 额外等待 | 奥秘 / 原版 | 增伤 / 原版 |
+|---|---:|---:|
+${r.detonationDelay.map(x=>`| ${x.lockWait} 秒 | ${f(x.result.arcane.ratio,3)} | ${f(x.result.damage.ratio,3)} |`).join('\n')}
+
+总输出变化同时包含每次引爆伤害损失和后续动作、资源、窗口变化；不能简单把整场差值全部当作每秒冻结伤害。单次剩余时间减少 2 秒时，公式保证额外伤害减少 5B。
+
+分别移除一个组件，再为两种前缀重新选择所测最好的释放规则：
+
+| 组合 | 奥秘 / 原版 | 增伤 / 原版 |
+|---|---:|---:|
+| 完整组合 | ${f(r.bestTested.arcane.ratio,3)} | ${f(r.bestTested.damage.ratio,3)} |
+${r.ablations.map(x=>`| 去掉${names[x.omitted]} | ${f(x.result.arcane.ratio,3)} | ${f(x.result.damage.ratio,3)} |`).join('\n')}
+
+完整组合在这些拆件试验中都更强；但没有把空出的槽换成 buff，也没有搜索其他攻击技能，因此不能证明五件套优于所有替换搭配。
+
+水流仍是最容易替换的组件：当前假设水球潮湿持续 15 秒，接近其自身 CD，使水流承担的额外维持价值不大。额外测试把水球潮湿缩短到 10 秒，完整循环约 ${f(r.shorterWetAblation.full.arcane.ratio,3)} / ${f(r.shorterWetAblation.full.damage.ratio,3)} 倍；移除水流后各自重新选策略约 ${f(r.shorterWetAblation.withoutWater.arcane.ratio,3)} / ${f(r.shorterWetAblation.withoutWater.damage.ratio,3)} 倍。若希望水流更有存在感，这是可选调整，未混入主结果。
+
+## 天雷持续扣蓝的边界
+
+推荐每秒 15 蓝，低于两种配装的自然回蓝，但会挤占水球、冰凌锁与普攻的用蓝。比起把总费用一次性扣掉，更强调持续期间的资源安排。
+
+在保持完整伤害预算 43.2B 不变的情况下，把天雷提高到每秒 20 蓝：奥秘实际持续 ${f(r.sensitivity[1].result.arcane.thunderPaidSeconds)} 秒，增伤只维持 ${f(r.sensitivity[1].result.damage.thunderPaidSeconds)} 秒，发生提前中止。这会引入较强的断蓝门槛，不建议仅为了让奥秘赢而这样调。
+
+| 单独改变的条件 | 奥秘 / 原版 | 增伤 / 原版 |
+|---|---:|---:|
+${r.sensitivity.map(x=>`| ${({'No potions':'不带药剂','20 mana/s; hold thunder damage budget at 43.2B':'天雷20蓝/秒，伤害预算保持43.2B','Per-hit freeze reduction -25%':'每次减CD量降低25%','Per-hit freeze reduction +25%':'每次减CD量提高25%','All water filler':'普攻空档主要打水流','Ice filler except wet upkeep':'普攻空档主要打冰锥','Ball wet duration 10s instead of 15s':'水球潮湿改10秒'})[x.label]} | ${f(x.result.arcane.ratio,3)} | ${f(x.result.damage.ratio,3)} |`).join('\n')}
+
+部分改变不是单调收益，因为有限300秒内的冻结次数、付款顺序和命中窗口会改变；敏感性表不是数学上限。
+
+## 验证与复跑
+
+${r.checks.map((x,i)=>`${i+1}. ${x}`).join('\n')}
+
+单水系校准使用无限魔力是为了隔离攻击频率；所有正式输出结果均使用有限魔力与五瓶药。结果中的 externalMana 为 0。持续扣蓝与伤害均逐帧计入，战斗结束之后的伤害不会提前兑现。
+
+在模组根目录运行：
+
+\`\`\`powershell
+node Tools/MageBalance/experiments/ice-build-2026-10-14/simulate-v2.cjs
+node Tools/MageBalance/experiments/ice-build-2026-10-14/report-v2.cjs
+\`\`\`
+
+参数：candidate-parameters-v2.json；数值结果：results-v2.json；代码：simulate-v2.cjs。基础装备和旧页面定价函数由第一轮 simulate.cjs / source-config.json 提供。
+
+此模型仍不模拟目标防御、真实投射物飞行和丢伤、未知的冻结积累阈值、多人状态同步，也没有证明实际冰凌锁能在施法完成时就读取/消耗冻结。若最终机制在1秒离手延迟结束时才读取冻结，必须按更少的剩余时间重新定价。所有额外假设在本文开头列出。
+`;
+fs.writeFileSync(path.join(__dirname,'REPORT-v2.md'),text);
+console.log('Wrote REPORT-v2.md');

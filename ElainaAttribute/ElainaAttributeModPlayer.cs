@@ -32,12 +32,15 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     }
     
 
-    /// <summary>独特魔力上限由原版最大魔力与灰之魔女减少的生命上限换算，不作为独立的 KL 属性保存。</summary>
+    /// <summary>只增加独特魔力上限、不影响原版魔力的加成（如伊蕾娜的帽子），每帧在 ResetEffects 中清零后由装备重新累加。</summary>
+    public float BonusMaxMagicPoint;
+
+    /// <summary>独特魔力上限由原版最大魔力、专属加成与灰之魔女减少的生命上限换算，不作为独立的 KL 属性保存。</summary>
     public float MaxMagicPoint
     {
         get
         {
-            float maximum = Player.statManaMax2 * ElainaMagicAttributes.VanillaManaToMagicPointRatio;
+            float maximum = Player.statManaMax2 * ElainaMagicAttributes.VanillaManaToMagicPointRatio + BonusMaxMagicPoint;
             if (!Player.GetModPlayer<ElainaModplayer>().Elaina)
             {
                 return 0;
@@ -60,6 +63,12 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
         AttributeChangeEvent magicEvent = Attributes.GetAttributeChangeEvent(ElainaMagicAttributes.MagicPoint);
         magicEvent.PreAttributeChange -= OnPreMagicPointChange;
         magicEvent.PreAttributeChange += OnPreMagicPointChange;
+    }
+
+    public override void ResetEffects()
+    {
+        base.ResetEffects();
+        BonusMaxMagicPoint = 0f;
     }
 
     /// <summary>恢复、消耗和加载存档统一经过此钩子，按原版最大魔力换算出的上限裁剪。</summary>

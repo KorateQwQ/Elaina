@@ -66,6 +66,9 @@ def loadouts(c):
         for item in items:
             if not isinstance(item, dict) or not all(isinstance(item.get(k), str) and re.fullmatch(TOKEN, item[k]) for k in ("id", "prefix")):
                 raise ValueError("配装饰品 ID 或前缀无效。")
+            # vPrefix: page-only vanilla comparison prefix, optional for older files; the mod ignores it.
+            if "vPrefix" in item and not (isinstance(item["vPrefix"], str) and re.fullmatch(TOKEN, item["vPrefix"])):
+                raise ValueError("配装饰品原版前缀无效。")
         mana = number(row, "baseMana", 20, 200, True)
         if mana % 20:
             raise ValueError("基础魔力必须是 20 的倍数（魔力水晶）。")

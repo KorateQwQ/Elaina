@@ -1,6 +1,8 @@
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.Items.accessories;
 
 namespace 伊蕾娜.ElainaModSkills.Loadout;
 
@@ -66,6 +68,17 @@ public static class LoadoutItems
         ["warding"] = PrefixID.Warding,
         ["lucky"] = PrefixID.Lucky,
     }.ToFrozenDictionary();
+
+    /// <summary>原版饰品查表；模组物品的 type 在加载后才确定，不能放进静态表，在这里单独解析。</summary>
+    public static bool TryGetAccessory(string id, out int type)
+    {
+        if (id == "elainaHat")
+        {
+            type = ModContent.ItemType<ElainaHat>();
+            return true;
+        }
+        return Accessories.TryGetValue(id, out type);
+    }
 
     /// <summary>“机动／生存（占位）”与“空槽”：换装时保留该槽位原有饰品。</summary>
     public static bool KeepsSlot(string id) => id is "utility" or "empty";

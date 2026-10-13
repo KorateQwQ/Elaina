@@ -31,14 +31,12 @@ namespace 伊蕾娜.Items.accessories
         }
         public override void SetDefaults()
         {
-            Item.manaIncrease = 20;
             Item.width = 40;
             Item.height = 70;
             Item.accessory = true; // Makes this item an accessory.
             Item.hasVanityEffects = true;
             Item.rare = ItemRarityID.Blue;
             Item.value = Item.sellPrice(silver: 1); // Sets the item sell price to one gold coin.
-            Item.manaIncrease = 20;
         }
         public override void UpdateVanity(Player player)
         {
@@ -67,9 +65,11 @@ namespace 伊蕾娜.Items.accessories
         public override void UpdateAccessory(Player player, bool hideVisual)
         {
             player.GetDamage<MagicDamageClass>() += 0.1f;
-            player.statManaMax2 += 20;
+            player.GetCritChance<MagicDamageClass>() += 5f;
+            // 只加伊蕾娜的特殊魔力上限，不再提高原版最大魔力。
+            player.GetModPlayer<ElainaAttributeModPlayer>().BonusMaxMagicPoint += 20f;
             //player.manaCost -= 0.85f;
-            player.manaRegenBonus += 60;//145每个饰品给60
+            //player.manaRegenBonus += 60;//145每个饰品给60
             //player.manaRegenDelayBonus += 4.0f;//145延迟4，每个饰品给1，星星瓶0.5，站立不动1，钩爪状态1，魔力药水1,原版在骷髅王后集齐两个回复饰品就会因为此值达到无限蓝（每秒回复300）
             //player.GetCritChance<MagicDamageClass>()+= 100f;
             if (!hideVisual)

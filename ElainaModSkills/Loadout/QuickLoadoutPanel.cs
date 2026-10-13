@@ -217,7 +217,7 @@ public sealed class QuickLoadoutPanel : BaseBody
         {
             var entry = loadout.Items[i];
             float x = RightX + i % 2 * 240, y = 234 + i / 2 * 46;
-            if (LoadoutItems.Accessories.TryGetValue(entry.Id, out int type))
+            if (LoadoutItems.TryGetAccessory(entry.Id, out int type))
             {
                 int prefix = LoadoutItems.Prefixes.GetValueOrDefault(entry.Prefix);
                 ItemCell(x, y, 36, type, prefix);

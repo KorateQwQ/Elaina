@@ -170,14 +170,18 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .editorhead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .editorhead h2{font-size:21px}
 .subhead{margin-top:20px;margin-bottom:8px;color:var(--text)}
-.loadoutslots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 20px;margin-top:8px}
+.loadoutslots{margin-top:8px;max-width:760px}
+.slot.tri{grid-template-columns:24px minmax(0,1fr) 168px 168px;margin:4px 0}
+.slothead{color:var(--faint);font-size:12px;margin-bottom:0}
+.prefixgroup{align-items:center;margin-top:6px}
+.groupname{color:var(--muted);font-size:12px;min-width:5.5em}
 .statgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:12px}
 .statgrid small{display:block;margin-top:2px}
 .statgrid p{grid-column:1/-1;font-size:12.5px}
 
-@media(max-width:1100px){.combatfields{grid-template-columns:repeat(3,minmax(0,1fr))}.combatstats{grid-template-columns:1fr 1fr}.statgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.fields4{grid-template-columns:1fr 1fr}.loadoutslots{grid-template-columns:1fr}}
+@media(max-width:1100px){.combatfields{grid-template-columns:repeat(3,minmax(0,1fr))}.combatstats{grid-template-columns:1fr 1fr}.statgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.fields4{grid-template-columns:1fr 1fr}}
 @media(max-width:1000px){main{padding:20px}.appbar{flex-direction:column;align-items:flex-start}.toolbar{align-items:flex-start}.topbar{grid-template-columns:1fr 1fr}.fields{grid-template-columns:1fr 1fr}.slot{grid-template-columns:20px minmax(0,1fr) 110px}.loadout-layout{grid-template-columns:1fr}.stagelist{position:static;max-height:320px}}
-@media(max-width:720px){main{padding:14px}h1{font-size:22px}.columns,.results{grid-template-columns:1fr}.panel{padding:15px}.metric .number{font-size:28px}.topbar{grid-template-columns:1fr}.combatfields{grid-template-columns:1fr 1fr}.combatstats strong{font-size:16px}.fields4,.statgrid{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){main{padding:14px}h1{font-size:22px}.columns,.results{grid-template-columns:1fr}.panel{padding:15px}.metric .number{font-size:28px}.topbar{grid-template-columns:1fr}.combatfields{grid-template-columns:1fr 1fr}.combatstats strong{font-size:16px}.fields4,.statgrid{grid-template-columns:1fr 1fr}.slot.tri{grid-template-columns:18px minmax(0,1fr) 96px 96px;gap:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -208,7 +212,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 <div id="labPage" class="tabpage" role="tabpanel" aria-labelledby="tabLab">
 <section class="panel topbar" aria-label="共同基准">
-<label class="field">当前阶段<select id="preset"></select><small>读取“配装与属性配置”：换护甲、饰品、伊蕾娜前缀、基础魔力与 B，并启用已解锁技能</small></label>
+<label class="field">当前阶段<select id="preset"></select><small>读取“配装与属性配置”：换护甲、饰品、双方前缀、基础魔力与 B，并启用已解锁技能</small></label>
 <label class="field">双方裸装 DPS · B<input id="baseDps" type="number" min="1" max="1000000" step="10"></label>
 <label class="field">裸装暴击率（已含在 B 内）%<input id="baseCrit" type="number" min="0" max="100" step="1"></label>
 <label class="field">饰品槽数量<select id="slots"><option value="5">5 格</option><option value="6">6 格</option><option value="7">7 格</option></select></label>
@@ -229,33 +233,10 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <label class="field">额外暴击百分点<input id="eCrit" type="number" min="-100" max="100" step="1"></label>
 <label class="field">套装特效额外 DPS<input id="eProc" type="number" min="0" max="1000000" step="10"></label>
 <label class="field">基础魔力（随阶段读取）<input id="baseMana" type="number" min="0" max="2000" step="20"></label>
+<label class="field">最大生命（随阶段读取）<input id="maxLife" type="number" min="100" max="2000" step="5"></label>
 <label class="field">额外特殊魔力上限<input id="extraMana" type="number" min="0" max="10000" step="20"></label>
-</div><p class="note">原版最大魔力按当前模组的 1:1 转换率计入特殊魔力。额外特殊魔力可填生命转化等；不会自动认为这部分资源没有生存代价。</p><div class="summary" id="eSummary"></div><p class="note stageinfo" id="eStageInfo"></p></div>
+</div><label class="check"><input id="ashenWitch" type="checkbox">开启灰之魔女：超出 100 的最大生命只保留一半，减少的生命上限按 1:1 转为特殊魔力上限</label><p class="note">原版最大魔力按当前模组的 1:1 转换率计入特殊魔力；伊蕾娜的帽子只加特殊魔力上限（不加原版魔力），原版对照一侧视为机动／生存占位。灰之魔女只按上方最大生命计算，护甲、饰品额外提供的生命未计入，结果可能略低于游戏内。额外特殊魔力可填生命转化等；不会自动认为这部分资源没有生存代价。</p><div class="summary" id="eSummary"></div><p class="note stageinfo" id="eStageInfo"></p></div>
 </section>
-
-<section class="panel section" aria-label="普通攻击设计">
- <div class="title"><h2>普通攻击设计 · 直接按目标 DPS 定价</h2><div class="actions"><button id="addBasic" type="button">添加普通攻击</button><button id="addIceBasic" type="button">添加冰锥示例</button></div></div>
- <p class="note">每个普攻独立设置倍率、整次耗蓝、动作时长和发射数量。动作时长按连续施法的完整周期定价，不读取游戏动画；3 发表示同一目标预期吃到的 3 次等额命中，不是每发各领一份整次伤害。</p>
- <div class="tablewrap"><table id="basicTable"><thead><tr><th>参考普攻</th><th>名称 / ID</th><th>目标 DPS / B</th><th title="按角色等级插值的倍率，格式“等级:倍率”，逗号分隔；超出两端取端点。留空则固定使用左侧倍率">倍率曲线 ⓘ</th><th>整次耗蓝</th><th>动作时长 / 秒</th><th>每次发数</th><th>裸装 DPS</th><th>整次基础伤害</th><th>每发基础伤害</th><th>每秒耗蓝</th><th>操作</th></tr></thead><tbody id="basicRows"></tbody></table></div>
- <div id="basicSummary" class="callout" aria-live="polite"></div>
- <p class="note">整次伤害 = B × DPS 倍率 × 动作时长；每发伤害 = 整次伤害 ÷ 发数。填写倍率曲线后，倍率按该技能等级对应的角色等级插值（例如“1:1, 10:0.9, 50:0.6”），超出两端取端点；配装/续航区按当前 B 反推等级取值。蓝耗单独定价，不反向决定普攻伤害。下方配装/续航一次只使用一个参考普攻，不把多个普攻的 DPS 叠加。保存后所有条目均可由 C# 按 ID 读取。发数必须与技能实际命中数对应，配置不会自动生成弹幕或修改动画。</p>
- <svg id="basicCurve" class="chart" role="img" aria-label="参考普攻倍率随角色等级变化的曲线"></svg>
-</section>
-
-
-<details class="panel section" id="progressionPanel" aria-label="技能等级成长区间">
- <summary><h2>技能等级成长区间</h2><span class="tag">角色等级只决定技能可升到哪里</span></summary>
- <div class="fields">
-  <label class="field">完整阶段角色等级跨度<input id="progressionPhaseSize" type="number" min="1" max="20" step="1"></label>
-  <label class="field">预览角色等级<input id="progressionPreviewLevel" type="number" min="1" max="1000" step="1"></label>
- </div>
- <p class="note">“解锁阶段上限”区分初始 1–5 级阶段与史莱姆王后 6–10 级阶段，不是必须练到阶段上限才解锁。“首级角色等级”定义技能 Lv1 的角色门槛和伤害基准。飞弹默认 5 / 1，冰锥示例默认 10 / 6；如果想让冰锥必须角色 10 级才开放，可把首级改为 10。每阶段 2 次升级不含解锁自带的 Lv1。“解锁时期”是快捷选项：第 k 个时期（击败对应 Boss 后）写入上限 5k、首级 5k−4；手填非 5 的倍数时显示为自定义。切换参考配装会把预览角色等级设为该时期上限，并只启用此时已解锁的主动技能。</p>
- <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>每阶段新增技能等级</th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
- <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
- <p id="progressionNotice" class="note"></p>
- <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>普攻倍率</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
-</details>
-
 
 <section id="combatPanel" class="section" aria-label="战斗续航模拟">
 <div class="title"><h2>战斗续航 · 五瓶药能撑多久？</h2><span class="tag">60 Hz 资源时间轴 · 与上方配装实时联动</span></div>
@@ -301,8 +282,19 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  </div>
  <div id="simLedger" class="callout"></div>
 </div>
-<div class="panel section">
- <div class="title"><h2>技能释放计划</h2><div class="actions"><span class="tag">已接入飞弹、水球 · 其他技能仍需迁移</span><button id="addSkill" type="button">添加主动技能</button></div></div>
+</section>
+
+<section class="panel section" aria-label="普通攻击设计">
+ <div class="title"><h2>普通攻击设计 · 直接按目标 DPS 定价</h2><div class="actions"><button id="addBasic" type="button">添加普通攻击</button><button id="addIceBasic" type="button">添加冰锥示例</button></div></div>
+ <p class="note">每个普攻独立设置倍率、整次耗蓝、动作时长和发射数量。动作时长按连续施法的完整周期定价，不读取游戏动画；3 发表示同一目标预期吃到的 3 次等额命中，不是每发各领一份整次伤害。</p>
+ <div class="tablewrap"><table id="basicTable"><thead><tr><th>参考普攻</th><th>名称 / ID</th><th>目标 DPS / B</th><th title="按角色等级插值的倍率，格式“等级:倍率”，逗号分隔；超出两端取端点。留空则固定使用左侧倍率">倍率曲线 ⓘ</th><th>整次耗蓝</th><th>动作时长 / 秒</th><th>每次发数</th><th>裸装 DPS</th><th>整次基础伤害</th><th>每发基础伤害</th><th>每秒耗蓝</th><th>操作</th></tr></thead><tbody id="basicRows"></tbody></table></div>
+ <div id="basicSummary" class="callout" aria-live="polite"></div>
+ <p class="note">整次伤害 = B × DPS 倍率 × 动作时长；每发伤害 = 整次伤害 ÷ 发数。填写倍率曲线后，倍率按该技能等级对应的角色等级插值（例如“1:1, 10:0.9, 50:0.6”），超出两端取端点；配装/续航区按当前 B 反推等级取值。蓝耗单独定价，不反向决定普攻伤害。上方配装/续航区一次只使用一个参考普攻，不把多个普攻的 DPS 叠加。保存后所有条目均可由 C# 按 ID 读取。发数必须与技能实际命中数对应，配置不会自动生成弹幕或修改动画。</p>
+ <svg id="basicCurve" class="chart" role="img" aria-label="参考普攻倍率随角色等级变化的曲线"></svg>
+</section>
+
+<section class="panel section" id="skillPanel" aria-label="主动技能设计">
+ <div class="title"><h2>主动技能设计 · 释放计划</h2><div class="actions"><span class="tag">已接入飞弹、水球 · 其他技能仍需迁移</span><button id="addSkill" type="button">添加主动技能</button></div></div>
  <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label><label class="field" title="主动技能每秒占手给予 B × 该倍率的伤害；0 = 不补偿占手，读条少打的普攻需靠 K 或手动调高伤害弥补">占手补偿倍率 ⓘ<input id="occupyRatio" type="number" min="0" max="5" step="0.05"></label></div>
  <label class="check"><input id="skillStats" type="checkbox">技能伤害继承装备伤害与暴击；CD 伤害折算率只影响魔力额外伤害，不影响占手补偿；占手补偿 = B × 占手补偿倍率 × 占手秒，与参考普攻无关。</label>
  <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>等额命中数</th><th>蓝耗</th><th>CD/充能秒</th><th>CD伤害折算率</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th title="魔力转换率 K：相对于每 20 魔力基准增幅的倍率，并非技能的总 DPS 倍率">魔力转换率 K</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th><th title="按当前配装计算，不扣命中率；多段或持续技能为整次施放的总预算">单次伤害预算</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
@@ -334,8 +326,21 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  </dl></details>
  <details><summary>查看施法、用药、受伤与缺蓝事件</summary><p id="simEventCount" class="note"></p><div class="tablewrap eventtable"><table><thead><tr><th>时间 / 秒</th><th>事件</th><th>事件后魔力</th></tr></thead><tbody id="combatEvents"></tbody></table></div></details>
  <details><summary>模拟口径与局限</summary><p class="note" style="margin-top:10px">采用 1/60 秒步长。普攻按完整攻击间隔占手，成功付款后在动作结束造成伤害；技能占手时不普攻。普攻倍率按当前 B 反推的等级取倍率曲线。技能总伤害 = 阶段 B × (占手补偿倍率 × 占手 + 0.002 × 单次蓝耗 × 基准 CD × CD伤害折算率 × 魔力转换率 K) × 技能装备倍率，整次再乘命中率。药剂与扣费同时结算，余额再裁剪上限。星云所选强化假定开场即有且全程保持；可选特殊回蓝适配按平均每秒回复模拟，不额外应用原版减耗。不模拟死亡、击退、打断、敌人防御或生命转魔力；手填套装特效按持续背景 DPS 计入。不限蓝仅移除资源限制，仍遵守时长、占手、CD、优先级、命中和伤害落点，不代表全局最优输出；不同实际调度可能使其不是严格上界。</p></details>
-</div>
 </section>
+
+
+<details class="panel section" id="progressionPanel" aria-label="技能等级成长区间">
+ <summary><h2>技能等级成长区间</h2><span class="tag">角色等级只决定技能可升到哪里</span></summary>
+ <div class="fields">
+  <label class="field">完整阶段角色等级跨度<input id="progressionPhaseSize" type="number" min="1" max="20" step="1"></label>
+  <label class="field">预览角色等级<input id="progressionPreviewLevel" type="number" min="1" max="1000" step="1"></label>
+ </div>
+ <p class="note">“解锁阶段上限”区分初始 1–5 级阶段与史莱姆王后 6–10 级阶段，不是必须练到阶段上限才解锁。“首级角色等级”定义技能 Lv1 的角色门槛和伤害基准。飞弹默认 5 / 1，冰锥示例默认 10 / 6；如果想让冰锥必须角色 10 级才开放，可把首级改为 10。每阶段 2 次升级不含解锁自带的 Lv1。“解锁时期”是快捷选项：第 k 个时期（击败对应 Boss 后）写入上限 5k、首级 5k−4；手填非 5 的倍数时显示为自定义。切换参考配装会把预览角色等级设为该时期上限，并只启用此时已解锁的主动技能。</p>
+ <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>每阶段新增技能等级</th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
+ <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
+ <p id="progressionNotice" class="note"></p>
+ <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>普攻倍率</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
+</details>
 
 <details class="panel section sourcesbox"><summary>读取本地源码的装备数据与模型边界</summary><div class="sources"><p class="note" style="margin-top:12px">版本依据：工作区提供的 tML 2025.06 源码；不是声称与其他版本完全一致。预设是合法阶段的参考组合，不声称是最优配装；手动改装不强制限制进度和饰品兼容性。相同非占位饰品重复装备会给出警告。</p><ul>
 <li>Terraria/Player.cs：丛林套 +6% 伤害、+12 暴击、+80 魔力；精金法师套 +20%、+19、+80；神圣法师套 +19%、+19、+100；幽灵面具套 +25%、+17、+60。仅静态属性。</li>
@@ -353,7 +358,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <div id="loadoutPage" class="tabpage" role="tabpanel" aria-labelledby="tabLoadouts" hidden>
 <section class="panel intro">
  <div class="title"><h2>配装与属性配置 · 按 Boss 阶段</h2><span class="tag">随 SkillBalance.json 保存 · 游戏内按 L 打开快捷配装</span></div>
- <p class="note">每个阶段一套伊蕾娜推荐配装与角色属性。实验室切换阶段时读取这里的护甲、饰品、槽位、伊蕾娜前缀与基础魔力（原版对照保留自己的前缀）；实验室里的临时改动不会写回此页。游戏内按快捷键（默认 L，可在“控制”中改键）选择 Boss 阶段即可一键换装：护甲与饰品替换为推荐装备并重铸为对应前缀，被替换的装备放回背包；基础魔力与最大生命直接设为本阶段数值，可升可降。仅单人模式可用，第 6、7 饰品槽需要专家／大师模式。</p>
+ <p class="note">每个阶段一套伊蕾娜推荐配装与角色属性。实验室切换阶段时读取这里的护甲、饰品、槽位、伊蕾娜前缀、原版对照前缀与基础魔力；实验室里的临时改动不会写回此页。游戏内按快捷键（默认 L，可在“控制”中改键）选择 Boss 阶段即可一键换装：护甲与饰品替换为推荐装备并重铸为对应前缀，被替换的装备放回背包；基础魔力与最大生命直接设为本阶段数值，可升可降。仅单人模式可用，第 6、7 饰品槽需要专家／大师模式。</p>
 </section>
 <div class="loadout-layout">
  <nav class="panel stagelist" aria-label="阶段列表"><ol id="loadoutList"></ol></nav>
@@ -366,21 +371,24 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 'use strict';
 const Balance = (() => {
 const armors={none:{name:'无护甲',damage:0,crit:0,mana:0},wizardAmethyst:{name:'巫师帽 + 紫晶长袍',damage:5,crit:10,mana:20},magicTopaz:{name:'魔法帽 + 黄玉长袍',damage:6,crit:6,mana:100},magicDiamond:{name:'魔法帽 + 钻石长袍',damage:6,crit:6,mana:140},wizardDiamond:{name:'巫师帽 + 钻石长袍',damage:5,crit:10,mana:80},meteor:{name:'陨石套',damage:27,crit:0,mana:0},jungle:{name:'丛林套',damage:6,crit:12,mana:80},magicDiamondMeteor:{name:'魔法帽 + 钻石长袍 + 陨石护腿',damage:15,crit:6,mana:140},cobalt:{name:'钴法师套',damage:13,crit:14,mana:40},palladium:{name:'钯金法师套',damage:14,crit:12,mana:60},mythril:{name:'秘银法师套',damage:22,crit:10,mana:60},orichalcum:{name:'山铜法师套',damage:8,crit:24,mana:80},adamantite:{name:'精金法师套',damage:20,crit:19,mana:80},titanium:{name:'钛金法师套',damage:23,crit:13,mana:100},forbidden:{name:'禁戒套',damage:25,crit:0,mana:80},forbiddenMix:{name:'精金头饰 + 精金胸甲 + 禁戒护腿（无套装）',damage:30,crit:12,mana:120},hallowed:{name:'神圣法师套',damage:19,crit:19,mana:100},chlorophyte:{name:'叶绿法师套',damage:21,crit:15,mana:80},hallowedChloroApprentice:{name:'神圣头饰 + 叶绿板甲 + 学徒裤（无套装）',damage:17,crit:39,mana:100},spectre:{name:'幽灵面具套 · 不含追击',damage:25,crit:17,mana:60},spectreDarkArtist:{name:'幽灵面具 + 幽灵长袍 + 暗黑艺术家护腿（无套装）',damage:17,crit:42,mana:60},darkArtist:{name:'暗黑艺术家套 · 不含哨兵加成',damage:25,crit:25,mana:0},nebula:{name:'星云套 · 强化层数可调',damage:26,crit:16,mana:60,armorDefense:46,manaReduction:15,moveSpeed:10}};
-const accessories={utility:{name:'机动／生存饰品（占位）',damage:0,crit:0,mana:0},empty:{name:'空槽（无前缀收益）',damage:0,crit:0,mana:0},sorcerer:{name:'巫师徽章 · +15% 伤害',damage:15,crit:0,mana:0},avenger:{name:'复仇者徽章 · +12% 伤害',damage:12,crit:0,mana:0},celestial:{name:'天界徽章 · +15% 伤害',damage:15,crit:0,mana:0},band:{name:'星力手环 · +20 魔力',damage:0,crit:0,mana:20},regen:{name:'魔力再生手环 · +20 魔力',damage:0,crit:0,mana:20},cuffs:{name:'魔法手铐 · +20 魔力',damage:0,crit:0,mana:20},celestialCuffs:{name:'天界手铐 · +20 魔力',damage:0,crit:0,mana:20},flower:{name:'魔力花 · 无直接伤害／容量',damage:0,crit:0,mana:0},naturesGift:{name:'大自然的恩赐 · 仅减耗',damage:0,crit:0,mana:0},destroyer:{name:'毁灭者徽章 · +10% 伤害、+8 暴击',damage:10,crit:8,mana:0},eyeGolem:{name:'石巨人之眼 · +10 暴击',damage:0,crit:10,mana:0},celestialStone:{name:'天界石／天界壳 · +10% 伤害、+2 暴击',damage:10,crit:2,mana:0}};
+const accessories={utility:{name:'机动／生存饰品（占位）',damage:0,crit:0,mana:0},empty:{name:'空槽（无前缀收益）',damage:0,crit:0,mana:0},sorcerer:{name:'巫师徽章 · +15% 伤害',damage:15,crit:0,mana:0},avenger:{name:'复仇者徽章 · +12% 伤害',damage:12,crit:0,mana:0},celestial:{name:'天界徽章 · +15% 伤害',damage:15,crit:0,mana:0},band:{name:'星力手环 · +20 魔力',damage:0,crit:0,mana:20},regen:{name:'魔力再生手环 · +20 魔力',damage:0,crit:0,mana:20},cuffs:{name:'魔法手铐 · +20 魔力',damage:0,crit:0,mana:20},celestialCuffs:{name:'天界手铐 · +20 魔力',damage:0,crit:0,mana:20},flower:{name:'魔力花 · 无直接伤害／容量',damage:0,crit:0,mana:0},naturesGift:{name:'大自然的恩赐 · 仅减耗',damage:0,crit:0,mana:0},destroyer:{name:'毁灭者徽章 · +10% 伤害、+8 暴击',damage:10,crit:8,mana:0},eyeGolem:{name:'石巨人之眼 · +10 暴击',damage:0,crit:10,mana:0},celestialStone:{name:'天界石／天界壳 · +10% 伤害、+2 暴击',damage:10,crit:2,mana:0},elainaHat:{name:'伊蕾娜的帽子 · +10% 伤害、+5 暴击、+20 特殊魔力（仅伊蕾娜）',damage:10,crit:5,mana:0,magic:20,elainaOnly:true}};
+// 仅伊蕾娜可装备的饰品（帽子）在原版对照一侧视为机动／生存占位，前缀照常计入。
+const sideItem=(id,side)=>side==='v'&&accessories[id]?.elainaOnly?'utility':id;
 const prefixes={warding:{name:'护佑 · +4 防御',damage:0,crit:0,mana:0,defense:4},menacing:{name:'险恶 · +4% 伤害',damage:4,crit:0,mana:0,defense:0},arcane:{name:'奥秘 · +20 魔力',damage:0,crit:0,mana:20,defense:0},lucky:{name:'幸运 · +4 暴击',damage:0,crit:4,mana:0,defense:0},none:{name:'无前缀',damage:0,crit:0,mana:0,defense:0}};
 // 时期 k：击败对应 Boss 后 KL 等级上限为 5k，基础 DPS = stageDps[k]（声明后补写 base）。
 const periods=['开局','史莱姆王后','克苏鲁之眼后','世吞／克脑后','蜂王后','骷髅王后','独眼巨鹿后','血肉墙后（困难模式）','史莱姆皇后后','双子魔眼后','毁灭者后','机械骷髅王后','世纪之花后','石巨人后','猪龙鱼公爵后','光之女皇后','光女后 · 拜月前','拜月教邪教徒后','月亮领主后'].map((label,i)=>({stage:i+1,label,cap:5*(i+1),level:5*(i+1)-4}));
 // 参考 terraria.wiki.gg Guide:Class_setups 法师路线；装备数值取本地源码，不声称是最优配装。
+// items 未写满的槽位补“机动／生存（占位）”；开局只有箱子里找到的少量饰品，空槽不提供前缀收益。
 const presets={
- start:{stage:1,name:'01 开局 · 巫师帽紫晶长袍',armor:'wizardAmethyst',slots:5,items:[]},
- kingSlime:{stage:2,name:'02 史莱姆王后 · 魔法帽黄玉长袍',armor:'magicTopaz',slots:5,items:['band']},
+ start:{stage:1,name:'01 开局 · 巫师帽紫晶长袍',armor:'wizardAmethyst',slots:5,items:['utility','utility','utility','empty','empty']},
+ kingSlime:{stage:2,name:'02 史莱姆王后 · 魔法帽黄玉长袍',armor:'magicTopaz',slots:5,items:['band','utility','utility','utility','empty']},
  eye:{stage:3,name:'03 克苏鲁之眼后 · 魔法帽钻石长袍',armor:'magicDiamond',slots:5,items:['band','naturesGift']},
  evil:{stage:4,name:'04 世吞／克脑后 · 巫师帽钻石长袍',armor:'wizardDiamond',slots:5,items:['band','flower']},
  queenBee:{stage:5,name:'05 蜂王后 · 陨石法师',armor:'meteor',slots:5,items:['band','flower']},
  jungle:{stage:6,name:'06 骷髅王后 · 丛林法师',armor:'jungle',slots:5,items:['regen','flower']},
  deerclops:{stage:7,name:'07 独眼巨鹿后 · 丛林法师 + 天界手铐',armor:'jungle',slots:5,items:['celestialCuffs','regen','flower']},
- wall:{stage:8,name:'08 血肉墙后 · 魔法帽钻石长袍陨石护腿 + 巫师徽章',armor:'magicDiamondMeteor',slots:5,items:['sorcerer','celestialCuffs','flower']},
- queenSlime:{stage:9,name:'09 史莱姆皇后后 · 秘银法师（恶魔之心 6 槽）',armor:'mythril',slots:6,items:['sorcerer','celestialCuffs','flower']},
+ wall:{stage:8,name:'08 血肉墙后 · 魔法帽钻石长袍陨石护腿 + 巫师徽章（恶魔之心 6 槽）',armor:'magicDiamondMeteor',slots:6,items:['sorcerer','celestialCuffs','flower']},
+ queenSlime:{stage:9,name:'09 史莱姆皇后后 · 秘银法师',armor:'mythril',slots:6,items:['sorcerer','celestialCuffs','flower']},
  adamantite:{stage:10,name:'10 双子魔眼后 · 精金法师',armor:'adamantite',slots:6,items:['sorcerer','flower','cuffs']},
  destroyer:{stage:11,name:'11 毁灭者后 · 钛金法师',armor:'titanium',slots:6,items:['sorcerer','celestialCuffs','flower']},
  prime:{stage:12,name:'12 机械骷髅王后 · 精金头胸 + 禁戒护腿',armor:'forbiddenMix',slots:6,items:['sorcerer','celestialCuffs','flower']},
@@ -455,21 +463,33 @@ for(const p of Object.values(presets))p.base=stageDps[p.stage];
 const stageLife=[100,160,200,240,280,300,340,400,400,400,420,440,500,500,500,500,500,500,500];
 const roundLife=life=>{const n=clamp(life,100,500);return n<=400?Math.round(n/20)*20:400+Math.round((n-400)/5)*5;};
 const roundMana=mana=>Math.round(clamp(mana,20,200)/20)*20;
+// 每阶段带输出前缀的饰品数（未列出的阶段全部重铸）。哥布林工匠要砸过暗影珠／猩红之心且有 200 生命才会来袭，
+// 克眼前只能靠找到／合成时的随机前缀碰运气；来了以后按金钱逐步重铸，骷髅王后（地牢收入）起全部重铸。
+const reforgedSlots=[0,1,2,3,4];
+// prefix 为伊蕾娜前缀（奥秘），vPrefix 为原版对照前缀（按本阶段护甲与饰品逐条选险恶／幸运）；其余槽视为无用的随机前缀。
+// 伊蕾娜的帽子是全时期推荐饰品：占用已启用槽位中的第一个机动／生存占位（原版对照仍为占位）。
 function loadoutDefault(stage){
  const p=Object.values(presets).find(x=>x.stage===stage);
- return {stage,name:p.name.split(' · ').pop(),armor:p.armor,slots:p.slots,items:Array.from({length:7},(_,i)=>({id:p.items[i]||'utility',prefix:i<3?'arcane':'warding'})),baseMana:stage===1?100:200,maxLife:stageLife[stage-1]};
+ const items=Array.from({length:7},(_,i)=>({id:p.items[i]||'utility',prefix:'none',vPrefix:'none'}));
+ const hat=items.slice(0,p.slots).findIndex(x=>x.id==='utility');
+ if(hat>=0)items[hat].id='elainaHat';
+ const good=items.map((x,i)=>x.id==='empty'?-1:i).filter(i=>i>=0).slice(0,reforgedSlots[stage-1]??items.length);
+ for(const i of good)items[i].prefix='arcane';
+ const probe={slots:items.length,baseCrit:4,v:{armor:p.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:items.map(x=>({id:sideItem(x.id,'v'),prefix:'none'}))}};
+ applyDamagePrefixes(probe,'v',good).forEach((prefix,k)=>{items[good[k]].vPrefix=prefix;});
+ return {stage,name:p.name.split(' · ').pop(),armor:p.armor,slots:p.slots,items,baseMana:stage===1?100:200,maxLife:stageLife[stage-1]};
 }
 function loadoutDefaults(){return periods.map(p=>loadoutDefault(p.stage));}
 function validLoadouts(list){
  return Array.isArray(list)&&list.length===periods.length&&list.every((x,i)=>x&&x.stage===i+1&&typeof x.name==='string'&&x.name.trim().length>0&&x.name.length<=64
-  &&Object.hasOwn(armors,x.armor)&&[5,6,7].includes(x.slots)&&Array.isArray(x.items)&&x.items.length===7&&x.items.every(r=>r&&Object.hasOwn(accessories,r.id)&&Object.hasOwn(prefixes,r.prefix))
+  &&Object.hasOwn(armors,x.armor)&&[5,6,7].includes(x.slots)&&Array.isArray(x.items)&&x.items.length===7&&x.items.every(r=>r&&Object.hasOwn(accessories,r.id)&&Object.hasOwn(prefixes,r.prefix)&&Object.hasOwn(prefixes,r.vPrefix))
   &&Number.isInteger(x.baseMana)&&roundMana(x.baseMana)===x.baseMana&&Number.isInteger(x.maxLife)&&roundLife(x.maxLife)===x.maxLife);
 }
-// 读取阶段配装：双方换护甲、饰品和槽位，伊蕾娜使用配装前缀（原版保留自己的前缀），写入基础魔力与该阶段 B。
+// 读取阶段配装：双方换护甲、饰品和槽位，伊蕾娜用 prefix、原版用 vPrefix，写入基础魔力、最大生命与该阶段 B。
 function applyLoadout(s,stage,unlock=true){
  const l=s.loadouts[stage-1];
- s.stage=stage;s.baseDps=stageDps[stage];s.baseMana=l.baseMana;s.slots=l.slots;
- for(const side of ['v','e']){s[side].armor=l.armor;l.items.forEach((item,i)=>{s[side].items[i].id=item.id;if(side==='e')s[side].items[i].prefix=item.prefix;});}
+ s.stage=stage;s.baseDps=stageDps[stage];s.baseMana=l.baseMana;s.maxLife=l.maxLife;s.slots=l.slots;
+ for(const side of ['v','e']){s[side].armor=l.armor;l.items.forEach((item,i)=>{s[side].items[i].id=sideItem(item.id,side);s[side].items[i].prefix=side==='e'?item.prefix:item.vPrefix;});}
  return unlock?applyStageUnlocks(s,stage):null;
 }
 function levelDps(level){const state=clamp(level/5,0,stageDps.length-1),lo=Math.floor(state),hi=Math.min(lo+1,stageDps.length-1);return stageDps[lo]+(stageDps[hi]-stageDps[lo])*(state-lo);}
@@ -514,8 +534,8 @@ function defaults(stage=13){
  if(typeof stage==='string')stage=presets[stage]?.stage||13;
  stage=Math.round(clamp(stage,1,periods.length));
  const loadouts=loadoutDefaults(),l=loadouts[stage-1];
- const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map((item,i)=>({id:item.id,prefix:side==='e'?item.prefix:i<3?'menacing':'warding'}))});
- return {version:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
+ const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map(item=>({id:sideItem(item.id,side),prefix:side==='e'?item.prefix:item.vPrefix}))});
+ return {version:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
  {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
  {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
  {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
@@ -528,15 +548,15 @@ function gear(s,side){
  const g=s[side],a=armors[g.armor]||armors.none;
  const nebula=g.armor==='nebula'?(g.nebula||{damage:3,mana:3,life:3}):{damage:0,mana:0,life:0};
  const nebulaDamage=15*nebula.damage,nebulaManaRegen=10*nebula.mana,nebulaLifeRegen=3*nebula.life;
- let damage=a.damage+g.damage+nebulaDamage,crit=a.crit+g.crit,mana=a.mana,defense=0;
+ let damage=a.damage+g.damage+nebulaDamage,crit=a.crit+g.crit,mana=a.mana,magic=0,defense=0;
  for(const row of g.items.slice(0,s.slots)){
-  const item=accessories[row.id]||accessories.empty;if(row.id==='empty')continue;
+  const item=accessories[sideItem(row.id,side)]||accessories.empty;if(row.id==='empty')continue;
   const p=prefixes[row.prefix]||prefixes.none;
-  damage+=item.damage+p.damage;crit+=item.crit+p.crit;mana+=item.mana+p.mana;defense+=p.defense;
+  damage+=item.damage+p.damage;crit+=item.crit+p.crit;mana+=item.mana+p.mana;magic+=item.magic||0;defense+=p.defense;
  }
  const finalCrit=clamp(s.baseCrit+crit,0,100);
  const multiplier=Math.max(0,1+damage/100)*(1+finalCrit/100)/(1+s.baseCrit/100);
- return {damage,crit:finalCrit,mana,defense,multiplier,nebulaDamage,nebulaManaRegen,nebulaLifeRegen,armorDefense:a.armorDefense||0,manaReduction:a.manaReduction||0,moveSpeed:a.moveSpeed||0};
+ return {damage,crit:finalCrit,mana,magic,defense,multiplier,nebulaDamage,nebulaManaRegen,nebulaLifeRegen,armorDefense:a.armorDefense||0,manaReduction:a.manaReduction||0,moveSpeed:a.moveSpeed||0};
 }
 // 增伤前缀：在当前总伤害与封顶后暴击下，再加一条险恶或幸运时倍率更高的那个；打平取险恶。
 function damagePrefixStep(s,side){
@@ -552,18 +572,22 @@ function applyDamagePrefixes(s,side,slots=equippedSlots(s,side)){
  for(const i of slots)s[side].items[i].prefix=damagePrefixStep(s,side).prefix;
  return slots.map(i=>s[side].items[i].prefix);
 }
+// 灰之魔女（AshenWitchSkill）：超出 100 的生命上限只保留一半（向下取整），减少的部分按 1:1 转为特殊魔力上限。
+// 页面只用阶段配装的最大生命，护甲／饰品额外提供的生命未计入，因此可能略低于游戏内。
+function ashenWitchMana(maxLife){const extra=Math.max(0,Math.floor(maxLife)-100);return extra-Math.floor(extra*.5);}
 function calculate(s){
  const v=gear(s,'v'),e=gear(s,'e');
- const maxMana=Math.max(0,s.baseMana+e.mana+s.extraMana);
+ const witchMana=s.ashenWitch?ashenWitchMana(s.maxLife):0;
+ const maxMana=Math.max(0,s.baseMana+e.mana+e.magic+witchMana+s.extraMana);
  const skillMultiplier=s.skillStats?e.multiplier:1;
  const vanilla=s.baseDps*v.multiplier+s.v.proc,auto=basicBudget(s).dps*e.multiplier;
- return {v,e,maxMana,skillMultiplier,vanilla,auto,recovery:5+maxMana*(Number(s.combat.regenPercent)||0)/100+(s.nebulaManaBridge?e.nebulaManaRegen:0)};
+ return {v,e,maxMana,witchMana,skillMultiplier,vanilla,auto,recovery:5+maxMana*(Number(s.combat.regenPercent)||0)/100+(s.nebulaManaBridge?e.nebulaManaRegen:0)};
 }
 // One cast's expected total damage, before hit-rate and timing truncation; not per projectile/hit.
 function skillDamageBudget(s,skill,result=calculate(s)){
  return s.baseDps*(s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
 }
-return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
+return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
 })();
 if(typeof module!=='undefined')module.exports=Balance;
 </script>
@@ -780,6 +804,10 @@ function normalizeProgression(value){
  // 旧版：preset 键名 → stage；快速预算字段不再使用，keepKnown 会丢弃。
  if(value.stage==null)value.stage=Balance.presets[value.preset]?.stage??13;
  if(value.loadouts==null)value.loadouts=Balance.loadoutDefaults();
+ if(value.ashenWitch==null)value.ashenWitch=true;
+ if(value.maxLife==null)value.maxLife=Array.isArray(value.loadouts)?value.loadouts[value.stage-1]?.maxLife??100:100;
+ // 旧版配装没有原版前缀 vPrefix：按同阶段同槽位的默认值补齐。
+ if(Array.isArray(value.loadouts))value.loadouts.slice(0,Balance.periods.length).forEach((l,i)=>{if(!l||!Array.isArray(l.items))return;const d=Balance.loadoutDefault(i+1);l.items.forEach((r,j)=>{if(r&&typeof r==='object'&&r.vPrefix==null)r.vPrefix=d.items[j]?.vPrefix??'none';});});
  for(const k of ['preset','mode','budgetSource','reserve','manualBudget','quality','use','hurtMana'])delete value[k];
  for(const row of (Array.isArray(value.skills)?value.skills:[]))if(row&&typeof row==='object')delete row.realization;
  for(const row of (Array.isArray(value.basicAttacks)?value.basicAttacks:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=row.id==='IceConeSkill'?10:5;if(!('unlockLevel' in row))row.unlockLevel=row.id==='IceConeSkill'?6:1;if(row.levelsPerPhase==null)row.levelsPerPhase=2;if(row.ratioCurve==null)row.ratioCurve=[];}
@@ -787,11 +815,11 @@ function normalizeProgression(value){
  return value;
 }
 function validSaved(x){
- if(!x||x.version!==2||typeof x.nebulaManaBridge!=='boolean')return false;
+ if(!x||x.version!==2||typeof x.nebulaManaBridge!=='boolean'||typeof x.ashenWitch!=='boolean')return false;
  const d=Balance.defaults();
  for(const k of Object.keys(d))if(!(k in x))return false;
- for(const k of ['baseDps','baseCrit','slots','baseMana','extraMana','rate','occupyRatio'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
- if(x.occupyRatio<0||x.occupyRatio>5)return false;
+ for(const k of ['baseDps','baseCrit','slots','baseMana','maxLife','extraMana','rate','occupyRatio'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
+ if(x.occupyRatio<0||x.occupyRatio>5||x.maxLife<100||x.maxLife>2000)return false;
  if(x.baseDps<1||x.baseDps>1000000||x.baseMana>2000||x.extraMana>10000||x.baseCrit<0||x.baseCrit>100||![5,6,7].includes(x.slots)||x.rate<0||x.rate>20||x.baseMana<0||x.extraMana<0)return false;
  if(!Number.isInteger(x.stage)||x.stage<1||x.stage>Balance.periods.length||!Balance.validLoadouts(x.loadouts))return false;
  const p=x.progression;if(!p||!Number.isInteger(p.phaseSize)||p.phaseSize<1||p.phaseSize>20||!Number.isInteger(p.previewLevel)||p.previewLevel<1||p.previewLevel>1000)return false;
@@ -812,8 +840,9 @@ function keepKnown(template,input,property=''){
  return input;
 }
 function options(data){return Object.entries(data).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');}
+const vanillaAccessories=Object.fromEntries(Object.entries(Balance.accessories).filter(([,v])=>!v.elainaOnly));
 for(const side of ['v','e'])$(side+'Armor').innerHTML=options(Balance.armors);
-const direct=['baseDps','baseCrit','slots','baseMana','extraMana','rate','occupyRatio','skillStats','nebulaManaBridge'];
+const direct=['baseDps','baseCrit','slots','baseMana','maxLife','extraMana','ashenWitch','rate','occupyRatio','skillStats','nebulaManaBridge'];
 const two=n=>String(n).padStart(2,'0'),periodLabel=stage=>Balance.periods[stage-1].label;
 function stageOptions(){
  $('preset').innerHTML=s.loadouts.map(l=>`<option value="${l.stage}">${two(l.stage)} ${escapeHtml(periodLabel(l.stage))} · ${escapeHtml(l.name)}</option>`).join('');
@@ -1040,7 +1069,7 @@ $('progressionRows').addEventListener('change',event=>{const el=event.target;if(
  const tr=el.closest('tr');for(const field of ['unlockStageCap','unlockLevel'])tr.querySelector(`[data-progression-field="${field}"]`).value=row[field];update();});
 function save(){try{localStorage.setItem(key,JSON.stringify(s));}catch(_){$('status').textContent='浏览器未允许记住页面参数；请使用“保存到模组”保留配置。';}}
 function slots(){for(const side of ['v','e']){
- $(side+'Slots').innerHTML=s[side].items.slice(0,s.slots).map((r,i)=>`<div class="slot"><span class="slotnum">${i+1}</span><select aria-label="${side==='v'?'原版':'伊蕾娜'}饰品 ${i+1}" data-side="${side}" data-index="${i}" data-prop="id">${options(Balance.accessories)}</select><select aria-label="${side==='v'?'原版':'伊蕾娜'}前缀 ${i+1}" data-side="${side}" data-index="${i}" data-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('');
+ $(side+'Slots').innerHTML=s[side].items.slice(0,s.slots).map((r,i)=>`<div class="slot"><span class="slotnum">${i+1}</span><select aria-label="${side==='v'?'原版':'伊蕾娜'}饰品 ${i+1}" data-side="${side}" data-index="${i}" data-prop="id">${options(side==='v'?vanillaAccessories:Balance.accessories)}</select><select aria-label="${side==='v'?'原版':'伊蕾娜'}前缀 ${i+1}" data-side="${side}" data-index="${i}" data-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('');
  $(side+'Slots').querySelectorAll('select').forEach(el=>{el.value=s[side].items[el.dataset.index][el.dataset.prop];el.addEventListener('change',()=>{s[side].items[el.dataset.index][el.dataset.prop]=el.value;update();});});
 }}
 function skills(){progressionRows();}
@@ -1070,7 +1099,7 @@ function update(persist=true){
   $(side+'NebulaInfo').textContent=`套装静态：+26% 魔法伤害、+16 暴击、+60 魔力、46 防御、+10% 移速、−15% 原版魔力消耗。强化：+${g.nebulaDamage}% 加算伤害、+${g.nebulaManaRegen} 原版魔力/秒、+${g.nebulaLifeRegen} 生命/秒。${side==='e'?(s.nebulaManaBridge?'当前额外加入 '+g.nebulaManaRegen+' 特殊魔力/秒，属于预览适配假设。':'当前不恢复特殊魔力；勾选开关可测试未来适配。'):'原版默认持续攻击，回蓝不再额外乘到 DPS。'}生命回复、护甲防御和移速仅展示，不转为伤害或自动抵消受伤；−15% 减耗不作用于特殊魔力。所选层数假定开场已收集、全程维持，不模拟掉落、拾取与掉层。`;
  }
  for(const side of ['v','e']){const g=r[side],dupes=duplicates(side);$(side+'Summary').innerHTML=`伤害 <strong>+${fmt(g.damage,1)}%</strong> · 总暴击 <strong>${fmt(g.crit,1)}%</strong> · 装备魔力 <strong>+${fmt(g.mana)}</strong> · 前缀防御 <strong>+${g.defense}</strong>${dupes.length?`<br><span class="warn">重复装备：${dupes.join('、')}。此配置仅作属性试算，不是合法配装。</span>`:''}${s[side].armor==='spectre'?'<br><span class="warn">幽灵追击未自动计入；左、右额外特效均可手动补充。</span>':''}`;}
- $("eStageInfo").innerHTML=`魔力上限 <strong>${fmt(r.maxMana)}</strong> = 基础 ${fmt(s.baseMana)} + 装备 ${fmt(r.e.mana)}${s.extraMana?` + 额外 ${fmt(s.extraMana)}`:""} · 阶段 ${two(s.stage)} 推荐：基础魔力 ${l.baseMana}、最大生命 ${l.maxLife}（生命只用于游戏内换装，不参与 DPS）`;
+ $("eStageInfo").innerHTML=`魔力上限 <strong>${fmt(r.maxMana)}</strong> = 基础 ${fmt(s.baseMana)} + 装备 ${fmt(r.e.mana)}${r.e.magic?` + 帽子 ${fmt(r.e.magic)}`:""}${s.ashenWitch?` + 灰之魔女 ${fmt(r.witchMana)}（最大生命 ${fmt(s.maxLife)} → ${fmt(s.maxLife-r.witchMana)}）`:" · 灰之魔女未开启"}${s.extraMana?` + 额外 ${fmt(s.extraMana)}`:""} · 阶段 ${two(s.stage)} 推荐：基础魔力 ${l.baseMana}、最大生命 ${l.maxLife}`;
  s.skills.forEach((row,i)=>{$("skillDamage"+i).textContent=fmt(Balance.skillDamageBudget(s,row,r),1);});
  updateCombat();if(persist)save();
 }
@@ -1096,11 +1125,11 @@ for(const side of ['v','e']){
  $(side+'Armor').addEventListener('change',()=>{s[side].armor=$(side+'Armor').value;update();});
  for(const prop of ['damage','crit','proc']){const el=$(side+prop[0].toUpperCase()+prop.slice(1));el.addEventListener('input',()=>{if(el.value==='')return;s[side][prop]=Balance.clamp(el.value,+el.min,+el.max);update();});}
 }
-// 阶段切换读取配装页数据：护甲、饰品、槽位、伊蕾娜前缀、基础魔力与该阶段 B；原版前缀、战斗与其他设置保持不变。
+// 阶段切换读取配装页数据：护甲、饰品、槽位、双方前缀、基础魔力、最大生命与该阶段 B；战斗与其他设置保持不变。
 function switchStage(stage){
  const unlock=Balance.applyLoadout(s,stage);
  loadoutStage=stage;syncLab(true);renderLoadouts();
- $('status').textContent=`已切换到阶段 ${two(stage)} ${periodLabel(stage)}：读取配装页的护甲、饰品、槽位、伊蕾娜前缀与基础魔力，并按角色 ${unlock.level} 级启用已解锁技能（${unlock.skills.join('、')||'无'}）${unlock.locked.length?`，停用未解锁技能（${unlock.locked.join('、')}）`:''}。`;
+ $('status').textContent=`已切换到阶段 ${two(stage)} ${periodLabel(stage)}：读取配装页的护甲、饰品、槽位、双方前缀、基础魔力与最大生命，并按角色 ${unlock.level} 级启用已解锁技能（${unlock.skills.join('、')||'无'}）${unlock.locked.length?`，停用未解锁技能（${unlock.locked.join('、')}）`:''}。`;
 }
 $('preset').addEventListener('change',()=>switchStage(+$('preset').value));
 
@@ -1139,9 +1168,9 @@ function renderLoadoutEditor(){
   <label class="field">饰品槽数量<select id="loadoutSlots"><option value="5">5 格</option><option value="6">6 格（专家 · 恶魔之心）</option><option value="7">7 格（大师）</option></select></label>
  </div>
  <h3 class="subhead">饰品与前缀</h3>
- <div class="actions" role="group" aria-label="本阶段批量设置前缀"><button type="button" class="smallbtn" data-loadout-prefix="arcane">全奥秘</button><button type="button" class="smallbtn" data-loadout-prefix="damage" title="按本阶段装备与实验室额外加成的伤害、暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-loadout-prefix="warding">全护佑</button></div>
- <div class="loadoutslots">${l.items.map((item,i)=>`<div class="slot${i>=l.slots?' inactive':''}"><span class="slotnum">${i+1}</span><select aria-label="阶段配装饰品 ${i+1}" data-loadout-index="${i}" data-loadout-prop="id">${options(Balance.accessories)}</select><select aria-label="阶段配装前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('')}</div>
- <p class="note">灰色槽位超出当前槽数，不参与计算也不会在游戏中装备。“机动／生存（占位）”与“空槽”在游戏换装时保留玩家原有饰品。</p>
+ ${[['e','伊蕾娜',['arcane','damage','warding','none']],['v','原版对照',['damage','warding','none']]].map(([side,label,keys])=>`<div class="actions prefixgroup" role="group" aria-label="本阶段${label}批量设置前缀"><span class="groupname">${label}</span>${keys.map(k=>{const text={arcane:'全奥秘',damage:'全增伤',warding:'全护佑',none:'全无前缀'}[k];return `<button type="button" class="smallbtn" data-loadout-side="${side}" data-loadout-prefix="${k}" aria-label="本阶段${label}${text}"${k==='damage'?' title="按本阶段装备与实验室额外加成的伤害、暴击，逐条选择险恶或幸运中收益更高的一个"':''}>${text}</button>`;}).join('')}</div>`).join('')}
+ <div class="loadoutslots"><div class="slot tri slothead" aria-hidden="true"><span></span><span>饰品</span><span>伊蕾娜前缀</span><span>原版前缀</span></div>${l.items.map((item,i)=>`<div class="slot tri${i>=l.slots?' inactive':''}"><span class="slotnum">${i+1}</span><select aria-label="阶段配装饰品 ${i+1}" data-loadout-index="${i}" data-loadout-prop="id">${options(Balance.accessories)}</select><select aria-label="阶段配装伊蕾娜前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="prefix">${options(Balance.prefixes)}</select><select aria-label="阶段配装原版前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="vPrefix">${options(Balance.prefixes)}</select></div>`).join('')}</div>
+ <p class="note">灰色槽位超出当前槽数，不参与计算也不会在游戏中装备。“机动／生存（占位）”与“空槽”在游戏换装时保留玩家原有饰品。原版前缀只用于实验室的原版对照，游戏换装只使用伊蕾娜前缀；“无前缀”在游戏中表示保留物品原有前缀。默认前缀按进度估计：哥布林工匠到来前只有随机前缀，开局视为没有输出前缀，之后逐阶段增加重铸条数，骷髅王后起全部重铸。</p>
  <h3 class="subhead">角色属性</h3>
  <div class="fields fields4">
   <label class="field">基础魔力（20–200，每 20 = 1 魔力水晶）<input id="loadoutMana" type="number" min="20" max="200" step="20" value="${l.baseMana}"></label>
@@ -1152,13 +1181,15 @@ function renderLoadoutEditor(){
  for(const el of $('loadoutEditor').querySelectorAll('[data-loadout-index]'))el.value=l.items[+el.dataset.loadoutIndex][el.dataset.loadoutProp];
  updateLoadoutStats();
 }
-// The lab state with this stage's Elaina gear, so manual extras, base crit and nebula stacks still count.
-function loadoutProbe(l){const probe=Balance.clone(s);probe.slots=l.slots;probe.e.armor=l.armor;probe.e.items=Balance.clone(l.items);return probe;}
+// The lab state with this stage's gear on one side (Elaina prefix or vanilla vPrefix), so manual extras, base crit and nebula stacks still count.
+const loadoutPrefixKey=side=>side==='e'?'prefix':'vPrefix';
+function loadoutProbe(l,side='e'){const probe=Balance.clone(s);probe.slots=l.slots;probe[side].armor=l.armor;probe[side].items=l.items.map(x=>({id:Balance.sideItem(x.id,side),prefix:x[loadoutPrefixKey(side)]}));return probe;}
 function updateLoadoutStats(){
- const l=currentLoadout(),probe=loadoutProbe(l);
+ const l=currentLoadout(),probe=loadoutProbe(l),vg=Balance.gear(loadoutProbe(l,'v'),'v');
  const g=Balance.gear(probe,'e'),crystals=(l.baseMana-20)/20,life=Math.min(15,Math.floor((Math.min(l.maxLife,400)-100)/20)),fruit=Math.max(0,Math.floor((l.maxLife-400)/5));
+ const witch=s.ashenWitch?Balance.ashenWitchMana(l.maxLife):0;
  const used=l.items.slice(0,l.slots).map(x=>x.id).filter(x=>!['utility','empty'].includes(x)),dupes=[...new Set(used.filter((x,i)=>used.indexOf(x)!==i))].map(id=>Balance.accessories[id].name.split(' · ')[0]);
- $('loadoutStats').innerHTML=`<div>装备伤害<strong>+${fmt(g.damage,1)}%</strong></div><div>装备暴击<strong>+${fmt(g.crit-s.baseCrit,1)}</strong></div><div>魔力上限<strong>${fmt(l.baseMana+g.mana)}</strong><small>基础 ${l.baseMana} + 装备 ${fmt(g.mana)}</small></div><div>最大生命<strong>${l.maxLife}</strong><small>生命水晶 ${life} · 生命果 ${fruit}</small></div><div>魔力水晶<strong>${crystals}</strong><small>/ 9</small></div><div>前缀防御<strong>+${g.defense}</strong></div>${dupes.length?`<p class="warn">重复装备：${dupes.join('、')}。游戏内不能同时装备相同饰品，换装时会跳过重复项。</p>`:''}`;
+ $('loadoutStats').innerHTML=`<div>装备伤害<strong>+${fmt(g.damage,1)}%</strong><small>原版对照 +${fmt(vg.damage,1)}%</small></div><div>装备暴击<strong>+${fmt(g.crit-s.baseCrit,1)}</strong><small>原版对照 +${fmt(vg.crit-s.baseCrit,1)}</small></div><div>特殊魔力上限<strong>${fmt(l.baseMana+g.mana+g.magic+witch)}</strong><small>基础 ${l.baseMana} + 装备 ${fmt(g.mana)}${g.magic?` + 帽子 ${fmt(g.magic)}`:''}${s.ashenWitch?` + 灰之魔女 ${fmt(witch)}`:''}</small></div><div>最大生命<strong>${l.maxLife}</strong><small>生命水晶 ${life} · 生命果 ${fruit}${s.ashenWitch?` · 灰之魔女后 ${l.maxLife-witch}`:''}</small></div><div>魔力水晶<strong>${crystals}</strong><small>/ 9</small></div><div>前缀防御<strong>+${g.defense}</strong></div>${dupes.length?`<p class="warn">重复装备：${dupes.join('、')}。游戏内不能同时装备相同饰品，换装时会跳过重复项。</p>`:''}`;
 }
 function loadoutChanged(rerender=false){
  if(loadoutStage===s.stage){Balance.applyLoadout(s,s.stage,false);syncLab(true);}else{stageOptions();update();}
@@ -1187,8 +1218,12 @@ $('loadoutEditor').addEventListener('change',event=>{
 $('loadoutEditor').addEventListener('click',event=>{
  const el=event.target.closest('button');if(!el)return;
  const l=currentLoadout();
- if(el.dataset.loadoutPrefix==='damage'){const probe=loadoutProbe(l);Balance.applyDamagePrefixes(probe,'e');probe.e.items.forEach((item,i)=>{l.items[i].prefix=item.prefix;});loadoutChanged(true);}
- else if(el.dataset.loadoutPrefix){for(const item of l.items.slice(0,l.slots))if(item.id!=='empty')item.prefix=el.dataset.loadoutPrefix;loadoutChanged(true);}
+ if(el.dataset.loadoutPrefix){
+  const side=el.dataset.loadoutSide,key=loadoutPrefixKey(side);
+  if(el.dataset.loadoutPrefix==='damage'){const probe=loadoutProbe(l,side);Balance.applyDamagePrefixes(probe,side);probe[side].items.forEach((item,i)=>{l.items[i][key]=item.prefix;});}
+  else for(const item of l.items.slice(0,l.slots))if(item.id!=='empty')item[key]=el.dataset.loadoutPrefix;
+  loadoutChanged(true);
+ }
  else if(el.id==='loadoutReset'){s.loadouts[l.stage-1]=Balance.loadoutDefault(l.stage);loadoutChanged(true);$('status').textContent=`已恢复阶段 ${two(l.stage)} 的默认配装与属性。`;}
  else if(el.id==='loadoutCopyPrev'&&l.stage>1){const prev=s.loadouts[l.stage-2];Object.assign(l,Balance.clone({armor:prev.armor,slots:prev.slots,items:prev.items,baseMana:prev.baseMana,maxLife:prev.maxLife}));loadoutChanged(true);$('status').textContent=`已将阶段 ${two(l.stage-1)} 的护甲、饰品、前缀与属性复制到阶段 ${two(l.stage)}（名称保留）。`;}
  else if(el.id==='loadoutUse'){switchStage(l.stage);showTab('lab');}

@@ -30,7 +30,7 @@ public static class LoadoutApplier
     {
         var seen = new HashSet<int>();
         foreach (var entry in loadout.Items.Take(loadout.Slots))
-            if (LoadoutItems.Accessories.TryGetValue(entry.Id, out int type) && seen.Add(type))
+            if (LoadoutItems.TryGetAccessory(entry.Id, out int type) && seen.Add(type))
                 yield return (type, LoadoutItems.Prefixes.GetValueOrDefault(entry.Prefix));
     }
 

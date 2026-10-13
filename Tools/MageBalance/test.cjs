@@ -18,7 +18,7 @@ let count = 0;
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-7, `${a} != ${b}`);
 function test(name, fn) { fn(); count++; console.log('PASS', name); }
 function naked() {
- const s = B.defaults(); s.baseDps=1000; s.basicAttacks[0].ratio=1;s.basicAttacks[0].ratioCurve=[]; // isolate legacy balance arithmetic from the level curve
+ const s = B.defaults(); s.baseDps=1000; s.basicAttacks[0].ratio=1;s.basicAttacks[0].ratioCurve=[];s.ashenWitch=false; // isolate legacy balance arithmetic from the level curve and Ashen Witch
  for(const side of ['v','e']) { s[side].armor='none'; s[side].items.forEach(x=>{x.id='empty';x.prefix='none';}); }
  return s;
 }
@@ -49,36 +49,63 @@ test('Calculation does not mutate configuration',()=>{const s=B.defaults(),befor
 test('All default presets produce finite results',()=>{for(const key of Object.keys(B.presets)){const r=B.calculate(B.defaults(key));assert.ok(Number.isFinite(r.vanilla)&&Number.isFinite(r.auto)&&Number.isFinite(r.maxMana));}});
 test('Default loadouts cover all 19 stages, mirror the presets and validate',()=>{
  const list=B.loadoutDefaults();assert.equal(list.length,19);assert.ok(B.validLoadouts(list));
- for(const p of Object.values(B.presets)){const l=list[p.stage-1];assert.equal(l.stage,p.stage);assert.equal(l.armor,p.armor);assert.equal(l.slots,p.slots);assert.deepEqual(l.items.slice(0,p.items.length).map(x=>x.id),p.items);assert.ok(l.items.slice(p.items.length).every(x=>x.id==='utility'));}
+ for(const p of Object.values(B.presets)){const l=list[p.stage-1],ids=Array.from({length:7},(_,i)=>p.items[i]||'utility');ids[ids.slice(0,p.slots).indexOf('utility')]='elainaHat';assert.equal(l.stage,p.stage);assert.equal(l.armor,p.armor);assert.equal(l.slots,p.slots);assert.deepEqual(Array.from(l.items,x=>x.id),ids,'Elaina hat takes the first active utility slot');}
  near(list[0].baseMana,100);near(list[1].baseMana,200);near(list[2].maxLife,200);assert.ok(list.every((l,i)=>i===0||l.maxLife>=list[i-1].maxLife));near(list[18].maxLife,500);
+});
+test('Elaina hat adds damage, crit and special mana only on the Elaina side',()=>{
+ const s=naked();s.e.items[0]={id:'elainaHat',prefix:'arcane'};s.v.items[0]={id:'elainaHat',prefix:'menacing'};
+ const e=B.gear(s,'e'),v=B.gear(s,'v');near(e.damage,10);near(e.crit,9);near(e.mana,20);near(e.magic,20);
+ near(v.damage,4);near(v.crit,4);near(v.magic,0);near(B.calculate(s).maxMana,240);assert.equal(B.sideItem('elainaHat','v'),'utility');assert.equal(B.sideItem('elainaHat','e'),'elainaHat');
+});
+test('Ashen Witch converts the halved extra life into special mana and can be switched off',()=>{
+ for(const [life,mana] of [[100,0],[160,30],[305,103],[400,150],[500,200],[50,0]])near(B.ashenWitchMana(life),mana);
+ const s=naked();s.maxLife=500;assert.equal(B.defaults().ashenWitch,true);s.ashenWitch=true;let r=B.calculate(s);near(r.maxMana,400);near(r.witchMana,200);near(r.recovery,5+400*.02);
+ s.ashenWitch=false;r=B.calculate(s);near(r.maxMana,200);near(r.witchMana,0);
+ const d=B.defaults(3);near(d.maxLife,200);near(B.calculate(d).witchMana,50);B.applyLoadout(d,19,false);near(d.maxLife,500);
 });
 test('Mana and life rounding follow crystals and life fruit',()=>{
  for(const [a,b] of [[10,20],[35,40],[200,200],[999,200]])near(B.roundMana(a),b);
  for(const [a,b] of [[0,100],[150,160],[399,400],[403,405],[412,410],[999,500]])near(B.roundLife(a),b);
 });
 test('Invalid loadouts are rejected',()=>{
- const bad=[l=>l.pop(),l=>{l[3].stage=5;},l=>{l[0].baseMana=30;},l=>{l[0].maxLife=390;},l=>{l[0].maxLife=520;},l=>{l[0].armor='constructor';},l=>{l[0].items[0].id='toString';},l=>{l[0].items[0].prefix='godly';},l=>{l[0].items.pop();},l=>{l[0].slots=8;},l=>{l[0].name=' ';},l=>{l[0].name='x'.repeat(65);}];
+ const bad=[l=>l.pop(),l=>{l[3].stage=5;},l=>{l[0].baseMana=30;},l=>{l[0].maxLife=390;},l=>{l[0].maxLife=520;},l=>{l[0].armor='constructor';},l=>{l[0].items[0].id='toString';},l=>{l[0].items[0].prefix='godly';},l=>{l[0].items[0].vPrefix='godly';},l=>{delete l[0].items[0].vPrefix;},l=>{l[0].items.pop();},l=>{l[0].slots=8;},l=>{l[0].name=' ';},l=>{l[0].name='x'.repeat(65);}];
  for(const f of bad){const l=B.loadoutDefaults();f(l);assert.equal(B.validLoadouts(l),false,f.toString());}
  const l=B.loadoutDefaults();l[0].maxLife=405;l[0].baseMana=20;assert.ok(B.validLoadouts(l));
 });
 test('Stage defaults read from loadouts; string preset keys still map to stages',()=>{
  const s=B.defaults(2);assert.equal(s.stage,2);near(s.baseDps,50);near(s.baseMana,200);assert.equal(s.e.armor,'magicTopaz');assert.equal(s.loadouts.length,19);
  assert.equal(B.defaults('jungle').stage,6);assert.equal(B.defaults().stage,13);
- assert.ok(s.e.items.slice(0,3).every(x=>x.prefix==='arcane'));assert.ok(s.v.items.slice(0,3).every(x=>x.prefix==='menacing'));
+ assert.deepEqual(Array.from(s.e.items.slice(0,5),x=>x.prefix),['arcane','none','none','none','none'],'King Slime stage: one lucky prefix before the Goblin Tinkerer');
+ assert.deepEqual(Array.from(s.v.items.slice(0,5),x=>x.prefix),['menacing','none','none','none','none']);
+ assert.deepEqual(Array.from(s.e.items.slice(0,5),x=>x.id),['band','elainaHat','utility','utility','empty']);
+ assert.deepEqual(Array.from(s.v.items.slice(0,5),x=>x.id),['band','utility','utility','utility','empty'],'Vanilla side sees the hat slot as a utility placeholder');
 });
-test('Applying a loadout swaps gear and mana, keeps vanilla prefixes and unlocks skills',()=>{
- const s=B.defaults(13);s.loadouts[5]={...s.loadouts[5],armor:'meteor',slots:6,baseMana:160,items:s.loadouts[5].items.map((x,i)=>({id:i?x.id:'celestialCuffs',prefix:'lucky'}))};
+test('Applying a loadout swaps gear, both side prefixes and mana, and unlocks skills',()=>{
+ const s=B.defaults(13);s.loadouts[5]={...s.loadouts[5],armor:'meteor',slots:6,baseMana:160,items:s.loadouts[5].items.map((x,i)=>({id:i?x.id:'celestialCuffs',prefix:'lucky',vPrefix:'menacing'}))};
  s.v.items.forEach(x=>x.prefix='warding');B.setPeriod(s.skills[0],8);
  const r=B.applyLoadout(s,6);
  assert.equal(s.stage,6);near(s.baseDps,200);near(s.baseMana,160);near(s.slots,6);assert.equal(s.v.armor,'meteor');assert.equal(s.e.armor,'meteor');
- assert.equal(s.v.items[0].id,'celestialCuffs');assert.equal(s.e.items[0].id,'celestialCuffs');assert.ok(s.e.items.every(x=>x.prefix==='lucky'));assert.ok(s.v.items.every(x=>x.prefix==='warding'));
+ assert.equal(s.v.items[0].id,'celestialCuffs');assert.equal(s.e.items[0].id,'celestialCuffs');assert.ok(s.e.items.every(x=>x.prefix==='lucky'));assert.ok(s.v.items.every(x=>x.prefix==='menacing'),'Vanilla prefixes come from vPrefix');
  assert.equal(s.skills[0].enabled,false);near(r.level,30);
  s.skills[0].enabled=true;assert.equal(B.applyLoadout(s,6,false),null);assert.equal(s.skills[0].enabled,true,'Editing without unlock keeps manual skill toggles');
 });
 test('Presets cover every vanilla period in order with KL stage DPS and valid gear',()=>{
  const list=Object.values(B.presets);assert.equal(JSON.stringify(list.map(p=>p.stage)),JSON.stringify(B.periods.map(p=>p.stage)));
- for(const p of list){assert.ok(Object.hasOwn(B.armors,p.armor),p.name);assert.ok(p.items.length<=p.slots&&p.items.every(id=>Object.hasOwn(B.accessories,id)),p.name);assert.equal(new Set(p.items).size,p.items.length,p.name);}
+ for(const p of list){assert.ok(Object.hasOwn(B.armors,p.armor),p.name);assert.ok(p.items.length<=p.slots&&p.items.every(id=>Object.hasOwn(B.accessories,id)),p.name);const real=p.items.filter(id=>!['utility','empty'].includes(id));assert.equal(new Set(real).size,real.length,p.name);}
  near(B.presets.start.base,30);near(B.presets.kingSlime.base,50);near(B.presets.jungle.base,200);near(B.presets.adamantite.base,450);near(B.presets.hallowed.base,900);near(B.presets.spectre.base,1800);near(B.presets.nebula.base,3500);
+});
+test('Default prefixes ramp up with the Goblin Tinkerer; both sides reforge the same slots',()=>{
+ const counts=Array.from(B.loadoutDefaults(),l=>{
+  const active=l.items.slice(0,l.slots).filter(x=>x.id!=='empty'),good=active.filter(x=>x.prefix==='arcane');
+  for(const x of l.items){assert.ok(x.prefix==='arcane'||x.prefix==='none',l.name);assert.equal(x.vPrefix==='none',x.prefix==='none',l.name+': vanilla and Elaina share reforged slots');assert.ok(['none','menacing','lucky'].includes(x.vPrefix),l.name);}
+  assert.ok(l.items.every(x=>x.id!=='empty'||x.prefix==='none'),'Empty slots never carry a prefix');
+  return [good.length,active.length];
+ });
+ assert.deepEqual(counts.slice(0,6),[[0,3],[1,4],[2,5],[3,5],[4,5],[5,5]],'Start has no damage prefix, then one more reforge per stage');
+ for(const [good,active] of counts.slice(5))assert.equal(good,active,'From Skeletron on every equipped slot is reforged');
+ assert.equal(B.loadoutDefault(8).slots,6,'Expert Demon Heart arrives with the Wall of Flesh');
+ const s=B.defaults(19);B.applyLoadout(s,19);const c=B.clone(s);B.applyDamagePrefixes(c,'v');
+ assert.deepEqual(Array.from(s.v.items,x=>x.prefix),Array.from(c.v.items,x=>x.prefix),'Vanilla defaults are the best menacing/lucky mix for that gear');
 });
 test('Unlock period maps to stage cap 5k and first level 5k-4; custom values are period 0',()=>{
  const row=B.newSkill('X','X');assert.ok(B.setPeriod(row,2));assert.equal(row.unlockStageCap,10);assert.equal(row.unlockLevel,6);assert.equal(B.periodOf(row),2);
@@ -185,7 +212,8 @@ test('Mana ladder reports overflow when every skill is fully funded',()=>{const 
 test('Mana ladder income subtracts autos and injuries and spreads the opening pool and potions',()=>{const s=ladderBase(30);setCombat(s,{startPercent:100,potions:2,potionPercent:50,autoCost:5,autoInterval:.5,hurtMode:'uniform',hurtTotal:200});const L=C.ladder(s);near(L.income,30-10-2+(200+200)/100);});
 test('Mana ladder skips unaffordable or non-positive skills when pouring',()=>{const s=ladderBase(30);s.skills[1].cost=201;s.skills[0].hit=0;const L=C.ladder(s);assert.equal(L.rows.find(x=>x.index===1).usable,false);assert.equal(L.rows.find(x=>x.index===0).positive,false);near(L.rows.find(x=>x.index===2).fill,1);});
 test('Break-even line separates arcane wins from damage-prefix wins for a never-saturating sink',()=>{
- const sink=(v)=>{const s=B.defaults();s.skills.forEach(x=>x.enabled=false);Object.assign(s.skills[0],{enabled:true,cost:20,cd:1,k:v,cdRatio:1,cast:.1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100});setCombat(s,{duration:300,potions:0,regenMode:'mod',regenPercent:2,policy:'efficiency',hurtMode:'uniform',hurtTotal:0});return s;};
+ // Ashen Witch off: V is a one-swap linearisation at k=10, and the extra 200 mana pool widens its gap from the true break-even.
+ const sink=(v)=>{const s=B.defaults();s.ashenWitch=false;s.skills.forEach(x=>x.enabled=false);Object.assign(s.skills[0],{enabled:true,cost:20,cd:1,k:v,cdRatio:1,cast:.1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100});setCombat(s,{duration:300,potions:0,regenMode:'mod',regenPercent:2,policy:'efficiency',hurtMode:'uniform',hurtTotal:0});return s;};
  const ratio=(v)=>{const a=sink(v),m=B.clone(a);B.applyDamagePrefixes(m,'e',B.equippedSlots(m,'e').filter(i=>m.e.items[i].prefix==='arcane'));return C.run(a).dps/C.run(m).dps;};
  const V=C.ladder(sink(10)).threshold;assert.ok(Number.isFinite(V)&&V>0);assert.ok(ratio(V*.5)<1);assert.ok(ratio(V*1.5)>1);
  const all=(s,prefix)=>{const c=B.clone(s);if(prefix==='damage')B.applyDamagePrefixes(c,'e');else c.e.items.slice(0,c.slots).forEach(x=>{if(x.id!=='empty')x.prefix=prefix;});return C.run(c).dps;};
@@ -347,7 +375,7 @@ async function browserTests(){
   await page.locator('#preset').selectOption('10');
   const vPrefixes=await page.locator('#vSlots select[data-prop="prefix"]').evaluateAll(xs=>xs.map(x=>x.value));
   const ePrefixes=await page.locator('#eSlots select[data-prop="prefix"]').evaluateAll(xs=>xs.map(x=>x.value));
-  assert.equal(vPrefixes.length,6);assert.ok(vPrefixes.slice(0,5).every(x=>x==='arcane'),'Changing stage keeps vanilla prefixes: '+vPrefixes);
+  assert.equal(vPrefixes.length,6);assert.deepEqual(vPrefixes,Array.from(B.loadoutDefault(10).items.slice(0,6),x=>x.vPrefix),'Vanilla prefixes come from the stage loadout');
   assert.deepEqual(ePrefixes,Array.from(B.loadoutDefault(10).items.slice(0,6),x=>x.prefix),'Elaina prefixes come from the stage loadout');
   assert.equal(await page.locator('#eArmor').inputValue(),'adamantite');
   assert.equal(await page.locator('#battleDuration').inputValue(),String(Number(duration)+7),'Changing gear preset must keep combat settings');
@@ -385,11 +413,13 @@ async function browserTests(){
   assert.equal(await page.locator('#basicDps0').innerText(),'540');
   assert.equal(errors.length,0,errors.join(' | '));
   const legacy=await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')));
-  delete legacy.occupyRatio;legacy.basicAttacks.forEach(r=>delete r.ratioCurve);legacy.baseDps=777;
+  delete legacy.occupyRatio;delete legacy.ashenWitch;delete legacy.maxLife;legacy.basicAttacks.forEach(r=>delete r.ratioCurve);legacy.baseDps=777;
   await page.evaluate(value=>localStorage.setItem('elaina-mage-balance-v2',JSON.stringify(value)),legacy);
   await page.reload();
   assert.equal(await page.locator('#baseDps').inputValue(),'777','Saves without curve or occupyRatio still load');
   assert.equal(await page.locator('#occupyRatio').inputValue(),'0');
+  assert.equal(await page.locator('#ashenWitch').isChecked(),true,'Saves without the Ashen Witch switch default to on');
+  assert.equal(await page.locator('#maxLife').inputValue(),String(legacy.loadouts[legacy.stage-1].maxLife),'Missing max life falls back to the stage loadout');
   assert.equal(await page.getByRole('textbox',{name:'魔法飞弹倍率曲线',exact:true}).inputValue(),'');
   await page.locator('#occupyRatio').fill('1');
   near((await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')))).occupyRatio,1);
@@ -450,8 +480,10 @@ async function browserTests(){
   const values=async(side,prop)=>page.locator('#'+side+'Slots select[data-prop="'+prop+'"]').evaluateAll(els=>els.map(el=>el.value));
   const initialVItems=await values('v','id'),initialEItems=await values('e','id');
   const initialEPrefixes=await values('e','prefix');
-  const beforePrefixDps=await page.locator('#simVanilla').innerText();
   const isDamage=v=>v==='menacing'||v==='lucky';
+  // Stage defaults already give vanilla full damage prefixes late game, so start from arcane to see the change.
+  await page.getByRole('button',{name:'原版法师全奥秘',exact:true}).click();
+  const beforePrefixDps=await page.locator('#simVanilla').innerText();
   await page.getByRole('button',{name:'原版法师全增伤',exact:true}).click();
   assert.ok((await values('v','prefix')).every(isDamage));
   assert.match(await page.locator('#vPrefixStatus').innerText(),/增伤（险恶 \d+ 个、幸运 \d+ 个/);
@@ -529,9 +561,17 @@ async function browserTests(){
   // Exercise the new resource-limited simulation before the legacy-budget regression suite.
   const initialSim=await page.locator('#simActual').innerText();
   const initialIdeal=await page.locator('#simIdeal').innerText();
+  // Stage 13 has 500 max life: Ashen Witch adds 200 special mana, so the default fight only becomes potion-bound without it.
+  assert.equal(await page.locator('#ashenWitch').isChecked(),true);
+  assert.match(await page.locator('#eStageInfo').innerText(),/帽子 20 \+ 灰之魔女 200（最大生命 500 → 300）/);
+  await page.locator('#ashenWitch').uncheck();
+  assert.match(await page.locator('#eStageInfo').innerText(),/灰之魔女未开启/);
   await page.locator('#battlePotions').fill('0');
   assert.notEqual(await page.locator('#simActual').innerText(),initialSim);
   assert.equal(await page.locator('#simIdeal').innerText(),initialIdeal);
+  await page.locator('#ashenWitch').check();
+  assert.equal(await page.locator('#simActual').innerText(),initialSim,'Ashen Witch mana covers the missing potions');
+  await page.locator('#ashenWitch').uncheck();
   assert.equal(await page.locator('#simPotionEnd').innerText(),'未携带');
   await page.getByRole('button',{name:'长战 180 秒',exact:true}).click();
   assert.equal(await page.locator('#battleDuration').inputValue(),'180');
@@ -542,7 +582,8 @@ async function browserTests(){
   await page.locator('#battlePolicy').selectOption('save');
   await resetPage();
   await page.getByText('受伤损蓝：均匀损失、周期受击或指定时间',{exact:true}).click();
-  await page.locator('#battleHurtTotal').fill('500');
+  // Large enough to bind even with the all-arcane stage-13 default.
+  await page.locator('#battleHurtTotal').fill('5000');
   assert.notEqual(await page.locator('#simActual').innerText(),initialSim);
   await page.locator('#battleHurtMode').selectOption('events');
   await page.locator('#battleHurtEvents').fill('0:380\nbad\n150:20');
@@ -552,7 +593,7 @@ async function browserTests(){
   await page.locator('#battleHurtPerHit').fill('50');
   await page.locator('#battleHurtInterval').fill('20');
   await page.getByRole('checkbox',{name:'模拟启用冰凌锁',exact:true}).check();
-  await page.getByRole('spinbutton',{name:'模拟冰凌锁蓝耗',exact:true}).fill('500');
+  await page.getByRole('spinbutton',{name:'模拟冰凌锁蓝耗',exact:true}).fill('900');
   assert.match(await page.locator('#simWarnings').innerText(),/无法支付/);
   assert.match(await page.locator('#ladderRows').innerText(),/冰凌锁[\s\S]*无法释放/);
   assert.match(await page.locator('#ladderSummary').innerText(),/技能可用蓝/);
@@ -572,6 +613,10 @@ async function browserTests(){
   await page.locator('#preset').selectOption('18');
   assert.equal(await page.locator('#baseDps').inputValue(),'1800');
   assert.match(await page.locator('#vSummary').innerText(),/追击未自动计入/);
+  assert.equal(await page.locator('#vSlots option[value="elainaHat"]').count(),0,'Vanilla slots cannot pick the Elaina-only hat');
+  assert.equal(await page.locator('#eSlots select[data-prop="id"]').first().locator('option[value="elainaHat"]').count(),1);
+  assert.equal(await page.locator('#eSlots select[data-prop="id"]').nth(3).inputValue(),'elainaHat');
+  assert.equal(await page.locator('#vSlots select[data-prop="id"]').nth(3).inputValue(),'utility');
   await page.locator('#vSlots select[data-prop="id"]').nth(1).selectOption('sorcerer');
   assert.match(await page.locator('#vSummary').innerText(),/重复装备/);
   await resetPage();
@@ -600,7 +645,7 @@ async function browserTests(){
   await page.locator('[data-loadout-index="1"][data-loadout-prop="id"]').selectOption('sorcerer');
   assert.match(await page.locator('#loadoutStats').innerText(),/重复装备/);
   await page.locator('[data-loadout-index="1"][data-loadout-prop="id"]').selectOption('celestialCuffs');
-  await page.getByRole('button',{name:'全增伤',exact:true}).click();
+  await page.getByRole('button',{name:'本阶段伊蕾娜全增伤',exact:true}).click();
   const stageDamage=(()=>{const p=B.defaults();Object.assign(p.e,{armor:'jungle'});p.slots=5;p.e.items=B.loadoutDefault(3).items;p.e.items[0].id='sorcerer';p.e.items[1].id='celestialCuffs';return Array.from(B.applyDamagePrefixes(p,'e'));})();
   assert.ok(stageDamage.includes('lucky'),'Jungle stage gear prefers lucky for some slots');
   assert.deepEqual(await page.locator('[data-loadout-prop="prefix"]').evaluateAll(els=>els.slice(0,5).map(el=>el.value)),stageDamage,'Stage all-damage uses this stage gear plus lab extras');
