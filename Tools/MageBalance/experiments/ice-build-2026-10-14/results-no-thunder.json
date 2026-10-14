@@ -1,0 +1,1177 @@
+{
+  "date": "2026-10-14",
+  "experimentOnly": true,
+  "parameters": {
+    "freezeBase": 60,
+    "freezeDuration": 4,
+    "freezeBuildSeconds": 14,
+    "iceAttacksRequired": 28,
+    "iceProjectilesRequired": 84,
+    "iceResetGap": 15,
+    "waterDiscount": 0.5,
+    "ballDiscount": 4,
+    "waterWet": 5,
+    "ballWet": 15,
+    "waterRatio": 0.9,
+    "waterReadyRatio": 0.7,
+    "iceRatio": 0.9,
+    "waterInterval": 0.2,
+    "waterCost": 1.5,
+    "iceInterval": 0.5,
+    "iceCost": 4.5,
+    "ballCost": 150,
+    "ballCD": 15,
+    "ballCast": 1.35,
+    "ballK": 1.8,
+    "lockCost": 100,
+    "lockCD": 20,
+    "lockCast": 0.2,
+    "lockDelay": 1,
+    "lockBaseB": 3.2,
+    "lockPerSecondB": 2.5,
+    "thunderCD": 120,
+    "thunderDuration": 30,
+    "thunderCast": 2,
+    "thunderDelay": 1,
+    "thunderStartup": 0,
+    "thunderDrain": 15,
+    "thunderBudgetB": 48
+  },
+  "regenPercent": 2,
+  "assumptions": {
+    "dummy": "300s, six slots, graduation, nebula damage three stacks, no injury, five 30% mana potions",
+    "moon": "Seven slots, hat, graduation, 24 fixed seeds, maintained nebula life regen 9HP/s, five 50% mana potions; illustrative hit/dodge profiles",
+    "ultimate": "Cost/CD sensitivity only. No earned ultimate gauge or limited charge system simulated. Damage kept at 48B regardless of cost.",
+    "limits": "Existing simplified simulators; no game measurement or global optimum proof. Moon movement and projectiles are idealized, MoonLeech healing omitted."
+  },
+  "dummy": {
+    "noHat": {
+      "withThunder": {
+        "arcane": {
+          "ratio": 1.5928333333333096,
+          "dps": 16441.715769230523,
+          "share": {
+            "water": 0.19472637857068173,
+            "ice": 0.19776080359945852,
+            "ball": 0.1836350319137832,
+            "lock": 0.19933033378675608,
+            "thunder": 0.22454745212932056
+          },
+          "basicShare": 0.3924871821701402,
+          "freezes": 9,
+          "casts": {
+            "water": 621,
+            "ice": 252,
+            "ball": 13,
+            "lock": 9,
+            "thunder": 3
+          },
+          "potions": 5,
+          "idle": 24.45,
+          "endMana": 58.10000000001577,
+          "maxMana": 580,
+          "regen": 16.6,
+          "thunderPaidSeconds": 90,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.6366000000000092,
+          "dps": 16893.488769230862,
+          "share": {
+            "water": 0.21145464173693457,
+            "ice": 0.20530367835757005,
+            "ball": 0.16497617010876114,
+            "lock": 0.20693307263024863,
+            "thunder": 0.2113324371664856
+          },
+          "basicShare": 0.41675832009450464,
+          "freezes": 8,
+          "casts": {
+            "water": 577,
+            "ice": 224,
+            "ball": 10,
+            "lock": 8,
+            "thunder": 3
+          },
+          "potions": 5,
+          "idle": 51.5,
+          "endMana": 49.9500000000605,
+          "maxMana": 460,
+          "regen": 14.2,
+          "thunderPaidSeconds": 74.25,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.026742433500366203
+      },
+      "withoutThunder": {
+        "arcane": {
+          "ratio": 1.4597777777777734,
+          "dps": 15068.275384615337,
+          "share": {
+            "water": 0.2257192875627929,
+            "ice": 0.2397625209316492,
+            "ball": 0.2928527934236575,
+            "lock": 0.2416653980819005,
+            "thunder": 0
+          },
+          "basicShare": 0.4654818084944421,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 0,
+          "endMana": 220.59999999994275,
+          "maxMana": 580,
+          "regen": 16.6,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.5512333333333372,
+          "dps": 16012.307769230809,
+          "share": {
+            "water": 0.2505962997185046,
+            "ice": 0.2601156069364165,
+            "ball": 0.2436770741560472,
+            "lock": 0.24561101918903183,
+            "thunder": 0
+          },
+          "basicShare": 0.510711906654921,
+          "freezes": 9,
+          "casts": {
+            "water": 649,
+            "ice": 270,
+            "ball": 14,
+            "lock": 9,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 14.683333333333334,
+          "endMana": 148.700000000078,
+          "maxMana": 460,
+          "regen": 14.2,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.058956672468507
+      },
+      "searchedWithoutThunder": {
+        "arcane": {
+          "ratio": 1.4597777777777734,
+          "dps": 15068.275384615337,
+          "share": {
+            "water": 0.2257192875627929,
+            "ice": 0.2397625209316492,
+            "ball": 0.2928527934236575,
+            "lock": 0.2416653980819005,
+            "thunder": 0
+          },
+          "basicShare": 0.4654818084944421,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 0,
+          "endMana": 220.59999999994275,
+          "maxMana": 580,
+          "regen": 16.6,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "order": [
+            "thunder",
+            "ball"
+          ],
+          "reserveHorizon": 2
+        },
+        "damage": {
+          "ratio": 1.6101944444444491,
+          "dps": 16620.922500000048,
+          "share": {
+            "water": 0.2604240343643808,
+            "ice": 0.2608380630358655,
+            "ball": 0.2179860955371153,
+            "lock": 0.2607518070626384,
+            "thunder": 0
+          },
+          "basicShare": 0.5212620974002462,
+          "freezes": 10,
+          "casts": {
+            "water": 701,
+            "ice": 280,
+            "ball": 13,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 0.4166666666666667,
+          "endMana": 75.70000000006266,
+          "maxMana": 460,
+          "regen": 14.2,
+          "thunderPaidSeconds": 0,
+          "policy": "flow",
+          "order": [
+            "thunder",
+            "ball"
+          ],
+          "reserveHorizon": 0
+        },
+        "arcaneLead": -0.09341521900392147
+      }
+    },
+    "hat": {
+      "withThunder": {
+        "arcane": {
+          "ratio": 1.8070764866979605,
+          "dps": 18653.199519230715,
+          "share": {
+            "water": 0.18809092737879893,
+            "ice": 0.1901025950512988,
+            "ball": 0.20368135184067657,
+            "lock": 0.19161134580567346,
+            "thunder": 0.22651377992355223
+          },
+          "basicShare": 0.37819352243009774,
+          "freezes": 9,
+          "casts": {
+            "water": 624,
+            "ice": 252,
+            "ball": 15,
+            "lock": 9,
+            "thunder": 3
+          },
+          "potions": 5,
+          "idle": 21.15,
+          "endMana": 1.2500000000189369,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 84.45,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.8344614567031783,
+          "dps": 18935.87560576919,
+          "share": {
+            "water": 0.2095980473209704,
+            "ice": 0.19841738514231663,
+            "ball": 0.14349828746899757,
+            "lock": 0.19999212629424076,
+            "thunder": 0.24849415377347467
+          },
+          "basicShare": 0.40801543246328703,
+          "freezes": 8,
+          "casts": {
+            "water": 592,
+            "ice": 225,
+            "ball": 9,
+            "lock": 8,
+            "thunder": 3
+          },
+          "potions": 5,
+          "idle": 49.78333333333333,
+          "endMana": 101.10000000006912,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 90,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.014928070527266857
+      },
+      "withoutThunder": {
+        "arcane": {
+          "ratio": 1.5919916101547595,
+          "dps": 16433.027243589782,
+          "share": {
+            "water": 0.22571928756279613,
+            "ice": 0.23976252093164854,
+            "ball": 0.29285279342365605,
+            "lock": 0.24166539808189927,
+            "thunder": 0
+          },
+          "basicShare": 0.46548180849444465,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 4,
+          "idle": 0,
+          "endMana": 205.00000000011454,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.7110012834724335,
+          "dps": 17661.481709935833,
+          "share": {
+            "water": 0.24498237764599007,
+            "ice": 0.2573707869911143,
+            "ball": 0.2564210792900416,
+            "lock": 0.24122575607285396,
+            "thunder": 0
+          },
+          "basicShare": 0.5023531646371044,
+          "freezes": 9,
+          "casts": {
+            "water": 646,
+            "ice": 272,
+            "ball": 15,
+            "lock": 9,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 12.883333333333333,
+          "endMana": 158.60000000008907,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.06955557220632047
+      },
+      "searchedWithoutThunder": {
+        "arcane": {
+          "ratio": 1.5919916101547595,
+          "dps": 16433.027243589782,
+          "share": {
+            "water": 0.22571928756279613,
+            "ice": 0.23976252093164854,
+            "ball": 0.29285279342365605,
+            "lock": 0.24166539808189927,
+            "thunder": 0
+          },
+          "basicShare": 0.46548180849444465,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 4,
+          "idle": 0,
+          "endMana": 205.00000000011454,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "order": [
+            "thunder",
+            "ball"
+          ],
+          "reserveHorizon": 2
+        },
+        "damage": {
+          "ratio": 1.771942967889636,
+          "dps": 18290.54052777771,
+          "share": {
+            "water": 0.2540010325245213,
+            "ice": 0.25677254571638114,
+            "ball": 0.23109529114474445,
+            "lock": 0.258131130614353,
+            "thunder": 0
+          },
+          "basicShare": 0.5107735782409024,
+          "freezes": 10,
+          "casts": {
+            "water": 695,
+            "ice": 280,
+            "ball": 14,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 0.13333333333333333,
+          "endMana": 99.1000000000843,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 0,
+          "policy": "flow",
+          "order": [
+            "thunder",
+            "ball"
+          ],
+          "reserveHorizon": 0
+        },
+        "arcaneLead": -0.10155595354696789
+      }
+    }
+  },
+  "nerfs": [
+    {
+      "ratio": 0.9,
+      "result": {
+        "arcane": {
+          "ratio": 1.5919916101547595,
+          "dps": 16433.027243589782,
+          "share": {
+            "water": 0.22571928756279613,
+            "ice": 0.23976252093164854,
+            "ball": 0.29285279342365605,
+            "lock": 0.24166539808189927,
+            "thunder": 0
+          },
+          "basicShare": 0.46548180849444465,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 4,
+          "idle": 0,
+          "endMana": 205.00000000011454,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.7110012834724335,
+          "dps": 17661.481709935833,
+          "share": {
+            "water": 0.24498237764599007,
+            "ice": 0.2573707869911143,
+            "ball": 0.2564210792900416,
+            "lock": 0.24122575607285396,
+            "thunder": 0
+          },
+          "basicShare": 0.5023531646371044,
+          "freezes": 9,
+          "casts": {
+            "water": 646,
+            "ice": 272,
+            "ball": 15,
+            "lock": 9,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 12.883333333333333,
+          "endMana": 158.60000000008907,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.06955557220632047
+      }
+    },
+    {
+      "ratio": 0.8,
+      "result": {
+        "arcane": {
+          "ratio": 1.5096534841766645,
+          "dps": 15583.107772435891,
+          "share": {
+            "water": 0.21158245374643653,
+            "ice": 0.22474615724204486,
+            "ball": 0.30882529999598696,
+            "lock": 0.25484608901553163,
+            "thunder": 0
+          },
+          "basicShare": 0.4363286109884814,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 4,
+          "idle": 0,
+          "endMana": 205.00000000011454,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.615498293533493,
+          "dps": 16675.670462250724,
+          "share": {
+            "water": 0.23063549934930141,
+            "ice": 0.2422984075262517,
+            "ball": 0.27157985714427607,
+            "lock": 0.2554862359801708,
+            "thunder": 0
+          },
+          "basicShare": 0.47293390687555314,
+          "freezes": 9,
+          "casts": {
+            "water": 646,
+            "ice": 272,
+            "ball": 15,
+            "lock": 9,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 12.883333333333333,
+          "endMana": 158.60000000008907,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.06551836655012488
+      }
+    },
+    {
+      "ratio": 0.7,
+      "result": {
+        "arcane": {
+          "ratio": 1.427315358198579,
+          "dps": 14733.1883012821,
+          "share": {
+            "water": 0.1958145852788882,
+            "ice": 0.20799728330078932,
+            "ball": 0.3266406316325655,
+            "lock": 0.26954749978775694,
+            "thunder": 0
+          },
+          "basicShare": 0.40381186857967755,
+          "freezes": 10,
+          "casts": {
+            "water": 662,
+            "ice": 280,
+            "ball": 19,
+            "lock": 10,
+            "thunder": 0
+          },
+          "potions": 4,
+          "idle": 0,
+          "endMana": 205.00000000011454,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.51999530359454,
+          "dps": 15689.859214565484,
+          "share": {
+            "water": 0.2144857605169422,
+            "ice": 0.2253319994403999,
+            "ball": 0.2886435206326672,
+            "lock": 0.27153871940999064,
+            "thunder": 0
+          },
+          "basicShare": 0.43981775995734207,
+          "freezes": 9,
+          "casts": {
+            "water": 646,
+            "ice": 272,
+            "ball": 15,
+            "lock": 9,
+            "thunder": 0
+          },
+          "potions": 5,
+          "idle": 12.883333333333333,
+          "endMana": 158.60000000008907,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 0,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.060973836680145
+      }
+    }
+  ],
+  "boss": [
+    {
+      "prefix": "arcane",
+      "profile": "ideal",
+      "preBuild": [],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 30.899999999999988,
+        "minSeconds": 30.9,
+        "maxSeconds": 30.9,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0,
+        "endMana": 514.3700000000152,
+        "share": {
+          "water": 0.34482945141014976,
+          "ice": 0.4259945460428629,
+          "ball": 0.0527940304734229,
+          "lock": 0.17638197207356476,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "arcane",
+      "profile": "ideal",
+      "preBuild": [
+        "ball"
+      ],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 32.61666666666667,
+        "minSeconds": 32.61666666666667,
+        "maxSeconds": 32.61666666666667,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0,
+        "endMana": 513.7900000000153,
+        "share": {
+          "water": 0.34482945141014976,
+          "ice": 0.4254536370994744,
+          "ball": 0.17241292267526342,
+          "lock": 0.057303988815112554,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "arcane",
+      "profile": "normal",
+      "preBuild": [],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 43.10486111111111,
+        "minSeconds": 26.116666666666667,
+        "maxSeconds": 63.516666666666666,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0,
+        "endMana": 429.69708333334273,
+        "share": {
+          "water": 0.19891543423848299,
+          "ice": 0.47942667967425545,
+          "ball": 0.17438792078901677,
+          "lock": 0.14726996529824488,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "arcane",
+      "profile": "normal",
+      "preBuild": [
+        "ball"
+      ],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 39.457638888888894,
+        "minSeconds": 31.116666666666667,
+        "maxSeconds": 55.016666666666666,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0,
+        "endMana": 401.48541666667364,
+        "share": {
+          "water": 0.09204806886097168,
+          "ice": 0.4283769689374488,
+          "ball": 0.2453752845175263,
+          "lock": 0.23419967768405328,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "arcane",
+      "profile": "heavy",
+      "preBuild": [],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 64.46805555555555,
+        "minSeconds": 43.21666666666667,
+        "maxSeconds": 116.51666666666667,
+        "freezes": 1,
+        "locks": 0.9166666666666666,
+        "potions": 0,
+        "endMana": 362.3125000000216,
+        "share": {
+          "water": 0.21913544331192233,
+          "ice": 0.4509075590285378,
+          "ball": 0.17536188845389625,
+          "lock": 0.1545951092056438,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "arcane",
+      "profile": "heavy",
+      "preBuild": [
+        "ball"
+      ],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 63.26666666666665,
+        "minSeconds": 46.5,
+        "maxSeconds": 86.01666666666667,
+        "freezes": 1,
+        "locks": 0.75,
+        "potions": 0,
+        "endMana": 365.05000000000956,
+        "share": {
+          "water": 0.16067096546873913,
+          "ice": 0.42955778009559586,
+          "ball": 0.3102871561766622,
+          "lock": 0.09948409825900288,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "damage",
+      "profile": "ideal",
+      "preBuild": [],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 28.16666666666666,
+        "minSeconds": 28.166666666666668,
+        "maxSeconds": 28.166666666666668,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0,
+        "endMana": 320.7900000000043,
+        "share": {
+          "water": 0.34482945141014976,
+          "ice": 0.5270151597359584,
+          "ball": 0,
+          "lock": 0.12815538885389174,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "damage",
+      "profile": "ideal",
+      "preBuild": [
+        "ball"
+      ],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 22,
+        "minSeconds": 22,
+        "maxSeconds": 22,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0,
+        "endMana": 242.35666666667416,
+        "share": {
+          "water": 0,
+          "ice": 0.5188644525183191,
+          "ball": 0.17241292267526342,
+          "lock": 0.3087226248064168,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "damage",
+      "profile": "normal",
+      "preBuild": [],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 42.91736111111112,
+        "minSeconds": 35.85,
+        "maxSeconds": 55.81666666666667,
+        "freezes": 1,
+        "locks": 0.6666666666666666,
+        "potions": 0,
+        "endMana": 236.87097222223045,
+        "share": {
+          "water": 0.26661485570930293,
+          "ice": 0.5288519374110101,
+          "ball": 0.15880839925429935,
+          "lock": 0.045724807625387554,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "damage",
+      "profile": "normal",
+      "preBuild": [
+        "ball"
+      ],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 32.234027777777776,
+        "minSeconds": 24.9,
+        "maxSeconds": 37.15,
+        "freezes": 1,
+        "locks": 0.125,
+        "potions": 0,
+        "endMana": 312.09111111111594,
+        "share": {
+          "water": 0.003024994258043524,
+          "ice": 0.5281419010206675,
+          "ball": 0.4345214801356044,
+          "lock": 0.03431162458568456,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "damage",
+      "profile": "heavy",
+      "preBuild": [],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 59.604166666666664,
+        "minSeconds": 39.6,
+        "maxSeconds": 87.76666666666667,
+        "freezes": 1,
+        "locks": 1,
+        "potions": 0.041666666666666664,
+        "endMana": 174.72750000000542,
+        "share": {
+          "water": 0.16425405385825717,
+          "ice": 0.5276002733936415,
+          "ball": 0.12297446764157878,
+          "lock": 0.18517120510652255,
+          "thunder": 0
+        }
+      }
+    },
+    {
+      "prefix": "damage",
+      "profile": "heavy",
+      "preBuild": [
+        "ball"
+      ],
+      "result": {
+        "samples": 24,
+        "completed": 24,
+        "meanSeconds": 49.68472222222221,
+        "minSeconds": 44.86666666666667,
+        "maxSeconds": 61.96666666666667,
+        "freezes": 1,
+        "locks": 0.25,
+        "potions": 0,
+        "endMana": 257.5036111111265,
+        "share": {
+          "water": 0.020267461528891608,
+          "ice": 0.5221240965867119,
+          "ball": 0.40917966534137057,
+          "lock": 0.048428776543025985,
+          "thunder": 0
+        }
+      }
+    }
+  ],
+  "ultimateCandidates": [
+    {
+      "startup": 200,
+      "drain": 15,
+      "fullCost": 650,
+      "cooldown": 180,
+      "damageBudgetB": 48,
+      "result": {
+        "arcane": {
+          "ratio": 1.6309795307337864,
+          "dps": 16835.472556089753,
+          "share": {
+            "water": 0.21460279722877615,
+            "ice": 0.22818031538475864,
+            "ball": 0.25576255131038833,
+            "lock": 0.21229963409424382,
+            "thunder": 0.08915470198183291
+          },
+          "basicShare": 0.44278311261353476,
+          "freezes": 9,
+          "casts": {
+            "water": 643,
+            "ice": 274,
+            "ball": 17,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 7.783333333333333,
+          "endMana": 190.50000000001367,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.762710838332463,
+          "dps": 18195.24364583332,
+          "share": {
+            "water": 0.24439209259448752,
+            "ice": 0.24060227389122066,
+            "ball": 0.18252586295196155,
+            "lock": 0.23414933934241533,
+            "thunder": 0.09833043121991504
+          },
+          "basicShare": 0.48499436648570815,
+          "freezes": 9,
+          "casts": {
+            "water": 663,
+            "ice": 262,
+            "ball": 11,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 18.066666666666666,
+          "endMana": 128.10000000007415,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.07473222762009857
+      }
+    },
+    {
+      "startup": 200,
+      "drain": 20,
+      "fullCost": 800,
+      "cooldown": 180,
+      "damageBudgetB": 48,
+      "result": {
+        "arcane": {
+          "ratio": 1.6085925273865422,
+          "dps": 16604.387019230777,
+          "share": {
+            "water": 0.21977401129943655,
+            "ice": 0.23050847457627163,
+            "ball": 0.24406779661016945,
+            "lock": 0.2152542372881355,
+            "thunder": 0.09039548022598687
+          },
+          "basicShare": 0.4502824858757082,
+          "freezes": 9,
+          "casts": {
+            "water": 649,
+            "ice": 273,
+            "ball": 16,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 8.45,
+          "endMana": 185.99999999999528,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.7358810902451738,
+          "dps": 17918.29873076922,
+          "share": {
+            "water": 0.2504992511233131,
+            "ice": 0.24338492261607456,
+            "ball": 0.16849725411882183,
+            "lock": 0.2377683474787819,
+            "thunder": 0.09985022466300866
+          },
+          "basicShare": 0.49388417373938764,
+          "freezes": 9,
+          "casts": {
+            "water": 669,
+            "ice": 261,
+            "ball": 10,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 18.833333333333332,
+          "endMana": 123.60000000007453,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.07332792757172868
+      }
+    },
+    {
+      "startup": 300,
+      "drain": 15,
+      "fullCost": 750,
+      "cooldown": 180,
+      "damageBudgetB": 48,
+      "result": {
+        "arcane": {
+          "ratio": 1.6111977808207276,
+          "dps": 16631.27924679488,
+          "share": {
+            "water": 0.2193434362426218,
+            "ice": 0.23182792464182342,
+            "ball": 0.24367314706877746,
+            "lock": 0.21490617831760228,
+            "thunder": 0.09024931372917502
+          },
+          "basicShare": 0.4511713608844452,
+          "freezes": 9,
+          "casts": {
+            "water": 649,
+            "ice": 275,
+            "ball": 16,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 7.666666666666667,
+          "endMana": 226.99999999999056,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.7443308359415748,
+          "dps": 18005.519605769223,
+          "share": {
+            "water": 0.24481430878151592,
+            "ice": 0.23475344677679663,
+            "ball": 0.18444913675319838,
+            "lock": 0.2366165693702646,
+            "thunder": 0.09936653831822448
+          },
+          "basicShare": 0.47956775555831255,
+          "freezes": 9,
+          "casts": {
+            "water": 657,
+            "ice": 252,
+            "ball": 11,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 23.95,
+          "endMana": 82.10000000007584,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.07632328247467057
+      }
+    },
+    {
+      "startup": 300,
+      "drain": 20,
+      "fullCost": 900,
+      "cooldown": 180,
+      "damageBudgetB": 48,
+      "result": {
+        "arcane": {
+          "ratio": 1.5884169600938975,
+          "dps": 16396.128605769238,
+          "share": {
+            "water": 0.225311820574438,
+            "ice": 0.23343631994507422,
+            "ball": 0.23171987641606584,
+            "lock": 0.21798832818400263,
+            "thunder": 0.09154365488041924
+          },
+          "basicShare": 0.4587481405195122,
+          "freezes": 9,
+          "casts": {
+            "water": 657,
+            "ice": 273,
+            "ball": 15,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 8.116666666666667,
+          "endMana": 223.99999999999588,
+          "maxMana": 600,
+          "regen": 17,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "damage": {
+          "ratio": 1.7176816379760034,
+          "dps": 17730.438384615376,
+          "share": {
+            "water": 0.25012613521695065,
+            "ice": 0.238395560040362,
+            "ball": 0.1702825428859738,
+            "lock": 0.2402875882946519,
+            "thunder": 0.10090817356206172
+          },
+          "basicShare": 0.48852169525731265,
+          "freezes": 9,
+          "casts": {
+            "water": 661,
+            "ice": 252,
+            "ball": 10,
+            "lock": 9,
+            "thunder": 1
+          },
+          "potions": 5,
+          "idle": 24.5,
+          "endMana": 76.10000000007706,
+          "maxMana": 480,
+          "regen": 14.6,
+          "thunderPaidSeconds": 30,
+          "policy": "reserve",
+          "reserveHorizon": 4
+        },
+        "arcaneLead": -0.07525531799619312
+      }
+    }
+  ],
+  "inputHashes": {
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\Tools\\MageBalance\\index.html": "78b0f7790d9304ea27463a41e1bd63d263c76d4c569a82686dfef717684d7f3c",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\ElainaModSkills\\Data\\SkillBalance.json": "6883a5176e4b73a6147a7f8624cc3162b057008f9428fbc446ac31cacb01c672",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\ElainaAttribute\\ElainaMagicAttributes.cs": "5b5cd9fa81af3cad419e48e819661a390619db37501ef1023547deeba52c579a",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\Tools\\MageBalance\\experiments\\ice-build-2026-10-14\\REPORT-v5.md": "bcabd86d4b3fef4ec40287ee6ee98253a340d58d30a8b2ecc18a3db794f3160b",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\Tools\\MageBalance\\experiments\\ice-build-2026-10-14\\candidate-parameters-v5.json": "91513ca0565a68339f58eea691a843546a66b33068752455bbb10ad0ee87ebbf",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\Tools\\MageBalance\\experiments\\ice-build-2026-10-14\\results-v5.json": "f711ba7fae8190421a0928bbc3bb71968456bb1c75fadb98136f314733d3fcfb",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\Tools\\MageBalance\\experiments\\moon-lord-master-2026-10-14\\REPORT.md": "24b6523330a2345fc437d08c63fe4d5f3b15938d2f07fbfd50b0544fccc30ad9",
+    "C:\\Users\\korateleng\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\伊蕾娜\\Tools\\MageBalance\\experiments\\moon-lord-master-2026-10-14\\results.json": "e53cf1d67349d2327c32b94d2942f4c874d78f7dd005504e44f804811d5e16cf"
+  }
+}

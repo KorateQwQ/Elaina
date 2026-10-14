@@ -27,6 +27,9 @@ function run(options={}) {
   if(o.waterInterval!==undefined)water.interval=o.waterInterval;
   if(o.waterRatio!==undefined){water.ratio=o.waterRatio;water.ratioCurve=[];}
   if(o.iceRatio!==undefined){ice.ratio=o.iceRatio;ice.ratioCurve=[];}
+  // Water outside the freeze cooldown uses waterReadyRatio instead of waterRatio.
+  assert(o.waterReadyRatio===undefined||o.waterRatio!==undefined);
+  let waterReadyHits=0;
   const ballDamage=s.baseDps*(s.rate/100/20)*o.ballCost*o.ballCD*o.ballK*b.skillMultiplier;
   const thunderTotalCost=o.thunderStartup+o.thunderDrain*o.thunderDuration;
   const thunderTotalDamage=o.thunderBudgetB!==undefined?o.thunderBudgetB*scale:s.baseDps*(s.rate/100/20)*thunderTotalCost*o.thunderCD*o.thunderK*b.skillMultiplier;
@@ -68,6 +71,7 @@ function run(options={}) {
     for(let i=0;i<events.length;) {
       const e=events[i];if(e.at>tick){i++;continue;}events.splice(i,1);
       if(e.type==='hit') {
+        if(e.key==='water'&&o.waterReadyRatio!==undefined&&freezeReady<=tick){e.damage*=o.waterReadyRatio/o.waterRatio;waterReadyHits++;}
         credit(e.key,e.damage);
         if(e.key==='water'){waterUntil=tick+frames(o.waterWet);discount('water');}
         if(e.key==='ball'){ballUntil=tick+frames(o.ballWet);discount('ball');}
@@ -197,7 +201,7 @@ function run(options={}) {
   assert(freezes.every(f=>f.iceSeconds+EPS>=o.freezeBuildSeconds&&f.time-f.buildStart+EPS>=o.freezeBuildSeconds));
   assert(new Set(detonations.filter(d=>d.freezeId!==null).map(d=>d.freezeId)).size===detonations.filter(d=>d.freezeId!==null).length);
   assert(Math.abs(records.thunder.spent-records.thunder.count*o.thunderStartup-thunderPaidTicks*o.thunderDrain/FPS)<1e-5);
-  return {options:o,dps:damage/T,ratio:damage/T/b.vanilla,vanilla:b.vanilla,M,regen,endMana:mana,usedPotions:s.combat.potions-potions,idleSeconds:idleTicks/FPS,
+  return {options:o,dps:damage/T,ratio:damage/T/b.vanilla,vanilla:b.vanilla,M,regen,endMana:mana,usedPotions:s.combat.potions-potions,idleSeconds:idleTicks/FPS,waterReadyHits,scale,basicMultiplier:b.e.multiplier,
     ledger:{initial:M,natural,potion:potionMana,externalMana,spent,end:mana,error},records,freezeCount:freezes.length,detonationCount:detonations.filter(x=>x.remaining>0).length,
     averageRemaining:detonations.length?controlSacrificed/detonations.length:0,wetCoverage:wetTicks/N,
     thunderPaidSeconds:thunderPaidTicks/FPS,thunderWetCoverage:thunderPaidTicks?cloudWetTicks/thunderPaidTicks:0,cloudDrySeconds:cloudDryTicks/FPS,

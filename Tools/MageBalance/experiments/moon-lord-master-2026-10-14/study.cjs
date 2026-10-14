@@ -1,28 +1,39 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const S=require('./simulate.cjs');
-const previous=JSON.parse(fs.readFileSync(path.join(__dirname,'results-independent-freeze.json'),'utf8'));
+const previous=JSON.parse(fs.readFileSync(path.join(__dirname,'results-pre-v5.json'),'utf8'));
 const SEEDS=24;
-function scope(name) {
-  if(name==='graduate')return {stage:19,allowThunder:true,healthRegen:9,healthPotionHeal:200};
-  if(name==='firstClear')return {stage:18,allowThunder:false,healthRegen:2,healthPotionHeal:150};
-  return {stage:18,allowThunder:true,healthRegen:2,healthPotionHeal:150};
+const SCOPES=['graduate','firstClear','hypotheticalFullFirstClear'],PROFILES=['ideal','normal','heavy'];
+const OPENERS={strict:[],ball:['ball'],thunderBall:['thunder','ball']};
+// Recommended opener per gear: the fastest mean in the normal profile of the opener table below.
+const RECOMMENDED={graduate:'thunderBall',firstClear:'ball',hypotheticalFullFirstClear:'ball'};
+function scope(name,opener=RECOMMENDED[name]) {
+  const preBuild=OPENERS[opener];
+  if(name==='graduate')return {stage:19,allowThunder:true,healthRegen:9,healthPotionHeal:200,preBuild};
+  if(name==='firstClear')return {stage:18,allowThunder:false,healthRegen:2,healthPotionHeal:150,preBuild};
+  return {stage:18,allowThunder:true,healthRegen:2,healthPotionHeal:150,preBuild};
 }
 function quantile(xs,q){if(!xs.length)return null;const a=[...xs].sort((a,b)=>a-b);return a[Math.floor((a.length-1)*q)];}
 function aggregate(options={}) {
   const runs=Array.from({length:SEEDS},(_,i)=>S.run({...options,seed:i+1})),wins=runs.filter(r=>r.killed),times=wins.map(r=>r.time);
   const mean=fn=>wins.length?wins.reduce((n,r)=>n+fn(r),0)/wins.length:null;
+  const meanAll=fn=>runs.reduce((n,r)=>n+fn(r),0)/runs.length;
   return {options,samples:SEEDS,won:wins.length,died:runs.filter(x=>x.playerDead).length,unfinished:runs.filter(x=>!x.playerDead&&!x.killed).length,
     time:{mean:mean(r=>r.time),median:quantile(times,.5),min:quantile(times,0),max:quantile(times,1),p10:quantile(times,.1),p90:quantile(times,.9)},
     share:Object.fromEntries(['water','ice','ball','lock','thunder'].map(k=>[k,mean(r=>r.records[k].share)])),
     manaPotMean:mean(r=>r.usedPotions),manaPotMax:wins.length?Math.max(...wins.map(r=>r.usedPotions)):null,
     healthPotMean:mean(r=>r.healthPotions),hurtManaMean:mean(r=>r.hurtPaid),healthDamageMean:mean(r=>r.healthDamage),
     coreOpenedMean:mean(r=>r.coreOpened),endManaMean:mean(r=>r.endMana),cloudSecondsMean:mean(r=>r.cloudSeconds),
-    freezeMean:mean(r=>r.freezeEvents.length),runDetails:runs};
+    freezeMean:meanAll(r=>r.freezeEvents.length),buildResetMean:meanAll(r=>r.buildResets),waterReadyHitMean:meanAll(r=>r.waterReadyHits),
+    thunderNoTarget:meanAll(r=>r.records.thunder.attempted?r.records.thunder.noTarget/r.records.thunder.attempted:0),
+    hpLeftMean:meanAll(r=>r.totalHP-r.totalDamage),
+    thunderStartMean:(xs=>xs.length?xs.reduce((n,x)=>n+x,0)/xs.length:null)(runs.filter(r=>r.clouds.length).map(r=>r.clouds[0].start)),
+    runDetails:runs};
 }
 // Checks are against independent conservation and vanilla source facts.
 assert.equal(S.totalHP,277311);
-const ideal=S.run({profile:'ideal',healthRegen:9,healthPotionHeal:200});
+assert.equal(S.candidate.build,14);assert.equal(S.candidate.resetGap,15);assert.equal(S.candidate.waterDiscount,.5);assert.equal(S.candidate.thunderB,48);
+const ideal=S.run({...scope('graduate'),profile:'ideal'});
 assert(ideal.killed);assert(Math.abs(ideal.totalDamage-S.totalHP)<1e-6);
 assert(ideal.stageDeaths.slice(0,3).every(x=>x.id!=='core'));assert.equal(ideal.stageDeaths.at(-1).id,'core');
 assert(Math.abs(Object.values(ideal.records).reduce((n,r)=>n+r.share,0)-1)<1e-9);
@@ -31,50 +42,66 @@ const alwaysOpen=Array.from({length:1200},(_,t)=>S.animationGoal('head',t));
 assert(alwaysOpen.includes(0)&&alwaysOpen.includes(15));
 const replay=S.run({profile:'normal',seed:7});assert.equal(replay.time,S.run({profile:'normal',seed:7}).time);
 const first=S.run({...scope('firstClear'),profile:'normal'});assert.equal(first.records.thunder.count,0);
-assert.equal(ideal.freezeEvents.length,1);
-assert(ideal.stageDeaths.some(x=>x.time>ideal.freezeEvents[0].time&&x.time<ideal.finalFrost.freezeReady/60));
-assert.equal(ideal.finalFrost.freezeID,1,'switching to next eye or core does not create another freeze');
+assert.equal(ideal.finalFrost.freezeID,ideal.freezeEvents.length,'switching to next eye or core does not create another freeze');
 const globalLockIDs=ideal.lockEvents.filter(x=>x.remaining>0).map(x=>x.freezeID);
 assert.equal(new Set(globalLockIDs).size,globalLockIDs.length);
-const poorSurvival=aggregate({profile:'heavy',regenPercent:2,healthRegen:2,healthPotionHeal:150});
-assert(poorSurvival.died>0);
+const poorSurvival=aggregate({...scope('graduate'),profile:'heavy',regenPercent:2,healthRegen:2,healthPotionHeal:150});
 const checks=['Single-player Master totalHP277311 derived from 1.4.4.9 NPC stat scaling',
   'Core cannot take damage before all3 eyes die; total kill damage exactly equals their HP sum',
   'Final skill shares sum to100%; overkill, dead targets and closed-eye damage excluded',
   'Thunder mana charged only during active paid frames; all runs assert mana conservation',
-  'Seeded hit rolls deterministic; ice3projectiles jointly add at most.5s per attack',
+  'Seeded hit rolls deterministic; freeze needs84 actual ice hits, at most3 per attack',
   'Current first-clear unlock set excludes thunder; conservative survival can terminate fight before kill',
   'One shared boss-wide freeze meter and cooldown survive eye deaths and core opening; target switches cannot refresh them',
-  'Each global freeze can be detonated once; actual water reductions checked against consecutive freeze times'];
-const combat=Object.fromEntries(['graduate','firstClear','hypotheticalFullFirstClear'].map(name=>[name,
-  Object.fromEntries(['ideal','normal','heavy'].map(profile=>[profile,aggregate({...scope(name),profile,regenPercent:2})]))]));
+  'Each global freeze can be detonated once; actual water reductions checked against consecutive freeze times',
+  'Thunder strikes without an open target count as wasted damage','15s buildup tolerance never clears buildup in the main tables; 2.5s does under heavy pressure'];
+const combat=Object.fromEntries(SCOPES.map(name=>[name,
+  Object.fromEntries(PROFILES.map(profile=>[profile,aggregate({...scope(name),profile,regenPercent:2})]))]));
+const openers=Object.fromEntries(SCOPES.map(name=>[name,Object.fromEntries(Object.keys(OPENERS).map(opener=>[opener,
+  Object.fromEntries(PROFILES.map(profile=>[profile,aggregate({...scope(name,opener),profile,regenPercent:2})]))]))]));
+for(const name of SCOPES) {
+  const best=Object.keys(OPENERS).filter(k=>openers[name][k].normal.won===SEEDS).sort((a,b)=>openers[name][a].normal.time.mean-openers[name][b].normal.time.mean)[0];
+  assert(Math.abs(openers[name][best].normal.time.mean-openers[name][RECOMMENDED[name]].normal.time.mean)<1e-9,`recommended opener for ${name}`);
+}
+const resetGaps=Object.fromEntries(SCOPES.map(name=>[name,Object.fromEntries(['normal','heavy'].map(profile=>[profile,
+  Object.fromEntries([2.5,15].map(gap=>[gap,aggregate({...scope(name),profile,regenPercent:2,tune:{resetGap:gap}})]))]))]));
+for(const name of SCOPES)for(const profile of PROFILES)assert.equal(combat[name][profile].buildResetMean,0,'15s tolerance never clears buildup in tested profiles');
+assert(resetGaps.firstClear.heavy[2.5].buildResetMean>0);
 const potions=[];
 for(const profile of ['normal','heavy'])for(const count of [0,1,3,5])for(const percent of [30,50,70])potions.push({profile,count,percent,
   result:aggregate({...scope('graduate'),profile,potions:count,potionPercent:percent,regenPercent:2})});
 const candidateRegen=aggregate({...scope('graduate'),profile:'normal',regenPercent:2.5});
 const damagePrefixes=aggregate({...scope('graduate'),profile:'normal',prefix:'damage',regenPercent:2});
+const strip=x=>JSON.parse(JSON.stringify(x,(k,v)=>k==='runDetails'?undefined:v));
 const results={date:'2026-10-14',seeds:SEEDS,checks,bossStats:S.bossStats,totalHP:S.totalHP,candidate:S.candidate,profiles:S.profiles,
+  recommendedOpener:RECOMMENDED,openers:strip(openers),resetGaps:strip(resetGaps),
   combat,potions,candidateRegen,damagePrefixes,poorSurvival,sharedFreeze:true,
-  previousIndependent:Object.fromEntries(['ideal','normal','heavy'].map(k=>[k,{time:previous.combat.graduate[k].time,share:previous.combat.graduate[k].share,freezeMean:previous.combat.graduate[k].freezeMean}])),
+  previousParameters:Object.fromEntries(SCOPES.map(name=>[name,Object.fromEntries(PROFILES.map(k=>[k,{time:previous.combat[name][k].time,won:previous.combat[name][k].won,share:previous.combat[name][k].share,freezeMean:previous.combat[name][k].freezeMean}]))])),
   sourceFiles:{NPC:'D:/泰拉原版贴图与代码与其他工具/tModLoader/Terraria/NPC.cs',gameMode:'D:/泰拉原版贴图与代码与其他工具/tModLoader/Terraria/DataStructures/GameModeData.cs',
     runtimePotion:'ElainaAttribute/ElainaManaElixirPlayer.cs',runtimeRegen:'ElainaAttribute/ElainaMagicAttributes.cs',barrier:'ElainaModSkills/Skills/MagicBarrier/BarrierDamageMath.cs'},
   assumptions:{mode:'Single-player ordinary Master, 7accessoryslots, Elaina hat, no other difficulty mods',
     tank:'500 original max life ->300 life+200mana via AshenWitch; shield pays up to40% of incoming damage from current mana, no shield auto-drink',
     health:'Graduate assumes maintained nebula life regeneration9HP/s and available200HP potion /60s; first clear assumes2HP/s and150HP potion /60s. No lifesteal.',
     firstClear:'Stage18 cap90 excludes prototype.Lightning unlock91; hypotheticalFullFirstClear deliberately overrides this',
-    targeting:'One eye at a time; boss-wide shared freeze meter, cooldown and frozen duration survive part deaths and stage transition. Wet remains per part. Core last; thunder hits one wet open target every.5s.',
+    targeting:'One eye at a time; boss-wide shared freeze meter, cooldown and frozen duration survive part deaths and stage transition. Wet remains per part. Core last; thunder hits one wet open target every.5s, wasted when no part is open.',
+    opener:'Freeze cooldown is ready at spawn. Before a buildup starts, the opener may cast ready thunder / ball; mid-buildup they wait. Lock > opener > ice buildup > thunder > ball > water.',
     AI:'Extracted open/close schedule and frame transitions only. Boss-wide frozen state pauses all living eye clocks until consumed; no full movement, attacks, spatial distance or network simulation.',
     limitations:'No MoonLeech boss healing, real flight, actual reach limits, variable nebula buff pickups, randomly positioned arena. Hit/dodge/hurt profiles are illustrative rather than empirically calibrated.',
-    time:'From spawn including1s appearance until coreHP0, excluding60s summoning countdown and death/loot animation.',
-    search:'Web retrieval produced no citeable pages; relevant game facts verified using local1.4.4.9/tML primary source files.'}};
+    time:'From spawn including1s appearance until coreHP0, excluding60s summoning countdown and death/loot animation.'}};
 fs.writeFileSync(path.join(__dirname,'results.json'),JSON.stringify(results,(k,v)=>['manaSamples'].includes(k)?undefined:v,2)+'\n');
-const f=(x,d=1)=>x===null?'—':x.toFixed(d);
+const f=(x,d=1)=>x===null||x===undefined||Number.isNaN(x)?'—':x.toFixed(d);
+const pct=x=>f(x*100)+'%';
 const timeRange=a=>a.won?f(a.time.min)+'～'+f(a.time.max)+'秒':'未击杀';
-const short=a=>({won:a.won,died:a.died,mean:a.time.mean,range:[a.time.min,a.time.max],share:a.share,manaPot:a.manaPotMean});
+const outcome=a=>a.won===SEEDS?`${f(a.time.mean)}秒`:a.won?`${f(a.time.mean)}秒（${a.won}/24）`:`未击杀（${a.died}/24阵亡）`;
+const short=a=>({won:a.won,died:a.died,mean:a.time.mean,range:[a.time.min,a.time.max],share:a.share,manaPot:a.manaPotMean,freeze:a.freezeMean,resets:a.buildResetMean});
 const rowPot=(profile,count)=>[30,50,70].map(percent=>potions.find(x=>x.profile===profile&&x.count===count&&x.percent===percent).result);
-const report=`# 大师月亮领主：整体共享冻结后的修正版
+const scopeName={graduate:'毕业五件套',firstClear:'首次挑战四件套',hypotheticalFullFirstClear:'首次配装＋提前解锁天雷'};
+const profileName={ideal:'理想',normal:'普通',heavy:'高压力'};
+const openerName={strict:'先冰锥积累',ball:'先水球再冰锥',thunderBall:'先天雷、水球再冰锥'};
+const g=combat.graduate;
+const report=`# 大师月亮领主：v5最终候选
 
-2026-10-14。单人普通大师，7饰品槽，伊蕾娜帽子。按用户明确的KL规则，整个月总共用冻结CD和积累。此前独立冻结的报告和数据归档至REPORT-independent-freeze.md和results-independent-freeze.json，当前报告取代其结论。测试对象是尚未接入游戏的技能候选；这是简化战斗模型，不是游戏实测。
+2026-10-14。单人普通大师，7饰品槽，伊蕾娜帽子。技能参数采用ice-build-2026-10-14/REPORT-v5.md的最终候选（含15秒积累断档与水流0.7B规则）。整个月总共用一份冻结CD和积累。v5之前参数的结果归档在REPORT-pre-v5.md和results-pre-v5.json。测试对象是尚未接入游戏的技能候选；这是简化战斗模型，不是游戏实测。
 
 ## 原版目标与范围
 
@@ -82,11 +109,18 @@ const report=`# 大师月亮领主：整体共享冻结后的修正版
 
 眼睛开闭沿NPC.cs989的攻击表、27023的手部判定和27458的头部判定逐帧更新，并非总血量直接除木桩DPS。只复制这些状态和动画帧，未启动完整NPC AI。
 
-冻结CD60秒，水流每次减0.16秒、水球每次减4秒，CD结束后冰锥需3秒有效积累。三眼和核心共用一份冻结CD、积累、冻结持续时间；换目标、眼睛死亡和核心开放均不重置。命中任一可受伤部位的水系技能减少同一个CD。潮湿暂仍分部位处理，用户尚未明确它是否也共享。
-
-冰凌锁消耗整个月总的剩余冻结；整次伤害预算只结算在当前目标，不因为整体冻结给每只眼睛免费各算一份。1秒伤害延迟后若该目标已关闭，会丢伤。天雷每0.5秒一次单目标攻击，持续扣15蓝/s。
-
 时间从月总生成起到核心血量归零，含1秒出现准备，不含召唤前60秒和死亡掉落动画。不模拟月蛭给Boss回血，因此时间偏乐观；移动与射程通过下列命中/停手假设代替，不能将结果当作精准AI战斗回放。
+
+## 技能参数
+
+- 冻结：基础CD60秒，从冻结触发起计时；冻结4秒。CD结束后需要84发冰锥有效命中（14秒完整攻击，每次攻击最多3发）；超过15秒没有有效冰锥命中，积累清零。
+- 水流：0.2秒、1.5蓝；目标处于冻结CD时0.9B，否则0.7B；每次有效命中减冻结CD0.5秒，潮湿5秒。
+- 水球：150蓝、CD15秒、施法1.35秒、8.1B；命中减冻结CD4秒，潮湿15秒。
+- 冰锥：0.5秒、4.5蓝、3发共0.45B（0.9B）。
+- 冰凌锁：100蓝、CD20秒；3.2B＋剩余冻结秒数×2.5B；施法0.2秒后消耗冻结，再延迟1秒命中。1秒后若该目标已关闭，会丢伤。
+- 天雷：CD120秒，施法2秒、延迟1秒，离手持续30秒，15蓝/秒，满程48B；每0.5秒一次单目标攻击，优先潮湿目标，干燥目标命中率减半；没有可攻击部位时这一下空打。
+
+三眼和核心共用一份冻结CD、积累和冻结持续时间；换目标、眼睛死亡和核心开放均不重置。命中任一可受伤部位的水系技能减少同一个CD。潮湿仍分部位处理。冰凌锁的伤害只结算在当前目标，不因整体冻结给每只眼睛各算一份。
 
 ## 三种操作假设
 
@@ -98,52 +132,87 @@ const report=`# 大师月亮领主：整体共享冻结后的修正版
 
 普通操作中满盾每次付60蓝、承受90生命伤害；高压力付72蓝、承受108生命伤害。蓝不足时减伤也不足，生命伤害上升。受击不自动喝回蓝药，也不暂停自然回复，符合当前盾扣蓝和PostHurt逻辑。已有天雷在躲避期间继续攻击。
 
+冰锥按命中计数：普通操作75%命中时，84发约需37次攻击（18.7秒）；高压力50%命中约需56次攻击（28秒）。
+
 每个配置测试24个固定随机种子。表中的样本完成数是模型结果，**不是实测成功率**；命中率和受击频率没有玩家实测标定。
 
 ## 配装与技能解锁
 
-- 毕业刷月总：B3500、星云套、三种强化按满层维持、7条奥秘、帽子；魔力上限620。主表用实际游戏回蓝规则2%：17.4蓝/s。毕业生存假设星云生命强化维持9HP/s，备200HP治疗药、60秒药水病。
-- 首次挑战：阶段18的B1800、幽灵面具套、7条奥秘、帽子；不计幽灵追击和吸血，基础魔力上限同为620。按2HP/s持续恢复、150HP治疗药、60秒药水病计算生存。
-- 当前天雷配置unlockLevel91、unlockStageCap95；月总前阶段18等级上限90，**首次挑战目前没有天雷**。若设计上要首次月总就使用完整五件套，必须提前解锁；下文另列提前解锁的假设，未修改正式解锁表。
-- 普攻毕业倍率水流0.9B、冰锥0.9B；水球150蓝/15s/8.1B，冰凌锁100蓝/3.2B+2.5B×剩余秒数，天雷34B/30s/120sCD，其他规则沿用此前候选。
+- 毕业刷月总：B3500、星云套、三种强化按满层维持、7条奥秘、帽子；魔力上限620，2%自然回蓝17.4蓝/s。毕业生存假设星云生命强化维持9HP/s，备200HP治疗药、60秒药水病。
+- 首次挑战：阶段18的B1800、幽灵面具套、7条奥秘、帽子；不计幽灵追击和吸血，魔力上限同为620。按2HP/s持续恢复、150HP治疗药、60秒药水病计算生存。
+- 当前天雷配置unlockLevel91、unlockStageCap95；月总前阶段18等级上限90，**首次挑战目前没有天雷**。“首次配装＋提前解锁天雷”是假设场景，未修改正式解锁表。
 
+## 起手顺序
+
+月总生成时冻结CD是就绪的，开场就是冰锥积累阶段，没有木桩循环里“先水流、再冰锥”的前段。天雷CD120秒，一场月总基本只放一次，放在什么时候直接决定它打在哪个阶段。测试三种起手：
+
+- **先冰锥积累**：严格照搬木桩循环，天雷和水球留到第一次冻结后的水流阶段。
+- **先水球再冰锥**：开场先放水球，15秒潮湿覆盖14秒冰锥积累，天雷仍留到水流阶段。
+- **先天雷、水球再冰锥**：开场依次放天雷和水球，再开始积累。
+
+每次新的积累开始前（不只是开场）都按同一规则判断。积累进行中不插入天雷和水球。
+
+| 配装 | 操作 | ${Object.values(openerName).join(' | ')} |
+|---|---|---:|---:|---:|
+${SCOPES.flatMap(name=>PROFILES.map(profile=>`| ${scopeName[name]} | ${profileName[profile]} | ${Object.keys(OPENERS).map(k=>outcome(openers[name][k][profile])).join(' | ')} |`)).join('\n')}
+
+按普通操作最快选择推荐起手：毕业为“${openerName[RECOMMENDED.graduate]}”，首次挑战和提前解锁天雷为“${openerName[RECOMMENDED.firstClear]}”。下文其他表格都使用推荐起手。
+
+- 毕业配装战斗短，天雷开场就放（普通操作平均第${f(openers.graduate.thunderBall.normal.thunderStartMean)}秒开始）能覆盖大半场；留到第一次冻结之后，平均第${f(openers.graduate.ball.normal.thunderStartMean)}秒才开始，战斗结束前打不满。
+- 首次配装战斗超过一分钟，开场放天雷会在眼睛阶段就结束，而眼睛经常闭合：提前解锁天雷、普通操作下，开场天雷有${pct(openers.hypotheticalFullFirstClear.thunderBall.normal.thunderNoTarget)}的攻击找不到可攻击部位而空打；留到第一次冻结之后，天雷更多落在常开的核心阶段，空打${pct(openers.hypotheticalFullFirstClear.ball.normal.thunderNoTarget)}。
 ## 击杀时间
 
 全部默认5次回蓝药，每次回50%，采用2%自然回蓝。
 
-| 配装 / 场景 | 平均核心归零 | 本组样本范围 | 完成样本 | 平均回蓝药使用 |
-|---|---:|---:|---:|---:|
-${['graduate','firstClear','hypotheticalFullFirstClear'].flatMap(name=>['ideal','normal','heavy'].map(profile=>{const a=combat[name][profile];return `| ${{graduate:'毕业五件套',firstClear:'首次挑战四件套',hypotheticalFullFirstClear:'首次配装＋提前解锁天雷'}[name]} / ${{ideal:'理想',normal:'普通',heavy:'高压力'}[profile]} | ${f(a.time.mean)}秒 | ${timeRange(a)} | ${a.won}/24 | ${f(a.manaPotMean,2)} |`;})).join('\n')}
+| 配装 / 场景 | 平均核心归零 | 本组样本范围 | 完成样本 | 平均冻结次数 | 平均回蓝药使用 |
+|---|---:|---:|---:|---:|---:|
+${SCOPES.flatMap(name=>PROFILES.map(profile=>{const a=combat[name][profile];return `| ${scopeName[name]} / ${profileName[profile]} | ${a.won?f(a.time.mean)+'秒':'—'} | ${timeRange(a)} | ${a.won}/24${a.died?`（${a.died}阵亡）`:''} | ${f(a.freezeMean,2)} | ${f(a.manaPotMean,2)} |`;})).join('\n')}
 
-若毕业装备不维持星云生命回复，只给2HP/s和150HP治疗药，高压力样本只有${poorSurvival.won}/24完成，${poorSurvival.died}/24死亡。不能将“输出足以打掉Boss”与“玩家能活到击杀”混为一谈。
+两种首次配装在高压力下全部阵亡，平均剩余血量分别为${f(combat.firstClear.heavy.hpLeftMean/1000,0)}k和${f(combat.hypotheticalFullFirstClear.heavy.hpLeftMean/1000,0)}k（总血量277k）。这是2HP/s与150HP治疗药的生存假设先撑不住。
 
-保持2.5%候选回蓝时，毕业普通操作平均${f(candidateRegen.time.mean)}秒，平均用药${f(candidateRegen.manaPotMean,2)}次；2%版本平均${f(combat.graduate.normal.time.mean)}秒、用药${f(combat.graduate.normal.manaPotMean,2)}次。本次短战主要吃开场资源和可攻击窗口，回蓝规则改变没有显著改变该组击杀时间。
+若毕业装备不维持星云生命回复，只给2HP/s和150HP治疗药，高压力样本${poorSurvival.won}/24完成，${poorSurvival.died}/24死亡${poorSurvival.died?'。不能将“输出足以打掉Boss”与“玩家能活到击杀”混为一谈':`；平均${f(poorSurvival.time.mean)}秒，战斗足够短，生存假设没有成为瓶颈`}。
+
+保持2.5%候选回蓝时，毕业普通操作平均${f(candidateRegen.time.mean)}秒、用药${f(candidateRegen.manaPotMean,2)}次；2%版本平均${f(g.normal.time.mean)}秒、用药${f(g.normal.manaPotMean,2)}次。
+
+毕业普通操作换成7条增伤前缀（逐条选险恶或幸运）平均${f(damagePrefixes.time.mean)}秒，全奥秘${f(g.normal.time.mean)}秒，增伤快${f((1-damagePrefixes.time.mean/g.normal.time.mean)*100)}%。月总战斗短、全程不缺蓝，奥秘多出的魔力没有地方花；这与300秒木桩上两者基本持平不同。
 
 ## 各技能最终伤害占比
 
 按每次成功击杀真实扣掉的277311血量统计，再对成功样本取平均；闭眼空打、过量伤害、已经死亡的部位均不计入。下表并非300秒木桩伤害占比，也不把水系对其他技能的辅助价值二次归入水系伤害。
 
-| 技能 | 毕业理想 | 毕业普通 | 毕业高压力 | 首次配装普通、天雷未解锁 |
-|---|---:|---:|---:|---:|
-${['water','ice','ball','lock','thunder'].map(k=>`| ${{water:'水流',ice:'冰锥',ball:'水球',lock:'冰凌锁',thunder:'天雷'}[k]} | ${f(combat.graduate.ideal.share[k]*100)}% | ${f(combat.graduate.normal.share[k]*100)}% | ${f(combat.graduate.heavy.share[k]*100)}% | ${f(combat.firstClear.normal.share[k]*100)}% |`).join('\n')}
+| 技能 | 毕业理想 | 毕业普通 | 毕业高压力 | 首次配装理想 | 首次配装普通 | 提前解锁天雷普通 |
+|---|---:|---:|---:|---:|---:|---:|
+${['water','ice','ball','lock','thunder'].map(k=>`| ${{water:'水流',ice:'冰锥',ball:'水球',lock:'冰凌锁',thunder:'天雷'}[k]} | ${pct(g.ideal.share[k])} | ${pct(g.normal.share[k])} | ${pct(g.heavy.share[k])} | ${pct(combat.firstClear.ideal.share[k])} | ${pct(combat.firstClear.normal.share[k])} | ${pct(combat.hypotheticalFullFirstClear.normal.share[k])} |`).join('\n')}
 
-共享后换眼睛不再重新进入冰锥准备。只要整个月总的冻结仍在CD，玩家继续水系输出；本组毕业普通操作平均冻结${f(combat.graduate.normal.freezeMean,2)}次。水流占比回升，冰锥占比下降。短战中天雷持续覆盖了很大一段输出时间，水系减CD的长期循环仍没有反复展开。
+毕业月总打不出木桩上的完整循环。开场就是14秒冰锥积累，普通操作75%命中要约19秒才能冻结，而整场平均只有${f(g.normal.time.mean)}秒，平均冻结${f(g.normal.freezeMean,2)}次；冻结CD基本没有启动，水流没有出场机会，冰凌锁也几乎没有冻结可引爆。毕业月总的输出主要来自冰锥、水球和开场天雷。高压力50%命中时，积累要约28秒，整场${f(g.heavy.time.mean)}秒内平均冻结${f(g.heavy.freezeMean,2)}次。
 
-## 与错误的独立冻结模型对照
+首次配装战斗更长，普通操作平均冻结${f(combat.firstClear.normal.freezeMean,1)}次，水流和冰凌锁都有出场，但仍不是木桩上五个技能各约两成的分布：没有天雷时水球占${pct(combat.firstClear.normal.share.ball)}、冰锥占${pct(combat.firstClear.normal.share.ice)}；提前解锁天雷后天雷占${pct(combat.hypotheticalFullFirstClear.normal.share.thunder)}，冰凌锁只有${pct(combat.hypotheticalFullFirstClear.normal.share.lock)}。
 
-所有数值和命中/受击假设保持不变，只修正冻结共享和整体冻结对开闭眼时钟的影响。
+## 积累断档：2.5秒与15秒
 
-| 毕业场景 | 旧：独立冻结平均时间 | 新：共享冻结平均时间 | 旧 / 新平均冻结次数 |
-|---|---:|---:|---:|
-${['ideal','normal','heavy'].map(k=>`| ${{ideal:'理想',normal:'普通',heavy:'高压力'}[k]} | ${f(previous.combat.graduate[k].time.mean)}秒 | ${f(combat.graduate[k].time.mean)}秒 | ${f(previous.combat.graduate[k].freezeMean,2)} / ${f(combat.graduate[k].freezeMean,2)} |`).join('\n')}
+其他参数不变，只改冰锥积累断档容错：
 
-冻结次数减少不必然延长击杀：旧模型会让每个新部位都进入至少3秒、丢伤时更久的冰锥积累；共享模型冻结CD中则持续使用伤害/耗蓝更有利的水流，并维持潮湿供天雷锁定。移除重复准备成本后，新模型整体更快。另一个变化是整体冻结同时暂停各眼睛的局部开闭眼时钟，这是本次根据整体冻结采用的明确假设，尚未启动KL/游戏验证。
+| 配装 / 操作 | 2.5秒：平均击杀 / 冻结 / 积累清零 | 15秒：平均击杀 / 冻结 / 积累清零 |
+|---|---|---|
+${SCOPES.flatMap(name=>['normal','heavy'].map(profile=>`| ${scopeName[name]} / ${profileName[profile]} | ${[2.5,15].map(gap=>{const a=resetGaps[name][profile][gap];return `${a.won?f(a.time.mean)+'秒':'未击杀'} / ${f(a.freezeMean,2)}次 / ${f(a.buildResetMean,2)}次`;}).join(' | ')} |`)).join('\n')}
 
-冰凌锁会受到闭眼、提前死亡和1秒伤害延迟影响；在部分单次样本里可能整次空掉。若将引爆伤害设计成即时命中，应另测，不能沿用本表。
+2.5秒时，每8秒停手2秒的高压力场景常把积累打断，首次配装高压力平均清零${f(resetGaps.firstClear.heavy[2.5].buildResetMean,2)}次，一次冻结都完不成；15秒在所有测试场景中都没有清零。击杀时间变化不大，因为短战本来冻结就少，但15秒让高压力玩家仍能拿到冻结。
+
+## 与v5之前参数对照
+
+旧参数为水流每次减0.16秒、冰锥积累3秒、断档1.2秒、天雷34B，起手为先冰锥积累；命中和受击假设相同。
+
+| 配装 / 操作 | 旧参数：平均击杀 / 冻结 | v5：平均击杀 / 冻结 |
+|---|---|---|
+${SCOPES.flatMap(name=>PROFILES.map(profile=>{const o=previous.combat[name][profile],n=combat[name][profile];return `| ${scopeName[name]} / ${profileName[profile]} | ${o.won?f(o.time.mean)+'秒':'未击杀'} / ${f(o.freezeMean,2)}次 | ${n.won?f(n.time.mean)+'秒':'未击杀'} / ${f(n.freezeMean,2)}次 |`;})).join('\n')}
+
+本表的v5一列使用推荐起手，旧参数一列是先冰锥积累，所以差值同时包含参数和起手变化。只换参数、仍先冰锥积累时，毕业普通操作是${f(openers.graduate.strict.normal.time.mean)}秒，比旧参数的${f(previous.combat.graduate.normal.time.mean)}秒慢${f(openers.graduate.strict.normal.time.mean-previous.combat.graduate.normal.time.mean)}秒；改为开场天雷后回到${f(g.normal.time.mean)}秒。
+
+旧参数3秒就能冻结，之后整场处于冻结CD、用水流输出；v5要先打14秒有效冰锥，短战里冻结次数明显下降。毕业理想和普通操作比旧参数慢${f(g.ideal.time.mean-previous.combat.graduate.ideal.time.mean)}～${f(g.normal.time.mean-previous.combat.graduate.normal.time.mean)}秒，高压力反而快${f(previous.combat.graduate.heavy.time.mean-g.heavy.time.mean)}秒（开场天雷和48B预算）。首次挑战（无天雷）理想操作快${f(previous.combat.firstClear.ideal.time.mean-combat.firstClear.ideal.time.mean)}秒、普通操作慢${f(combat.firstClear.normal.time.mean-previous.combat.firstClear.normal.time.mean)}秒。
 
 ## 携带量与药效
 
-当前游戏支持最多5次，固定50%；30%/70%是候选药效设计假设，不是已实现的药品。下表同一行和三种药效使用相同24个随机种子。
+当前游戏支持最多5次，固定50%；30%/70%是候选药效设计假设，不是已实现的药品。下表为毕业配装，同一行和三种药效使用相同24个随机种子。
 
 普通操作：
 
@@ -157,15 +226,16 @@ ${[0,1,3,5].map(count=>`| ${count} | ${rowPot('normal',count).map(a=>`${f(a.time
 |---|---|---|---|
 ${[0,1,3,5].map(count=>`| ${count} | ${rowPot('heavy',count).map(a=>`${f(a.time.mean)}秒 / ${f(a.manaPotMean,2)}次 / ${a.won}/24`).join(' | ')} |`).join('\n')}
 
-在此配置下，3次与5次的区别较小：多数样本在120秒前结束，天雷不会完整进入第二次CD循环。更多药并不会自动增加输出，只会在缺蓝动作真的发生时被调用。提高药效不能弥补闭眼空打、冰锥积累反复中断或玩家死亡。
+毕业月总战斗太短，魔力几乎不是瓶颈。药剂只在缺蓝动作真的发生时被调用；提高药效不能弥补闭眼空打、低命中下的长积累或玩家死亡。
 
 ## 局限与下一步
 
 - 月总的月蛭回血未计入，时间偏乐观；没有模拟平台走位、距离、真实弹道或其他难度模组。
 - 冻结CD、积累、持续时间按用户规则共享；整体冻结暂停全部存活眼睛的局部开闭眼时钟。潮湿暂分部位；未完整运行KL NPC组同步和真实AI。
+- 起手规则只比较了三种固定顺序，未穷举；天雷每0.5秒一次单目标攻击、无目标时空打，是模型假设。
 - 默认戴帽子、7槽、全奥秘；毕业星云伤害和生命强化满层常驻，这是较好的战斗条件。实际无法维持强化时不要直接拿本结果当保证。
-- 生命恢复和治疗药为假设资源，不额外计算治疗施法、生命转魔力、吸血或幽灵追击。未单列护甲防御；受伤输入已经是普通防御结算后的伤害，避免重复减防。
-- 攻击命中、躲避停手、受击率和每0.5秒天雷攻击都是设计假设，尚无实测标定。共享冻结后的毕业普通操作约25秒是乐观参考，首次当前解锁约83秒是另一种参考，不能承诺实战固定秒数。
+- 生命恢复和治疗药为假设资源，不额外计算治疗施法、生命转魔力、吸血或幽灵追击。受伤输入已经是普通防御结算后的伤害，避免重复减防。
+- 攻击命中、躲避停手、受击率都是设计假设，尚无实测标定。毕业普通操作约${f(g.normal.time.mean,0)}秒、首次挑战普通操作约${f(combat.firstClear.normal.time.mean,0)}秒都只是参考，不能承诺实战固定秒数。
 
 ## 验证与复跑
 
@@ -177,7 +247,7 @@ node Tools/MageBalance/experiments/moon-lord-master-2026-10-14/study.cjs
 
 原始数据results.json保存每种假设和每个种子的最终伤害、用药、生命、阶段死亡时刻、冻结/引爆和云持续时间。正式游戏和实验室配置没有被修改。
 
-外网检索未返回可引用内容，本轮原版机制校验依据可访问的本地1.4.4.9/tML源码。运行时药剂ElainaManaElixirPlayer.cs（最多5、每次50%）；回蓝ElainaMagicAttributes.cs（2%）；护盾BarrierDamageMath.cs、MagicBarrierSkill.cs（当前魔力支付减伤）。
+原版机制校验依据本地1.4.4.9/tML源码。运行时药剂ElainaManaElixirPlayer.cs（最多5、每次50%）；回蓝ElainaMagicAttributes.cs（2%）；护盾BarrierDamageMath.cs、MagicBarrierSkill.cs（当前魔力支付减伤）。
 `;
 fs.writeFileSync(path.join(__dirname,'REPORT.md'),report);
-console.log(JSON.stringify({checks,bossStats:S.bossStats,combat:Object.fromEntries(Object.entries(combat).map(([name,x])=>[name,Object.fromEntries(Object.entries(x).map(([p,a])=>[p,short(a)]))])),potionHeavy:[0,1,3,5].map(count=>({count,result:rowPot('heavy',count).map(short)}))},null,2));
+console.log(JSON.stringify({checks,combat:Object.fromEntries(Object.entries(combat).map(([name,x])=>[name,Object.fromEntries(Object.entries(x).map(([p,a])=>[p,short(a)]))]))},null,2));

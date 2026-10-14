@@ -6,6 +6,48 @@
     "freezeBase": 60,
     "freezeDuration": 4,
     "freezeBuildSeconds": 14,
+    "iceResetGap": 15,
+    "waterDiscount": 0.5,
+    "ballDiscount": 4,
+    "waterWet": 5,
+    "ballWet": 15,
+    "waterBurst": 5,
+    "filler": "water",
+    "waterWindow": 15,
+    "prioritizeBuild": true,
+    "readyBasic": "ice",
+    "ballCost": 150,
+    "ballCD": 15,
+    "ballCast": 1.35,
+    "ballK": 1.8,
+    "lockCost": 100,
+    "lockCD": 20,
+    "lockCast": 0.2,
+    "lockDelay": 1,
+    "lockBaseB": 3.2,
+    "lockPerSecondB": 2.5,
+    "thunderCD": 120,
+    "thunderDuration": 30,
+    "thunderCast": 2,
+    "thunderDelay": 1,
+    "thunderStartup": 0,
+    "thunderDrain": 15,
+    "thunderK": 0.4,
+    "dryThunderHit": 0.5,
+    "policy": "reserve",
+    "reserveHorizon": 4,
+    "lockWait": 0,
+    "omit": [],
+    "waterRatio": 0.9,
+    "iceRatio": 0.9,
+    "thunderBudgetB": 48,
+    "waterReadyRatio": 0.7
+  },
+  "original": {
+    "duration": 300,
+    "freezeBase": 60,
+    "freezeDuration": 4,
+    "freezeBuildSeconds": 14,
     "iceResetGap": 2.5,
     "waterDiscount": 0.5,
     "ballDiscount": 4,
@@ -42,7 +84,7 @@
     "iceRatio": 0.9,
     "thunderBudgetB": 48
   },
-  "assumptions": "Single high-HP dummy; actual hits idealized; no damage received; graduation equipment; five 30% mana potions; no external mana. The 2.5s buildup reset tolerance is a design proposal, not combat-validated.",
+  "assumptions": "Single high-HP dummy; actual hits idealized; no damage received; graduation equipment; five 30% mana potions; no external mana. Buildup never pauses on a dummy, so the 15s reset tolerance is not exercised here.",
   "baseline": {
     "arcane": {
       "options": {
@@ -50,7 +92,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -85,17 +127,21 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "trace": true,
         "prefix": "arcane"
       },
-      "dps": 18080.668846153716,
-      "ratio": 1.7516111111110986,
+      "dps": 18073.787307692182,
+      "ratio": 1.7509444444444324,
       "vanilla": 10322.307692307691,
       "M": 580,
       "regen": 19.5,
       "endMana": 23.999999999887837,
       "usedPotions": 5,
       "idleSeconds": 0,
+      "waterReadyHits": 6,
+      "scale": 8601.923076923076,
+      "basicMultiplier": 2.4576923076923074,
       "ledger": {
         "initial": 580,
         "natural": 5702.99999999814,
@@ -108,7 +154,7 @@
       "records": {
         "water": {
           "count": 646,
-          "damage": 998683.2692307568,
+          "damage": 996618.8076922954,
           "spent": 969,
           "handSeconds": 129.05000000000123
         },
@@ -319,7 +365,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -354,17 +400,21 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "trace": true,
         "prefix": "damage"
       },
-      "dps": 18332.303769230588,
-      "ratio": 1.7759888888888715,
+      "dps": 18328.174846153663,
+      "ratio": 1.7755888888888713,
       "vanilla": 10322.307692307691,
       "M": 460,
       "regen": 16.5,
       "endMana": 140.00000000005923,
       "usedPotions": 5,
       "idleSeconds": 45.733333333333334,
+      "waterReadyHits": 3,
+      "scale": 10322.307692307691,
+      "basicMultiplier": 2.949230769230769,
       "ledger": {
         "initial": 460,
         "natural": 4844.999999999975,
@@ -377,7 +427,7 @@
       "records": {
         "water": {
           "count": 568,
-          "damage": 1055352.7384615454,
+          "damage": 1054114.0615384686,
           "spent": 852,
           "handSeconds": 113.60000000000107
         },
@@ -554,7 +604,7 @@
         }
       ]
     },
-    "lead": -0.01372631210154951
+    "lead": -0.01387958924425392
   },
   "hat": {
     "arcane": {
@@ -563,7 +613,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -598,18 +648,22 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "hat": true,
         "trace": true,
         "prefix": "arcane"
       },
-      "dps": 20167.29447115378,
-      "ratio": 1.9537583137715115,
+      "dps": 20159.78966346147,
+      "ratio": 1.9530312663015064,
       "vanilla": 10322.307692307691,
       "M": 600,
       "regen": 20,
       "endMana": 77.49999999999142,
       "usedPotions": 5,
       "idleSeconds": 0,
+      "waterReadyHits": 6,
+      "scale": 9381.009615384615,
+      "basicMultiplier": 2.6802884615384617,
       "ledger": {
         "initial": 600,
         "natural": 5845.99999999914,
@@ -622,7 +676,7 @@
       "records": {
         "water": {
           "count": 639,
-          "damage": 1077315.1442307772,
+          "damage": 1075063.701923085,
           "spent": 958.5,
           "handSeconds": 127.70000000000127
         },
@@ -833,7 +887,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -868,18 +922,22 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "hat": true,
         "trace": true,
         "prefix": "damage"
       },
-      "dps": 20190.141607371675,
-      "ratio": 1.9559716886193592,
+      "dps": 20185.668741987058,
+      "ratio": 1.9555383683272358,
       "vanilla": 10322.307692307691,
       "M": 480,
       "regen": 17,
       "endMana": 148.49999999998929,
       "usedPotions": 5,
       "idleSeconds": 40.733333333333334,
+      "waterReadyHits": 3,
+      "scale": 11182.16346153846,
+      "basicMultiplier": 3.1949038461538457,
       "ledger": {
         "initial": 480,
         "natural": 4988.000000000964,
@@ -892,7 +950,7 @@
       "records": {
         "water": {
           "count": 573,
-          "damage": 1153328.3394230679,
+          "damage": 1151986.4798076833,
           "spent": 859.5,
           "handSeconds": 114.60000000000109
         },
@@ -1069,7 +1127,7 @@
         }
       ]
     },
-    "lead": -0.0011315986119461163
+    "lead": -0.0012820520764693644
   },
   "iceDuringCooldown": {
     "arcane": {
@@ -1078,7 +1136,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -1113,6 +1171,7 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "trace": true,
         "prefix": "arcane"
       },
@@ -1124,6 +1183,9 @@
       "endMana": 255.49999999982916,
       "usedPotions": 3,
       "idleSeconds": 0,
+      "waterReadyHits": 0,
+      "scale": 8601.923076923076,
+      "basicMultiplier": 2.4576923076923074,
       "ledger": {
         "initial": 580,
         "natural": 5702.99999999814,
@@ -1277,7 +1339,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -1312,6 +1374,7 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "trace": true,
         "prefix": "damage"
       },
@@ -1323,6 +1386,9 @@
       "endMana": 137.00000000004707,
       "usedPotions": 5,
       "idleSeconds": 29.283333333333335,
+      "waterReadyHits": 0,
+      "scale": 10322.307692307691,
+      "basicMultiplier": 2.949230769230769,
       "ledger": {
         "initial": 460,
         "natural": 4844.999999999975,
@@ -1479,7 +1545,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -1514,6 +1580,7 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "hat": true,
         "trace": true,
         "prefix": "arcane"
@@ -1526,6 +1593,9 @@
       "endMana": 256.4999999999395,
       "usedPotions": 2,
       "idleSeconds": 0,
+      "waterReadyHits": 0,
+      "scale": 9381.009615384615,
+      "basicMultiplier": 2.6802884615384617,
       "ledger": {
         "initial": 600,
         "natural": 5845.99999999914,
@@ -1679,7 +1749,7 @@
         "freezeBase": 60,
         "freezeDuration": 4,
         "freezeBuildSeconds": 14,
-        "iceResetGap": 2.5,
+        "iceResetGap": 15,
         "waterDiscount": 0.5,
         "ballDiscount": 4,
         "waterWet": 5,
@@ -1714,6 +1784,7 @@
         "waterRatio": 0.9,
         "iceRatio": 0.9,
         "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
         "hat": true,
         "trace": true,
         "prefix": "damage"
@@ -1726,6 +1797,9 @@
       "endMana": 135.00000000000028,
       "usedPotions": 5,
       "idleSeconds": 23.783333333333335,
+      "waterReadyHits": 0,
+      "scale": 11182.16346153846,
+      "basicMultiplier": 3.1949038461538457,
       "ledger": {
         "initial": 480,
         "natural": 4988.000000000964,
@@ -2438,6 +2512,9 @@
           "endMana": 128.4999999998704,
           "usedPotions": 5,
           "idleSeconds": 0,
+          "waterReadyHits": 0,
+          "scale": 8601.923076923076,
+          "basicMultiplier": 2.4576923076923074,
           "ledger": {
             "initial": 580,
             "natural": 5818.499999998088,
@@ -2693,6 +2770,9 @@
           "endMana": 23.000000000058805,
           "usedPotions": 5,
           "idleSeconds": 38.833333333333336,
+          "waterReadyHits": 0,
+          "scale": 10322.307692307691,
+          "basicMultiplier": 2.949230769230769,
           "ledger": {
             "initial": 460,
             "natural": 4927.499999999858,
@@ -2940,6 +3020,9 @@
           "endMana": 158.99999999985528,
           "usedPotions": 1,
           "idleSeconds": 0,
+          "waterReadyHits": 0,
+          "scale": 8601.923076923076,
+          "basicMultiplier": 2.4576923076923074,
           "ledger": {
             "initial": 580,
             "natural": 5723.999999998131,
@@ -3167,6 +3250,9 @@
           "endMana": 1.5000000000534306,
           "usedPotions": 5,
           "idleSeconds": 3.8,
+          "waterReadyHits": 0,
+          "scale": 10322.307692307691,
+          "basicMultiplier": 2.949230769230769,
           "ledger": {
             "initial": 460,
             "natural": 4859.999999999954,
@@ -3400,6 +3486,9 @@
           "endMana": 88.19999999990603,
           "usedPotions": 0,
           "idleSeconds": 0,
+          "waterReadyHits": 0,
+          "scale": 8601.923076923076,
+          "basicMultiplier": 2.4576923076923074,
           "ledger": {
             "initial": 580,
             "natural": 5548.69999999826,
@@ -3613,6 +3702,9 @@
           "endMana": 119.0000000000152,
           "usedPotions": 5,
           "idleSeconds": 15.966666666666667,
+          "waterReadyHits": 0,
+          "scale": 10322.307692307691,
+          "basicMultiplier": 2.949230769230769,
           "ledger": {
             "initial": 460,
             "natural": 4770.000000000082,
@@ -3764,11 +3856,1322 @@
       }
     }
   ],
+  "originalBaseline": {
+    "arcane": {
+      "options": {
+        "duration": 300,
+        "freezeBase": 60,
+        "freezeDuration": 4,
+        "freezeBuildSeconds": 14,
+        "iceResetGap": 2.5,
+        "waterDiscount": 0.5,
+        "ballDiscount": 4,
+        "waterWet": 5,
+        "ballWet": 15,
+        "waterBurst": 5,
+        "filler": "water",
+        "waterWindow": 15,
+        "prioritizeBuild": true,
+        "readyBasic": "ice",
+        "ballCost": 150,
+        "ballCD": 15,
+        "ballCast": 1.35,
+        "ballK": 1.8,
+        "lockCost": 100,
+        "lockCD": 20,
+        "lockCast": 0.2,
+        "lockDelay": 1,
+        "lockBaseB": 3.2,
+        "lockPerSecondB": 2.5,
+        "thunderCD": 120,
+        "thunderDuration": 30,
+        "thunderCast": 2,
+        "thunderDelay": 1,
+        "thunderStartup": 0,
+        "thunderDrain": 15,
+        "thunderK": 0.4,
+        "dryThunderHit": 0.5,
+        "policy": "reserve",
+        "reserveHorizon": 4,
+        "lockWait": 0,
+        "omit": [],
+        "waterRatio": 0.9,
+        "iceRatio": 0.9,
+        "thunderBudgetB": 48,
+        "trace": true,
+        "prefix": "arcane"
+      },
+      "dps": 18080.668846153716,
+      "ratio": 1.7516111111110986,
+      "vanilla": 10322.307692307691,
+      "M": 580,
+      "regen": 19.5,
+      "endMana": 23.999999999887837,
+      "usedPotions": 5,
+      "idleSeconds": 0,
+      "waterReadyHits": 0,
+      "scale": 8601.923076923076,
+      "basicMultiplier": 2.4576923076923074,
+      "ledger": {
+        "initial": 580,
+        "natural": 5702.99999999814,
+        "potion": 870,
+        "externalMana": 0,
+        "spent": 7129,
+        "end": 23.999999999887837,
+        "error": -1.7477539415722276e-9
+      },
+      "records": {
+        "water": {
+          "count": 646,
+          "damage": 998683.2692307568,
+          "spent": 969,
+          "handSeconds": 129.05000000000123
+        },
+        "ice": {
+          "count": 280,
+          "damage": 1083842.3076923068,
+          "spent": 1260,
+          "handSeconds": 140
+        },
+        "ball": {
+          "count": 17,
+          "damage": 1184484.8076923075,
+          "spent": 2550,
+          "handSeconds": 22.950000000000006
+        },
+        "lock": {
+          "count": 10,
+          "damage": 983199.8076923073,
+          "spent": 1000,
+          "handSeconds": 1.9999999999999998
+        },
+        "thunder": {
+          "count": 3,
+          "damage": 1173990.4615384373,
+          "spent": 1350,
+          "handSeconds": 6
+        }
+      },
+      "freezeCount": 10,
+      "detonationCount": 10,
+      "averageRemaining": 3.8,
+      "wetCoverage": 0.912,
+      "thunderPaidSeconds": 90,
+      "thunderWetCoverage": 0.8955555555555555,
+      "cloudDrySeconds": 9.4,
+      "freezeIntervals": [
+        32.9,
+        31.1,
+        31.099999999999994,
+        31.099999999999994,
+        32.900000000000006,
+        31.099999999999994,
+        31.100000000000023,
+        31.099999999999966,
+        32.55000000000001
+      ],
+      "freezes": [
+        {
+          "id": 1,
+          "time": 14,
+          "earliestNext": 74,
+          "buildStart": 0,
+          "iceSeconds": 14
+        },
+        {
+          "id": 2,
+          "time": 46.9,
+          "earliestNext": 106.9,
+          "buildStart": 32.9,
+          "iceSeconds": 14
+        },
+        {
+          "id": 3,
+          "time": 78,
+          "earliestNext": 138,
+          "buildStart": 64,
+          "iceSeconds": 14
+        },
+        {
+          "id": 4,
+          "time": 109.1,
+          "earliestNext": 169.1,
+          "buildStart": 95.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 5,
+          "time": 140.2,
+          "earliestNext": 200.2,
+          "buildStart": 126.2,
+          "iceSeconds": 14
+        },
+        {
+          "id": 6,
+          "time": 173.1,
+          "earliestNext": 233.1,
+          "buildStart": 159.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 7,
+          "time": 204.2,
+          "earliestNext": 264.2,
+          "buildStart": 190.2,
+          "iceSeconds": 14
+        },
+        {
+          "id": 8,
+          "time": 235.3,
+          "earliestNext": 295.3,
+          "buildStart": 221.3,
+          "iceSeconds": 14
+        },
+        {
+          "id": 9,
+          "time": 266.4,
+          "earliestNext": 326.4,
+          "buildStart": 252.4,
+          "iceSeconds": 14
+        },
+        {
+          "id": 10,
+          "time": 298.95,
+          "earliestNext": 358.95,
+          "buildStart": 284.95,
+          "iceSeconds": 14
+        }
+      ],
+      "detonations": [
+        {
+          "time": 14.2,
+          "freezeId": 1,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 47.1,
+          "freezeId": 2,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 78.2,
+          "freezeId": 3,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 109.3,
+          "freezeId": 4,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 140.4,
+          "freezeId": 5,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 173.3,
+          "freezeId": 6,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 204.4,
+          "freezeId": 7,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 235.5,
+          "freezeId": 8,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 266.6,
+          "freezeId": 9,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 299.15,
+          "freezeId": 10,
+          "remaining": 3.8,
+          "damageB": 12.7
+        }
+      ],
+      "clouds": [
+        {
+          "start": 17.4,
+          "scheduledEnd": 47.4,
+          "end": 47.4,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 143.6,
+          "scheduledEnd": 173.6,
+          "end": 173.6,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 269.8,
+          "scheduledEnd": 299.8,
+          "end": 299.8,
+          "reason": "complete",
+          "paidTicks": 1800
+        }
+      ]
+    },
+    "damage": {
+      "options": {
+        "duration": 300,
+        "freezeBase": 60,
+        "freezeDuration": 4,
+        "freezeBuildSeconds": 14,
+        "iceResetGap": 2.5,
+        "waterDiscount": 0.5,
+        "ballDiscount": 4,
+        "waterWet": 5,
+        "ballWet": 15,
+        "waterBurst": 5,
+        "filler": "water",
+        "waterWindow": 15,
+        "prioritizeBuild": true,
+        "readyBasic": "ice",
+        "ballCost": 150,
+        "ballCD": 15,
+        "ballCast": 1.35,
+        "ballK": 1.8,
+        "lockCost": 100,
+        "lockCD": 20,
+        "lockCast": 0.2,
+        "lockDelay": 1,
+        "lockBaseB": 3.2,
+        "lockPerSecondB": 2.5,
+        "thunderCD": 120,
+        "thunderDuration": 30,
+        "thunderCast": 2,
+        "thunderDelay": 1,
+        "thunderStartup": 0,
+        "thunderDrain": 15,
+        "thunderK": 0.4,
+        "dryThunderHit": 0.5,
+        "policy": "reserve",
+        "reserveHorizon": 4,
+        "lockWait": 0,
+        "omit": [],
+        "waterRatio": 0.9,
+        "iceRatio": 0.9,
+        "thunderBudgetB": 48,
+        "trace": true,
+        "prefix": "damage"
+      },
+      "dps": 18332.303769230588,
+      "ratio": 1.7759888888888715,
+      "vanilla": 10322.307692307691,
+      "M": 460,
+      "regen": 16.5,
+      "endMana": 140.00000000005923,
+      "usedPotions": 5,
+      "idleSeconds": 45.733333333333334,
+      "waterReadyHits": 0,
+      "scale": 10322.307692307691,
+      "basicMultiplier": 2.949230769230769,
+      "ledger": {
+        "initial": 460,
+        "natural": 4844.999999999975,
+        "potion": 690,
+        "externalMana": 0,
+        "spent": 5855,
+        "end": 140.00000000005923,
+        "error": -8.378719940083101e-11
+      },
+      "records": {
+        "water": {
+          "count": 568,
+          "damage": 1055352.7384615454,
+          "spent": 852,
+          "handSeconds": 113.60000000000107
+        },
+        "ice": {
+          "count": 234,
+          "damage": 1082293.9615384648,
+          "spent": 1053,
+          "handSeconds": 116.86666666666666
+        },
+        "ball": {
+          "count": 12,
+          "damage": 1003328.3076923074,
+          "spent": 1800,
+          "handSeconds": 16.2
+        },
+        "lock": {
+          "count": 8,
+          "damage": 1048746.4615384617,
+          "spent": 800,
+          "handSeconds": 1.5999999999999999
+        },
+        "thunder": {
+          "count": 3,
+          "damage": 1309969.6615383965,
+          "spent": 1350,
+          "handSeconds": 6
+        }
+      },
+      "freezeCount": 8,
+      "detonationCount": 8,
+      "averageRemaining": 3.8000000000000003,
+      "wetCoverage": 0.7266111111111111,
+      "thunderPaidSeconds": 90,
+      "thunderWetCoverage": 0.7625925925925926,
+      "cloudDrySeconds": 21.366666666666667,
+      "freezeIntervals": [
+        32.9,
+        31.1,
+        31.099999999999994,
+        31.099999999999994,
+        52.75,
+        31.150000000000006,
+        31.150000000000006
+      ],
+      "freezes": [
+        {
+          "id": 1,
+          "time": 14,
+          "earliestNext": 74,
+          "buildStart": 0,
+          "iceSeconds": 14
+        },
+        {
+          "id": 2,
+          "time": 46.9,
+          "earliestNext": 106.9,
+          "buildStart": 32.9,
+          "iceSeconds": 14
+        },
+        {
+          "id": 3,
+          "time": 78,
+          "earliestNext": 138,
+          "buildStart": 64,
+          "iceSeconds": 14
+        },
+        {
+          "id": 4,
+          "time": 109.1,
+          "earliestNext": 169.1,
+          "buildStart": 95.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 5,
+          "time": 140.2,
+          "earliestNext": 200.2,
+          "buildStart": 126.2,
+          "iceSeconds": 14
+        },
+        {
+          "id": 6,
+          "time": 192.95,
+          "earliestNext": 252.95,
+          "buildStart": 178.95,
+          "iceSeconds": 14
+        },
+        {
+          "id": 7,
+          "time": 224.1,
+          "earliestNext": 284.1,
+          "buildStart": 210.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 8,
+          "time": 255.25,
+          "earliestNext": 315.25,
+          "buildStart": 241.25,
+          "iceSeconds": 14
+        }
+      ],
+      "detonations": [
+        {
+          "time": 14.2,
+          "freezeId": 1,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 47.1,
+          "freezeId": 2,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 78.2,
+          "freezeId": 3,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 109.3,
+          "freezeId": 4,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 140.4,
+          "freezeId": 5,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 193.15,
+          "freezeId": 6,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 224.3,
+          "freezeId": 7,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 255.45,
+          "freezeId": 8,
+          "remaining": 3.8,
+          "damageB": 12.7
+        }
+      ],
+      "clouds": [
+        {
+          "start": 17.4,
+          "scheduledEnd": 47.4,
+          "end": 47.4,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 143.6,
+          "scheduledEnd": 173.6,
+          "end": 173.6,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 263.6,
+          "scheduledEnd": 293.6,
+          "end": 293.6,
+          "reason": "complete",
+          "paidTicks": 1800
+        }
+      ]
+    },
+    "lead": -0.01372631210154951
+  },
+  "originalHat": {
+    "arcane": {
+      "options": {
+        "duration": 300,
+        "freezeBase": 60,
+        "freezeDuration": 4,
+        "freezeBuildSeconds": 14,
+        "iceResetGap": 2.5,
+        "waterDiscount": 0.5,
+        "ballDiscount": 4,
+        "waterWet": 5,
+        "ballWet": 15,
+        "waterBurst": 5,
+        "filler": "water",
+        "waterWindow": 15,
+        "prioritizeBuild": true,
+        "readyBasic": "ice",
+        "ballCost": 150,
+        "ballCD": 15,
+        "ballCast": 1.35,
+        "ballK": 1.8,
+        "lockCost": 100,
+        "lockCD": 20,
+        "lockCast": 0.2,
+        "lockDelay": 1,
+        "lockBaseB": 3.2,
+        "lockPerSecondB": 2.5,
+        "thunderCD": 120,
+        "thunderDuration": 30,
+        "thunderCast": 2,
+        "thunderDelay": 1,
+        "thunderStartup": 0,
+        "thunderDrain": 15,
+        "thunderK": 0.4,
+        "dryThunderHit": 0.5,
+        "policy": "reserve",
+        "reserveHorizon": 4,
+        "lockWait": 0,
+        "omit": [],
+        "waterRatio": 0.9,
+        "iceRatio": 0.9,
+        "thunderBudgetB": 48,
+        "hat": true,
+        "trace": true,
+        "prefix": "arcane"
+      },
+      "dps": 20167.29447115378,
+      "ratio": 1.9537583137715115,
+      "vanilla": 10322.307692307691,
+      "M": 600,
+      "regen": 20,
+      "endMana": 77.49999999999142,
+      "usedPotions": 5,
+      "idleSeconds": 0,
+      "waterReadyHits": 0,
+      "scale": 9381.009615384615,
+      "basicMultiplier": 2.6802884615384617,
+      "ledger": {
+        "initial": 600,
+        "natural": 5845.99999999914,
+        "potion": 900,
+        "externalMana": 0,
+        "spent": 7268.5,
+        "end": 77.49999999999142,
+        "error": -8.517986316292081e-10
+      },
+      "records": {
+        "water": {
+          "count": 639,
+          "damage": 1077315.1442307772,
+          "spent": 958.5,
+          "handSeconds": 127.70000000000127
+        },
+        "ice": {
+          "count": 280,
+          "damage": 1182007.2115384636,
+          "spent": 1260,
+          "handSeconds": 140
+        },
+        "ball": {
+          "count": 18,
+          "damage": 1367751.2019230775,
+          "spent": 2700,
+          "handSeconds": 24.300000000000008
+        },
+        "lock": {
+          "count": 10,
+          "damage": 1072249.3990384615,
+          "spent": 1000,
+          "handSeconds": 1.9999999999999998
+        },
+        "thunder": {
+          "count": 3,
+          "damage": 1350865.3846153542,
+          "spent": 1350,
+          "handSeconds": 6
+        }
+      },
+      "freezeCount": 10,
+      "detonationCount": 10,
+      "averageRemaining": 3.8,
+      "wetCoverage": 0.9433333333333334,
+      "thunderPaidSeconds": 90,
+      "thunderWetCoverage": 1,
+      "cloudDrySeconds": 0,
+      "freezeIntervals": [
+        32.9,
+        31.1,
+        31.099999999999994,
+        31.099999999999994,
+        32.900000000000006,
+        31.099999999999994,
+        31.100000000000023,
+        31.099999999999966,
+        32.900000000000034
+      ],
+      "freezes": [
+        {
+          "id": 1,
+          "time": 14,
+          "earliestNext": 74,
+          "buildStart": 0,
+          "iceSeconds": 14
+        },
+        {
+          "id": 2,
+          "time": 46.9,
+          "earliestNext": 106.9,
+          "buildStart": 32.9,
+          "iceSeconds": 14
+        },
+        {
+          "id": 3,
+          "time": 78,
+          "earliestNext": 138,
+          "buildStart": 64,
+          "iceSeconds": 14
+        },
+        {
+          "id": 4,
+          "time": 109.1,
+          "earliestNext": 169.1,
+          "buildStart": 95.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 5,
+          "time": 140.2,
+          "earliestNext": 200.2,
+          "buildStart": 126.2,
+          "iceSeconds": 14
+        },
+        {
+          "id": 6,
+          "time": 173.1,
+          "earliestNext": 233.1,
+          "buildStart": 159.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 7,
+          "time": 204.2,
+          "earliestNext": 264.2,
+          "buildStart": 190.2,
+          "iceSeconds": 14
+        },
+        {
+          "id": 8,
+          "time": 235.3,
+          "earliestNext": 295.3,
+          "buildStart": 221.3,
+          "iceSeconds": 14
+        },
+        {
+          "id": 9,
+          "time": 266.4,
+          "earliestNext": 326.4,
+          "buildStart": 252.4,
+          "iceSeconds": 14
+        },
+        {
+          "id": 10,
+          "time": 299.3,
+          "earliestNext": 359.3,
+          "buildStart": 285.3,
+          "iceSeconds": 14
+        }
+      ],
+      "detonations": [
+        {
+          "time": 14.2,
+          "freezeId": 1,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 47.1,
+          "freezeId": 2,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 78.2,
+          "freezeId": 3,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 109.3,
+          "freezeId": 4,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 140.4,
+          "freezeId": 5,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 173.3,
+          "freezeId": 6,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 204.4,
+          "freezeId": 7,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 235.5,
+          "freezeId": 8,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 266.6,
+          "freezeId": 9,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 299.5,
+          "freezeId": 10,
+          "remaining": 3.8,
+          "damageB": 12.7
+        }
+      ],
+      "clouds": [
+        {
+          "start": 17.4,
+          "scheduledEnd": 47.4,
+          "end": 47.4,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 143.6,
+          "scheduledEnd": 173.6,
+          "end": 173.6,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 269.8,
+          "scheduledEnd": 299.8,
+          "end": 299.8,
+          "reason": "complete",
+          "paidTicks": 1800
+        }
+      ]
+    },
+    "damage": {
+      "options": {
+        "duration": 300,
+        "freezeBase": 60,
+        "freezeDuration": 4,
+        "freezeBuildSeconds": 14,
+        "iceResetGap": 2.5,
+        "waterDiscount": 0.5,
+        "ballDiscount": 4,
+        "waterWet": 5,
+        "ballWet": 15,
+        "waterBurst": 5,
+        "filler": "water",
+        "waterWindow": 15,
+        "prioritizeBuild": true,
+        "readyBasic": "ice",
+        "ballCost": 150,
+        "ballCD": 15,
+        "ballCast": 1.35,
+        "ballK": 1.8,
+        "lockCost": 100,
+        "lockCD": 20,
+        "lockCast": 0.2,
+        "lockDelay": 1,
+        "lockBaseB": 3.2,
+        "lockPerSecondB": 2.5,
+        "thunderCD": 120,
+        "thunderDuration": 30,
+        "thunderCast": 2,
+        "thunderDelay": 1,
+        "thunderStartup": 0,
+        "thunderDrain": 15,
+        "thunderK": 0.4,
+        "dryThunderHit": 0.5,
+        "policy": "reserve",
+        "reserveHorizon": 4,
+        "lockWait": 0,
+        "omit": [],
+        "waterRatio": 0.9,
+        "iceRatio": 0.9,
+        "thunderBudgetB": 48,
+        "hat": true,
+        "trace": true,
+        "prefix": "damage"
+      },
+      "dps": 20190.141607371675,
+      "ratio": 1.9559716886193592,
+      "vanilla": 10322.307692307691,
+      "M": 480,
+      "regen": 17,
+      "endMana": 148.49999999998929,
+      "usedPotions": 5,
+      "idleSeconds": 40.733333333333334,
+      "waterReadyHits": 0,
+      "scale": 11182.16346153846,
+      "basicMultiplier": 3.1949038461538457,
+      "ledger": {
+        "initial": 480,
+        "natural": 4988.000000000964,
+        "potion": 720,
+        "externalMana": 0,
+        "spent": 6039.5,
+        "end": 148.49999999998929,
+        "error": 9.747793683345662e-10
+      },
+      "records": {
+        "water": {
+          "count": 573,
+          "damage": 1153328.3394230679,
+          "spent": 859.5,
+          "handSeconds": 114.60000000000109
+        },
+        "ice": {
+          "count": 240,
+          "damage": 1202641.6802884548,
+          "spent": 1080,
+          "handSeconds": 119.51666666666667
+        },
+        "ball": {
+          "count": 13,
+          "damage": 1177481.8124999998,
+          "spent": 1950,
+          "handSeconds": 17.55
+        },
+        "lock": {
+          "count": 8,
+          "damage": 1136107.8076923073,
+          "spent": 800,
+          "handSeconds": 1.5999999999999999
+        },
+        "thunder": {
+          "count": 3,
+          "damage": 1387482.8423076728,
+          "spent": 1350,
+          "handSeconds": 6
+        }
+      },
+      "freezeCount": 8,
+      "detonationCount": 8,
+      "averageRemaining": 3.8000000000000003,
+      "wetCoverage": 0.7415,
+      "thunderPaidSeconds": 90,
+      "thunderWetCoverage": 0.7233333333333334,
+      "cloudDrySeconds": 24.9,
+      "freezeIntervals": [
+        32.9,
+        31.1,
+        31.099999999999994,
+        31.099999999999994,
+        44.93333333333334,
+        31.150000000000006,
+        31.150000000000006
+      ],
+      "freezes": [
+        {
+          "id": 1,
+          "time": 14,
+          "earliestNext": 74,
+          "buildStart": 0,
+          "iceSeconds": 14
+        },
+        {
+          "id": 2,
+          "time": 46.9,
+          "earliestNext": 106.9,
+          "buildStart": 32.9,
+          "iceSeconds": 14
+        },
+        {
+          "id": 3,
+          "time": 78,
+          "earliestNext": 138,
+          "buildStart": 64,
+          "iceSeconds": 14
+        },
+        {
+          "id": 4,
+          "time": 109.1,
+          "earliestNext": 169.1,
+          "buildStart": 95.1,
+          "iceSeconds": 14
+        },
+        {
+          "id": 5,
+          "time": 140.2,
+          "earliestNext": 200.2,
+          "buildStart": 126.2,
+          "iceSeconds": 14
+        },
+        {
+          "id": 6,
+          "time": 185.13333333333333,
+          "earliestNext": 245.13333333333333,
+          "buildStart": 162.63333333333333,
+          "iceSeconds": 14
+        },
+        {
+          "id": 7,
+          "time": 216.28333333333333,
+          "earliestNext": 276.28333333333336,
+          "buildStart": 202.28333333333333,
+          "iceSeconds": 14
+        },
+        {
+          "id": 8,
+          "time": 247.43333333333334,
+          "earliestNext": 307.43333333333334,
+          "buildStart": 233.43333333333334,
+          "iceSeconds": 14
+        }
+      ],
+      "detonations": [
+        {
+          "time": 14.2,
+          "freezeId": 1,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 47.1,
+          "freezeId": 2,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 78.2,
+          "freezeId": 3,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 109.3,
+          "freezeId": 4,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 140.4,
+          "freezeId": 5,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 185.33333333333334,
+          "freezeId": 6,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 216.48333333333332,
+          "freezeId": 7,
+          "remaining": 3.8,
+          "damageB": 12.7
+        },
+        {
+          "time": 247.63333333333333,
+          "freezeId": 8,
+          "remaining": 3.8,
+          "damageB": 12.7
+        }
+      ],
+      "clouds": [
+        {
+          "start": 17.4,
+          "scheduledEnd": 47.4,
+          "end": 47.4,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 143.6,
+          "scheduledEnd": 173.6,
+          "end": 173.6,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 263.78333333333336,
+          "scheduledEnd": 293.78333333333336,
+          "end": 293.78333333333336,
+          "reason": "complete",
+          "paidTicks": 1800
+        }
+      ]
+    },
+    "lead": -0.0011315986119461163
+  },
+  "waterOnly": {
+    "arcane": {
+      "options": {
+        "duration": 300,
+        "freezeBase": 60,
+        "freezeDuration": 4,
+        "freezeBuildSeconds": 14,
+        "iceResetGap": 15,
+        "waterDiscount": 0.5,
+        "ballDiscount": 4,
+        "waterWet": 5,
+        "ballWet": 15,
+        "waterBurst": 5,
+        "filler": "water",
+        "waterWindow": 15,
+        "prioritizeBuild": true,
+        "readyBasic": "ice",
+        "ballCost": 150,
+        "ballCD": 15,
+        "ballCast": 1.35,
+        "ballK": 1.8,
+        "lockCost": 100,
+        "lockCD": 20,
+        "lockCast": 0.2,
+        "lockDelay": 1,
+        "lockBaseB": 3.2,
+        "lockPerSecondB": 2.5,
+        "thunderCD": 120,
+        "thunderDuration": 30,
+        "thunderCast": 2,
+        "thunderDelay": 1,
+        "thunderStartup": 0,
+        "thunderDrain": 15,
+        "thunderK": 0.4,
+        "dryThunderHit": 0.5,
+        "policy": "reserve",
+        "reserveHorizon": 4,
+        "lockWait": 0,
+        "omit": [
+          "ice",
+          "lock"
+        ],
+        "waterRatio": 0.9,
+        "iceRatio": 0.9,
+        "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
+        "trace": true,
+        "prefix": "arcane"
+      },
+      "dps": 14132.959615384496,
+      "ratio": 1.369166666666655,
+      "vanilla": 10322.307692307691,
+      "M": 580,
+      "regen": 19.5,
+      "endMana": 249.09999999983768,
+      "usedPotions": 1,
+      "idleSeconds": 0,
+      "waterReadyHits": 1335,
+      "scale": 8601.923076923076,
+      "basicMultiplier": 2.4576923076923074,
+      "ledger": {
+        "initial": 580,
+        "natural": 5847.599999998076,
+        "potion": 174,
+        "externalMana": 0,
+        "spent": 6352.5,
+        "end": 249.09999999983768,
+        "error": -1.7618049241718836e-9
+      },
+      "records": {
+        "water": {
+          "count": 1335,
+          "damage": 1607699.423076942,
+          "spent": 2002.5,
+          "handSeconds": 266.9999999999934
+        },
+        "ice": {
+          "count": 0,
+          "damage": 0,
+          "spent": 0,
+          "handSeconds": 0
+        },
+        "ball": {
+          "count": 20,
+          "damage": 1393511.5384615385,
+          "spent": 3000,
+          "handSeconds": 27.00000000000001
+        },
+        "lock": {
+          "count": 0,
+          "damage": 0,
+          "spent": 0,
+          "handSeconds": 0
+        },
+        "thunder": {
+          "count": 3,
+          "damage": 1238676.9230768685,
+          "spent": 1350,
+          "handSeconds": 6
+        }
+      },
+      "freezeCount": 0,
+      "detonationCount": 0,
+      "averageRemaining": 0,
+      "wetCoverage": 0.9993333333333333,
+      "thunderPaidSeconds": 90,
+      "thunderWetCoverage": 1,
+      "cloudDrySeconds": 0,
+      "freezeIntervals": [],
+      "freezes": [],
+      "detonations": [],
+      "clouds": [
+        {
+          "start": 5.15,
+          "scheduledEnd": 35.15,
+          "end": 35.15,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 125.75,
+          "scheduledEnd": 155.75,
+          "end": 155.75,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 246.95,
+          "scheduledEnd": 276.95,
+          "end": 276.95,
+          "reason": "complete",
+          "paidTicks": 1800
+        }
+      ]
+    },
+    "damage": {
+      "options": {
+        "duration": 300,
+        "freezeBase": 60,
+        "freezeDuration": 4,
+        "freezeBuildSeconds": 14,
+        "iceResetGap": 15,
+        "waterDiscount": 0.5,
+        "ballDiscount": 4,
+        "waterWet": 5,
+        "ballWet": 15,
+        "waterBurst": 5,
+        "filler": "water",
+        "waterWindow": 15,
+        "prioritizeBuild": true,
+        "readyBasic": "ice",
+        "ballCost": 150,
+        "ballCD": 15,
+        "ballCast": 1.35,
+        "ballK": 1.8,
+        "lockCost": 100,
+        "lockCD": 20,
+        "lockCast": 0.2,
+        "lockDelay": 1,
+        "lockBaseB": 3.2,
+        "lockPerSecondB": 2.5,
+        "thunderCD": 120,
+        "thunderDuration": 30,
+        "thunderCast": 2,
+        "thunderDelay": 1,
+        "thunderStartup": 0,
+        "thunderDrain": 15,
+        "thunderK": 0.4,
+        "dryThunderHit": 0.5,
+        "policy": "reserve",
+        "reserveHorizon": 4,
+        "lockWait": 0,
+        "omit": [
+          "ice",
+          "lock"
+        ],
+        "waterRatio": 0.9,
+        "iceRatio": 0.9,
+        "thunderBudgetB": 48,
+        "waterReadyRatio": 0.7,
+        "trace": true,
+        "prefix": "damage"
+      },
+      "dps": 16325.073692308088,
+      "ratio": 1.5815333333333716,
+      "vanilla": 10322.307692307691,
+      "M": 460,
+      "regen": 16.5,
+      "endMana": 68.20000000003841,
+      "usedPotions": 5,
+      "idleSeconds": 5.816666666666666,
+      "waterReadyHits": 1319,
+      "scale": 10322.307692307691,
+      "basicMultiplier": 2.949230769230769,
+      "ledger": {
+        "initial": 460,
+        "natural": 4948.199999999829,
+        "potion": 690,
+        "externalMana": 0,
+        "spent": 6030,
+        "end": 68.20000000003841,
+        "error": -2.0958168533979915e-10
+      },
+      "records": {
+        "water": {
+          "count": 1320,
+          "damage": 1906117.3384616054,
+          "spent": 1980,
+          "handSeconds": 263.8833333333269
+        },
+        "ice": {
+          "count": 0,
+          "damage": 0,
+          "spent": 0,
+          "handSeconds": 0
+        },
+        "ball": {
+          "count": 18,
+          "damage": 1504992.461538461,
+          "spent": 2700,
+          "handSeconds": 24.300000000000008
+        },
+        "lock": {
+          "count": 0,
+          "damage": 0,
+          "spent": 0,
+          "handSeconds": 0
+        },
+        "thunder": {
+          "count": 3,
+          "damage": 1486412.30769236,
+          "spent": 1350,
+          "handSeconds": 6
+        }
+      },
+      "freezeCount": 0,
+      "detonationCount": 0,
+      "averageRemaining": 0,
+      "wetCoverage": 0.9993333333333333,
+      "thunderPaidSeconds": 90,
+      "thunderWetCoverage": 1,
+      "cloudDrySeconds": 0,
+      "freezeIntervals": [],
+      "freezes": [],
+      "detonations": [],
+      "clouds": [
+        {
+          "start": 5.15,
+          "scheduledEnd": 35.15,
+          "end": 35.15,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 125.75,
+          "scheduledEnd": 155.75,
+          "end": 155.75,
+          "reason": "complete",
+          "paidTicks": 1800
+        },
+        {
+          "start": 246.95,
+          "scheduledEnd": 276.95,
+          "end": 276.95,
+          "reason": "complete",
+          "paidTicks": 1800
+        }
+      ]
+    },
+    "lead": -0.1342789697761949
+  },
   "timeStats": {
     "baseline": {
       "arcane": {
-        "ratio": 1.7516111111110986,
-        "dps": 18080.668846153716,
+        "ratio": 1.7509444444444324,
+        "dps": 18073.787307692182,
         "water": 129.05000000000123,
         "ice": 140,
         "iceShare": 0.5203493774391353,
@@ -3789,17 +5192,18 @@
         "wetCoverage": 0.912,
         "thunderWetCoverage": 0.8955555555555555,
         "idleSeconds": 0,
+        "waterReadyHits": 6,
         "damageShares": {
-          "water": 0.184116210472897,
-          "ice": 0.199816042373689,
-          "ball": 0.21837038916553167,
-          "lock": 0.18126169558184652,
-          "thunder": 0.21643566240603596
+          "water": 0.18380556525049874,
+          "ice": 0.1998921217120931,
+          "ball": 0.21845353301393047,
+          "lock": 0.18133071041025597,
+          "thunder": 0.21651806961322165
         }
       },
       "damage": {
-        "ratio": 1.7759888888888715,
-        "dps": 18332.303769230588,
+        "ratio": 1.7755888888888713,
+        "dps": 18328.174846153663,
         "water": 113.60000000000107,
         "ice": 116.86666666666666,
         "iceShare": 0.5070870697136222,
@@ -3818,19 +5222,20 @@
         "wetCoverage": 0.7266111111111111,
         "thunderWetCoverage": 0.7625925925925926,
         "idleSeconds": 45.733333333333334,
+        "waterReadyHits": 3,
         "damageShares": {
-          "water": 0.19189309242425506,
-          "ice": 0.19679177172029608,
-          "ball": 0.18243357378362152,
-          "lock": 0.19069188370798307,
-          "thunder": 0.23818967836384417
+          "water": 0.191711044223203,
+          "ice": 0.19683610445361105,
+          "ball": 0.1824746719398277,
+          "lock": 0.19073484227455248,
+          "thunder": 0.23824333710880577
         }
       }
     },
     "hat": {
       "arcane": {
-        "ratio": 1.9537583137715115,
-        "dps": 20167.29447115378,
+        "ratio": 1.9530312663015064,
+        "dps": 20159.78966346147,
         "water": 127.70000000000127,
         "ice": 140,
         "iceShare": 0.5229734777736247,
@@ -3851,17 +5256,18 @@
         "wetCoverage": 0.9433333333333334,
         "thunderWetCoverage": 1,
         "idleSeconds": 0,
+        "waterReadyHits": 6,
         "damageShares": {
-          "water": 0.1780630756349447,
-          "ice": 0.19536701088473446,
-          "ball": 0.226067541166621,
-          "lock": 0.17722578844543738,
-          "thunder": 0.22327658386826255
+          "water": 0.17775709632387351,
+          "ice": 0.1954397394136818,
+          "ball": 0.22615169846440292,
+          "lock": 0.17729176361098245,
+          "thunder": 0.2233597021870595
         }
       },
       "damage": {
-        "ratio": 1.9559716886193592,
-        "dps": 20190.141607371675,
+        "ratio": 1.9555383683272358,
+        "dps": 20185.668741987058,
         "water": 114.60000000000109,
         "ice": 119.51666666666667,
         "iceShare": 0.5105004627322536,
@@ -3880,12 +5286,13 @@
         "wetCoverage": 0.7415,
         "thunderWetCoverage": 0.7233333333333334,
         "idleSeconds": 40.733333333333334,
+        "waterReadyHits": 3,
         "damageShares": {
-          "water": 0.19041113593147083,
-          "ice": 0.19855262429154288,
-          "ball": 0.19439880369967066,
-          "lock": 0.18756807650414564,
-          "thunder": 0.22906935957317
+          "water": 0.19023174222140118,
+          "ice": 0.1985966208106362,
+          "ball": 0.19444187978949423,
+          "lock": 0.1876096389991701,
+          "thunder": 0.2291201181792983
         }
       }
     },
@@ -3927,6 +5334,7 @@
     "water cooldown rotation beats compared ice cooldown rotation",
     "mana conserved and thunder paid continuously",
     "all four graduation cases within 1.5-2x vanilla",
+    "water outside freeze cooldown uses 0.7B; skipping ice and lock is worse",
     "formal configuration unchanged"
   ]
 }

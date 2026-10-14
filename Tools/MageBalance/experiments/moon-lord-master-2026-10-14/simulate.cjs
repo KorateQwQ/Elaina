@@ -2,9 +2,10 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const E=require('../ice-build-2026-10-14/simulate.cjs');
 const F=60,EPS=1e-7,frames=s=>Math.round(s*F),clone=x=>JSON.parse(JSON.stringify(x));
-const candidate={waterRatio:.9,iceRatio:.9,waterDiscount:.16,ballDiscount:4,freezeCD:60,freezeDuration:4,build:3,
-  resetGap:1.2,ballCost:150,ballCD:15,ballCast:1.35,ballB:8.1,lockCost:100,lockCD:20,lockCast:.2,lockDelay:1,lockBaseB:3.2,lockPerSecondB:2.5,
-  thunderCD:120,thunderDuration:30,thunderCast:2,thunderDelay:1,thunderDrain:15,thunderB:34};
+// ice-build-2026-10-14/REPORT-v5.md after the user tweak (15s reset, water 0.7B outside freeze CD).
+const candidate={waterRatio:.9,waterReadyRatio:.7,iceRatio:.9,waterDiscount:.5,ballDiscount:4,freezeCD:60,freezeDuration:4,build:14,
+  resetGap:15,ballCost:150,ballCD:15,ballCast:1.35,ballB:8.1,lockCost:100,lockCD:20,lockCast:.2,lockDelay:1,lockBaseB:3.2,lockPerSecondB:2.5,
+  thunderCD:120,thunderDuration:30,thunderCast:2,thunderDelay:1,thunderDrain:15,thunderB:48};
 const profiles={
   ideal:{water:1,ice:1,ball:1,lock:1,thunder:1,dodgeEvery:0,dodgeSeconds:0,hurtEvery:0,hurtDamage:0,react:0},
   normal:{water:.8,ice:.75,ball:.85,lock:.9,thunder:.95,dodgeEvery:12,dodgeSeconds:1.5,hurtEvery:18,hurtDamage:150,react:.25},
@@ -31,10 +32,17 @@ function gear(o) {
   if(o.prefix==='damage')E.B.applyDamagePrefixes(s,'e');else for(const i of E.B.equippedSlots(s,'e'))s.e.items[i].prefix='arcane';
   const b=E.B.calculate(s);return {s,b};
 }
+// A finisher may target any vulnerable member of the shared frozen boss.
+// Favor damage that can actually remove HP, then a kill, rather than the ice target.
+function chooseLockTarget(candidates) {
+  return [...candidates].sort((a,b)=>Number(b.safeImpact)-Number(a.safeImpact)
+    || b.usefulDamage-a.usefulDamage || Number(b.lethal)-Number(a.lethal)
+    || b.part.hp-a.part.hp)[0]?.part||null;
+}
 function run(options={}) {
   const o={stage:19,slots:7,hat:true,prefix:'arcane',potions:5,potionPercent:50,regenPercent:2.5,profile:'normal',seed:1,
     maxSeconds:300,thunderFirst:2,allowThunder:true,healthRegen:2,healthPotionHeal:150,healthPotionCD:60,
-    simulateSurvival:true,sharedFreeze:true,...options};
+    simulateSurvival:true,sharedFreeze:true,preBuild:['thunder','ball'],lockPolicy:'adaptive',buildPolicy:'spread',...options};
   const p=typeof o.profile==='string'?profiles[o.profile]:o.profile,c={...candidate,...o.tune};
   const {s,b}=gear(o),M=b.maxMana,scale=s.baseDps*b.e.multiplier,restore=M*o.potionPercent/100,regen=5+M*o.regenPercent/100;
   let seed=o.seed>>>0;function random(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;}
@@ -45,15 +53,16 @@ function run(options={}) {
   // Wet remains per NPC: the user correction specifies a unified freeze system.
   const sharedFrost={freezeUntil:-1,freezeReady:0,iceBuild:0,lastIceHit:-Infinity,freezeID:0,freezeStart:-Infinity};
   const frost=part=>o.sharedFreeze?sharedFrost:part;
-  const records=Object.fromEntries(['water','ice','ball','lock','thunder'].map(k=>[k,{count:0,damage:0,spent:0,attempted:0,invalidDamage:0,overkill:0}]));
+  const records=Object.fromEntries(['water','ice','ball','lock','thunder'].map(k=>[k,{count:0,damage:0,spent:0,attempted:0,invalidDamage:0,overkill:0,noTarget:0}]));
   const events=[],freezeEvents=[],lockEvents=[],hurtEvents=[],partDeaths=[],clouds=[],manaSamples=[],cooldownEvents=[];
   let mana=M,potions=o.potions,potionMana=0,regenEffective=0,regenWaste=0,spent=0,hurtPaid=0,healthDamage=0;
   let health=300,healthPotions=0,healthPotionReady=0,playerDead=false;
   let busy=0,ballReady=0,lockReady=0,thunderReady=frames(o.thunderFirst),cloud=null,target=null;
-  let tick=0,elapsed=0,coreOpened=null,killed=false,cloudTicks=0,damagePerPart={};
+  let tick=0,elapsed=0,coreOpened=null,killed=false,cloudTicks=0,damagePerPart={},waterReadyHits=0,buildResets=0;
   for(const part of parts)damagePerPart[part.id]=Object.fromEntries(Object.keys(records).map(k=>[k,0]));
   const isOpen=part=>part&&part.hp>EPS&&tick>=60&&(part.id==='core'?coreOpened!==null&&tick>=coreOpened:part.closedFrame<(part.id==='head'?15:21));
   const wet=part=>part&&part.wetUntil>tick;
+  let pendingLock=null;
   const canPay=cost=>cost<=M+EPS&&mana+potions*restore+EPS>=cost;
   function pay(cost,key) {
     if(!canPay(cost))return false;
@@ -74,9 +83,14 @@ function run(options={}) {
   function chooseTarget() {
     // Commit to the current eye while building a freeze; otherwise prefer the
     // easier-to-sustain hand windows, then head. Never hit multiple parts for free.
-    if(isOpen(target)&&frost(target).iceBuild>0&&tick>=frost(target).freezeReady)return target;
-    const available=parts.filter(isOpen);
-    if(isOpen(target)&&frost(target).freezeUntil>tick)return target;
+    // Avoid spending filler hits on a part already covered by a paid finisher.
+    const available=parts.filter(x=>isOpen(x)&&!(o.lockPolicy==='adaptive'&&pendingLock?.part===x));
+    // Shared buildup permits switching eyes without losing progress. Spread
+    // preparation hits across live parts rather than always finishing one hand.
+    if(o.buildPolicy==='spread'&&o.sharedFreeze&&tick>=sharedFrost.freezeReady&&tick>=sharedFrost.freezeUntil)
+      return available.sort((a,b)=>b.hp-a.hp)[0]||null;
+    if(available.includes(target)&&frost(target).iceBuild>0&&tick>=frost(target).freezeReady)return target;
+    if(available.includes(target)&&frost(target).freezeUntil>tick)return target;
     const frozen=available.find(x=>frost(x).freezeUntil>tick);if(frozen)return frozen;
     const head=available.find(x=>x.id==='head');
     const hands=available.filter(x=>x.id==='left'||x.id==='right');
@@ -86,6 +100,24 @@ function run(options={}) {
     }
     return head||available.find(x=>x.id==='core')||null;
   }
+  function finisherTarget() {
+    const list=parts.filter(part=>isOpen(part)&&frost(part).freezeUntil-tick>frames(c.lockCast));
+    const damageB=c.lockBaseB+c.lockPerSecondB*Math.max(0,(sharedFrost.freezeUntil-tick)/F-c.lockCast);
+    return chooseLockTarget(list.map(part=>{
+      // Predict only the deterministic eye animation after the known release time.
+      // Target aim and damage remain fixed at cast; no retargeting at impact.
+      let closed=part.closedFrame,ai=part.aiTime;
+      const castTicks=frames(c.lockCast),impactTicks=castTicks+frames(c.lockDelay);
+      for(let dt=1;part.id!=='core'&&dt<=impactTicks;dt++) {
+        if(dt<=castTicks||c.lockHoldFreeze&&dt<impactTicks)continue;
+        closed+=Math.sign(animationGoal(part.id,ai)-closed);ai++;
+      }
+      const budget=(o.sharedFreeze?damageB:c.lockBaseB+c.lockPerSecondB*Math.max(0,(frost(part).freezeUntil-tick)/F-c.lockCast))*scale;
+      const defended=Math.max(1,budget-part.defense*.5*(1+b.e.crit/100));
+      return {part,safeImpact:part.id==='core'||closed<(part.id==='head'?15:21),
+        usefulDamage:Math.min(part.hp,defended),lethal:defended>=part.hp};
+    }));
+  }
   function discount(part,seconds){
     const state=frost(part);
     if(state.freezeReady>tick){const amount=Math.min(seconds*F,state.freezeReady-tick);state.freezeReady-=amount;
@@ -94,12 +126,13 @@ function run(options={}) {
   function iceHit(e,hits) {
     const part=e.part;
     const state=frost(part);
-    if(!e.buildEligible||part.hp<=0||tick<state.freezeReady||tick<state.freezeUntil)return;
-    if(tick-state.lastIceHit>c.resetGap*F)state.iceBuild=0;
+    if(!e.buildEligible||((!o.sharedFreeze||o.lockPolicy==='legacy')&&part.hp<=0)||tick<state.freezeReady||tick<state.freezeUntil)return;
+    if(tick-state.lastIceHit>c.resetGap*F){if(state.iceBuild>0)buildResets++;state.iceBuild=0;}
     state.iceBuild+=.5*hits/3;state.lastIceHit=tick;
     if(state.iceBuild+EPS>=c.build) {
       state.iceBuild=0;state.freezeStart=tick;state.freezeUntil=tick+frames(c.freezeDuration);state.freezeReady=tick+frames(c.freezeCD);state.freezeID++;
-      freezeEvents.push({time:tick/F,id:part.id,freezeID:state.freezeID});
+      freezeEvents.push({time:tick/F,id:part.id,freezeID:state.freezeID,
+        parts:parts.map(x=>({id:x.id,hp:x.hp,open:isOpen(x)}))});
     }
   }
   function settle() {
@@ -107,8 +140,12 @@ function run(options={}) {
       const e=events[i];if(e.at>tick){i++;continue;}events.splice(i,1);
       if(e.type==='hit') {
         const hits=e.key==='ice'?[yes(p.ice),yes(p.ice),yes(p.ice)].filter(Boolean).length:Number(yes(p[e.key]));
+        if(e.key==='lock')pendingLock=null;
         if(!hits)continue;
-        if(takeDamage(e.part,e.key,e.damage*(e.key==='ice'?hits/3:1),hits)) {
+        const outsideCD=e.key==='water'&&frost(e.part).freezeReady<=tick;
+        if(outsideCD)waterReadyHits++;
+        const ratio=outsideCD?c.waterReadyRatio/c.waterRatio:1;
+        if(takeDamage(e.part,e.key,e.damage*ratio*(e.key==='ice'?hits/3:1),hits)) {
           if(e.key==='water'){e.part.wetUntil=tick+frames(5);discount(e.part,c.waterDiscount);}
           if(e.key==='ball'){e.part.wetUntil=tick+frames(15);discount(e.part,c.ballDiscount);}
           if(e.key==='ice')iceHit(e,hits);
@@ -117,9 +154,12 @@ function run(options={}) {
         const state=frost(e.part);
         const remaining=e.part.hp>0?Math.max(0,(state.freezeUntil-tick)/F):0;
         const damage=(c.lockBaseB+c.lockPerSecondB*remaining)*scale;
-        lockEvents.push({time:tick/F,id:e.part.id,remaining,freezeID:remaining>0?state.freezeID:null});
-        if(remaining>0)state.freezeUntil=tick;
+        lockEvents.push({time:tick/F,id:e.part.id,remaining,freezeID:remaining>0?state.freezeID:null,
+          buildupTarget:e.buildupTarget,castTargetHp:e.castTargetHp,castTime:e.castTime,damageB:damage/scale});
+        // lockHoldFreeze: the target stays frozen through the barrage and the explosion releases it.
+        if(remaining>0)state.freezeUntil=c.lockHoldFreeze?tick+frames(c.lockDelay):tick;
         events.push({type:'hit',key:'lock',part:e.part,at:tick+frames(c.lockDelay),damage});
+        if(o.lockPolicy==='adaptive')pendingLock={part:e.part,at:tick+frames(c.lockDelay)};
       } else if(e.type==='cloud') {
         const log={start:tick/F,end:null,reason:null,paidTicks:0};clouds.push(log);
         cloud={end:tick+frames(c.thunderDuration),nextHit:tick+30,log};
@@ -157,31 +197,53 @@ function run(options={}) {
         if(tick>=cloud.nextHit) {
           const open=parts.filter(isOpen);const wetTarget=open.filter(wet).sort((a,b)=>a.hp-b.hp)[0];
           const hitTarget=wetTarget||target;
-          if(hitTarget&&yes(p.thunder*(wet(hitTarget)?1:.5)))takeDamage(hitTarget,'thunder',c.thunderB*scale/(c.thunderDuration*2));
+          const strike=c.thunderB*scale/(c.thunderDuration*2);
+          if(!hitTarget){records.thunder.attempted+=strike;records.thunder.invalidDamage+=strike;records.thunder.noTarget+=strike;}
+          else if(yes(p.thunder*(wet(hitTarget)?1:.5)))takeDamage(hitTarget,'thunder',strike);
           cloud.nextHit+=30;
         }
       } else {cloud.log.end=tick/F;cloud.log.reason='mana';cloud=null;}
     }
     if(parts.find(x=>x.id==='core').hp<=0){killed=true;elapsed=tick+1;break;}
-    if(tick>=busy&&target&&!dodge()) {
-      const state=frost(target);
-      const remaining=(state.freezeUntil-tick)/F;
+    if(tick>=busy&&(target||o.lockPolicy==='adaptive')&&!dodge()) {
+      const lockTarget=o.lockPolicy==='adaptive'?finisherTarget():target;
+      const state=frost(target||lockTarget||parts[0]);
+      const lockState=lockTarget?frost(lockTarget):state;
+      const remaining=(lockState.freezeUntil-tick)/F;
       let acted=false,hold=false;
-      if(tick>=lockReady&&remaining>c.lockCast&&tick>=state.freezeStart+frames(p.react)) {
-        if(canPay(c.lockCost)){const end=cast('lock',c.lockCost,c.lockCast,target);events.push({type:'lock',part:target,at:end});lockReady=tick+frames(c.lockCD);acted=true;}
+      if(tick>=lockReady&&lockTarget&&remaining>c.lockCast) {
+        if(tick<lockState.freezeStart+frames(p.react)) {
+          // Do not begin a1.35s ball during the model's0.25s reaction delay.
+          if(o.lockPolicy==='adaptive')hold=true;
+        } else if(canPay(c.lockCost)){const end=cast('lock',c.lockCost,c.lockCast,lockTarget);events.push({type:'lock',part:lockTarget,at:end,
+          buildupTarget:freezeEvents.at(-1)?.id,castTargetHp:lockTarget.hp,castTime:tick/F});lockReady=tick+frames(c.lockCD);acted=true;}
         else hold=true;
       }
-      if(!acted&&!hold&&tick>=state.freezeReady&&tick>=state.freezeUntil) {
+      // Before a new buildup starts, ready thunder / ball may go first so the
+      // ball's 15s wet covers the 14s ice phase. Mid-buildup they wait.
+      const buildReady=target&&tick>=state.freezeReady&&tick>=state.freezeUntil;
+      if(!acted&&!hold&&buildReady&&state.iceBuild===0) {
+        for(const key of o.preBuild) {
+          if(acted)break;
+          if(key==='thunder'&&o.allowThunder&&tick>=thunderReady&&!cloud&&canPay(c.thunderDrain/F)) {
+            const end=cast('thunder',0,c.thunderCast,target);events.push({type:'cloud',at:end+frames(c.thunderDelay)});thunderReady=tick+frames(c.thunderCD);acted=true;
+          }
+          if(key==='ball'&&tick>=ballReady&&canPay(c.ballCost)) {
+            const end=cast('ball',c.ballCost,c.ballCast,target);events.push({type:'hit',key:'ball',part:target,at:end,damage:c.ballB*scale});ballReady=tick+frames(c.ballCD);acted=true;
+          }
+        }
+      }
+      if(!acted&&!hold&&buildReady) {
         if(canPay(4.5)) {const end=cast('ice',4.5,.5,target);events.push({type:'hit',key:'ice',part:target,at:end,damage:c.iceRatio*.5*scale,buildEligible:true});acted=true;}
         else hold=true;
       }
-      if(!acted&&!hold&&o.allowThunder&&tick>=thunderReady&&!cloud&&canPay(c.thunderDrain/F)) {
+      if(!acted&&!hold&&target&&o.allowThunder&&tick>=thunderReady&&!cloud&&canPay(c.thunderDrain/F)) {
         const end=cast('thunder',0,c.thunderCast,target);events.push({type:'cloud',at:end+frames(c.thunderDelay)});thunderReady=tick+frames(c.thunderCD);acted=true;
       }
-      if(!acted&&!hold&&tick>=ballReady&&canPay(c.ballCost)) {
+      if(!acted&&!hold&&target&&tick>=ballReady&&canPay(c.ballCost)) {
         const end=cast('ball',c.ballCost,c.ballCast,target);events.push({type:'hit',key:'ball',part:target,at:end,damage:c.ballB*scale});ballReady=tick+frames(c.ballCD);acted=true;
       }
-      if(!acted&&!hold&&canPay(1.5)) {
+      if(!acted&&!hold&&target&&canPay(1.5)) {
         const end=cast('water',1.5,.2,target);events.push({type:'hit',key:'water',part:target,at:end,damage:c.waterRatio*.2*scale});
       }
     }
@@ -209,9 +271,9 @@ function run(options={}) {
     B:s.baseDps,maxMana:M,regen,gearMultiplier:b.e.multiplier,records,usedPotions:o.potions-potions,endMana:mana,
     hurtPaid,healthDamage,endHealth:health,healthPotions,ledger:{initial:M,regenEffective,potionMana,spent,hurtPaid,end:mana},
     stageDeaths:partDeaths,freezeEvents,lockEvents,cooldownEvents,finalFrost:o.sharedFreeze?{...sharedFrost}:null,
-    clouds,cloudSeconds:cloudTicks/F,damagePerPart,manaSamples};
+    clouds,cloudSeconds:cloudTicks/F,damagePerPart,manaSamples,waterReadyHits,buildResets};
 }
-module.exports={candidate,profiles,bossStats,totalHP,animationGoal,run,gear};
+module.exports={candidate,profiles,bossStats,totalHP,animationGoal,run,gear,chooseLockTarget};
 if(require.main===module) {
   for(const profile of ['ideal','normal','heavy'])console.log(JSON.stringify(run({profile}),null,2));
 }
