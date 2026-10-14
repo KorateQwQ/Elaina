@@ -201,6 +201,32 @@ test('Missile progression has two upgrades per stage excluding learned level',()
 test('Ice phase cap and first level are distinct',()=>{const r={...B.newBasic(),unlockStageCap:10,unlockLevel:6};assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[6,8,10,13,15]);near(B.skillLevelAt(r,5),0);near(B.skillLevelAt(r,8),2);r.unlockLevel=10;assert.deepEqual(Array.from(B.progressionNodes(r,5,15)),[10,13,15]);});
 test('Progression does not duplicate integer gates or truncate at 64 skills',()=>{const r={...B.newBasic(),levelsPerPhase:10};const nodes=B.progressionNodes(r,1,1000);assert.equal(new Set(nodes).size,nodes.length);near(B.skillLevelAt(r,1000,1),1000);});
 test('Level curve and rounded damage expose weak early upgrades',()=>{const s=B.defaults(),r=s.basicAttacks[0];near(B.levelDps(1),22);near(B.levelDps(3),26);near(B.levelDps(5),30);near(B.levelDps(10),50);near(B.levelDps(1000),3500);assert.deepEqual([1,3,5].map(l=>B.progressionBudget(s,r,l).integerHit),[6,7,8]);near(B.progressionBudget(s,r,1).ratio,1);near(B.progressionBudget(s,r,50).ratio,.6);assert.equal(B.progressionBudget(s,s.skills[0],1).ratio,null);});
+test('Fixed intervals map every ten or seven character levels from the unlock level',()=>{
+ for(const interval of [7,10]){
+  const row={...B.newBasic(),growthMode:'interval',levelInterval:interval};
+  assert.deepEqual(Array.from(B.progressionNodes(row,5,35)),interval===10?[1,11,21,31]:[1,8,15,22,29]);
+  near(B.skillLevelAt(row,interval),1);near(B.skillLevelAt(row,interval+1),2);
+ }
+});
+test('Fixed progression is per skill, ignores phase settings, and respects delayed unlock and limits',()=>{
+ const row={...B.newBasic(),growthMode:'interval',levelInterval:7,unlockLevel:6,unlockStageCap:42,levelsPerPhase:10};
+ assert.deepEqual(Array.from(B.progressionNodes(row,5,30)),[6,13,20,27]);
+ assert.deepEqual(Array.from(B.progressionNodes(row,20,30)),[6,13,20,27]);
+ assert.equal(B.progressionNodes(row,5,5).length,0);
+ near(B.skillLevelAt(row,12),1);near(B.skillLevelAt(row,13),2);
+ row.unlockLevel=1000;assert.deepEqual(Array.from(B.progressionNodes(row)),[1000]);
+ const s=B.defaults();s.basicAttacks[0].growthMode='interval';s.basicAttacks[0].levelInterval=10;
+ assert.deepEqual(Array.from(B.progressionNodes(s.skills[0],5,15)),[1,5,10,15]);
+ near(B.progressionBudget(s,s.basicAttacks[0],11).baseline,B.levelDps(11));
+});
+test('New growth fields validate strictly while old v2 entries retain phase progression',()=>{
+ const old=B.newBasic();delete old.growthMode;delete old.levelInterval;
+ assert.equal(B.validGrowth(old),true);assert.deepEqual(Array.from(B.progressionNodes(old,5,10)),[1,3,5,8,10]);
+ const interval={...old,growthMode:'interval'};assert.deepEqual(Array.from(B.progressionNodes(interval,5,11)),[1,6,11]);
+ for(const growthMode of ['bad','',null,1,{}])assert.equal(B.validGrowth({...old,growthMode}),false);
+ for(const levelInterval of [0,-1,1.5,1001,'7',null,true,Infinity])assert.equal(B.validGrowth({...old,levelInterval}),false);
+ for(const levelInterval of [1,7,10,1000])assert.equal(B.validGrowth({...old,levelInterval}),true);
+});
 test('Progression preview does not alter current pricing or runtime simulation',()=>{const s=B.defaults(),before=B.basicBudget(s).dps;B.progressionBudget(s,s.basicAttacks[0],1);near(B.basicBudget(s).dps,before);});
 function ladderBase(regen){
  const s=combatBase();setCombat(s,{duration:100,startPercent:0,regen});
@@ -289,17 +315,18 @@ async function browserTests(){
   await resetPage();
 
   const progressionPanel=page.locator('#progressionPanel');
-  const progressionToggle=progressionPanel.locator('summary');
-  assert.equal(await progressionPanel.evaluate(el=>el.open),false,'Progression preview starts collapsed');
+  assert.equal(await page.locator('[role="tab"]').count(),3);
+  assert.equal(await page.locator('#labPage #progressionPanel').count(),0,'Progression is no longer at the bottom of the lab');
   assert.equal(await page.locator('#progressionPhaseSize').isVisible(),false);
-  const collapsedHeight=(await progressionPanel.boundingBox()).height;
-  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-collapsed.png')});
-  await progressionToggle.click();
-  assert.equal(await progressionPanel.evaluate(el=>el.open),true);
-  assert.ok((await progressionPanel.boundingBox()).height>collapsedHeight+200,'Collapsing must reclaim preview space');
-
   // Configurable skill progression: two upgrades per five-level phase for small attacks.
   await page.getByRole('button',{name:'添加冰锥示例',exact:true}).click();
+  await page.getByRole('tab',{name:'技能等级成长区间',exact:true}).click();
+  assert.equal(await page.locator('#progressionPage').isVisible(),true);
+  assert.equal(await page.locator('#labPage').isVisible(),false);
+  assert.equal(await page.locator('#loadoutPage').isVisible(),false);
+  assert.equal(await page.locator('#progressionPhaseSize').isVisible(),true);
+  assert.equal(await page.evaluate(()=>location.hash),'#progression');
+  assert.equal(await page.evaluate(()=>window.scrollY),0,'Opening a subpage starts at the top');
   assert.equal(await page.locator('#progressionRows tr').count(),B.defaults().skills.length+2);
   assert.equal(await page.getByRole('spinbutton',{name:'冰锥普攻首级角色等级',exact:true}).inputValue(),'6');
   assert.equal(await page.getByRole('spinbutton',{name:'冰锥普攻每阶段新增技能等级',exact:true}).inputValue(),'2');
@@ -320,29 +347,73 @@ async function browserTests(){
   assert.equal(await page.getByRole('combobox',{name:'水球魔法解锁时期',exact:true}).inputValue(),'0');
   await page.getByRole('combobox',{name:'水球魔法解锁时期',exact:true}).selectOption('8');
   const enabledSkills=()=>page.locator('#rotationRows input[data-skill-field="enabled"]').evaluateAll(xs=>xs.map(x=>x.checked));
+  await page.locator('#tabLab').click();
   await page.locator('#preset').selectOption('6');
   assert.equal(JSON.stringify(await enabledSkills()),JSON.stringify([false,true,true,true,true,true,true]));
   assert.equal(await page.locator('#progressionPreviewLevel').inputValue(),'30');
   assert.match(await page.locator('#status').innerText(),/角色 30 级.*停用未解锁技能（水球魔法）/);
   await page.locator('#preset').selectOption('8');
   assert.ok((await enabledSkills()).every(Boolean));
+  await page.locator('#tabProgression').click();
   await page.getByRole('combobox',{name:'水球魔法解锁时期',exact:true}).selectOption('1');
-  await page.locator('#progressionPanel').screenshot({path:path.join(__dirname,'test-output','progression-design.png')});
-  assert.equal(await progressionPanel.evaluate(el=>el.open),true,'Editing must not close the preview');
-  await progressionToggle.focus();
-  await page.keyboard.press('Enter');
-  assert.equal(await page.locator('#progressionPhaseSize').isVisible(),false);
+  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-design.png')});
+  assert.equal(await page.locator('#progressionPage').isVisible(),true,'Editing stays on the progression subpage');
+  await page.locator('#tabProgression').focus();
+  await page.keyboard.press('Home');
+  assert.equal(await page.locator('#labPage').isVisible(),true);
+  assert.equal(await page.locator('#tabLab').evaluate(el=>el===document.activeElement),true);
+  await page.keyboard.press('End');
+  assert.equal(await page.locator('#progressionPage').isVisible(),true);
+  assert.equal(await page.locator('#tabProgression').evaluate(el=>el===document.activeElement),true);
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('#labPage').isVisible(),true,'Right arrow wraps from the third tab');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await page.locator('#progressionPage').isVisible(),true,'Left arrow wraps to the third tab');
   await page.setViewportSize({width:390,height:844});
-  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-collapsed-mobile.png')});
-  await progressionToggle.click();
   assert.equal(await page.locator('#progressionPhaseSize').isVisible(),true);
   assert.equal(await page.getByRole('spinbutton',{name:'魔法飞弹每阶段新增技能等级',exact:true}).inputValue(),'2');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
-  await progressionPanel.screenshot({path:path.join(__dirname,'test-output','progression-expanded-mobile.png')});
-  await progressionToggle.click();
+  for(const tab of await page.locator('[role="tab"]').all()){
+   const box=await tab.boundingBox();
+   assert.ok(box.x>=0&&box.x+box.width<=390,'All tabs fit the mobile viewport');
+  }
+  await page.screenshot({path:path.join(__dirname,'test-output','progression-page-mobile.png')});
   await page.setViewportSize({width:1440,height:1100});
   await page.reload();
-  assert.equal(await progressionPanel.evaluate(el=>el.open),false,'Reload returns to compact default');
+  assert.equal(await page.locator('#progressionPage').isVisible(),true,'#progression reopens the progression subpage');
+  assert.equal(await page.getByRole('spinbutton',{name:'魔法飞弹每阶段新增技能等级',exact:true}).inputValue(),'2','Progression edits survive reload');
+  await page.screenshot({path:path.join(__dirname,'test-output','progression-page-desktop.png')});
+  // Independent fixed-interval growth for one basic and one active skill.
+  const missileMode=page.getByRole('combobox',{name:'魔法飞弹成长方式',exact:true});
+  const missileInterval=page.getByRole('spinbutton',{name:'魔法飞弹每级角色等级间隔',exact:true});
+  const missilePerPhase=page.getByRole('spinbutton',{name:'魔法飞弹每阶段新增技能等级',exact:true});
+  assert.equal(await missileMode.inputValue(),'phase');assert.equal(await missileInterval.isDisabled(),true);
+  await missileMode.selectOption('interval');await missileInterval.fill('10');
+  assert.equal(await missilePerPhase.isDisabled(),true);assert.equal(await missileInterval.isDisabled(),false);
+  assert.match(await page.locator('#progressionRows tr').filter({hasText:'魔法飞弹'}).innerText(),/Lv1→1、Lv2→11、Lv3→21/);
+  await page.getByRole('combobox',{name:'水球魔法成长方式',exact:true}).selectOption('interval');
+  await page.getByRole('spinbutton',{name:'水球魔法每级角色等级间隔',exact:true}).fill('7');
+  assert.match(await page.locator('#progressionRows tr').filter({hasText:'水球魔法'}).innerText(),/Lv1→1、Lv2→8、Lv3→15/);
+  assert.equal(await page.getByRole('combobox',{name:'风龙卷成长方式',exact:true}).inputValue(),'phase');
+  await page.locator('#progressionPhaseSize').fill('7');
+  assert.match(await page.locator('#progressionRows tr').filter({hasText:'魔法飞弹'}).innerText(),/Lv1→1、Lv2→11、Lv3→21/);
+  assert.match(await page.locator('#progressionRows tr').filter({hasText:'风龙卷'}).innerText(),/Lv1→1、Lv2→5、Lv3→12/);
+  await page.locator('#progressionDetailSkill').selectOption('MagicMissileSkill');
+  assert.match(await page.locator('#progressionNotice').innerText(),/固定等级间隔.*每 10 个角色等级/);
+  assert.equal(await page.locator('#progressionDetailRows tr').nth(1).locator('td').nth(1).innerText(),'11');
+  await missileMode.selectOption('phase');assert.equal(await missilePerPhase.inputValue(),'2');
+  assert.equal(await missilePerPhase.isDisabled(),false);assert.equal(await missileInterval.isDisabled(),true);
+  await missileMode.selectOption('interval');assert.equal(await missileInterval.inputValue(),'10','Switching modes keeps the inactive parameters');
+  await page.reload();
+  assert.equal(await missileMode.inputValue(),'interval');assert.equal(await missileInterval.inputValue(),'10');
+  assert.equal(await page.getByRole('spinbutton',{name:'水球魔法每级角色等级间隔',exact:true}).inputValue(),'7');
+  await page.screenshot({path:path.join(__dirname,'test-output','progression-interval-desktop.png')});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
+  await page.screenshot({path:path.join(__dirname,'test-output','progression-interval-mobile.png')});
+  await page.setViewportSize({width:1440,height:1100});
+  await page.locator('#tabLab').click();
+  assert.equal(await page.evaluate(()=>location.hash),'','Returning to the lab clears the subpage hash');
   await resetPage();
 
   // Independent ordinary-attack design, persistence, deletion and backward migration.
@@ -413,7 +484,7 @@ async function browserTests(){
   assert.equal(await page.locator('#basicDps0').innerText(),'540');
   assert.equal(errors.length,0,errors.join(' | '));
   const legacy=await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')));
-  delete legacy.occupyRatio;delete legacy.ashenWitch;delete legacy.maxLife;legacy.basicAttacks.forEach(r=>delete r.ratioCurve);legacy.baseDps=777;
+  delete legacy.occupyRatio;delete legacy.ashenWitch;delete legacy.maxLife;legacy.basicAttacks.forEach(r=>delete r.ratioCurve);[...legacy.basicAttacks,...legacy.skills].forEach(r=>{delete r.growthMode;delete r.levelInterval;});legacy.baseDps=777;
   await page.evaluate(value=>localStorage.setItem('elaina-mage-balance-v2',JSON.stringify(value)),legacy);
   await page.reload();
   assert.equal(await page.locator('#baseDps').inputValue(),'777','Saves without curve or occupyRatio still load');
@@ -422,6 +493,8 @@ async function browserTests(){
   assert.equal(await page.locator('#maxLife').inputValue(),String(legacy.loadouts[legacy.stage-1].maxLife),'Missing max life falls back to the stage loadout');
   assert.equal(await page.getByRole('textbox',{name:'魔法飞弹倍率曲线',exact:true}).inputValue(),'');
   await page.locator('#occupyRatio').fill('1');
+  const migratedGrowth=await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')));
+  assert.ok([...migratedGrowth.basicAttacks,...migratedGrowth.skills].every(r=>r.growthMode==='phase'&&r.levelInterval===5),'Old saves default to phase growth');
   near((await page.evaluate(()=>JSON.parse(localStorage.getItem('elaina-mage-balance-v2')))).occupyRatio,1);
   await resetPage();
 
@@ -723,7 +796,7 @@ async function browserTests(){
   const loadPayload=async(value)=>{
    const payload=value&&typeof value==='object'&&!Array.isArray(value)&&!Object.hasOwn(value,'schema')?{schema:'elaina-mage-balance-v2',configuration:value}:value;
    await page.evaluate(text=>{
-    window.showOpenFilePicker=async()=>[{name:'SkillBalance.json',queryPermission:async()=> 'granted',requestPermission:async()=> 'granted',getFile:async()=>({text:async()=>text})}];
+    window.showOpenFilePicker=async()=>[{name:'SkillBalance.json',queryPermission:async()=> 'granted',requestPermission:async()=> 'granted',getFile:async()=>({text:async()=>text}),createWritable:async()=>({write:async value=>{window.testSavedText=value;},close:async()=>{}})}];
     document.getElementById('fileStatus').textContent='';
    },typeof payload==='string'?payload:JSON.stringify(payload));
    await page.locator('#linkMod').click();
@@ -732,6 +805,21 @@ async function browserTests(){
    await page.locator('#loadMod').click();
    await page.waitForFunction(()=>document.getElementById('fileStatus').textContent!=='');
   };
+  for(const category of ['basicAttacks','skills']){
+   for(const [field,value] of [['growthMode','bad'],['growthMode',null],['levelInterval',0],['levelInterval',1.5],['levelInterval',1001]]){
+    const invalid=B.clone(extraExport.configuration);invalid[category][0][field]=value;
+    await loadPayload(invalid);assert.match(await page.locator('#fileStatus').innerText(),/读取失败/);
+   }
+  }
+  const intervalPayload=B.clone(extraExport.configuration);
+  Object.assign(intervalPayload.basicAttacks[0],{growthMode:'interval',levelInterval:10});
+  Object.assign(intervalPayload.skills[0],{growthMode:'interval',levelInterval:7});
+  await loadPayload(intervalPayload);
+  await page.locator('#saveMod').click();
+  await page.waitForFunction(()=>typeof window.testSavedText==='string');
+  const intervalExport=await page.evaluate(()=>JSON.parse(window.testSavedText).configuration);
+  assert.equal(intervalExport.basicAttacks[0].growthMode,'interval');assert.equal(intervalExport.basicAttacks[0].levelInterval,10);
+  assert.equal(intervalExport.skills[0].growthMode,'interval');assert.equal(intervalExport.skills[0].levelInterval,7);
   await page.locator('#extraMana').fill('900');
   const duplicate=B.clone(extraExport.configuration);duplicate.skills.at(-1).id=duplicate.skills[0].id;
   await loadPayload(duplicate);assert.match(await page.locator('#fileStatus').innerText(),/读取失败/);
@@ -779,7 +867,7 @@ async function browserTests(){
   await loadPayload(JSON.parse(fs.readFileSync(path.join(__dirname,'elaina-mage-balance.json'),'utf8')));
   assert.match(await page.locator('#fileStatus').innerText(),/已读取/,'Existing saved JSON must remain readable');
   assert.deepEqual(errors,[]);
-  console.log('Browser smoke passed: stage loadouts page, lab sync, presets, slot count, copy, persistence, duplicate warning, compact toolbar, file reload, desktop/mobile layout; zero JS errors.');
+  console.log('Browser smoke passed: dedicated progression subpage, three-tab keyboard navigation, stage loadouts page, lab sync, presets, slot count, copy, persistence, duplicate warning, compact toolbar, file reload, desktop/mobile layout; zero JS errors.');
  } finally {await browser.close();}
 }
 if(process.argv.includes('--browser'))browserTests().catch(e=>{console.error(e);process.exitCode=1;});

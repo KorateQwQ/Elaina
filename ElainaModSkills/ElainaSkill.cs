@@ -13,6 +13,7 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
 
 namespace 伊蕾娜.ElainaModSkills;
 
@@ -42,8 +43,7 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     protected virtual bool UsesLiveBalance => true;
     protected virtual string BalanceId => GetType().Name;
-    protected virtual DamageClass BalanceDamageClass => DamageClass.Magic;
-
+    
     /// <summary>
     /// 配置存在时自动限制当前可升级等级；不裁剪已学等级，不代替首次解锁条件。
     /// </summary>
@@ -79,7 +79,7 @@ public abstract partial class ElainaSkill : ModSkill
     /// 按技能实际等级返回已应用装备增伤的单发伤害；未学习时预览 Lv1，可指定等级预览。
     /// </summary>
     protected int GetConfiguredDamage(int? hitCount = null, int? skillLevel = null) =>
-        SkillBalanceSystem.GetPlayerDamage(Player, BalanceId, skillLevel ?? Math.Max(1, Level), BalanceDamageClass, hitCount);
+        SkillBalanceSystem.GetPlayerDamage(Player, BalanceId, skillLevel ?? Math.Max(1, Level), ModContent.GetInstance<ElainaBasicDamage>(), hitCount);
 
     /// <summary>按技能实际等级读取基础周期 DPS，不含装备；可指定等级预览。</summary>
     protected float GetConfiguredDps(int? skillLevel = null) =>
@@ -89,7 +89,7 @@ public abstract partial class ElainaSkill : ModSkill
     /// 耗蓝、周期、发数和伤害使用同一快照，便于新技能在一次施法中读取。
     /// </summary>
     protected bool TryGetConfiguredBalance(out SkillBalanceResult result, int? hitCount = null, int? skillLevel = null) =>
-        SkillBalanceSystem.TryGetPlayerBalance(Player, BalanceId, skillLevel ?? Math.Max(1, Level), BalanceDamageClass, out result, hitCount);
+        SkillBalanceSystem.TryGetPlayerBalance(Player, BalanceId, skillLevel ?? Math.Max(1, Level), ModContent.GetInstance<ElainaBasicDamage>(), out result, hitCount);
 
     public override void Initialize()
     {
@@ -144,18 +144,28 @@ public abstract partial class ElainaSkill : ModSkill
     /// <summary>习得条件：角色当前等级达到指定等级。</summary>
     protected static SkillUnlockCondition RequireCharacterLevel(int level) => SkillUnlockCondition.Custom(
         (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetLevel() >= level,
-        description: (_, _) => $"角色等级达到 Lv.{level}");
+        description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevel", level));
 
     /// <summary>习得条件：角色等级上限（由 Boss 进度决定）达到指定等级。</summary>
     protected static SkillUnlockCondition RequireCharacterLevelCap(int levelCap) => SkillUnlockCondition.Custom(
         (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() >= levelCap,
-        description: (_, _) => $"角色等级上限达到 Lv.{levelCap}");
+        description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap", levelCap));
+
+    /// <summary>习得条件：角色等级上限达到 JSON 的解锁阶段上限；每次判断和显示都读取当前配置。</summary>
+    protected static SkillUnlockCondition RequireConfiguredCharacterLevelCap(string skillId, int fallbackLevelCap)
+    {
+        int GetRequiredCap() => SkillBalanceSystem.TryGetSkill(skillId, out var entry) ? entry.UnlockStageCap : fallbackLevelCap;
+        return SkillUnlockCondition.Custom(
+            (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() >= GetRequiredCap(),
+            description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap", GetRequiredCap()));
+    }
 
     /// <summary>习得条件：指定技能已习得且等级达到指定等级。</summary>
     protected static SkillUnlockCondition RequireSkillLevel<TSkill>(int level) where TSkill : ElainaSkill => SkillUnlockCondition.Custom(
         (skillPlayer, _) => skillPlayer?.UnlockedSkill != null
             && skillPlayer.UnlockedSkill.TryGetValue(typeof(TSkill).Name, out Skill skill) && skill.Level >= level,
-        description: (_, _) => $"「{Language.GetTextValue($"Mods.伊蕾娜.SkillInfo.SkillName.{typeof(TSkill).Name}")}」达到 Lv.{level}");
+        description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.SkillLevel",
+            Language.GetTextValue($"Mods.伊蕾娜.SkillInfo.SkillName.{typeof(TSkill).Name}"), level));
 
     /// <summary>
     /// 判断技能是否可以从技能面板拖入技能栏。被动技能不能拖入技能栏。

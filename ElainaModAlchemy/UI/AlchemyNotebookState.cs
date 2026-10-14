@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -46,6 +47,7 @@ public sealed class AlchemyNotebookState
     {
         var next = _source?.Capture() ?? new AlchemyNotebookSnapshot();
         var hash = new HashCode();
+        hash.Add(LocalizeUI("AlchemyTitle"));
         hash.Add(next.Level); hash.Add(next.Experience); hash.Add(next.ExperienceToNextLevel); hash.Add(next.MaximumLevel); hash.Add(next.IsBusy);
         foreach (var pair in next.Materials) { hash.Add(pair.Key); hash.Add(pair.Value); }
         foreach (var pair in next.Products) { hash.Add(pair.Key); hash.Add(pair.Value); }
@@ -60,10 +62,10 @@ public sealed class AlchemyNotebookState
     }
     public bool IsUnlocked(AlchemyCatalogRecipe recipe) => recipe != null && _snapshot.Unlocked.Contains(recipe.Id);
     public AlchemyResearchStatus Research(AlchemyCatalogRecipe recipe) =>
-        recipe != null && _snapshot.Research.TryGetValue(recipe.Id, out var research) ? research : new(1, false, true, "", 0, 0, false, false, "等待角色数据");
-    public string DisplayName(AlchemyCatalogRecipe recipe) => IsUnlocked(recipe) ? recipe.Name : "未解锁的造物";
+        recipe != null && _snapshot.Research.TryGetValue(recipe.Id, out var research) ? research : new(1, false, true, "", 0, 0, false, false, LocalizeUI("WaitingForPlayer"));
+    public string DisplayName(AlchemyCatalogRecipe recipe) => IsUnlocked(recipe) ? recipe.Name : LocalizeUI("HiddenEntry");
     public static string StateLabel(string key) => key switch
-    { Ready => "可炼制", Short => "素材不足", Acquire => "可取得", Researchable => "可研究", _ => "未研究" };
+    { Ready => LocalizeUI("BrewReady"), Short => LocalizeUI("MissingMaterials"), Acquire => LocalizeUI("Acquirable"), Researchable => LocalizeUI("Researchable"), _ => LocalizeUI("Unresearched") };
     public string StateOf(AlchemyCatalogRecipe recipe) => !IsUnlocked(recipe) ? Research(recipe).CanResearch ? Researchable : Locked
         : !recipe.Craftable ? Acquire : MaxBatches(recipe) > 0 ? Ready : Short;
     public int MaterialCount(string id) => id != null && Materials.TryGetValue(id, out int count) ? count : 0;

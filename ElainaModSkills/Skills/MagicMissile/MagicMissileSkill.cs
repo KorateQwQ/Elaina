@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
 using KL.ActionsSystem.TemplateActions;
@@ -24,8 +25,6 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 [SkillUIInfo(State = 0, Pixels = 200)]
 public class MagicMissileSkill : ElainaSkill
 {
-    protected override DamageClass BalanceDamageClass => ModContent.GetInstance<ElainaBasicDamage>();
-
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         SkillUnlockCondition.None;
 
@@ -44,7 +43,7 @@ public class MagicMissileSkill : ElainaSkill
         // 与技能描述一致，使用含装备增伤的单发伤害
         int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
         int next = GetConfiguredDamage(skillLevel: nextLevel);
-        return [("伤害", current.ToString(), next.ToString(), "")];
+        return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
     public override void ResetEffects(Player player)

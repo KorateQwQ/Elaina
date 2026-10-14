@@ -1,9 +1,18 @@
 Snippets: {
-	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]"
+	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]"
 	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
 }
 
 SkillName: {
+	WindTornadoSkill: Wind Tornado
+	FireTornadoSkill: Fire Tornado
+	FireBurstSkill: Flame Burst
+	FireLaserSkill: Flame Beam
+	IceShardLockSkill: Ice Shard Lock
+	IceConeSkill: Ice Cone
+	WaterBallSkill: Water Orb
+	WaterLaserSKill: Water Beam
+	HealSkill: Healing Magic
 	MagicMissileSkill: Magic Missile
 	MultiMissileSkill: Multi-Shot
 	AshenWitchSkill: Ashen Witch
@@ -15,6 +24,12 @@ SkillName: {
 }
 
 SkillDesc: {
+	WaterLaserSKill:
+		'''
+		Hold to charge for {0} seconds, then channel a continuous water beam. Release to stop.
+		Every {1} seconds, consumes {4} Magic Power and deals {2} Water damage, splashing other enemies near the beam's endpoint for {3}% damage.
+		Each hit reduces the target's freeze cooldown by 0.5 seconds.
+		'''
 	MagicMissileSkill:
 		'''
 		Deals {0} magic damage to the target.
@@ -27,19 +42,25 @@ SkillDesc: {
 		'''
 	AshenWitchSkill:
 		'''
-		When enabled, Ashen Witch lets Elaina use [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. Its base maximum equals vanilla maximum mana, and each point of maximum life removed by Ashen Witch grants 1 additional maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]. Her extra life gain is reduced by 50%. When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] is insufficient, each 1% of maximum life restores 1% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力].
-		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] regenerates at a fixed combat rate, refills in about two seconds outside combat, and pauses for three seconds after taking damage. Mana potions do not restore it.
+		When enabled, Ashen Witch lets Elaina use [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]. Its base maximum equals vanilla maximum mana, and each point of maximum life removed by Ashen Witch grants 1 additional maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]. Her extra life gain is reduced by 50%. When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] is insufficient, each 1% of maximum life restores 1% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power].
+		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] regenerates at a fixed combat rate, refills in about two seconds outside combat, and pauses for three seconds after taking damage. Mana potions do not restore it.
 		'''
 	MagicBarrierSkill:
 		'''
 		Requires the Ashen Witch skill to be enabled.
-		Activate the barrier just before taking damage. It reduces damage based on the life lost to Ashen Witch and consumes [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力] equal to the damage blocked by the barrier.
+		Activate the barrier just before taking damage. It reduces damage based on the life lost to Ashen Witch and consumes [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] equal to the damage blocked by the barrier.
 		'''
 	WindSlashSkill:
 		'''
 		Unleashes a piercing wind blade that deals {0} magic damage to every enemy in its path.
 		Weaker enemies are knocked back along the blade's direction.
 		'''
+}
+
+UnlockConditions: {
+	CharacterLevel: Reach character Lv.{0}
+	CharacterLevelCap: Reach a character level cap of Lv.{0}
+	SkillLevel: Reach Lv.{1} in {0}
 }
 
 SkillType: {
@@ -55,4 +76,4 @@ SkillTotalInfo:
 	Cost: {2}
 	Effect:
 	'''
-LackOfMagic: Not Enough [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]
+LackOfMagic: Not Enough [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]

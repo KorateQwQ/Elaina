@@ -1,3 +1,5 @@
+using KL.SkillSystem;
+using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
 using KL.SkillSystem.SilkyUI;
@@ -11,6 +13,10 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 public class WindSlashSkill : ElainaSkill
 {
+    // 默认世吞／克脑后开放（角色等级上限 20）；具体门槛读取 JSON，不要求实际等级达到上限。
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(WindSlashSkill), 20));
+
     /// <summary>风刃击退力度；原版按 knockBackResist 衰减，Boss 等免疫击退的敌人不受影响。</summary>
     private const float SlashKnockback = 6f;
 
@@ -19,7 +25,7 @@ public class WindSlashSkill : ElainaSkill
         // 与技能描述一致，使用含装备增伤的单次伤害
         int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
         int next = GetConfiguredDamage(skillLevel: nextLevel);
-        return [("伤害", current.ToString(), next.ToString(), "")];
+        return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
     public override bool PreUseSkill(IEntitySource source = null)

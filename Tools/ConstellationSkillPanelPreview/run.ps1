@@ -1,4 +1,6 @@
 param(
+    [ValidateSet('zh-Hans','en-US')][string]$Culture = 'zh-Hans',
+    [switch]$LocalizationOnly,
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
     [string]$Sources = 'D:/泰拉原版贴图与代码与其他工具/tModLoader',
     [switch]$IconsOnly,
@@ -73,6 +75,9 @@ function Add-Item([string]$kind, [string]$path) {
     [void]$items.AppendChild($node)
     return $node
 }
+$null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
+$null = Add-Item 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
+$null = Add-Item 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
 foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
@@ -90,7 +95,8 @@ $native = Add-Item 'None' "$Tml/Libraries/Native/Windows/*.dll"
 $native.SetAttribute('Link', '%(Filename)%(Extension)')
 $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')
 $project.Save((Join-Path $out 'Preview.csproj'))
-$previewArgs = @($repo, (Join-Path $Tml '../Terraria/Content'))
+$previewArgs = @($repo, (Join-Path $Tml '../Terraria/Content'), $Culture)
+if ($LocalizationOnly) { $previewArgs += '--localization-only' }
 if ($IconsOnly) { $previewArgs += '--icons-only' }
 if ($HeadersOnly) { $previewArgs += '--headers-only' }
 if ($RequirementsOnly) { $previewArgs += '--requirements-only' }

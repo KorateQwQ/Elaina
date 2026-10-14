@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -93,10 +94,10 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         _quantityControls.Add(Button(new(842, 628, 26, 24), () => ChangeQuantity(-1), (d, h) => SmallButton(d, "−", h, _state.Quantity > 1)));
         _quantityControls.Add(Button(new(904, 628, 26, 24), () => ChangeQuantity(1), (d, h) => SmallButton(d, "+", h, _state.Quantity < _state.MaxBatches(_state.Current))));
         _quantityControls.Add(Button(new(938, 628, 36, 24), () => { _state.SetQuantity(_state.MaxBatches(_state.Current)); Dirty(false); },
-            (d, h) => Label(d, "最大", 18, 5, 10, h ? Ink : Muted, .5f)));
+            (d, h) => Label(d, LocalizeUI("Max"), 18, 5, 10, h ? Ink : Muted, .5f)));
         Button(new(780, 662, 272, 38), PrimaryAction, (d, h) => CraftButton(d, _state, h, BrewProgress));
         Button(CloseButtonBounds, Close, CloseButton);
-        Button(new(714, 744, 82, 35), () => _help = true, (d, h) => Label(d, "帮助", 41, 11, 10, h ? Ink : Muted, .5f));
+        Button(new(714, 744, 82, 35), () => _help = true, (d, h) => Label(d, LocalizeUI("Help"), 41, 11, 10, h ? Ink : Muted, .5f));
 #if DEBUG
         Button(DebugLevelUpBounds, () =>
         {
@@ -111,7 +112,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             _state.DebugReset(); ProcessResult(); Dirty(false);
         }, (d, h) => DebugButton(d, "重置手记", h));
 #endif
-        Button(new(978, 744, 82, 35), Close, (d, h) => Label(d, "返回", 41, 11, 10, h ? Ink : Muted, .5f));
+        Button(new(978, 744, 82, 35), Close, (d, h) => Label(d, LocalizeUI("Back"), 41, 11, 10, h ? Ink : Muted, .5f));
         for (int i = 0; i < 10; i++)
         {
             int index = i;
@@ -371,12 +372,12 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             Hero(d, _state, BrewProgress);
             if (_state.IsUnlocked(_state.Current) && _state.Current.Craftable)
             {
-                Label(d, "制作批数", 780, 635, 10, Muted);
+                Label(d, LocalizeUI("BatchCount"), 780, 635, 10, Muted);
                 Label(d, _state.Quantity.ToString(), 886, 633, 12, Ink, .5f);
-                Label(d, $"产出 ×{_state.Current.Yield * _state.Quantity}", 1052, 635, 10, Gold, 1);
+                Label(d, LocalizeUI("Output", _state.Current.Yield * _state.Quantity), 1052, 635, 10, Gold, 1);
             }
             Label(d, Hint(_state, Brewing), 916, 708, 9, Muted, .5f);
-            if (_state.Visible.Count == 0) Label(d, "这一页暂时没有符合条件的条目", 384, 315, 14, Muted, .5f, true);
+            if (_state.Visible.Count == 0) Label(d, LocalizeUI("EmptyPage"), 384, 315, 14, Muted, .5f, true);
         });
     }
 
@@ -403,12 +404,12 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         d.Box(0, 0, DesignWidth, DesignHeight, new Color(10, 8, 18) * .84f);
         d.Box(310, 190, 480, 418, new Color(36, 29, 46));
         d.Frame(310, 190, 480, 418, Lavender * .65f);
-        Label(d, "炼金手记", 344, 222, 24, Ink, serif: true);
+        Label(d, LocalizeUI("AlchemyTitle"), 344, 222, 24, Ink, serif: true);
         float y = 274;
-        foreach (string p in new[] { "全部物品连续排列，滚动即可浏览。点击分类可跳到对应区域；问号条目满足条件后即可研究。", "制作沿用原版合成材料规则，包括背包、打开的箱子、个人容器、虚空袋及模组提供的材料。", "制作成功后获得产物与炼金经验。研究记录、等级和经验随角色保存；灰赝尘默认不参与炼金。", "P 打开或合上手记 · Esc 返回 · 方向键选择条目。" })
+        foreach (string p in new[] { LocalizeUI("AlchemyHelpBrowse"), LocalizeUI("AlchemyHelpMaterials"), LocalizeUI("AlchemyHelpProgress"), LocalizeUI("AlchemyHelpControls") })
             y = d.Paragraph(p, 344, y, 412, 12, Muted, 23) + 16;
         d.Frame(343, 547, 414, 38, Lavender * .5f);
-        Label(d, "返回", 550, 558, 14, Ink, .5f, true);
+        Label(d, LocalizeUI("Back"), 550, 558, 14, Ink, .5f, true);
     }
     private void StopDragging()
     {

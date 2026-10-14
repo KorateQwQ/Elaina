@@ -1,5 +1,7 @@
 
 
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
+
 namespace 伊蕾娜.ElainaModSkills.Skills;
 
 public abstract class ElainaBasicProjectile : KLProjectile
@@ -9,7 +11,7 @@ public abstract class ElainaBasicProjectile : KLProjectile
     public override string Texture => "伊蕾娜/Effects/Tex/background";
     public override void SetDefaults()
     {
-        Projectile.DamageType = DamageClass.Magic;
+        Projectile.DamageType = ModContent.GetInstance<ElainaBasicDamage>();
 
         base.SetDefaults();
     }

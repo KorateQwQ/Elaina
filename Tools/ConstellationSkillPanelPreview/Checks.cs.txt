@@ -13,7 +13,8 @@ internal static class Fixtures
             "HealSkill" => "Heal", "WaterLaserSKill" or "WaterBallSkill" => "Water", "FireLaserSkill" or "FireBurstSkill" => "Fire",
             "IceConeSkill" => "Ice", _ => "MagicMissile"
         };
-        return $"伊蕾娜/ElainaModSkills/Skills/{folder}/{name}";
+        string asset = name == "WindBladeSkill" ? "WindSlashSkill" : name;
+        return $"伊蕾娜/ElainaModSkills/Skills/{folder}/{asset}";
     }
     internal static ElainaSkillModPlayer Player(params Type[] extras)
     {

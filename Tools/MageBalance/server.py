@@ -24,6 +24,14 @@ def number(obj, key, lo, hi, integer=False):
         raise ValueError(f"{key} 必须是整数。")
     return value
 
+def skill_growth(row):
+    # Optional v2 fields; legacy files retain the exact phase-based progression.
+    mode = row.get("growthMode", "phase")
+    if mode not in ("phase", "interval"):
+        raise ValueError("growthMode 必须是 phase 或 interval。")
+    if "levelInterval" in row:
+        number(row, "levelInterval", 1, 1000, True)
+
 def ratio_curve(row):
     curve = row.get("ratioCurve")
     if curve is None:
@@ -123,6 +131,7 @@ def validate_payload(payload):
         number(row, "unlockStageCap", 1, 1000, True)
         number(row, "unlockLevel", 1, 1000, True)
         number(row, "levelsPerPhase", 1, 10, True)
+        skill_growth(row)
     if not isinstance(c.get("selectedBasicAttackId"), str) or c["selectedBasicAttackId"] not in basic_ids:
         raise ValueError("参考普攻 ID 无效。")
     ids = set()
@@ -146,6 +155,7 @@ def validate_payload(payload):
         number(row, "unlockStageCap", 1, 1000, True)
         number(row, "unlockLevel", 1, 1000, True)
         number(row, "levelsPerPhase", 1, 10, True)
+        skill_growth(row)
     return {"schema": SCHEMA, "configuration": c}
 
 def atomic_save(path, payload):

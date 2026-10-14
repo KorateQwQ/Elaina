@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using Microsoft.Xna.Framework;
 
 namespace 伊蕾娜.ElainaModAlchemy.UI;
@@ -11,6 +12,6 @@ internal static class AlchemyBookArt
     internal static void PaintCover(AlchemyDrawing draw)
     {
         draw.Image(CoverPath, 0, 0, 1100, 800);
-        draw.Text("炼金手记", 550, 512, 29, new Color(226, 208, 233), .5f, spacing: 7, serif: true);
+        draw.Text(LocalizeUI("AlchemyTitle"), 550, 512, 29, new Color(226, 208, 233), .5f, spacing: 7, serif: true);
     }
 }

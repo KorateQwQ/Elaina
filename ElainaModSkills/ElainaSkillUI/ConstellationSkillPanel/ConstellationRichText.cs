@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using KL.Drawing;
 using KL.Drawing.Snippets;
 using Microsoft.Xna.Framework;
@@ -45,14 +46,17 @@ internal sealed class ConstellationRichText
             if (snippet is KLTextureSnippet texture)
                 texture.SetFontScale(font.LineSpacing / (float)Math.Max(1, FontAssets.MouseText.Value.LineSpacing), 10.5f);
             if (snippet is not PlainTagHandler.PlainSnippet) { Add(snippet); continue; }
-            for (int i = 0; i < snippet.Text.Length; i++)
+            foreach (Match match in Regex.Matches(snippet.Text, @"[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|[^\r]"))
             {
-                char c = snippet.Text[i];
-                if (c == '\r') continue;
-                if (c == '\n') { Commit(); continue; }
-                float reserve = i + 1 < snippet.Text.Length && "，。！？；：、”」）".Contains(snippet.Text[i + 1])
-                    ? (font.MeasureString(snippet.Text[i + 1].ToString()).X + font.CharacterSpacing) * _scale : 0;
-                Add(snippet.Copy(c.ToString()), reserve);
+                string token = match.Value;
+                if (token == "\n") { Commit(); continue; }
+                if (line.Count == 0 && string.IsNullOrWhiteSpace(token)) continue;
+                int next = match.Index + match.Length;
+                float reserve = next < snippet.Text.Length && "，。！？；：、”」）".Contains(snippet.Text[next])
+                    ? (font.MeasureString(snippet.Text[next].ToString()).X + font.CharacterSpacing) * _scale : 0;
+                var part = snippet.Copy(token);
+                if (part.GetStringLength(font) * _scale <= width) Add(part, reserve);
+                else foreach (char c in token) Add(snippet.Copy(c.ToString()));
             }
         }
         if (line.Count > 0) Commit();

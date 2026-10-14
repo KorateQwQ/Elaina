@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -68,18 +69,18 @@ public sealed class AlchemyProgressPlayer : ModPlayer
         int count = requirement.RequiresRecipe && configured ? AlchemyInventory.Count(Player, requirement.RecipeItemType) : 0;
         int required = Math.Max(1, requirement.RecipeStack);
         bool hasRecipe = !requirement.RequiresRecipe || configured && count >= required;
-        string name = requirement.RecipeItemType > 0 ? Lang.GetItemNameValue(requirement.RecipeItemType) : "尚未登记的配方";
+        string name = requirement.RecipeItemType > 0 ? Lang.GetItemNameValue(requirement.RecipeItemType) : LocalizeUI("UnknownRecipe");
         bool can = IsReady && !IsUnlocked(id) && Level >= requiredLevel && hasRecipe;
-        string hint = IsUnlocked(id) ? "已研究" : !IsReady ? "当前无法进行研究" : Level < requiredLevel ? $"需要炼金等级 {requiredLevel}"
-            : !configured ? "此配方物品尚未登记" : !hasRecipe ? $"需要 {name} × {required}" : requirement.RequiresRecipe
-                ? requirement.ConsumeRecipe ? "研究会消耗所需配方" : "背包中持有配方即可研究" : "达到等级，可直接研究";
+        string hint = IsUnlocked(id) ? LocalizeUI("Researched") : !IsReady ? LocalizeUI("CannotResearchNow") : Level < requiredLevel ? LocalizeUI("NeedAlchemyLevel", requiredLevel)
+            : !configured ? LocalizeUI("RecipeNotConfigured") : !hasRecipe ? LocalizeUI("NeedRecipe", name, required) : requirement.RequiresRecipe
+                ? requirement.ConsumeRecipe ? LocalizeUI("ResearchConsumesRecipe") : LocalizeUI("ResearchKeepRecipe") : LocalizeUI("ResearchLevelMet");
         return new(requiredLevel, requirement.RequiresRecipe, configured, name, count, required,
             requirement.ConsumeRecipe, can, hint);
     }
 
     public bool TryResearch(string id, out string message)
     {
-        message = "无法研究此配方";
+        message = LocalizeUI("CannotResearchRecipe");
         if (Main.dedServ || Player.whoAmI != Main.myPlayer || !IsReady || AlchemyCraftingService.FindEntry(id) == null) return false;
         var status = ResearchStatus(id);
         if (!status.CanResearch) { message = status.Hint; return false; }
@@ -87,11 +88,11 @@ public sealed class AlchemyProgressPlayer : ModPlayer
         if (requirement.RequiresRecipe && requirement.ConsumeRecipe)
         {
             int needed = Math.Max(1, requirement.RecipeStack);
-            if (AlchemyInventory.Count(Player, requirement.RecipeItemType) < needed) { message = "背包中的配方不足"; return false; }
+            if (AlchemyInventory.Count(Player, requirement.RecipeItemType) < needed) { message = LocalizeUI("MissingRecipeInventory"); return false; }
             for (int i = 0; i < needed; i++) Player.ConsumeItem(requirement.RecipeItemType);
         }
         _unlocked.Add(id);
-        message = "已研究「" + AlchemyCatalog.GetRecipe(id).Name + "」";
+        message = LocalizeUI("ResearchSuccess", AlchemyCatalog.GetRecipe(id).Name);
         return true;
     }
 

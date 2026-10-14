@@ -72,7 +72,7 @@ internal static class Program
                         new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
                 }
             """;
-        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "ReColorEffect");
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
         source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
             && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
         source += "}}\n";

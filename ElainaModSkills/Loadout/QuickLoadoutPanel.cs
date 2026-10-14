@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,7 +32,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     private static readonly Color Background = new(30, 26, 42), Surface = new(42, 36, 58), LineColor = new(96, 80, 120),
         Lavender = new(186, 158, 208), Ink = new(240, 228, 247), Muted = new(158, 142, 174), Gold = new(232, 198, 140),
         Warn = new(226, 150, 140);
-    private static readonly string[] ArmorParts = ["头部", "身体", "腿部"];
+    private static string[] ArmorParts => [LocalizeUI("Head"), LocalizeUI("Body"), LocalizeUI("Legs")];
 
     private readonly List<(UIView View, RectangleF Area)> _regions = [];
     private readonly Dictionary<(int Type, int Prefix), Item> _previews = [];
@@ -41,7 +42,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     private int _selected = 1, _current = 1;
     private string _toast;
 
-    private static string ToggleKeyLabel => KeyBind.OpenLoadoutPanel?.GetAssignedKeys().FirstOrDefault() ?? "快捷配装键";
+    private static string ToggleKeyLabel => KeyBind.OpenLoadoutPanel?.GetAssignedKeys().FirstOrDefault() ?? LocalizeUI("LoadoutKey");
     private SkillLoadout SelectedLoadout => SkillBalanceSystem.Current.Loadouts.FirstOrDefault(l => l.Stage == _selected);
 
     public QuickLoadoutPanel() { Enabled = false; }
@@ -120,7 +121,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     private void ApplySelected()
     {
         var player = Main.LocalPlayer;
-        if (SelectedLoadout is not { } loadout) { Notify("SkillBalance.json 中没有这个阶段的配装"); return; }
+        if (SelectedLoadout is not { } loadout) { Notify(LocalizeUI("NoStageLoadout")); return; }
         if (!LoadoutApplier.CanApply(player, out string reason)) { Notify(reason); return; }
         Notify(LoadoutApplier.Apply(player, loadout));
         SoundEngine.PlaySound(SoundID.Grab);
@@ -132,8 +133,8 @@ public sealed class QuickLoadoutPanel : BaseBody
         _batch = spriteBatch;
         Box(0, 0, DesignWidth, DesignHeight, Background * .97f);
         Frame(0, 0, DesignWidth, DesignHeight, Lavender * .55f);
-        Text("快捷配装", 24, 14, 24, Ink, serif: true);
-        Text($"当前进度 · 第 {_current} 阶段 {LoadoutItems.StageLabels[_current - 1]}　·　{ToggleKeyLabel} 打开 / Esc 关闭",
+        Text(LocalizeUI("Loadout"), 24, 14, 24, Ink, serif: true);
+        Text(LocalizeUI("CurrentStage", _current, LoadoutItems.StageLabels[_current - 1], ToggleKeyLabel),
             24, 50, 12, Muted, maxWidth: DesignWidth - 90);
         Box(16, 74, DesignWidth - 32, 1 / _scale, LineColor);
         Box(ListX - 4, ListY - 4, ListWidth + 8, SkillBalanceConfig.LoadoutStages * RowHeight + 8, Surface * .6f);
@@ -153,7 +154,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     private string Hint()
     {
         if (!LoadoutApplier.CanApply(Main.LocalPlayer, out string reason)) return reason;
-        return "推荐物品自带前缀，换下的装备放回背包 · 魔力与生命设为本阶段数值（可降低）";
+        return LocalizeUI("LoadoutHint");
     }
 
     private void DrawRow(int stage, bool hover)
@@ -166,7 +167,7 @@ public sealed class QuickLoadoutPanel : BaseBody
         Text(stage.ToString("00"), ListX + 10, y + 3, 11, selected ? Gold : Muted);
         Text(LoadoutItems.StageLabels[stage - 1], ListX + 36, y + 3, 11, selected || hover ? Ink : new Color(205, 192, 216),
             maxWidth: current ? 150 : 190);
-        if (current) Text("当前", ListX + ListWidth - 10, y + 3, 10, Gold, 1);
+        if (current) Text(LocalizeUI("Current"), ListX + ListWidth - 10, y + 3, 10, Gold, 1);
     }
 
     private void DrawCloseButton(bool hover)
@@ -183,7 +184,7 @@ public sealed class QuickLoadoutPanel : BaseBody
         bool enabled = SelectedLoadout != null && LoadoutApplier.CanApply(Main.LocalPlayer, out _);
         Box(x, y, 170, 36, enabled ? hover ? new Color(238, 219, 247) : new Color(216, 195, 231) : new Color(52, 42, 64));
         Frame(x, y, 170, 36, enabled ? new Color(239, 220, 247) : Lavender * .3f);
-        Text("一键换装", x + 85, y + 9, 15, enabled ? new Color(50, 36, 62) : Muted, .5f);
+        Text(LocalizeUI("ApplyLoadout"), x + 85, y + 9, 15, enabled ? new Color(50, 36, 62) : Muted, .5f);
     }
 
     private void DrawDetail()
@@ -192,14 +193,14 @@ public sealed class QuickLoadoutPanel : BaseBody
         var loadout = SelectedLoadout;
         if (loadout == null)
         {
-            Text("SkillBalance.json 中没有阶段配装", RightX, ListY + 4, 15, Ink);
-            Text("在 Tools/MageBalance 的“配装与属性”页保存后重新加载模组。", RightX, ListY + 32, 11, Muted, maxWidth: RightWidth);
+            Text(LocalizeUI("NoLoadouts"), RightX, ListY + 4, 15, Ink);
+            Text(LocalizeUI("ConfigureLoadouts"), RightX, ListY + 32, 11, Muted, maxWidth: RightWidth);
             return;
         }
         Text(loadout.Name, RightX, ListY - 2, 16, Ink, maxWidth: RightWidth, serif: true);
-        Text($"第 {loadout.Stage} 阶段 · {LoadoutItems.StageLabels[loadout.Stage - 1]} · 等级上限 {loadout.Stage * 5}", RightX, ListY + 24, 11, Muted);
+        Text(LocalizeUI("LoadoutStage", loadout.Stage, LoadoutItems.StageLabels[loadout.Stage - 1], loadout.Stage * 5), RightX, ListY + 24, 11, Muted);
 
-        Section("护甲", 132);
+        Section(LocalizeUI("Armor"), 132);
         int[] armor = LoadoutApplier.Armor(loadout);
         bool knownArmor = loadout.Armor == "none" || LoadoutItems.Armors.ContainsKey(loadout.Armor);
         for (int i = 0; i < 3; i++)
@@ -207,12 +208,12 @@ public sealed class QuickLoadoutPanel : BaseBody
             float x = RightX + i * 160, y = 154;
             ItemCell(x, y, 40, armor[i], 0);
             Text(ArmorParts[i], x + 48, y + 2, 10, Muted);
-            Text(armor[i] > 0 ? Lang.GetItemNameValue(armor[i]) : knownArmor ? "保留原装备" : $"未识别：{loadout.Armor}",
+            Text(armor[i] > 0 ? Lang.GetItemNameValue(armor[i]) : knownArmor ? LocalizeUI("KeepEquipment") : LocalizeUI("UnknownEquipment", loadout.Armor),
                 x + 48, y + 19, 11, armor[i] > 0 ? Ink : knownArmor ? Muted : Warn, maxWidth: 106);
         }
 
         int usable = Enumerable.Range(3, 7).Count(player.IsItemSlotUnlockedAndUsable);
-        Section($"饰品 · 推荐 {loadout.Slots} 槽（当前可用 {usable} 槽）", 212);
+        Section(LocalizeUI("AccessorySlots", loadout.Slots, usable), 212);
         for (int i = 0; i < loadout.Slots && i < loadout.Items.Count; i++)
         {
             var entry = loadout.Items[i];
@@ -222,20 +223,20 @@ public sealed class QuickLoadoutPanel : BaseBody
                 int prefix = LoadoutItems.Prefixes.GetValueOrDefault(entry.Prefix);
                 ItemCell(x, y, 36, type, prefix);
                 Text(Lang.GetItemNameValue(type), x + 44, y + 1, 11, Ink, maxWidth: 190);
-                Text(prefix > 0 ? "前缀 · " + Lang.prefix[prefix].Value : "不指定前缀", x + 44, y + 19, 10, prefix > 0 ? Gold : Muted);
+                Text(prefix > 0 ? LocalizeUI("PrefixLabel") + Lang.prefix[prefix].Value : LocalizeUI("NoPrefix"), x + 44, y + 19, 10, prefix > 0 ? Gold : Muted);
             }
             else
             {
                 ItemCell(x, y, 36, 0, 0);
                 bool keep = LoadoutItems.KeepsSlot(entry.Id);
-                Text(entry.Id == "empty" ? "空槽" : keep ? "机动／生存" : $"未识别：{entry.Id}", x + 44, y + 1, 11, keep ? Ink : Warn, maxWidth: 190);
-                Text("保留原有饰品", x + 44, y + 19, 10, Muted);
+                Text(entry.Id == "empty" ? LocalizeUI("EmptyAccessory") : keep ? LocalizeUI("Utility") : LocalizeUI("UnknownEquipment", entry.Id), x + 44, y + 1, 11, keep ? Ink : Warn, maxWidth: 190);
+                Text(LocalizeUI("KeepAccessory"), x + 44, y + 19, 10, Muted);
             }
         }
 
-        Section("属性", 418);
-        Stat("基础魔力", loadout.BaseMana, LoadoutApplier.BaseMana(player), RightX + 44);
-        Stat("最大生命", loadout.MaxLife, LoadoutApplier.BaseLife(player), RightX + 160);
+        Section(LocalizeUI("Attributes"), 418);
+        Stat(LocalizeUI("BaseMana"), loadout.BaseMana, LoadoutApplier.BaseMana(player), RightX + 44);
+        Stat(LocalizeUI("MaxLife"), loadout.MaxLife, LoadoutApplier.BaseLife(player), RightX + 160);
     }
 
     private void Section(string title, float y)
@@ -249,7 +250,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     {
         Text(label, x - 44, 438, 10, Muted);
         Text(target.ToString(), x + 8, 436, 13, target != current ? Gold : Ink);
-        Text(target != current ? $"当前 {current}" : "一致", x + 8 + Measure(target.ToString(), 13) + 6, 438, 10, Muted);
+        Text(target != current ? LocalizeUI("CurrentValue", current) : LocalizeUI("Same"), x + 8 + Measure(target.ToString(), 13) + 6, 438, 10, Muted);
     }
 
     /// <summary>物品格；悬停时交给原版鼠标提示显示带前缀的完整属性。</summary>

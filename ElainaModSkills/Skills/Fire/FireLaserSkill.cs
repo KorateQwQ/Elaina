@@ -11,6 +11,10 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 [SkillUIInfo(State = 6, Pixels = 600)]
 public class FireLaserSkill : ElainaSkill
 {
+    // 默认血肉墙后开放（角色等级上限 40）；具体门槛读取 JSON，不要求实际等级达到上限。
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(FireLaserSkill), 40));
+
     public override void Initialize()
     {
         MaxCD = 10;

@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.SkillSystem;
 using Terraria.ID;
@@ -24,15 +25,15 @@ public abstract partial class ElainaSkill
     public virtual string GetConstellationDescription()
     {
         string key = $"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}";
-        if (!Language.Exists(key)) return "技能描述待补充。";
+        if (!Language.Exists(key)) return LocalizeUI("MissingDescription");
         try
         {
             string text = Language.GetText(key).WithFormatArgs(SkillDescriptionArgs).Value;
-            return string.IsNullOrWhiteSpace(text) ? "技能描述待补充。" : text;
+            return string.IsNullOrWhiteSpace(text) ? LocalizeUI("MissingDescription") : text;
         }
         catch (FormatException)
         {
-            return "技能描述参数待补充。";
+            return LocalizeUI("InvalidDescription");
         }
     }
 }

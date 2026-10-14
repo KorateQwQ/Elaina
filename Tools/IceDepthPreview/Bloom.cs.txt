@@ -1,0 +1,165 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    ContentManager bloomEffects;
+
+    string BloomSource()
+    {
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            namespace KL.Drawing {
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class BloomReplay {
+                public static bool Enabled;
+                private static readonly DrawSystem renderer = new();
+                public static void Flush(LayerDrawRequestSystem.DrawTargetLayer layer) => renderer.Run(layer, Enabled);
+            }
+            public partial class DrawSystem {
+                public void Run(LayerDrawRequestSystem.DrawTargetLayer layer, bool bloomEnabled) {
+                    SetBloomInfo(1f, 5, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom(layer, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
+        source += Methods(drawing, "BeginDraw");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        return source + "}}";
+    }
+
+    void EnableBloom(bool enabled) => replay.GetType("KL.Drawing.BloomReplay").GetField("Enabled").SetValue(null, enabled);
+
+    void CheckHalo(Color[] plain, Color[] glowing, string name)
+    {
+        var background = new Color(33, 48, 64);
+        int halo = plain.Zip(glowing).Count(p => p.First == background && p.Second != background);
+        if (halo < 100) throw new Exception(name + " has no bloom outside its silhouette.");
+        if (glowing[4 * Width + 4] != background) throw new Exception(name + " lost its background.");
+        Console.WriteLine($"PASS {name}: {halo} glow pixels beyond unprocessed silhouette.");
+    }
+
+    void DrawBloomFrames()
+    {
+        CheckBloomThreshold();
+        CheckIceShaderOutput();
+        EnableBloom(false);
+        var plainGroup = Render(109, false, RenderTargetUsage.DiscardContents, "bloom-group-off");
+        var plainSingle = RenderSingle(20, false, DepthFormat.None, "bloom-single-off");
+        EnableBloom(true);
+        var group = Render(109, false, RenderTargetUsage.DiscardContents, "bloom-group-on");
+        var reversed = Render(109, true, RenderTargetUsage.DiscardContents, "bloom-group-reversed");
+        if (!group.SequenceEqual(reversed)) throw new Exception("Bloom broke cone depth ordering.");
+        var single = RenderSingle(20, false, DepthFormat.None, "bloom-single-on");
+        CheckHalo(plainGroup, group, "IceShardLock cones");
+        CheckHalo(plainSingle, single, "IceConeProj");
+        RenderSingle(8, false, DepthFormat.None, "bloom-single-appear");
+        Render(65, false, RenderTargetUsage.DiscardContents, "bloom-group-appear");
+        var depthTarget = (RenderTarget2D)replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceConeDepthRenderer")
+            .GetField("depthTarget", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        var hdr = new Vector4[Width * Height]; depthTarget.GetData(hdr);
+        float peak = hdr.Max(c => Math.Max(c.X, Math.Max(c.Y, c.Z)));
+        if (peak <= 1f) throw new Exception("Intermediate depth target clipped HDR highlights.");
+        Console.WriteLine($"PASS shared depth target preserves HDR: peak RGB {peak:0.000}.");
+        foreach (bool isGroup in new[] { true, false })
+        {
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.DiscardContents;
+            GraphicsDevice.Clear(new Color(33, 48, 64));
+            if (isGroup) Scene.GetMethod("Draw").Invoke(null, [109, false]);
+            else SingleScene.GetMethod("DrawFrame").Invoke(null, [20, false]);
+            var pixels = new Color[Width * Height]; GraphicsDevice.GetBackBufferData(pixels);
+            if (pixels[4 * Width + 4] != new Color(33, 48, 64)) throw new Exception("Bloom lost the backbuffer scene.");
+            if (GraphicsDevice.PresentationParameters.RenderTargetUsage != RenderTargetUsage.DiscardContents)
+                throw new Exception("Bloom leaked backbuffer usage.");
+            using var capture = new Texture2D(GraphicsDevice, Width, Height); capture.SetData(pixels);
+            using var file = File.Create(Path.Combine(output, isGroup ? "bloom-group-backbuffer.png" : "bloom-single-backbuffer.png"));
+            capture.SaveAsPng(file, Width, Height);
+        }
+        Console.WriteLine("PASS actual KL RequestBloom pipeline: per-layer depth, bloom on/off, HDR, scene-target and backbuffer paths.");
+    }
+
+    void CheckBloomThreshold()
+    {
+        var queue = replay.GetType("KL.Drawing.LayerDrawRequestSystem");
+        var request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters().Last().ParameterType == typeof(Action));
+        var layer = Enum.Parse(replay.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), "Projectiles");
+        var timing = Enum.Parse(replay.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), "After");
+        EnableBloom(true);
+        using var patch = new Texture2D(GraphicsDevice, 16, 16, false, SurfaceFormat.Vector4);
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        foreach (bool backbuffer in new[] { false, true })
+        foreach (float value in new[] { 0f, .5f, 1f, 1.01f, 2f })
+        {
+            GraphicsDevice.SetRenderTarget(backbuffer ? null : target);
+            GraphicsDevice.Clear(new Color(33, 48, 64));
+            patch.SetData(Enumerable.Repeat(new Vector4(value, value, value, 1f), 16 * 16).ToArray());
+            Action draw = () => batch.Draw(patch, new Rectangle(460, 300, 40, 40), Color.White);
+            request.Invoke(null, ["threshold-probe", layer, timing, draw]);
+            replay.GetType("KL.Drawing.BloomReplay").GetMethod("Flush").Invoke(null, [layer]);
+            var down = (RenderTarget2D[])replay.GetType("KL.Drawing.RenderHelper")
+                .GetField("BloomDownSample", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            var data = new Vector4[down[0].Width * down[0].Height]; down[0].GetData(data);
+            float peak = data.Max(c => Math.Max(c.X, Math.Max(c.Y, c.Z)));
+            if (value <= 1f ? peak > 0f : peak <= 0f)
+                throw new Exception($"Bloom threshold failed for {value}: peak {peak}.");
+            Console.WriteLine($"PASS threshold {(backbuffer ? "backbuffer" : "scene")}: RGB={value:0.00}, blurred peak={peak:0.0000}.");
+        }
+        GraphicsDevice.SetRenderTarget(null);
+    }
+
+    void CheckIceShaderOutput()
+    {
+        EnableBloom(false);
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Vector4, DepthFormat.None);
+        Vector4[] Draw(Color lighting)
+        {
+            SingleScene.GetField("SceneLight").SetValue(null, lighting);
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(Color.Transparent);
+            SingleScene.GetMethod("DrawFrame").Invoke(null, [35, false]);
+            GraphicsDevice.SetRenderTarget(null);
+            var data = new Vector4[Width * Height]; target.GetData(data); return data;
+        }
+        var day = Draw(Color.White);
+        var night = Draw(new Color(20, 20, 30));
+        int differences = day.Zip(night).Count(p => p.First != p.Second);
+        float peak = day.Max(c => Math.Max(c.X, Math.Max(c.Y, c.Z)));
+        int aboveOne = day.Count(c => .3f * c.X + .59f * c.Y + .11f * c.Z > 1f);
+        Console.WriteLine($"IceConeProj flight shader: peak RGB={peak:0.000}, pixels with luminance>1={aboveOne}, white/dark light differences={differences}.");
+        SingleScene.GetField("SceneLight").SetValue(null, Color.White);
+    }
+}

@@ -1,0 +1,115 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    Type SingleScene => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceConeProj");
+
+    string SingleSource()
+    {
+        var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,
+            "ElainaModSkills/Skills/Ice/IceConeProj.cs"))).GetCompilationUnitRoot();
+        var type = tree.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+        var preDraw = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "PreDraw");
+        var draw = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawVisual");
+        string source = """
+            namespace KL.Drawing {
+                public static class PreviewRotation {
+                    public static float ToRotation(this Vector2 value) => MathF.Atan2(value.Y, value.X);
+                    public static Vector2 RotatedBy(this Vector2 value, double rotation) =>
+                        Vector2.Transform(value, Matrix.CreateRotationZ((float)rotation));
+                }
+            }
+            namespace 伊蕾娜.ElainaModSkills.Skills.Ice {
+                public sealed class ProjectileContext { public Vector2 Center = new(480, 320), velocity; public float rotation; }
+                public class ProjectilePreviewBase {
+                    public ProjectileContext Projectile = new();
+                    public Vector2[] OldCenter = new Vector2[30];
+                    public bool ValidTrailArray() => IceConeProj.IncludeTrail;
+                    public virtual bool PreDraw(ref Color color) => false;
+                }
+                public class IceConeProj : ProjectilePreviewBase {
+                    static Effect previewEffect;
+                    static Texture2D previewNoise;
+                    static Texture2D previewTrail;
+                    public static bool LegacyOutline;
+                    public static bool IncludeTrail, HideMesh, LegacyInvalidAlpha;
+                    public static Vector2 Aim = new(10, -3);
+                    public static Color SceneLight = Color.White;
+                    public static void SetTrail(Texture2D value) => previewTrail = value;
+                    public static void Setup(string obj, Texture2D color, Effect effect, Texture2D noise) {
+                        iceCone = ObjLoader.Parse(obj, Color.White); texture = color;
+                        previewEffect = effect; previewNoise = noise;
+                    }
+                    public static void DrawFrame(int frame, bool outline) {
+                        LayerDrawRequestSystem.ClearFrame();
+                        LegacyOutline = outline;
+                        var cone = new IceConeProj { time = frame, forwardVelocity = Aim };
+                        cone.Projectile.velocity = frame < 25 ? -cone.forwardVelocity : cone.forwardVelocity;
+                        cone.Projectile.rotation = cone.Projectile.velocity.ToRotation();
+                        for (int i = 0; i < cone.OldCenter.Length; i++)
+                            cone.OldCenter[i] = cone.Projectile.Center - Vector2.Normalize(Aim) * (i * 12f);
+                        Main.spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend);
+                        Color color = SceneLight;
+                        cone.PreDraw(ref color);
+                        Main.spriteBatch.End();
+                        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                    }
+            """;
+        source += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax));
+        source += preDraw.ToFullString() + draw.ToFullString() + "}}";
+        return source.Replace("ModContent.Request<Effect>(\"伊蕾娜/Effects/Content/ThreeD/IceCone3D\", AssetRequestMode.ImmediateLoad).Value", "previewEffect")
+            .Replace("ModContent.Request<Texture2D>(\"KL/Effects/Tex/Noise/4\", AssetRequestMode.ImmediateLoad).Value", "previewNoise")
+            .Replace("AssetManager.GetTexture(\"KL.Effects.Tex.Trail.235653rnwhwlbv2vm828gm\")", "previewTrail")
+            .Replace("gd.SetVertexBuffer(vertexBuffer);", """
+                if (LegacyInvalidAlpha) {
+                    baseColor.W = 1.1f;
+                    iceConeEffect.Parameters["uBaseColor"].SetValue(baseColor);
+                    var edgeColor = iceConeEffect.Parameters["uDissolveEdgeColor"].GetValueVector4();
+                    edgeColor.W = 4.5f;
+                    iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(edgeColor);
+                }
+                gd.SetVertexBuffer(vertexBuffer);
+                """)
+            .Replace("gd.DrawPrimitives(PrimitiveType.TriangleList, 0, iceCone.PrimitiveCount);",
+                "if (!HideMesh) gd.DrawPrimitives(PrimitiveType.TriangleList, 0, iceCone.PrimitiveCount);")
+            .Replace("iceConeEffect.CurrentTechnique.Passes[\"Base\"]", "iceConeEffect.CurrentTechnique.Passes[LegacyOutline ? \"Outline\" : \"Base\"]");
+    }
+
+    Color[] RenderSingle(int frame, bool outline, DepthFormat depth, string name)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, depth);
+        GraphicsDevice.SetRenderTarget(target);
+        // A depth-enabled mesh would fail behind a buffer cleared to the nearest depth.
+        GraphicsDevice.Clear(ClearOptions.Target | (depth == DepthFormat.None ? 0 : ClearOptions.DepthBuffer),
+            new Color(33, 48, 64), 0f, 0);
+        SingleScene.GetMethod("DrawFrame").Invoke(null, [frame, outline]);
+        GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(Path.Combine(output, name + ".png"));
+        target.SaveAsPng(file, Width, Height);
+        var data = new Color[Width * Height]; target.GetData(data);
+        return data;
+    }
+
+    void DrawSingleFrames()
+    {
+        foreach (int frame in new[] { 8, 20, 35 })
+        {
+            var fixedImage = RenderSingle(frame, false, DepthFormat.None, $"single-{frame:000}-base");
+            var withDepth = RenderSingle(frame, false, DepthFormat.Depth24, $"single-{frame:000}-depth-ignored");
+            if (!fixedImage.SequenceEqual(withDepth)) throw new Exception("IceConeProj unexpectedly depends on depth.");
+        }
+        var legacy = RenderSingle(20, true, DepthFormat.None, "single-020-outline");
+        var corrected = RenderSingle(20, false, DepthFormat.None, "single-020-base");
+        int changed = legacy.Zip(corrected).Count(p => p.First != p.Second);
+        if (changed < 100) throw new Exception("Base pass did not replace outline appearance.");
+        int colors = corrected.Where(c => c != new Color(33, 48, 64)).Distinct().Count();
+        if (colors < 100) throw new Exception("Expected textured ice facets.");
+        Console.WriteLine($"PASS IceConeProj: Base replaces Outline ({changed} changed pixels, {colors} mesh colors); frames 8/20/35 identical with absent or occluding depth buffer.");
+    }
+}

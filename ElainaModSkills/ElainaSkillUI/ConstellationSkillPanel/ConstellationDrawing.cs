@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -329,30 +330,7 @@ internal sealed class ConstellationDrawing
     }
 
     internal string[] WrapParagraph(string text, float width, float size)
-    {
-        var lines = new List<string>();
-        string line = "";
-        foreach (char c in text)
-        {
-            if (c == '\r') continue;
-            if (c == '\n')
-            {
-                lines.Add(line); line = ""; continue;
-            }
-            if (line.Length > 0 && Measure(line + c, size) > width)
-            {
-                // Keep closing punctuation with the preceding glyph without drawing outside the clip.
-                if (line.Length > 1 && "，。！？；：、”」）".Contains(c))
-                {
-                    lines.Add(line[..^1]); line = line[^1].ToString();
-                }
-                else { lines.Add(line); line = ""; }
-            }
-            line += c;
-        }
-        if (line.Length > 0 || lines.Count == 0) lines.Add(line);
-        return lines.ToArray();
-    }
+        => WrapUIParagraph(text, width, value => Measure(value, size));
 
     internal void Frame(float x, float y, float width, float height, Color color)
     {
@@ -370,7 +348,7 @@ internal sealed class ConstellationDrawing
         if (lines.Length > capacity)
         {
             Array.Resize(ref lines, capacity);
-            lines[^1] = "…其余需求见详情";
+            lines[^1] = LocalizeUI("MoreRequirements");
         }
         float width = 20;
         foreach (string line in lines) width = Math.Max(width, Measure(line, 11) + 20);
@@ -506,15 +484,16 @@ internal sealed class ConstellationDrawing
         float levelSize = Math.Min(28, 28 * 56 / Math.Max(1, LatinWidth(level, 28)));
         LatinText(level, sealX, 29 + (28 - levelSize) * .5f, levelSize, new Color(240, 222, 186), .5f);
 
-        Text("角色等级", left, 24, 11, new Color(213, 197, 215), serif: true, spacing: 1);
         string cap = maxLevel.ToString();
-        float capLabelLeft = right - LatinWidth(cap, 10) - 4 - Measure("上限", 9);
-        Text("上限", capLabelLeft, 26, 9, new Color(158, 144, 172));
+        float capLabelLeft = right - LatinWidth(cap, 10) - 5 - Measure(LocalizeUI("LevelCap"), 10);
+        FittedText(LocalizeUI("CharacterLevel"), left, 24, capLabelLeft - left - 8, 11,
+            new Color(213, 197, 215), serif: true, spacing: 1);
+        EmphasizedText(LocalizeUI("LevelCap"), capLabelLeft, 25, 10, new Color(205, 188, 217));
         LatinText(cap, right, 24, 10, new Color(184, 167, 192), 1);
 
-        Text("经验", left, 45, 9, new Color(169, 154, 182), spacing: .5f);
+        Text(LocalizeUI("Experience"), left, 45, 9, new Color(169, 154, 182), spacing: .5f);
         string experienceText = $"{experience} / {experienceMax}";
-        float experienceWidth = right - left - Measure("经验", 9, .5f) - 10;
+        float experienceWidth = right - left - Measure(LocalizeUI("Experience"), 9, .5f) - 10;
         float experienceSize = Math.Min(10, 10 * experienceWidth / Math.Max(1, LatinWidth(experienceText, 10)));
         LatinText(experienceText, right, 43, experienceSize, new Color(203, 189, 211), 1);
         Box(left, 62, width, 3, new Color(196, 171, 208) * (38 / 255f));
@@ -543,8 +522,8 @@ internal sealed class ConstellationDrawing
         var color = new Color(240, 231, 244);
         // Reinforce coverage at exactly the same sample position. Unlike an offset shadow,
         // this gives thin bitmap strokes more ink without blur, new glyphs or wider layout.
-        Text("魔女手札", x, y, 30, color, spacing: 3, serif: true);
-        Text("魔女手札", x, y, 30, color * .45f, spacing: 3, serif: true);
+        FittedText(LocalizeUI("NotebookTitle"), x, y, 420, 30, color, spacing: 3, serif: true);
+        FittedText(LocalizeUI("NotebookTitle"), x, y, 420, 30, color * .45f, spacing: 3, serif: true);
     }
 
     internal float Measure(string text, float size, float spacing = 0, bool serif = false)
@@ -579,6 +558,13 @@ internal sealed class ConstellationDrawing
                 factor * Scale, SpriteEffects.None, 0);
             start += font.MeasureString(glyph).X * factor + spacing;
         }
+    }
+
+    // Small labels need a little more stroke coverage at reduced UI scales.
+    internal void EmphasizedText(string text, float x, float y, float size, Color color, float spacing = 0)
+    {
+        Text(text, x, y, size, color, spacing: spacing);
+        Text(text, x + .3f, y, size, color * .65f, spacing: spacing);
     }
 
     internal float Paragraph(string text, float x, float y, float width, float size, Color color,

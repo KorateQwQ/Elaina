@@ -1,4 +1,5 @@
 param(
+    [ValidateSet('zh-Hans','en-US')][string]$Culture = 'zh-Hans',
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
     [switch]$CompileOnly,
     [switch]$BookOnly,
@@ -36,6 +37,9 @@ function Add-PreviewItem([string]$kind, [string]$path) {
     [void]$items.AppendChild($node)
     return $node
 }
+$null = Add-PreviewItem 'Compile' "$repo/Localization/UIText.cs"
+$null = Add-PreviewItem 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
+$null = Add-PreviewItem 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-PreviewItem 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','NotebookFixture')) { $null = Add-PreviewItem 'Compile' "$out/$name.cs" }
 foreach ($name in @('AlchemyDrawing','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
@@ -55,7 +59,7 @@ $projectPath = Join-Path $out 'Preview.csproj'
 $project.Save($projectPath)
 if ($CompileOnly) { dotnet build $projectPath --configuration $Configuration --nologo }
 else {
-    $previewArgs = @($repo, $Tml)
+    $previewArgs = @($repo, $Tml, $Culture)
     if ($BookOnly) { $previewArgs += '--book-only' }
     if ($QuillOnly) { $previewArgs += '--quill-only' }
     dotnet run --project $projectPath --configuration $Configuration -- @previewArgs

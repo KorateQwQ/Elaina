@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using Terraria.ID;
@@ -10,11 +11,27 @@ namespace 伊蕾娜.ElainaModSkills.Loadout;
 public static class LoadoutItems
 {
     /// <summary>与网页 periods 一致：第 k 阶段为击败对应 Boss 后，角色等级上限 5k。</summary>
-    public static readonly string[] StageLabels =
+    public static string[] StageLabels =>
     [
-        "开局", "史莱姆王后", "克苏鲁之眼后", "世吞／克脑后", "蜂王后", "骷髅王后", "独眼巨鹿后", "血肉墙后（困难模式）",
-        "史莱姆皇后后", "双子魔眼后", "毁灭者后", "机械骷髅王后", "世纪之花后", "石巨人后", "猪龙鱼公爵后", "光之女皇后",
-        "光女后 · 拜月前", "拜月教邪教徒后", "月亮领主后"
+        LocalizeUI("LoadoutStages.Stage1"),
+        LocalizeUI("LoadoutStages.Stage2"),
+        LocalizeUI("LoadoutStages.Stage3"),
+        LocalizeUI("LoadoutStages.Stage4"),
+        LocalizeUI("LoadoutStages.Stage5"),
+        LocalizeUI("LoadoutStages.Stage6"),
+        LocalizeUI("LoadoutStages.Stage7"),
+        LocalizeUI("LoadoutStages.Stage8"),
+        LocalizeUI("LoadoutStages.Stage9"),
+        LocalizeUI("LoadoutStages.Stage10"),
+        LocalizeUI("LoadoutStages.Stage11"),
+        LocalizeUI("LoadoutStages.Stage12"),
+        LocalizeUI("LoadoutStages.Stage13"),
+        LocalizeUI("LoadoutStages.Stage14"),
+        LocalizeUI("LoadoutStages.Stage15"),
+        LocalizeUI("LoadoutStages.Stage16"),
+        LocalizeUI("LoadoutStages.Stage17"),
+        LocalizeUI("LoadoutStages.Stage18"),
+        LocalizeUI("LoadoutStages.Stage19")
     ];
 
     /// <summary>头、身、腿；0 表示该部位保留玩家原有装备（法袍类套装不需要护腿）。</summary>

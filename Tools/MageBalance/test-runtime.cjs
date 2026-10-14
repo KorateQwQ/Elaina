@@ -42,6 +42,13 @@ assert.match(parent,/TryGetPlayerBalance\(Player, BalanceId, skillLevel \?\? Mat
 assert.doesNotMatch(fs.readFileSync(path.join(root,'ElainaModSkills/Skills/MagicMissile/MagicMissileSkill.cs'),'utf8'),/override int MaxLevel/);
 console.log('PASS skill instances inherit the configured cap and forward their actual learned level');
 
+// Mixed fixed/phase growth: cover delayed unlocks, independent intervals and endpoint caps.
+for(const interval of [1,7,10,1000]){
+ const s=B.defaults();s.progression.phaseSize=7;
+ Object.assign(s.basicAttacks[0],{growthMode:'interval',levelInterval:interval,unlockLevel:6,unlockStageCap:42});
+ Object.assign(s.skills[0],{growthMode:'interval',levelInterval:interval,unlockLevel:1});
+ cases.push(fixture(s));
+}
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(),'mage-balance-runtime-'));
 function xml(value) {return value.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');}
 try {
@@ -96,6 +103,38 @@ var missile = current.Skills["MagicMissileSkill"];
 var ice = current.Skills["IceConeSkill"];
 var player = new Player();
 var damageClass = new DamageClass();
+Test("Fixed intervals use unlock plus N times interval independently of phase settings", () =>
+{
+    var fixedSkill = missile with {GrowthMode=SkillGrowthMode.Interval,LevelInterval=10,UnlockLevel=1,UnlockStageCap=42,LevelsPerPhase=10};
+    Check(current.GetSkillLevelNodes(fixedSkill,35).SequenceEqual(new[]{1,11,21,31}), "Ten-level interval mismatch");
+    Check(current.GetSkillLevelCap(fixedSkill,10)==1 && current.GetSkillLevelCap(fixedSkill,11)==2, "Ten-level cap mismatch");
+    Check(current.GetSkillLevelNodes(fixedSkill with {LevelInterval=7,UnlockLevel=6},30).SequenceEqual(new[]{6,13,20,27}), "Delayed seven-level interval mismatch");
+    Check(!current.GetSkillLevelNodes(fixedSkill with {UnlockLevel=6},5).Any(), "Fixed skill unlocked early");
+    Check(current.GetSkillCharacterLevel(fixedSkill with {UnlockLevel=1000},int.MaxValue)==1000, "Fixed terminal gate mismatch");
+});
+Test("Legacy growth fields default to phase and malformed fields do not replace valid config", () =>
+{
+    foreach (string category in new[]{"basicAttacks","skills"})
+    {
+        foreach (var (key,value) in new[]{("growthMode","\"bad\""),("growthMode","null"),("growthMode","1"),("levelInterval","0"),("levelInterval","1.5"),("levelInterval","1001"),("levelInterval","null"),("levelInterval","\"7\""),("levelInterval","true")})
+        {
+            var payload=JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+            payload["configuration"][category][0][key]=JsonNode.Parse(value);
+            var good=SkillBalanceSystem.Current;
+            Check(!store.Apply(payload.ToJsonString())&&ReferenceEquals(good,SkillBalanceSystem.Current), $"Accepted bad {category}.{key}={value}");
+        }
+    }
+    var legacy=JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
+    foreach (string category in new[]{"basicAttacks","skills"})
+        foreach (var row in legacy["configuration"][category].AsArray())
+        {
+            row.AsObject().Remove("growthMode");row.AsObject().Remove("levelInterval");
+        }
+    Check(store.Apply(legacy.ToJsonString()), "Legacy growth rejected");
+    Check(SkillBalanceSystem.Current.Skills.Values.All(x=>x.GrowthMode==SkillGrowthMode.Phase&&x.LevelInterval==5), "Legacy defaults mismatch");
+    Check(SkillBalanceSystem.Current.GetSkillCharacterLevel(SkillBalanceSystem.Current.Skills[missile.Id],2)==3, "Legacy nodes changed");
+    store.Apply(fixtures[2].GetProperty("json").GetString());
+});
 Test("Delayed unlock maps Ice Lv1 to character 6, not character 1", () =>
 {
     Check(current.GetSkillCharacterLevel(ice,1) == 6, "Wrong Ice Lv1 gate");

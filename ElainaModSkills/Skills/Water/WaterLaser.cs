@@ -1,13 +1,19 @@
 
 
 using System;
+using System.IO;
 using System.Linq;
+using KL.ActionsSystem;
+using KL.DamageSystem;
 using KL.Drawing;
 using KL.Dusts;
 using KL.Dusts.Water;
 using KL.Extensions;
+using KL.Utils;
 using Terraria.GameContent;
 using Terraria.ID;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Managers;
 using DrawHelper = KL.Drawing.DrawHelper;
 
@@ -15,8 +21,21 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
 public class WaterLaser : ElainaBasicProjectile
 {
+    public const float SplashRadius = 80f;
+    public const float SplashDamageMultiplier = 0.5f;
+    private const float BeamWidth = 50f;
+
     private float maxDistance;
     private int time;
+    private int actionToken;
+    private float manaPerPulse;
+    private int intervalFrames = 12;
+    private int pulseTimer;
+    private bool damagePulse;
+    private int primaryTarget = -1;
+    private int primaryEntity = -1;
+    private readonly HashSet<int> hitEntities = new();
+    private bool IsChanneling => Projectile.ai[0] == 1f;
 
     private float startWidth = 2f;
     private float endWidth = 7f;
@@ -25,101 +44,196 @@ public class WaterLaser : ElainaBasicProjectile
     public override void SetDefaults()
     {
         HeldInfo = new HeldProjInfo(true, 30, 0.2f, 30);
-        Projectile.friendly = true;
+        InfusionElement = ElementType.Water;
+        Projectile.width = Projectile.height = 10;
+        Projectile.timeLeft = 30;
+        Projectile.tileCollide = false;
+        Projectile.ignoreWater = true;
+        Projectile.friendly = false;
         Projectile.penetrate = -1;
         Projectile.usesLocalNPCImmunity = true;
-        Projectile.localNPCHitCooldown = 10;
+        // 每个付费脉冲只命中一次；下个脉冲开始时清理独立免疫。
+        Projectile.localNPCHitCooldown = -1;
         maxDistance = 100;
         base.SetDefaults();
+    }
+
+    public void BindAction(int token, float manaCost, int tickInterval)
+    {
+        actionToken = token;
+        manaPerPulse = Math.Max(0f, manaCost);
+        intervalFrames = Math.Max(1, tickInterval);
+        Projectile.netUpdate = true;
+    }
+
+    public override void SendExtraAI(BinaryWriter writer)
+    {
+        writer.Write(actionToken);
+        writer.Write(manaPerPulse);
+        writer.Write(intervalFrames);
+        base.SendExtraAI(writer);
+    }
+
+    public override void ReceiveExtraAI(BinaryReader reader)
+    {
+        actionToken = reader.ReadInt32();
+        manaPerPulse = Math.Max(0f, reader.ReadSingle());
+        intervalFrames = Math.Max(1, reader.ReadInt32());
+        base.ReceiveExtraAI(reader);
+    }
+
+    private Action_WaterLaser BoundAction
+    {
+        get
+        {
+            ActionModPlayer actionPlayer = Owner.GetModPlayer<ActionModPlayer>();
+            return actionToken > 0 && actionPlayer.CurrentActionToken == actionToken
+                ? actionPlayer.CurrentAnimAction as Action_WaterLaser : null;
+        }
     }
 
     public override void OnSpawn_AllClient()
     {
         Vector2 move = Projectile.velocity;
-        move = move.SafeNormalize(new Vector2(1));
+        move = move.SafeNormalize(new Vector2(Owner.direction, 0));
         Projectile.velocity = move;
-        
+        HeldInfo.Rotation = move.ToRotation();
+        HeldInfo.LockPosition = Owner.MountedCenter + move * 100f;
         Projectile.Center = Owner.MountedCenter + move * HeldInfo.HeldDistance;
-
-        LaserCollisionCheck();
-        LaserCollisionCheck();
 
         base.OnSpawn_AllClient();
     }
     
     public override void AI()
     {
-        ControlLaser();
-        
-        startWidth = 2f;
-        endWidth = 7f;
+        damagePulse = false;
+        Projectile.friendly = false;
+        if (!Owner.active || Owner.dead || Owner.CCed || Owner.noItems)
+        {
+            StopChannel();
+            return;
+        }
 
+        if (HasAuthority())
+        {
+            Action_WaterLaser action = BoundAction;
+            if (action == null)
+            {
+                StopChannel();
+                return;
+            }
+            if (action.IsChanneling && !IsChanneling)
+            {
+                Projectile.ai[0] = 1f;
+                Projectile.netUpdate = true;
+            }
+            if (IsChanneling)
+            {
+                if (pulseTimer <= 0)
+                {
+                    if (!Owner.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(manaPerPulse))
+                    {
+                        action.FinishChannel(Owner.GetModPlayer<ActionModPlayer>());
+                        return;
+                    }
+                    damagePulse = true;
+                    Projectile.friendly = true;
+                    Array.Clear(Projectile.localNPCImmunity);
+                    hitEntities.Clear();
+                    pulseTimer = intervalFrames;
+                }
+                pulseTimer--;
+            }
+        }
         time++;
-        
-        SpawnWaterDust();
-        
-
         base.AI();
     }
 
-    void ControlLaser()
+    public override void PostAI()
     {
-        if (HasAuthority()&&HeldInfo.IsControlling)
-        {
-            if (Main.mouseLeft)
-            {
-
-            }
-            else
-            {
-                HeldInfo.IsControlling = false;
-                Projectile.netUpdate = true;
-            }
-        }
-        Owner.itemTime = 2;
-        Owner.itemAnimation = 2;
-        
-        Projectile.velocity = new Vector2(1, 0).RotatedBy(HeldInfo.RealRotation);
+        if (!Projectile.active) return;
+        base.PostAI();
+        Projectile.velocity = HeldInfo.RealRotation.ToRotationVector2();
         Projectile.rotation = HeldInfo.RealRotation;
-        
-        //只有第一个弹幕可以对武器进行控制
-        if (NumOfOwingProjectiles == 0)
+        Action_WaterLaser action = BoundAction;
+        if (action != null)
         {
-            Owner.SetCompositeArmFront(true,stretch:Player.CompositeArmStretchAmount.Full,(Projectile.rotation*Owner.gravDir-3.14f/2));
-            //根据弹幕位置控制武器位置
-            Projectile.ControlWandByHeldProj();
+            action.UpdateAimFromLaser(actionToken, HeldInfo.RealRotation);
+            Projectile.Center = action.BeamOrigin;
         }
+        // 几何与碰撞按游戏 tick 更新，专用服务器和屏幕外同样执行。
+        if (IsChanneling)
+        {
+            LaserCollisionCheck();
+            if (!Main.dedServ) SpawnWaterDust();
+        }
+    }
+
+    public void StopChannel()
+    {
+        damagePulse = false;
+        Projectile.friendly = false;
+        HeldInfo.IsControlling = false;
+        Projectile.Kill();
+    }
+
+    public override bool? CanDamage() => damagePulse && IsChanneling && HasAuthority();
+
+    private static int DamageEntity(NPC npc) => npc.realLife >= 0 ? npc.realLife : npc.whoAmI;
+
+    public override bool? CanHitNPC(NPC target)
+    {
+        int entity = DamageEntity(target);
+        if (!target.IsAttackable(Owner.dontHurtCritters) || hitEntities.Contains(entity))
+            return false;
+        if (target.whoAmI == primaryTarget) return null;
+        // 同一个 Boss 的其它身体段不能额外吃到溅射。
+        if (entity == primaryEntity || trailPoints.Count == 0) return false;
+        Vector2 impact = trailPoints[^1];
+        return InSplash(target.Hitbox, impact)
+            && Collision.CanHitLine(impact, 1, 1, target.position, target.width, target.height)
+                ? null : false;
+    }
+
+    private static bool InSplash(Rectangle hitbox, Vector2 impact) =>
+        Vector2.DistanceSquared(hitbox.ClosestPointInRect(impact), impact) <= SplashRadius * SplashRadius;
+
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        if (target.whoAmI != primaryTarget)
+            modifiers.SourceDamage *= SplashDamageMultiplier;
+        base.ModifyHitNPC(target, ref modifiers);
     }
 
     public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
     {
         if (trailPoints.Count > 0)
         {
-            bool collide = AABBvLineCollision(targetHitbox, Projectile.Center, trailPoints.Last(), 50);
+            bool collide = AABBvLineCollision(targetHitbox, Projectile.Center, trailPoints[^1], BeamWidth)
+                || InSplash(targetHitbox, trailPoints[^1]);
             return collide;
         }
-        return base.Colliding(projHitbox, targetHitbox);
+        return false;
     }
     
     void LaserCollisionCheck()
     {
-        if(Main.netMode==NetmodeID.Server||Main.gamePaused)return;
-
         trailPoints.Clear();
+        primaryTarget = primaryEntity = -1;
         float noiseScale = DrawManager.FrameTime(10,70,30,time); // 振幅，控制波形高度
         float timeEffect = (Main.GameUpdateCount%1800)/2f;
 
         float rotStrength = MathF.Abs(HeldInfo.CurRotVelocity);
-        rotStrength = MathHelper.Lerp(1, 0, rotStrength/0.2f);
+        rotStrength = MathHelper.Clamp(1f - rotStrength / 0.2f, 0f, 1f);
         float laserLength = maxDistance+200f;
         if (laserLength > 1200) laserLength = 1200;
         
-        float noiseFrequency = 0.01f*maxDistance/1200f; // 噪声频率
+        float noiseFrequency = 0.01f*laserLength/1200f; // 噪声频率
         for (int i = 0; i < 200; i++)
         {
             // 使用Perlin噪声替代sin波
 
-            float startEffect = MathHelper.Lerp(0, 1, (i) / 200f);
+            float startEffect = i / 199f;
             startEffect = Math.Min(startEffect, 1f);
             
             // 使用多层分形噪声产生更自然的波动
@@ -138,11 +252,14 @@ public class WaterLaser : ElainaBasicProjectile
             //弧线
             Vector2 point = (i / 200f * i / 200f) * perpendicular*HeldInfo.CurRotVelocity*-2000f;
             
-            trailPoints.Add(Projectile.Center + Projectile.velocity *maxDistance/200f * i + perpendicular * noiseValue+point);
+            trailPoints.Add(Projectile.Center + Projectile.velocity * laserLength * startEffect + perpendicular * noiseValue+point);
         }
         
         if(trailPoints.Count<1)return;
         
+        float candidateLength = Vector2.Distance(Projectile.Center, trailPoints[^1]);
+        Vector2 toward = (trailPoints[^1] - Projectile.Center).SafeNormalize(Projectile.velocity);
+        laserLength = Math.Min(candidateLength, 1200f);
         //先检测是否和岩浆碰撞
         for (int i = 0; i < trailPoints.Count; i++)
         {
@@ -150,43 +267,42 @@ public class WaterLaser : ElainaBasicProjectile
             if(currentLength>laserLength)break;
             if (Collision.LavaCollision(trailPoints[i], 10, 10))
             {
-                laserLength = currentLength+20;
+                laserLength = Math.Min(laserLength, currentLength);
                 break;
             }
         }
         
         //Main.NewText(finalLength);
-        bool colliding =  LaserCollision(Projectile.Center, trailPoints.Last()-Projectile.Center, 5, ref laserLength,50);
-
-
-        Vector2 torward = (trailPoints.Last() - Projectile.Center);
-        torward.Normalize();
+        LaserCollision(Projectile.Center, toward, 5, ref laserLength, 50);
+        float terrainLength = laserLength;
+        float nearestNpcDistance = laserLength;
         
         foreach (var npc in Main.ActiveNPCs)
         {
             if (npc.IsAttackable(Owner.dontHurtCritters))
             {
-                bool collidingNpc = GetAABBvLineCollisionPoint(npc.Hitbox, Projectile.Center, Projectile.Center+torward*laserLength, 50,out var hitLength);
+                float hitLength = 0f;
+                bool collidingNpc = npc.Hitbox.Contains(Projectile.Center.ToPoint())
+                    || Collision.CheckAABBvLineCollision(npc.position, npc.Size, Projectile.Center,
+                        Projectile.Center + toward * laserLength, BeamWidth, ref hitLength);
 
-                if(collidingNpc&&hitLength<laserLength)
+                if(collidingNpc&&hitLength<nearestNpcDistance)
                 {
-                    laserLength = hitLength;
+                    nearestNpcDistance = hitLength;
+                    primaryTarget = npc.whoAmI;
+                    primaryEntity = DamageEntity(npc);
                 }
             }
         }
 
-        if (colliding) maxDistance = laserLength;
-        else
-        {
-            float smoothingFactor = 0.7f;  // 保留 90% 当前值 + 10% 目标值
-            maxDistance = maxDistance * smoothingFactor + laserLength * (1f - smoothingFactor);
-
-            // 可选：当接近目标时直接设为目标值，避免无限接近
-            if (Math.Abs(maxDistance - laserLength) < 0.1f)
-            {
-                maxDistance = laserLength;
-            }   
-        }
+        if (primaryTarget >= 0)
+            laserLength = Math.Min(terrainLength, nearestNpcDistance + 2f);
+        maxDistance = laserLength < maxDistance || primaryTarget >= 0
+            ? laserLength : MathHelper.Lerp(maxDistance, laserLength, 0.3f);
+        // 缩短已生成的轨迹，末端、溅射中心和本帧伤害判定始终一致。
+        float lengthScale = maxDistance / Math.Max(0.001f, candidateLength);
+        for (int i = 0; i < trailPoints.Count; i++)
+            trailPoints[i] = Projectile.Center + (trailPoints[i] - Projectile.Center) * lengthScale;
      
     }
     
@@ -194,7 +310,7 @@ public class WaterLaser : ElainaBasicProjectile
     
     public override bool PreDraw(ref Color lightColor)
     {
-        LaserCollisionCheck();
+        if (!IsChanneling || trailPoints.Count == 0 || maxDistance <= 0.01f) return false;
         DrawLaser();
         EndBeginDraw();
         return base.PreDraw(ref lightColor);
@@ -202,7 +318,8 @@ public class WaterLaser : ElainaBasicProjectile
 
     public void SpawnWaterDust()
     {
-        Vector2? lastPoint = trailPoints.Last();
+        if (trailPoints.Count == 0) return;
+        Vector2? lastPoint = trailPoints[^1];
         if (lastPoint!=null)
         {
             
@@ -285,13 +402,20 @@ public class WaterLaser : ElainaBasicProjectile
     
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        
+        hitEntities.Add(DamageEntity(target));
+        // 玩家弹幕的命中钩子只在拥有者执行；冻结 CD 的权威值由服务器修改。
+        if (Main.netMode == NetmodeID.MultiplayerClient)
+            RPC(nameof(ReduceTargetFreezeCooldown), [target.whoAmI], KLNetModule.NetSendType.ClientToServer);
+        else
+            ReduceTargetFreezeCooldown(target.whoAmI);
         base.OnHitNPC(target, hit, damageDone);
     }
 
-    public override void OnKill(int timeLeft)
+    public void ReduceTargetFreezeCooldown(int targetIndex)
     {
-        base.OnKill(timeLeft);
+        if (Main.netMode != NetmodeID.MultiplayerClient
+            && targetIndex >= 0 && targetIndex < Main.maxNPCs && Main.npc[targetIndex].active)
+            Main.npc[targetIndex].ReduceFreezeCooldown(0.5f);
     }
     
     public override bool ShouldUpdatePosition()

@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+using static 伊蕾娜.Localization.UIText;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using ReLogic.Graphics;
@@ -117,7 +118,7 @@ namespace 伊蕾娜.炼金
             {
                 string text = "Any \"Material\" that is neither a weapon nor equipment";
                 if (Language.ActiveCulture.Name == "zh-Hans")
-                    text = "任何非武器，装备的“材料”类物品";
+                    text = LocalizeUI("LegacyMaterial");
                 spriteBatch.DrawString(FontAssets.MouseText.Value, text, Main.MouseScreen + new Vector2(25, -5), Color.Red);
             }
         }

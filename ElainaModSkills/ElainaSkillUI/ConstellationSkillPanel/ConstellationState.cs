@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -150,6 +151,7 @@ internal sealed class ConstellationState
     internal int DetailStamp()
     {
         var hash = new HashCode();
+        hash.Add(LocalizeUI("NotebookTitle"));
         hash.Add(Selected); hash.Add(Filter); hash.Add(Points); hash.Add(CanUnlock);
         foreach (var node in Skills)
         {
@@ -174,10 +176,10 @@ internal sealed class ConstellationState
     internal bool Discovered(ConstellationNode node) => node != null && (IsLearned(node.id) || node.Skill.BasicStatus != Skill.SKillBasicStatus.Hide);
     internal string Status(ConstellationNode node) => node == null ? "hidden" : IsLearned(node.id) ? "learned"
         : !Discovered(node) ? "hidden" : node.prereqs.All(IsLearned) ? "ready" : "locked";
-    internal string Name(ConstellationNode node) => Discovered(node) ? node.name : "未显现";
+    internal string Name(ConstellationNode node) => Discovered(node) ? node.name : LocalizeUI("Hidden");
     internal bool CanUnlock => IsCurrentPlayer && !EmptyFilter && Status(Current) == "ready"
         && Requirements(Selected, false).Satisfied;
-    internal string UnlockDescription => Current?.ModSkill.UnlockCondition == null ? "解锁条件待补充。"
+    internal string UnlockDescription => Current?.ModSkill.UnlockCondition == null ? LocalizeUI("MissingUnlockCondition")
         : ConstellationRequirements.Localize(Current.ModSkill.GetUnlockConditionDescription(_player));
 
     internal ConstellationRequirements Requirements(string id, bool upgrade)
@@ -236,9 +238,9 @@ internal sealed class ConstellationState
     private ConstellationAvailability Availability(string id, HashSet<string> visiting)
     {
         var skill = Resolve(id);
-        if (skill?.ModSkill == null || !IsLearned(id)) return new(false, "尚未习得" + (Find(id) is { } node ? $"「{node.name}」" : "前置技能"), id);
-        if (!visiting.Add(id)) return new(false, "技能依赖存在循环", id);
-        if (skill.ModSkill.IsToggleable && !skill.ModSkill.IsEnabled) return new(false, $"需开启「{Find(id)?.name ?? skill.ModSkill.GetType().Name}」", id);
+        if (skill?.ModSkill == null || !IsLearned(id)) return new(false, LocalizeUI("MissingSkill", Find(id) is { } node ? node.name : LocalizeUI("PrerequisiteSkill")), id);
+        if (!visiting.Add(id)) return new(false, LocalizeUI("Cycle"), id);
+        if (skill.ModSkill.IsToggleable && !skill.ModSkill.IsEnabled) return new(false, LocalizeUI("EnableSkill", Find(id)?.name ?? skill.ModSkill.GetType().Name), id);
         foreach (var parent in skill.ModSkill.PrerequisiteSkills ?? [])
         {
             if (parent == null) continue;
@@ -297,6 +299,6 @@ internal sealed class ConstellationState
     }
     internal static string StatusName(string status) => status switch
     {
-        "learned" => "已习得", "ready" => "待研习", "hidden" => "未显现", _ => "待启封"
+        "learned" => LocalizeUI("Learned"), "ready" => LocalizeUI("Ready"), "hidden" => LocalizeUI("Hidden"), _ => LocalizeUI("Locked")
     };
 }

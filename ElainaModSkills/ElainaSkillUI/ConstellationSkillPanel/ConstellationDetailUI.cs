@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Linq;
 using Microsoft.Xna.Framework;
@@ -90,7 +91,7 @@ public sealed partial class ConstellationSkillPanel
                 else if (action.Kind == "toggle" && _state.Toggle(action.Id))
                 {
                     InvalidateDetail(false);
-                    Notify(_state.Find(action.Id).name + (_state.Disabled.Contains(action.Id) ? " · 已关闭" : " · 已启用"));
+                    Notify(_state.Find(action.Id).name + (_state.Disabled.Contains(action.Id) ? LocalizeUI("DisabledSuffix") : LocalizeUI("EnabledSuffix")));
                 }
                 else if (action.Kind == "upgrade")
                 {

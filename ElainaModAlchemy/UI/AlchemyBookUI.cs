@@ -1,4 +1,5 @@
 using System;
+using static 伊蕾娜.Localization.UIText;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SilkyUIFramework;
@@ -90,12 +91,16 @@ public sealed class AlchemyBookResources : ModSystem
 {
     private ConstellationBookRenderer _renderer;
     private RenderTarget2D _cover;
+    private string _coverTitle;
     private RenderTargetPool _pool;
     internal ConstellationBookRenderer Renderer(GraphicsDevice device) => _renderer ??= new(device);
 
     internal Texture2D Cover(GraphicsDevice device, SpriteBatch batch, RenderTargetPool pool, AlchemyDrawing drawing)
     {
-        if (_cover is { IsDisposed: false }) return _cover;
+        string title = LocalizeUI("AlchemyTitle");
+        if (_cover is { IsDisposed: false } && _coverTitle == title) return _cover;
+        if (_cover is { IsDisposed: false }) _pool.Return(_cover);
+        _coverTitle = title;
         _pool = pool;
         _cover = pool.Rent(1100, 800);
         device.SetRenderTarget(_cover);

@@ -153,7 +153,7 @@ internal sealed class PanelScene
         for (int i = 0; i < 8; i++) DrawSlot(i, false);
         DrawClearSlot(false);
         CameraControl("minus", 591, false, true); CameraControl("plus", 663, false, true); CameraControl("center", 706, false, true);
-        _draw.Text("返回", 1008, 756, 11, Muted, .5f);
+        _draw.Text(LocalizeUI("Back"), 1008, 756, 11, Muted, .5f);
         foreach (string kind in new[] { "edit", "save", "cancel", "reset" }) DrawLayoutButton(kind, false);
         DrawDebugButton("points", false); DrawDebugButton("reset-skills", false);
         batch.End();

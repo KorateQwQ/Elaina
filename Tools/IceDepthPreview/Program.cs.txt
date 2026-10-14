@@ -1,0 +1,226 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+try { using var game = new Probe(args[0], args[1], args.Length > 2 ? args[2] : "depth"); game.Run(); }
+catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
+
+sealed partial class Probe : Game
+{
+    const int Width = 960, Height = 640;
+    readonly string root, output;
+    Assembly replay;
+    ContentManager content;
+    SpriteBatch batch;
+    bool done;
+    readonly bool single;
+    readonly bool bloomPreview;
+    readonly bool trailPreview;
+    public Probe(string root, string output, string mode)
+    {
+        this.root = root; this.output = output; single = mode == "single"; bloomPreview = mode == "bloom";
+        trailPreview = mode == "trail";
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    Assembly Compile()
+    {
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        var unit = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceCone3DUnit.cs"));
+        var controller = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceShardLockProj.cs"));
+        var loader = Read(Path.Combine(kl, "Drawing/ThreeD/ObjLoader.cs"));
+        string preamble = """
+            global using System;
+            global using System.Collections.Generic;
+            global using System.IO;
+            global using System.Globalization;
+            global using System.Reflection;
+            global using Microsoft.Xna.Framework;
+            global using Microsoft.Xna.Framework.Graphics;
+            global using Terraria;
+            global using Terraria.ModLoader;
+            global using KL.Drawing;
+            global using KL.Drawing.ThreeD;
+            global using static KL.Drawing.DrawHelper;
+            namespace Terraria.ModLoader { public class ModSystem { public virtual void Unload() {} } }
+            namespace Terraria {
+                public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+                public sealed class Player { public int gravDir = 1; }
+                public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+                public static class Main {
+                    public static DeviceContext instance, graphics;
+                    public static SpriteBatch spriteBatch;
+                    public static int screenWidth = 960, screenHeight = 640;
+                    public static Vector2 screenPosition;
+                    public static Matrix Transform = Matrix.Identity;
+                    public static bool gamePaused;
+                    public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                    public static ViewContext GameViewMatrix = new();
+                    public static Player LocalPlayer = new();
+                    public static double timeForVisualEffects;
+                    public static void QueueMainThreadAction(Action a) => a();
+                }
+                public static class Lighting { public static Color GetColor(int x, int y) => Color.White; }
+            }
+            namespace KL.Drawing {
+                public class VisualUnit {
+                    public Vector3 Position3D;
+                    public int Timer, Delay;
+                    public VisualUnit() {}
+                    public VisualUnit(Vector3 p, Vector3 v, int d, int t) { Position3D = p; Delay = d; }
+                    public virtual void Draw() {}
+                }
+            }
+            namespace KL.Drawing.ThreeD {
+                public class ObjModel {
+                    public Vertex3D[] Vertices;
+                    VertexBuffer buffer;
+                    public int PrimitiveCount => Vertices.Length / 3;
+                    public ObjModel(Vertex3D[] vertices) { Vertices = vertices; }
+                    public VertexBuffer GetOrCreateVertexBuffer(GraphicsDevice gd) {
+                        if (buffer == null) { buffer = new VertexBuffer(gd, typeof(Vertex3D), Vertices.Length, BufferUsage.WriteOnly); buffer.SetData(Vertices); }
+                        return buffer;
+                    }
+                }
+                public static class ObjLoader {
+            """;
+        preamble += loader.DescendantNodes().OfType<StructDeclarationSyntax>().Single().ToFullString();
+        preamble += Methods(loader, "Parse", "ParseFace", "AddVertex", "ParseFaceVertex", "ResolveIndex", "ParseVector3", "ParseVector2", "ParseFloat") + "}}";
+        string unitSource = "namespace 伊蕾娜.ElainaModSkills.Skills.Ice { public class IceCone3DUnit : VisualUnit {";
+        var type = unit.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+        unitSource += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax or ConstructorDeclarationSyntax));
+        unitSource += Methods(unit, "Draw", "RequestIceConeDraw", "UpdateMovement", "GetModelMatrix", "GetStableModelForward", "GetDissolveThreshold",
+            "GetModelOriginScreenPosition", "DrawTrail3D", "EnsureTrailEffect", "CreateRotationFromTo");
+        unitSource += """
+            public static void Setup(ObjModel model, Texture2D color, Effect effect, Texture2D noise) {
+                iceCone = model; texture = color; iceConeEffect = effect; dissolveNoiseTexture = noise;
+            }
+            public void Advance(int age) { Timer = Delay + age; for (int t = 0; t <= age; t++) UpdateMovement(t); }
+            } public static class PreviewScene {
+                public static bool DisableDepth;
+                public static void Setup(GraphicsDevice gd, SpriteBatch sb, string obj, Texture2D color, Effect effect, Texture2D noise) {
+                    Main.instance = Main.graphics = new DeviceContext { GraphicsDevice = gd }; Main.spriteBatch = sb;
+                    IceCone3DUnit.Setup(ObjLoader.Parse(obj, Color.White), color, effect, noise);
+                }
+                public static void Draw(int frame, bool reverse) {
+                    LayerDrawRequestSystem.ClearFrame();
+                    var center = new Vector2(480, 320);
+                    var spawns = BuildIceCone3DSpawnData(center, 200f);
+                    if (reverse) spawns.Reverse();
+                    foreach (var spawn in spawns) {
+                        int age = frame - spawn.TriggerFrame;
+                        if (age < 0) continue;
+                        var p = new Vector3(spawn.SpawnWorldPosition, spawn.StartDepth);
+                        var v = Vector3.Normalize(new Vector3(center, 0) - p) * 58f;
+                        var cone = new IceCone3DUnit(p, new Vector3(center, 0), v, spawn.TriggerFrame, 135);
+                        cone.Advance(age); cone.Draw();
+                    }
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles);
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers);
+                }
+            """;
+        unitSource += Methods(controller, "BuildIceCone3DSpawnData", "BuildIceConeFixedRotations", "GetIceConeSphereDirection");
+        unitSource += string.Join("\n", controller.DescendantNodes().Where(n => n is StructDeclarationSyntax or RecordDeclarationSyntax).Select(n => n.ToFullString())) + "}}";
+        // Negative control changes only the depth-test state in the extracted real draw method.
+        unitSource = unitSource.Replace("gd.DepthStencilState = DepthStencilState.Default;",
+            "gd.DepthStencilState = PreviewScene.DisableDepth ? DepthStencilState.None : DepthStencilState.Default;");
+        var trees = new[] { preamble, unitSource, SingleSource(), BloomSource(), TrailSource(),
+            File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeDepthRenderer.cs")),
+            File.ReadAllText(Path.Combine(kl, "Drawing/ThreeD/GraphicsUtils.cs")),
+            File.ReadAllText(Path.Combine(kl, "Drawing/ThreeD/Vertex3D.cs")),
+            File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs")) }.Select(s => CSharpSyntaxTree.ParseText(s));
+        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("IceDepthReplay", trees, refs, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        replay = Compile(); batch = new SpriteBatch(GraphicsDevice);
+        content = new ContentManager(Services, root);
+        var effect = content.Load<Effect>("Effects/Content/ThreeD/IceCone3D");
+        using var colorFile = File.OpenRead(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeProj2.png"));
+        var color = Texture2D.FromStream(GraphicsDevice, colorFile);
+        using var noiseFile = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Noise/4.png"));
+        var noise = Texture2D.FromStream(GraphicsDevice, noiseFile);
+        Scene.GetMethod("Setup").Invoke(null, [GraphicsDevice, batch, File.ReadAllText(Path.Combine(root, "Models/IceCone2.obj")), color, effect, noise]);
+        SingleScene.GetMethod("Setup").Invoke(null, [File.ReadAllText(Path.Combine(root, "Models/IceCone2.obj")), color, effect, noise]);
+        var helper = replay.GetType("KL.Drawing.DrawHelper");
+        bloomEffects = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
+        helper.GetField("bloom").SetValue(null, bloomEffects.Load<Effect>("Bloom"));
+        helper.GetField("reColor").SetValue(null, bloomEffects.Load<Effect>("ReColor"));
+        helper.GetField("vertexDraw").SetValue(null, bloomEffects.Load<Effect>("VertexDraw"));
+        using var trailFile = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Trail/235653rnwhwlbv2vm828gm.png"));
+        SingleScene.GetMethod("SetTrail").Invoke(null, [Texture2D.FromStream(GraphicsDevice, trailFile)]);
+    }
+    Type Scene => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewScene");
+    Color[] Render(int frame, bool reverse, RenderTargetUsage usage, string name)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, 0, usage);
+        GraphicsDevice.SetRenderTarget(target);
+        var bg = new Color(33, 48, 64);
+        GraphicsDevice.Clear(bg);
+        Scene.GetMethod("Draw").Invoke(null, [frame, reverse]);
+        GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(Path.Combine(output, name + ".png"));
+        target.SaveAsPng(file, Width, Height);
+        var data = new Color[Width * Height]; target.GetData(data);
+        if (bloomPreview ? data[^1] != bg : data.Count(c => c == bg) < data.Length / 2)
+            throw new Exception("Scene background lost during target switch.");
+        if (data.Count(c => c != bg) < 200) throw new Exception("Ice cones not visible.");
+        return data;
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) { Exit(); return; } done = true;
+        if (trailPreview) { DrawTrailFrames(); Exit(); return; }
+        if (bloomPreview) { DrawBloomFrames(); Exit(); return; }
+        if (single) { DrawSingleFrames(); Exit(); return; }
+        Render(25, false, RenderTargetUsage.DiscardContents, "frame-025");
+        Render(65, false, RenderTargetUsage.DiscardContents, "frame-065");
+        var normal = Render(109, false, RenderTargetUsage.DiscardContents, "frame-109");
+        var reversed = Render(109, true, RenderTargetUsage.DiscardContents, "frame-109-reversed");
+        int difference = normal.Zip(reversed).Count(p => p.First != p.Second);
+        Console.WriteLine($"Opaque cones, reversed submission order: {difference} differing pixels.");
+        if (difference != 0) throw new Exception("Depth occlusion depends on submission order.");
+        var preserved = Render(109, false, RenderTargetUsage.PreserveContents, "frame-109-preserve");
+        if (!normal.SequenceEqual(preserved)) throw new Exception("Discard/Preserve destination mismatch.");
+        GraphicsDevice.SetRenderTarget(null);
+        GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.DiscardContents;
+        GraphicsDevice.Clear(new Color(33, 48, 64));
+        Scene.GetMethod("Draw").Invoke(null, [109, false]);
+        var backbuffer = new Color[Width * Height];
+        GraphicsDevice.GetBackBufferData(backbuffer);
+        if (!normal.SequenceEqual(backbuffer)) throw new Exception("Backbuffer/target result mismatch.");
+        if (GraphicsDevice.PresentationParameters.RenderTargetUsage != RenderTargetUsage.DiscardContents)
+            throw new Exception("Backbuffer usage was not restored.");
+        Scene.GetField("DisableDepth").SetValue(null, true);
+        var noDepth = Render(109, false, RenderTargetUsage.DiscardContents, "no-depth");
+        var noDepthReversed = Render(109, true, RenderTargetUsage.DiscardContents, "no-depth-reversed");
+        int controlDifference = noDepth.Zip(noDepthReversed).Count(p => p.First != p.Second);
+        if (controlDifference == 0) throw new Exception("Negative control did not expose missing depth.");
+        Console.WriteLine($"Without depth testing: {controlDifference} differing pixels (negative control).");
+        Console.WriteLine("PASS: depth order, scene preservation, no outline pass. Actual model, shader, unit draw, layer queue and depth renderer replayed; particles/trails/game entities omitted.");
+        Exit();
+    }
+}

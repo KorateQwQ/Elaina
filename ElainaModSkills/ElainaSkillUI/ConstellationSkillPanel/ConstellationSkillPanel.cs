@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -128,11 +129,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             }, hover => DrawFilter(index, filter, hover));
         }
         Button(new Rectangle(579, 164, 24, 22), () => ChangeZoom(-.1f),
-            h => CameraControl("minus", 591, h, _zoom > .5f), "缩小星图");
+            h => CameraControl("minus", 591, h, _zoom > .5f), dynamicTooltip: () => LocalizeUI("ZoomOut"));
         Button(new Rectangle(651, 164, 24, 22), () => ChangeZoom(.1f),
-            h => CameraControl("plus", 663, h, _zoom < 1.5f), "放大星图");
+            h => CameraControl("plus", 663, h, _zoom < 1.5f), dynamicTooltip: () => LocalizeUI("ZoomIn"));
         Button(new Rectangle(694, 164, 32, 22), Recenter,
-            h => CameraControl("center", 706, h, true), "星图归位");
+            h => CameraControl("center", 706, h, true), dynamicTooltip: () => LocalizeUI("CenterMap"));
         Button(new Rectangle(776, 670, 276, 38), PrimaryAction, DrawActionButton);
         InitializeDetailScroll();
         for (int i = 0; i < SlotKeys.Length; i++)
@@ -144,11 +145,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         Button(new Rectangle(TargetLeft, 763, 60, 21), () =>
         {
             if (Editing || !_state.ClearSlot()) return;
-            Notify($"{SlotKeys[_state.TargetSlot]} 槽已清空");
+            Notify(LocalizeUI("SlotCleared", SlotKeys[_state.TargetSlot]));
         }, DrawClearSlot);
-        Button(new Rectangle(1038, 26, 30, 32), Close, DrawCloseButton, "关闭星图");
+        Button(new Rectangle(1038, 26, 30, 32), Close, DrawCloseButton, dynamicTooltip: () => LocalizeUI("CloseMap"));
         Button(new Rectangle(959, 744, 109, 35), Close,
-            h => _draw.Text("返回", 1008, 756, 11, h ? Ink : Muted, .5f));
+            h => _draw.Text(LocalizeUI("Back"), 1008, 756, 11, h ? Ink : Muted, .5f));
         InitializeLayoutEditor();
 
     }
@@ -392,7 +393,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         if (Editing || _state.EmptyFilter) return;
         if (_state.Learned.Contains(_state.Selected))
         {
-            if (_state.Equip()) Notify($"{_state.Current.name}已装配至 {SlotKeys[_state.TargetSlot]} 槽");
+            if (_state.Equip()) Notify(LocalizeUI("SkillEquipped", _state.Current.name, SlotKeys[_state.TargetSlot]));
             return;
         }
         var before = _state.Skills.Where(_state.Discovered).Select(s => s.id).ToHashSet();
@@ -401,7 +402,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _flash = 1;
         int revealed = _state.Skills.Count(s => _state.Discovered(s) && !before.Contains(s.id));
         _ancestors = _state.Ancestors();
-        Notify(_state.Current.name + "已习得" + (revealed > 0 ? $" · {revealed} 颗隐星显现了" : ""));
+        Notify(LocalizeUI("SkillLearned", _state.Current.name) + (revealed > 0 ? LocalizeUI("StarsRevealed", revealed) : ""));
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
@@ -450,7 +451,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.FilterMarker(_state.Filter);
         string dust = _state.Points.ToString("00");
         float dustLeft = 1013 - d.LatinWidth(dust, 25);
-        const string pointLabel = "研习点";
+        string pointLabel = LocalizeUI("StudyPoints");
         float labelLeft = dustLeft - 12 - d.Measure(pointLabel, 11, 1);
         d.Image("StudyBook", labelLeft - 37, 28.5f, 27, 27, Gold);
         d.Text(pointLabel, labelLeft, 36, 11, new Color(196, 183, 206), spacing: 1);
@@ -460,7 +461,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         // Collection belongs to the index row, above the detail page, not to character XP.
         const float collectionLeft = 791, collectionRight = 1045;
         d.Line(new Vector2(775, 89), new Vector2(775, 141), new Color(197, 173, 139) * (36 / 255f));
-        d.Text("星图收录", collectionLeft, 104, 10, new Color(184, 167, 196), serif: true, spacing: 1.5f);
+        d.EmphasizedText(LocalizeUI("Collection"), collectionLeft, 103, 11, new Color(210, 193, 222), spacing: .5f);
         string total = $"/ {_state.Skills.Length}";
         float learnedRight = collectionRight - d.LatinWidth(total, 11) - 6;
         string learned = _state.Learned.Count.ToString("00");
@@ -485,10 +486,10 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.Line(new Vector2(686, 168), new Vector2(686, 184), LineColor);
         d.Frame(47, 695, 14, 14, Lavender * .8f);
         d.Frame(50, 698, 8, 8, Lavender * .4f);
-        d.Text("术式", 69, 696, 11, Muted);
+        d.Text(LocalizeUI("Spell"), 69, 696, 11, Muted);
         d.Corners(new Vector2(122, 702), 14, 5, Lavender * .8f);
         d.Corners(new Vector2(122, 702), 8, 2, Lavender * .4f);
-        d.Text("心得", 137, 696, 11, Muted);
+        d.Text(LocalizeUI("Insight"), 137, 696, 11, Muted);
         DrawLoadoutCaption();
         DrawLayoutHints();
         d.Frame(1030, 753, 31, 17, LineColor);
@@ -511,15 +512,15 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         Color color = filter == "ready" ? Gold : filter == "locked" ? Muted * .6f : Lavender;
         if (filter == "hidden") d.Ring(new Vector2(x + 4, 113), 4, 4, color, 1, true);
         else d.CrossStar(new Vector2(x + 4, 113), new Vector2(9), color, .5f, filter == "learned");
-        d.Text(ConstellationState.StatusName(filter), x + 17, 104, 14,
+        d.FittedText(ConstellationState.StatusName(filter), x + 17, 104, 94, 14,
             active || hover ? new Color(240, 222, 247) : new Color(171, 154, 185), spacing: 1);
-        d.LatinText(_state.Skills.Count(s => _state.Status(s) == filter).ToString("00"), x + 73, 106, 12,
-            active ? new Color(228, 200, 239) : new Color(158, 139, 171));
+        d.LatinText(_state.Skills.Count(s => _state.Status(s) == filter).ToString("00"), x + 135, 106, 12,
+            active ? new Color(228, 200, 239) : new Color(158, 139, 171), 1);
     }
 
     private void CameraControl(string icon, float x, bool hover, bool enabled)
     {
-        if (icon == "center") _draw.Text("归位", x, 170, 10, hover ? Ink : Muted, .5f);
+        if (icon == "center") _draw.Text(LocalizeUI("ResetView"), x, 170, 10, hover ? Ink : Muted, .5f);
         else _draw.Icon(icon, new Vector2(x, 175), 15, !enabled ? Muted * .3f : hover ? Ink : Lavender);
     }
 
@@ -662,7 +663,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         }
         if (hover)
         {
-            string tooltip = hidden ? "未显现" : $"{s.name} · {(insight ? "心得" : "术式")} · {ConstellationState.StatusName(status)}"
+            string tooltip = hidden ? LocalizeUI("Hidden") : $"{s.name} · {(insight ? LocalizeUI("Insight") : LocalizeUI("Spell"))} · {ConstellationState.StatusName(status)}"
             + (owned ? $" · Lv. {_state.Level(s.id)}" + (_state.MaxLevel(s.id) is int max ? $" / {max}" : "") : "")
             + (off ? " · " + _state.Availability(s.id).Reason : "");
             if (Editing) tooltip = $"{s.name} · 拖动移动 · ({s.x:0.##}, {s.y:0.##})";
@@ -675,13 +676,13 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         var d = _draw; var s = _state.Current;
         if (_state.EmptyFilter)
         {
-            d.Text(ConstellationState.StatusName(_state.Filter) + " · 暂无", 914, 422, 15, Muted, .5f, serif: true);
+            d.Text(LocalizeUI("EmptyFilter", ConstellationState.StatusName(_state.Filter)), 914, 422, 15, Muted, .5f, serif: true);
             return;
         }
         bool hidden = !_state.Discovered(s), insight = !hidden && !s.Active;
-        d.Text(hidden ? "未显现" : insight ? "心得" : "术式", 776, 164, 12, new Color(192, 170, 205), serif: true, spacing: 2);
+        d.Text(hidden ? LocalizeUI("Hidden") : insight ? LocalizeUI("Insight") : LocalizeUI("Spell"), 776, 164, 12, new Color(192, 170, 205), serif: true, spacing: 2);
         if (_state.Learned.Contains(s.id) && !_state.Availability(s.id).Ok)
-            d.Text(s.toggleable && _state.Disabled.Contains(s.id) ? "已关闭" : "未生效", 1052, 165, 11, new Color(214, 177, 155), 1);
+            d.Text(s.toggleable && _state.Disabled.Contains(s.id) ? LocalizeUI("Disabled") : LocalizeUI("Inactive"), 1052, 165, 11, new Color(214, 177, 155), 1);
         var center = new Vector2(808.5f, _detail?.Compact == true ? 221 : 226);
         if (insight)
         {
@@ -713,9 +714,9 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         bool enabled = _state.CanUnlock || _state.CanEquip;
         bool equipped = owned && _state.Slots[_state.TargetSlot] == s.id;
         var requirements = owned || status == "hidden" ? null : _state.Requirements(s.id, false);
-        if (hover && requirements != null) RequestTooltip(requirements.ActionTooltip("研习"), new Rectangle(776, 670, 276, 38), "learn:" + s.id);
-        string label = owned ? equipped ? "已装配" : _state.CanEquip ? "装配" : "暂不可装配"
-            : status == "hidden" ? "未显现" : status == "locked" ? "待启封" : _state.CanUnlock ? "研习" : requirements.BlockReason;
+        if (hover && requirements != null) RequestTooltip(requirements.ActionTooltip(LocalizeUI("Learn")), new Rectangle(776, 670, 276, 38), "learn:" + s.id);
+        string label = owned ? equipped ? LocalizeUI("Equipped") : _state.CanEquip ? LocalizeUI("Equip") : LocalizeUI("CannotEquip")
+            : status == "hidden" ? LocalizeUI("Hidden") : status == "locked" ? LocalizeUI("Locked") : _state.CanUnlock ? LocalizeUI("Learn") : requirements.BlockReason;
         Color color = enabled ? new Color(244, 226, 250) : equipped ? new Color(203, 180, 217)
             : status == "ready" ? new Color(236, 156, 157) : Muted;
         bool studyCost = !owned && enabled && requirements?.PointCost > 0;
@@ -756,23 +757,29 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.Box(x - 3, y - 6, labelWidth + 6, 10, new Color(39, 32, 47));
         d.SlotLabel(SlotKeys[slot], x, y - 6, 9, new Color(194, 169, 213));
         if (selected) d.CrossStar(new Vector2(center.X, y + SlotSize + 2), new Vector2(8.5f), gold, .5f);
-        if (hover) RequestTooltip(id == null ? $"{SlotKeys[slot]} · 未装配" : $"{SlotKeys[slot]} · {_state.Find(id)?.name ?? "其他技能"} · Lv. {_state.Level(id)}"
+        if (hover) RequestTooltip(id == null ? LocalizeUI("EmptySlot", SlotKeys[slot]) : $"{SlotKeys[slot]} · {_state.Find(id)?.name ?? LocalizeUI("OtherSkill")} · Lv. {_state.Level(id)}"
             + (_state.Availability(id).Ok ? "" : " · " + _state.Availability(id).Reason), new Rectangle((int)x, (int)y, SlotSize, SlotSize), "slot:" + slot);
     }
 
     private void DrawLoadoutCaption()
     {
-        _draw.Text("装配", 34, 754, 13, Ink, spacing: 1, serif: true);
-        _draw.Text("当前目标", TargetLeft, 746, 10, new Color(185, 161, 201), spacing: .5f);
-        _draw.SlotLabel(SlotKeys[_state.TargetSlot], TargetLeft + 50, 746, 11, new Color(235, 208, 168));
+        _draw.FittedText(LocalizeUI("Equip"), 24, 754, SlotLeft - 32, 13, Ink, serif: true);
+        string targetLabel = LocalizeUI("TargetSlot");
+        string slot = SlotKeys[_state.TargetSlot];
+        const float captionWidth = 92, gap = 8;
+        float labelWidth = _draw.Measure(targetLabel, 10);
+        float numberWidth = _draw.SlotLabelWidth(slot, 11);
+        float available = captionWidth - gap - numberWidth;
+        _draw.FittedText(targetLabel, TargetLeft, 746, available, 10, new Color(201, 180, 214));
+        _draw.SlotLabel(slot, TargetLeft + Math.Min(labelWidth, available) + gap, 746, 11, new Color(235, 208, 168));
     }
 
     private void DrawClearSlot(bool hover)
     {
         Color color = new Color(143, 124, 158);
         color = Editing || _state.Slots[_state.TargetSlot] == null ? color * .3f : hover ? Ink : color;
-        _draw.Text("清空此槽", TargetLeft, 766, 10, color);
-        _draw.Line(new Vector2(TargetLeft, 779), new Vector2(TargetLeft + _draw.Measure("清空此槽", 10), 779), color);
+        _draw.Text(LocalizeUI("ClearSlot"), TargetLeft, 766, 10, color);
+        _draw.Line(new Vector2(TargetLeft, 779), new Vector2(TargetLeft + _draw.Measure(LocalizeUI("ClearSlot"), 10), 779), color);
     }
 
     public static bool TogglePanel()

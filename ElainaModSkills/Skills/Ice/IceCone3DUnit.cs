@@ -132,7 +132,8 @@ public class IceCone3DUnit : VisualUnit
     private void RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer layer, int time,
         float depthClipSide, bool drawAuxiliary)
     {
-        LayerDrawRequestSystem.RequestBefore("ice_shard_lock_draw", layer, ctx =>
+        LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Cones", layer,
+            LayerDrawRequestSystem.DrawTiming.After, ctx =>
         {
             Vector2 lightPosition = GetModelOriginScreenPosition();
             Color lightColor = Lighting.GetColor((int)(lightPosition.X / 16f), (int)(lightPosition.Y / 16f));
@@ -144,7 +145,8 @@ public class IceCone3DUnit : VisualUnit
 
             if (ctx.IsFirst)
             {
-                BeginDraw3D();
+                Main.spriteBatch.End();
+                IceConeDepthRenderer.BeginLayer(gd);
             }
 
             if (drawAuxiliary&&time >= BackwardFlyTime)
@@ -165,32 +167,25 @@ public class IceCone3DUnit : VisualUnit
             iceConeEffect.Parameters["uDissolveNoiseScale"].SetValue(1f);
             iceConeEffect.Parameters["uDissolveThreshold"].SetValue(GetDissolveThreshold(time));
             iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(0.2f);
-            iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Color(100, 200, 255, 255).ToVector4() * 4.5f);
+            iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Vector4(new Color(100, 200, 255).ToVector3() * 4.5f, 1f));
             iceConeEffect.Parameters["uDepthClipSide"].SetValue(depthClipSide);
-            iceConeEffect.Parameters["uOutlineWidth"].SetValue(4f);
-            iceConeEffect.Parameters["uScreenSize"].SetValue(new Vector2(gd.Viewport.Width, gd.Viewport.Height));
-            iceConeEffect.Parameters["uOutlineColor"].SetValue(new Color(255, 255, 255, 255).ToVector4());
 
-            gd.BlendState = BlendState.NonPremultiplied;
-            gd.DepthStencilState = DepthStencilState.DepthRead;
+            gd.BlendState = IceConeDepthRenderer.ModelBlend;
+            gd.DepthStencilState = DepthStencilState.Default;
             gd.SamplerStates[0] = SamplerState.LinearWrap;
             gd.SamplerStates[1] = SamplerState.LinearWrap;
             gd.Textures[0] = texture;
             gd.Textures[1] = dissolveNoiseTexture;
             gd.SetVertexBuffer(vertexBuffer);
 
-            gd.RasterizerState = RasterizerState.CullCounterClockwise;
-            iceConeEffect.CurrentTechnique.Passes["Outline"].Apply();
-            gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
-
-            gd.DepthStencilState = DepthStencilState.Default;
             gd.RasterizerState = RasterizerState.CullClockwise;
             iceConeEffect.CurrentTechnique.Passes["Base"].Apply();
-            gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexBuffer.VertexCount);
+            gd.DrawPrimitives(PrimitiveType.TriangleList, 0, iceCone.PrimitiveCount);
             
             if (ctx.IsLast)
             {
-                Main.spriteBatch.End();
+                IceConeDepthRenderer.EndLayer(gd);
+                BeginDraw();
             }
         });
     }

@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -32,17 +33,18 @@ internal sealed class ConstellationDetail
         Compact = growth.Length > 0;
         Bottom = owned && !node.Active ? 708 : 659;
         if (node == null || state.EmptyFilter) return;
-        if (!state.Discovered(node)) { Paragraph("未显现", DetailText); return; }
+        if (!state.Discovered(node)) { Paragraph(LocalizeUI("Hidden"), DetailText); return; }
 
         RichParagraph(node.ModSkill.GetConstellationDescription(), Compact ? 8 : 12);
         if (node.Active)
         {
             string mana = node.ModSkill.MagicPointCost < 0 ? "--" : node.ModSkill.MagicPointCost.ToString("0.##");
             string cooldown = node.Skill.MaxCD < 0 ? "--" : Number(node.Skill.MaxCD);
-            float secondX = drawing.LatinWidth(mana, 23) + 5 + drawing.Measure("MP", 10) + 34;
+            float secondX = Math.Max(drawing.LatinWidth(mana, 23) + 5 + drawing.Measure("MP", 10),
+                drawing.Measure(LocalizeUI("MagicPower"), 10)) + 20;
             Add(Compact ? 59 : 75, (d, _) =>
             {
-                Stat(d, 0, "魔力", mana, "MP"); Stat(d, secondX, "冷却", cooldown, "秒");
+                Stat(d, 0, LocalizeUI("MagicPower"), mana, "MP"); Stat(d, secondX, LocalizeUI("Cooldown"), cooldown, LocalizeUI("Seconds"));
                 d.Line(new Vector2(0, Compact ? 50 : 60), new Vector2(Width, Compact ? 50 : 60), DetailRule);
             });
         }
@@ -58,10 +60,10 @@ internal sealed class ConstellationDetail
             bool on = owned && !state.Disabled.Contains(node.id);
             Add(36, (d, hover) =>
             {
-                d.Text(!owned ? "尚未习得" : on ? "已启用" : "已关闭", 0, 6, 11, new Color(195, 176, 208));
+                d.Text(!owned ? LocalizeUI("NotLearned") : on ? LocalizeUI("Enabled") : LocalizeUI("Disabled"), 0, 6, 11, new Color(195, 176, 208));
                 d.Toggle(node.id, Width - 37, 2, on, owned, hover == "toggle");
-            }, new ConstellationDetailAction(new Rectangle(Width - 39, 0, 39, 26), "toggle", node.id, on ? "关闭" : "启用", owned));
-            Relations("关联", state.Affected(node.id).Where(state.Discovered).Select(s => s.id));
+            }, new ConstellationDetailAction(new Rectangle(Width - 39, 0, 39, 26), "toggle", node.id, on ? LocalizeUI("Disable") : LocalizeUI("Enable"), owned));
+            Relations(LocalizeUI("Related"), state.Affected(node.id).Where(state.Discovered).Select(s => s.id));
             Rule(14, 14);
         }
         if (owned && !state.Availability(node.id).Ok)
@@ -69,10 +71,11 @@ internal sealed class ConstellationDetail
 
         Add(Compact ? 42 : 48, (d, _) =>
         {
-            d.Text("等级", 0, 7, 11, new Color(188, 167, 206));
-            d.LatinText(level.ToString(), 34, 0, 20, new Color(232, 216, 246));
-            d.LatinText("/ " + max, 38 + d.LatinWidth(level.ToString(), 20), 7, 12, new Color(148, 131, 164));
-            if (maxed) d.Text("满级", Width, 7, 10, new Color(184, 166, 202), 1);
+            d.Text(LocalizeUI("Level"), 0, 7, 11, new Color(188, 167, 206));
+            float levelLeft = d.Measure(LocalizeUI("Level"), 11) + 12;
+            d.LatinText(level.ToString(), levelLeft, 0, 20, new Color(232, 216, 246));
+            d.LatinText("/ " + max, levelLeft + 4 + d.LatinWidth(level.ToString(), 20), 7, 12, new Color(148, 131, 164));
+            if (maxed) d.Text(LocalizeUI("MaxLevel"), Width, 7, 10, new Color(184, 166, 202), 1);
             float y = Compact ? 30 : 32;
             d.Box(0, y, Width, 3, new Color(183, 153, 206) * (32 / 255f));
             float progress = Math.Clamp(level / (float)max, 0, 1);
@@ -106,7 +109,7 @@ internal sealed class ConstellationDetail
             {
                 float alpha = enabled ? 1 : .65f;
                 d.UpgradeButton(node.id, enabled, hover is "upgrade" or "upgrade-pressed", hover == "upgrade-pressed");
-                string label = maxed ? "已满级" : enabled ? "进修" : "进修 · " + requirements.BlockReason;
+                string label = maxed ? LocalizeUI("AlreadyMaxLevel") : enabled ? LocalizeUI("Upgrade") : LocalizeUI("UpgradeBlocked", requirements.BlockReason);
                 d.FittedText(label, 10, 10, 188, 12, !maxed && !enabled ? new Color(236, 156, 157)
                     : new Color(228, 207, 239) * alpha, serif: true);
                 if (maxed) return;
@@ -116,13 +119,13 @@ internal sealed class ConstellationDetail
                     d.Image("StudyBook", Width - 29 - valueWidth, 10, 15, 15, new Color(224, 201, 158) * alpha);
                     d.LatinText(points.ToString(), Width - 10, 11, 11, new Color(224, 201, 158) * alpha, 1);
                 }
-                else if (requirements.Rows.Count == 0) d.Text("无消耗", Width - 10, 12, 10, new Color(184, 166, 202) * alpha, 1);
+                else if (requirements.Rows.Count == 0) d.Text(LocalizeUI("NoCost"), Width - 10, 12, 10, new Color(184, 166, 202) * alpha, 1);
             }, new ConstellationDetailAction(new Rectangle(0, 0, Width, 35), "upgrade", node.id, null, enabled));
-            if (!maxed && requirements.Rows.Count > 0) RequirementsBlock("进修所需", requirements);
+            if (!maxed && requirements.Rows.Count > 0) RequirementsBlock(LocalizeUI("UpgradeRequirements"), requirements);
         }
-        else RequirementsBlock("研习所需", state.Requirements(node.id, false));
+        else RequirementsBlock(LocalizeUI("LearnRequirements"), state.Requirements(node.id, false));
         Rule(Compact ? 10 : 14, Compact ? 8 : 14);
-        Relations("依赖", node.prereqs);
+        Relations(LocalizeUI("Prerequisites"), node.prereqs);
 
         void Add(float height, Action<ConstellationDrawing, string> paint, params ConstellationDetailAction[] actions)
             => Rows.Add(new(height, paint, actions));
@@ -147,9 +150,9 @@ internal sealed class ConstellationDetail
             Add(26, (d, _) =>
             {
                 d.Text(title, 0, 10, 10, DetailLabel);
-                if (requirements.Rows.Any(r => !r.Custom)) d.Text("持有 / 所需", Width - 18, 10, 9, DetailLabel * .8f, 1);
+                if (requirements.Rows.Any(r => !r.Custom)) d.Text(LocalizeUI("OwnedRequired"), Width - 18, 10, 9, DetailLabel * .8f, 1);
             });
-            if (requirements.Rows.Count == 0) { Paragraph("无消耗", DetailText); return; }
+            if (requirements.Rows.Count == 0) { Paragraph(LocalizeUI("NoCost"), DetailText); return; }
             foreach (var requirement in requirements.Rows)
             {
                 string count = requirement.Custom ? "" : $"{requirement.Owned} / {requirement.Needed}";
@@ -172,7 +175,7 @@ internal sealed class ConstellationDetail
                     else
                     {
                         d.Text("!", Width - 5, 6, 11, statusColor, .5f);
-                        d.Text(requirement.Custom ? "条件未满足" : $"还缺 {Math.Max(0, requirement.Needed - requirement.Owned)}",
+                        d.Text(requirement.Custom ? LocalizeUI("ConditionsNotMet") : LocalizeUI("MissingCount", Math.Max(0, requirement.Needed - requirement.Owned)),
                             0, mainHeight + (stacked ? 18 : 0), 10, statusColor);
                     }
                     d.Line(new Vector2(0, height), new Vector2(Width, height), DetailRule * .4f);
@@ -183,11 +186,12 @@ internal sealed class ConstellationDetail
         {
             var related = ids.Distinct().ToArray();
             if (related.Length == 0) return;
-            const int columns = 5;
+            int relationLeft = (int)Math.Max(32, drawing.Measure(label, 10) + 10);
+            int columns = Math.Max(1, (Width - relationLeft) / 44);
             var actions = related.Select((id, i) => new ConstellationDetailAction(
-                new Rectangle(32 + i % columns * 44, i / columns * 44, 36, 36), "relation", id,
-                state.Find(id) is { } other ? state.Name(other) + " · " + (state.Availability(id).Ok ? "生效" : state.Availability(id).Reason)
-                    : "前置技能尚未接入面板", state.Find(id) != null)).ToArray();
+                new Rectangle(relationLeft + i % columns * 44, i / columns * 44, 36, 36), "relation", id,
+                state.Find(id) is { } other ? state.Name(other) + " · " + (state.Availability(id).Ok ? LocalizeUI("Active") : state.Availability(id).Reason)
+                    : LocalizeUI("MissingPrerequisite"), state.Find(id) != null)).ToArray();
             Add((related.Length + columns - 1) / columns * 44 + (Compact ? -4 : 4), (d, hover) =>
             {
                 d.Text(label, 0, 12, 10, DetailLabel);

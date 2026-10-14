@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using SDL2;
 using 伊蕾娜.ElainaModAlchemy.UI;
 using P = 伊蕾娜.ElainaModAlchemy.UI.AlchemyNotebookPresentation;
@@ -51,7 +52,7 @@ internal sealed class AlchemyPreviewGame : Game
     {
         if (done) return;
         done = true;
-        string output = Path.Combine(Repo, ".vissandbox/alchemy-preview/output");
+        string output = Path.Combine(Repo, ".vissandbox/alchemy-preview/output", Terraria.Localization.Language.Culture);
         Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
         if (QuillOnly)
@@ -128,14 +129,14 @@ internal sealed class AlchemyPreviewGame : Game
         At(0, 0);
         if (state.IsUnlocked(state.Current) && state.Current.Craftable)
         {
-            d.Text("制作批数", 780, 635, 10, AlchemyDrawing.Muted);
+            d.Text(LocalizeUI("BatchCount"), 780, 635, 10, AlchemyDrawing.Muted);
             d.Frame(842, 628, 26, 24, AlchemyDrawing.Lavender * (state.Quantity > 1 ? .35f : .12f));
             d.Frame(904, 628, 26, 24, AlchemyDrawing.Lavender * (state.Quantity < state.MaxBatches(state.Current) ? .35f : .12f));
             d.Text("−", 855, 632, 13, AlchemyDrawing.Muted * .4f, .5f);
             d.Text(state.Quantity.ToString(), 886, 633, 12, AlchemyDrawing.Ink, .5f);
             d.Text("+", 917, 632, 13, AlchemyDrawing.Muted, .5f);
-            d.Text("最大", 956, 633, 10, AlchemyDrawing.Muted, .5f);
-            d.Text("产出 ×" + state.Quantity * state.Current.Yield, 1052, 635, 10, AlchemyDrawing.Gold, 1);
+            d.Text(LocalizeUI("Max"), 956, 633, 10, AlchemyDrawing.Muted, .5f);
+            d.Text(LocalizeUI("Output", state.Quantity * state.Current.Yield), 1052, 635, 10, AlchemyDrawing.Gold, 1);
         }
         d.Text(P.Hint(state, progress > 0), 916, 707, 9, AlchemyDrawing.Muted, .5f);
         var related = state.IsUnlocked(state.Current) ? state.Current.Ingredients.SelectMany(i => i.Choices).Distinct().ToList() : [];
@@ -148,7 +149,7 @@ internal sealed class AlchemyPreviewGame : Game
             d.MaterialIcon(material.IconPath, x + 4, 746, 28, 28);
             d.Text(state.MaterialCount(material.Id).ToString(), x + 35, 771, 9, AlchemyDrawing.Ink, 1);
         }
-        d.Text("帮助", 755, 755, 10, AlchemyDrawing.Muted, .5f);
+        d.Text(LocalizeUI("Help"), 755, 755, 10, AlchemyDrawing.Muted, .5f);
 #if DEBUG
         At(P.DebugLevelUpBounds.X, P.DebugLevelUpBounds.Y);
         P.DebugLevelUpButton(d, state, false, progress <= 0 && !state.IsBusy);
@@ -156,7 +157,7 @@ internal sealed class AlchemyPreviewGame : Game
         At(890, 744); P.DebugButton(d, "重置手记", false);
         At(0, 0);
 #endif
-        d.Text("返回", 1019, 755, 10, AlchemyDrawing.Muted, .5f);
+        d.Text(LocalizeUI("Back"), 1019, 755, 10, AlchemyDrawing.Muted, .5f);
         At(P.CloseButtonBounds.X, P.CloseButtonBounds.Y);
         P.CloseButton(d, scene == "close-hover");
         batch.End();
@@ -245,6 +246,7 @@ internal sealed class AlchemyPreviewGame : Game
     {
         Repo = Path.GetFullPath(args[0]);
         Tml = Path.GetFullPath(args[1]);
+        Terraria.Localization.Language.Load(Repo, args[2]);
         BookOnly = args.Contains("--book-only");
         QuillOnly = args.Contains("--quill-only");
         using var game = new AlchemyPreviewGame();

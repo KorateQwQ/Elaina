@@ -95,6 +95,13 @@ public class IceShardLockProj : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Glow", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        return false;
+    }
+
+    private void DrawVisual()
+    {
         Texture2D star = AssetManager.GetTexture("KL.Effects.Tex.Sparkle.T_StartFlare001");
         Texture2D glow = AssetManager.GetTexture("KL.Effects.Tex.background_Premultiplied");
 
@@ -122,7 +129,7 @@ public class IceShardLockProj : ElainaBasicProjectile
 
         if(time>=starStartTime)DrawInWorld(glow,Projectile.Center,new Color(100,200,255,0)*glowAlpha,new Vector2(2),0);
 
-        return false;
+        EndBeginDraw();
     }
 
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs,

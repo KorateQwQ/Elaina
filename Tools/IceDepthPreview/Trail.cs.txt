@@ -1,0 +1,75 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    string TrailSource()
+    {
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        CompilationUnitSyntax Read(string name) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, name))).GetCompilationUnitRoot();
+        var trail = Read("Drawing/DrawHelper.vertexDraw.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        var assets = Read("Drawing/DrawHelper.Assets.cs");
+        var method = trail.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" &&
+            m.ParameterList.Parameters[2].Type.ToString() == "Vector4");
+        // Debug marker rendering is disabled in the consumer; retain the actual trail geometry and shader setup.
+        method = method.ReplaceNodes(method.DescendantNodes().OfType<IfStatementSyntax>()
+            .Where(n => n.Condition.ToString() == "debugPoint"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        return """
+            namespace KL.Drawing { public partial class DrawHelper {
+            public static Effect vertexDraw;
+            """ + method.ToFullString().Replace("Main.NewText(\"Get Null Tex in TrailEffect\", Color.Red);", "throw new Exception(\"Missing trail texture\");") +
+            assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString() +
+            drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString() + "}}";
+    }
+
+    void SetSingle(string name, object value) => SingleScene.GetField(name).SetValue(null, value);
+
+    Vector4[] RenderTrailRaw(int frame, bool legacy, bool trail, bool hideMesh)
+    {
+        EnableBloom(false);
+        SetSingle("LegacyInvalidAlpha", legacy); SetSingle("IncludeTrail", trail); SetSingle("HideMesh", hideMesh);
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Vector4, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(Color.Transparent);
+        SingleScene.GetMethod("DrawFrame").Invoke(null, [frame, false]);
+        GraphicsDevice.SetRenderTarget(null);
+        var pixels = new Vector4[Width * Height]; target.GetData(pixels); return pixels;
+    }
+
+    void DrawTrailFrames()
+    {
+        foreach (bool left in new[] { false, true })
+        {
+            string direction = left ? "left" : "right";
+            SetSingle("Aim", left ? new Vector2(-10, 3) : new Vector2(10, -3));
+            int frame = 35;
+            var fixedBody = RenderTrailRaw(frame, false, false, false);
+            var fixedTrail = RenderTrailRaw(frame, false, true, false);
+            var oldBody = RenderTrailRaw(frame, true, false, false);
+            var oldTrail = RenderTrailRaw(frame, true, true, false);
+            int oldDark = 0, newDiff = 0;
+            for (int i = 0; i < fixedBody.Length; i++) {
+                if (fixedBody[i].W < .999f) continue;
+                Vector4 delta = oldTrail[i] - oldBody[i];
+                if (delta.X + delta.Y + delta.Z < -.0001f) oldDark++;
+                if (Vector4.DistanceSquared(fixedTrail[i], fixedBody[i]) > .000001f) newDiff++;
+            }
+            Console.WriteLine($"{direction}: old alpha darkened {oldDark} body pixels; fixed body pixels affected by underlying trail: {newDiff}.");
+            if (oldDark == 0 || newDiff != 0) throw new Exception("Trail occlusion regression did not reproduce or was not fixed.");
+            SetSingle("HideMesh", false); SetSingle("IncludeTrail", true);
+            foreach (bool bloom in new[] { false, true })
+            foreach (bool legacy in new[] { true, false }) {
+                EnableBloom(bloom); SetSingle("LegacyInvalidAlpha", legacy);
+                RenderSingle(frame, false, DepthFormat.None, $"trail-{direction}-{(legacy ? "before" : "after")}-{(bloom ? "bloom" : "plain")}");
+            }
+        }
+        SetSingle("LegacyInvalidAlpha", false); SetSingle("IncludeTrail", false);
+        Console.WriteLine("PASS actual TrailEffect geometry/texture, actual ice shader, preserved NonPremultiplied blend, no depth, both orientations.");
+    }
+}

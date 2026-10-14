@@ -1,0 +1,40 @@
+using System.Text.Json;
+using Hjson;
+
+namespace Terraria.Localization;
+
+// Load the real HJSON resources in isolated FNA hosts, without booting Terraria.
+public static class Language
+{
+    public static readonly Dictionary<string, string> Text = [];
+    public static string Culture { get; private set; } = "zh-Hans";
+    public static bool Exists(string key) => Text.ContainsKey(key);
+    public static string GetTextValue(string key, params object[] args)
+    {
+        string value = Text.GetValueOrDefault(key, key);
+        return args.Length == 0 ? value : string.Format(value, args);
+    }
+    public static LocalizedText GetText(string key) => new(GetTextValue(key));
+    public static void Load(string repo, string culture, bool uiOnly = false)
+    {
+        Culture = culture;
+        foreach (string file in Directory.GetFiles(Path.Combine(repo, "Localization"), culture + "_*.hjson"))
+        {
+            if (uiOnly && !file.EndsWith(".UI.hjson")) continue;
+            string prefix = Path.GetFileNameWithoutExtension(file)[(culture.Length + 1)..];
+            using var doc = JsonDocument.Parse(HjsonValue.Parse(File.ReadAllText(file)).ToString(Stringify.Plain));
+            Flatten(doc.RootElement, prefix);
+        }
+    }
+    private static void Flatten(JsonElement node, string prefix)
+    {
+        if (node.ValueKind == JsonValueKind.Object)
+            foreach (var child in node.EnumerateObject()) Flatten(child.Value, prefix + "." + child.Name);
+        else if (node.ValueKind == JsonValueKind.String) Text[prefix] = node.GetString();
+    }
+}
+
+public sealed record LocalizedText(string Value)
+{
+    public LocalizedText WithFormatArgs(params object[] args) => new(string.Format(Value, args));
+}

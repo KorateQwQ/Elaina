@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +23,7 @@ internal static class AlchemyNotebookPresentation
     internal const int QuillWidth = 22, QuillHeight = 42;
     internal static readonly Rectangle CloseButtonBounds = new(1022, 22, 52, 46);
     internal static readonly IReadOnlyList<AlchemyCatalogCategory> Navigation =
-        new[] { new AlchemyCatalogCategory("all", "全部", "All", "", "", "") }.Concat(AlchemyCatalog.Categories).ToArray();
+        new[] { new AlchemyCatalogCategory("all", "Catalog.All", "All", "", "", "") }.Concat(AlchemyCatalog.Categories).ToArray();
 #if DEBUG
     internal static readonly Rectangle DebugLevelUpBounds = new(626, 744, 82, 35);
 
@@ -55,9 +56,9 @@ internal static class AlchemyNotebookPresentation
         d.Glow(21, 2, 80, 80, Pearl * .07f);
         d.Ring(new(61, 42), 30, 30, Lavender * .17f);
         d.Image(AssetRoot + "AlchemyCrest", 38, 17, 46, 46, Lavender);
-        Label(d, "炼金手记", 101, 27, 28, Ink, serif: true);
+        Label(d, LocalizeUI("AlchemyTitle"), 101, 27, 28, Ink, serif: true);
         ProgressHeader(d, s);
-        Label(d, "已研究", 952, 115, 10, Muted, 1);
+        Label(d, LocalizeUI("Researched"), 952, 115, 10, Muted, 1);
         d.LatinText(s.Visible.Count(s.IsUnlocked).ToString("00"), 1008, 109, 19, Ink);
         d.LatinText("/ " + s.Visible.Count.ToString("00"), 1036, 114, 12, Muted);
         string[] legendStates = [AlchemyNotebookState.Ready, AlchemyNotebookState.Short, AlchemyNotebookState.Locked];
@@ -67,19 +68,19 @@ internal static class AlchemyNotebookPresentation
             StateMarker(d, key, new(51 + i * 120, 702));
             Label(d, AlchemyNotebookState.StateLabel(key), 62 + i * 120, 697, 10, Muted);
         }
-        Label(d, "素材", 33, 748, 13, Ink, serif: true);
-        Label(d, "合成可用", 33, 768, 9, Muted);
+        d.FittedText(LocalizeUI("Materials"), 33, 748, 54, 13, Ink, serif: true);
+        Label(d, LocalizeUI("AvailableForCrafting"), 33, 768, 9, Muted);
     }
 
     private static void ProgressHeader(AlchemyDrawing d, AlchemyNotebookState s)
     {
         d.Image(AssetRoot + "LevelCauldron", 850, 28, 24, 28, Gold * .9f);
-        Label(d, "炼金术", 884, 28, 12, new Color(199, 186, 211), serif: true);
+        Label(d, LocalizeUI("Alchemy"), 884, 28, 12, new Color(199, 186, 211), serif: true);
         d.LatinText($"Lv.{s.Level}", 1024, 17, 28, Gold, 1);
         d.RoundedBar(884, 48, 140, 3, Lavender * .14f);
         float progress = s.Level >= s.MaximumLevel ? 1 : s.Experience / (float)Math.Max(1, s.ExperienceToNextLevel);
         d.RoundedBar(884, 48, 140 * Math.Clamp(progress, 0, 1), 3, Pearl * .75f);
-        Label(d, s.Level >= s.MaximumLevel ? "炼金经验已满" : $"炼金经验 {s.Experience} / {s.ExperienceToNextLevel}",
+        Label(d, s.Level >= s.MaximumLevel ? LocalizeUI("AlchemyExpFull") : LocalizeUI("AlchemyExperience", s.Experience, s.ExperienceToNextLevel),
             884, 56, 10, Muted);
     }
 
@@ -96,9 +97,9 @@ internal static class AlchemyNotebookPresentation
     {
         bool active = s.Category == c.Id;
         d.Diamond(new(12, 20), 5, active || hover ? Lavender : Muted * .7f, active);
-        Label(d, c.Name, 26, 13, 14, active || hover ? Ink : Muted, serif: true);
+        d.FittedText(c.Name, 26, 13, 62, 14, active || hover ? Ink : Muted, serif: true);
         int count = c.Id == "all" ? AlchemyCatalog.Recipes.Count : AlchemyCatalog.Recipes.Count(r => r.Category == c.Id);
-        d.LatinText(count.ToString("00"), 91, 15, 11, active ? Lavender : Muted * .65f);
+        d.LatinText(count.ToString("00"), 110, 15, 11, active ? Lavender : Muted * .65f, 1);
         if (!active) return;
         // Match ConstellationDrawing.ActiveFilterMarker's two premultiplied halos.
         d.Glow(0, 43, 116, 8, new Color(192, 154, 220) * .12f);
@@ -132,12 +133,12 @@ internal static class AlchemyNotebookPresentation
         }
         if (flash > 0) d.Ring(new(CardWidth / 2, 53), 33 + (1 - flash) * 14, 33 + (1 - flash) * 14, Lavender * flash);
         if (flash > 0) d.Glow(CardWidth / 2 - 56, -3, 112, 112, Pearl * (.24f * flash));
-        if (unlocked) Label(d, r.Name, CardWidth / 2, 96, 13, selected ? Gold : Ink, .5f, true);
+        if (unlocked) d.FittedText(r.Name, CardWidth / 2, 96, CardWidth - 16, 13, selected ? Gold : Ink, .5f, true);
         else d.Text(MaskedName(r), CardWidth / 2, 97, 14, selected ? Gold : Muted, .5f, 2, true);
         string caption = unlocked
-            ? r.Craftable ? $"每批 ×{r.Yield}    可制 {s.MaxBatches(r)}" : $"{r.Stage}    持有 {s.Owned(r)}"
-            : s.Research(r).CanResearch ? "可研究" : s.Research(r).RequiresRecipe ? "需要配方" : $"炼金术 Lv.{s.Research(r).RequiredLevel}";
-        Label(d, caption, CardWidth / 2, 129, 10, !unlocked && s.Research(r).CanResearch ? Gold : Muted, .5f);
+            ? r.Craftable ? LocalizeUI("BatchYield", r.Yield, s.MaxBatches(r)) : LocalizeUI("StageOwned", r.Stage, s.Owned(r))
+            : s.Research(r).CanResearch ? LocalizeUI("Researchable") : s.Research(r).RequiresRecipe ? LocalizeUI("RecipeRequired") : LocalizeUI("AlchemyLevel", s.Research(r).RequiredLevel);
+        d.FittedText(caption, CardWidth / 2, 129, CardWidth - 12, 10, !unlocked && s.Research(r).CanResearch ? Gold : Muted, .5f);
     }
 
     // Share the exact badge shapes between cards and the three-entry legend.
@@ -153,6 +154,7 @@ internal static class AlchemyNotebookPresentation
     private static readonly string[] MysterySuffixes = ["药水", "合剂", "露滴", "滴管", "面包", "布蕾", "树脂", "液滴", "尘", "药", "雨", "菜", "露", "粉", "蛋", "肉", "豆"];
     private static string MaskedName(AlchemyCatalogRecipe recipe)
     {
+        if (!recipe.Name.Any(c => c >= '\u4e00' && c <= '\u9fff')) return "???";
         string suffix = MysterySuffixes.FirstOrDefault(value => recipe.Name.Length > value.Length
             && recipe.Name.EndsWith(value, StringComparison.Ordinal)) ?? "";
         return new string('?', recipe.Name.Length - suffix.Length) + suffix;
@@ -191,7 +193,7 @@ internal static class AlchemyNotebookPresentation
                 d.Diamond(new(812 + MathF.Cos(a) * 34, 220 + MathF.Sin(a) * 34), 2, Lavender * MathF.Sin(brewProgress * MathF.PI), true);
             }
         string name = unlocked ? r.Name : MaskedName(r);
-        Label(d, name, 858, 198, Math.Min(22, 180f / Math.Max(1, name.Length)), Ink, serif: true);
+        d.FittedText(name, 858, 198, 194, 22, Ink, serif: true);
         if (unlocked) Label(d, r.Kind, 859, 234, 10, Muted);
     }
 
@@ -210,17 +212,17 @@ internal static class AlchemyNotebookPresentation
         if (!s.IsUnlocked(r))
         {
             var research = s.Research(r);
-            Paragraph("这一页的内容尚未揭晓。满足研究条件后，便可记录造物的用途与制作方法。", 12, Muted, 23, 20);
-            Paragraph("研究条件", 14, Ink, 24, 8);
-            Paragraph($"炼金等级  {s.Level} / {research.RequiredLevel}", 12, s.Level >= research.RequiredLevel ? Green : Red, 23, 12);
+            Paragraph(LocalizeUI("UnknownPage"), 12, Muted, 23, 20);
+            Paragraph(LocalizeUI("ResearchRequirements"), 14, Ink, 24, 8);
+            Paragraph(LocalizeUI("AlchemyLevelRequirement", s.Level, research.RequiredLevel), 12, s.Level >= research.RequiredLevel ? Green : Red, 23, 12);
             if (research.RequiresRecipe)
             {
-                Paragraph(research.RecipeConfigured ? research.RecipeName : "配方物品尚未登记", 12, Ink, 23, 4);
-                Paragraph($"背包持有  {research.RecipeOwned} / {research.RecipeRequired}", 11,
+                Paragraph(research.RecipeConfigured ? research.RecipeName : LocalizeUI("RecipeUnregistered"), 12, Ink, 23, 4);
+                Paragraph(LocalizeUI("InventoryOwned", research.RecipeOwned, research.RecipeRequired), 11,
                     research.RecipeOwned >= research.RecipeRequired && research.RecipeConfigured ? Green : Red, 21, 8);
-                Paragraph(research.ConsumeRecipe ? "研究时消耗所需配方。" : "持有配方即可研究，不消耗配方。", 11, Muted, 21);
+                Paragraph(research.ConsumeRecipe ? LocalizeUI("ConsumeRecipe") : LocalizeUI("KeepRecipe"), 11, Muted, 21);
             }
-            else Paragraph("无需配方物品，达到等级后点击研究即可解锁。", 12, Muted, 23);
+            else Paragraph(LocalizeUI("NoRecipeNeeded"), 12, Muted, 23);
             return rows;
         }
         Paragraph(r.Description, 12, new Color(201, 187, 211), 21, 12);
@@ -234,22 +236,22 @@ internal static class AlchemyNotebookPresentation
                 for (int i = 0; i < lines.Length; i++) Label(d, lines[i], 12, 19 + i * 18, 11, effect.Tone == "bad" ? Red : effect.Tone == "live" ? Green : Ink);
             }));
         }
-        string condition = r.Acquisition ?? r.Stage ?? $"炼金等级 {s.Research(r).RequiredLevel} · 已研究";
+        string condition = r.Acquisition ?? r.Stage ?? LocalizeUI("ResearchedLevel", s.Research(r).RequiredLevel);
         var stage = measure.WrapParagraph(condition, DetailContentWidth - 24, 12);
         rows.Add(new(39 + stage.Length * 20 + (r.Craftable ? 0 : 20), (d, _) =>
         {
             float h = 29 + stage.Length * 20 + (r.Craftable ? 0 : 20);
             d.Box(0, 0, DetailContentWidth - 3, h, Lavender * .025f);
             d.Frame(0, 0, DetailContentWidth - 3, h, Lavender * .15f);
-            Label(d, r.Craftable ? "研究记录" : "获取方式", 11, 9, 10, Muted);
+            Label(d, r.Craftable ? LocalizeUI("ResearchNotes") : LocalizeUI("Acquisition"), 11, 9, 10, Muted);
             for (int i = 0; i < stage.Length; i++) Label(d, stage[i], 11, 29 + i * 20, 12, Ink);
-            if (!r.Craftable) Label(d, $"{r.Stage} · 持有 {s.Owned(r)}", 11, 30 + stage.Length * 20, 10, Muted);
+            if (!r.Craftable) Label(d, LocalizeUI("SourceOwned", r.Stage, s.Owned(r)), 11, 30 + stage.Length * 20, 10, Muted);
         }));
         if (!r.Craftable) return rows;
         rows.Add(new(30, (d, _) =>
         {
-            Label(d, "所需素材", 0, 7, 12, Ink, serif: true);
-            Label(d, $"× {s.Quantity} 批", DetailContentWidth - 3, 9, 10, Muted, 1);
+            Label(d, LocalizeUI("RequiredMaterials"), 0, 7, 12, Ink, serif: true);
+            Label(d, LocalizeUI("Batches", s.Quantity), DetailContentWidth - 3, 9, 10, Muted, 1);
         }));
         foreach (var ingredient in r.Ingredients)
         {
@@ -272,9 +274,9 @@ internal static class AlchemyNotebookPresentation
     }
 
     internal static string CraftLabel(AlchemyNotebookState s, bool brewing)
-        => brewing ? "炼制中…" : s.IsBusy ? "处理中…" : !s.IsUnlocked(s.Current) ? "研究"
-            : !s.Current.Craftable ? s.Current.Stage == "商人" ? "商人售卖" : s.Current.Stage == "旅商" ? "旅商固定售卖" : "以太滴管取得"
-            : s.MaxBatches(s.Current) < 1 ? "素材不足" : $"{(s.Current.Category == "food" ? "制作" : "炼制")}  × {s.Current.Yield * s.Quantity}";
+        => brewing ? LocalizeUI("Brewing") : s.IsBusy ? LocalizeUI("Processing") : !s.IsUnlocked(s.Current) ? LocalizeUI("Research")
+            : !s.Current.Craftable ? s.Current.Id is "flour" or "sugar" or "egg" ? LocalizeUI("MerchantSale") : s.Current.Id is "beef" or "potato" ? LocalizeUI("TravelingMerchantSale") : LocalizeUI("DropperSource")
+            : s.MaxBatches(s.Current) < 1 ? LocalizeUI("MissingMaterials") : $"{(s.Current.Category == "food" ? LocalizeUI("Craft") : LocalizeUI("Brew"))}  × {s.Current.Yield * s.Quantity}";
 
     internal static void CraftButton(AlchemyDrawing d, AlchemyNotebookState s, bool hover, float progress)
     {
@@ -288,8 +290,8 @@ internal static class AlchemyNotebookPresentation
     }
 
     internal static string Hint(AlchemyNotebookState s, bool brewing)
-        => brewing ? "材料正在慢慢交融…" : !s.IsUnlocked(s.Current) ? s.Research(s.Current).Hint
-            : !s.Current.Craftable ? "可在素材页查看食材与药液的获取方式"
-            : s.MaxBatches(s.Current) < 1 ? "素材不足，请准备所需合成材料"
-            : $"持有 {s.Owned(s.Current)} · 每批产出 {s.Current.Yield} · 最多可制 {s.MaxBatches(s.Current)} 批";
+        => brewing ? LocalizeUI("BrewingHint") : !s.IsUnlocked(s.Current) ? s.Research(s.Current).Hint
+            : !s.Current.Craftable ? LocalizeUI("AcquisitionHint")
+            : s.MaxBatches(s.Current) < 1 ? LocalizeUI("MissingMaterialsHint")
+            : LocalizeUI("CraftSummary", s.Owned(s.Current), s.Current.Yield, s.MaxBatches(s.Current));
 }

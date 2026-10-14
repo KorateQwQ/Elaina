@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,9 +32,9 @@ public static class AlchemyCraftingService
     {
         AlchemyNotebookResult Fail(string text) => new(sequence, action, id, false, text);
         if (Main.dedServ || player == null || player != Main.LocalPlayer || !player.active || player.dead || player.ghost)
-            return Fail("当前无法炼金");
+            return Fail(LocalizeUI("CannotAlchemy"));
         var entry = FindEntry(id);
-        if (entry == null || batches is < 1 or > MaximumBatches) return Fail("炼金操作无效");
+        if (entry == null || batches is < 1 or > MaximumBatches) return Fail(LocalizeUI("InvalidAlchemyAction"));
         var progress = player.GetModPlayer<AlchemyProgressPlayer>();
         if (action == AlchemyNotebookAction.Research)
         {
@@ -63,8 +64,8 @@ public static class AlchemyCraftingService
             return new(sequence, action, id, true, "已补充当前配方的 10 批素材");
         }
 #endif
-        if (action != AlchemyNotebookAction.Craft) return Fail("此操作不可用");
-        if (!progress.IsUnlocked(id)) return Fail("请先研究此配方");
+        if (action != AlchemyNotebookAction.Craft) return Fail(LocalizeUI("ActionUnavailable"));
+        if (!progress.IsUnlocked(id)) return Fail(LocalizeUI("ResearchFirst"));
         int completed = 0, output = 0, experience = 0;
         for (int i = 0; i < batches; i++)
         {
@@ -77,10 +78,10 @@ public static class AlchemyCraftingService
             experience += progress.AddCraftExperience(id, 1);
             completed++;
         }
-        if (completed == 0) return Fail("素材不足或当前不满足制作条件");
+        if (completed == 0) return Fail(LocalizeUI("CannotCraft"));
         Recipe.FindRecipes();
-        string result = $"炼成「{entry.Name}」× {output} · 炼金经验 +{experience}";
-        if (completed != batches) result += $"（完成 {completed}/{batches} 批）";
+        string result = LocalizeUI("CraftSuccess", entry.Name, output, experience);
+        if (completed != batches) result += LocalizeUI("PartialCraft", completed, batches);
         return new(sequence, action, id, true, result, output, experience);
     }
 

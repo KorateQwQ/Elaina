@@ -1,12 +1,16 @@
 using System;
+using KL.DamageSystem;
+using KL.Drawing;
 using KL.Drawing.ThreeD;
 using KL.Dusts;
 using KL.Dusts.Burst;
 using KL.Dusts.Glow;
 using KL.Dusts.Smoke;
 using KL.Dusts.Stone;
+using KL.Projectiles;
 using KL.Utils;
 using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
@@ -22,6 +26,7 @@ public class IceConeProj : ElainaBasicProjectile
 
     private int time;
     private Vector2 forwardVelocity;
+    private TrailManager.TrailHandle managedTrail;
     public override void Load()
     {
         iceCone ??= ObjModel.Load("伊蕾娜.Models.IceCone2");
@@ -33,8 +38,18 @@ public class IceConeProj : ElainaBasicProjectile
     public override void SetDefaults()
     {
         Projectile.width = Projectile.height = 20;
-        Projectile.timeLeft = 120;
+        Projectile.timeLeft = 600;
         TrailLength = 30;
+        TrailMaxLength = 30;
+        TrailSampleCount = 50;
+        
+        Projectile.friendly = true;
+        Projectile.penetrate = -1;
+        Projectile.localNPCHitCooldown = 60;
+        Projectile.usesLocalNPCImmunity = true;
+        Projectile.DamageType = ModContent.GetInstance<ElainaBasicDamage>();
+        // 冰锥命中时携带冰元素标签，由 KL 的积蓄系统按命中次数累积冻结
+        InfusionElement = ElementType.Ice;
         //ProjectileID.Sets.DrawScreenCheckFluff[Projectile.type] = 2000;
 
         base.SetDefaults();
@@ -99,26 +114,48 @@ public class IceConeProj : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        // 必须先采样本帧的 Center，TrailManager 随后复制的 OldCenter 才是最新的一帧
+        base.PreDraw(ref lightColor);
 
-        Texture2D trailTexture = AssetManager.GetTexture("KL.Effects.Tex.Trail.235653rnwhwlbv2vm828gm");
-        if (time >= BackwardFlyTime)
+        Texture2D trailTexture = AssetManager.GetTexture("KL.Effects.Tex.Trail.streak_801_4r");
+        if (time >= BackwardFlyTime && trailTexture != null && ValidTrailArray())
         {
-            if(!Main.gamePaused)base.PreDraw(ref lightColor);
-            if(trailTexture!= null && ValidTrailArray())
-            {
-                Vector2 dir = new Vector2(1,0).RotatedBy(Projectile.rotation);
-                TrailEffect(trailTexture, OldCenter, new Color(200,220,255,255), new Color(150,220,255,255),endAlpha:0,maxWidth:5,endWidth:5,blendState:1,debugPoint:false,attachPoint:dir*-100,
-                    uTime:new Vector2(-(float)time%1200/40,0));
-            }
+            var trailState = (
+                Texture: trailTexture,
+                Direction: new Vector2(1, 0).RotatedBy(Projectile.rotation),
+                TimeOffset: -(float)time % 1200 / 40);
+
+            TrailManager.CreateOrUpdateTrail(
+                ref managedTrail,
+                OldCenter,
+                lifetime: 10,
+                trailState,
+                DrawManagedTrail,
+                bloom: true);
         }
 
+        Color drawLightColor = lightColor;
 
-        
+        LayerDrawRequestSystem.RequestBloom("Elaina:IceCone", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, () => DrawVisual(drawLightColor));
+        return false;
+    }
+
+    private static void DrawManagedTrail((Texture2D Texture, Vector2 Direction, float TimeOffset) state, Vector2[] points, float remainingRatio)
+    {
+        if (points.Length < 2)
+            return;
+
+        TrailEffect(state.Texture, points, new Vector4(new Color(200,220,255,255).ToVector3()*2,1),  new Vector4(new Color(200,220,255,255).ToVector3()*1,1),
+            endAlpha:1,maxWidth:7,endWidth:0,blendState:2,debugPoint:false,attachPoint:state.Direction*-100,imageScale:new Vector2(0.5f,1),
+            uTime:new Vector2(state.TimeOffset,0));
+    }
+
+    private void DrawVisual(Color lightColor)
+    {
         Effect iceConeEffect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/ThreeD/IceCone3D", AssetRequestMode.ImmediateLoad).Value;
         GraphicsDevice gd = Main.instance.GraphicsDevice;
-        SpriteBatch sb = Main.spriteBatch;
         VertexBuffer vertexBuffer = iceCone.GetOrCreateVertexBuffer(gd);
-        int vertexCount = vertexBuffer.VertexCount;
         Vector3 position = new(Projectile.Center, 0f);
         Vector2 drawDirection = time <= BackwardFlyTime && forwardVelocity != Vector2.Zero ? forwardVelocity : Projectile.velocity;
         Vector3 rotation3D = new(0, time * 0.1f, drawDirection.ToRotation() + MathF.PI / 2f);
@@ -126,7 +163,8 @@ public class IceConeProj : ElainaBasicProjectile
         Vector3 cameraPosition = GraphicsUtils.CameraPos(MathF.PI / 3f);
         Vector3 sunPosition = new(new Vector2(Main.screenWidth, Main.screenHeight) / 4f + Main.screenPosition, -1000);
         Vector3 lightDirection = Vector3.Normalize(position - sunPosition);
-        Vector4 baseColor = new Color(200, 220, 255, 255).ToVector4() * 1.00f;
+        // HDR brightness belongs in RGB; alpha remains coverage in the 0-1 range.
+        Vector4 baseColor = new(new Color(200, 220, 255).ToVector3() * 1.10f, 1f);
         Vector3 fresnelColor = (new Color(255, 255, 255)).ToVector3();
         //底光
         float ambientStrength = 0.8f;
@@ -159,11 +197,6 @@ public class IceConeProj : ElainaBasicProjectile
                              Matrix.CreateTranslation(position);
         Matrix viewProjectionMatrix = GraphicsUtils.GetVPMatrix();
 
-        RasterizerState baseRasterizerState = new RasterizerState
-        {
-            CullMode = CullMode.CullClockwiseFace
-        };
-
         EndBeginDraw();
 
         iceConeEffect.Parameters["uWorld"].SetValue(modelMatrix);
@@ -173,7 +206,7 @@ public class IceConeProj : ElainaBasicProjectile
         iceConeEffect.Parameters["uCameraPosition"].SetValue(cameraPosition);
         iceConeEffect.Parameters["uBaseColor"].SetValue(baseColor);
         iceConeEffect.Parameters["uFresnelColor"].SetValue(fresnelColor);
-        iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Color(100, 200, 255, 255).ToVector4()*4.5f);
+        iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Vector4(new Color(100, 200, 255).ToVector3() * 4.5f, 1f));
         iceConeEffect.Parameters["uAmbientStrength"].SetValue(ambientStrength);
         iceConeEffect.Parameters["uDiffuseStrength"].SetValue(diffuseStrength);
         iceConeEffect.Parameters["uFresnelStrength"].SetValue(fresnelStrength);
@@ -182,21 +215,20 @@ public class IceConeProj : ElainaBasicProjectile
         iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(dissolveEdgeWidth);
         iceConeEffect.Parameters["uDepthClipSide"].SetValue(0f);
 
-        gd.BlendState = BlendState.NonPremultiplied;
-        gd.DepthStencilState = DepthStencilState.Default;
+        gd.BlendState = BlendState.NonPremultiplied;// ;IceConeDepthRenderer.ModelBlend;
+        gd.DepthStencilState = DepthStencilState.None;
         gd.SamplerStates[0] = SamplerState.LinearWrap;
         gd.SamplerStates[1] = SamplerState.LinearWrap;
-        gd.RasterizerState = baseRasterizerState;
+        gd.RasterizerState = RasterizerState.CullClockwise;
 
         gd.Textures[0] = texture;
         gd.Textures[1] = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/4", AssetRequestMode.ImmediateLoad).Value;
 
         gd.SetVertexBuffer(vertexBuffer);
-        iceConeEffect.CurrentTechnique.Passes[0].Apply();
-        gd.DrawPrimitives(PrimitiveType.TriangleList, 0, vertexCount);
+        iceConeEffect.CurrentTechnique.Passes["Base"].Apply();
+        gd.DrawPrimitives(PrimitiveType.TriangleList, 0, iceCone.PrimitiveCount);
 
         EndBeginDraw();
-        return false;
     }
 
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs,

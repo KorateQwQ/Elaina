@@ -1,3 +1,4 @@
+global using static 伊蕾娜.Localization.UIText;
 global using Microsoft.Xna.Framework;
 global using Microsoft.Xna.Framework.Graphics;
 global using ReLogic.Graphics;
@@ -47,20 +48,6 @@ namespace Terraria
 }
 namespace 伊蕾娜.System { public sealed class ElainaStatePlayer { public void DebugResetProgress() { } } }
 namespace Terraria.ID { public static class ItemID { public const int Wood = 9; } }
-namespace Terraria.Localization
-{
-    public static class Language
-    {
-        public static readonly Dictionary<string, string> Text = [];
-        public static bool Exists(string key) => Text.ContainsKey(key);
-        public static string GetTextValue(string key) => Text.GetValueOrDefault(key, key);
-        public static LocalizedText GetText(string key) => new(GetTextValue(key));
-    }
-    public sealed record LocalizedText(string Value)
-    {
-        public LocalizedText WithFormatArgs(params object[] args) => new(string.Format(Value, args));
-    }
-}
 namespace Terraria.GameContent
 {
     public static class TextureAssets { public static Asset<Texture2D> MagicPixel; }
@@ -148,6 +135,8 @@ namespace KL.SkillSystem
             skill.BasicStatus = Skill.SKillBasicStatus.Lock; skill.ModSkill.OnLockSkill();
         }
         public void OnSkillsUpdated() { }
+        // Fixture skills all start locked; no initial skills are granted at this boundary.
+        public void LearnInitialSkills() { }
     }
     public static class KLSkillManager
     {

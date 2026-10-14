@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.IO;
 using System.Text;
@@ -25,13 +26,13 @@ public sealed partial class ConstellationSkillPanel
         try { bundled = ConstellationLayout.Parse(Encoding.UTF8.GetString(mod.GetFileBytes(ConstellationLayout.AssetPath))); }
         catch (Exception e) when (ConstellationLayout.IsFileError(e))
         {
-            error = "默认布局读取失败，已使用技能默认位置";
+            error = LocalizeUI("DefaultLayoutFailed");
             mod.Logger.Warn(error, e);
         }
         try { saved = ConstellationLayout.Read(LayoutFilePath); }
         catch (Exception e) when (ConstellationLayout.IsFileError(e))
         {
-            error = "本地布局读取失败，已使用默认布局";
+            error = LocalizeUI("LocalLayoutFailed");
             mod.Logger.Warn(error, e);
         }
         _layoutEditor = new ConstellationLayoutEditor(_state, bundled, saved);

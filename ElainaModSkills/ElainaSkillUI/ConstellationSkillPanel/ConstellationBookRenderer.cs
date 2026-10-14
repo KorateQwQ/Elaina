@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -20,7 +21,7 @@ internal sealed class ConstellationBookRenderer : IDisposable
     internal static void PaintCover(ConstellationDrawing draw)
     {
         draw.Image("BookCoverFront", 0, 0, 1100, 800);
-        draw.Text("魔女手札", 550, 512, 29, new Color(226, 208, 233), .5f, spacing: 7, serif: true);
+        draw.Text(LocalizeUI("NotebookTitle"), 550, 512, 29, new Color(226, 208, 233), .5f, spacing: 7, serif: true);
     }
 
     internal static void PaintDock(ConstellationDrawing draw, string key, bool hover, float glow)
@@ -33,7 +34,7 @@ internal sealed class ConstellationBookRenderer : IDisposable
             draw.Frame(-3, -3, 102, 36, new Color(216, 192, 237) * glow);
         }
         draw.Image("StudyBook", 8, 7, 16, 16, new Color(215, 197, 174));
-        draw.Text("手札", 30, 8, 12, new Color(216, 197, 231), spacing: 1);
+        draw.FittedText(LocalizeUI("NotebookDock"), 29, 8, 37, 12, new Color(216, 197, 231));
         draw.FittedText(key, 79, 9, 25, 10, new Color(196, 173, 201), .5f, serif: true);
     }
 

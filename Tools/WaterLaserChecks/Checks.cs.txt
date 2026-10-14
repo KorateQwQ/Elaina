@@ -1,0 +1,269 @@
+using System.Collections;
+using System.Reflection;
+using KL.ActionsSystem;
+using KL.AttributeSystem;
+using KL.Projectiles;
+using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+using 伊蕾娜.System;
+using GameMain = Terraria.Main;
+
+static class Program
+{
+    static void Main(string[] args)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        using var game = new Checks(args[0], args[1]);
+        game.Run();
+    }
+}
+
+sealed class Checks : Game
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    readonly string root, output;
+    Player player;
+    ActionModPlayer actions;
+    ElainaAttributeModPlayer magic;
+    WaterLaser beam;
+    Action_WaterLaser action;
+    int token, passed;
+    Texture2D pixel, wand;
+    SpriteBatch batch;
+    bool finished;
+
+    public Checks(string root, string output)
+    {
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 960, PreferredBackBufferHeight = 560,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    static FieldInfo Field(Type t, string name)
+    {
+        while (t != null) {
+            var field = t.GetField(name, All);
+            if (field != null) return field;
+            t = t.BaseType;
+        }
+        throw new Exception("Missing field " + name);
+    }
+    static void Set(object obj, string name, object value) => Field(obj.GetType(), name).SetValue(obj, value);
+    static T Get<T>(object obj, string name) => (T)Field(obj.GetType(), name).GetValue(obj);
+    static object Call(object obj, string name, params object[] args) => obj.GetType().GetMethod(name, All).Invoke(obj, args);
+    void Check(bool condition, string message) { if (!condition) throw new Exception(message); passed++; }
+    static void Entity(ModType content, object entity) => content.GetType().GetProperty("Entity", All).SetValue(content, entity);
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        using (var stream = File.OpenRead(Path.Combine(root, "Items/魔杖.png"))) wand = Texture2D.FromStream(GraphicsDevice, stream);
+        typeof(ElainaAction).GetField("wandTex", All).SetValue(null, wand);
+        batch = new SpriteBatch(GraphicsDevice);
+        GameMain.dedServ = true;
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.myPlayer = 0;
+        player = new Player { active = true, whoAmI = 0, width = 20, height = 42,
+            position = new Vector2(600, 600), gravDir = 1f, statManaMax2 = 200, statLife = 1, statLifeMax2 = 100 };
+        GameMain.player[0] = player;
+        player.inventory[0] = new Item { type = ItemID.Wood, stack = 1 };
+        var mods = new ModPlayer[] { new ActionModPlayer(), new ElainaAttributeModPlayer(), new ElainaModplayer(),
+            new ElainaSkillModPlayer(), new ElainaManaElixirPlayer() };
+        for (ushort i = 0; i < mods.Length; i++) {
+            Entity(mods[i], player);
+            typeof(ModPlayer).GetProperty("Index", All).SetValue(mods[i], i);
+            ContentInstance.Register(mods[i]);
+        }
+        Set(player, "modPlayers", mods);
+        actions = (ActionModPlayer)mods[0]; magic = (ElainaAttributeModPlayer)mods[1];
+        ((ElainaModplayer)mods[2]).Elaina = true;
+        var witch = new AshenWitchSkill { BasicStatus = Skill.SKillBasicStatus.UnLock, IsEnabled = true };
+        var skill = new Skill(); typeof(Skill).GetProperty("ModSkill", All).SetValue(skill, witch); witch.Skill = skill;
+        ((ElainaSkillModPlayer)mods[3]).UnlockedSkill[nameof(AshenWitchSkill)] = skill;
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        magic.Initialize();
+        var prototype = new WaterLaser(); Entity(prototype, new Projectile { type = 0 }); ContentInstance.Register(prototype);
+        AnimActionRegistry.Register(typeof(Action_WaterLaser));
+        ((IDictionary)typeof(KL.KL).GetField("NetInstance", All).GetValue(null))[typeof(ActionModPlayer).FullName] = actions;
+        GameMain.npc = Enumerable.Range(0, GameMain.maxNPCs + 1).Select(i => new NPC { whoAmI = i, active = false }).ToArray();
+        GameMain.maxTilesX = 200; GameMain.maxTilesY = 120;
+        GameMain.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), All, null, new object[] { (ushort)200, (ushort)120 }, null);
+        GameMain.tileSolid[TileID.Stone] = true;
+        RunChecks();
+    }
+
+    void Start(float mana = 30f, int interval = 12)
+    {
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.myPlayer = 0;
+        if (actions.HasAction) actions.InterruptCurrentAction();
+        player.dead = player.noItems = player.mouseInterface = false;
+        player.active = true; player.selectedItem = 0;
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        GameMain.mouseLeft = true; GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.myPlayer = 0;
+        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, mana);
+        action = new Action_WaterLaser(100, 1.5f, interval);
+        // Spawn/world registration is supplied by the fixture; all timing, actions and mana logic are production code.
+        ((IList)Field(typeof(AnimAction), "nodes").GetValue(action)).Clear();
+        token++;
+        Call(actions, "StartActionLocal", action, true, 0f, token);
+        beam = new WaterLaser();
+        var projectile = new Projectile { active = true, owner = 0, type = 0, width = 10, height = 10,
+            timeLeft = 30, damage = 100, velocity = Vector2.UnitX, tileCollide = false, penetrate = -1 };
+        projectile.DamageType = DamageClass.Magic;
+        Entity(beam, projectile);
+        Set(beam, "maxDistance", 100f);
+        beam.BindAction(token, 1.5f, interval);
+        Set(action, "beam", beam);
+    }
+
+    new bool Tick()
+    {
+        Call(actions, "UpdateCurrentAction");
+        if (beam.Projectile.active) beam.AI();
+        return beam.Projectile.active && beam.CanDamage() == true;
+    }
+
+    void RunChecks()
+    {
+        Check(AnimActionRegistry.TryCreate(actionId(), out var remote) && remote is Action_WaterLaser, "Remote action construction");
+        Start();
+        for (int frame = 0; frame < 60; frame++) Check(!Tick(), "No damage during charge " + frame);
+        Check(magic.MagicPoint == 30f, "Charging is free");
+        var pulses = new List<int>();
+        for (int frame = 0; frame < 60; frame++) if (Tick()) pulses.Add(frame);
+        Check(pulses.SequenceEqual(new[] { 0, 12, 24, 36, 48 }), "Five evenly spaced pulses per second");
+        Check(magic.MagicPoint == 22.5f, "Exactly one JSON mana payment per pulse");
+        GameMain.mouseLeft = false; Check(!Tick() && !beam.Projectile.active, "Release stops damage immediately");
+        for (int i = 0; i < 22; i++) Tick();
+        Check(!actions.HasAction, "Recovery ends");
+
+        Start(); for (int i = 0; i < 20; i++) Tick();
+        GameMain.mouseLeft = false; Check(!Tick() && !beam.Projectile.active && magic.MagicPoint == 30f, "Early release cancels without damage or mana");
+        Start(3f); for (int i = 0; i < 60; i++) Tick();
+        int hits = 0; for (int i = 0; i < 40; i++) if (Tick()) hits++;
+        Check(hits == 2 && magic.MagicPoint == 0f && !beam.Projectile.active && !actions.IsActionHolding, "Insufficient mana exits hold without a free pulse");
+        Start(interval: 6); for (int i = 0; i < 60; i++) Tick();
+        hits = 0; for (int i = 0; i < 60; i++) if (Tick()) hits++;
+        Check(hits == 10 && magic.MagicPoint == 15f, "Configured cadence and mana remain paired");
+
+        foreach (string interruption in new[] { "item", "skill", "dead", "disabled", "projectile", "action" }) {
+            Start(); for (int i = 0; i < 61; i++) Tick();
+            switch (interruption) {
+                case "item": player.selectedItem = 1; break;
+                case "skill": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
+                case "dead": player.dead = true; break;
+                case "disabled": player.noItems = true; break;
+                case "projectile": beam.Projectile.Kill(); break;
+                case "action": actions.InterruptCurrentAction(); break;
+            }
+            Check(!Tick() && !beam.Projectile.active && !actions.IsActionHolding, "Channel interruption: " + interruption);
+        }
+
+        Start(); for (int i = 0; i < 61; i++) Tick();
+        GameMain.myPlayer = 1; float before = magic.MagicPoint;
+        beam.AI(); Check(beam.CanDamage() == false && magic.MagicPoint == before, "Remote instance neither spends mana nor deals damage");
+        GameMain.myPlayer = 0;
+
+        GeometryChecks();
+        Console.WriteLine($"PASS: {passed} checks against production actions/projectile and tModLoader collision/mana APIs.");
+        int actionId() => AnimActionRegistry.GetId(typeof(Action_WaterLaser));
+    }
+
+    NPC Target(int index, Vector2 position, int realLife = -1)
+    {
+        var npc = GameMain.npc[index]; npc.active = true; npc.friendly = npc.dontTakeDamage = false;
+        npc.position = position; npc.width = npc.height = 40; npc.realLife = realLife;
+        return npc;
+    }
+
+    void GeometryChecks()
+    {
+        Start(); beam.Projectile.Center = new Vector2(600, 600); Set(beam, "maxDistance", 1000f);
+        var main = Target(3, new Vector2(800, 580));
+        var splash = Target(4, new Vector2(810, 640));
+        var far = Target(5, new Vector2(810, 730));
+        var segment = Target(6, new Vector2(820, 620), 3);
+        Call(beam, "LaserCollisionCheck");
+        Check(Get<int>(beam, "primaryTarget") == 3, "Nearest enemy blocks beam");
+        Check(beam.CanHitNPC(main) != false && beam.Colliding(default, main.Hitbox) == true, "Main target receives a direct hit");
+        Check(beam.CanHitNPC(splash) != false && beam.Colliding(default, splash.Hitbox) == true, "Nearby enemy receives endpoint splash");
+        Check(beam.CanHitNPC(far) == false && beam.CanHitNPC(segment) == false, "Outside radius and same boss segments excluded");
+        var directHit = main.GetIncomingStrikeModifiers(DamageClass.Magic, 1);
+        var splashHit = splash.GetIncomingStrikeModifiers(DamageClass.Magic, 1);
+        beam.ModifyHitNPC(main, ref directHit); beam.ModifyHitNPC(splash, ref splashHit);
+        Check(directHit.SourceDamage.ApplyTo(100f) == 100f && splashHit.SourceDamage.ApplyTo(100f) == 50f, "Splash uses half source damage without duplicating main hit");
+        // Simulate the deduplication record left by OnHitNPC; element hooks require a loaded world.
+        Get<HashSet<int>>(beam, "hitEntities").Add(4);
+        Check(beam.CanHitNPC(splash) == false, "No second hit within one pulse");
+        GameMain.netMode = NetmodeID.Server;
+        Call(beam, "LaserCollisionCheck");
+        Check(Get<int>(beam, "primaryTarget") == 3 && Get<List<Vector2>>(beam, "trailPoints").Count > 0, "Geometry updates on a dedicated server without drawing");
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        foreach (var npc in GameMain.npc) npc.active = false;
+        for (int y = 1; y < 100; y++) { var tile = GameMain.tile[47, y]; tile.HasTile = true; tile.TileType = TileID.Stone; }
+        main = Target(3, new Vector2(820, 580)); Set(beam, "maxDistance", 1000f);
+        Call(beam, "LaserCollisionCheck");
+        Check(Get<int>(beam, "primaryTarget") == -1 && Get<List<Vector2>>(beam, "trailPoints")[^1].X < 770f, "Wall clips beam before enemy");
+        Check(beam.CanHitNPC(main) == false, "Splash cannot cross wall");
+        GameMain.tile.ClearEverything();
+        foreach (var npc in GameMain.npc) npc.active = false;
+        GameMain.netMode = NetmodeID.Server;
+        Get<List<Vector2>>(beam, "trailPoints").Clear();
+        beam.SpawnWaterDust(); // Nonempty path is not a requirement on a newly received projectile.
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (finished) return;
+        finished = true;
+        foreach (float gravity in new[] { 1f, -1f }) RenderPoses(gravity);
+        Exit();
+    }
+
+    void RenderPoses(float gravity)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 960, 560);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(24, 30, 43));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        GameMain.screenPosition = Vector2.Zero;
+        float[] angles = [0f, MathHelper.Pi, -.65f, -MathHelper.Pi + .65f, .65f, MathHelper.Pi - .65f];
+        for (int i = 0; i < angles.Length; i++) {
+            Start(); player.position = new Vector2(160 + (i % 3) * 310, 155 + (i / 3) * 270);
+            player.gravDir = gravity;
+            action.UpdateAimFromLaser(token, angles[i]);
+            var draw = new PlayerDrawSet { drawPlayer = player, DrawDataCache = new List<DrawData>() };
+            object[] drawArgs = [draw];
+            typeof(ElainaAction).GetMethod("DrawWand", All).Invoke(action, drawArgs);
+            draw = (PlayerDrawSet)drawArgs[0];
+            // Body/aim guides are diagrams; the wand and its transform use the actual production DrawWand.
+            batch.Draw(pixel, new Rectangle((int)player.position.X, (int)player.position.Y, 20, 42), new Color(86, 97, 116));
+            Vector2 origin = action.BeamOrigin;
+            foreach (var data in draw.DrawDataCache) data.Draw(batch);
+            batch.Draw(pixel, origin, null, Color.Cyan, angles[i], new Vector2(0f, .5f), new Vector2(70f, 2f), SpriteEffects.None, 0);
+            batch.Draw(pixel, new Rectangle((int)origin.X - 3, (int)origin.Y - 3, 6, 6), Color.White);
+            Check(float.IsFinite(origin.X) && float.IsFinite(origin.Y), "Finite wand origin across aim/gravity");
+        }
+        batch.End(); GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(Path.Combine(output, gravity > 0 ? "wand-normal.png" : "wand-inverted.png"));
+        target.SaveAsPng(file, 960, 560);
+        Console.WriteLine("FNA pose preview: " + file.Name);
+    }
+}

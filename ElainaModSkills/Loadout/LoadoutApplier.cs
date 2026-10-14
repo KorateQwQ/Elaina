@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,8 +21,8 @@ public static class LoadoutApplier
 
     public static bool CanApply(Player player, out string reason)
     {
-        reason = Main.netMode != NetmodeID.SinglePlayer ? "快捷配装只在单人模式可用"
-            : !player.GetModPlayer<ElainaModplayer>().Elaina ? "只有伊蕾娜可以使用快捷配装"
+        reason = Main.netMode != NetmodeID.SinglePlayer ? LocalizeUI("SinglePlayerLoadout")
+            : !player.GetModPlayer<ElainaModplayer>().Elaina ? LocalizeUI("ElainaLoadout")
             : null;
         return reason == null;
     }
@@ -74,10 +75,10 @@ public static class LoadoutApplier
             dropped = true;
         }
 
-        var notes = new List<string> { changed > 0 ? $"已换上 {changed} 件装备" : "装备已与推荐一致" };
+        var notes = new List<string> { changed > 0 ? LocalizeUI("GearChanged", changed) : LocalizeUI("SameEquipment") };
         notes.AddRange(SetStats(player, loadout));
-        if (missing > 0) notes.Add($"饰品栏不足，少装 {missing} 件");
-        if (dropped) notes.Add("背包已满，换下的装备掉在脚下");
+        if (missing > 0) notes.Add(LocalizeUI("MissingSlots", missing));
+        if (dropped) notes.Add(LocalizeUI("DroppedEquipment"));
         return string.Join(" · ", notes);
     }
 
@@ -133,13 +134,13 @@ public static class LoadoutApplier
     {
         int mana = BaseMana(player);
         player.ConsumedManaCrystals = Math.Clamp((loadout.BaseMana - 20) / 20, 0, 9);
-        if (BaseMana(player) != mana) yield return $"基础魔力 {mana} → {BaseMana(player)}";
+        if (BaseMana(player) != mana) yield return LocalizeUI("ManaChanged", mana, BaseMana(player));
 
         int life = BaseLife(player);
         player.ConsumedLifeCrystals = Math.Clamp((Math.Min(loadout.MaxLife, 400) - 100) / 20, 0, 15);
         player.ConsumedLifeFruit = Math.Clamp((loadout.MaxLife - 400) / 5, 0, 20);
         if (BaseLife(player) == life) yield break;
         player.statLife = Math.Min(player.statLife, BaseLife(player));
-        yield return $"最大生命 {life} → {BaseLife(player)}";
+        yield return LocalizeUI("LifeChanged", life, BaseLife(player));
     }
 }

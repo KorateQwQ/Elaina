@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+using static 伊蕾娜.Localization.UIText;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.DataStructures;
@@ -394,7 +395,7 @@ namespace 伊蕾娜.炼金
                     {
                         Main.NewText("I'm already too tired today");
                     }
-                    else Main.NewText("今天已经太累了");
+                    else Main.NewText(LocalizeUI("TooTired"));
                 }*/
             }
 
@@ -407,7 +408,7 @@ namespace 伊蕾娜.炼金
                     {
                         Main.NewText("The air is not enough to make something");
                     }
-                    else Main.NewText("空气可做不出东西来");
+                    else Main.NewText(LocalizeUI("EmptyAlchemy"));
 
                 }
                 else if (ModContent.GetInstance<炼制物品UISystem>().UI.inv[0].type == ItemID.Obsidian ||
@@ -438,7 +439,7 @@ namespace 伊蕾娜.炼金
                                 {
                                     Main.NewText("I can't seem to make this item...");
                                 }
-                                else Main.NewText("似乎无法炼制这个物品..");
+                                else Main.NewText(LocalizeUI("CannotBrewItem"));
                             }*/
                             炸锅();
                         }
@@ -615,7 +616,7 @@ namespace 伊蕾娜.炼金
                                 {
                                     Main.NewText("Insufficient Obsidian");
                                 }
-                                else Main.NewText("黑曜石不足");
+                                else Main.NewText(LocalizeUI("NeedObsidian"));
 
                                 退出炼制();
                             }
@@ -631,7 +632,7 @@ namespace 伊蕾娜.炼金
                     {
                         Main.NewText("Insufficient Obsidian");
                     }
-                    else Main.NewText("黑曜石不足");
+                    else Main.NewText(LocalizeUI("NeedObsidian"));
 
                     退出炼制();
                 }

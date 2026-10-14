@@ -9,6 +9,7 @@ internal sealed class PanelGame : Game
     private bool _done;
     private static bool IconsOnly;
     private static bool HeadersOnly;
+    private static bool LocalizationOnly;
     private static bool RequirementsOnly;
     private static bool ToggleOnly;
     private static bool PolishOnly;
@@ -37,7 +38,7 @@ internal sealed class PanelGame : Game
     protected override void Update(GameTime time)
     {
         if (_done) return; _done = true;
-        string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output"); Directory.CreateDirectory(output);
+        string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output", Terraria.Localization.Language.Culture); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
         if (OrnamentsOnly) OrnamentPreview.Run(Device, batch, output);
         if (BookOnly) { BookPreview.Run(Device, batch, output); Exit(); return; }
@@ -57,7 +58,7 @@ internal sealed class PanelGame : Game
             }
             Console.WriteLine(output); Exit(); return;
         }
-        IconChecks.Run(batch);
+        if (!LocalizationOnly) IconChecks.Run(batch);
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
@@ -95,6 +96,7 @@ internal sealed class PanelGame : Game
     {
         Repo = args[0]; VanillaContent = args[1]; IconsOnly = args.Contains("--icons-only");
         HeadersOnly = args.Contains("--headers-only");
+        LocalizationOnly = args.Contains("--localization-only");
         RequirementsOnly = args.Contains("--requirements-only");
         ToggleOnly = args.Contains("--toggle-only");
         PolishOnly = args.Contains("--polish-only");
@@ -103,7 +105,12 @@ internal sealed class PanelGame : Game
         CameraOnly = args.Contains("--camera-only");
         OrnamentsOnly = args.Contains("--ornaments-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
-        Fixtures.Text(); if (!HeadersOnly) PanelChecks.Run();
+        Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
+        Fixtures.Text(); if (!HeadersOnly && !args.Contains("--localization-only")) PanelChecks.Run();
+        Terraria.Localization.Language.Text.Clear();
+        Terraria.Localization.Language.Load(Repo, args[2]);
+        // The old fixture class uses WindBladeSkill for the production WindSlashSkill.
+        Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillName.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.WindSlashSkill");
         using var game = new PanelGame(); game.Run();
     }
 }

@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using KL.ActionsSystem;
@@ -6,6 +7,8 @@ using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
+using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 using 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
@@ -15,10 +18,13 @@ public class IceConeSkill : ElainaSkill
 {
     public override bool IsPassiveSkill => false;
 
+    // 默认蜂王后开放（角色等级上限 25）；具体门槛由 JSON 的 unlockStageCap 决定，不要求实际等级达到上限。
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(IceConeSkill), 25));
+
 
     public override void Initialize()
     {
-        CurrentCD = 0;
         base.Initialize();
     }
 
@@ -32,6 +38,14 @@ public class IceConeSkill : ElainaSkill
         base.OnRightClickInSkillPanel();
     }
 
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
+    {
+        // 与技能描述一致，使用含装备增伤的单次伤害
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
+    }
+    
     public override bool PreUseSkill(IEntitySource source = null)
     {
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
@@ -39,24 +53,6 @@ public class IceConeSkill : ElainaSkill
 
         ShootIceCone(Player, Main.MouseWorld);
         return base.PreUseSkill(source);
-    }
-    
-
-    public void ShootIceShardLock3D(Player player, Vector2 targetWorldPosition)
-    {
-        Vector2 aimDirection = (targetWorldPosition - player.MountedCenter).SafeNormalize(Vector2.UnitX * (player.direction == 0 ? 1 : player.direction));
-
-        AnimAction animAction = new Action_Cast()
-            .AddNode(new ShootActionNode(
-                1,
-                ModContent.ProjectileType<IceShardLockProj>(),
-                _ => targetWorldPosition,
-                GetIceCone3DDamage(),
-                2f,
-                _ => Vector2.Zero));
-
-        float startRotation = aimDirection.ToRotation() * player.gravDir;
-        player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
     }
     
 
@@ -113,12 +109,6 @@ public class IceConeSkill : ElainaSkill
         float startRotation = aimDirection.ToRotation() * player.gravDir;
         player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
     }
-
-    private int GetIceCone3DDamage()
-    {
-        return 100;
-    }
-    
     
 
     public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale, Color color, Effect effect = null)

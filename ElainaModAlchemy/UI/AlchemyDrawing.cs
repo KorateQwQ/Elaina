@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -302,26 +303,7 @@ internal sealed class AlchemyDrawing
     }
 
     internal string[] WrapParagraph(string text, float width, float size)
-    {
-        var lines = new List<string>();
-        string line = "";
-        foreach (char c in text ?? "")
-        {
-            if (c == '\r') continue;
-            if (c == '\n') { lines.Add(line); line = ""; continue; }
-            if (line.Length > 0 && Measure(line + c, size) > width)
-            {
-                if (line.Length > 1 && "，。！？；：、”」）".Contains(c))
-                {
-                    lines.Add(line[..^1]); line = line[^1].ToString();
-                }
-                else { lines.Add(line); line = ""; }
-            }
-            line += c;
-        }
-        if (line.Length > 0 || lines.Count == 0) lines.Add(line);
-        return lines.ToArray();
-    }
+        => WrapUIParagraph(text, width, value => Measure(value, size));
 
     internal float Paragraph(string text, float x, float y, float width, float size, Color color, float lineHeight = 24)
     {

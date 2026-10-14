@@ -198,7 +198,7 @@ public class MagicMissleSpawner : KLProjectile
     {
         if (points.Length < 2)
             return;
-        TrailEffect(state.Texture, points, new Color(255, 100, 239, 255).ToVector4()*2.2f, new Color(255, 200, 239, 0).ToVector4(), 13, 0.1f, drawTimes: 1,
+        TrailEffect(state.Texture, points, new Vector4(new Color(255, 100, 239, 255).ToVector3()*3.2f,1), new Color(255, 200, 239, 0).ToVector4(), 13, 0.1f, drawTimes: 1,
             uTime: new Vector2((1-state.TimeOffset%1200/40f), 0), startAlpha: 1.0f, endAlpha: 1.0f, blendState: 2);
     }
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
@@ -334,13 +334,13 @@ public class MagicMissleSpawner : KLProjectile
         }
         
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(circleColor*1.4f);
+        effect.Parameters["CircleColor"].SetValue(new Vector4(new Vector3(1f, 0.22f, 0.72f)*2.4f,1));
         effect.Parameters["DistortionStrength"].SetValue(0.04f);
 
         DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale)*1.1f);
         
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(Vector4.One*1.0f);
+        effect.Parameters["CircleColor"].SetValue(new Vector4(new Vector3(1.2f),1));
         effect.Parameters["DistortionStrength"].SetValue(0.04f);
 
         DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale*0.8f));

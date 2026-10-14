@@ -144,12 +144,14 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .glossary dt{color:var(--text);margin-top:8px}
 .glossary dd{margin:2px 0 0 14px}
 .glossary b{color:var(--text);font-weight:600}
-#progressionPanel>summary,.sourcesbox>summary{color:var(--text);list-style:none;display:flex;align-items:center;gap:12px}
-#progressionPanel>summary::-webkit-details-marker,.sourcesbox>summary::-webkit-details-marker{display:none}
-#progressionPanel>summary::before,.sourcesbox>summary::before{content:"▸";color:var(--purple);transition:transform .15s}
-#progressionPanel[open]>summary::before,.sourcesbox[open]>summary::before{transform:rotate(90deg)}
-#progressionPanel>summary h2{display:inline}
-#progressionPanel[open]>summary{margin-bottom:14px}
+.sourcesbox>summary{color:var(--text);list-style:none;display:flex;align-items:center;gap:12px}
+.sourcesbox>summary::-webkit-details-marker{display:none}
+.sourcesbox>summary::before{content:"▸";color:var(--purple);transition:transform .15s}
+.sourcesbox[open]>summary::before{transform:rotate(90deg)}
+#progressionTable{min-width:1560px}
+#progressionTable td:first-child{white-space:nowrap}
+#progressionTable [data-progression-mode]{min-width:140px}
+#progressionTable input:disabled{opacity:.4;cursor:not-allowed}
 .sourcesbox{margin-top:20px}
 .sources{font-size:12.5px;overflow-wrap:anywhere}
 .sources li{margin:7px 0;color:var(--muted)}
@@ -181,7 +183,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
 @media(max-width:1100px){.combatfields{grid-template-columns:repeat(3,minmax(0,1fr))}.combatstats{grid-template-columns:1fr 1fr}.statgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.fields4{grid-template-columns:1fr 1fr}}
 @media(max-width:1000px){main{padding:20px}.appbar{flex-direction:column;align-items:flex-start}.toolbar{align-items:flex-start}.topbar{grid-template-columns:1fr 1fr}.fields{grid-template-columns:1fr 1fr}.slot{grid-template-columns:20px minmax(0,1fr) 110px}.loadout-layout{grid-template-columns:1fr}.stagelist{position:static;max-height:320px}}
-@media(max-width:720px){main{padding:14px}h1{font-size:22px}.columns,.results{grid-template-columns:1fr}.panel{padding:15px}.metric .number{font-size:28px}.topbar{grid-template-columns:1fr}.combatfields{grid-template-columns:1fr 1fr}.combatstats strong{font-size:16px}.fields4,.statgrid{grid-template-columns:1fr 1fr}.slot.tri{grid-template-columns:18px minmax(0,1fr) 96px 96px;gap:5px}}
+@media(max-width:720px){.tabs{width:100%;flex-wrap:wrap}.tabs [role=tab]{flex:1 1 auto;padding:8px 12px}main{padding:14px}h1{font-size:22px}.columns,.results{grid-template-columns:1fr}.panel{padding:15px}.metric .number{font-size:28px}.topbar{grid-template-columns:1fr}.combatfields{grid-template-columns:1fr 1fr}.combatstats strong{font-size:16px}.fields4,.statgrid{grid-template-columns:1fr 1fr}.slot.tri{grid-template-columns:18px minmax(0,1fr) 96px 96px;gap:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -208,6 +210,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <nav class="tabs" role="tablist" aria-label="页面">
  <button type="button" role="tab" id="tabLab" data-tab="lab" aria-controls="labPage" aria-selected="true">平衡实验室</button>
  <button type="button" role="tab" id="tabLoadouts" data-tab="loadouts" aria-controls="loadoutPage" aria-selected="false" tabindex="-1">配装与属性配置</button>
+ <button type="button" role="tab" id="tabProgression" data-tab="progression" aria-controls="progressionPage" aria-selected="false" tabindex="-1">技能等级成长区间</button>
 </nav>
 
 <div id="labPage" class="tabpage" role="tabpanel" aria-labelledby="tabLab">
@@ -328,20 +331,6 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  <details><summary>模拟口径与局限</summary><p class="note" style="margin-top:10px">采用 1/60 秒步长。普攻按完整攻击间隔占手，成功付款后在动作结束造成伤害；技能占手时不普攻。普攻倍率按当前 B 反推的等级取倍率曲线。技能总伤害 = 阶段 B × (占手补偿倍率 × 占手 + 0.002 × 单次蓝耗 × 基准 CD × CD伤害折算率 × 魔力转换率 K) × 技能装备倍率，整次再乘命中率。药剂与扣费同时结算，余额再裁剪上限。星云所选强化假定开场即有且全程保持；可选特殊回蓝适配按平均每秒回复模拟，不额外应用原版减耗。不模拟死亡、击退、打断、敌人防御或生命转魔力；手填套装特效按持续背景 DPS 计入。不限蓝仅移除资源限制，仍遵守时长、占手、CD、优先级、命中和伤害落点，不代表全局最优输出；不同实际调度可能使其不是严格上界。</p></details>
 </section>
 
-
-<details class="panel section" id="progressionPanel" aria-label="技能等级成长区间">
- <summary><h2>技能等级成长区间</h2><span class="tag">角色等级只决定技能可升到哪里</span></summary>
- <div class="fields">
-  <label class="field">完整阶段角色等级跨度<input id="progressionPhaseSize" type="number" min="1" max="20" step="1"></label>
-  <label class="field">预览角色等级<input id="progressionPreviewLevel" type="number" min="1" max="1000" step="1"></label>
- </div>
- <p class="note">“解锁阶段上限”区分初始 1–5 级阶段与史莱姆王后 6–10 级阶段，不是必须练到阶段上限才解锁。“首级角色等级”定义技能 Lv1 的角色门槛和伤害基准。飞弹默认 5 / 1，冰锥示例默认 10 / 6；如果想让冰锥必须角色 10 级才开放，可把首级改为 10。每阶段 2 次升级不含解锁自带的 Lv1。“解锁时期”是快捷选项：第 k 个时期（击败对应 Boss 后）写入上限 5k、首级 5k−4；手填非 5 的倍数时显示为自定义。切换参考配装会把预览角色等级设为该时期上限，并只启用此时已解锁的主动技能。</p>
- <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>每阶段新增技能等级</th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
- <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
- <p id="progressionNotice" class="note"></p>
- <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>普攻倍率</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
-</details>
-
 <details class="panel section sourcesbox"><summary>读取本地源码的装备数据与模型边界</summary><div class="sources"><p class="note" style="margin-top:12px">版本依据：工作区提供的 tML 2025.06 源码；不是声称与其他版本完全一致。预设是合法阶段的参考组合，不声称是最优配装；手动改装不强制限制进度和饰品兼容性。相同非占位饰品重复装备会给出警告。</p><ul>
 <li>Terraria/Player.cs：丛林套 +6% 伤害、+12 暴击、+80 魔力；精金法师套 +20%、+19、+80；神圣法师套 +19%、+19、+100；幽灵面具套 +25%、+17、+60。仅静态属性。</li>
 <li>全流程预设参考 terraria.wiki.gg Guide:Class_setups 法师路线，数值取同一源码：巫师帽 5%（配长袍 +10 暴击）、魔法帽 6%/6（配长袍 +60 魔力）；宝石长袍魔力 紫晶 20、黄玉 40、钻石 80；陨石每件 9%；钴 13/14/40、钯金 14/12/60、秘银 22/10/60、山铜 8/24/80、钛金 23/13/100、禁戒 25/0/80、叶绿 21/15/80、暗黑艺术家 25/25/0（伤害%/暴击/魔力，均为部件静态和，只计伤害、暴击、魔力相关套装加成）。混搭件不触发套装效果。</li>
@@ -353,6 +342,22 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <li>星云套静态 +26% 伤害、+16 暴击、+60 魔力；满层伤害强化 +45%（与装备加算），原版回蓝 +30/秒，生命回复 +9/秒。默认不桥接特殊魔力；可显式启用预览适配。幽灵追击仍需手填。</li>
 </ul><p class="note" id="sourcePath"></p></div></details>
 
+</div>
+
+<div id="progressionPage" class="tabpage" role="tabpanel" aria-labelledby="tabProgression" hidden>
+<section class="panel section" id="progressionPanel" aria-label="技能等级成长区间">
+ <div class="title"><h2>技能等级成长区间</h2><span class="tag">角色等级只决定技能可升到哪里</span></div>
+ <div class="fields">
+  <label class="field">完整阶段角色等级跨度（仅按阶段成长）<input id="progressionPhaseSize" type="number" min="1" max="20" step="1"></label>
+  <label class="field">预览角色等级<input id="progressionPreviewLevel" type="number" min="1" max="1000" step="1"></label>
+ </div>
+ <p class="note">“解锁阶段上限”区分初始 1–5 级阶段与史莱姆王后 6–10 级阶段，不是必须练到阶段上限才解锁。“首级角色等级”定义技能 Lv1 的角色门槛和伤害基准。飞弹默认 5 / 1，冰锥示例默认 10 / 6；如果想让冰锥必须角色 10 级才开放，可把首级改为 10。每阶段 2 次升级不含解锁自带的 Lv1。“解锁时期”是快捷选项：第 k 个时期（击败对应 Boss 后）写入上限 5k、首级 5k−4；手填非 5 的倍数时显示为自定义。切换参考配装会把预览角色等级设为该时期上限，并只启用此时已解锁的主动技能。</p>
+ <p class="note">成长方式可逐技能选择：“按阶段成长”沿用公共阶段跨度；“固定等级间隔”从首级角色等级起，每隔指定角色等级新增 1 个技能等级，与公共阶段跨度及每阶段新增数量无关。例如角色 1 级解锁、间隔 10：Lv1→1、Lv2→11、Lv3→21；间隔 7：Lv1→1、Lv2→8、Lv3→15。解锁时期仍用于设置首级门槛与阶段标记。</p>
+ <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>成长方式</th><th>每阶段新增技能等级</th><th>每级角色等级间隔</th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
+ <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
+ <p id="progressionNotice" class="note"></p>
+ <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>普攻倍率</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
+</section>
 </div>
 
 <div id="loadoutPage" class="tabpage" role="tabpanel" aria-labelledby="tabLoadouts" hidden>
@@ -400,9 +405,9 @@ const presets={
  spectre:{stage:18,name:'18 拜月教邪教徒后 · 幽灵法师（四柱参考）',armor:'spectre',slots:6,items:['sorcerer','avenger','celestial']},
  nebula:{stage:19,name:'19 月亮领主后 · 星云法师（三种强化各 3 层）',armor:'nebula',slots:6,items:['sorcerer','avenger','celestial']}};
 const clone=x=>JSON.parse(JSON.stringify(x));
-const newSkill=(id,name)=>({id,name,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
+const newSkill=(id,name)=>({id,name,growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
-function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1};}
+function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1};}
 function basicRows(s){return s.basicAttacks;}
 function selectedBasic(s){const rows=basicRows(s);return rows.find(row=>row.id===s.selectedBasicAttackId)||rows[0];}
 // Same rule as SkillBalanceConfig.GetDpsRatio: linear between points, endpoints clamp, empty curve = fixed ratio.
@@ -443,6 +448,11 @@ function basicBudget(s,row=selectedBasic(s)){
  const level=dpsLevel(s.baseDps),ratio=basicRatio(row,level),dps=s.baseDps*ratio,total=dps*row.interval;
  return {dps,total,perShot:total/row.shots,manaPerSecond:row.cost/row.interval,ratio,level};
 }
+// New growth fields are optional for old v2 files; explicit invalid values are rejected.
+function validGrowth(row){
+ return (row.growthMode===undefined||['phase','interval'].includes(row.growthMode))&&
+  (row.levelInterval===undefined||(Number.isInteger(row.levelInterval)&&row.levelInterval>=1&&row.levelInterval<=1000));
+}
 function validBasics(s){
  const rows=s.basicAttacks;
  if(!Array.isArray(rows)||rows.length<1||rows.length>32)return false;
@@ -452,7 +462,7 @@ function validBasics(s){
   ids.add(r.id);
   for(const [k,lo,hi] of [['ratio',0,5],['cost',0,10000],['interval',.05,10],['shots',1,100],['unlockStageCap',1,1000],['unlockLevel',1,1000],['levelsPerPhase',1,10]])if(typeof r[k]!=='number'||!Number.isFinite(r[k])||r[k]<lo||r[k]>hi)return false;
   if(!Number.isInteger(r.shots)||!Number.isInteger(r.unlockStageCap)||!Number.isInteger(r.unlockLevel)||!Number.isInteger(r.levelsPerPhase))return false;
-  if(r.ratioCurve!==undefined&&!validCurve(r.ratioCurve))return false;
+  if(!validGrowth(r)||(r.ratioCurve!==undefined&&!validCurve(r.ratioCurve)))return false;
  }
  return ids.has(s.selectedBasicAttackId)&&Array.isArray(s.skills)&&s.skills.every(r=>r&&!ids.has(r.id));
 }
@@ -500,6 +510,11 @@ function dpsLevel(dps){
  return 5*(stageDps.length-1);
 }
 function progressionNodes(row,phaseSize=5,limit=1000){
+ if(row.growthMode==='interval'){
+  const nodes=[],interval=row.levelInterval??5;
+  for(let level=row.unlockLevel;level<=limit;level+=interval)nodes.push(level);
+  return nodes;
+ }
  const nodes=[row.unlockLevel];let start=row.unlockLevel,end=row.unlockStageCap;
  if(end<=start)end+=Math.ceil((start-end+1)/phaseSize)*phaseSize;
  while(start<limit){
@@ -536,13 +551,13 @@ function defaults(stage=13){
  const loadouts=loadoutDefaults(),l=loadouts[stage-1];
  const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map(item=>({id:sideItem(item.id,side),prefix:side==='e'?item.prefix:item.vPrefix}))});
  return {version:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'IceShardLockSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,cd:25,cdRatio:1,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,cd:25,cdRatio:1,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,cd:75,cdRatio:1,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
- {unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,cd:90,cdRatio:1,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}],loadouts};
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'IceShardLockSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,cd:25,cdRatio:1,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,cd:25,cdRatio:1,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,cd:75,cdRatio:1,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
+ {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,cd:90,cdRatio:1,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}],loadouts};
 }
 function gear(s,side){
  const g=s[side],a=armors[g.armor]||armors.none;
@@ -587,7 +602,7 @@ function calculate(s){
 function skillDamageBudget(s,skill,result=calculate(s)){
  return s.baseDps*(s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
 }
-return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
+return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
 })();
 if(typeof module!=='undefined')module.exports=Balance;
 </script>
@@ -812,6 +827,11 @@ function normalizeProgression(value){
  for(const row of (Array.isArray(value.skills)?value.skills:[]))if(row&&typeof row==='object')delete row.realization;
  for(const row of (Array.isArray(value.basicAttacks)?value.basicAttacks:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=row.id==='IceConeSkill'?10:5;if(!('unlockLevel' in row))row.unlockLevel=row.id==='IceConeSkill'?6:1;if(row.levelsPerPhase==null)row.levelsPerPhase=2;if(row.ratioCurve==null)row.ratioCurve=[];}
  for(const row of (Array.isArray(value.skills)?value.skills:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=5;if(!('unlockLevel' in row))row.unlockLevel=1;if(row.levelsPerPhase==null)row.levelsPerPhase=1;if(row.cdRatio==null)row.cdRatio=1;}
+ for(const row of [...(Array.isArray(value.basicAttacks)?value.basicAttacks:[]),...(Array.isArray(value.skills)?value.skills:[])]){
+  if(!row||typeof row!=='object')continue;
+  if(!Object.hasOwn(row,'growthMode'))row.growthMode='phase';
+  if(!Object.hasOwn(row,'levelInterval'))row.levelInterval=5;
+ }
  return value;
 }
 function validSaved(x){
@@ -828,7 +848,7 @@ function validSaved(x){
  for(const [key,[min,max]] of Object.entries(bounds))if(typeof c[key]!=='number'||!Number.isFinite(c[key])||c[key]<min||c[key]>max)return false;
  if(!Number.isInteger(c.potions)||!['mod','manual'].includes(c.regenMode)||!['flow','save','efficiency'].includes(c.policy)||!['uniform','periodic','events'].includes(c.hurtMode)||typeof c.hurtEvents!=='string'||c.hurtEvents.length>5000)return false;
  const skillBounds={unlockStageCap:[1,1000],unlockLevel:[1,1000],levelsPerPhase:[1,10],shots:[1,100],cd:[.1,600],cdRatio:[0,1],cast:[0,60],delay:[0,120],duration:[0,120],maxCharges:[1,99],initialCharges:[0,99],first:[0,600],priority:[1,99],hit:[0,100]};
- if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&Number.isInteger(r.priority)))return false;
+ if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Balance.validGrowth(r)&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&Number.isInteger(r.priority)))return false;
  if(typeof x.skillStats!=='boolean')return false;
  for(const side of ['v','e']){const g=x[side];if(!g||!g.nebula||!['damage','mana','life'].every(k=>Number.isInteger(g.nebula[k])&&g.nebula[k]>=0&&g.nebula[k]<=3)||!Object.hasOwn(Balance.armors,g.armor)||!Array.isArray(g.items)||g.items.length!==7)return false;if(!['damage','crit','proc'].every(k=>typeof g[k]==='number'&&Number.isFinite(g[k]))||g.damage< -90||g.damage>1000||g.crit< -100||g.crit>100||g.proc<0||g.proc>1000000)return false;if(!g.items.every(r=>r&&Object.hasOwn(Balance.accessories,r.id)&&Object.hasOwn(Balance.prefixes,r.prefix)))return false;}
  return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=100&&r.cdRatio>=0&&r.cdRatio<=1);
@@ -1043,13 +1063,20 @@ function progressionRows(){
  $('progressionDetailSkill').innerHTML=rows.map(({row})=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join('');
  if(rows.some(x=>x.row.id===previous))$('progressionDetailSkill').value=previous;
  const periodOptions=`<option value="0" disabled>自定义（见右侧数值）</option>`+Balance.periods.map(p=>`<option value="${p.stage}">${p.label} · ${p.level}–${p.cap} 级</option>`).join('');
- $('progressionRows').innerHTML=rows.map(({row,index,kind})=>`<tr><td>${kind}</td><td>${escapeHtml(row.name)}<small class="mutedid">${escapeHtml(row.id)}</small></td><td><select aria-label="${escapeHtml(row.name)}解锁时期" data-progression-kind="${kind==='普攻'?'basic':'active'}" data-progression-index="${index}" data-progression-period>${periodOptions}</select></td>${[['unlockStageCap','解锁阶段上限',1000],['unlockLevel','首级角色等级',1000],['levelsPerPhase','每阶段新增技能等级',10]].map(([key,label,max])=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="1" max="${max}" step="1" value="${row[key]}" data-progression-kind="${kind==='普攻'?'basic':'active'}" data-progression-index="${index}" data-progression-field="${key}"></td>`).join('')}<td data-progression-nodes></td><td data-progression-cap></td></tr>`).join('');
+ $('progressionRows').innerHTML=rows.map(({row,index,kind})=>{
+  const attrs=`data-progression-kind="${kind==='普攻'?'basic':'active'}" data-progression-index="${index}"`;
+  const numberField=(key,label,max)=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="1" max="${max}" step="1" value="${row[key]}" ${attrs} data-progression-field="${key}"></td>`;
+  return `<tr><td>${kind}</td><td>${escapeHtml(row.name)}<small class="mutedid">${escapeHtml(row.id)}</small></td><td><select aria-label="${escapeHtml(row.name)}解锁时期" ${attrs} data-progression-period>${periodOptions}</select></td>${numberField('unlockStageCap','解锁阶段上限',1000)}${numberField('unlockLevel','首级角色等级',1000)}<td><select aria-label="${escapeHtml(row.name)}成长方式" ${attrs} data-progression-mode><option value="phase">按阶段成长</option><option value="interval">固定等级间隔</option></select></td>${numberField('levelsPerPhase','每阶段新增技能等级',10)}${numberField('levelInterval','每级角色等级间隔',1000)}<td data-progression-nodes></td><td data-progression-cap></td></tr>`;
+ }).join('');
  updateProgression();
 }
 function updateProgression(){
  const rows=[...s.basicAttacks,...s.skills];
  $('progressionRows').querySelectorAll('tr').forEach((tr,i)=>{const row=rows[i],nodes=Balance.progressionNodes(row,s.progression.phaseSize),cap=Balance.skillLevelAt(row,s.progression.previewLevel,s.progression.phaseSize);
   tr.querySelector('[data-progression-period]').value=String(Balance.periodOf(row));
+  tr.querySelector('[data-progression-mode]').value=row.growthMode;
+  tr.querySelector('[data-progression-field="levelsPerPhase"]').disabled=row.growthMode==='interval';
+  tr.querySelector('[data-progression-field="levelInterval"]').disabled=row.growthMode!=='interval';
   tr.querySelector('[data-progression-nodes]').textContent=nodes.slice(0,8).map((n,i)=>`Lv${i+1}→${n}`).join('、');
   tr.querySelector('[data-progression-cap]').textContent=cap?`Lv${cap}（角色 ${s.progression.previewLevel}）`:'角色等级未达标';
  });
@@ -1059,13 +1086,13 @@ function updateProgression(){
  $('progressionDetailRows').innerHTML=nodes.slice(0,20).map((level,i)=>{const r=Balance.progressionBudget(s,row,level),change=previous&&previous.total>0?(r.total/previous.total-1)*100:null,flat=previous&&r.integerHit===previous.integerHit;previous=r;
   return `<tr><td>Lv${i+1}${i+1<=cap?' · 可达':''}</td><td>${level}</td><td>${fmt(r.baseline,2)}</td><td>${r.ratio===null?'—':fmt(r.ratio,3)}</td><td>${fmt(r.dps,2)}</td><td>${fmt(r.total,2)}</td><td>${fmt(r.perShot,2)}</td><td>${r.integerHit}${flat?' · 未增长':''}</td><td>${change===null?'—':'+'+fmt(change,1)+'%'}</td></tr>`;
  }).join('');
- $('progressionNotice').textContent=`${row.name}：解锁阶段角色上限 ${row.unlockStageCap}，首级对应角色 ${row.unlockLevel}；每阶段最多新增 ${row.levelsPerPhase} 级（不含解锁所得 Lv1）。相同角色门槛不重复计级。展示前 20 级；基准取本地 KL 等级曲线，95 级后曲线封顶。保存配置后，游戏按技能实际等级映射对应角色等级读取 B，角色实际等级仅限制可升级上限；解锁阶段标记不能代替 Boss 解锁条件。此预览不改变上方当前 B。`;
+ $('progressionNotice').textContent=`${row.name}：解锁阶段角色上限 ${row.unlockStageCap}，首级对应角色 ${row.unlockLevel}；${row.growthMode==='interval'?`固定等级间隔：从首级起每 ${row.levelInterval} 个角色等级新增 1 级`:`按阶段成长：每阶段最多新增 ${row.levelsPerPhase} 级`}（不含解锁所得 Lv1）。相同角色门槛不重复计级。展示前 20 级；基准取本地 KL 等级曲线，95 级后曲线封顶。保存配置后，游戏按技能实际等级映射对应角色等级读取 B，角色实际等级仅限制可升级上限；解锁阶段标记不能代替 Boss 解锁条件。此预览不改变实验室当前 B。`;
 }
 $('progressionDetailSkill').addEventListener('change',updateProgression);
 $('progressionPhaseSize').addEventListener('input',()=>{if($('progressionPhaseSize').value==='')return;s.progression.phaseSize=Math.floor(Balance.clamp($('progressionPhaseSize').value,1,20));update();});
 $('progressionPreviewLevel').addEventListener('input',()=>{if($('progressionPreviewLevel').value==='')return;s.progression.previewLevel=Math.floor(Balance.clamp($('progressionPreviewLevel').value,1,1000));update();});
 $('progressionRows').addEventListener('input',event=>{const el=event.target;if(!el.matches('[data-progression-field]')||el.value==='')return;const list=el.dataset.progressionKind==='basic'?s.basicAttacks:s.skills,row=list[+el.dataset.progressionIndex];row[el.dataset.progressionField]=Math.floor(Balance.clamp(el.value,+el.min,+el.max));update();});
-$('progressionRows').addEventListener('change',event=>{const el=event.target;if(!el.matches('[data-progression-period]'))return;const list=el.dataset.progressionKind==='basic'?s.basicAttacks:s.skills,row=list[+el.dataset.progressionIndex];if(!Balance.setPeriod(row,+el.value))return;
+$('progressionRows').addEventListener('change',event=>{const el=event.target;if(!el.matches('[data-progression-period],[data-progression-mode]'))return;const list=el.dataset.progressionKind==='basic'?s.basicAttacks:s.skills,row=list[+el.dataset.progressionIndex];if(el.matches('[data-progression-mode]')){row.growthMode=el.value;update();return;}if(!Balance.setPeriod(row,+el.value))return;
  const tr=el.closest('tr');for(const field of ['unlockStageCap','unlockLevel'])tr.querySelector(`[data-progression-field="${field}"]`).value=row[field];update();});
 function save(){try{localStorage.setItem(key,JSON.stringify(s));}catch(_){$('status').textContent='浏览器未允许记住页面参数；请使用“保存到模组”保留配置。';}}
 function slots(){for(const side of ['v','e']){
@@ -1142,8 +1169,9 @@ function showTab(name,focus=true){
   tab.setAttribute('aria-selected',String(on));tab.tabIndex=on?0:-1;$(tab.getAttribute('aria-controls')).hidden=!on;
   if(on&&focus)tab.focus();
  }
+ window.scrollTo({top:0,behavior:'instant'});
  if(name==='lab'&&latestCombat){drawTimeline();updateBasicResults();}
- try{history.replaceState(null,'',name==='lab'?location.pathname+location.search:'#loadouts');}catch(_){}
+ try{history.replaceState(null,'',location.pathname+location.search+(name==='lab'?'':'#'+name));}catch(_){}
 }
 for(const tab of document.querySelectorAll('[data-tab]')){
  tab.addEventListener('click',()=>showTab(tab.dataset.tab,false));
@@ -1325,7 +1353,7 @@ document.addEventListener('keydown',event=>{if((modConnected||isFilePage)&&(even
 if(location.protocol==='http:')loadMod(true);
 $('sourcePath').textContent='装备核验文件：C:/Users/korateleng/Downloads/tML 2025.06源码与ExampleMod/tModLoader/Terraria/Player.cs（护甲约 10819–11456 行；饰品约 12205–12660 行；前缀 GrantPrefixBenefits）。';
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{drawTimeline();updateBasicResults();},100);});
-showTab(location.hash==='#loadouts'?'loadouts':'lab',false);sync();
+showTab(location.hash==='#progression'?'progression':location.hash==='#loadouts'?'loadouts':'lab',false);sync();
 })();
 </script>
 </body></html>

@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
 using KL.SkillSystem;
@@ -36,15 +37,12 @@ public class MultiMissileSkill : ElainaSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<MagicMissileSkill>(5));
 
-    // 法球发射的是普通魔力飞弹，增伤按飞弹的伤害类结算
-    protected override DamageClass BalanceDamageClass => ModContent.GetInstance<ElainaBasicDamage>();
-
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单枚法球伤害
         int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
         int next = GetConfiguredDamage(skillLevel: nextLevel);
-        return [("伤害", current.ToString(), next.ToString(), "")];
+        return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
     public override void Initialize()

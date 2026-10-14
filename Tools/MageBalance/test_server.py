@@ -34,6 +34,33 @@ class BasicDesignTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.validate_payload(self.payload)
 
+    def test_growth_modes_round_trip_and_legacy_defaults(self):
+        for category, interval in [("basicAttacks", 10), ("skills", 7)]:
+            row = self.c[category][0]
+            row["growthMode"] = "interval"
+            row["levelInterval"] = interval
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "balance.json"
+            server.atomic_save(path, self.payload)
+            restored = json.loads(path.read_text(encoding="utf-8"))["configuration"]
+        self.assertEqual(restored["basicAttacks"][0]["levelInterval"], 10)
+        self.assertEqual(restored["skills"][0]["growthMode"], "interval")
+        for row in self.c["basicAttacks"] + self.c["skills"]:
+            row.pop("growthMode", None)
+            row.pop("levelInterval", None)
+        server.validate_payload(self.payload)
+
+    def test_growth_fields_reject_invalid_values_for_both_categories(self):
+        for category in ["basicAttacks", "skills"]:
+            for field, values in [("growthMode", ["unknown", "", None, 1, True, {}]),
+                                  ("levelInterval", [0, -1, 1.5, 1001, "7", None, True])]:
+                for value in values:
+                    payload = copy.deepcopy(self.payload)
+                    payload["configuration"][category][0][field] = value
+                    with self.subTest(category=category, field=field, value=value):
+                        with self.assertRaises(ValueError):
+                            server.validate_payload(payload)
+
     def test_reject_invalid_shots(self):
         for value in [0, 1.5, 101, True, "3"]:
             with self.subTest(value=value):
