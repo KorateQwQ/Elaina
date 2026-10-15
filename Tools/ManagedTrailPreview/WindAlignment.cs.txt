@@ -1,0 +1,35 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    void DrawWindAlignmentFrames()
+    {
+        var draw = replay.GetType("Preview.BlendChecks").GetMethod("DrawWindLayer");
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        void Render(int layer, int age, float rotation, bool bloom, string name, bool night = false) {
+            Color background = night ? new Color(10,16,25) : new Color(79,160,161);
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(background);
+            draw.Invoke(null, new object[] { layer, age, rotation, bloom });
+            GraphicsDevice.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(output, name + ".png")); target.SaveAsPng(file, Width, Height);
+            var pixels = new Color[Width*Height]; target.GetData(pixels);
+            int darkened = pixels.Count(p => p.R+2 < background.R || p.G+2 < background.G || p.B+2 < background.B);
+            if (darkened != 0) throw new Exception(name + $": grayscale mask darkened {darkened} background pixels");
+        }
+        for (int layer = 1; layer <= 3; layer++) Render(layer, 30, MathHelper.Pi, false, $"layer-{layer}");
+        foreach (int age in new[] { 5, 10, 30 }) {
+            Render(0, age, MathHelper.Pi, true, $"combined-{age:00}-left");
+            Render(0, age, 0, true, $"combined-{age:00}-right");
+            Render(0, age, MathHelper.PiOver4, true, $"combined-{age:00}-diagonal");
+            Render(0, age, -MathHelper.PiOver2, true, $"combined-{age:00}-up");
+        }
+        Render(0, 30, MathHelper.Pi, true, "combined-30-night", true);
+        Console.WriteLine("PASS shader ellipse centers/radii and mesh tip/front contour agree at all sampled ages and directions");
+        Console.WriteLine("PASS grayscale mask: no dark fringe on separated layers or composites; NonPremultiplied preserved");
+        Console.WriteLine("Rendered actual WindSlash layers and composites at ages 5/10/30, four directions and day/night backgrounds. Uses the current source blend settings.");
+    }
+}

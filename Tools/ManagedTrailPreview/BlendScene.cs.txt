@@ -1,0 +1,137 @@
+namespace KL.Drawing {
+    public static class PreviewEffectExtensions {
+        public static float ToRotation(this Vector2 v) => MathF.Atan2(v.Y, v.X);
+        public static void SetValue(this Effect e, string name, float value) => e.Parameters[name].SetValue(value);
+        public static void SetValue(this Effect e, string name, bool value) => e.Parameters[name].SetValue(value);
+        public static void SetValue(this Effect e, string name, Vector2 value) => e.Parameters[name].SetValue(value);
+        public static void SetValue(this Effect e, string name, Vector4 value) => e.Parameters[name].SetValue(value);
+        public static void SetTexture(this Effect e, int slot, Texture2D value) => Main.graphics.GraphicsDevice.Textures[slot] = value;
+        public static void Apply(this Effect e) {
+            WindContourChecks.CurrentEffect = e;
+            e.CurrentTechnique.Passes[0].Apply();
+        }
+    }
+    public static partial class DrawHelper {
+        public static void DrawInWorld(Texture2D texture, Vector2 position, Color color, Vector2 scale, float rotation) {
+            WindContourChecks.RecordSprite(texture, position, scale, rotation);
+            Main.spriteBatch.Draw(texture, position-Main.screenPosition, null, color, rotation,
+                new Vector2(texture.Width, texture.Height)*.5f, scale, SpriteEffects.None, 0);
+        }
+    }
+}
+namespace Preview {
+    public partial class WindSlash : KLProjectile {
+        public static int PreviewLayer;
+        public WindSlash(Effect crescent, Effect arc, Texture2D[] textures) {
+            crescentFan = crescent; arcFlame = arc;
+            fadeTexture = textures[0]; arcMaterial = textures[1]; arcNoise = textures[2];
+            windTexture = textures[3]; windNoiseTexture = textures[4];
+            Projectile.Center = new Vector2(560, 320); Projectile.localAI[0] = 30;
+            OnSpawn_AllClient();
+        }
+        public void DrawOnly() => DrawWind();
+    }
+    public static class BlendChecks {
+        public static int WindCalls;
+        static WindSlash wind;
+        static Texture2D trail, patch;
+        static readonly DrawSystem renderer = new();
+        public static void DrawWindLayer(int layer, int age, float rotation, bool bloom) {
+            WindContourChecks.Reset(layer == 0);
+            WindSlash.PreviewLayer = layer;
+            wind.Projectile.localAI[0] = age;
+            wind.Projectile.Center = new Vector2(480, 320);
+            wind.Projectile.velocity = Vector2.UnitX.RotatedBy(rotation);
+            wind.Projectile.rotation = rotation;
+            Main.GameUpdateCount = (ulong)age; Main.timeForVisualEffects = age;
+            LayerDrawRequestSystem.ClearFrame(); DrawSystem.SetBloomInfo(1, 5, shouldBloom: bloom);
+            Main.spriteBatch.Begin();
+            Color color = Color.White; wind.PreDraw(ref color);
+            Main.spriteBatch.End(); renderer.RunBloom();
+            if (layer == 0) WindContourChecks.Validate();
+            WindContourChecks.Reset(false);
+            WindSlash.PreviewLayer = 0;
+        }
+        public static void Setup(Effect crescent, Effect arc, Texture2D[] textures) {
+            wind = new WindSlash(crescent, arc, textures); trail = textures[5];
+            patch = new Texture2D(Main.instance.GraphicsDevice, 1, 1, false, SurfaceFormat.Vector4);
+        }
+        static void Trail(int count) {
+            var method = typeof(MagicMissile).GetMethod("DrawManagedTrail", System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);
+            for (int j = 0; j < count; j++) {
+                Vector2[] points = Enumerable.Range(0, 24).Select(i => new Vector2(820-i*25, 320 + MathF.Sin(i*.2f)*12+j)).ToArray();
+                Checks.ClearObservations();
+                method.Invoke(null, new object[] { trail, points, 1f });
+            }
+        }
+        static void Patch(int blend, Vector4 value, Rectangle rectangle) {
+            EndBeginDraw(blend, 1, false); patch.SetData(new[] { value });
+            Main.spriteBatch.Draw(patch, rectangle, Color.White);
+        }
+        public static void Draw(string kind, bool enabled, float strength) {
+            Main.GameUpdateCount = 35; Main.timeForVisualEffects = 35;
+            LayerDrawRequestSystem.ClearFrame(); DrawSystem.SetBloomInfo(strength, 5, shouldBloom: enabled);
+            WindCalls = 0;
+            if (kind == "wind-predraw") {
+                Main.spriteBatch.Begin();
+                Color color = Color.White; wind.PreDraw(ref color);
+                Main.spriteBatch.End();
+                renderer.RunBloom();
+                if (WindCalls != 1) throw new Exception("Wind PreDraw rendered the complete visual more than once");
+                return;
+            }
+            Action visual = () => {
+                switch (kind) {
+                    case "trail": Trail(1); break;
+                    case "overlap": Trail(4); break;
+                    case "wind": wind.DrawOnly(); break;
+                    case "mixed":
+                        Patch(1, new Vector4(.3f,.15f,.3f,.6f), new Rectangle(300,250,220,100));
+                        Patch(2, new Vector4(.7f,.25f,.6f,.4f), new Rectangle(400,290,220,100));
+                        Patch(1, new Vector4(.1f,.15f,.05f,.3f), new Rectangle(450,310,100,70));
+                        break;
+                    case "opaque": Patch(2, new Vector4(.03f,.02f,.04f,1), new Rectangle(350,250,260,140)); break;
+                }
+            };
+            LayerDrawRequestSystem.RequestBloom(kind, LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After, visual);
+            renderer.RunBloom();
+        }
+    }
+
+    public static class WindContourChecks {
+        public static Effect CurrentEffect;
+        static bool enabled;
+        static readonly List<(Vector2 Center, Vector2 Radii, float Rotation)> arcs = new();
+        static readonly List<(Vector2[] Points, Vector2 Center, float Rotation)> meshes = new();
+        public static void Reset(bool active) { enabled = active; arcs.Clear(); meshes.Clear(); }
+        public static void RecordSprite(Texture2D texture, Vector2 position, Vector2 scale, float rotation) {
+            if (!enabled) return;
+            Vector2 size = new Vector2(texture.Width, texture.Height) * scale;
+            bool crescent = CurrentEffect.Parameters["InnerRadius"] != null;
+            float radius = CurrentEffect.Parameters["OuterRadius"].GetValueSingle();
+            float radiusY = CurrentEffect.Parameters["OuterRadiusY"].GetValueSingle();
+            Vector2 center = position;
+            if (!crescent) center += ((CurrentEffect.Parameters["ArcCenter"].GetValueVector2() - new Vector2(.5f)) * size).RotatedBy(rotation);
+            arcs.Add((center, new Vector2(crescent ? radius : radiusY, crescent ? radiusY : radius) * size, rotation));
+        }
+        public static void RecordMesh(Vector2[] points, Vector2 center, float rotation) {
+            if (enabled) meshes.Add((points, center, rotation));
+        }
+        public static void Validate() {
+            if (arcs.Count != 2 || meshes.Count != 2) throw new Exception("Expected two shader arcs and two wind meshes");
+            var a = arcs[0]; var b = arcs[1]; var mesh = meshes[0];
+            float centerError = Math.Max(Vector2.Distance(a.Center,b.Center),Vector2.Distance(a.Center,mesh.Center));
+            float radiusError = Vector2.Distance(a.Radii,b.Radii);
+            float tipError = Vector2.Distance(a.Center + new Vector2(a.Radii.X,0).RotatedBy(a.Rotation),
+                mesh.Center + mesh.Points[0].RotatedBy(mesh.Rotation));
+            float maxCurveError = 0;
+            foreach (Vector2 p in mesh.Points.Where(p => p.X >= 0)) {
+                Vector2 q = p/a.Radii;
+                maxCurveError = Math.Max(maxCurveError,Math.Abs(q.LengthSquared()-1));
+            }
+            if (centerError > .001f || radiusError > .001f || tipError > .001f || maxCurveError > .0005f ||
+                Math.Abs(a.Rotation-b.Rotation) > .0001f || Math.Abs(a.Rotation-mesh.Rotation) > .0001f)
+                throw new Exception($"Wind contour mismatch: center={centerError}, radii={radiusError}, tip={tipError}, ellipse={maxCurveError}");
+        }
+    }
+}

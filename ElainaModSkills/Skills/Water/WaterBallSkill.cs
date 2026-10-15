@@ -9,6 +9,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 [SkillUIInfo(State = 12, Pixels = 400)]
 public class WaterBallSkill: ElainaSkill
 {
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage()];
     public override void Initialize()
     {
         base.Initialize();

@@ -1,0 +1,226 @@
+global using System;
+global using System.Linq;
+global using System.Collections.Generic;
+global using System.Reflection;
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using Terraria;
+global using Terraria.ModLoader;
+global using KL.Drawing;
+global using KL.Projectiles;
+global using Preview;
+global using static KL.Drawing.DrawHelper;
+
+namespace Terraria.ModLoader {
+    public class ModSystem {
+        public virtual void PostUpdateProjectiles() {} public virtual void OnWorldUnload() {} public virtual void Unload() {}
+    }
+    public class ModProjectile {
+        public Projectile Projectile = new();
+        public virtual bool PreDraw(ref Color color) => false;
+        public virtual void OnKill(int timeLeft) {}
+        public virtual void DrawBehind(int index, List<int> a, List<int> b, List<int> c, List<int> d, List<int> e) {}
+    }
+}
+namespace Terraria {
+    public class Projectile { public Vector2 Center, velocity = Vector2.UnitX; public float rotation; public float[] localAI = new float[2]; }
+    public enum LightMode { Color, Retro, Trippy }
+    public static class Lighting { public static LightMode Mode = LightMode.Color; }
+    public class Player { public bool active; }
+    public class ViewContext { public Matrix TransformationMatrix = Matrix.Identity, ZoomMatrix = Matrix.Identity; }
+    public class Main {
+        public static Main instance, graphics;
+        public GraphicsDevice GraphicsDevice;
+        public static SpriteBatch spriteBatch;
+        public static bool dedServ, gamePaused;
+        public static int WaveQuality = 1, screenWidth = 960, screenHeight = 640;
+        public static ulong GameUpdateCount;
+        public static double timeForVisualEffects;
+        public static Vector2 screenPosition;
+        public static Matrix Transform = Matrix.Identity;
+        public static ViewContext GameViewMatrix = new();
+        public static Player LocalPlayer = new();
+        public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+        public List<int> DrawCacheProjsBehindNPCsAndTiles = new(), DrawCacheProjsBehindNPCs = new(),
+            DrawCacheProjsBehindProjectiles = new(), DrawCacheProjsOverPlayers = new(), DrawCacheProjsOverWiresUI = new();
+        public static void NewText(string message, Color color) => throw new Exception(message);
+    }
+    public static class On_Main {
+        public delegate void orig_CacheProjDraws(Main self);
+        public delegate void orig_DrawProjectiles(Main self);
+        public delegate void orig_DrawCachedProjs(Main self, List<int> cache, bool start);
+        public delegate void orig_DrawDust(Main self);
+        public delegate void orig_DrawPlayers_AfterProjectiles(Main self);
+        public delegate void orig_DrawInfernoRings(Main self);
+    }
+}
+namespace KL.Projectiles {
+    public partial class KLProjectile : ModProjectile {
+        public bool CanMoveInTimeStop = true;
+        public int VisualTime => (int)Main.GameUpdateCount;
+        public virtual void OnSpawn_AllClient() {}
+    }
+}
+namespace KL.Drawing {
+    public static class TimeStopManager { public static bool IsRenderingPlayerTarget; }
+    public static class AssetManager {
+        public static Texture2D GetTexture(string path) => Checks.IceTexture;
+    }
+    public static partial class DrawHelper {
+        public static Effect bloom, reColor;
+        public static BlendState AlphaBlendNormal = BlendState.AlphaBlend, ReverseBS = BlendState.AlphaBlend;
+        public static Vector2 RotatedBy(this Vector2 value, double angle) => Vector2.Transform(value, Matrix.CreateRotationZ((float)angle));
+        public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+            Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) =>
+            Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+    }
+    public partial class DrawSystem {
+        static List<int> DrawCacheProjsBehindNPCsAndTiles = new(), DrawCacheProjsBehindNPCs = new(),
+            DrawCacheProjsBehindProjectiles = new(), DrawCacheProjsOverWiresUI = new(), DrawCacheProjsOverPlayers = new(),
+            DrawBloomProj = new(), KLDustList = new(), RadialBlurInfos = new(), RadialWaveWarpList = new();
+        static DrawLayer CurrentDrawLayer;
+        void RenderRadialBlurAndWaterWave() => throw new Exception("Unexpected unrelated postprocessing");
+        public void EmptyBloom() {
+            LayerDrawRequestSystem.RequestBloom("empty", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.After, () => {});
+            RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.After);
+        }
+        public void RunBloom() => RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
+        public void Cache(Action prepare) => On_Main_CacheProjDraws(_ => prepare(), Main.instance);
+        public void DrawLayers(Action preDraw) {
+            On_Main_DrawCachedProjs((_, _, _) => {}, Main.instance, Main.instance.DrawCacheProjsBehindProjectiles, true);
+            On_Main_DrawProjectiles(_ => preDraw(), Main.instance);
+        }
+        public void RunLayer(LayerDrawRequestSystem.DrawTargetLayer layer, Action original) {
+            var main = Main.instance;
+            switch (layer) {
+                case LayerDrawRequestSystem.DrawTargetLayer.Projectiles: On_Main_DrawProjectiles(_ => original(), main); return;
+                case LayerDrawRequestSystem.DrawTargetLayer.Dust: On_Main_DrawDust(_ => original(), main); return;
+                case LayerDrawRequestSystem.DrawTargetLayer.PlayersAfterProjectiles: On_Main_DrawPlayers_AfterProjectiles(_ => original(), main); return;
+                case LayerDrawRequestSystem.DrawTargetLayer.InfernoRings: On_Main_DrawInfernoRings(_ => original(), main); return;
+            }
+            List<int> cache = layer switch {
+                LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles => main.DrawCacheProjsBehindNPCsAndTiles,
+                LayerDrawRequestSystem.DrawTargetLayer.BehindNPCs => main.DrawCacheProjsBehindNPCs,
+                LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles => main.DrawCacheProjsBehindProjectiles,
+                LayerDrawRequestSystem.DrawTargetLayer.OverPlayers => main.DrawCacheProjsOverPlayers,
+                LayerDrawRequestSystem.DrawTargetLayer.OverWiresUI => main.DrawCacheProjsOverWiresUI,
+                _ => throw new ArgumentOutOfRangeException(nameof(layer))
+            };
+            On_Main_DrawCachedProjs((_, _, _) => original(), main, cache, true);
+        }
+    }
+}
+namespace Preview {
+    public static class Checks {
+        public static LayerDrawRequestSystem.DrawTargetLayer TrailLayer = LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles;
+        public static LayerDrawRequestSystem.DrawTiming TrailTiming = LayerDrawRequestSystem.DrawTiming.After;
+        public static Texture2D IceTexture;
+        static Texture2D marker;
+        static Texture2D missileTexture, spawnerTexture;
+        static bool verbose = true;
+        static KLProjectile[] projectiles;
+        static TrailManager manager = new();
+        static DrawSystem renderer = new();
+        static readonly List<string> events = new();
+        static readonly Dictionary<string, (Vector2[] Points, float Ratio)> drawn = new();
+        static readonly Dictionary<string, float> fullLengths = new();
+        static float Length(Vector2[] points) => points.Zip(points.Skip(1)).Sum(p => Vector2.Distance(p.First, p.Second));
+        static void Require(bool value, string message) { if (!value) throw new Exception(message); }
+        public static void Setup(GraphicsDevice device, SpriteBatch batch, Texture2D ice, Texture2D missile, Texture2D spawner) {
+            Main.instance = Main.graphics = new Main { GraphicsDevice = device }; Main.spriteBatch = batch;
+            IceTexture = ice; missileTexture = missile; spawnerTexture = spawner;
+            marker = new Texture2D(device, 1, 1); marker.SetData(new[] { Color.White });
+            projectiles = [new IceConeProj(ice), new MagicMissile(missile), new MagicMissleSpawner(spawner)];
+        }
+        static void Prepare(KLProjectile p) => p.DrawBehind(0, new(), new(), new(), new(), new());
+        public static void EmptyBloom() => renderer.EmptyBloom();
+        public static void ClearObservations() => drawn.Clear();
+        public static void Observe(string name, Vector2[] points, float ratio) {
+            Require(!drawn.ContainsKey(name), name + " drawn twice");
+            drawn.Add(name, ((Vector2[])points.Clone(), ratio)); events.Add(name + ":trail");
+        }
+        public static void Body(string name, Vector2 center) {
+            events.Add(name + ":body");
+            Main.spriteBatch.End();
+            Main.spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend);
+            Main.spriteBatch.Draw(marker, new Rectangle((int)center.X - 120, (int)center.Y - 14, 145, 28), new Color(210, 220, 230));
+        }
+        public static void Frame(int frame, bool alive) {
+            events.Clear(); drawn.Clear(); Main.GameUpdateCount = (ulong)frame;
+            manager.PostUpdateProjectiles();
+            if (alive) {
+                for (int i = 0; i < projectiles.Length; i++) {
+                    projectiles[i].Projectile.Center = new Vector2(260 + frame * 40, 130 + i * 190 + MathF.Sin(frame * .3f) * 20);
+                    projectiles[i].Projectile.rotation = 0;
+                }
+            }
+            renderer.Cache(() => { if (alive) foreach (var p in projectiles) Prepare(p); });
+            var snapshots = projectiles.Select(p => p.OldCenter.ToArray()).ToArray();
+            renderer.DrawLayers(() => {
+                if (alive) foreach (var p in projectiles) { Color color = Color.White; p.PreDraw(ref color); }
+            });
+            for (int i = 0; i < projectiles.Length; i++) {
+                var p = projectiles[i]; string name = p.GetType().Name;
+                Require(p.OldCenter.SequenceEqual(snapshots[i]), name + " was sampled again in PreDraw");
+                if (frame == 0 || frame >= 22) { Require(!drawn.ContainsKey(name), name + " unexpected empty/expired trail"); continue; }
+                Require(drawn.TryGetValue(name, out var entry), name + " trail missed its target layer");
+                if (alive) {
+                    Require(entry.Points[0] == p.Projectile.Center, name + " trail head is one frame behind");
+                    Require(entry.Ratio == 1f && entry.Points.SequenceEqual(p.OldCenter), name + " live trail was shortened");
+                    if (TrailLayer != LayerDrawRequestSystem.DrawTargetLayer.Projectiles || TrailTiming == LayerDrawRequestSystem.DrawTiming.Before)
+                        Require(events.IndexOf(name + ":trail") < events.IndexOf(name + ":body"), name + " body rendered before trail");
+                    fullLengths[name] = Length(entry.Points);
+                } else {
+                    float ratio = (22 - frame) / 10f;
+                    Require(Math.Abs(entry.Ratio - ratio) < .0001f, name + " decay lifetime mismatch");
+                    Require(Math.Abs(Length(entry.Points) - fullLengths[name] * ratio) < .01f, name + " path did not shrink correctly");
+                }
+            }
+            if (verbose) Console.WriteLine($"frame {frame:00} alive={alive}: {string.Join(", ", drawn.Select(p => p.Key + "=" + p.Value.Ratio.ToString("0.0")))}");
+        }
+        public static void Reset(string layer, bool before, bool bloom) {
+            manager.OnWorldUnload(); LayerDrawRequestSystem.ClearFrame(); fullLengths.Clear();
+            projectiles = [new IceConeProj(IceTexture), new MagicMissile(missileTexture), new MagicMissleSpawner(spawnerTexture)];
+            TrailLayer = Enum.Parse<LayerDrawRequestSystem.DrawTargetLayer>(layer);
+            TrailTiming = before ? LayerDrawRequestSystem.DrawTiming.Before : LayerDrawRequestSystem.DrawTiming.After;
+            DrawSystem.SetBloomInfo(1, 5, shouldBloom: bloom); verbose = false;
+        }
+        public static void CheckAllLayerTimings() {
+            foreach (bool enabled in new[] { false, true })
+            foreach (bool activeBatch in new[] { false, true })
+            foreach (var layer in Enum.GetValues<LayerDrawRequestSystem.DrawTargetLayer>()) {
+                LayerDrawRequestSystem.ClearFrame(); var sequence = new List<string>();
+                DrawSystem.SetBloomInfo(1, 5, shouldBloom: enabled);
+                foreach (var timing in Enum.GetValues<LayerDrawRequestSystem.DrawTiming>()) {
+                    var selected = timing;
+                    LayerDrawRequestSystem.Request("plain", layer, timing, () => sequence.Add(selected + ":plain"));
+                    LayerDrawRequestSystem.RequestBloom("bloom", layer, timing, () => sequence.Add(selected + ":bloom"));
+                }
+                if (activeBatch) Main.spriteBatch.Begin();
+                renderer.RunLayer(layer, () => sequence.Add("original"));
+                if (activeBatch) Main.spriteBatch.End();
+                Require(sequence.SequenceEqual(new[] { "Before:plain", "Before:bloom", "original", "After:plain", "After:bloom" }),
+                    layer + " missed/reordered a timing: " + string.Join(",", sequence));
+            }
+            Console.WriteLine("PASS all nine layers: Before/After, bloom on/off, active/inactive SpriteBatch; each callback once");
+        }
+        public static void CheckSamplingGates() {
+            foreach (var p in projectiles) {
+                var points = p.OldCenter.ToArray(); var center = p.Projectile.Center;
+                p.Projectile.Center += new Vector2(100, 50);
+                Main.gamePaused = true; Prepare(p);
+                Require(p.OldCenter.SequenceEqual(points), p.GetType().Name + " sampled while paused");
+                Main.gamePaused = false; p.CanMoveInTimeStop = false; Prepare(p);
+                Require(p.OldCenter.SequenceEqual(points), p.GetType().Name + " sampled during time stop");
+                p.CanMoveInTimeStop = true; p.Projectile.Center = center;
+            }
+            var legacy = new KLProjectile { TrailLength = 3 };
+            Prepare(legacy); Require(legacy.OldCenter == null, "Legacy projectile sampling moved unexpectedly");
+            Color color = Color.White; legacy.PreDraw(ref color);
+            Require(legacy.OldCenter.Length == 1, "Legacy PreDraw sampling no longer works");
+            Console.WriteLine("PASS pause, time-stop and legacy PreDraw sampling");
+        }
+    }
+}

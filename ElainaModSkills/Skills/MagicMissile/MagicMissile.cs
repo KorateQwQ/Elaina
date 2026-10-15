@@ -29,6 +29,7 @@ public class MagicMissile : KLProjectile
     private int count = 0;
     private bool draw = false;
     private TrailManager.TrailHandle managedTrail;
+    protected override bool SampleTrailInDrawBehind => true;
 
     private float scale = 0.5f;
     private float totalAlpha = 0;
@@ -159,6 +160,14 @@ public class MagicMissile : KLProjectile
     public override bool PreDraw(ref Color lightColor)
     {
         base.PreDraw(ref lightColor);
+
+        return false;
+    }
+
+    public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs,
+        List<int> behindProjectiles, List<int> overPlayers, List<int> overWiresUI)
+    {
+        base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
         if (trail != null && OldCenter is { Length: > 1 })
         {
             TrailManager.CreateOrUpdateTrail(
@@ -167,11 +176,12 @@ public class MagicMissile : KLProjectile
                 lifetime: 10,
                 trail,
                 DrawManagedTrail,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                LayerDrawRequestSystem.DrawTiming.Before,
                 bloom: true);
         }
         LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissile", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
-        return false;
     }
 
     private void DrawVisual()
@@ -187,7 +197,7 @@ public class MagicMissile : KLProjectile
 
         int animation = (int)Main.GameUpdateCount;
         TrailEffect(texture, points,
-            new Vector4(new Vector3(1f, 0.5f, 0.9f) * 1.5f, 1f),
+            new Vector4(new Vector3(1f, 0.5f, 0.9f) * 1.5f, 1.0f),
             new Vector4(1f, 0.4f, 0.9f, 0f),
             6f, 2f, startAlpha: 1f, endAlpha: 3f, drawTimes: 1,
             uTime: new Vector2(1f - (animation % 120) / 30f, 0f), blendState: 1);

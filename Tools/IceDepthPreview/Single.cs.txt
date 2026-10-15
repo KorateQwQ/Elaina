@@ -17,6 +17,9 @@ sealed partial class Probe
         var type = tree.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
         var preDraw = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "PreDraw");
         var draw = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawVisual");
+        var request = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawBehind")
+            .DescendantNodes().OfType<ExpressionStatementSyntax>().Single(s => s.Expression is InvocationExpressionSyntax i &&
+                i.Expression.ToString() == "LayerDrawRequestSystem.RequestBloom");
         string source = """
             namespace KL.Drawing {
                 public static class PreviewRotation {
@@ -58,10 +61,22 @@ sealed partial class Probe
                         Color color = SceneLight;
                         cone.PreDraw(ref color);
                         Main.spriteBatch.End();
+                        if (IncludeTrail) {
+                            var trailState = (previewTrail, Vector2.Normalize(Aim), -(float)frame % 1200 / 40);
+                            LayerDrawRequestSystem.RequestBloom("preview-trail", LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+                                LayerDrawRequestSystem.DrawTiming.After, () => DrawManagedTrail(trailState, cone.OldCenter, 1f));
+                            BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles);
+                        }
+                        cone.QueueModel();
                         BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
                     }
             """;
-        source += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax));
+        source += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax f &&
+            !f.Declaration.Variables.Any(v => v.Identifier.Text == "managedTrail") ||
+            m is PropertyDeclarationSyntax p && p.Identifier.Text != "SampleTrailInDrawBehind"));
+        source += "private void QueueModel() {" + request.ToFullString() + "}";
+        source += type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawManagedTrail").ToFullString();
+        source += type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawTrail").ToFullString();
         source += preDraw.ToFullString() + draw.ToFullString() + "}}";
         return source.Replace("ModContent.Request<Effect>(\"伊蕾娜/Effects/Content/ThreeD/IceCone3D\", AssetRequestMode.ImmediateLoad).Value", "previewEffect")
             .Replace("ModContent.Request<Texture2D>(\"KL/Effects/Tex/Noise/4\", AssetRequestMode.ImmediateLoad).Value", "previewNoise")

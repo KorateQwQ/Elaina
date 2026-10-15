@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using KL.DamageSystem;
 using KL.Drawing;
 using KL.Drawing.ThreeD;
 using KL.Dusts;
@@ -18,13 +20,58 @@ public class IceShardLockProj : ElainaBasicProjectile
     private readonly List<VisualUnit> units = new();
 
     private bool initialized;
+    private readonly HashSet<int> damagedEntities = new();
+    private uint targetSpawnSerial;
+    private bool damagePulse;
+    private float damageRadius;
+    private int totalDamage;
+    private bool exploded;
+    private bool targetLost;
 
     private const float SphereRadius = 200f;
     private const float IceConeSpeed = 58f;
 
     private int time = 0;
 
-    private int burstTime => 110;
+    private int burstTime => IceCycleBalance.LockBurstFrame;
+
+    public void BindTarget(NPC target, uint selectedSpawnSerial)
+    {
+        Projectile.ai[0] = target.whoAmI + 1;
+        Projectile.ai[2] = target.type;
+        targetSpawnSerial = selectedSpawnSerial;
+        Projectile.Center = target.Center;
+        Projectile.netUpdate = true;
+    }
+
+    public NPC LockedTarget
+    {
+        get
+        {
+            if (targetLost) return null;
+            int index = (int)Projectile.ai[0] - 1;
+            if (index < 0 || index >= Main.maxNPCs) return null;
+            NPC target = Main.npc[index];
+            if (target is not { active: true, life: > 0 } || target.type != (int)Projectile.ai[2]) return null;
+            uint serial = target.GetGlobalNPC<IceboundNPC>().SpawnSerial;
+            if (targetSpawnSerial == 0 && serial != 0) targetSpawnSerial = serial;
+            return targetSpawnSerial != 0 && serial != 0 && serial != targetSpawnSerial ? null : target;
+        }
+    }
+
+    public override void SendExtraAI(BinaryWriter writer)
+    {
+        writer.Write(targetSpawnSerial);
+        writer.Write(targetLost);
+        base.SendExtraAI(writer);
+    }
+
+    public override void ReceiveExtraAI(BinaryReader reader)
+    {
+        targetSpawnSerial = reader.ReadUInt32();
+        targetLost |= reader.ReadBoolean();
+        base.ReceiveExtraAI(reader);
+    }
     public override void SetDefaults()
     {
         Projectile.width = Projectile.height = 20;
@@ -35,6 +82,9 @@ public class IceShardLockProj : ElainaBasicProjectile
         Projectile.timeLeft = 120;
         Projectile.alpha = 0;
         Projectile.hide = true;
+        Projectile.usesLocalNPCImmunity = true;
+        Projectile.localNPCHitCooldown = -1;
+        InfusionElement = ElementType.Ice;
 
         //ProjectileID.Sets.DrawScreenCheckFluff[Projectile.type] = 5000;
         base.SetDefaults();
@@ -42,17 +92,87 @@ public class IceShardLockProj : ElainaBasicProjectile
 
     public override void AI()
     {
-        time++;
+        NPC target = LockedTarget;
+        if (target == null)
+            LoseTarget();
+
+        time = Math.Max(time, (int)Projectile.ai[1]) + 1;
+        Projectile.ai[1] = time;
+        Projectile.timeLeft = Math.Min(Projectile.timeLeft, Math.Max(1, 120 - time));
+        Vector2 center = target?.Center ?? Projectile.Center;
+        Vector2 delta = center - Projectile.Center;
+        Projectile.Center = center;
+        foreach (VisualUnit visual in units)
+            if (visual is IceCone3DUnit cone) cone.MoveWithTarget(delta);
         InitializeUnits();
+        foreach (VisualUnit visual in units)
+            if (visual is IceCone3DUnit cone) cone.CatchUp(time - 1);
         VisualUnit.UpdateAll(units);
 
-        if (units.Count <= 0 && Projectile.timeLeft < 100)
+        bool hasArrived = false;
+        foreach (VisualUnit visual in units)
         {
-            Projectile.Kill();
+            if (visual is not IceCone3DUnit cone) continue;
+            hasArrived |= cone.HasArrived;
+            if (!cone.ArrivedThisUpdate || time >= burstTime) continue;
+            // 控制跟随动画抵达事件，不依赖能否伤害目标、命中免疫或Debuff免疫。
+            if (target != null) IceboundNPC.HoldGroup(target, Projectile, burstTime - time + 2);
+            ApplyDamagePulse(IceCycleBalance.LockShardDamage(totalDamage, cone.Index, units.Count), IceCycleBalance.LockImpactRadius);
+            if (target != null && (!target.active || target.life <= 0))
+            {
+                LoseTarget();
+                target = null;
+            }
+            if (HasAuthority()) Projectile.netUpdate = true;
         }
 
-        if (time == burstTime)
+        // 晚到的网络状态和新出现的关联部位也加入当前控制，结束由本次施法主动释放。
+        if (target != null && hasArrived && time < burstTime)
+            IceboundNPC.HoldGroup(target, Projectile, burstTime - time + 2);
+
+        if (time >= burstTime && !exploded)
         {
+            exploded = true;
+            ApplyDamagePulse(IceCycleBalance.LockFinalDamage(totalDamage), IceCycleBalance.LockRadius);
+            IceboundNPC.ReleaseGroup(Projectile);
+            if (HasAuthority()) Projectile.netUpdate = true;
+            if (!Main.dedServ) SpawnFinalBurst();
+        }
+        else if (time > burstTime)
+            IceboundNPC.ReleaseGroup(Projectile);
+
+        base.AI();
+    }
+
+    private void LoseTarget()
+    {
+        if (targetLost) return;
+        targetLost = true;
+        Projectile.ai[0] = 0;
+        IceboundNPC.ReleaseGroup(Projectile);
+        // 保留控制器当前位置和所有视觉单元，剩余AOE继续完成，不重新找目标。
+        if (HasAuthority()) Projectile.netUpdate = true;
+    }
+
+    private void ApplyDamagePulse(int damage, float radius)
+    {
+        if (!HasAuthority() || damage <= 0) return;
+        int previousDamage = Projectile.damage;
+        damageRadius = radius;
+        damagedEntities.Clear();
+        Array.Clear(Projectile.localNPCImmunity);
+        Projectile.damage = damage;
+        damagePulse = Projectile.friendly = true;
+        try { Projectile.Damage(); }
+        finally
+        {
+            damagePulse = Projectile.friendly = false;
+            Projectile.damage = previousDamage;
+        }
+    }
+
+    private void SpawnFinalBurst()
+    {
             KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<SmokeDust2>(),30, rotRange:6.28f,
                 velocity: new Vector2(2), lifeTime: 30,startDistance:10,startOffset:80,
                 color: new Color(200, 255, 255, 150), scale: new Vector2(1.5f),velocityOffset:0.5f,scaleOffset:new Vector2(0.5f,0.5f),lifeOffset:15);
@@ -82,10 +202,6 @@ public class IceShardLockProj : ElainaBasicProjectile
             
             KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<GlowDust>(), velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
                 color: new Color(100, 220, 255, 0), scale: new Vector2(3.5f));
-        }
-        
-
-        base.AI();
     }
 
     public override bool ShouldUpdatePosition()
@@ -98,6 +214,22 @@ public class IceShardLockProj : ElainaBasicProjectile
         LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Glow", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
         return false;
+    }
+
+    public override bool? CanDamage() => damagePulse && HasAuthority();
+
+    public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox) =>
+        Vector2.DistanceSquared(targetHitbox.ClosestPointInRect(Projectile.Center), Projectile.Center)
+        <= damageRadius * damageRadius;
+
+    // 共享血池只吃一次；独立血条的 Boss 部件和不同敌人正常受到范围伤害。
+    public override bool? CanHitNPC(NPC target) =>
+        damagedEntities.Contains(target.realLife >= 0 ? target.realLife : target.whoAmI) ? false : null;
+
+    public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
+    {
+        damagedEntities.Add(target.realLife >= 0 ? target.realLife : target.whoAmI);
+        base.OnHitNPC(target, hit, damageDone);
     }
 
     private void DrawVisual()
@@ -142,6 +274,7 @@ public class IceShardLockProj : ElainaBasicProjectile
 
     public override void OnKill(int timeLeft)
     {
+        IceboundNPC.ReleaseGroup(Projectile);
         VisualUnit.KillAll(units);
         base.OnKill(timeLeft);
     }
@@ -154,6 +287,7 @@ public class IceShardLockProj : ElainaBasicProjectile
         }
 
         initialized = true;
+        totalDamage = Projectile.damage;
         Vector2 lockCenter = Projectile.Center;
         List<IceConeSpawnData> spawnData = BuildIceCone3DSpawnData(lockCenter, SphereRadius);
         foreach (IceConeSpawnData spawnDataEntry in spawnData)

@@ -16,6 +16,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 [SkillUIInfo(State = 7, Pixels = 500)]
 public class IceConeSkill : ElainaSkill
 {
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 3), GetConfiguredFreezeBuildup()];
     public override bool IsPassiveSkill => false;
 
     // 默认蜂王后开放（角色等级上限 25）；具体门槛由 JSON 的 unlockStageCap 决定，不要求实际等级达到上限。
@@ -51,13 +52,15 @@ public class IceConeSkill : ElainaSkill
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 
-        ShootIceCone(Player, Main.MouseWorld);
+        // 锁定碰撞箱距离鼠标最近的敌人，没有目标时照常朝鼠标发射
+        NPC target = IceConeTargetSystem.ResolveTarget();
+        ShootIceCone(Player, target?.Center ?? Main.MouseWorld, baseSpeed: 35, lockedTarget: target);
         return base.PreUseSkill(source);
     }
-    
+
 
     public void ShootIceCone(Player player, Vector2 aimTarget, int? damage = null, float knockback = 2f,
-        float baseSpeed = 25f)
+        float baseSpeed = 25f, NPC lockedTarget = null)
     {
         Vector2 directionToMouse = aimTarget - player.MountedCenter;
         Vector2 aimDirection = directionToMouse.SafeNormalize(Vector2.UnitX * player.direction);
@@ -91,8 +94,10 @@ public class IceConeSkill : ElainaSkill
 
         // 按本动作实际生成的发数分摊，不再手写技能名字，也不让每发领取整次预算。
         int damagePerShot = damage ?? GetConfiguredDamage(hitCount: spawnPositions.Length);
+        float freezeBuildup = GetConfiguredFreezeBuildup();
         AnimAction animAction = new Action_SimpleSlash();
         int count = 0;
+        Vector2 GetAimPoint() => lockedTarget is { active: true } ? lockedTarget.Center : aimTarget;
         foreach (Vector2 spawnPosition in spawnPositions)
         {
             Vector2 cachedSpawnPosition = spawnPosition;
@@ -102,7 +107,14 @@ public class IceConeSkill : ElainaSkill
                 _ => cachedSpawnPosition,
                 damagePerShot,
                 knockback,
-                _ => (aimTarget - cachedSpawnPosition).SafeNormalize(aimDirection) * baseSpeed));
+                // 各发冰锥在动作的不同帧生成，锁定时取目标生成那一刻的位置
+                _ => (GetAimPoint() - cachedSpawnPosition).SafeNormalize(aimDirection) * baseSpeed,
+                // ai[0] = 目标 whoAmI + 1，冰锥后撤蓄力期间持续转向该目标
+                projectile =>
+                {
+                    ConfigureFreezeBuildup(projectile, freezeBuildup);
+                    if (lockedTarget != null) projectile.ai[0] = lockedTarget.whoAmI + 1;
+                }));
             count += 3;
         }
 

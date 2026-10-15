@@ -18,11 +18,13 @@ using 伊蕾娜.Dusts;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.Managers;
 using 伊蕾娜.ReProjs.Water;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
 public class WaterBall : ElainaBasicProjectile
 {
+    private readonly IceWaterHitBatch iceCycleBatch = new();
     private Vector2 oldPosition;
 
     private float lastRotation;
@@ -585,6 +587,7 @@ public class WaterBall : ElainaBasicProjectile
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
+        iceCycleBatch.OnHit(Owner, target, damageDone, waterBall: true);
         base.OnHitNPC(target, hit, damageDone);
     }
 }

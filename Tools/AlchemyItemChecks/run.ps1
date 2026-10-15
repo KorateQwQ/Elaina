@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$PotionsOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/alchemy-item-checks'
@@ -14,6 +14,7 @@ function Add-CheckItem([string]$kind, [string]$path) {
 $null = Add-CheckItem 'Reference' "$Tml/tModLoader.dll"
 $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
+$null = Add-CheckItem 'Compile' "$repo/Localization/UIText.cs"
 foreach ($path in @('AlchemyRecipe.cs', 'AlchemyIngredient.cs', 'UI/AlchemyCatalog.cs', 'UI/AlchemyNotebookSnapshot.cs', 'Gameplay/*.cs', 'Crafting/*.cs', 'Buffs/*.cs')) {
     $null = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/$path"
 }
@@ -22,7 +23,11 @@ $itemSources = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/item/**/*.cs"
 $itemSources.SetAttribute('Exclude', "$repo/ElainaModAlchemy/item/Potions/MoonDewElixir.cs;$repo/ElainaModAlchemy/item/AlchemyCatalogItemTypes.cs")
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/PotionBehaviorChecks.cs.txt"
+$check.SetAttribute('Link', 'PotionBehaviorChecks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
-dotnet run --project $projectPath --configuration Release -- $repo
+$checkArguments = @($repo)
+if ($PotionsOnly) { $checkArguments += '--potions-only' }
+dotnet run --project $projectPath --configuration Release -- @checkArguments
 if ($LASTEXITCODE -ne 0) { throw 'Alchemy item checks failed.' }

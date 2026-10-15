@@ -127,6 +127,8 @@ def validate_payload(payload):
         ratio_curve(row)
         number(row, "cost", 0, 10000)
         number(row, "interval", .05, 10)
+        if "freezeBuildup" in row:
+            number(row, "freezeBuildup", 0, 100)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)
         number(row, "unlockLevel", 1, 1000, True)
@@ -146,6 +148,8 @@ def validate_payload(payload):
         ids.add(key)
         number(row, "cost", 0, 10000)
         number(row, "cd", .1, 600)
+        if "freezeBuildup" in row:
+            number(row, "freezeBuildup", 0, 100)
         if "cdRatio" not in row:
             row["cdRatio"] = 1
         number(row, "cdRatio", 0, 1)

@@ -1,0 +1,94 @@
+using System.Reflection;
+using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using 伊蕾娜;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModAlchemy.Buffs;
+using 伊蕾娜.ElainaModAlchemy.item.Potions;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.Mounts;
+using GameMain = Terraria.Main;
+
+static class Checks
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    static int passed;
+    static void Check(bool condition, string message) { if (!condition) throw new Exception(message); passed++; }
+    static void Near(float actual, float expected, string message) => Check(Math.Abs(actual - expected) < .0001f, message);
+
+    static Player Fixture(int index)
+    {
+        var player = new Player { active = true, whoAmI = index, statManaMax2 = 200, statLifeMax2 = 100, statLife = 100 };
+        var parts = new ModPlayer[] { new AlchemyBuffPlayer(), new 扫帚.扫帚ModPlayer(), new ElainaModplayer(),
+            new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new ElainaManaElixirPlayer() };
+        for (ushort i = 0; i < parts.Length; i++)
+        {
+            parts[i].GetType().GetProperty("Entity", All)!.SetValue(parts[i], player);
+            typeof(ModPlayer).GetProperty("Index", All)!.SetValue(parts[i], i);
+            if (index == 0) ContentInstance.Register(parts[i]);
+        }
+        typeof(Player).GetField("modPlayers", All)!.SetValue(player, parts);
+        player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        var witch = new AshenWitchSkill { BasicStatus = Skill.SKillBasicStatus.UnLock, IsEnabled = true };
+        var skill = new Skill(); typeof(Skill).GetProperty("ModSkill", All)!.SetValue(skill, witch); witch.Skill = skill;
+        player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(AshenWitchSkill)] = skill;
+        player.GetModPlayer<ElainaAttributeModPlayer>().Initialize();
+        GameMain.player[index] = player;
+        return player;
+    }
+
+    static void Main()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath(); GameMain.dedServ = true; GameMain.netMode = NetmodeID.Server;
+        GameMain.myPlayer = 0;
+        var player = Fixture(0); var other = Fixture(1);
+        var effects = player.GetModPlayer<AlchemyBuffPlayer>();
+        var broom = player.GetModPlayer<扫帚.扫帚ModPlayer>();
+        var otherBroom = other.GetModPlayer<扫帚.扫帚ModPlayer>();
+        Near(broom.最大速度(), 10, "Normal broom speed"); Near(broom.最大冲刺速度(), 20, "Normal broom boost cap");
+        effects.FeatherlightActive = true;
+        Near(broom.最大速度(), 12, "Featherlight broom cap"); Near(broom.最大冲刺速度(), 24, "Featherlight boost cap");
+        Near(broom.加速度(), 1.2f, "Featherlight broom acceleration");
+        Near(otherBroom.最大速度(), 10, "Another rider receives no shared bonus");
+        broom.加速 = true; Near(broom.加速度(), 36, "Broom burst scales once"); broom.加速 = false;
+        var mount = new 扫帚(); typeof(ModMount).GetProperty("Type", All)!.SetValue(mount, MountID.Count);
+        ContentInstance.Register(mount);
+        typeof(Mount).GetField("_active", All)!.SetValue(player.mount, true);
+        typeof(Mount).GetField("_type", All)!.SetValue(player.mount, MountID.Count);
+        broom.PoweredFlight = true; broom.FlightSpeed = broom.最大速度(); broom.FlightAcceleration = broom.加速度();
+        player.velocity = new Vector2(2, -3); player.maxRunSpeed = 3; player.accRunSpeed = 3;
+        effects.PostUpdateRunSpeeds(); broom.PostUpdateRunSpeeds();
+        Near(player.maxRunSpeed, 12, "Broom integration supplies native horizontal cap without double scaling");
+        Near(player.accRunSpeed, 12, "Broom sprint cap agrees with flight cap");
+        Near(player.runAcceleration, 1.2f, "Broom integration supplies native acceleration");
+        Check(player.velocity == new Vector2(2, -3), "Applying broom potion parameters does not rewrite velocity");
+        effects.ResetEffects(); Near(broom.最大速度(), 10, "Broom returns to normal when Buff ends");
+        broom.ResetEffects(); Check(!broom.PoweredFlight, "Dismounted or unpowered broom cannot retain flight override");
+
+        var elixir = new MoonDewElixir(); ((ILoadable)elixir).Load(new CheckMod()); ContentInstance.Register(elixir); elixir.SetDefaults();
+        var reserve = player.GetModPlayer<ElainaManaElixirPlayer>(); var magic = player.GetModPlayer<ElainaAttributeModPlayer>();
+        Check(elixir.CanUseItem(player), "Elaina can store moon dew out of combat");
+        player.GetModPlayer<ElainaModplayer>().Elaina = false;
+        Check(!elixir.CanUseItem(player), "Other characters cannot drink moon dew"); player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        player.dead = true; Check(!elixir.CanUseItem(player), "Dead player cannot store a charge"); player.dead = false;
+        for (int i = 0; i < 5; i++) { Check(elixir.ConsumeItem(player), "Each valid drink may consume one bottle"); elixir.OnConsumeItem(player); }
+        Check(reserve.ChargeCount == 5 && !elixir.CanUseItem(player) && !elixir.ConsumeItem(player), "Full reserve rejects drinking and consumption");
+        var save = new TagCompound(); reserve.SaveData(save); reserve.Initialize(); reserve.LoadData(save);
+        Check(reserve.ChargeCount == 5, "Moon dew reserve survives save/load");
+        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
+        Check(reserve.TryRestoreMagic(), "Stored moon dew restores unique magic");
+        Near(magic.MagicPoint, 100, "One charge restores half of the current maximum");
+        Check(reserve.ChargeCount == 4 && magic.InBattle && !elixir.CanUseItem(player), "Restoration consumes one charge and prevents combat refilling");
+        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 175);
+        Check(reserve.TryRestoreMagic(), "Charge can top up a partial reserve"); Near(magic.MagicPoint, 200, "Recovery clamps at maximum unique magic");
+        Check(!reserve.TryRestoreMagic() && reserve.ChargeCount == 3, "Full unique magic cannot waste a charge");
+        Near(other.GetModPlayer<ElainaManaElixirPlayer>().ChargeCount, 0, "Moon dew reserve belongs to its player");
+        Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom and moon dew).");
+    }
+    sealed class CheckMod : Mod { public override string Name => "PotionIntegrationChecks"; }
+}

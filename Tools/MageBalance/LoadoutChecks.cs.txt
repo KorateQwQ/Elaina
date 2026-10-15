@@ -1,0 +1,63 @@
+using System.Reflection;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Loadout;
+using 伊蕾娜.Items.accessories;
+using GameMain = Terraria.Main;
+
+static class Checks
+{
+    const BindingFlags Hidden = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+    static int passed;
+    static void Check(bool condition, string reason) { if (!condition) throw new Exception(reason); passed++; }
+    static void Main(string[] args)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        GameMain.dedServ = true; GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0; GameMain.gameMenu = false;
+        GameMain.GameMode = 1; GameMain.rand = new UnifiedRandom(12); GameMain.showItemText = false;
+        // Initialize vanilla prefix sets before the mod-load resize pass.
+        new Item(ItemID.BandofRegeneration).Prefix(PrefixID.Arcane);
+        var hat = new ElainaHat(); ((ILoadable)hat).Load(new CheckMod()); ContentInstance.Register(hat);
+        SetFactory.ResizeArrays(false);
+        typeof(ItemLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, [false]);
+        typeof(PrefixLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
+        hat.SetDefaults();
+        Check(SkillBalanceConfig.TryParse(File.ReadAllText(args[0]), out var config, out var error), error);
+        foreach (var loadout in config.Loadouts)
+        {
+            var player = new Player { active = true, whoAmI = 0, extraAccessory = true };
+            GameMain.player[0] = player;
+            LoadoutApplier.Apply(player, loadout);
+            var equipped = player.armor.Skip(3).Take(loadout.Slots).Where(x => !x.IsAir).ToArray();
+            foreach (var entry in loadout.Items.Take(loadout.Slots).Where(x => x.Id != "empty"))
+            {
+                Check(LoadoutItems.TryGetAccessory(entry.Id, out int type), $"Stage {loadout.Stage}: {entry.Id} maps to a real item");
+                var item = equipped.Single(x => x.type == type);
+                Check(item.accessory, $"Stage {loadout.Stage}: {entry.Id} is a functional accessory");
+                Check(item.prefix == LoadoutItems.Prefixes[entry.Prefix], $"Stage {loadout.Stage}: {entry.Id} receives {entry.Prefix}");
+            }
+            player.statManaMax2 = 200;
+            foreach (var item in equipped) player.GrantPrefixBenefits(item);
+            int arcane = loadout.Items.Take(loadout.Slots).Count(x => x.Id != "empty" && x.Prefix == "arcane");
+            Check(player.statManaMax2 == 200 + arcane * 20, $"Stage {loadout.Stage}: equipped prefixes actually grant mana");
+            if (loadout.Stage is >= 13 and <= 18)
+                Check(player.armor.Take(3).Select(x => x.type).SequenceEqual(new int[] { ItemID.SpectreMask, ItemID.SpectreRobe, ItemID.SpectrePants }), "Complete damage Spectre set");
+            var before = player.armor.Select(x => (x.type, x.prefix)).ToArray();
+            LoadoutApplier.Apply(player, loadout);
+            Check(before.SequenceEqual(player.armor.Select(x => (x.type, x.prefix))), "Reapplying does not duplicate or change gear");
+            Check(player.inventory.All(x => x.IsAir), "Reapplying leaves no duplicate items in inventory");
+        }
+        var last = config.Loadouts[18];
+        var limited = new Player { active = true, whoAmI = 0, extraAccessory = false };
+        GameMain.player[0] = limited; LoadoutApplier.Apply(limited, last);
+        Check(limited.armor[8].IsAir && limited.armor[9].IsAir, "Locked accessory slots stay empty");
+        GameMain.GameMode = 2; limited.extraAccessory = true;
+        var seven = last with { Slots = 7 }; LoadoutApplier.Apply(limited, seven);
+        Check(limited.armor.Skip(3).Take(7).All(x => !x.IsAir && x.prefix == PrefixID.Arcane), "Master slot equips a real seventh accessory with Arcane");
+        Console.WriteLine($"Loadout integration: {passed} checks passed using the compiled mod and real Terraria items / prefix benefits.");
+    }
+    sealed class CheckMod : Mod { public override string Name => "LoadoutChecks"; }
+}

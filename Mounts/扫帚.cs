@@ -11,6 +11,7 @@ using ReLogic.Content;
 using Terraria.GameContent;
 using 伊蕾娜.Buffs;
 using 伊蕾娜.System;
+using 伊蕾娜.ElainaModAlchemy.Buffs;
 
 namespace 伊蕾娜.Mounts
 {
@@ -20,7 +21,6 @@ namespace 伊蕾娜.Mounts
 
         private List<Vector2> oldPosition;
         private Vector2[] oldPos;
-        public int 解除下落速度限制 = 0;
         public override void SetStaticDefaults()
         {
             MountData.buff = ModContent.BuffType<扫帚buff>();//mod.BuffType("扫帚Buff");//ModContent.BuffType<buff.扫帚Buff>();
@@ -96,6 +96,7 @@ namespace 伊蕾娜.Mounts
             MountData.yOffset = -4;
             //MountData.usesHover = false;
             扫帚ModPlayer v = player.GetModPlayer<扫帚ModPlayer>();
+            v.PoweredFlight = false;
             float cost = MathHelper.Lerp(5, 1, v.熟练度 / 10f);
             player.fallStart = (int)(player.position.Y / 16f);
             //Main.NewText((int)(player.velocity.Length() / 3f * cost)+" "+ player.velocity.Length());
@@ -103,9 +104,10 @@ namespace 伊蕾娜.Mounts
             if (player.CheckMana(player.HeldItem, (int)(player.velocity.Length() / 3f * cost * player.manaCost), false) && player.GetModPlayer<ElainaModplayer>().Elaina)
             {
                 player.controlJump = false;
-                MountData.runSpeed = v.最大速度();
+                v.PoweredFlight = true;
+                v.FlightSpeed = v.最大速度();
                 player.maxFallSpeed = v.最大速度();
-                MountData.acceleration = v.加速度();
+                v.FlightAcceleration = v.加速度();
                 player.mount._flyTime = 320;
                 player.mount._fatigue = 0;
                 player.gravity = 0;
@@ -164,7 +166,7 @@ namespace 伊蕾娜.Mounts
                     if (v.加速)
                     {
                         {
-                            解除下落速度限制 = 30;
+                            v.解除下落速度限制 = 30;
                             for (int i = 0; i < 50; i++)
                             {
 
@@ -180,7 +182,7 @@ namespace 伊蕾娜.Mounts
                     }
                     else if (v.加速cd > 20)
                     {
-                        MountData.runSpeed = v.最大冲刺速度();
+                        v.FlightSpeed = v.最大冲刺速度();
                         player.maxFallSpeed = v.最大冲刺速度();
                     }
                     if (player.GetModPlayer<ElainaModplayer>().Elaina)
@@ -191,9 +193,9 @@ namespace 伊蕾娜.Mounts
                         tryslowDown(player, v);
                     }
                     else player.gravity = 1;
-                    if (解除下落速度限制 > 0)
+                    if (v.解除下落速度限制 > 0)
                     {
-                        解除下落速度限制--;
+                        v.解除下落速度限制--;
                         player.maxFallSpeed = v.最大冲刺速度() * 10f;
                     }
                 }
@@ -212,11 +214,11 @@ namespace 伊蕾娜.Mounts
         {
             if (player.controlUp)
             {
-                if (player.velocity.Y > -MountData.runSpeed)
+                if (player.velocity.Y > -v.FlightSpeed)
                 {
                     player.velocity.Y -= v.加速度();
                 }
-                else if (解除下落速度限制 <= 0) player.velocity.Y += v.加速度();
+                else if (v.解除下落速度限制 <= 0) player.velocity.Y += v.加速度();
 
             }
         }
@@ -224,7 +226,7 @@ namespace 伊蕾娜.Mounts
         {
             if (player.controlDown)
             {
-                if (player.velocity.Y < MountData.runSpeed)
+                if (player.velocity.Y < v.FlightSpeed)
                 {
                     player.velocity.Y += v.加速度();
                 }
@@ -287,6 +289,23 @@ namespace 伊蕾娜.Mounts
             public int 加速cd = 0;
             public int 冲刺cd = 0;
             public int[] 扫帚信息 = new int[4];
+            public int 解除下落速度限制;
+            public bool PoweredFlight;
+            public float FlightSpeed;
+            public float FlightAcceleration;
+            private float SpeedMultiplier => Player.GetModPlayer<AlchemyBuffPlayer>().TravelSpeedMultiplier;
+
+            public override void ResetEffects() => PoweredFlight = false;
+
+            public override void PostUpdateRunSpeeds()
+            {
+                if (!PoweredFlight || !Player.mount.Active || Player.mount.Type != ModContent.MountType<扫帚>()) return;
+                // 原版在移动前覆盖坐骑速度，因此在其之后应用当前骑乘者的参数。
+                // MountData 是全体玩家共享的模板，不能把药水加成写入其中。
+                Player.maxRunSpeed = FlightSpeed;
+                Player.accRunSpeed = FlightSpeed;
+                Player.runAcceleration = FlightAcceleration;
+            }
 
             public override void FrameEffects()
             {
@@ -307,12 +326,12 @@ namespace 伊蕾娜.Mounts
             public float 最大速度()
             {
 
-                return MathHelper.Lerp(7, 10, 10 / 10f);
+                return MathHelper.Lerp(7, 10, 10 / 10f) * SpeedMultiplier;
             }
             public float 最大冲刺速度()
             {
 
-                return MathHelper.Lerp(10, 20, 10 / 10f);
+                return MathHelper.Lerp(10, 20, 10 / 10f) * SpeedMultiplier;
             }
             public float 刹车速度()
             {
@@ -321,7 +340,7 @@ namespace 伊蕾娜.Mounts
             public float 加速度()
             {
                 if (加速) return 最大冲刺速度() * 1.5f;
-                return MathHelper.Lerp(0.1f, 1, 10 / 10f);
+                return MathHelper.Lerp(0.1f, 1, 10 / 10f) * SpeedMultiplier;
             }
             public override void ProcessTriggers(TriggersSet triggersSet)
             {

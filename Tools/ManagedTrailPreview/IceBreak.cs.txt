@@ -1,0 +1,30 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe {
+    void DrawIceBreakFrames() {
+        var checks = replay.GetType("Preview.IceBreakChecks");
+        using var target = new RenderTarget2D(GraphicsDevice,Width,Height,false,SurfaceFormat.Color,DepthFormat.None);
+        foreach (float rotation in new[]{0f,MathHelper.Pi,.65f})
+        foreach (bool connect in new[]{false,true}) {
+            checks.GetMethod("Start").Invoke(null,new object[]{rotation,connect,false});
+            for (int age=0;age<=10;age++) {
+                GraphicsDevice.SetRenderTarget(target);GraphicsDevice.Clear(new Color(64,145,139));
+                checks.GetMethod("Frame").Invoke(null,new object[]{age});
+                GraphicsDevice.SetRenderTarget(null);
+                if(age<=4) {
+                    using var file=File.Create(Path.Combine(output,$"{(connect?"connected":"original")}-{rotation:0.00}-{age}.png"));
+                    target.SaveAsPng(file,Width,Height);
+                }
+            }
+        }
+        GraphicsDevice.SetRenderTarget(target);GraphicsDevice.Clear(Color.Black);
+        checks.GetMethod("Start").Invoke(null,new object[]{0f,true,true});
+        checks.GetMethod("Frame").Invoke(null,new object[]{0});
+        checks.GetMethod("UninitializedDeath").Invoke(null,null);
+        GraphicsDevice.SetRenderTarget(null);
+        Console.WriteLine("PASS actual death hook + managed trails: impact endpoint, frozen history despite changed rotation, synchronous four-tick fade, three directions, degenerate tangent, no trail on pre-sampling death.");
+    }
+}

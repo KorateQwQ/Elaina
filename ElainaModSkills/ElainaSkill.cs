@@ -81,6 +81,13 @@ public abstract partial class ElainaSkill : ModSkill
     protected int GetConfiguredDamage(int? hitCount = null, int? skillLevel = null) =>
         SkillBalanceSystem.GetPlayerDamage(Player, BalanceId, skillLevel ?? Math.Max(1, Level), ModContent.GetInstance<ElainaBasicDamage>(), hitCount);
 
+    protected float GetConfiguredFreezeBuildup() => SkillBalanceSystem.TryGetSkill(BalanceId, out var entry)
+        ? (float)entry.FreezeBuildup : 0f;
+
+    /// <summary>每发弹幕保存施法时的积蓄配置；发数不会重复放大单发点数。</summary>
+    protected void ConfigureFreezeBuildup(Projectile projectile, float amount) =>
+        projectile.GetGlobalProjectile<ElementalGlobalProjectile>().FreezeBuildup = amount;
+
     /// <summary>按技能实际等级读取基础周期 DPS，不含装备；可指定等级预览。</summary>
     protected float GetConfiguredDps(int? skillLevel = null) =>
         SkillBalanceSystem.GetBaseDps(skillLevel ?? Math.Max(1, Level), BalanceId);
@@ -193,7 +200,7 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public override bool CanUseSkill()
     {
-        if (UsesLiveBalance && !SkillBalanceSystem.TryGetSkill(BalanceId, out _)) return false;
+        // 数值配置只覆盖已有参数；没有配置的技能仍按自身规则判断能否使用。
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
         if (MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(MagicPointCost, false))
         {

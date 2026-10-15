@@ -228,7 +228,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <label class="field">额外伤害加成 %<input id="vDamage" type="number" min="-90" max="1000" step="1"></label>
 <label class="field">额外暴击百分点<input id="vCrit" type="number" min="-100" max="100" step="1"></label>
 <label class="field">套装特效额外 DPS<input id="vProc" type="number" min="0" max="1000000" step="10"></label>
-</div><p class="note">额外项可填药剂、增益、武器前缀等。武器前缀若已计入 B，不要重复填写。机动／生存占位不加输出；不为原版加入攻速轴。</p><div class="summary" id="vSummary"></div></div>
+</div><p class="note">额外项可填药剂、增益、武器前缀等。武器前缀若已计入 B，不要重复填写。保留槽与空槽均不计属性和前缀；不为原版加入攻速轴。</p><div class="summary" id="vSummary"></div></div>
 <div class="panel"><div class="title"><h2 class="elaina">伊蕾娜</h2><button id="copy" class="smallbtn">复制左侧装备 · 前缀转奥秘</button></div><label class="field">护甲套装<select id="eArmor"></select></label><div id="eNebula" class="hidden">
 <div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="e" aria-label="伊蕾娜星云强化全满">三种全满</button></div>
 <div class="fields"><label class="field">伤害强化<select id="eNebulaDamage" data-nebula-side="e" data-nebula-kind="damage" aria-label="伊蕾娜伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="eNebulaMana" data-nebula-side="e" data-nebula-kind="mana" aria-label="伊蕾娜魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="eNebulaLife" data-nebula-side="e" data-nebula-kind="life" aria-label="伊蕾娜生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><label class="check"><input id="nebulaManaBridge" type="checkbox">将星云回蓝转为特殊魔力（仅预览适配假设，当前代码未接入）</label><p class="note" id="eNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="伊蕾娜批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="damage" aria-label="伊蕾娜全增伤" title="按当前伤害与暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="arcane" aria-label="伊蕾娜全奥秘">全奥秘</button></div><p class="note" id="ePrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="eSlots"></div><div class="fields">
@@ -238,7 +238,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <label class="field">基础魔力（随阶段读取）<input id="baseMana" type="number" min="0" max="2000" step="20"></label>
 <label class="field">最大生命（随阶段读取）<input id="maxLife" type="number" min="100" max="2000" step="5"></label>
 <label class="field">额外特殊魔力上限<input id="extraMana" type="number" min="0" max="10000" step="20"></label>
-</div><label class="check"><input id="ashenWitch" type="checkbox">开启灰之魔女：超出 100 的最大生命只保留一半，减少的生命上限按 1:1 转为特殊魔力上限</label><p class="note">原版最大魔力按当前模组的 1:1 转换率计入特殊魔力；伊蕾娜的帽子只加特殊魔力上限（不加原版魔力），原版对照一侧视为机动／生存占位。灰之魔女只按上方最大生命计算，护甲、饰品额外提供的生命未计入，结果可能略低于游戏内。额外特殊魔力可填生命转化等；不会自动认为这部分资源没有生存代价。</p><div class="summary" id="eSummary"></div><p class="note stageinfo" id="eStageInfo"></p></div>
+</div><label class="check"><input id="ashenWitch" type="checkbox">开启灰之魔女：超出 100 的最大生命只保留一半，减少的生命上限按 1:1 转为特殊魔力上限</label><p class="note">原版最大魔力按当前模组的 1:1 转换率计入特殊魔力；伊蕾娜的帽子只加特殊魔力上限（不加原版魔力），原版对照一侧留空且不计前缀。灰之魔女只按上方最大生命计算，护甲、饰品额外提供的生命未计入，结果可能略低于游戏内。额外特殊魔力可填生命转化等；不会自动认为这部分资源没有生存代价。</p><div class="summary" id="eSummary"></div><p class="note stageinfo" id="eStageInfo"></p></div>
 </section>
 
 <section id="combatPanel" class="section" aria-label="战斗续航模拟">
@@ -375,35 +375,35 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <script id="balance-engine">
 'use strict';
 const Balance = (() => {
-const armors={none:{name:'无护甲',damage:0,crit:0,mana:0},wizardAmethyst:{name:'巫师帽 + 紫晶长袍',damage:5,crit:10,mana:20},magicTopaz:{name:'魔法帽 + 黄玉长袍',damage:6,crit:6,mana:100},magicDiamond:{name:'魔法帽 + 钻石长袍',damage:6,crit:6,mana:140},wizardDiamond:{name:'巫师帽 + 钻石长袍',damage:5,crit:10,mana:80},meteor:{name:'陨石套',damage:27,crit:0,mana:0},jungle:{name:'丛林套',damage:6,crit:12,mana:80},magicDiamondMeteor:{name:'魔法帽 + 钻石长袍 + 陨石护腿',damage:15,crit:6,mana:140},cobalt:{name:'钴法师套',damage:13,crit:14,mana:40},palladium:{name:'钯金法师套',damage:14,crit:12,mana:60},mythril:{name:'秘银法师套',damage:22,crit:10,mana:60},orichalcum:{name:'山铜法师套',damage:8,crit:24,mana:80},adamantite:{name:'精金法师套',damage:20,crit:19,mana:80},titanium:{name:'钛金法师套',damage:23,crit:13,mana:100},forbidden:{name:'禁戒套',damage:25,crit:0,mana:80},forbiddenMix:{name:'精金头饰 + 精金胸甲 + 禁戒护腿（无套装）',damage:30,crit:12,mana:120},hallowed:{name:'神圣法师套',damage:19,crit:19,mana:100},chlorophyte:{name:'叶绿法师套',damage:21,crit:15,mana:80},hallowedChloroApprentice:{name:'神圣头饰 + 叶绿板甲 + 学徒裤（无套装）',damage:17,crit:39,mana:100},spectre:{name:'幽灵面具套 · 不含追击',damage:25,crit:17,mana:60},spectreDarkArtist:{name:'幽灵面具 + 幽灵长袍 + 暗黑艺术家护腿（无套装）',damage:17,crit:42,mana:60},darkArtist:{name:'暗黑艺术家套 · 不含哨兵加成',damage:25,crit:25,mana:0},nebula:{name:'星云套 · 强化层数可调',damage:26,crit:16,mana:60,armorDefense:46,manaReduction:15,moveSpeed:10}};
-const accessories={utility:{name:'机动／生存饰品（占位）',damage:0,crit:0,mana:0},empty:{name:'空槽（无前缀收益）',damage:0,crit:0,mana:0},sorcerer:{name:'巫师徽章 · +15% 伤害',damage:15,crit:0,mana:0},avenger:{name:'复仇者徽章 · +12% 伤害',damage:12,crit:0,mana:0},celestial:{name:'天界徽章 · +15% 伤害',damage:15,crit:0,mana:0},band:{name:'星力手环 · +20 魔力',damage:0,crit:0,mana:20},regen:{name:'魔力再生手环 · +20 魔力',damage:0,crit:0,mana:20},cuffs:{name:'魔法手铐 · +20 魔力',damage:0,crit:0,mana:20},celestialCuffs:{name:'天界手铐 · +20 魔力',damage:0,crit:0,mana:20},flower:{name:'魔力花 · 无直接伤害／容量',damage:0,crit:0,mana:0},naturesGift:{name:'大自然的恩赐 · 仅减耗',damage:0,crit:0,mana:0},destroyer:{name:'毁灭者徽章 · +10% 伤害、+8 暴击',damage:10,crit:8,mana:0},eyeGolem:{name:'石巨人之眼 · +10 暴击',damage:0,crit:10,mana:0},celestialStone:{name:'天界石／天界壳 · +10% 伤害、+2 暴击',damage:10,crit:2,mana:0},elainaHat:{name:'伊蕾娜的帽子 · +10% 伤害、+5 暴击、+20 特殊魔力（仅伊蕾娜）',damage:10,crit:5,mana:0,magic:20,elainaOnly:true}};
-// 仅伊蕾娜可装备的饰品（帽子）在原版对照一侧视为机动／生存占位，前缀照常计入。
-const sideItem=(id,side)=>side==='v'&&accessories[id]?.elainaOnly?'utility':id;
+const armors={none:{name:'无护甲',damage:0,crit:0,mana:0},wizardAmethyst:{name:'巫师帽 + 紫晶长袍',damage:5,crit:10,mana:20},magicTopaz:{name:'魔法帽 + 黄玉长袍',damage:6,crit:6,mana:100},magicDiamond:{name:'魔法帽 + 钻石长袍',damage:6,crit:6,mana:140},wizardDiamond:{name:'巫师帽 + 钻石长袍',damage:5,crit:10,mana:80},meteor:{name:'陨石套',damage:27,crit:0,mana:0},jungle:{name:'丛林套',damage:6,crit:12,mana:80},magicDiamondMeteor:{name:'魔法帽 + 钻石长袍 + 陨石护腿',damage:15,crit:6,mana:140},cobalt:{name:'钴法师套',damage:13,crit:14,mana:40},palladium:{name:'钯金法师套',damage:14,crit:12,mana:60},mythril:{name:'秘银法师套',damage:22,crit:10,mana:60},orichalcum:{name:'山铜法师套',damage:8,crit:24,mana:80},adamantite:{name:'精金法师套',damage:20,crit:19,mana:80},titanium:{name:'钛金法师套',damage:23,crit:13,mana:100},forbidden:{name:'禁戒套',damage:25,crit:0,mana:80},forbiddenMix:{name:'精金头饰 + 精金胸甲 + 禁戒护腿（无套装）',damage:30,crit:12,mana:120},hallowed:{name:'神圣法师套',damage:19,crit:19,mana:100},chlorophyte:{name:'叶绿法师套',damage:21,crit:15,mana:80},hallowedChloroApprentice:{name:'神圣头饰 + 叶绿板甲 + 学徒裤（无套装）',damage:17,crit:39,mana:100},spectre:{name:'输出型幽灵套（面具＋长袍＋裤）· 不含追击',damage:25,crit:17,mana:60},darkArtist:{name:'暗黑艺术家套 · 不含哨兵加成',damage:25,crit:25,mana:0},nebula:{name:'星云套 · 强化层数可调',damage:26,crit:16,mana:60,armorDefense:46,manaReduction:15,moveSpeed:10}};
+const accessories={utility:{name:'保留原饰品（不计属性／前缀）',damage:0,crit:0,mana:0},empty:{name:'空槽（无前缀收益）',damage:0,crit:0,mana:0},sorcerer:{name:'巫师徽章 · +15% 伤害',damage:15,crit:0,mana:0},avenger:{name:'复仇者徽章 · +12% 伤害',damage:12,crit:0,mana:0},celestial:{name:'天界徽章 · +15% 伤害',damage:15,crit:0,mana:0},band:{name:'星力手环 · +20 魔力',damage:0,crit:0,mana:20},regen:{name:'魔力再生手环 · +20 魔力',damage:0,crit:0,mana:20},cuffs:{name:'魔法手铐 · +20 魔力',damage:0,crit:0,mana:20},celestialCuffs:{name:'天界手铐 · +20 魔力',damage:0,crit:0,mana:20},flower:{name:'魔力花 · 无直接伤害／容量',damage:0,crit:0,mana:0},naturesGift:{name:'大自然的恩赐 · 仅减耗',damage:0,crit:0,mana:0},destroyer:{name:'毁灭者徽章 · +10% 伤害、+8 暴击',damage:10,crit:8,mana:0},eyeGolem:{name:'石巨人之眼 · +10 暴击',damage:0,crit:10,mana:0},celestialStone:{name:'天界石 · +10% 伤害、+2 暴击',damage:10,crit:2,mana:0},celestialShell:{name:'天界壳 · +10% 伤害、+2 暴击',damage:10,crit:2,mana:0},regenLife:{name:'再生手环 · 生命回复',damage:0,crit:0,mana:0},shackle:{name:'脚镣 · +1 防御',damage:0,crit:0,mana:0},sharkTooth:{name:'鲨牙项链 · +5 护甲穿透',damage:0,crit:0,mana:0},wormScarf:{name:'蠕虫围巾 · 17% 减伤（专家）',damage:0,crit:0,mana:0},brain:{name:'混乱之脑 · 闪避（专家）',damage:0,crit:0,mana:0},obsidianShield:{name:'黑曜石护盾 · 免疫击退、+2 防御',damage:0,crit:0,mana:0},ankhShield:{name:'十字章护盾 · 免疫击退／多种减益、+4 防御',damage:0,crit:0,mana:0},elainaHat:{name:'伊蕾娜的帽子 · +10% 伤害、+5 暴击、+20 特殊魔力（仅伊蕾娜）',damage:10,crit:5,mana:0,magic:20,elainaOnly:true}};
+// 帽子只有伊蕾娜可装备；原版对照留空，不虚构物品或前缀收益。
+const sideItem=(id,side)=>side==='v'&&accessories[id]?.elainaOnly?'empty':id;
 const prefixes={warding:{name:'护佑 · +4 防御',damage:0,crit:0,mana:0,defense:4},menacing:{name:'险恶 · +4% 伤害',damage:4,crit:0,mana:0,defense:0},arcane:{name:'奥秘 · +20 魔力',damage:0,crit:0,mana:20,defense:0},lucky:{name:'幸运 · +4 暴击',damage:0,crit:4,mana:0,defense:0},none:{name:'无前缀',damage:0,crit:0,mana:0,defense:0}};
 // 时期 k：击败对应 Boss 后 KL 等级上限为 5k，基础 DPS = stageDps[k]（声明后补写 base）。
 const periods=['开局','史莱姆王后','克苏鲁之眼后','世吞／克脑后','蜂王后','骷髅王后','独眼巨鹿后','血肉墙后（困难模式）','史莱姆皇后后','双子魔眼后','毁灭者后','机械骷髅王后','世纪之花后','石巨人后','猪龙鱼公爵后','光之女皇后','光女后 · 拜月前','拜月教邪教徒后','月亮领主后'].map((label,i)=>({stage:i+1,label,cap:5*(i+1),level:5*(i+1)-4}));
 // 参考 terraria.wiki.gg Guide:Class_setups 法师路线；装备数值取本地源码，不声称是最优配装。
-// items 未写满的槽位补“机动／生存（占位）”；开局只有箱子里找到的少量饰品，空槽不提供前缀收益。
+// 扫帚承担机动；默认使用实际输出、魔力和生存饰品。第七项供手动启用大师槽使用。
 const presets={
- start:{stage:1,name:'01 开局 · 巫师帽紫晶长袍',armor:'wizardAmethyst',slots:5,items:['utility','utility','utility','empty','empty']},
- kingSlime:{stage:2,name:'02 史莱姆王后 · 魔法帽黄玉长袍',armor:'magicTopaz',slots:5,items:['band','utility','utility','utility','empty']},
- eye:{stage:3,name:'03 克苏鲁之眼后 · 魔法帽钻石长袍',armor:'magicDiamond',slots:5,items:['band','naturesGift']},
- evil:{stage:4,name:'04 世吞／克脑后 · 巫师帽钻石长袍',armor:'wizardDiamond',slots:5,items:['band','flower']},
- queenBee:{stage:5,name:'05 蜂王后 · 陨石法师',armor:'meteor',slots:5,items:['band','flower']},
- jungle:{stage:6,name:'06 骷髅王后 · 丛林法师',armor:'jungle',slots:5,items:['regen','flower']},
- deerclops:{stage:7,name:'07 独眼巨鹿后 · 丛林法师 + 天界手铐',armor:'jungle',slots:5,items:['celestialCuffs','regen','flower']},
- wall:{stage:8,name:'08 血肉墙后 · 魔法帽钻石长袍陨石护腿 + 巫师徽章（恶魔之心 6 槽）',armor:'magicDiamondMeteor',slots:6,items:['sorcerer','celestialCuffs','flower']},
- queenSlime:{stage:9,name:'09 史莱姆皇后后 · 秘银法师',armor:'mythril',slots:6,items:['sorcerer','celestialCuffs','flower']},
- adamantite:{stage:10,name:'10 双子魔眼后 · 精金法师',armor:'adamantite',slots:6,items:['sorcerer','flower','cuffs']},
- destroyer:{stage:11,name:'11 毁灭者后 · 钛金法师',armor:'titanium',slots:6,items:['sorcerer','celestialCuffs','flower']},
- prime:{stage:12,name:'12 机械骷髅王后 · 精金头胸 + 禁戒护腿',armor:'forbiddenMix',slots:6,items:['sorcerer','celestialCuffs','flower']},
- hallowed:{stage:13,name:'13 世纪之花后 · 神圣法师',armor:'hallowed',slots:6,items:['sorcerer','avenger','cuffs']},
- golem:{stage:14,name:'14 石巨人后 · 幽灵法师 + 石巨人之眼',armor:'spectre',slots:6,items:['sorcerer','avenger','eyeGolem']},
- fishron:{stage:15,name:'15 猪龙鱼公爵后 · 幽灵法师 + 毁灭者徽章',armor:'spectre',slots:6,items:['sorcerer','avenger','destroyer']},
- empress:{stage:16,name:'16 光之女皇后 · 幽灵头身 + 暗黑艺术家护腿',armor:'spectreDarkArtist',slots:6,items:['sorcerer','avenger','destroyer']},
- preCultist:{stage:17,name:'17 光女后 · 拜月前 · 幽灵暗黑混搭 + 天界石',armor:'spectreDarkArtist',slots:6,items:['celestial','avenger','destroyer','celestialStone']},
- spectre:{stage:18,name:'18 拜月教邪教徒后 · 幽灵法师（四柱参考）',armor:'spectre',slots:6,items:['sorcerer','avenger','celestial']},
- nebula:{stage:19,name:'19 月亮领主后 · 星云法师（三种强化各 3 层）',armor:'nebula',slots:6,items:['sorcerer','avenger','celestial']}};
+ start:{stage:1,name:'01 开局 · 巫师帽紫晶长袍',armor:'wizardAmethyst',slots:5,items:['elainaHat','regenLife','shackle','empty','empty','empty','empty']},
+ kingSlime:{stage:2,name:'02 史莱姆王后 · 魔法帽黄玉长袍',armor:'magicTopaz',slots:5,items:['elainaHat','band','regenLife','shackle','empty','empty','empty']},
+ eye:{stage:3,name:'03 克苏鲁之眼后 · 魔法帽钻石长袍',armor:'magicDiamond',slots:5,items:['elainaHat','band','regenLife','sharkTooth','shackle','empty','empty']},
+ evil:{stage:4,name:'04 世吞／克脑后 · 巫师帽钻石长袍',armor:'wizardDiamond',slots:5,items:['elainaHat','band','wormScarf','regenLife','sharkTooth','empty','empty']},
+ queenBee:{stage:5,name:'05 蜂王后 · 陨石法师',armor:'meteor',slots:5,items:['elainaHat','cuffs','wormScarf','regenLife','sharkTooth','empty','empty']},
+ jungle:{stage:6,name:'06 骷髅王后 · 丛林法师',armor:'jungle',slots:5,items:['elainaHat','celestialCuffs','wormScarf','obsidianShield','regenLife','empty','empty']},
+ deerclops:{stage:7,name:'07 独眼巨鹿后 · 丛林法师',armor:'jungle',slots:5,items:['elainaHat','celestialCuffs','wormScarf','obsidianShield','regenLife','empty','empty']},
+ wall:{stage:8,name:'08 血肉墙后 · 魔法帽钻石长袍陨石护腿',armor:'magicDiamondMeteor',slots:6,items:['elainaHat','sorcerer','celestialCuffs','wormScarf','obsidianShield','regenLife','sharkTooth']},
+ queenSlime:{stage:9,name:'09 史莱姆皇后后 · 秘银法师',armor:'mythril',slots:6,items:['elainaHat','sorcerer','celestialCuffs','wormScarf','ankhShield','regenLife','sharkTooth']},
+ adamantite:{stage:10,name:'10 双子魔眼后 · 精金法师',armor:'adamantite',slots:6,items:['elainaHat','sorcerer','celestialCuffs','wormScarf','ankhShield','regenLife','sharkTooth']},
+ destroyer:{stage:11,name:'11 毁灭者后 · 钛金法师',armor:'titanium',slots:6,items:['elainaHat','sorcerer','celestialCuffs','wormScarf','ankhShield','regenLife','sharkTooth']},
+ prime:{stage:12,name:'12 机械骷髅王后 · 神圣法师',armor:'hallowed',slots:6,items:['elainaHat','sorcerer','celestial','wormScarf','ankhShield','celestialCuffs','avenger']},
+ hallowed:{stage:13,name:'13 世纪之花后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','sorcerer','celestial','wormScarf','ankhShield','celestialCuffs','avenger']},
+ golem:{stage:14,name:'14 石巨人后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
+ fishron:{stage:15,name:'15 猪龙鱼公爵后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
+ empress:{stage:16,name:'16 光之女皇后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
+ preCultist:{stage:17,name:'17 光女后 · 拜月前 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
+ spectre:{stage:18,name:'18 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
+ nebula:{stage:19,name:'19 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const newSkill=(id,name)=>({id,name,growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
@@ -477,19 +477,45 @@ const roundMana=mana=>Math.round(clamp(mana,20,200)/20)*20;
 // 克眼前只能靠找到／合成时的随机前缀碰运气；来了以后按金钱逐步重铸，骷髅王后（地牢收入）起全部重铸。
 const reforgedSlots=[0,1,2,3,4];
 // prefix 为伊蕾娜前缀（奥秘），vPrefix 为原版对照前缀（按本阶段护甲与饰品逐条选险恶／幸运）；其余槽视为无用的随机前缀。
-// 伊蕾娜的帽子是全时期推荐饰品：占用已启用槽位中的第一个机动／生存占位（原版对照仍为占位）。
+// 帽子占一个实际槽；空槽和保留槽无前缀收益。第七个备用饰品也提供明确的重铸建议。
 function loadoutDefault(stage){
  const p=Object.values(presets).find(x=>x.stage===stage);
- const items=Array.from({length:7},(_,i)=>({id:p.items[i]||'utility',prefix:'none',vPrefix:'none'}));
- const hat=items.slice(0,p.slots).findIndex(x=>x.id==='utility');
- if(hat>=0)items[hat].id='elainaHat';
+ const items=Array.from({length:7},(_,i)=>({id:p.items[i]||'empty',prefix:'none',vPrefix:'none'}));
  const good=items.map((x,i)=>x.id==='empty'?-1:i).filter(i=>i>=0).slice(0,reforgedSlots[stage-1]??items.length);
  for(const i of good)items[i].prefix='arcane';
  const probe={slots:items.length,baseCrit:4,v:{armor:p.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:items.map(x=>({id:sideItem(x.id,'v'),prefix:'none'}))}};
- applyDamagePrefixes(probe,'v',good).forEach((prefix,k)=>{items[good[k]].vPrefix=prefix;});
+ const vanillaGood=good.filter(i=>sideItem(items[i].id,'v')!=='empty');
+ applyDamagePrefixes(probe,'v',vanillaGood).forEach((prefix,k)=>{items[vanillaGood[k]].vPrefix=prefix;});
  return {stage,name:p.name.split(' · ').pop(),armor:p.armor,slots:p.slots,items,baseMana:stage===1?100:200,maxLife:stageLife[stage-1]};
 }
 function loadoutDefaults(){return periods.map(p=>loadoutDefault(p.stage));}
+// 一次性补齐旧版占位，保留用户已有的具体饰品、前缀和角色属性。之后手动保留槽不再自动替换。
+function migrateLoadouts(value){
+ const legacy=value.loadoutRevision==null;
+ if(Array.isArray(value.loadouts))for(const l of value.loadouts){
+  if(!l||!Array.isArray(l.items))continue;
+  if(l.armor==='spectreDarkArtist'){l.armor='spectre';l.name='输出型幽灵套';}
+  if(!legacy||!l.items.some(x=>x?.id==='utility')||!periods.some(p=>p.stage===l.stage))continue;
+  const used=new Set(l.items.filter(x=>x&&x.id!=='utility'&&x.id!=='empty').map(x=>x.id));
+  const choices=[...presets[Object.keys(presets)[l.stage-1]].items,'regenLife','sharkTooth','shackle','band'].filter(id=>id!=='empty');
+  l.items.forEach((r,i)=>{
+   if(r?.id!=='utility')return;
+   const id=i<l.slots?choices.find(id=>!used.has(id)):'empty';
+   r.id=id||'empty';used.add(r.id);
+   if(r.id==='empty')r.prefix=r.vPrefix='none';
+   else if(r.id==='elainaHat')r.vPrefix='none';
+  });
+ }
+ for(const side of ['v','e']){
+  const g=value[side];if(!g)continue;
+  if(g.armor==='spectreDarkArtist')g.armor='spectre';
+  const l=value.loadouts?.[value.stage-1];
+  if(legacy&&l&&Array.isArray(g.items)&&g.items.some(x=>x?.id==='utility'))
+   g.items=l.items.map(x=>({id:sideItem(x.id,side),prefix:side==='e'?x.prefix:x.vPrefix}));
+ }
+ if(legacy)value.loadoutRevision=1;
+ return value;
+}
 function validLoadouts(list){
  return Array.isArray(list)&&list.length===periods.length&&list.every((x,i)=>x&&x.stage===i+1&&typeof x.name==='string'&&x.name.trim().length>0&&x.name.length<=64
   &&Object.hasOwn(armors,x.armor)&&[5,6,7].includes(x.slots)&&Array.isArray(x.items)&&x.items.length===7&&x.items.every(r=>r&&Object.hasOwn(accessories,r.id)&&Object.hasOwn(prefixes,r.prefix)&&Object.hasOwn(prefixes,r.vPrefix))
@@ -550,7 +576,7 @@ function defaults(stage=13){
  stage=Math.round(clamp(stage,1,periods.length));
  const loadouts=loadoutDefaults(),l=loadouts[stage-1];
  const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map(item=>({id:sideItem(item.id,side),prefix:side==='e'?item.prefix:item.vPrefix}))});
- return {version:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
+ return {version:2,loadoutRevision:1,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
  {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
  {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
  {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
@@ -565,7 +591,7 @@ function gear(s,side){
  const nebulaDamage=15*nebula.damage,nebulaManaRegen=10*nebula.mana,nebulaLifeRegen=3*nebula.life;
  let damage=a.damage+g.damage+nebulaDamage,crit=a.crit+g.crit,mana=a.mana,magic=0,defense=0;
  for(const row of g.items.slice(0,s.slots)){
-  const item=accessories[sideItem(row.id,side)]||accessories.empty;if(row.id==='empty')continue;
+  const id=sideItem(row.id,side),item=accessories[id]||accessories.empty;if(id==='empty'||id==='utility')continue;
   const p=prefixes[row.prefix]||prefixes.none;
   damage+=item.damage+p.damage;crit+=item.crit+p.crit;mana+=item.mana+p.mana;magic+=item.magic||0;defense+=p.defense;
  }
@@ -580,7 +606,7 @@ function damagePrefixStep(s,side){
  const lucky=(1+clamp(g.crit+prefixes.lucky.crit,0,100)/100)/(1+g.crit/100);
  return lucky>menacing*(1+1e-12)?{prefix:'lucky',ratio:lucky}:{prefix:'menacing',ratio:menacing};
 }
-function equippedSlots(s,side){return s[side].items.slice(0,s.slots).map((x,i)=>x.id==='empty'?-1:i).filter(i=>i>=0);}
+function equippedSlots(s,side){return s[side].items.slice(0,s.slots).map((x,i)=>['empty','utility'].includes(sideItem(x.id,side))?-1:i).filter(i=>i>=0);}
 // 全增伤：先清空这些槽的前缀，再逐槽按 damagePrefixStep 选择；伤害与暴击是乘法关系，逐条贪心即为最优分配。
 function applyDamagePrefixes(s,side,slots=equippedSlots(s,side)){
  for(const i of slots)s[side].items[i].prefix='none';
@@ -602,7 +628,7 @@ function calculate(s){
 function skillDamageBudget(s,skill,result=calculate(s)){
  return s.baseDps*(s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
 }
-return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
+return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,migrateLoadouts,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
 })();
 if(typeof module!=='undefined')module.exports=Balance;
 </script>
@@ -819,6 +845,7 @@ function normalizeProgression(value){
  // 旧版：preset 键名 → stage；快速预算字段不再使用，keepKnown 会丢弃。
  if(value.stage==null)value.stage=Balance.presets[value.preset]?.stage??13;
  if(value.loadouts==null)value.loadouts=Balance.loadoutDefaults();
+ Balance.migrateLoadouts(value);
  if(value.ashenWitch==null)value.ashenWitch=true;
  if(value.maxLife==null)value.maxLife=Array.isArray(value.loadouts)?value.loadouts[value.stage-1]?.maxLife??100:100;
  // 旧版配装没有原版前缀 vPrefix：按同阶段同槽位的默认值补齐。
@@ -831,11 +858,13 @@ function normalizeProgression(value){
   if(!row||typeof row!=='object')continue;
   if(!Object.hasOwn(row,'growthMode'))row.growthMode='phase';
   if(!Object.hasOwn(row,'levelInterval'))row.levelInterval=5;
+  if(!Object.hasOwn(row,'freezeBuildup'))row.freezeBuildup=0;
  }
  return value;
 }
 function validSaved(x){
  if(!x||x.version!==2||typeof x.nebulaManaBridge!=='boolean'||typeof x.ashenWitch!=='boolean')return false;
+ for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])])if(row.freezeBuildup!=null&&(typeof row.freezeBuildup!=='number'||!Number.isFinite(row.freezeBuildup)||row.freezeBuildup<0||row.freezeBuildup>100))return false;
  const d=Balance.defaults();
  for(const k of Object.keys(d))if(!(k in x))return false;
  for(const k of ['baseDps','baseCrit','slots','baseMana','maxLife','extraMana','rate','occupyRatio'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
@@ -854,6 +883,7 @@ function validSaved(x){
  return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=100&&r.cdRatio>=0&&r.cdRatio<=1);
 }
 function keepKnown(template,input,property=''){
+ if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0}));
  if(property==='ratioCurve')return input; // variable-length points, already checked by validBasics
  if(Array.isArray(template))return ['skills','basicAttacks','loadouts'].includes(property)?input.map(v=>keepKnown(template[0],v)):template.map((v,i)=>keepKnown(v,input[i]));
  if(template&&typeof template==='object')return Object.fromEntries(Object.keys(template).map(k=>[k,keepKnown(template[k],input[k],k)]));
@@ -1198,7 +1228,7 @@ function renderLoadoutEditor(){
  <h3 class="subhead">饰品与前缀</h3>
  ${[['e','伊蕾娜',['arcane','damage','warding','none']],['v','原版对照',['damage','warding','none']]].map(([side,label,keys])=>`<div class="actions prefixgroup" role="group" aria-label="本阶段${label}批量设置前缀"><span class="groupname">${label}</span>${keys.map(k=>{const text={arcane:'全奥秘',damage:'全增伤',warding:'全护佑',none:'全无前缀'}[k];return `<button type="button" class="smallbtn" data-loadout-side="${side}" data-loadout-prefix="${k}" aria-label="本阶段${label}${text}"${k==='damage'?' title="按本阶段装备与实验室额外加成的伤害、暴击，逐条选择险恶或幸运中收益更高的一个"':''}>${text}</button>`;}).join('')}</div>`).join('')}
  <div class="loadoutslots"><div class="slot tri slothead" aria-hidden="true"><span></span><span>饰品</span><span>伊蕾娜前缀</span><span>原版前缀</span></div>${l.items.map((item,i)=>`<div class="slot tri${i>=l.slots?' inactive':''}"><span class="slotnum">${i+1}</span><select aria-label="阶段配装饰品 ${i+1}" data-loadout-index="${i}" data-loadout-prop="id">${options(Balance.accessories)}</select><select aria-label="阶段配装伊蕾娜前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="prefix">${options(Balance.prefixes)}</select><select aria-label="阶段配装原版前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="vPrefix">${options(Balance.prefixes)}</select></div>`).join('')}</div>
- <p class="note">灰色槽位超出当前槽数，不参与计算也不会在游戏中装备。“机动／生存（占位）”与“空槽”在游戏换装时保留玩家原有饰品。原版前缀只用于实验室的原版对照，游戏换装只使用伊蕾娜前缀；“无前缀”在游戏中表示保留物品原有前缀。默认前缀按进度估计：哥布林工匠到来前只有随机前缀，开局视为没有输出前缀，之后逐阶段增加重铸条数，骷髅王后起全部重铸。</p>
+ <p class="note">灰色槽位超出当前槽数，不参与计算也不会在游戏中装备。“保留原饰品”与“空槽”在游戏换装时保留原饰品，预览均不计属性或前缀。默认围绕扫帚配置实际饰品，无需额外翅膀／跑鞋。蠕虫围巾需要专家腐化世界；猩红可改选混乱之脑，普通模式可改选再生手环或鲨牙项链（避免重复）。护盾、减伤、生命回复、护甲穿透及条件触发效果不折算成静态 DPS。原版前缀只用于实验室的原版对照，游戏换装只使用伊蕾娜前缀；“无前缀”在游戏中表示保留物品原有前缀。默认前缀按进度估计：哥布林工匠到来前只有随机前缀，开局视为没有输出前缀，之后逐阶段增加重铸条数，骷髅王后起全部重铸。</p>
  <h3 class="subhead">角色属性</h3>
  <div class="fields fields4">
   <label class="field">基础魔力（20–200，每 20 = 1 魔力水晶）<input id="loadoutMana" type="number" min="20" max="200" step="20" value="${l.baseMana}"></label>
@@ -1249,7 +1279,7 @@ $('loadoutEditor').addEventListener('click',event=>{
  if(el.dataset.loadoutPrefix){
   const side=el.dataset.loadoutSide,key=loadoutPrefixKey(side);
   if(el.dataset.loadoutPrefix==='damage'){const probe=loadoutProbe(l,side);Balance.applyDamagePrefixes(probe,side);probe[side].items.forEach((item,i)=>{l.items[i][key]=item.prefix;});}
-  else for(const item of l.items.slice(0,l.slots))if(item.id!=='empty')item[key]=el.dataset.loadoutPrefix;
+  else for(const item of l.items.slice(0,l.slots))if(!['empty','utility'].includes(Balance.sideItem(item.id,side)))item[key]=el.dataset.loadoutPrefix;
   loadoutChanged(true);
  }
  else if(el.id==='loadoutReset'){s.loadouts[l.stage-1]=Balance.loadoutDefault(l.stage);loadoutChanged(true);$('status').textContent=`已恢复阶段 ${two(l.stage)} 的默认配装与属性。`;}

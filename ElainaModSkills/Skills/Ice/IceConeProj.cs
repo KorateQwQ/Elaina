@@ -27,6 +27,12 @@ public class IceConeProj : ElainaBasicProjectile
     private int time;
     private Vector2 forwardVelocity;
     private TrailManager.TrailHandle managedTrail;
+    private (Texture2D Texture, Vector2 Direction, float TimeOffset) lastTrailState;
+    private const float TrailWidth = 5f;
+    private const float TrailOffset = 100f;
+    private const int TrailLifetime = 10;
+    private const int BreakFadeTime = 4;
+    protected override bool SampleTrailInDrawBehind => true;
     public override void Load()
     {
         iceCone ??= ObjModel.Load("伊蕾娜.Models.IceCone2");
@@ -39,8 +45,8 @@ public class IceConeProj : ElainaBasicProjectile
     {
         Projectile.width = Projectile.height = 20;
         Projectile.timeLeft = 600;
-        TrailLength = 30;
-        TrailMaxLength = 30;
+        TrailMaxLength = 500;
+
         TrailSampleCount = 50;
         
         Projectile.friendly = true;
@@ -48,7 +54,7 @@ public class IceConeProj : ElainaBasicProjectile
         Projectile.localNPCHitCooldown = 60;
         Projectile.usesLocalNPCImmunity = true;
         Projectile.DamageType = ModContent.GetInstance<ElainaBasicDamage>();
-        // 冰锥命中时携带冰元素标签，由 KL 的积蓄系统按命中次数累积冻结
+        // 冰元素身份；每发积蓄点数由IceConeSkill生成时从自身配置写入，不在这里统一加1。
         InfusionElement = ElementType.Ice;
         //ProjectileID.Sets.DrawScreenCheckFluff[Projectile.type] = 2000;
 
@@ -62,6 +68,8 @@ public class IceConeProj : ElainaBasicProjectile
             forwardVelocity = Projectile.velocity;
         }
 
+        if (time < BackwardFlyTime)
+            AimAtLockedTarget();
         UpdateMovement();
 
         if (time < BackwardFlyTime)
@@ -81,6 +89,25 @@ public class IceConeProj : ElainaBasicProjectile
         
         Lighting.AddLight(Projectile.Center, new Color(50, 220, 255).ToVector3());
         base.AI();
+    }
+
+    // ai[0] = 锁定目标 whoAmI + 1（由 IceConeSkill 设置）。后撤蓄力期间冰锥始终指向目标的预判位置，
+    // 冲刺开始后方向固定；目标失效时保持最后的方向。
+    private void AimAtLockedTarget()
+    {
+        int targetIndex = (int)Projectile.ai[0] - 1;
+        if (targetIndex < 0 || targetIndex >= Main.maxNPCs || forwardVelocity == Vector2.Zero)
+            return;
+
+        NPC target = Main.npc[targetIndex];
+        if (!target.active || !target.CanBeChasedBy())
+            return;
+
+        float speed = forwardVelocity.Length();
+        // 冲刺初速是 speed * 4 并逐渐衰减，按约 speed * 2 估算飞行时间
+        float leadTime = MathHelper.Clamp(Vector2.Distance(Projectile.Center, target.Center) / (speed * 2f), 0f, 15f);
+        Vector2 aimPoint = target.Center + target.velocity * leadTime;
+        forwardVelocity = (aimPoint - Projectile.Center).SafeNormalize(forwardVelocity / speed) * speed;
     }
 
     private void UpdateMovement()
@@ -111,47 +138,74 @@ public class IceConeProj : ElainaBasicProjectile
 
         //Projectile.velocity = forwardDirection * fixedSpeed;
     }
-
     public override bool PreDraw(ref Color lightColor)
     {
-        // 必须先采样本帧的 Center，TrailManager 随后复制的 OldCenter 才是最新的一帧
         base.PreDraw(ref lightColor);
-
-        Texture2D trailTexture = AssetManager.GetTexture("KL.Effects.Tex.Trail.streak_801_4r");
-        if (time >= BackwardFlyTime && trailTexture != null && ValidTrailArray())
-        {
-            var trailState = (
-                Texture: trailTexture,
-                Direction: new Vector2(1, 0).RotatedBy(Projectile.rotation),
-                TimeOffset: -(float)time % 1200 / 40);
-
-            TrailManager.CreateOrUpdateTrail(
-                ref managedTrail,
-                OldCenter,
-                lifetime: 10,
-                trailState,
-                DrawManagedTrail,
-                bloom: true);
-        }
-
-        Color drawLightColor = lightColor;
-
-        LayerDrawRequestSystem.RequestBloom("Elaina:IceCone", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, () => DrawVisual(drawLightColor));
         return false;
     }
 
     private static void DrawManagedTrail((Texture2D Texture, Vector2 Direction, float TimeOffset) state, Vector2[] points, float remainingRatio)
     {
-        if (points.Length < 2)
+        DrawTrail(state, points, 1f);
+    }
+
+    private static void DrawTrail((Texture2D Texture, Vector2 Direction, float TimeOffset) state, Vector2[] points, float fade)
+    {
+        if (points.Length < 2 || fade <= 0f)
             return;
 
-        TrailEffect(state.Texture, points, new Vector4(new Color(200,220,255,255).ToVector3()*2,1),  new Vector4(new Color(200,220,255,255).ToVector3()*1,1),
-            endAlpha:1,maxWidth:7,endWidth:0,blendState:2,debugPoint:false,attachPoint:state.Direction*-100,imageScale:new Vector2(0.5f,1),
+        TrailEffect(state.Texture, points, new Vector4(new Color(200,220,255,255).ToVector3()*2,fade),  new Vector4(new Color(200,220,255,255).ToVector3()*1,fade),
+            endAlpha:1,maxWidth:TrailWidth * fade,endWidth:0,blendState:2,debugPoint:false,attachPoint:state.Direction*-TrailOffset,imageScale:new Vector2(0.5f,1),
             uTime:new Vector2(state.TimeOffset,0));
     }
 
-    private void DrawVisual(Color lightColor)
+    private static void DrawReleasedTrail((Texture2D Texture, Vector2 Direction, float TimeOffset) state, Vector2[] points, float remainingRatio)
+    {
+        float age = (1f - remainingRatio) * TrailLifetime;
+        float fade = MathHelper.SmoothStep(0f, 1f, MathHelper.Clamp(1f - age / BreakFadeTime, 0f, 1f));
+        DrawTrail(state, points, fade);
+    }
+
+    private static void DrawBreakConnection((Texture2D Texture, Vector2 Direction, float TimeOffset) state, Vector2[] points, float remainingRatio)
+    {
+        DrawTrail(state, points, MathHelper.SmoothStep(0f, 1f, remainingRatio));
+    }
+
+    private void ConnectTrailToBreakPoint()
+    {
+        if (Main.dedServ || managedTrail == null || lastTrailState.Texture == null || OldCenter is not { Length: > 1 })
+            return;
+
+        // 使用最后一次实际绘制的方向与轨迹，不随死亡帧的 rotation 平移历史拖尾。
+        Vector2 head = OldCenter[0] - lastTrailState.Direction * TrailOffset;
+        Vector2 impact = Projectile.Center;
+        Vector2 delta = impact - head;
+        float distance = delta.Length();
+        TrailManager.CreateOrUpdateTrail(ref managedTrail, OldCenter, TrailLifetime,
+            lastTrailState, DrawReleasedTrail,
+            layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles, bloom: true);
+
+        if (distance < 0.5f)
+            return;
+
+        Vector2 tangent = OldCenter[0] - OldCenter[1];
+        if (tangent.LengthSquared() < 0.001f || Vector2.Dot(tangent, delta) <= 0f)
+            tangent = delta;
+        tangent = Vector2.Normalize(tangent) * distance;
+        var connection = new Vector2[12];
+        for (int i = 0; i < connection.Length; i++)
+            connection[i] = Vector2.Hermite(head, tangent, impact, delta, i / (float)(connection.Length - 1));
+
+        // 连接段已是世界坐标：原拖尾头处沿用宽度，爆点处收尖；与旧拖尾一起淡出。
+        TrailManager.TrailHandle connectionHandle = null;
+        var connectionState = (lastTrailState.Texture, Vector2.Zero, lastTrailState.TimeOffset);
+        TrailManager.CreateOrUpdateTrail(ref connectionHandle, connection, BreakFadeTime,
+            connectionState, DrawBreakConnection,
+            layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+            bloom: true, shrinkPathOnExpire: false);
+    }
+
+    private void DrawVisual()
     {
         Effect iceConeEffect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/ThreeD/IceCone3D", AssetRequestMode.ImmediateLoad).Value;
         GraphicsDevice gd = Main.instance.GraphicsDevice;
@@ -202,7 +256,6 @@ public class IceConeProj : ElainaBasicProjectile
         iceConeEffect.Parameters["uWorld"].SetValue(modelMatrix);
         iceConeEffect.Parameters["uViewProjection"].SetValue(viewProjectionMatrix);
         iceConeEffect.Parameters["uLightDirection"].SetValue(lightDirection);
-        iceConeEffect.Parameters["uLightColor"].SetValue(lightColor.ToVector3());
         iceConeEffect.Parameters["uCameraPosition"].SetValue(cameraPosition);
         iceConeEffect.Parameters["uBaseColor"].SetValue(baseColor);
         iceConeEffect.Parameters["uFresnelColor"].SetValue(fresnelColor);
@@ -215,7 +268,7 @@ public class IceConeProj : ElainaBasicProjectile
         iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(dissolveEdgeWidth);
         iceConeEffect.Parameters["uDepthClipSide"].SetValue(0f);
 
-        gd.BlendState = BlendState.NonPremultiplied;// ;IceConeDepthRenderer.ModelBlend;
+        gd.BlendState = DrawSystem.GetBlendStateForBloom(BlendState.NonPremultiplied);
         gd.DepthStencilState = DepthStencilState.None;
         gd.SamplerStates[0] = SamplerState.LinearWrap;
         gd.SamplerStates[1] = SamplerState.LinearWrap;
@@ -236,6 +289,28 @@ public class IceConeProj : ElainaBasicProjectile
         List<int> overWiresUI)
     {
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
+
+        Texture2D trailTexture = AssetManager.GetTexture("KL.Effects.Tex.Trail.streak_801_4r");
+        if (time >= BackwardFlyTime && trailTexture != null && ValidTrailArray())
+        {
+            var trailState = (
+                Texture: trailTexture,
+                Direction: new Vector2(1, 0).RotatedBy(Projectile.rotation),
+                TimeOffset: -(float)time % 1200 / 40);
+
+            TrailManager.CreateOrUpdateTrail(
+                ref managedTrail,
+                OldCenter,
+                lifetime: TrailLifetime,
+                trailState,
+                DrawManagedTrail,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+                bloom: true);
+            lastTrailState = trailState;
+        }
+
+        LayerDrawRequestSystem.RequestBloom("Elaina:IceCone", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
     }
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
@@ -245,6 +320,7 @@ public class IceConeProj : ElainaBasicProjectile
 
     public override void OnKill(int timeLeft)
     {
+        ConnectTrailToBreakPoint();
         Vector2 dir = new Vector2(1, 0).RotatedBy(Projectile.rotation);
         
         KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),velocity:Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,

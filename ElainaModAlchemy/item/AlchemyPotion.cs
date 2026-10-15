@@ -16,10 +16,8 @@ public abstract class AlchemyPotion : AlchemyItem
         int buffType = PotionBuffType;
         if (buffType <= 0) return;
 
-        // Preserve the established defaults of the existing drinkable potions.
-        Item.width = 20;
-        Item.height = 30;
-        Item.rare = ItemRarityID.Blue;
+        // 与原版愤怒药水一样交给 Item.buffType/buffTime 处理饮用、续时和快捷增益。
+        // 尺寸与稀有度保留炼金目录的值。
         Item.consumable = true;
         Item.useStyle = ItemUseStyleID.DrinkLiquid;
         Item.useTime = 17;

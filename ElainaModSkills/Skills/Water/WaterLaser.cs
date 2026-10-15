@@ -15,6 +15,7 @@ using Terraria.ID;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Managers;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
 using DrawHelper = KL.Drawing.DrawHelper;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
@@ -36,6 +37,7 @@ public class WaterLaser : ElainaBasicProjectile
     private int primaryTarget = -1;
     private int primaryEntity = -1;
     private readonly HashSet<int> hitEntities = new();
+    private readonly IceWaterHitBatch iceCycleBatch = new();
     private bool IsChanneling => Projectile.ai[0] == 1f;
 
     private float startWidth = 2f;
@@ -141,6 +143,7 @@ public class WaterLaser : ElainaBasicProjectile
                     Projectile.friendly = true;
                     Array.Clear(Projectile.localNPCImmunity);
                     hitEntities.Clear();
+                    iceCycleBatch.Reset();
                     pulseTimer = intervalFrames;
                 }
                 pulseTimer--;
@@ -408,20 +411,10 @@ public class WaterLaser : ElainaBasicProjectile
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
         hitEntities.Add(DamageEntity(target));
-        // 玩家弹幕的命中钩子只在拥有者执行；冻结 CD 的权威值由服务器修改。
-        if (Main.netMode == NetmodeID.MultiplayerClient)
-            RPC(nameof(ReduceTargetFreezeCooldown), [target.whoAmI], KLNetModule.NetSendType.ClientToServer);
-        else
-            ReduceTargetFreezeCooldown(target.whoAmI);
+        iceCycleBatch.OnHit(Owner, target, damageDone, waterBall: false);
         base.OnHitNPC(target, hit, damageDone);
     }
 
-    public void ReduceTargetFreezeCooldown(int targetIndex)
-    {
-        if (Main.netMode != NetmodeID.MultiplayerClient
-            && targetIndex >= 0 && targetIndex < Main.maxNPCs && Main.npc[targetIndex].active)
-            Main.npc[targetIndex].ReduceFreezeCooldown(0.5f);
-    }
     
     public override bool ShouldUpdatePosition()
     {

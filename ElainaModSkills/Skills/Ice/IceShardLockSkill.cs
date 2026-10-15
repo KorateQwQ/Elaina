@@ -12,23 +12,11 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 [SkillUIInfo(State = 6, Pixels = 400)]
 public class IceShardLockSkill : ElainaSkill
 {
-    public override void Initialize()
-    {
-        base.Initialize();
-    }
-    public override void ResetEffects(Player player)
-    {
-        //测试用。
-        if (CurrentCD > 1) CurrentCD = 1;
-        //MagicPointCost = 5;//(int)(player.statMana*0.2)+200;
-        //MaxStack = 1;
-        base.ResetEffects(player);
-    }
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单次伤害
-        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
-        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        int current = GetConfiguredDamage(hitCount: 1, skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(hitCount: 1, skillLevel: nextLevel);
         return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
@@ -37,34 +25,46 @@ public class IceShardLockSkill : ElainaSkill
     
     public override bool CanUseSkill()
     {
-        MagicPointCost = 3;
-
-        return base.CanUseSkill();
+        return Player.whoAmI == Main.myPlayer
+            && !Player.GetModPlayer<ActionModPlayer>().HasAction
+            && IceConeTargetSystem.ResolveLockTarget() != null
+            && base.CanUseSkill();
     }
 
     public override bool PreUseSkill(IEntitySource source)
     {
-        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
+        NPC target = IceConeTargetSystem.ResolveLockTarget();
+        if (target == null || !CanUseSkill() || !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 
-        ShootIceShardLock3D(Player, Main.MouseWorld);
+        ShootIceShardLock3D(Player, target);
         return base.PreUseSkill(source);
     }
     
-    public void ShootIceShardLock3D(Player player, Vector2 targetWorldPosition)
+    public void ShootIceShardLock3D(Player player, NPC target)
     {
+        Vector2 targetWorldPosition = target.Center;
+        uint selectedSpawnSerial = target.GetGlobalNPC<IceboundNPC>().SpawnSerial;
+        float freezeBuildup = GetConfiguredFreezeBuildup();
         Vector2 aimDirection = (targetWorldPosition - player.MountedCenter).SafeNormalize(Vector2.UnitX * (player.direction == 0 ? 1 : player.direction));
 
-        AnimAction animAction = new Action_Cast()
+        AnimAction animAction = new Action_SimpleSlash()
             .AddNode(new ShootActionNode(
                 1,
                 ModContent.ProjectileType<IceShardLockProj>(),
-                _ => targetWorldPosition,
-                GetConfiguredDamage(),
+                _ => target.active ? target.Center : targetWorldPosition,
+                GetConfiguredDamage(hitCount: 1),
                 2f,
-                _ => Vector2.Zero));
+                _ => Vector2.Zero,
+                projectile =>
+                {
+                    ConfigureFreezeBuildup(projectile, freezeBuildup);
+                    ((IceShardLockProj)projectile.ModProjectile).BindTarget(target, selectedSpawnSerial);
+                }));
 
         float startRotation = aimDirection.ToRotation() * player.gravDir;
         player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
     }
+
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 1), GetConfiguredFreezeBuildup()];
 }

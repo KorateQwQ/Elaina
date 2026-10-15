@@ -24,10 +24,12 @@ sealed partial class Probe : Game
     readonly bool single;
     readonly bool bloomPreview;
     readonly bool trailPreview;
+    readonly bool trackingPreview;
     public Probe(string root, string output, string mode)
     {
         this.root = root; this.output = output; single = mode == "single"; bloomPreview = mode == "bloom";
         trailPreview = mode == "trail";
+        trackingPreview = mode == "tracking";
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
@@ -104,7 +106,7 @@ sealed partial class Probe : Game
         var type = unit.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
         unitSource += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax or ConstructorDeclarationSyntax));
         unitSource += Methods(unit, "Draw", "RequestIceConeDraw", "UpdateMovement", "GetModelMatrix", "GetStableModelForward", "GetDissolveThreshold",
-            "GetModelOriginScreenPosition", "DrawTrail3D", "EnsureTrailEffect", "CreateRotationFromTo");
+            "GetModelOriginScreenPosition", "DrawTrail3D", "EnsureTrailEffect", "CreateRotationFromTo", "MoveWithTarget");
         unitSource += """
             public static void Setup(ObjModel model, Texture2D color, Effect effect, Texture2D noise) {
                 iceCone = model; texture = color; iceConeEffect = effect; dissolveNoiseTexture = noise;
@@ -112,9 +114,13 @@ sealed partial class Probe : Game
             public void Advance(int age) { Timer = Delay + age; for (int t = 0; t <= age; t++) UpdateMovement(t); }
             } public static class PreviewScene {
                 public static bool DisableDepth;
+                public static bool Tracking;
+                public static Vector2 TargetOffset;
+                static Texture2D marker;
                 public static void Setup(GraphicsDevice gd, SpriteBatch sb, string obj, Texture2D color, Effect effect, Texture2D noise) {
                     Main.instance = Main.graphics = new DeviceContext { GraphicsDevice = gd }; Main.spriteBatch = sb;
                     IceCone3DUnit.Setup(ObjLoader.Parse(obj, Color.White), color, effect, noise);
+                    marker = new Texture2D(gd, 1, 1); marker.SetData(new[] { Color.White });
                 }
                 public static void Draw(int frame, bool reverse) {
                     LayerDrawRequestSystem.ClearFrame();
@@ -127,10 +133,20 @@ sealed partial class Probe : Game
                         var p = new Vector3(spawn.SpawnWorldPosition, spawn.StartDepth);
                         var v = Vector3.Normalize(new Vector3(center, 0) - p) * 58f;
                         var cone = new IceCone3DUnit(p, new Vector3(center, 0), v, spawn.TriggerFrame, 135);
-                        cone.Advance(age); cone.Draw();
+                        cone.Advance(age); cone.MoveWithTarget(TargetOffset); cone.Draw();
                     }
                     BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles);
                     BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers);
+                    if (Tracking) {
+                        var p = center + TargetOffset;
+                        Main.spriteBatch.Begin();
+                        var c = frame >= 29 ? Color.Cyan : Color.Orange;
+                        Main.spriteBatch.Draw(marker, new Rectangle((int)p.X-14,(int)p.Y-24,28,2), c);
+                        Main.spriteBatch.Draw(marker, new Rectangle((int)p.X-14,(int)p.Y+24,28,2), c);
+                        Main.spriteBatch.Draw(marker, new Rectangle((int)p.X-14,(int)p.Y-24,2,48), c);
+                        Main.spriteBatch.Draw(marker, new Rectangle((int)p.X+14,(int)p.Y-24,2,48), c);
+                        Main.spriteBatch.End();
+                    }
                 }
             """;
         unitSource += Methods(controller, "BuildIceCone3DSpawnData", "BuildIceConeFixedRotations", "GetIceConeSphereDirection");
@@ -170,7 +186,7 @@ sealed partial class Probe : Game
         helper.GetField("bloom").SetValue(null, bloomEffects.Load<Effect>("Bloom"));
         helper.GetField("reColor").SetValue(null, bloomEffects.Load<Effect>("ReColor"));
         helper.GetField("vertexDraw").SetValue(null, bloomEffects.Load<Effect>("VertexDraw"));
-        using var trailFile = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Trail/235653rnwhwlbv2vm828gm.png"));
+        using var trailFile = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Trail/streak_801_4r.png"));
         SingleScene.GetMethod("SetTrail").Invoke(null, [Texture2D.FromStream(GraphicsDevice, trailFile)]);
     }
     Type Scene => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewScene");
@@ -193,6 +209,15 @@ sealed partial class Probe : Game
     protected override void Draw(GameTime time)
     {
         if (done) { Exit(); return; } done = true;
+        if (trackingPreview) {
+            Scene.GetField("Tracking").SetValue(null, true);
+            foreach (int frame in new[] { 12, 28, 29, 65, 96, 109 }) {
+                Scene.GetField("TargetOffset").SetValue(null, new Vector2(Math.Min(frame, 29) * 6 - 150, 0));
+                Render(frame, false, RenderTargetUsage.DiscardContents, $"tracking-{frame:D3}");
+            }
+            Console.WriteLine("PASS: actual unit motion/draw plus MoveWithTarget, frames 12/28/29/65/96/109. Rectangle is a simulated target marker, cyan from first impact. Gameplay control tested separately.");
+            Exit(); return;
+        }
         if (trailPreview) { DrawTrailFrames(); Exit(); return; }
         if (bloomPreview) { DrawBloomFrames(); Exit(); return; }
         if (single) { DrawSingleFrames(); Exit(); return; }

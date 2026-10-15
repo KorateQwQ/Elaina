@@ -1,5 +1,7 @@
 # IceShardLock 冰锥深度预览
 
+追加`-Tracking`导出当前冰凌锁跟随预览：第12、28、29、65、96、109帧。运动、模型、绘制与`MoveWithTarget`来自实际源码；矩形为模拟目标，前29帧移动，首发抵达后固定并变为青色。该标记不属于正式技能特效，不证明游戏控制物理或联机正确。输出`tracking-*.png`；分段伤害/冰封行为另由`Tools/IceCycleChecks/run.ps1`检查。
+
 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Tools/IceDepthPreview/run.ps1`。
 默认使用 `D:/Steam/steamapps/common/tModLoader` 的 FNA，可通过 `-TmlPath` 指定安装目录。
 输出位于 `.vissandbox/ice-depth-preview/out`。

@@ -11,7 +11,7 @@ AshenFacsimileDust: {
 
 Painkiller: {
 	DisplayName: Painkiller
-	Tooltip: Regenerates 2% of maximum life per second
+	Tooltip: Regenerates 1% of maximum life per second
 }
 
 BloodthirstPotion: {
@@ -26,7 +26,12 @@ BloodthirstPotion: {
 
 StarPowerPotion: {
 	DisplayName: Star Power Potion
-	Tooltip: Increases magic damage by 0.05% for each point of maximum mana
+	Tooltip:
+		'''
+		Increases maximum mana by 40
+		The more your current mana exceeds your life, the more magic damage you deal, up to +30%
+		Mana-life difference needed for the maximum bonus: 300
+		'''
 }
 
 MoonDewElixir: {
@@ -44,9 +49,9 @@ ConcentrationPotion: {
 	Tooltip:
 		'''
 		Ranged attacks deal more damage when aimed closer to the center of a target
-		Ranged damage: up to +30%
-		Planned availability: Hardmode
-		Effects not implemented yet
+		Damage bonus: +5% to +30%, based on the original firing direction
+		Maximum angle: 30 degrees
+		No bonus outside this angle
 		'''
 }
 
@@ -54,25 +59,15 @@ ResonancePotion: {
 	DisplayName: Resonance Potion
 	Tooltip:
 		'''
-		Minions and sentries focus on the enemy marked by your whip
-		Damage against the marked target: +12%
-		Sustained attacks gradually raise the bonus to +24% over 3 seconds
-		Changing the marked target resets this bonus
-		Planned availability: after exploring the jungle
-		Effects not implemented yet
+		Whip hits mark enemies with Resonance for 3 seconds
+		Your minions and sentries deal 20% more damage to marked enemies
+		Repeated whip hits refresh the mark
 		'''
 }
 
 FeatherlightPotion: {
 	DisplayName: Featherlight Potion
-	Tooltip:
-		'''
-		Bottled feathers and rising daytime currents make travel lighter
-		Flight speed and broom speed: +20%
-		Duration: 8 minutes
-		Planned availability: after exploring the sky
-		Effects not implemented yet
-		'''
+	Tooltip: Movement, wing flight, and broom speed: +20%
 }
 
 PurificationDew: {

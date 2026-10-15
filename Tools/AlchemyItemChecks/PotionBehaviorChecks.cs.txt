@@ -1,0 +1,200 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModAlchemy.Buffs;
+
+// Actual production hooks and real tML entities. No world, renderer, saves or network socket.
+internal static class PotionBehaviorChecks
+{
+    private static int passed;
+    private const BindingFlags Hidden = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new Exception(message);
+        passed++;
+    }
+    private static void Near(float actual, float expected, string message) =>
+        Check(Math.Abs(actual - expected) < .0001f, $"{message}: {actual} != {expected}");
+    private static void Register(Mod mod, ModType content)
+    {
+        ((ILoadable)content).Load(mod);
+        ContentInstance.Register(content);
+    }
+
+    public static void Run(Mod mod)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        Register(mod, new AlchemyBuffPlayer());
+        Register(mod, new ConcentrationProjectile());
+        Register(mod, new ResonanceGlobalNPC());
+        typeof(PlayerLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(BuffID.Sets).TypeHandle);
+        SetFactory.ResizeArrays(false);
+        typeof(BuffLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
+        Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        // Occupy text slots so native healing runs without requesting font/graphics assets.
+        Main.combatText = Enumerable.Range(0, 100).Select(_ => new CombatText { active = true }).ToArray();
+        Main.player[0] = new Player { whoAmI = 0, active = true };
+        var player = Main.player[0];
+        var effects = player.GetModPlayer<AlchemyBuffPlayer>();
+
+        // Native AddBuff/UpdateBuffs gives exactly one slot and refreshes duration.
+        int focus = ModContent.BuffType<ConcentrationBuff>();
+        player.AddBuff(focus, 300);
+        player.AddBuff(focus, 18000);
+        Check(player.buffType.Count(t => t == focus) == 1 && player.buffTime[player.FindBuffIndex(focus)] == 18000,
+            "Repeated drinks refresh a single vanilla Buff slot");
+        effects.ResetEffects();
+        player.UpdateBuffs(0);
+        Check(effects.ConcentrationActive, "Native Buff update enables concentration");
+        player.ClearBuff(focus); effects.ResetEffects(); player.UpdateBuffs(0);
+        Check(!effects.ConcentrationActive, "Removing the Buff removes the effect");
+
+        int index = 0;
+        new PainkillerBuff().Update(player, ref index);
+        player.statLifeMax2 = 137;
+        int totalRegen = 0;
+        for (int tick = 0; tick < 600; tick++)
+        {
+            player.lifeRegen = 0; effects.UpdateLifeRegen(); totalRegen += player.lifeRegen;
+        }
+        Check(Math.Abs(totalRegen / 120d - 13.7d) < .01, "Ten seconds regenerates 10% even at a fractional max-life rate");
+        effects.ResetEffects(); player.lifeRegen = 0; effects.UpdateLifeRegen();
+        Check(player.lifeRegen == 0, "No residual painkiller regeneration");
+
+        foreach (var sample in new (int mana, int life, float bonus)[] { (100, 150, 0f), (250, 100, .15f), (400, 100, .30f), (900, 100, .30f) })
+        {
+            player.GetDamage(DamageClass.Magic) = StatModifier.Default;
+            player.statManaMax2 = 200; player.statMana = sample.mana; player.statLife = sample.life;
+            effects.StarPowerActive = true; effects.PostUpdateMiscEffects();
+            Near(player.GetDamage(DamageClass.Magic).ApplyTo(100f), 100f * (1f + sample.bonus), "Star power difference and cap");
+            Check(player.statManaMax2 == 240, "Star power gives 40 mana");
+        }
+        effects.ResetEffects();
+
+        var melee = new Item { DamageType = DamageClass.Melee };
+        var target = new NPC { active = true, lifeMax = 1000, life = 1000, canGhostHeal = true };
+        player.statLifeMax2 = 500; player.statLife = 100; player.lifeSteal = 80;
+        new BloodthirstBuff().Update(player, ref index);
+        Near(player.GetDamage(DamageClass.Melee).ApplyTo(100), 110f, "Melee damage bonus");
+        var hurt = new Player.HurtModifiers(); effects.ModifyHurt(ref hurt);
+        Near(hurt.FinalDamage.ApplyTo(100), 120, "Bloodthirst increases damage taken");
+        effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 105 && player.lifeSteal == 75, "Five percent melee steal spends vanilla budget");
+        player.moonLeech = true; effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 105, "Moon Leech blocks life steal"); player.moonLeech = false;
+        target.lifeMax = 5; effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 105, "Target dummy cannot heal"); target.lifeMax = 1000;
+        target.friendly = true; effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 105, "Friendly NPC cannot heal"); target.friendly = false;
+        player.lifeSteal = 0; effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 105, "Exhausted life-steal budget blocks healing");
+        player.lifeSteal = 80; player.statLife = 499; effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 500 && player.lifeSteal == 79, "Healing clamps to missing life");
+        player.statLife = 100;
+        effects.OnHitNPCWithItem(new Item { DamageType = DamageClass.Ranged }, target, default, 100);
+        Check(player.statLife == 100, "Ranged hits do not life-steal");
+        Main.myPlayer = 1; effects.OnHitNPCWithItem(melee, target, default, 100);
+        Check(player.statLife == 100, "Remote player is not healed twice"); Main.myPlayer = 0;
+        effects.UpdateDead();
+        Check(!effects.BloodthirstActive && !effects.StarPowerActive, "Death clears potion effects");
+
+        // Concentration compares the original launch ray, even after tracking/ricochet stops a projectile.
+        var shot = new Projectile { DamageType = DamageClass.Ranged, velocity = Vector2.UnitX * 10, Center = Vector2.Zero };
+        var aim = new ConcentrationProjectile(); aim.OnSpawn(shot, new EntitySource_Misc("test"));
+        foreach (var sample in new (float degrees, float bonus)[] { (0f, .30f), (15f, .175f), (30f, .05f), (31f, 0f), (90f, 0f), (180f, 0f) })
+        {
+            float rad = MathHelper.ToRadians(sample.degrees);
+            Near(aim.DamageBonus(new Vector2(MathF.Cos(rad), MathF.Sin(rad)) * 500), sample.bonus, "Concentration angular falloff");
+        }
+        shot.Center = new Vector2(400, 400); shot.velocity = Vector2.Zero;
+        Near(aim.DamageBonus(new Vector2(500, 0)), .3f, "Tracking does not replace the launch ray");
+        var zeroAim = new ConcentrationProjectile(); zeroAim.OnSpawn(shot, new EntitySource_Misc("test"));
+        Near(zeroAim.DamageBonus(new Vector2(500, 0)), 0, "Stationary projectile has no invented aim direction");
+        using (var data = new MemoryStream())
+        using (var bits = new MemoryStream())
+        {
+            var writer = new BitWriter(); aim.SendExtraAI(shot, writer, new BinaryWriter(data)); writer.Flush(new BinaryWriter(bits));
+            data.Position = bits.Position = 0;
+            var remoteAim = new ConcentrationProjectile();
+            remoteAim.ReceiveExtraAI(shot, new BitReader(new BinaryReader(bits)), new BinaryReader(data));
+            Near(remoteAim.DamageBonus(new Vector2(500, 0)), .3f, "Launch ray survives real extra-AI serialization");
+        }
+
+        var clock = typeof(Main).GetField("_gameUpdateCount", Hidden)!;
+        clock.SetValue(null, 1000u);
+        var mark = new ResonanceGlobalNPC(); mark.Mark(0);
+        Check(mark.IsMarkedBy(0) && !mark.IsMarkedBy(1), "Resonance belongs to the whipping player");
+        clock.SetValue(null, 1179u); Check(mark.IsMarkedBy(0), "Mark lasts all 180 ticks");
+        clock.SetValue(null, 1180u); Check(!mark.IsMarkedBy(0), "Mark expires at three seconds");
+        mark.Mark(0); clock.SetValue(null, 1250u); mark.Mark(0); mark.Mark(1);
+        clock.SetValue(null, 1360u); Check(mark.IsMarkedBy(0) && mark.IsMarkedBy(1), "Repeated whips refresh without taking another player's mark");
+        mark.SetDefaults(target); Check(!mark.IsMarkedBy(0), "Reused NPC slots do not retain old marks");
+
+        // Attach real registered per-entity globals to isolated entities, then exercise production hit hooks.
+        const BindingFlags Instance = BindingFlags.NonPublic | BindingFlags.Instance;
+        target.type = NPCID.BlueSlime;
+        typeof(NPC).GetField("_globals", Instance)!.SetValue(target, new GlobalNPC[] { mark });
+        shot.type = ProjectileID.Bullet; shot.owner = 0;
+        typeof(Projectile).GetField("_globals", Instance)!.SetValue(shot, new GlobalProjectile[] { aim });
+        effects.ConcentrationActive = true; target.Center = new Vector2(500, 0);
+        var hit = new NPC.HitModifiers(); effects.ModifyHitNPCWithProj(shot, target, ref hit);
+        Near(hit.SourceDamage.ApplyTo(100), 130, "Concentration reaches actual ranged damage hook");
+        var child = new Projectile { owner = 0, type = ProjectileID.Bullet, DamageType = DamageClass.Ranged, velocity = -Vector2.UnitX };
+        var childAim = new ConcentrationProjectile(); childAim.OnSpawn(child, new EntitySource_Parent(shot));
+        Near(childAim.DamageBonus(target.Center), .3f, "Child projectile inherits original aim rather than retargeting for a free bonus");
+        effects.ResetEffects(); effects.ResonanceActive = true;
+        var whip = new Projectile { owner = 0, type = ProjectileID.BlandWhip, DamageType = DamageClass.SummonMeleeSpeed };
+        effects.OnHitNPCWithProj(whip, target, default, 10);
+        Check(mark.IsMarkedBy(0), "Whip hit creates the actual owner's mark");
+        foreach (var summon in new[] {
+            new Projectile { owner = 0, type = ProjectileID.BabySlime, minion = true },
+            new Projectile { owner = 0, type = ProjectileID.FrostHydra, sentry = true },
+            new Projectile { owner = 0, type = ProjectileID.StardustCellMinionShot } })
+        {
+            hit = new NPC.HitModifiers(); effects.ModifyHitNPCWithProj(summon, target, ref hit);
+            Near(hit.SourceDamage.ApplyTo(100), 120, "Minion, sentry and minion-shot damage receive Resonance");
+        }
+        hit = new NPC.HitModifiers(); effects.ModifyHitNPCWithProj(whip, target, ref hit);
+        Near(hit.SourceDamage.ApplyTo(100), 100, "Whip does not benefit from its own mark");
+        shot.minion = true; shot.owner = 1;
+        hit = new NPC.HitModifiers(); effects.ModifyHitNPCWithProj(shot, target, ref hit);
+        Near(hit.SourceDamage.ApplyTo(100), 100, "Another owner's projectile cannot use this player's effects");
+        shot.owner = 0; effects.ResetEffects();
+        hit = new NPC.HitModifiers(); effects.ModifyHitNPCWithProj(shot, target, ref hit);
+        Near(hit.SourceDamage.ApplyTo(100), 100, "Expired potion cannot use a remaining mark");
+
+        effects.FeatherlightActive = true;
+        player.maxRunSpeed = 3; player.accRunSpeed = 6; player.runAcceleration = .08f; player.runSlowdown = .2f;
+        player.velocity = new Vector2(3, -4); effects.PostUpdateRunSpeeds();
+        Near(player.maxRunSpeed, 3.6f, "Walking cap boosted"); Near(player.accRunSpeed, 7.2f, "Running boots cap boosted");
+        Near(player.runAcceleration, .096f, "Acceleration boosted");
+        Check(player.velocity == new Vector2(3, -4), "Featherlight never multiplies player velocity");
+        float fall = .5f, rise = .1f, canAscend = .5f, maxAscend = 1.5f, constant = .1f;
+        new FeatherlightWingEffects().VerticalWingSpeeds(new Item(), player, ref fall, ref rise, ref canAscend, ref maxAscend, ref constant);
+        Near(maxAscend, 1.8f, "Wing vertical speed uses native limit parameter"); Near(constant, .12f, "Wing acceleration parameter");
+        effects.ResetEffects(); player.maxRunSpeed = 3; player.accRunSpeed = 6; effects.PostUpdateRunSpeeds();
+        Near(player.maxRunSpeed, 3, "Expired featherlight restores normal movement");
+        Near(effects.TravelSpeedMultiplier, 1, "Expired featherlight restores normal broom multiplier");
+
+        // Native jetpack branch bypasses GlobalItem.VerticalWingSpeeds; check its real up/down gravity caps.
+        effects.FeatherlightActive = true;
+        player.wingsLogic = 4; player.controlUp = true;
+        Player.jumpSpeed = 5;
+        var jetpack = typeof(FeatherlightJetpackSystem).GetMethod("ModifyJetpackAscent", BindingFlags.Static | BindingFlags.NonPublic)!;
+        On_Player.orig_WingMovement original = p => p.WingMovement();
+        foreach (float gravity in new[] { 1f, -1f })
+        {
+            player.gravDir = gravity; player.velocity.Y = -100 * gravity; player.wingTime = 300;
+            jetpack.Invoke(null, new object[] { original, player });
+            Near(player.velocity.Y, -18 * gravity, "Jetpack uses 20% higher native ascent cap with either gravity direction");
+            Near(Player.jumpSpeed, 5, "Jetpack restores shared jump baseline after the native call");
+            Near(player.wingTime, 298, "Jetpack retains native flight-time consumption");
+        }
+        Console.WriteLine($"Potion behavior: {passed} checks passed against actual tModLoader types and production hooks.");
+    }
+}

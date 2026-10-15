@@ -61,8 +61,8 @@ internal static class Checks
                 t.Namespace?.StartsWith("伊蕾娜.ElainaModAlchemy.item.", StringComparison.Ordinal) == true)
             .Select(t => (AlchemyItem)Activator.CreateInstance(t)).ToArray();
         Assert(production.Length == 21, "All 21 production items in this isolated check are present");
-        var futureNames = new HashSet<string> { "ConcentrationPotion", "ResonancePotion", "FeatherlightPotion" };
-        var existingNames = new HashSet<string> { "Painkiller", "BloodthirstPotion", "StarPowerPotion" };
+        var existingNames = new HashSet<string> { "Painkiller", "BloodthirstPotion", "StarPowerPotion",
+            "ConcentrationPotion", "ResonancePotion", "FeatherlightPotion" };
         foreach (var item in production.Where(i => !existingNames.Contains(i.Name)))
         {
             Defaults(item);
@@ -72,12 +72,7 @@ internal static class Checks
             Assert(item.Item.maxStack == (item.Name == "AetherDropper" ? 1 : Item.CommonMaxStack) &&
                 item.Item.value == 0 && !item.Item.consumable && item.Item.useStyle == ItemUseStyleID.None,
                 item.Name + " presentation defaults do not consume items");
-            if (futureNames.Contains(item.Name))
-            {
-                Assert(item.GetType().BaseType == typeof(AlchemyPotion) && !item.CanUseItem(null) &&
-                    item.Item.buffType == 0 && item.Item.buffTime == 0, item.Name + " is a future drinkable potion");
-            }
-            else Assert(item.GetType().BaseType == typeof(AlchemyItem), item.Name + " is a non-potion creation");
+            Assert(item.GetType().BaseType == typeof(AlchemyItem), item.Name + " is a non-potion creation");
         }
         Assert(BuffLoader.BuffCount == startingBuffCount, "Future potions did not allocate placeholder Buffs");
 
@@ -85,7 +80,10 @@ internal static class Checks
         var painBuff = Register(new PainkillerBuff());
         var bloodBuff = Register(new BloodthirstBuff());
         var starBuff = Register(new StarPowerBuff());
-        Assert(BuffLoader.BuffCount == startingBuffCount + 3 &&
+        var focusBuff = Register(new ConcentrationBuff());
+        var resonanceBuff = Register(new ResonanceBuff());
+        var featherBuff = Register(new FeatherlightBuff());
+        Assert(BuffLoader.BuffCount == startingBuffCount + 6 &&
             ModContent.BuffType<PainkillerBuff>() == painBuff.Type &&
             ModContent.BuffType<BloodthirstBuff>() == bloodBuff.Type &&
             ModContent.BuffType<StarPowerBuff>() == starBuff.Type, "Real existing Buff IDs resolve");
@@ -94,9 +92,11 @@ internal static class Checks
             Defaults(item);
             int expectedType = item.Name switch
             {
-                "Painkiller" => painBuff.Type, "BloodthirstPotion" => bloodBuff.Type, _ => starBuff.Type
+                "Painkiller" => painBuff.Type, "BloodthirstPotion" => bloodBuff.Type,
+                "StarPowerPotion" => starBuff.Type, "ConcentrationPotion" => focusBuff.Type,
+                "ResonancePotion" => resonanceBuff.Type, _ => featherBuff.Type
             };
-            int expectedTime = item.Name == "Painkiller" ? 30 * 60 : 5 * 60 * 60;
+            int expectedTime = item.Name == "Painkiller" ? 60 * 60 : 5 * 60 * 60;
             Drinkable(item, expectedType, expectedTime);
         }
         Drinkable(Defaults(new ConfiguredPotion()), BuffID.Regeneration, 5 * 60 * 60);
@@ -104,6 +104,7 @@ internal static class Checks
 
         foreach (var item in production)
         {
+            if (args.Contains("--potions-only") && item is not AlchemyPotion) continue;
             var entry = AlchemyCatalog.GetRecipe(item.EntryId);
             Assert(item.LocalizationCategory == "Alchemy.Items", item.Name + " localization category");
             Assert(item.Texture == entry.PixelPath && item.Texture.EndsWith("_Pixel", StringComparison.Ordinal),
@@ -148,14 +149,17 @@ internal static class Checks
             Assert(!texts.Keys.Any(k => k.StartsWith("Mods.伊蕾娜.Alchemy.NotebookItems.", StringComparison.Ordinal)),
                 culture + " has no obsolete NotebookItems localization keys");
         }
-        Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 21 real item registrations, 3 real Buff registrations, both localization cultures checked.");
+        Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 21 real item registrations, 6 real Buff registrations, both localization cultures checked.");
+        PotionBehaviorChecks.Run(Mod);
     }
 
     private static void Drinkable(AlchemyItem item, int buffType, int duration)
     {
         Assert(item.CanUseItem(null) && item.Item.consumable && item.ConsumeItem(null), item.Name + " allows normal drinking and consumption");
         Assert(item.Item.buffType == buffType && item.Item.buffTime == duration, item.Name + " preserves Buff and duration");
-        Assert(item.Item.width == 20 && item.Item.height == 30 && item.Item.rare == ItemRarityID.Blue &&
+        var entry = item.EntryId == null ? null : AlchemyCatalog.GetRecipe(item.EntryId);
+        Assert(item.Item.width == (entry?.PixelWidth ?? 20) && item.Item.height == (entry?.PixelHeight ?? 30)
+            && item.Item.rare == (entry?.Rarity ?? ItemRarityID.Blue) &&
             item.Item.useStyle == ItemUseStyleID.DrinkLiquid && item.Item.useTime == 17 &&
             item.Item.useAnimation == 17 && item.Item.useTurn && item.Item.UseSound == SoundID.Item3 &&
             item.Item.maxStack == Item.CommonMaxStack, item.Name + " preserves established potion defaults");

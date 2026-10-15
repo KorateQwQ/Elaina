@@ -1,0 +1,78 @@
+namespace Preview {
+    public static class IceBreakChecks {
+        static readonly TrailManager manager = new();
+        static readonly DrawSystem renderer = new();
+        static IceConeProj cone;
+        static Vector2[] history;
+        static Vector2 lastDirection, impact, head;
+        static bool observing;
+        static int originalCalls, connectionCalls;
+        static float originalFade, connectionFade;
+        static Texture2D marker;
+        public static void Observe(Vector2[] points, Vector2 direction, float fade) {
+            if (!observing) return;
+            if (direction == Vector2.Zero) {
+                connectionCalls++; connectionFade = fade;
+                if (Vector2.Distance(points[0],head) > .001f || Vector2.Distance(points[^1],impact) > .001f)
+                    throw new Exception("Connection endpoints moved away from frozen trail head / impact");
+                foreach (var p in points) if (!float.IsFinite(p.X) || !float.IsFinite(p.Y)) throw new Exception("Nonfinite connection");
+            } else {
+                originalCalls++; originalFade = fade;
+                if (direction != lastDirection) throw new Exception("Death rotation shifted old trail");
+                for (int i = 0; i < points.Length-1; i++)
+                    if (Vector2.Distance(points[i],history[i]) > .001f) throw new Exception("Historical trail points moved");
+            }
+        }
+        public static void Start(float rotation, bool connect, bool degenerate) {
+            manager.OnWorldUnload(); LayerDrawRequestSystem.ClearFrame(); Checks.ClearObservations();
+            Checks.TrailLayer = LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles;
+            Checks.TrailTiming = LayerDrawRequestSystem.DrawTiming.After;
+            DrawSystem.SetBloomInfo(1,5,shouldBloom:true);
+            cone = new IceConeProj(Checks.IceTexture);
+            lastDirection = Vector2.UnitX.RotatedBy(rotation);
+            // Feed a curved, deterministic flight into the actual DrawBehind sampler.
+            for (int i = 0; i < 12; i++) {
+                cone.Projectile.Center = new Vector2(520,320) + new Vector2((i-11)*25, MathF.Sin(i*.2f)*8).RotatedBy(rotation);
+                cone.Projectile.rotation = rotation;
+                renderer.Cache(() => cone.DrawBehind(0,new(),new(),new(),new(),new()));
+            }
+            if (degenerate) {
+                cone.OldCenter = new[] {cone.Projectile.Center,cone.Projectile.Center};
+                // Keep the source snapshot deliberately degenerate without resampling it.
+                typeof(IceConeProj).GetField("lastTrailState", BindingFlags.Instance|BindingFlags.NonPublic)
+                    .SetValue(cone,(Checks.IceTexture,lastDirection,-35f/40));
+            }
+            history = (Vector2[])cone.OldCenter.Clone();
+            head = history[0] - lastDirection*100;
+            impact = cone.Projectile.Center + lastDirection*30;
+            cone.Projectile.Center = impact;
+            cone.Projectile.rotation += .4f; // Collision may change orientation after the last draw.
+            if (connect) cone.OnKill(0);
+            if (marker == null) { marker = new Texture2D(Main.instance.GraphicsDevice,1,1);marker.SetData(new[]{Color.White}); }
+            observing = connect;
+        }
+        public static void Frame(int age) {
+            Checks.ClearObservations();
+            if (age > 0) manager.PostUpdateProjectiles();
+            originalCalls = connectionCalls = 0;
+            renderer.Cache(() => {});
+            renderer.DrawLayers(() => {});
+            if (observing) {
+                if (age < 4 && (connectionCalls != 1 || originalCalls != 1 || Math.Abs(originalFade-connectionFade)>.0001f))
+                    throw new Exception("Connection did not fade in sync with old trail");
+                if (age >= 4 && (connectionCalls != 0 || originalCalls > 0 && originalFade > .0001f))
+                    throw new Exception("Detached tail remains visible after connection expired");
+            }
+            // Small cross marks the explosion center; actual particles/model are intentionally omitted.
+            Main.spriteBatch.Begin();
+            Main.spriteBatch.Draw(marker,new Rectangle((int)impact.X-5,(int)impact.Y,11,1),Color.Orange);
+            Main.spriteBatch.Draw(marker,new Rectangle((int)impact.X,(int)impact.Y-5,1,11),Color.Orange);
+            Main.spriteBatch.End();
+        }
+        public static void UninitializedDeath() {
+            observing = false; manager.OnWorldUnload();
+            new IceConeProj(Checks.IceTexture).OnKill(0);
+            renderer.Cache(()=>{});renderer.DrawLayers(()=>{});
+        }
+    }
+}

@@ -1,0 +1,228 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+try { using var game = new Probe(args[0], args[1], args.Length > 2 ? args[2] : "regression"); game.Run(); }
+catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
+
+sealed partial class Probe : Game
+{
+    readonly string root, output;
+    Assembly replay;
+    ContentManager content;
+    SpriteBatch batch;
+    bool done;
+    readonly bool windAlignment;
+    readonly bool iceBreak;
+    const int Width = 960, Height = 640;
+    public Probe(string root, string output, string mode)
+    {
+        windAlignment = mode == "wind-alignment";
+        iceBreak = mode == "ice-break";
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    Assembly Compile()
+    {
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))));
+        var projectile = Read(Path.Combine(kl, "Projectiles/KLProjectile.cs"));
+        var draw = Read(Path.Combine(kl, "Drawing/DrawSystem.cs"));
+        var helper = Read(Path.Combine(kl, "Drawing/DrawHelper.vertexDraw.cs"));
+        var drawing = Read(Path.Combine(kl, "Drawing/DrawHelper.DrawingMethod.cs"));
+        var assets = Read(Path.Combine(kl, "Drawing/DrawHelper.Assets.cs"));
+        var render = Read(Path.Combine(kl, "Drawing/RenderHelper.cs"));
+        var effects = Read(Path.Combine(kl, "Drawing/DrawHelper.Effects.cs"));
+        string source = File.ReadAllText(Path.Combine(root, "Tools/ManagedTrailPreview/Scene.cs.txt"));
+        string[] fields = ["OldCenter", "oldCenterTrailPositions", "oldCenterTrailPointCount", "distanceLimitedTrailPositions",
+            "TrailLength", "TrailSampleCount", "TrailMaxLength"];
+        source += "namespace KL.Projectiles { public partial class KLProjectile {";
+        source += string.Join("\n", projectile.DescendantNodes().OfType<FieldDeclarationSyntax>()
+            .Where(f => f.Declaration.Variables.Any(v => fields.Contains(v.Identifier.Text))));
+        source += projectile.DescendantNodes().OfType<PropertyDeclarationSyntax>().Single(p => p.Identifier.Text == "SampleTrailInDrawBehind").ToFullString();
+        source += Methods(projectile, "PreDraw", "DrawBehind", "RecordTrail", "RecordDistanceLimitedTrail", "ValidTrailArray") + "}}";
+        source += "namespace KL.Drawing { public partial class DrawSystem {";
+        source += draw.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "DrawLayer").ToFullString();
+        source += Methods(draw, "On_Main_CacheProjDraws", "On_Main_DrawCachedProjs", "On_Main_DrawProjectiles", "FlushLayerRequests",
+            "On_Main_DrawDust", "On_Main_DrawPlayers_AfterProjectiles", "On_Main_DrawInfernoRings");
+        string[] bloomFields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
+            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+        source += Fields(draw, n => bloomFields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "} public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString() + "}";
+
+        foreach (string name in new[] { "IceConeProj", "MagicMissile", "MagicMissleSpawner" })
+        {
+            string folder = name == "IceConeProj" ? "Ice" : "MagicMissile";
+            var consumer = Read(Path.Combine(root, $"ElainaModSkills/Skills/{folder}/{name}.cs"));
+            var type = consumer.DescendantNodes().OfType<ClassDeclarationSyntax>().First();
+            var defaults = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "SetDefaults");
+            string settings = string.Join("\n", defaults.DescendantNodes().OfType<ExpressionStatementSyntax>()
+                .Where(e => e.Expression is AssignmentExpressionSyntax a && a.Left.ToString().StartsWith("Trail")));
+            source += $"namespace Preview {{ public class {name} : KLProjectile {{";
+            source += "private TrailManager.TrailHandle managedTrail; private int time = 35; private Texture2D trail; private int BackwardFlyTime => 25;";
+            if (name == "IceConeProj") {
+                source += string.Join("\n", type.Members.OfType<FieldDeclarationSyntax>().Where(f => f.Modifiers.Any(SyntaxKind.ConstKeyword) ||
+                    f.Declaration.Variables.Any(v => v.Identifier.Text == "lastTrailState")));
+                source += Methods(consumer, "ConnectTrailToBreakPoint", "DrawReleasedTrail", "DrawBreakConnection");
+                var onKill = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "OnKill");
+                // Retain actual death-hook dispatch; unrelated explosion particles need a live Terraria world.
+                source += onKill.WithBody(SyntaxFactory.Block(onKill.Body.Statements.OfType<ExpressionStatementSyntax>()
+                    .Where(s => s.Expression is InvocationExpressionSyntax i &&
+                        (i.Expression.ToString() == "ConnectTrailToBreakPoint" || i.Expression.ToString() == "base.OnKill")))).ToFullString();
+                var trailDraw = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawTrail");
+                source += trailDraw.WithBody(trailDraw.Body.WithStatements(trailDraw.Body.Statements.Insert(0,
+                    SyntaxFactory.ParseStatement("IceBreakChecks.Observe(points, state.Direction, fade);")))).ToFullString();
+            }
+            source += type.Members.OfType<PropertyDeclarationSyntax>().Single(p => p.Identifier.Text == "SampleTrailInDrawBehind").ToFullString();
+            source += $"public {name}(Texture2D texture) {{ trail = texture; {settings} }}";
+            source += $"private void DrawVisual() => Checks.Body(nameof({name}), Projectile.Center);";
+            var behind = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawBehind");
+            var registration = behind.DescendantNodes().OfType<InvocationExpressionSyntax>().Single(i => i.Expression.ToString() == "TrailManager.CreateOrUpdateTrail");
+            // Sweep layer/timing independently of the user's current selection; keep consumer data and callback intact.
+            var arguments = registration.ArgumentList.Arguments.Take(5).Concat(new[] {
+                SyntaxFactory.Argument(SyntaxFactory.ParseExpression("Checks.TrailLayer")).WithNameColon(SyntaxFactory.NameColon("layer")),
+                SyntaxFactory.Argument(SyntaxFactory.ParseExpression("Checks.TrailTiming")).WithNameColon(SyntaxFactory.NameColon("timing")),
+                SyntaxFactory.Argument(SyntaxFactory.ParseExpression("true")).WithNameColon(SyntaxFactory.NameColon("bloom")) });
+            behind = behind.ReplaceNode(registration, registration.WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments))));
+            source += behind.ToFullString();
+            source += type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "PreDraw").ToFullString();
+            var callback = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawManagedTrail");
+            string ratio = callback.ParameterList.Parameters.Last().Identifier.Text;
+            callback = callback.WithBody(callback.Body.WithStatements(callback.Body.Statements.Insert(0,
+                SyntaxFactory.ParseStatement($"Checks.Observe(nameof({name}), points, {ratio});"))));
+            source += callback.ToFullString() + "}}";
+        }
+        source += BlendSource();
+        source += File.ReadAllText(Path.Combine(root, "Tools/ManagedTrailPreview/IceBreakScene.cs.txt"));
+
+        var trail = helper.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" &&
+            m.ParameterList.Parameters[2].Type.ToString() == "Vector4");
+        // The consumers do not enable diagnostic point sprites; keep actual geometry and shader code.
+        trail = trail.ReplaceNodes(trail.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"),
+            (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        source += "namespace KL.Drawing { public static partial class DrawHelper { public static Effect vertexDraw;" + trail.ToFullString();
+        source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString();
+        source += Methods(drawing, "GetBlendState", "BeginDraw");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect") + "}}";
+
+        // Regions may begin outside the extracted members; they do not affect executable code.
+        source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");
+        File.WriteAllText(Path.Combine(output, "replay.cs.txt"), source);
+
+        var trees = new[] { source, File.ReadAllText(Path.Combine(kl, "Projectiles/TrailManager.cs")),
+            File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs")) }.Select(s => CSharpSyntaxTree.ParseText(s));
+        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("ManagedTrailReplay", trees, refs, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        replay = Compile(); batch = new SpriteBatch(GraphicsDevice);
+        content = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
+        replay.GetType("KL.Drawing.DrawHelper").GetField("vertexDraw").SetValue(null, content.Load<Effect>("VertexDraw"));
+        replay.GetType("KL.Drawing.DrawHelper").GetField("bloom").SetValue(null, content.Load<Effect>("Bloom"));
+        replay.GetType("KL.Drawing.DrawHelper").GetField("reColor").SetValue(null, content.Load<Effect>("ReColor"));
+        Texture2D Load(string name) {
+            using var file = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Trail/" + name + ".png"));
+            return Texture2D.FromStream(GraphicsDevice, file);
+        }
+        replay.GetType("Preview.Checks").GetMethod("Setup").Invoke(null,
+            [GraphicsDevice, batch, Load("streak_801_4r"), Load("LightTrail"), Load("streak_026_4r")]);
+        SetupBlendChecks();
+    }
+
+    protected override void Draw(GameTime time)
+    {
+        if (done) { Exit(); return; } done = true;
+        if (iceBreak) { DrawIceBreakFrames(); Exit(); return; }
+        if (windAlignment) { DrawWindAlignmentFrames(); Exit(); return; }
+        CheckBlendVisuals();
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        var checks = replay.GetType("Preview.Checks");
+        void Frame(int frame, bool alive, string name = null) {
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(33, 48, 64));
+            checks.GetMethod("Frame").Invoke(null, [frame, alive]);
+            GraphicsDevice.SetRenderTarget(null);
+            if (name != null) {
+                using var file = File.Create(Path.Combine(output, name + ".png")); target.SaveAsPng(file, Width, Height);
+            }
+        }
+        for (int frame = 0; frame <= 12; frame++) Frame(frame, true, frame == 1 ? "first-trails" : frame == 12 ? "active" : null);
+        // An empty later bloom layer must not darken the already-composited trail or its background.
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(33, 48, 64));
+        checks.GetMethod("Frame").Invoke(null, [12, true]);
+        var before = new Color[Width * Height]; target.GetData(before);
+        checks.GetMethod("EmptyBloom").Invoke(null, null);
+        var after = new Color[Width * Height]; target.GetData(after);
+        GraphicsDevice.SetRenderTarget(null);
+        using (var file = File.Create(Path.Combine(output, "after-empty-layer.png"))) target.SaveAsPng(file, Width, Height);
+        int darkened = before.Zip(after).Count(p => p.Second.R + p.Second.G + p.Second.B < p.First.R + p.First.G + p.First.B - 2);
+        Console.WriteLine($"Empty later bloom layer: {darkened} darkened pixels; alpha min before={before.Min(p => p.A)}, after={after.Min(p => p.A)}");
+        if (darkened > 0) throw new Exception("An empty later bloom layer darkened the existing scene");
+        checks.GetMethod("CheckSamplingGates").Invoke(null, null);
+        for (int age = 1; age <= 10; age++) Frame(12 + age, false, age is 3 or 8 or 10 ? $"expired-{age:00}" : null);
+        checks.GetMethod("CheckAllLayerTimings").Invoke(null, null);
+        foreach (bool bloom in new[] { false, true })
+        foreach (bool backbuffer in new[] { false, true }) {
+            Color[] earlier = null;
+            foreach (string layer in new[] { "BehindProjectiles", "Projectiles" })
+            foreach (bool beforeLayer in new[] { true, false }) {
+                checks.GetMethod("Reset").Invoke(null, [layer, beforeLayer, bloom]);
+                for (int frame = 0; frame <= 4; frame++) {
+                    GraphicsDevice.SetRenderTarget(backbuffer ? null : target);
+                    GraphicsDevice.Clear(new Color(33, 48, 64));
+                    checks.GetMethod("Frame").Invoke(null, [frame, true]);
+                }
+                var pixels = new Color[Width * Height];
+                if (backbuffer) GraphicsDevice.GetBackBufferData(pixels); else target.GetData(pixels);
+                GraphicsDevice.SetRenderTarget(null);
+                string name = $"{layer}-{(beforeLayer ? "before" : "after")}-{(bloom ? "bloom" : "plain")}-{(backbuffer ? "backbuffer" : "target")}";
+                using (var texture = new Texture2D(GraphicsDevice, Width, Height)) {
+                    texture.SetData(pixels);
+                    using var file = File.Create(Path.Combine(output, name + ".png")); texture.SaveAsPng(file, Width, Height);
+                }
+                // No vanilla content is between these stages in the probe, so moving the same
+                // trail to another stage ahead of its body must preserve every output pixel.
+                if (layer == "BehindProjectiles" && beforeLayer) earlier = pixels;
+                else if (layer == "BehindProjectiles" || beforeLayer) {
+                    int differences = earlier.Zip(pixels).Count(p => p.First != p.Second);
+                    if (differences != 0) throw new Exception(name + $" changed {differences} pixels merely by moving the layer");
+                }
+                Console.WriteLine("PASS " + name);
+            }
+        }
+        Console.WriteLine("PASS actual cache/draw hooks, current-frame points, first submission, ordering, no duplicate samples, full active lifetime, pause/time-stop, legacy sampling, death shrink/removal.");
+        Console.WriteLine("FNA images use actual consumer trails, shaders and full KL bloom pipeline with synthetic white body markers. AI, lighting, networking and full game lifecycle are not simulated.");
+        Exit();
+    }
+}

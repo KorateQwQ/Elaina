@@ -56,7 +56,8 @@ public static class LoadoutItems
         ["chlorophyte"] = [ItemID.ChlorophyteHeadgear, ItemID.ChlorophytePlateMail, ItemID.ChlorophyteGreaves],
         ["hallowedChloroApprentice"] = [ItemID.HallowedHeadgear, ItemID.ChlorophytePlateMail, ItemID.ApprenticeTrousers],
         ["spectre"] = [ItemID.SpectreMask, ItemID.SpectreRobe, ItemID.SpectrePants],
-        ["spectreDarkArtist"] = [ItemID.SpectreMask, ItemID.SpectreRobe, ItemID.ApprenticeAltPants],
+        // 兼容旧配置键；幽灵推荐统一为输出型完整套装。
+        ["spectreDarkArtist"] = [ItemID.SpectreMask, ItemID.SpectreRobe, ItemID.SpectrePants],
         ["darkArtist"] = [ItemID.ApprenticeAltHead, ItemID.ApprenticeAltShirt, ItemID.ApprenticeAltPants],
         ["nebula"] = [ItemID.NebulaHelmet, ItemID.NebulaBreastplate, ItemID.NebulaLeggings],
     }.ToFrozenDictionary();
@@ -75,6 +76,14 @@ public static class LoadoutItems
         ["destroyer"] = ItemID.DestroyerEmblem,
         ["eyeGolem"] = ItemID.EyeoftheGolem,
         ["celestialStone"] = ItemID.CelestialStone,
+        ["celestialShell"] = ItemID.CelestialShell,
+        ["regenLife"] = ItemID.BandofRegeneration,
+        ["shackle"] = ItemID.Shackle,
+        ["sharkTooth"] = ItemID.SharkToothNecklace,
+        ["wormScarf"] = ItemID.WormScarf,
+        ["brain"] = ItemID.BrainOfConfusion,
+        ["obsidianShield"] = ItemID.ObsidianShield,
+        ["ankhShield"] = ItemID.AnkhShield,
     }.ToFrozenDictionary();
 
     public static readonly FrozenDictionary<string, int> Prefixes = new Dictionary<string, int>
@@ -97,6 +106,6 @@ public static class LoadoutItems
         return Accessories.TryGetValue(id, out type);
     }
 
-    /// <summary>“机动／生存（占位）”与“空槽”：换装时保留该槽位原有饰品。</summary>
+    /// <summary>旧版 utility 与空槽保留原饰品，不应用前缀，也不在网页计入预设属性。</summary>
     public static bool KeepsSlot(string id) => id is "utility" or "empty";
 }

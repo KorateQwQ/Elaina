@@ -1,0 +1,102 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    string BlendSource()
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        var wind = Read(Path.Combine(root, "ElainaModSkills/Skills/Wind/WindSlash.cs"));
+        var vertices = Read(Path.Combine(root, "../KL/Drawing/DrawHelper.vertexDraw.cs"));
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string source = File.ReadAllText(Path.Combine(root, "Tools/ManagedTrailPreview/BlendScene.cs.txt"));
+        source += "namespace Preview { public partial class WindSlash {";
+        source += string.Join("\n", wind.DescendantNodes().OfType<ClassDeclarationSyntax>().First().Members.OfType<FieldDeclarationSyntax>());
+        var drawWind = wind.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawWind");
+        drawWind = drawWind.WithBody(drawWind.Body.WithStatements(drawWind.Body.Statements.Insert(0,
+            SyntaxFactory.ParseStatement("BlendChecks.WindCalls++;"))));
+        source += Methods(wind, "PreDraw", "OnSpawn_AllClient", "UpdateWindPoints", "FillWindPoints") + drawWind.ToFullString();
+        string[] layerMethods = ["DrawCrescentFan", "DrawArcFlame", "DrawWindTrails"];
+        for (int i = 0; i < layerMethods.Length; i++) {
+            var method = wind.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == layerMethods[i]);
+            method = method.WithBody(method.Body.WithStatements(method.Body.Statements.Insert(0,
+                SyntaxFactory.ParseStatement($"if (PreviewLayer != 0 && PreviewLayer != {i+1}) return;"))));
+            source += method.ToFullString();
+        }
+        source += "}}";
+        var vertex = vertices.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "VertexDrawEffect" &&
+            m.ParameterList.Parameters[2].Type.ToString() == "Color");
+        vertex = vertex.ReplaceNodes(vertex.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"),
+            (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        vertex = vertex.WithBody(vertex.Body.WithStatements(vertex.Body.Statements.Insert(0,
+            SyntaxFactory.ParseStatement("WindContourChecks.RecordMesh(topPoints, attachPoint, attachRotation);"))));
+        source += "namespace KL.Drawing { public static partial class DrawHelper {" + vertex.ToFullString();
+        source += Methods(vertices, "QuickConePoints", "GetQuadraticBezierPoint") + "}}";
+        return source;
+    }
+
+    void SetupBlendChecks()
+    {
+        Texture2D Load(string path) {
+            using var file = File.OpenRead(Path.GetFullPath(Path.Combine(root, path)));
+            return Texture2D.FromStream(GraphicsDevice, file);
+        }
+        replay.GetType("Preview.BlendChecks").GetMethod("Setup").Invoke(null, [
+            content.Load<Effect>("CrescentFan"), content.Load<Effect>("ArcFlame"),
+            new Texture2D[] { Load("Effects/Tex/fadeUP.png"), Load("../KL/Effects/Tex/background.png"),
+                Load("../KL/Effects/Tex/水波.png"), Load("../KL/Effects/Tex/Wind/wind3.png"), Load("../KL/Effects/Tex/Wind/windNoi.png"),
+                Load("../KL/Effects/Tex/Trail/LightTrail.png") }]);
+    }
+
+    void CheckBlendVisuals()
+    {
+        var checks = replay.GetType("Preview.BlendChecks");
+        int failures = 0;
+        foreach (bool backbuffer in new[] { false, true })
+        foreach (bool daylight in new[] { true, false })
+        foreach (string effect in new[] { "trail", "overlap", "wind", "wind-predraw", "mixed", "opaque" }) {
+            Color bg = daylight ? new Color(79, 160, 161) : new Color(10, 16, 25);
+            string key = $"{effect}-{(daylight ? "day" : "night")}-{(backbuffer ? "backbuffer" : "target")}";
+            Color[] Render(bool enabled, float strength, string suffix) {
+                // Reference: execute the original RGB blends directly over the HDR scene and
+                // clamp once at display time. An UNORM target clamps shader values before blending.
+                using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false,
+                    enabled ? SurfaceFormat.Color : SurfaceFormat.Vector4, DepthFormat.None);
+                GraphicsDevice.SetRenderTarget(enabled && backbuffer ? null : target); GraphicsDevice.Clear(bg);
+                checks.GetMethod("Draw").Invoke(null, [effect, enabled, strength]);
+                var pixels = new Color[Width * Height];
+                if (!enabled) {
+                    var hdr = new Vector4[Width * Height]; target.GetData(hdr);
+                    for (int i = 0; i < hdr.Length; i++) pixels[i] = new Color(new Vector4(hdr[i].X, hdr[i].Y, hdr[i].Z, 1f));
+                }
+                else if (backbuffer) GraphicsDevice.GetBackBufferData(pixels); else target.GetData(pixels);
+                GraphicsDevice.SetRenderTarget(null);
+                using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
+                using var file = File.Create(Path.Combine(output, key + suffix + ".png")); image.SaveAsPng(file, Width, Height);
+                return pixels;
+            }
+            var plain = Render(false, 0, "-direct");
+            var zero = Render(true, 0, "-zero");
+            var glow = Render(true, 1, "-bloom");
+            int changed = plain.Zip(zero).Count(p => Math.Abs(p.First.R-p.Second.R) > 2 || Math.Abs(p.First.G-p.Second.G) > 2 || Math.Abs(p.First.B-p.Second.B) > 2);
+            int darkened = zero.Zip(glow).Count(p => p.Second.R + 2 < p.First.R || p.Second.G + 2 < p.First.G || p.Second.B + 2 < p.First.B);
+            // Wind may deliberately combine straight-alpha materials with additive streaks.
+            // Only the pure additive trail cases promise never to attenuate the background.
+            bool additive = effect is "trail" or "overlap";
+            bool emitsGlow = additive || effect.StartsWith("wind");
+            int lostBackground = additive ? glow.Count(p => p.R+2 < bg.R || p.G+2 < bg.G || p.B+2 < bg.B) : 0;
+            int added = zero.Zip(glow).Count(p => p.Second.R > p.First.R + 2 || p.Second.G > p.First.G + 2 || p.Second.B > p.First.B + 2);
+            Console.WriteLine($"BLEND {key}: zero-strength changed={changed}, bloom darkened={darkened}, additive below background={lostBackground}, lit={added}");
+            if (changed + darkened + lostBackground > 0 || (emitsGlow ? added == 0 : added > 0)) failures++;
+        }
+        if (failures > 0) throw new Exception($"Blend composition failed in {failures} visual cases");
+        Console.WriteLine("PASS actual wind/trail draws on day/night backgrounds: zero bloom preserves base, halo never darkens base, additive never darkens background; alpha and opaque coverage preserved");
+    }
+}

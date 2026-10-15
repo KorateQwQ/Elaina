@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>冰魔法瞄准特效预览</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Microsoft YaHei","PingFang SC",sans-serif;}
+canvas{position:absolute;inset:0;width:100%;height:100%;}
+#gl{pointer-events:none;}
+#scene{cursor:crosshair;}
+#hud{position:absolute;left:16px;top:16px;width:310px;padding:14px 16px;background:rgba(8,20,42,.72);border:1px solid rgba(140,200,255,.35);border-radius:10px;color:#d8ecff;font-size:13px;backdrop-filter:blur(6px);user-select:none;}
+#hud h1{font-size:16px;margin:0 0 6px;color:#c4e8ff;letter-spacing:1px;}
+.styles{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;}
+.styles button{background:rgba(40,80,130,.5);color:#cfe8ff;border:1px solid rgba(140,200,255,.3);border-radius:6px;padding:6px 4px;cursor:pointer;font-family:inherit;font-size:13px;}
+.styles button.on{background:rgba(90,170,255,.55);border-color:#bfe6ff;color:#fff;}
+#desc{min-height:58px;color:#a5c8ea;line-height:1.55;margin-bottom:6px;}
+label{display:flex;align-items:center;gap:6px;margin-top:6px;}
+label span{width:64px;color:#a5c8ea;}
+input[type=range]{flex:1;}
+select{flex:1;background:#12284a;color:#d8ecff;border:1px solid rgba(140,200,255,.3);border-radius:4px;padding:2px;}
+.hint{color:#7fa3c6;font-size:12px;margin-top:10px;line-height:1.6;}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<canvas id="gl"></canvas>
+<div id="hud">
+  <h1>❄ 冰魔法瞄准特效</h1>
+  <div class="styles" id="styles"></div>
+  <div id="desc"></div>
+  <label><input type="checkbox" id="gallery"> 并排展示全部样式（自动循环锁定）</label>
+  <label><span>配色</span><select id="palette">
+    <option value="0">冰蓝</option><option value="1">霜白</option><option value="2">深寒紫</option>
+  </select></label>
+  <label><span>锁定时长</span><input type="range" id="lockTime" min="0.1" max="1" step="0.05" value="0.35"><b id="lockTimeV">0.35s</b></label>
+  <label><span>尺寸</span><input type="range" id="size" min="0.6" max="2.5" step="0.05" value="1.2"><b id="sizeV">1.20×</b></label>
+  <div class="hint">把鼠标移到敌人或假人身上触发锁定，移开会解除。<br>快捷键：1–4 切换样式 · G 并排展示</div>
+</div>
+
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 aPos;
+uniform vec2 uCenter;
+uniform float uExtent;
+uniform vec2 uRes;
+void main(){
+  vec2 px = uCenter + aPos * uExtent;
+  gl_Position = vec4(px / uRes * 2.0 - 1.0, 0.0, 1.0);
+}
+</script>
+
+<script id="fs" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 uCenter;   // 设备像素，左下角原点
+uniform float uRadius;  // 设备像素
+uniform float uTime;
+uniform float uLock;    // 0..1 锁定进度
+uniform float uAge;     // 完全锁定后经过的秒数，未锁定为 -1
+uniform float uAlpha;
+uniform float uStyle;
+uniform vec3 uDeep;
+uniform vec3 uMid;
+
+#define TAU 6.28318530718
+const vec3 WHITE = vec3(0.95, 0.99, 1.0);
+
+float gE;      // 累计能量，最后经色带映射成颜色
+float gCov;    // 实体覆盖率，决定 alpha（亮背景上保持可读）
+vec3 gExtra;   // 不走色带的显式颜色（棱镜色散等）
+float AA;
+
+mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p){
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++){ s += a * noise(p); p = p * 2.03 + 1.7; a *= 0.5; }
+  return s;
+}
+float easeOutBack(float x){ float t = x - 1.0; return 1.0 + 2.70158 * t * t * t + 1.70158 * t * t; }
+
+float sdSeg(vec2 p, vec2 a, vec2 b){
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+float ndot(vec2 a, vec2 b){ return a.x * b.x - a.y * b.y; }
+float sdRhombus(vec2 p, vec2 b){
+  p = abs(p);
+  float h = clamp(ndot(b - 2.0 * p, b) / dot(b, b), -1.0, 1.0);
+  float d = length(p - 0.5 * b * vec2(1.0 - h, 1.0 + h));
+  return d * sign(p.x * b.y + p.y * b.x - b.x * b.y);
+}
+float sdHex(vec2 p, float r){
+  const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
+  p = abs(p);
+  p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
+  p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+  return length(p) * sign(p.y);
+}
+float sdTri(vec2 p, float r){
+  const float k = 1.7320508;
+  p.x = abs(p.x) - r;
+  p.y = p.y + r / k;
+  if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
+  p.x -= clamp(p.x, -2.0 * r, 0.0);
+  return -length(p) * sign(p.y);
+}
+// 极坐标重复：把角度折叠到第 idx 个扇区，扇区中心朝 +x
+vec2 prep(vec2 p, float n, out float idx){
+  float an = TAU / n;
+  float a = atan(p.y, p.x);
+  idx = floor(a / an + 0.5);
+  a -= idx * an;
+  return vec2(cos(a), sin(a)) * length(p);
+}
+
+// 线条：线芯 + 紧贴光晕 + 大范围柔光
+void stroke(float d, float th, float k){
+  float c = 1.0 - smoothstep(th - AA, th + AA, d);
+  float x = max(d - th, 0.0);
+  float halo = exp(-x / (th * 2.0 + 0.022));
+  float bloom = exp(-x / 0.16);
+  gE += k * (c * 1.3 + halo * 0.45 + bloom * 0.07);
+  gCov += k * c;
+}
+// 冰晶面：facet 0..1 控制这一面的明暗
+void facetFill(float d, float k, float facet){
+  float c = 1.0 - smoothstep(-AA, AA, d);
+  gE += k * c * mix(0.22, 0.8, facet);
+  gCov += k * c * 0.55;
+  stroke(abs(d), 0.005, k);
+}
+// 二次元十字星芒
+void glint(vec2 q, float s, float k){
+  q /= s;
+  float arms = exp(-abs(q.x) * 36.0) * exp(-abs(q.y) * 3.2)
+             + exp(-abs(q.y) * 36.0) * exp(-abs(q.x) * 3.2);
+  float core = exp(-length(q) * 11.0);
+  gE += k * (arms * 0.9 + core * 1.8);
+  gCov += k * core * 0.4;
+}
+void strokeColor(float d, float th, float k, vec3 col){
+  float c = 1.0 - smoothstep(th - AA, th + AA, d);
+  float h = exp(-max(d - th, 0.0) / (th * 2.0 + 0.02));
+  gExtra += k * col * (c * 0.8 + h * 0.3);
+  gCov += k * c * 0.3;
+}
+vec3 ramp(float E){
+  vec3 c = mix(uDeep * 0.55, uDeep, smoothstep(0.0, 0.3, E));
+  c = mix(c, uMid, smoothstep(0.25, 0.8, E));
+  return mix(c, WHITE, smoothstep(0.85, 1.7, E));
+}
+
+// 向目标螺旋吸入的冰尘
+void motes(vec2 p, float k){
+  for (int i = 0; i < 14; i++){
+    float fi = float(i);
+    float h1 = hash(vec2(fi, 7.1)), h2 = hash(vec2(fi, 3.3));
+    float life = fract(uTime * (0.3 + 0.25 * h2) + h1);
+    float an = h1 * TAU + life * 1.8;
+    vec2 pos = mix(1.75, 0.4, life) * vec2(cos(an), sin(an));
+    glint(p - pos, 0.05 + 0.05 * h2, sin(life * 3.14159) * k * 0.55);
+  }
+}
+
+// ---------- 样式 0：霜晶准星 ----------
+void styleShard(vec2 p, float r, float e, float e3){
+  float t = uTime;
+  float rr = mix(1.45, 1.0, e3);
+  // 分段主环
+  vec2 q = rot(t * 0.5) * p;
+  float f = fract(atan(q.y, q.x) / TAU * 6.0);
+  stroke(abs(r - rr), 0.011, smoothstep(0.035, 0.07, min(f, 1.0 - f)) * e3);
+  // 外侧细环与刻度
+  float r2 = rr * 1.1;
+  stroke(abs(r - r2), 0.0025, 0.4 * e3);
+  vec2 qo = rot(-t * 0.2) * p;
+  float fo = fract(atan(qo.y, qo.x) / TAU * 60.0) - 0.5;
+  float major = step(0.5, fract((atan(qo.y, qo.x) / TAU * 60.0 + 0.5) / 5.0));
+  float tl = mix(0.012, 0.03, major);
+  stroke(length(vec2(fo * TAU * r / 60.0, max(abs(r - r2) - tl, 0.0))), 0.0025, 0.5 * e3);
+  // 内虚线环
+  vec2 q2 = rot(-t * 0.8) * p;
+  float fd = fract(atan(q2.y, q2.x) / TAU * 24.0);
+  float dash = smoothstep(0.0, 0.06, fd) * smoothstep(0.5, 0.44, fd);
+  stroke(abs(r - 0.74 * mix(1.3, 1.0, e3)), 0.005, dash * 0.65 * e3);
+  // 六枚冰晶向内收拢（分面明暗）
+  float idx;
+  vec2 sp = prep(rot(-TAU / 12.0) * p, 6.0, idx);
+  float longOne = mod(idx, 2.0);
+  float len = mix(0.13, 0.2, longOne);
+  float wid = mix(0.04, 0.055, longOne);
+  float dist = mix(2.0, 0.56, e) + 0.022 * sin(t * 5.0 + idx * 1.3) * uLock;
+  vec2 lp = sp - vec2(dist + len, 0.0);
+  float sh = smoothstep(0.0, 0.4, uLock);
+  facetFill(sdRhombus(lp, vec2(len, wid)), sh, smoothstep(-0.004, 0.004, lp.y));
+  stroke(sdSeg(lp, vec2(-len * 0.85, 0.0), vec2(len * 0.85, 0.0)), 0.0025, 0.7 * sh);
+  // 中心
+  stroke(abs(sdRhombus(rot(t * 1.2) * p, vec2(0.075))), 0.005, e3);
+  glint(p, 0.14, e3 * 0.7);
+  // 霜星
+  for (int i = 0; i < 5; i++){
+    float fi = float(i);
+    float an = hash(vec2(fi, 9.0)) * TAU + t * 0.15;
+    float tw = pow(0.5 + 0.5 * sin(t * 2.6 + fi * 2.1), 6.0);
+    glint(p - (rr * 1.2 + 0.08 * hash(vec2(fi, 2.0))) * vec2(cos(an), sin(an)), 0.16, tw * e3);
+  }
+}
+
+// ---------- 样式 1：冰封法阵 ----------
+void styleCircle(vec2 p, float r, float e, float e3){
+  float t = uTime;
+  float sc = mix(1.6, 1.0, e3);
+  vec2 P = p / sc;
+  float R = r / sc;
+  stroke(abs(R - 1.0) * sc, 0.01, e3);
+  stroke(abs(R - 1.035) * sc, 0.0025, e3 * 0.5);
+  stroke(abs(R - 0.84) * sc, 0.004, e3 * 0.8);
+  // 符文环
+  vec2 q = rot(t * 0.3) * P;
+  float cells = 14.0;
+  float cf = (atan(q.y, q.x) / TAU + 0.5) * cells;
+  float ci = floor(cf);
+  float arc = 0.92 * TAU / cells;
+  vec2 g = vec2((fract(cf) - 0.5) * arc, R - 0.92) / 0.05;
+  float gd = sdSeg(g, vec2(0.0, -0.7), vec2(0.0, 0.7));
+  if (hash(vec2(ci, 1.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(-0.6, 0.7), vec2(0.0, 0.0)));
+  if (hash(vec2(ci, 2.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(0.6, 0.7), vec2(0.0, 0.0)));
+  if (hash(vec2(ci, 3.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(-0.6, -0.7), vec2(0.0, 0.0)));
+  if (hash(vec2(ci, 4.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(0.6, -0.7), vec2(0.0, 0.0)));
+  if (hash(vec2(ci, 5.0)) > 0.6) gd = min(gd, sdSeg(g, vec2(-0.6, 0.0), vec2(0.6, 0.0)));
+  if (hash(vec2(ci, 6.0)) > 0.6) gd = min(gd, sdSeg(g, vec2(-0.6, 0.7), vec2(0.6, 0.7)));
+  if (hash(vec2(ci, 7.0)) > 0.6) gd = min(gd, sdSeg(g, vec2(-0.6, -0.7), vec2(0.6, -0.7)));
+  float runeOn = smoothstep(ci / cells * 0.6, ci / cells * 0.6 + 0.3, uLock); // 符文逐个点亮
+  stroke(gd * 0.05 * sc, 0.0035, runeOn * 0.9);
+  float sep = length(vec2(min(fract(cf), 1.0 - fract(cf)) * arc, R - 0.92));
+  stroke(sep * sc, 0.006, e3 * 0.5);
+  // 反向旋转的六芒星
+  float f2 = smoothstep(0.3, 1.0, uLock);
+  vec2 q3 = rot(-t * 0.45) * P;
+  float hexa = min(abs(sdTri(q3, 0.6)), abs(sdTri(-q3, 0.6)));
+  stroke(hexa * sc, 0.004, f2 * 0.8);
+  stroke(abs(R - 0.7) * sc, 0.003, f2 * 0.5);
+  // 六芒星顶点的星芒
+  float vi;
+  vec2 vq = prep(q3, 6.0, vi);
+  glint((vq - vec2(0.7, 0.0)) * sc, 0.12, f2 * 0.5);
+  // 中心十字
+  vec2 ap = abs(P);
+  float cr = min(sdSeg(ap, vec2(0.1, 0.0), vec2(0.26, 0.0)), sdSeg(ap, vec2(0.0, 0.1), vec2(0.0, 0.26)));
+  stroke(cr * sc, 0.005, e3);
+  // 锁定后向内的寒潮脉冲
+  float w = fract(t * 0.8);
+  stroke(abs(R - mix(1.0, 0.15, w)) * sc, 0.004, (1.0 - w) * 0.5 * smoothstep(0.9, 1.0, uLock));
+}
+
+// ---------- 样式 2：寒霜锁定框 ----------
+float bracket(vec2 a, float s, float L){
+  return min(sdSeg(a, vec2(s, s - L), vec2(s, s)), sdSeg(a, vec2(s - L, s), vec2(s, s)));
+}
+void styleBracket(vec2 p, float r, float e, float e3){
+  float t = uTime;
+  float s = mix(1.6, 0.86, e);
+  // 正方形转 45°，四个角指向上下左右
+  vec2 a = abs(rot(TAU / 8.0) * p);
+  stroke(bracket(a, s, 0.42), 0.013, e3);
+  stroke(bracket(a, s - 0.07, 0.26), 0.003, e3 * 0.6);
+  // 顶点冰刺（分面）
+  float grow = smoothstep(0.5, 1.0, uLock);
+  vec2 cp = rot(-TAU / 8.0) * (a - vec2(s));
+  vec2 sl = cp - vec2(0.17 * grow, 0.0);
+  facetFill(sdRhombus(sl, vec2(0.17 * grow + 0.001, 0.03)), grow, smoothstep(-0.004, 0.004, sl.y));
+  vec2 s1 = a - vec2(s + 0.055, s - 0.26);
+  vec2 s2 = a.yx - vec2(s + 0.055, s - 0.26);
+  facetFill(sdRhombus(s1, vec2(0.06 * grow + 0.001, 0.018)), grow * 0.8, step(0.0, s1.y));
+  facetFill(sdRhombus(s2, vec2(0.06 * grow + 0.001, 0.018)), grow * 0.8, step(0.0, s2.y));
+  // 锁定后从四角蔓延的霜纹
+  float creep = uAge < 0.0 ? 0.0 : clamp(uAge / 0.9, 0.0, 1.0);
+  float mask = smoothstep(0.0, 1.0, clamp(1.0 - length(a - vec2(s)) / max(0.75 * creep, 1e-4), 0.0, 1.0)) * step(a.x, s) * step(a.y, s);
+  // 噪声等值线作为霜纹，梯度近似换算成距离，画成发光细线
+  stroke(abs(fbm(p * 7.0) - 0.5) / 3.5, 0.0025, smoothstep(0.0, 0.25, mask) * 0.8);
+  // 顶点之间的淡菱形轮廓
+  vec2 bq = a - vec2(s);
+  float box = length(max(bq, 0.0)) + min(max(bq.x, bq.y), 0.0);
+  stroke(abs(box), 0.0015, e3 * 0.3);
+  // 旋正的十字准星
+  vec2 cq = rot((1.0 - e3) * TAU / 8.0) * p;
+  float ip;
+  vec2 xq = prep(cq, 4.0, ip);
+  float g0 = mix(0.4, 0.22, e3);
+  stroke(sdSeg(xq, vec2(g0 + 0.04, 0.0), vec2(g0 + 0.24, 0.0)), 0.004, e3);
+  vec2 hl = xq - vec2(g0 + 0.02, 0.0);
+  facetFill(sdRhombus(hl, vec2(0.05, 0.026)), e3 * 0.9, step(0.0, hl.y));
+  stroke(abs(sdRhombus(p, vec2(0.05))), 0.004, e3 * (0.6 + 0.4 * sin(t * 6.0)));
+}
+
+// ---------- 样式 3：霜花绽放 ----------
+void styleFlake(vec2 p, float r, float e, float e3){
+  float t = uTime;
+  float idx;
+  vec2 q = prep(rot(t * 0.25) * p, 6.0, idx);
+  q.y = abs(q.y);
+  float L = max(0.82 * e3, 0.11);
+  float d = sdSeg(q, vec2(0.1, 0.0), vec2(L, 0.0));
+  for (int i = 0; i < 3; i++){
+    float fi = float(i);
+    float x = 0.3 + 0.2 * fi;
+    float bl = (0.24 - 0.06 * fi) * smoothstep(x, x + 0.15, L);
+    d = min(d, sdSeg(q, vec2(x, 0.0), vec2(x, 0.0) + vec2(0.5, 0.866) * bl));
+  }
+  stroke(d, 0.008, smoothstep(0.0, 0.2, uLock));
+  vec2 tp = q - vec2(L + 0.06, 0.0);
+  facetFill(sdRhombus(tp, vec2(0.065, 0.028)), e3, 0.5 + 0.5 * step(0.02, tp.y + 0.02));
+  // 主臂之间的短臂
+  float idx2;
+  vec2 q2 = prep(rot(t * 0.25 + TAU / 12.0) * p, 6.0, idx2);
+  stroke(sdSeg(q2, vec2(0.14, 0.0), vec2(0.14 + 0.2 * e3, 0.0)), 0.004, e3 * 0.7);
+  stroke(abs(sdHex(rot(-t * 0.6) * p, 0.1)), 0.005, e3);
+  glint(p, 0.18, e3 * 0.6);
+  // 棱镜色散外环
+  float ringR = mix(1.4, 1.05, e3);
+  vec2 rq = rot(-t * 0.4) * p;
+  float shim = 0.55 + 0.45 * sin(atan(rq.y, rq.x) * 3.0 + t * 2.0);
+  strokeColor(abs(r - ringR + 0.016), 0.003, shim * e3 * 0.8, vec3(0.65, 0.35, 1.0));
+  stroke(abs(r - ringR), 0.006, shim * e3);
+  strokeColor(abs(r - ringR - 0.016), 0.003, shim * e3 * 0.8, vec3(0.3, 1.0, 0.85));
+  // 环绕光点
+  for (int i = 0; i < 3; i++){
+    float an = t * 1.2 + float(i) * TAU / 3.0;
+    glint(p - ringR * vec2(cos(an), sin(an)), 0.2, e3);
+  }
+}
+
+void main(){
+  vec2 p = (gl_FragCoord.xy - uCenter) / uRadius;
+  AA = 1.0 / uRadius;
+  gE = 0.0;
+  gCov = 0.0;
+  gExtra = vec3(0.0);
+  float r = length(p);
+  float lk = clamp(uLock, 0.0, 1.0);
+  float e = easeOutBack(lk);
+  float e3 = 1.0 - (1.0 - lk) * (1.0 - lk) * (1.0 - lk);
+
+  // 寒气笼罩目标
+  gE += smoothstep(1.0, 0.1, r) * 0.12 * e3;
+
+  if (uStyle < 0.5) styleShard(p, r, e, e3);
+  else if (uStyle < 1.5) styleCircle(p, r, e, e3);
+  else if (uStyle < 2.5) styleBracket(p, r, e, e3);
+  else styleFlake(p, r, e, e3);
+
+  motes(p, smoothstep(0.0, 0.5, lk));
+
+  // 锁定瞬间：冲击环 + 中心大星芒
+  if (uAge >= 0.0 && uAge < 0.55){
+    float k = uAge / 0.55;
+    float fk = (1.0 - k) * (1.0 - k);
+    stroke(abs(r - (1.0 + k * 1.1)), 0.012 * (1.0 - k) + 0.003, fk * 1.3);
+    glint(p, 0.9 * (0.6 + 0.4 * k), fk * 1.6);
+  }
+
+  vec3 col = ramp(gE) * (1.0 - exp(-gE * 1.8)) + gExtra;
+  float a = clamp(gCov, 0.0, 1.0) * 0.55 + clamp(gE, 0.0, 1.0) * 0.06;
+  gl_FragColor = vec4(col, a) * uAlpha;
+}
+</script>
+
+<script>
+const STYLES = [
+  { name: '霜晶准星', desc: '六枚分面冰晶从远处向内收拢，带一点回弹；分段主环配外圈刻度，霜星以十字星芒闪烁。偏“狙击 / 精准”的感觉。' },
+  { name: '冰封法阵', desc: '符文环逐字点亮，内层六芒星反向旋转，顶点带星芒；锁定后寒潮脉冲不断向内收缩。偏“施法 / 仪式”的感觉。' },
+  { name: '寒霜菱形框', desc: '双线菱形框收紧，四个顶点长出分面冰刺，十字准星旋转摆正、箭头对准顶点；锁定后霜纹从顶点向内蔓延。偏“战术锁定”，可读性最好。' },
+  { name: '霜花绽放', desc: '雪花从中心生长绽放，外环带棱镜色散和环绕星芒。偏“华丽 / 大招”的感觉。' },
+];
+const PALETTES = [
+  { deep: [0.1, 0.32, 1.0], mid: [0.42, 0.85, 1.0] },
+  { deep: [0.4, 0.55, 0.85], mid: [0.8, 0.92, 1.0] },
+  { deep: [0.38, 0.18, 0.95], mid: [0.58, 0.76, 1.0] },
+];
+const TAU = Math.PI * 2;
+
+const $ = id => document.getElementById(id);
+const scene = $('scene'), ctx = scene.getContext('2d');
+const glc = $('gl');
+const gl = glc.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false });
+const bg = document.createElement('canvas');
+
+const opt = { style: 0, gallery: false, palette: 0, lockTime: 0.35, size: 1.2 };
+
+// ---------- HUD ----------
+STYLES.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.textContent = `${i + 1}. ${s.name}`;
+  b.onclick = () => setStyle(i);
+  $('styles').appendChild(b);
+});
+function setStyle(i){
+  opt.style = i;
+  [...$('styles').children].forEach((b, j) => b.classList.toggle('on', j === i));
+  $('desc').textContent = STYLES[i].desc;
+  aim.lock = 0; aim.age = -1;
+}
+$('gallery').onchange = e => { opt.gallery = e.target.checked; };
+$('palette').onchange = e => { opt.palette = +e.target.value; };
+$('lockTime').oninput = e => { opt.lockTime = +e.target.value; $('lockTimeV').textContent = opt.lockTime.toFixed(2) + 's'; };
+$('size').oninput = e => { opt.size = +e.target.value; $('sizeV').textContent = opt.size.toFixed(2) + '×'; };
+addEventListener('keydown', e => {
+  if (e.key >= '1' && e.key <= '4') setStyle(+e.key - 1);
+  if (e.key === 'g' || e.key === 'G') { $('gallery').checked = opt.gallery = !opt.gallery; }
+});
+
+// ---------- GL ----------
+function compile(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, $('vs').textContent));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, $('fs').textContent));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+const U = {};
+['uCenter', 'uExtent', 'uRes', 'uRadius', 'uTime', 'uLock', 'uAge', 'uAlpha', 'uStyle', 'uDeep', 'uMid']
+  .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+// ---------- 场景 ----------
+let W, H, DPR, groundY;
+let stars = [], snow = [];
+function resize(){
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  for (const c of [scene, glc]) { c.width = W * DPR; c.height = H * DPR; }
+  groundY = Math.floor(H * 0.8);
+  stars = Array.from({ length: 140 }, () => ({ x: Math.random() * W, y: Math.random() * H * 0.6, r: 0.5 + Math.random() * 1.1, ph: Math.random() * TAU }));
+  snow = Array.from({ length: 140 }, () => ({ x: Math.random() * W, y: Math.random() * H, r: 0.8 + Math.random() * 1.8, v: 18 + Math.random() * 40, ph: Math.random() * TAU }));
+  buildBackground();
+  layoutEnemies();
+}
+function buildBackground(){
+  bg.width = W * DPR; bg.height = H * DPR;
+  const g = bg.getContext('2d');
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  let grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#060b1e'); grad.addColorStop(0.55, '#142a52'); grad.addColorStop(1, '#2c5490');
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  // 极光
+  g.filter = 'blur(28px)';
+  g.globalCompositeOperation = 'lighter';
+  [['rgba(70,255,200,.16)', 0.14, 0], ['rgba(110,150,255,.14)', 0.2, 1.8], ['rgba(70,230,255,.10)', 0.27, 3.1]].forEach(([c, y, ph]) => {
+    g.strokeStyle = c; g.lineWidth = 40;
+    g.beginPath();
+    for (let x = -50; x <= W + 50; x += 20) {
+      const yy = H * y + Math.sin(x * 0.006 + ph) * 40 + Math.sin(x * 0.017 + ph * 2) * 12;
+      x === -50 ? g.moveTo(x, yy) : g.lineTo(x, yy);
+    }
+    g.stroke();
+  });
+  g.filter = 'none';
+  g.globalCompositeOperation = 'source-over';
+  // 远山
+  const ridge = (base, amp, f, ph, c1, c2) => {
+    const gr = g.createLinearGradient(0, base - amp, 0, groundY);
+    gr.addColorStop(0, c1); gr.addColorStop(1, c2);
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(0, groundY);
+    for (let x = 0; x <= W; x += 8) g.lineTo(x, base + Math.sin(x * f + ph) * amp + Math.sin(x * f * 3.1 + ph) * amp * 0.3);
+    g.lineTo(W, groundY); g.fill();
+  };
+  ridge(groundY - 150, 40, 0.004, 0.5, '#2a4c80', '#1a3462');
+  ridge(groundY - 70, 26, 0.007, 2.0, '#3a679f', '#244a7e');
+  // 雪地
+  grad = g.createLinearGradient(0, groundY, 0, H);
+  grad.addColorStop(0, '#eaf5ff'); grad.addColorStop(0.08, '#bcd9f4'); grad.addColorStop(1, '#6f9bd0');
+  g.fillStyle = grad; g.fillRect(0, groundY, W, H - groundY);
+  g.fillStyle = 'rgba(255,255,255,.8)'; g.fillRect(0, groundY, W, 2);
+}
+
+const enemies = [];
+function layoutEnemies(){
+  enemies.length = 0;
+  enemies.push({ type: 'dummy', x: W * 0.62, y: groundY - 34, w: 46, h: 70, rad: 42 });
+  enemies.push({ type: 'slime', x: W * 0.3, y: groundY - 15, w: 46, h: 32, rad: 30, vx: 0, vy: 0, ground: true, timer: 0.5, dir: 1, squash: 0 });
+  enemies.push({ type: 'slime', x: W * 0.82, y: groundY - 15, w: 46, h: 32, rad: 30, vx: 0, vy: 0, ground: true, timer: 1.2, dir: -1, squash: 0 });
+  enemies.push({ type: 'eye', x: W * 0.4, y: H * 0.35, w: 42, h: 42, rad: 30 });
+}
+const galleryDummies = () => [0.2, 0.4, 0.6, 0.8].map(f => ({ type: 'dummy', x: W * f, y: H * 0.5, w: 46, h: 70, rad: 42 }));
+
+function updateEnemies(dt, t){
+  for (const e of enemies) {
+    if (e.type === 'slime') {
+      if (e.ground) {
+        e.timer -= dt;
+        e.squash += (0 - e.squash) * Math.min(1, dt * 8);
+        if (e.timer < 0.15) e.squash = 0.18;
+        if (e.timer <= 0) {
+          if (Math.random() < 0.3) e.dir *= -1;
+          e.vy = -520 - Math.random() * 120; e.vx = e.dir * (120 + Math.random() * 80); e.ground = false;
+        }
+      } else {
+        e.vy += 1500 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
+        e.squash = -0.15;
+        if (e.x < 60 || e.x > W - 60) { e.dir *= -1; e.vx *= -1; e.x = Math.max(60, Math.min(W - 60, e.x)); }
+        if (e.y >= groundY - 15) { e.y = groundY - 15; e.ground = true; e.timer = 0.7 + Math.random() * 0.9; e.squash = 0.3; }
+      }
+    } else if (e.type === 'eye') {
+      e.x = W * 0.42 + Math.sin(t * 0.45) * W * 0.22;
+      e.y = H * 0.36 + Math.sin(t * 1.3) * 50;
+      e.vx = Math.cos(t * 0.45);
+    }
+  }
+}
+
+function rrect(x, y, w, h, r){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+function drawDummy(e){
+  const { x, y } = e;
+  ctx.fillStyle = '#6b4a2b';
+  rrect(x - 3, y - 16, 6, 50, 2);
+  rrect(x - 22, y - 13, 44, 6, 3);
+  ctx.fillStyle = '#d4b077'; rrect(x - 14, y - 18, 28, 32, 6);
+  ctx.fillStyle = '#b48b52'; rrect(x - 14, y + 8, 28, 5, 2);
+  ctx.fillStyle = '#d4b077'; ctx.beginPath(); ctx.arc(x, y - 26, 9, 0, TAU); ctx.fill();
+  [[7, '#c0453b'], [4.5, '#f1e4c0'], [2, '#c0453b']].forEach(([r, c]) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y - 3, r, 0, TAU); ctx.fill(); });
+}
+function drawSlime(e){
+  const base = e.y + 15;
+  const w = 46 * (1 + e.squash), h = 32 * (1 - e.squash);
+  const cy = base - h / 2;
+  const gr = ctx.createRadialGradient(e.x - w * 0.15, cy - h * 0.2, 2, e.x, cy, w * 0.6);
+  gr.addColorStop(0, 'rgba(210,245,255,.95)'); gr.addColorStop(0.6, 'rgba(110,190,250,.9)'); gr.addColorStop(1, 'rgba(50,120,210,.9)');
+  ctx.fillStyle = gr;
+  ctx.beginPath(); ctx.ellipse(e.x, cy, w / 2, h / 2, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(30,80,160,.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.beginPath(); ctx.ellipse(e.x - w * 0.22, cy - h * 0.22, 5, 3, -0.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#123a66';
+  const ex = e.dir > 0 ? 4 : -4;
+  [-7, 7].forEach(o => { ctx.beginPath(); ctx.ellipse(e.x + o + ex, cy - 1, 2.5, 4, 0, 0, TAU); ctx.fill(); });
+}
+function drawEye(e, t, mx, my){
+  const back = e.vx > 0 ? -1 : 1;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    ctx.strokeStyle = `rgba(160,210,255,${0.7 - i * 0.15})`; ctx.lineWidth = 4 - i;
+    ctx.beginPath(); ctx.moveTo(e.x + back * 12, e.y - 6 + i * 6);
+    ctx.quadraticCurveTo(e.x + back * 26, e.y - 8 + i * 6 + Math.sin(t * 8 + i) * 6, e.x + back * 38, e.y - 6 + i * 8 + Math.sin(t * 6 + i) * 6);
+    ctx.stroke();
+  }
+  const gr = ctx.createRadialGradient(e.x - 5, e.y - 5, 2, e.x, e.y, 19);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#a9c6e8');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(e.x, e.y, 18, 0, TAU); ctx.fill();
+  const dx = mx - e.x, dy = my - e.y, dl = Math.hypot(dx, dy) || 1;
+  const ix = e.x + dx / dl * 6, iy = e.y + dy / dl * 6;
+  const ig = ctx.createRadialGradient(ix, iy, 1, ix, iy, 10);
+  ig.addColorStop(0, '#7fd4ff'); ig.addColorStop(1, '#1d6fb8');
+  ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(ix, iy, 10, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#081627'; ctx.beginPath(); ctx.arc(ix, iy, 4, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ix - 3, iy - 3, 2, 0, TAU); ctx.fill();
+}
+
+function drawScene(t, dt, list){
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(bg, 0, 0);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  for (const s of stars) {
+    ctx.fillStyle = `rgba(220,235,255,${0.3 + 0.4 * (0.5 + 0.5 * Math.sin(t * 2 + s.ph))})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+  }
+  for (const e of list) {
+    if (e.type === 'dummy') drawDummy(e);
+    else if (e.type === 'slime') drawSlime(e);
+    else drawEye(e, t, mouse.x, mouse.y);
+  }
+  for (const s of snow) {
+    s.y += s.v * dt; s.x += Math.sin(t + s.ph) * 12 * dt;
+    if (s.y > H) { s.y = -4; s.x = Math.random() * W; }
+    ctx.fillStyle = `rgba(240,248,255,${0.35 + s.r * 0.25})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+  }
+}
+
+// ---------- 瞄准状态 ----------
+const mouse = { x: -999, y: -999 };
+scene.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+scene.addEventListener('mouseleave', () => { mouse.x = mouse.y = -999; });
+
+const newAim = () => ({ target: null, lock: 0, alpha: 0, age: -1, x: 0, y: 0 });
+const aim = newAim();
+const galleryAims = [newAim(), newAim(), newAim(), newAim()];
+
+function stepLock(rt, on, dt){
+  if (on) { rt.lock = Math.min(1, rt.lock + dt / opt.lockTime); rt.alpha = Math.min(1, rt.alpha + dt * 10); }
+  else { rt.lock = Math.max(0, rt.lock - dt * 3.5); rt.alpha = Math.max(0, rt.alpha - dt * 4.5); }
+  if (on && rt.lock >= 1) rt.age = rt.age < 0 ? 0 : rt.age + dt;
+  else if (!on) rt.age = -1;
+}
+function pick(){
+  let best = null, bd = Infinity;
+  for (const e of enemies) {
+    const dx = Math.abs(mouse.x - e.x), dy = Math.abs(mouse.y - e.y);
+    if (dx < e.w / 2 + 6 && dy < e.h / 2 + 6) {
+      const d = dx + dy;
+      if (d < bd) { bd = d; best = e; }
+    }
+  }
+  return best;
+}
+function updateAim(dt){
+  const hit = pick();
+  if (hit && hit !== aim.target) { aim.target = hit; aim.lock = 0; aim.age = -1; }
+  stepLock(aim, !!hit, dt);
+  if (aim.target) {
+    // 锁定过程中准星从鼠标位置吸附到目标中心
+    const k = 1 - Math.pow(1 - aim.lock, 4);
+    aim.x = mouse.x + (aim.target.x - mouse.x) * k;
+    aim.y = mouse.y + (aim.target.y - mouse.y) * k;
+  }
+}
+
+function drawReticle(rt, style, rad, t){
+  if (rt.alpha <= 0.001) return;
+  const pal = PALETTES[opt.palette];
+  const R = rad * opt.size * DPR;
+  gl.uniform2f(U.uCenter, rt.x * DPR, (H - rt.y) * DPR);
+  gl.uniform1f(U.uExtent, R * 2.8);
+  gl.uniform2f(U.uRes, glc.width, glc.height);
+  gl.uniform1f(U.uRadius, R);
+  gl.uniform1f(U.uTime, t);
+  gl.uniform1f(U.uLock, rt.lock);
+  gl.uniform1f(U.uAge, rt.age);
+  gl.uniform1f(U.uAlpha, rt.alpha);
+  gl.uniform1f(U.uStyle, style);
+  gl.uniform3fv(U.uDeep, pal.deep);
+  gl.uniform3fv(U.uMid, pal.mid);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ---------- 主循环 ----------
+let last = performance.now(), T = 0;
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  gl.viewport(0, 0, glc.width, glc.height);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+
+  if (opt.gallery) {
+    const dummies = galleryDummies();
+    drawScene(T, dt, dummies);
+    ctx.font = '14px "Microsoft YaHei"'; ctx.textAlign = 'center'; ctx.fillStyle = '#cfe8ff';
+    dummies.forEach((d, i) => {
+      const rt = galleryAims[i];
+      const phase = (T + i * 0.25) % 3.2;
+      stepLock(rt, phase < 2.2, dt);
+      rt.x = d.x; rt.y = d.y;
+      ctx.fillText(`${i + 1}. ${STYLES[i].name}`, d.x, d.y - 120 * opt.size);
+      drawReticle(rt, i, d.rad, T);
+    });
+  } else {
+    updateEnemies(dt, T);
+    drawScene(T, dt, enemies);
+    updateAim(dt);
+    drawReticle(aim, opt.style, aim.target ? aim.target.rad : 30, T);
+  }
+  requestAnimationFrame(frame);
+}
+
+addEventListener('resize', resize);
+resize();
+setStyle(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

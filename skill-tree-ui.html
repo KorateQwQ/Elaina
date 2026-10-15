@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>魔女手札 · 技能图谱</title>
+<style>
+:root {
+  --bg:           #f4f1fb;
+  --surface:      #ffffff;
+  --surface-dim:  #faf8ff;
+  --border:       #ddd8f0;
+  --border-soft:  #ede9f8;
+  --text:         #26213a;
+  --text-muted:   #7a6f96;
+  --text-faint:   #b0a8cc;
+  --accent:       #8360c3;
+  --accent-light: #c4b0e8;
+  --accent-glow:  rgba(131,96,195,.18);
+  --gold:         #c09a48;
+  --gold-glow:    rgba(192,154,72,.18);
+  --fire:         #d4674a;
+  --fire-glow:    rgba(212,103,74,.18);
+  --ice:          #4e9ec7;
+  --ice-glow:     rgba(78,158,199,.18);
+  --water:        #3aa4a4;
+  --water-glow:   rgba(58,164,164,.18);
+  --node-size:    60px;
+  --radius-sm:    6px;
+  --radius-md:    12px;
+  --radius-lg:    20px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+}
+/* ── Header ───────────────────────────────────────────── */
+.ui-header {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.header-icon {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c4b0e8 0%, #8360c3 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.header-icon svg { width: 22px; height: 22px; fill: #fff; }
+.header-title { flex: 1; }
+.header-title h1 {
+  font-size: 20px; font-weight: 600; letter-spacing: .04em;
+  color: var(--text);
+}
+.header-title p {
+  font-size: 12px; color: var(--text-muted); margin-top: 2px;
+  letter-spacing: .06em;
+}
+.header-pts {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--accent);
+}
+.header-pts .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: .6; }
+/* ── Layout ─────────────────────────────────────────────── */
+.ui-main {
+  width: 100%; max-width: 1100px;
+  display: grid; grid-template-columns: 1fr 310px; gap: 16px;
+  align-items: start;
+}
+/* ── Tree panel ──────────────────────────────────────────── */
+.tree-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px;
+  position: relative; overflow: hidden;
+}
+.tree-panel::before {
+  content: '✦'; position: absolute; top: 14px; right: 18px;
+  font-size: 11px; color: var(--accent-light); letter-spacing: 8px;
+  pointer-events: none;
+}
+.tree-wrap {
+  position: relative; width: 100%; height: 520px;
+}
+.tree-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; overflow: visible;
+}
+/* ── Skill nodes ─────────────────────────────────────────── */
+.skill-node {
+  position: absolute; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  cursor: pointer; user-select: none; z-index: 2;
+}
+.icon-wrap {
+  width: var(--node-size); height: var(--node-size);
+  border-radius: var(--radius-md); border: 1.5px solid var(--border);
+  background: var(--surface-dim); display: flex; align-items: center;
+  justify-content: center; overflow: hidden; position: relative;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.icon-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.icon-wrap .fallback-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent));
+  display: none;
+}
+.icon-wrap img.error-hidden { display: none; }
+.icon-wrap img.error-hidden + .fallback-icon { display: block; }
+.skill-node .node-label {
+  font-size: 11px; color: var(--text-muted); text-align: center;
+  white-space: nowrap; line-height: 1.3; letter-spacing: .03em;
+  max-width: 72px; overflow: hidden; text-overflow: ellipsis;
+}
+.skill-node .node-type-dot {
+  position: absolute; bottom: -3px; right: -3px;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid var(--surface);
+}
+.skill-node:hover .icon-wrap { transform: translateY(-2px); box-shadow: 0 6px 18px var(--accent-glow); border-color: var(--accent-light); }
+.skill-node.selected .icon-wrap { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow), 0 6px 18px var(--accent-glow); }
+.skill-node.secret .icon-wrap { opacity: .6; filter: grayscale(.4); border-style: dashed; }
+/* element color overrides */
+.skill-node.el-fire .icon-wrap { border-color: rgba(212,103,74,.35); }
+.skill-node.el-fire:hover .icon-wrap, .skill-node.el-fire.selected .icon-wrap { border-color: var(--fire); box-shadow: 0 6px 18px var(--fire-glow); }
+.skill-node.el-ice .icon-wrap { border-color: rgba(78,158,199,.35); }
+.skill-node.el-ice:hover .icon-wrap, .skill-node.el-ice.selected .icon-wrap { border-color: var(--ice); box-shadow: 0 6px 18px var(--ice-glow); }
+.skill-node.el-water .icon-wrap { border-color: rgba(58,164,164,.35); }
+.skill-node.el-water:hover .icon-wrap, .skill-node.el-water.selected .icon-wrap { border-color: var(--water); box-shadow: 0 6px 18px var(--water-glow); }
+/* ── Detail panel ────────────────────────────────────────── */
+.detail-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px 22px;
+  position: sticky; top: 24px;
+  min-height: 420px; display: flex; flex-direction: column; gap: 0;
+}
+.detail-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 10px; color: var(--text-faint);
+  font-size: 13px; letter-spacing: .04em;
+}
+.detail-empty svg { width: 36px; height: 36px; opacity: .35; }
+.detail-header {
+  display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px;
+}
+.detail-icon {
+  width: 56px; height: 56px; border-radius: var(--radius-md);
+  overflow: hidden; flex-shrink: 0; border: 1.5px solid var(--border-soft);
+  background: var(--surface-dim);
+}
+.detail-icon img { width: 100%; height: 100%; object-fit: contain; }
+.detail-meta { flex: 1; min-width: 0; }
+.detail-meta h2 { font-size: 18px; font-weight: 600; letter-spacing: .02em; line-height: 1.3; }
+.detail-meta .type-tag {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 5px;
+  padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  letter-spacing: .06em;
+  background: var(--accent-glow); color: var(--accent);
+  border: 1px solid var(--accent-light);
+}
+.detail-meta .type-tag.fire-tag { background: var(--fire-glow); color: var(--fire); border-color: rgba(212,103,74,.3); }
+.detail-meta .type-tag.ice-tag  { background: var(--ice-glow);  color: var(--ice);  border-color: rgba(78,158,199,.3); }
+.detail-meta .type-tag.water-tag{ background: var(--water-glow);color: var(--water);border-color: rgba(58,164,164,.3); }
+.detail-meta .type-tag.heart-tag{ background: var(--gold-glow); color: var(--gold); border-color: rgba(192,154,72,.3); }
+.detail-divider { height: 1px; background: var(--border-soft); margin: 0 0 16px; }
+.detail-desc { font-size: 13.5px; line-height: 1.75; color: var(--text); margin-bottom: 18px; }
+.detail-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px;
+}
+.stat-pill {
+  background: var(--surface-dim); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat-pill .stat-label { font-size: 10px; color: var(--text-faint); letter-spacing: .08em; text-transform: uppercase; }
+.stat-pill .stat-val { font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.prereq-section { margin-top: auto; }
+.prereq-section .prereq-label { font-size: 11px; color: var(--text-faint); letter-spacing: .06em; margin-bottom: 7px; }
+.prereq-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.prereq-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  background: var(--surface-dim); border: 1px solid var(--border-soft);
+  font-size: 12px; color: var(--text-muted);
+}
+.prereq-chip .mini-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-light); flex-shrink: 0; }
+.secret-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-bottom: 12px; padding: 4px 11px;
+  border-radius: 20px; font-size: 11px; color: var(--gold);
+  background: var(--gold-glow); border: 1px solid rgba(192,154,72,.3);
+  letter-spacing: .04em;
+}
+/* ── SVG edges ───────────────────────────────────────────── */
+.edge { stroke: var(--border); stroke-width: 1.5; fill: none; stroke-dasharray: 4 3; opacity: .7; }
+.edge.active { stroke: var(--accent-light); opacity: 1; stroke-dasharray: none; }
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header class="ui-header">
+  <div class="header-icon">
+    <svg viewBox="0 0 24 24"><path d="M12 2L9.5 8.5H3l5.5 4-2 6.5L12 15l5.5 4-2-6.5L21 8.5h-6.5L12 2z"/></svg>
+  </div>
+  <div class="header-title">
+    <h1>魔女手札 · 技能图谱</h1>
+    <p>ELAINA  ·  SKILL  TREE</p>
+  </div>
+  <div class="header-pts">
+    <span class="dot"></span>
+    研习点 <strong id="pts-display">—</strong>
+  </div>
+</header>
+
+<div class="ui-main">
+  <!-- 技能树图 -->
+  <div class="tree-panel">
+    <div class="tree-wrap" id="tree-wrap">
+      <svg class="tree-svg" id="edge-svg"></svg>
+      <!-- 节点由 JS 生成 -->
+    </div>
+  </div>
+
+  <!-- 详情面板 -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-empty" id="detail-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+      </svg>
+      <span>选择技能查看详情</span>
+    </div>
+    <div id="detail-content" style="display:none; flex-direction:column; gap:0;">
+      <div class="detail-header">
+        <div class="detail-icon"><img id="d-icon" src="" alt=""></div>
+        <div class="detail-meta">
+          <h2 id="d-name"></h2>
+          <span class="type-tag" id="d-tag"></span>
+        </div>
+      </div>
+      <div id="d-secret-badge" class="secret-badge" style="display:none">✦ 隐藏技能</div>
+      <div class="detail-divider"></div>
+      <p class="detail-desc" id="d-desc"></p>
+      <div class="detail-stats" id="d-stats"></div>
+      <div class="prereq-section" id="d-prereq-section">
+        <div class="prereq-label">前置技能</div>
+        <div class="prereq-list" id="d-prereq-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── 图标路径映射（相对路径，使用实际项目插图） ─── */
+const ICON_BASE = 'ElainaModSkills/Skills/';
+const ICON_MAP = {
+  AshenWitchSkill:  ICON_BASE + 'AshenWitch/AshenWitchSkill.png',
+  WindBladeSkill:   ICON_BASE + 'Wind/WindTornadoSkill.png',
+  MagicMissileSkill:ICON_BASE + 'MagicMissile/MagicMissileSkill.png',
+  MultiMissileSkill:ICON_BASE + 'MagicMissile/MultiMissileSkill.png',
+  FireBurstSkill:   ICON_BASE + 'Fire/FireBurstSkill.png',
+  FireTornadoSkill: ICON_BASE + 'Fire/FireTornadoSkill.png',
+  FireLaserSkill:   ICON_BASE + 'Fire/FireLaserSkill.png',
+  IceConeSkill:     ICON_BASE + 'Ice/IceConeSkill.png',
+  WaterBallSkill:   ICON_BASE + 'Water/WaterBallSkill.png',
+  WaterLaserSKill:  ICON_BASE + 'Water/WaterLaserSKill.png',
+  MagicBarrierSkill:ICON_BASE + 'MagicBarrier/MagicBarrierSkill2.png',
+};
+
+/* ─── 元素分类 ─── */
+const EL = {
+  AshenWitchSkill:'', WindBladeSkill:'',
+  MagicMissileSkill:'', MultiMissileSkill:'',
+  FireBurstSkill:'el-fire', FireTornadoSkill:'el-fire', FireLaserSkill:'el-fire',
+  IceConeSkill:'el-ice',
+  WaterBallSkill:'el-water', WaterLaserSKill:'el-water',
+  MagicBarrierSkill:'',
+};
+const TYPE_COLOR = { '术式':'', '心得':'heart-tag' };
+
+/* ─── 技能数据 ─── */
+const SKILLS = [
+  {id:'origin',   name:'旅途的起点', icon:'AshenWitchSkill',  x:330,y:280, cost:0, prereqs:[],                        initial:true,  secret:false, desc:'拓宽魔力储备。',                      type:'心得', mana:'—', cooldown:'被动'},
+  {id:'sense',    name:'魔力感知',   icon:'WindBladeSkill',   x:174,y:337, cost:0, prereqs:['origin'],                initial:true,  secret:false, desc:'节省施法所需的魔力。',                type:'心得', mana:'—', cooldown:'被动'},
+  {id:'moon',     name:'月华飞弹',   icon:'MagicMissileSkill',x:111,y:196, cost:2, prereqs:['sense'],                 initial:false, secret:false, desc:'飞弹追击目标，叠加印记；印记引爆时造成范围伤害并回复魔力。', type:'术式', mana:'18', cooldown:'8'},
+  {id:'echo',     name:'月影回响',   icon:'MultiMissileSkill',x:214,y: 98, cost:2, prereqs:['moon'],                  initial:false, secret:false, desc:'月光回旋，再次命中目标。',            type:'术式', mana:'24', cooldown:'12'},
+  {id:'ember',    name:'初始之焰',   icon:'FireBurstSkill',   x:446,y:363, cost:0, prereqs:['origin'],                initial:true,  secret:false, desc:'点燃火焰，攻击目标。',                type:'术式', mana:'12', cooldown:'5'},
+  {id:'vortex',   name:'绯焰旋风',   icon:'FireTornadoSkill', x:559,y:261, cost:2, prereqs:['ember'],                 initial:false, secret:false, desc:'卷起火焰旋风，波及周围敌人。',        type:'术式', mana:'28', cooldown:'14'},
+  {id:'fireflower',name:'焰花盛放',  icon:'FireLaserSkill',   x:463,y:128, cost:2, prereqs:['vortex'],                initial:false, secret:false, desc:'绽放焰花，灼烧范围内的敌人。',        type:'术式', mana:'36', cooldown:'18'},
+  {id:'ice',      name:'冬夜流星',   icon:'IceConeSkill',     x:344,y:462, cost:1, prereqs:['ember'],                 initial:false, secret:false, desc:'召唤冰矢，伤敌并减速。',              type:'术式', mana:'20', cooldown:'10'},
+  {id:'water',    name:'星泉微雨',   icon:'WaterBallSkill',   x:159,y:462, cost:2, prereqs:['ice'],                   initial:false, secret:false, desc:'落下星雨，恢复生命。',                type:'术式', mana:'32', cooldown:'20'},
+  {id:'ritual',   name:'魔女的结界', icon:'MagicBarrierSkill',x:331,y:143, cost:3, prereqs:['echo','fireflower'],     initial:false, secret:false, desc:'展开结界，抵挡伤害与打断。',          type:'术式', mana:'45', cooldown:'30'},
+  {id:'hiddenA',  name:'月下的奇迹', icon:'MultiMissileSkill',x:614,y: 92, cost:2, prereqs:['ritual'],               initial:false, secret:true,  desc:'释放星光，重置月华飞弹的冷却。',      type:'术式', mana:'60', cooldown:'45'},
+  {id:'hiddenB',  name:'万象归星',   icon:'WaterLaserSKill',  x:620,y:422, cost:2, prereqs:['water','fireflower'],   initial:false, secret:true,  desc:'唤起星芒，持续恢复附近友方。',        type:'术式', mana:'50', cooldown:'40'},
+];
+
+const nameMap = Object.fromEntries(SKILLS.map(s => [s.id, s.name]));
+
+/* ─── 坐标缩放（原始画布约700×540，适配tree-wrap） ─── */
+const OW = 700, OH = 540;
+function px(v, axis) {
+  const wrap = document.getElementById('tree-wrap');
+  const W = wrap.clientWidth  || 680;
+  const H = wrap.clientHeight || 520;
+  return axis === 'x' ? (v / OW) * W : (v / OH) * H;
+}
+
+/* ─── 渲染边 ─── */
+function renderEdges(selected) {
+  const svg = document.getElementById('edge-svg');
+  svg.innerHTML = '';
+  const wrap = document.getElementById('tree-wrap');
+  const W = wrap.clientWidth || 680;
+  const H = wrap.clientHeight || 520;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  SKILLS.forEach(skill => {
+    skill.prereqs.forEach(pid => {
+      const parent = SKILLS.find(s => s.id === pid);
+      if (!parent) return;
+      const x1 = px(parent.x,'x'), y1 = px(parent.y,'y');
+      const x2 = px(skill.x,'x'),  y2 = px(skill.y,'y');
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+      const isActive = selected && (selected.id === skill.id || selected.id === pid ||
+        selected.prereqs.includes(pid) && selected.id === skill.id);
+      line.setAttribute('class', 'edge' + (isActive ? ' active' : ''));
+      svg.appendChild(line);
+    });
+  });
+}
+
+/* ─── 渲染节点 ─── */
+function renderNodes(selected) {
+  const wrap = document.getElementById('tree-wrap');
+  wrap.querySelectorAll('.skill-node').forEach(n => n.remove());
+  SKILLS.forEach(skill => {
+    const el = document.createElement('div');
+    const elClass = EL[skill.icon] || '';
+    el.className = 'skill-node' + (elClass ? ' '+elClass : '') + (skill.secret ? ' secret' : '') + (selected?.id === skill.id ? ' selected' : '');
+    el.style.left = px(skill.x,'x') + 'px';
+    el.style.top  = px(skill.y,'y') + 'px';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'icon-wrap';
+
+    const img = document.createElement('img');
+    img.src = ICON_MAP[skill.icon] || '';
+    img.alt = skill.name;
+    img.onerror = function() { this.classList.add('error-hidden'); };
+    iconWrap.appendChild(img);
+
+    const fallback = document.createElement('div');
+    fallback.className = 'fallback-icon';
+    iconWrap.appendChild(fallback);
+
+    /* 元素色点 */
+    const dot = document.createElement('span');
+    dot.className = 'node-type-dot';
+    dot.style.background = skill.type === '心得' ? 'var(--gold)' :
+      elClass === 'el-fire' ? 'var(--fire)' :
+      elClass === 'el-ice'  ? 'var(--ice)'  :
+      elClass === 'el-water'? 'var(--water)' : 'var(--accent)';
+    iconWrap.appendChild(dot);
+
+    const label = document.createElement('span');
+    label.className = 'node-label';
+    label.textContent = skill.name;
+
+    el.appendChild(iconWrap);
+    el.appendChild(label);
+    el.addEventListener('click', () => selectSkill(skill));
+    wrap.appendChild(el);
+  });
+}
+
+/* ─── 选中详情 ─── */
+function selectSkill(skill) {
+  document.getElementById('detail-empty').style.display = 'none';
+  const dc = document.getElementById('detail-content');
+  dc.style.display = 'flex';
+
+  document.getElementById('d-icon').src = ICON_MAP[skill.icon] || '';
+  document.getElementById('d-name').textContent = skill.name;
+
+  const tag = document.getElementById('d-tag');
+  tag.textContent = skill.type === '心得' ? '♦ 心得' : '◈ 术式';
+  const elClass = EL[skill.icon] || '';
+  tag.className = 'type-tag ' + (skill.type === '心得' ? 'heart-tag' :
+    elClass === 'el-fire' ? 'fire-tag' : elClass === 'el-ice' ? 'ice-tag' :
+    elClass === 'el-water' ? 'water-tag' : '');
+
+  document.getElementById('d-secret-badge').style.display = skill.secret ? 'inline-flex' : 'none';
+  document.getElementById('d-desc').textContent = skill.desc;
+
+  const stats = document.getElementById('d-stats');
+  stats.innerHTML = `
+    <div class="stat-pill"><span class="stat-label">魔力消耗</span><span class="stat-val">${skill.mana}</span></div>
+    <div class="stat-pill"><span class="stat-label">冷却时间</span><span class="stat-val">${skill.cooldown === '被动' ? '被动' : skill.cooldown + 's'}</span></div>
+    <div class="stat-pill"><span class="stat-label">研习点</span><span class="stat-val">${skill.cost === 0 ? '初始' : skill.cost}</span></div>
+    <div class="stat-pill"><span class="stat-label">类型</span><span class="stat-val">${skill.type}</span></div>
+  `;
+
+  const prereqSec = document.getElementById('d-prereq-section');
+  const prereqList = document.getElementById('d-prereq-list');
+  if (skill.prereqs.length === 0) {
+    prereqSec.style.display = 'none';
+  } else {
+    prereqSec.style.display = 'block';
+    prereqList.innerHTML = skill.prereqs.map(pid =>
+      `<span class="prereq-chip"><span class="mini-dot"></span>${nameMap[pid] || pid}</span>`
+    ).join('');
+  }
+
+  renderNodes(skill);
+  renderEdges(skill);
+}
+
+/* ─── 初始化 ─── */
+function init() {
+  renderNodes(null);
+  renderEdges(null);
+}
+
+window.addEventListener('resize', () => { const s = document.querySelector('.skill-node.selected'); renderNodes(s?._skill); renderEdges(null); });
+document.addEventListener('DOMContentLoaded', init);
+init();
+</script>
+</body>
+</html>
+

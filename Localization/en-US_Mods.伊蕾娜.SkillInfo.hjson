@@ -24,12 +24,35 @@ SkillName: {
 }
 
 SkillDesc: {
+	IceShardLockSkill:
+		'''
+		Requires a target near the cursor. Uses Ice Cone's casting animation, and the entire shard formation follows the locked target.
+		Total base Ice damage: {0}. Fifteen arriving shards deal small area hits within 80 pixels, sharing about 50% of the budget. The final 200-pixel explosion at about 1.83 seconds deals the remaining 50%. Each damaging hit adds {1:0.###} freeze buildup.
+		If the target dies or disappears early, the remaining attacks and area explosion finish at its last position without acquiring another target.
+		The first arrival ice-seals the target and its related parts. Later shards maintain the seal until the final explosion releases it. Damage invulnerability and debuff immunity do not prevent the seal. Splash targets are not sealed; damage still obeys normal immunity rules.
+		Ice-sealing is separate from freeze: it triggers no freeze effects, freeze cooldown or cooldown refunds, and does not consume an existing freeze.
+		Triggering a freeze with your Ice attacks reduces your Ice Shard Lock cooldown by 18 seconds, at most once every 15 seconds.
+		Water Beam and Water Orb hits also reduce its cooldown, even when the target has no freeze cooldown.
+		'''
+	IceConeSkill:
+		'''
+		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} freeze buildup.
+		Reaching 100 buildup freezes the enemy for 4 seconds. Thawing starts a 60-second freeze cooldown that prevents further buildup.
+		Boss parts share freeze buildup and cooldown. Triggering a freeze reduces your Ice Shard Lock cooldown by 18 seconds, at most once every 15 seconds.
+		'''
+	WaterBallSkill:
+		'''
+		Conjures and launches a water orb with {0} base damage, scaled by its size.
+		Hits reduce the target's freeze cooldown by 4 seconds and your Ice Shard Lock cooldown by 3 seconds.
+		Direct hits, explosions, and multiple targets grant only one Ice Shard Lock refund per cast. Each group sharing a freeze cooldown also receives only one reduction.
+		'''
 	WaterLaserSKill:
 		'''
 		Hold to immediately channel a continuous water beam. Release to stop.
 		Every {0} seconds, consumes {3} Magic Power and deals {1} Water damage, splashing other enemies near the beam's endpoint for {2}% damage.
 		Deals {4:0.#}% damage to targets whose freeze cooldown is not active.
-		Each hit reduces the target's freeze cooldown by 0.5 seconds.
+		Each damage pulse that hits reduces the target's freeze cooldown by 0.5 seconds and your Ice Shard Lock cooldown by 0.15 seconds.
+		Multiple targets grant only one Ice Shard Lock refund per pulse. A boss's shared freeze cooldown is also reduced only once. Ice Shard Lock refunds work even when the target has no freeze cooldown.
 		'''
 	MagicMissileSkill:
 		'''

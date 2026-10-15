@@ -34,6 +34,8 @@ public class IceCone3DUnit : VisualUnit
     private Vector3 forwardVelocity3D;
     private Vector3 currentVelocity3D;
     private int trailRecordedCount;
+    public bool HasArrived { get; private set; }
+    public bool ArrivedThisUpdate { get; private set; }
 
     private ProjectionMode ProjectionMode => ProjectionMode.Perspective;
     private float Fov => MathF.PI / 6f;
@@ -52,6 +54,7 @@ public class IceCone3DUnit : VisualUnit
 
     public override void OnLoad(Mod mod)
     {
+        if (Main.dedServ) return;
         iceCone ??= ObjModel.Load("伊蕾娜.Models.IceCone2");
         texture ??= AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.Ice.IceConeProj2");
         trailTexture ??= AssetManager.GetTexture("KL.Effects.Tex.Trail.235653rnwhwlbv2vm828gm");
@@ -73,6 +76,7 @@ public class IceCone3DUnit : VisualUnit
 
     public override void Update()
     {
+        ArrivedThisUpdate = false;
         if (!Active)
         {
             return;
@@ -101,9 +105,9 @@ public class IceCone3DUnit : VisualUnit
             RecordTrailPosition();
         }
 
-        Lighting.AddLight(GetModelOriginScreenPosition(), new Color(255, 255, 255).ToVector3());
+        if (!Main.dedServ) Lighting.AddLight(GetModelOriginScreenPosition(), new Color(255, 255, 255).ToVector3());
 
-        if (time == BackwardFlyTime + BurstFlyTime - 1)
+        if (ArrivedThisUpdate && !Main.dedServ)
         {
             SpawnIceDust();
         }
@@ -209,18 +213,47 @@ public class IceCone3DUnit : VisualUnit
 
         if (time < BackwardFlyTime + BurstFlyTime)
         {
+            Vector3 previousOffset = Position3D - targetPosition3D;
             float progress = (time - BackwardFlyTime) / (float)BurstFlyTime;
             currentVelocity3D = forwardDirection * MathHelper.Lerp(fixedSpeed * 3.2f, fixedSpeed, progress);
             Position3D += currentVelocity3D;
+
+            if (!HasArrived && Vector3.Dot(previousOffset, Position3D - targetPosition3D) <= 0f)
+            {
+                HasArrived = true;
+                ArrivedThisUpdate = true;
+            }
 
         }
         
 
     }
 
+    // 整个局部坐标系随目标平移，包括尚未出现的冰刺和已有拖尾。
+    public void MoveWithTarget(Vector2 delta)
+    {
+        Vector3 offset = new(delta, 0f);
+        Position3D += offset;
+        targetPosition3D += offset;
+        for (int i = 0; i < trailPositions3D.Length; i++) trailPositions3D[i] += offset;
+    }
+
+    public void CatchUp(int frame)
+    {
+        // 网络晚到时重建视觉轨迹；不回放粒子、伤害或控制事件。
+        while (Timer < frame)
+        {
+            Timer++;
+            if (!Started) continue;
+            UpdateMovement(Timer - Delay);
+            RecordTrailPosition();
+        }
+        ArrivedThisUpdate = false;
+    }
+
     private void SpawnIceDust()
     {
-        Vector2 center = GetModelOriginScreenPosition();
+        Vector2 center = new(targetPosition3D.X, targetPosition3D.Y);
         Vector2 dir = new Vector2(currentVelocity3D.X, currentVelocity3D.Y).SafeNormalize(Vector2.One);
         KLBasicDust.SpawnDust(center, ModContent.DustType<BurstPoint>(), velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
             color: new Color(100, 220, 255, 0), scale: new Vector2(0.7f));
@@ -372,7 +405,7 @@ public class IceCone3DUnit : VisualUnit
         DepthStencilState oldDepthStencilState = gd.DepthStencilState;
         RasterizerState oldRasterizerState = gd.RasterizerState;
         SamplerState oldSamplerState0 = gd.SamplerStates[0];
-        gd.BlendState = BlendState.Additive;
+        gd.BlendState = DrawSystem.GetBlendStateForBloom(BlendState.Additive);
         gd.DepthStencilState = DepthStencilState.None;
         gd.RasterizerState = RasterizerState.CullNone;
         gd.SamplerStates[0] = SamplerState.LinearWrap;

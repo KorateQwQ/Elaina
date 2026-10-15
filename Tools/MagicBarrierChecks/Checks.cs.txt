@@ -1,0 +1,126 @@
+using System.Reflection;
+using KL.SkillSystem;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
+using BarrierPlayer = 伊蕾娜.ElainaModSkills.Skills.MagicBarrier.MagicBarrierSkill.MagicBarrierModPlayer;
+using GameMain = Terraria.Main;
+
+static class Checks
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    static int passed;
+    static void Check(bool condition, string message)
+    {
+        if (!condition) throw new Exception(message);
+        passed++;
+    }
+    static void Near(double actual, double expected, string message) => Check(Math.Abs(actual - expected) < .0001, message);
+
+    static void Learn(ElainaSkillModPlayer owner, ModSkill modSkill)
+    {
+        var skill = new Skill();
+        typeof(Skill).GetProperty("ModSkill", All)!.SetValue(skill, modSkill);
+        modSkill.Skill = skill;
+        modSkill.Initialize();
+        modSkill.BasicStatus = Skill.SKillBasicStatus.UnLock;
+        owner.UnlockedSkill[modSkill.GetType().Name] = skill;
+    }
+
+    static void Main(string[] args)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        // Skip chat, combat text and projectile graphics in this logic integration test.
+        GameMain.dedServ = true; GameMain.netMode = NetmodeID.Server; GameMain.myPlayer = 0;
+        var player = new Player { active = true, whoAmI = 0, statManaMax2 = 200, statLifeMax2 = 400, statLife = 400 };
+        var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer() };
+        for (ushort i = 0; i < parts.Length; i++)
+        {
+            parts[i].GetType().GetProperty("Entity", All)!.SetValue(parts[i], player);
+            typeof(ModPlayer).GetProperty("Index", All)!.SetValue(parts[i], i);
+            ContentInstance.Register(parts[i]);
+        }
+        typeof(Player).GetField("modPlayers", All)!.SetValue(player, parts);
+        GameMain.player[0] = player;
+        player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        var attributes = player.GetModPlayer<ElainaAttributeModPlayer>();
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>();
+        var shield = player.GetModPlayer<BarrierPlayer>();
+        var witch = new AshenWitchSkill();
+        var barrier = new MagicBarrierSkill();
+        Learn(skills, witch); Learn(skills, barrier);
+        attributes.Initialize();
+
+        void UpdateEffects()
+        {
+            player.statLifeMax2 = 400;
+            attributes.ResetEffects(); skills.ResetEffects(); shield.ResetEffects();
+            skills.UpdateEquips(); attributes.PostUpdate();
+        }
+        void SetMagic(float value) => attributes.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, value);
+        Player.HurtInfo Hit(int damage, bool cancelled = false)
+        {
+            var modifiers = new Player.HurtModifiers();
+            if (cancelled) modifiers.Cancel();
+            shield.ModifyHurt(ref modifiers);
+            return modifiers.ToHurtInfo(damage, 0, .5f, 0f, false);
+        }
+        int Dot(int damage) => (int)typeof(BarrierPlayer).GetMethod("ResolveLifeRegenHit", All)!.Invoke(shield, [damage])!;
+
+        Check(SkillBalanceConfig.TryParse(File.ReadAllText(args[0]), out var config, out var error), "Parse live balance: " + error);
+        foreach (var balance in new[] { SkillBalanceConfig.Fallback, config })
+        {
+            typeof(SkillBalanceSystem).GetField("store", All)!.SetValue(null, new SkillBalanceFileStore(balance));
+            Check(!balance.Skills.ContainsKey(nameof(MagicBarrierSkill)), "Barrier does not require an attack balance entry");
+            UpdateEffects();
+            Check(barrier.CanUseSkill(), "Unlocked and enabled barrier must work without a damage balance entry");
+            Check(shield.BarrierEnabled, "Normal UpdateEquips activates barrier");
+        }
+        Near(player.statLifeMax2, 250, "Ashen Witch retains original life rule");
+        var unconfigured = new UnconfiguredSkill { MagicPointCost = 30, MaxCD = 12 };
+        unconfigured.Initialize();
+        Check(unconfigured.MagicPointCost == 30 && unconfigured.MaxCD == 12, "Unconfigured skill retains its own parameters");
+        SetMagic(200);
+        Check(unconfigured.CanUseSkill(), "Any unconfigured skill can use its own rules");
+        Near(attributes.MagicPoint, 200, "Availability check does not consume magic");
+        unconfigured.MagicPointCost = 1000;
+        Check(!unconfigured.CanUseSkill(), "Removing the configuration gate preserves the mana requirement");
+        Near(witch.LostMaxLife, 150, "Sacrificed life is tracked");
+        Near(shield.DamageReduction, .375, "Barrier retains original lost-life reduction");
+        SetMagic(200);
+        Check(Hit(80).Damage == 50, "Direct hit is reduced from 80 to 50");
+        Near(attributes.MagicPoint, 170, "Absorption spends 30 magic");
+        Check(Dot(5) == 3, "Life-regen tick keeps original rounding");
+        Near(attributes.MagicPoint, 168.125, "Life-regen absorption spends fractional magic");
+        Check(Hit(80, cancelled: true).Cancelled, "Cancelled hit stays cancelled");
+        Near(attributes.MagicPoint, 168.125, "Cancelled hit consumes no magic");
+        SetMagic(10);
+        Check(Hit(80).Damage == 70, "Low magic limits absorption");
+        Near(attributes.MagicPoint, 0, "Low magic can be exhausted without life conversion");
+        Check(Hit(80).Damage == 80 && Dot(5) == 5, "Empty magic grants no reduction");
+        SetMagic(200);
+        Check(Hit(1).Cancelled, "Sub-one remaining damage is blocked");
+        Near(attributes.MagicPoint, 199.625, "Small hit pays original fractional cost");
+        Check(player.immune && player.immuneTime >= 20, "Blocked small hit grants normal minimum immunity");
+
+        barrier.IsEnabled = false; UpdateEffects(); SetMagic(200);
+        Check(!shield.BarrierEnabled && Hit(80).Damage == 80, "Barrier toggle disables protection");
+        Near(attributes.MagicPoint, 200, "Disabled barrier consumes no magic");
+        barrier.IsEnabled = true; witch.IsEnabled = false; UpdateEffects();
+        Check(!barrier.CanUseSkill() && !shield.BarrierEnabled, "Ashen Witch toggle remains required");
+        witch.IsEnabled = true;
+        skills.UnlockedSkill.Remove(nameof(AshenWitchSkill)); UpdateEffects();
+        Check(!barrier.CanUseSkill() && !shield.BarrierEnabled, "Missing prerequisite cannot activate barrier");
+        Learn(skills, witch); UpdateEffects();
+        skills.UnlockedSkill.Remove(nameof(MagicBarrierSkill)); UpdateEffects();
+        Check(!shield.BarrierEnabled, "Removing the learned barrier disables it next frame");
+        Console.WriteLine($"Magic barrier integration: {passed} checks passed against compiled mod and tModLoader damage modifiers.");
+    }
+
+    sealed class UnconfiguredSkill : ElainaSkill { }
+}

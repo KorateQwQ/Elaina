@@ -34,6 +34,7 @@ public class MagicMissleSpawner : KLProjectile
         set => Projectile.ai[0] = (int)value;
     }
     private TrailManager.TrailHandle managedTrail;
+    protected override bool SampleTrailInDrawBehind => true;
 
     private static Texture2D trail;
     private static Texture2D starLine;
@@ -142,23 +143,7 @@ public class MagicMissleSpawner : KLProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
-        // Sample this draw's center before the manager copies OldCenter.
         base.PreDraw(ref lightColor);
-        if (trail != null && OldCenter is { Length: > 1 })
-        {
-            var trailState = (
-                Texture: trail,
-                TimeOffset: VisualTime);
-            
-            TrailManager.CreateOrUpdateTrail(
-                ref managedTrail,
-                OldCenter,
-                lifetime: 10,
-                trailState,
-                DrawManagedTrail,
-                bloom: true);
-        }
-        
         LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissileSpawner", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
         return false;
@@ -205,6 +190,21 @@ public class MagicMissleSpawner : KLProjectile
         List<int> overWiresUI)
     {
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
+        if (trail != null && OldCenter is { Length: > 1 })
+        {
+            var trailState = (
+                Texture: trail,
+                TimeOffset: VisualTime);
+
+            TrailManager.CreateOrUpdateTrail(
+                ref managedTrail,
+                OldCenter,
+                lifetime: 10,
+                trailState,
+                DrawManagedTrail,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+                bloom: true);
+        }
     }
     void DrawStartStar(int start)
     {
