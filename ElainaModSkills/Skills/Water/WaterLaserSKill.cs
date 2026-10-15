@@ -37,10 +37,10 @@ public class WaterLaserSKill : ElainaSkill
 
     protected override object[] SkillDescriptionArgs =>
     [
-        Action_WaterLaser.ChargeFrames / 60f,
         MaxCD,
         GetConfiguredDamage(),
         WaterLaser.SplashDamageMultiplier * 100f,
-        MagicPointCost
+        MagicPointCost,
+        WaterLaser.OutsideFreezeCooldownDamageMultiplier * 100f
     ];
 }

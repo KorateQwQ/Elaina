@@ -6,10 +6,10 @@ using 伊蕾娜.ElainaModSkills.Skills.Water;
 
 namespace 伊蕾娜.ElainaActions;
 
-/// <summary>蓄力完成后持续引导；松手、切换或耗魔失败时进入收势。</summary>
+/// <summary>按下后立即持续引导；松手、切换或耗魔失败时进入收势。</summary>
 public sealed class Action_WaterLaser : ElainaAction
 {
-    public const int ChargeFrames = 60;
+    private const int ChannelStartFrame = 0;
     public const int RecoveryFrames = 20;
 
     private float worldAimRotation;
@@ -26,10 +26,10 @@ public sealed class Action_WaterLaser : ElainaAction
     public Action_WaterLaser() : this(0, 0f, 12) { }
 
     public Action_WaterLaser(int damage, float manaPerPulse, int intervalFrames)
-        : base(ChargeFrames + RecoveryFrames + 1)
+        : base(ChannelStartFrame + RecoveryFrames + 1)
     {
         AddNode(new ShootActionNode(
-            1, ModContent.ProjectileType<WaterLaser>(), _ => WandCenter,
+            ChannelStartFrame, ModContent.ProjectileType<WaterLaser>(), _ => WandCenter,
             damage, 2f, _ => worldAimRotation.ToRotationVector2(),
             projectile =>
             {
@@ -51,7 +51,7 @@ public sealed class Action_WaterLaser : ElainaAction
     }
 
     public override bool IsAutomaticHoldPoint(ActionModPlayer actionPlayer, int actionFrame) =>
-        actionFrame == ChargeFrames;
+        actionFrame == ChannelStartFrame;
 
     public override bool ShouldContinueHolding(ActionModPlayer actionPlayer, int actionFrame) =>
         !ending && CanContinueCasting() && beam?.Projectile.active == true;
@@ -66,7 +66,7 @@ public sealed class Action_WaterLaser : ElainaAction
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
         if (!ending && owner.whoAmI == Main.myPlayer
-            && (!CanContinueCasting() || (actionFrame > 1 && beam?.Projectile.active != true)))
+            && (!CanContinueCasting() || (actionFrame > ChannelStartFrame && beam?.Projectile.active != true)))
         {
             FinishChannel(actionPlayer);
             return;
@@ -97,8 +97,7 @@ public sealed class Action_WaterLaser : ElainaAction
             return;
 
         StopBeam();
-        // 也允许在蓄力期间直接越过保持点，取消不会补发一段射线。
-        actionPlayer.SetCurrentActionHold(false, ChargeFrames);
+        actionPlayer.SetCurrentActionHold(false, ChannelStartFrame);
     }
 
     private void StopBeam()

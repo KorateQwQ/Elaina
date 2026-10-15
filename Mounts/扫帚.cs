@@ -307,21 +307,21 @@ namespace 伊蕾娜.Mounts
             public float 最大速度()
             {
 
-                return MathHelper.Lerp(7, 10, 熟练度 / 10f);
+                return MathHelper.Lerp(7, 10, 10 / 10f);
             }
             public float 最大冲刺速度()
             {
 
-                return MathHelper.Lerp(10, 20, 熟练度 / 10f);
+                return MathHelper.Lerp(10, 20, 10 / 10f);
             }
             public float 刹车速度()
             {
-                return MathHelper.Lerp(0.1f, 1, 熟练度 / 10f);
+                return MathHelper.Lerp(0.1f, 1, 10 / 10f);
             }
             public float 加速度()
             {
                 if (加速) return 最大冲刺速度() * 1.5f;
-                return MathHelper.Lerp(0.1f, 1, 熟练度 / 10f);
+                return MathHelper.Lerp(0.1f, 1, 10 / 10f);
             }
             public override void ProcessTriggers(TriggersSet triggersSet)
             {

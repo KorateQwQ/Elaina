@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>星蝶魔导书 · 技能界面样式预览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@1,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#d9b86c; --gold2:#f4e2ad; --goldDim:#8a7447; --goldFaint:rgba(217,184,108,.22);
+  --text:#dde1f4; --muted:#8e95c2; --faint:#5d6394;
+  --rose:#cfa2ec; --mana:#4c91ff; --red:#e0889a; --green:#a9d8b4;
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
+  --latin:"Cinzel","Trajan Pro",serif; --italic:"Cormorant Garamond","Georgia",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#05060f;font-family:var(--serif);color:var(--text);user-select:none}
+svg{display:block}
+.px{image-rendering:pixelated;image-rendering:crisp-edges}
+#sky,#drift{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#stage{position:absolute;left:0;top:0;width:1600px;height:1000px;transform-origin:0 0}
+
+/* ---------- sky ---------- */
+.tw{animation:twinkle var(--d) ease-in-out infinite;animation-delay:var(--dl)}
+@keyframes twinkle{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.25)}}
+.shoot{animation:shoot 9s linear infinite}
+@keyframes shoot{0%,86%{stroke-dasharray:0 400;stroke-dashoffset:0;opacity:0}88%{opacity:1}95%{stroke-dasharray:160 400;stroke-dashoffset:-60;opacity:.9}100%{stroke-dasharray:0 400;stroke-dashoffset:-260;opacity:0}}
+
+/* ---------- book ---------- */
+#book{position:absolute;left:90px;top:92px;width:1420px;height:820px}
+#ribbons,#cover{position:absolute;left:0;top:0;overflow:visible}
+.page{position:absolute;top:30px;width:674px;height:770px}
+#leftPage{left:34px}
+#rightPage{left:712px}
+#close{position:absolute;left:1392px;top:-14px;width:40px;height:40px;cursor:pointer}
+#close:hover .o{stroke:var(--gold2)}
+
+.ribbon{cursor:pointer}
+.ribbon .body{transition:transform .35s cubic-bezier(.3,1.4,.5,1)}
+.ribbon text{font-family:var(--serif);font-size:14px;fill:#f6eedd;text-anchor:middle;pointer-events:none}
+.ribbon:hover .body{transform:translateY(-6px)}
+.ribbon.on .body{transform:translateY(-16px)}
+
+/* ---------- left page ---------- */
+#crest{position:absolute;left:40px;top:28px}
+#titleBlock{position:absolute;left:206px;top:40px;width:440px}
+.kicker{font-family:var(--latin);font-size:12px;letter-spacing:5px;color:var(--goldDim)}
+.title{font-size:44px;font-weight:700;letter-spacing:6px;line-height:1.15;
+  background:linear-gradient(180deg,#fff4cf 0%,#e2c27a 55%,#a8874a 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 10px rgba(226,194,122,.25))}
+.subtitle{font-size:13.5px;color:var(--muted);letter-spacing:2px;margin-top:6px;white-space:nowrap}
+.subtitle i{font-family:var(--italic);font-size:16px;letter-spacing:.5px;color:#a9a1cf}
+#profile{position:absolute;left:206px;top:150px;width:440px;height:76px;display:flex;align-items:center;gap:16px;white-space:nowrap}
+.lvring{position:relative;width:72px;height:72px;flex:none}
+.lvring b{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--latin);font-size:24px;color:var(--gold2);line-height:1;font-weight:500}
+.lvring b small{font-size:9px;letter-spacing:2px;color:var(--goldDim);margin-bottom:2px}
+.pcol{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);letter-spacing:1px}
+.pcol .v{font-family:var(--latin);color:var(--text);font-size:13px;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.pcol .v em{font-style:normal;color:var(--gold2);font-size:16px}
+.pcol .v img{width:20px;height:20px}
+.vsep{width:1px;height:46px;background:linear-gradient(transparent,var(--goldFaint),transparent)}
+.bar{width:120px;height:3px;background:#262a52;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#9064c4,#f4e2ad)}
+.rule{position:absolute;height:12px}
+#chart{position:absolute;left:20px;top:250px;width:634px;height:490px}
+#chartSvg{position:absolute;inset:0;overflow:visible}
+#legend{position:absolute;left:40px;top:744px;display:flex;gap:20px;font-size:12px;color:var(--muted);align-items:center}
+#legend span{display:flex;align-items:center;gap:6px}
+#chartHint{position:absolute;right:40px;top:744px;font-size:12px;color:var(--faint);letter-spacing:1px}
+
+/* nodes: HTML over the SVG chart so pixel icons stay crisp */
+.node{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;cursor:pointer;transition:opacity .4s}
+.node .halo{position:absolute;left:-30px;top:-30px;width:124px;height:124px;border-radius:50%;
+  background:radial-gradient(circle,var(--el) 0%,transparent 62%);opacity:0;transition:opacity .4s;pointer-events:none}
+.node .plate{position:absolute;left:4px;top:4px;width:56px;height:56px;background:radial-gradient(circle at 50% 38%,#25224c,#0c0e23 75%);
+  clip-path:polygon(6px 0,50px 0,56px 6px,56px 50px,50px 56px,6px 56px,0 50px,0 6px)}
+.node img{position:absolute;left:4px;top:4px;width:56px;height:56px;transition:filter .4s}
+.node .fr{position:absolute;left:0;top:0;width:64px;height:64px;overflow:visible;pointer-events:none}
+.node .fr .edge0{fill:none;stroke:#545884;stroke-width:1.2}
+.node .fr .tick{fill:none;stroke:#545884;stroke-width:1.2;opacity:0}
+.node .fr .gem{fill:#545884}
+.node .sel{fill:none;stroke:var(--rose);stroke-width:1;stroke-dasharray:3 5;opacity:0;transform-origin:32px 32px;animation:spin 14s linear infinite;transition:opacity .3s}
+.node .name{position:absolute;left:-38px;width:140px;top:70px;text-align:center;font-size:12.5px;letter-spacing:1px;color:#9aa0c9;white-space:nowrap}
+.node .lv{position:absolute;left:-38px;width:140px;top:87px;text-align:center;font-family:var(--latin);font-size:9.5px;letter-spacing:1.5px;color:#6c7199}
+.node .q{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:#14163a;border:1px solid #4a4e7c;color:#8a8fc0;font:10px var(--latin);display:flex;align-items:center;justify-content:center}
+.node.learned .halo{opacity:.42}
+.node.learned .fr .edge0{stroke:var(--gold)}
+.node.learned .fr .tick{stroke:var(--gold);opacity:.8}
+.node.learned .fr .gem{fill:var(--gold2)}
+.node.learned .name{color:#ecdfbb}
+.node.learned .lv{color:var(--gold)}
+.node.available img{filter:saturate(.55) brightness(.82)}
+.node.available .fr .edge0{stroke:var(--gold);stroke-dasharray:4 3}
+.node.available .fr .gem{fill:var(--gold)}
+.node.available .halo{animation:pulse 2.6s ease-in-out infinite}
+.node.available .name{color:#d0c7a8}
+.node.locked img{filter:grayscale(1) brightness(.45) contrast(.9)}
+.node.locked .name{color:#757aa6}
+.node.hidden img{filter:brightness(0) drop-shadow(0 0 1px rgba(160,140,230,.95)) drop-shadow(0 0 1px rgba(160,140,230,.6))}
+.node.hidden .fr .edge0{stroke:#3b3f66;stroke-dasharray:1 3.5}
+.node.hidden .name{color:#4f557f}
+.node:hover .fr .edge0{stroke-width:2}
+.node:hover img{filter:none}
+.node.locked:hover img{filter:grayscale(.6) brightness(.7)}
+.node.hidden:hover img{filter:brightness(0) drop-shadow(0 0 1px #cfa2ec) drop-shadow(0 0 2px #cfa2ec)}
+.node.on .sel{opacity:1}
+.node.on .halo{opacity:.6}
+.node.on .fr .edge0{stroke:var(--gold2);stroke-width:1.6}
+.node.dim{opacity:.16}
+.node.flash .halo{animation:flash .9s ease-out}
+.node.core .ring{fill:none;stroke:var(--gold);stroke-opacity:.5}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:.08}50%{opacity:.4}}
+@keyframes flash{0%{opacity:1;transform:scale(.5)}100%{opacity:.42;transform:scale(1.5)}}
+.edge{fill:none;transition:opacity .4s}
+.edge.lit{stroke:var(--gold);stroke-width:1.3;opacity:.6}
+.edge.flow{stroke:#fff3c9;stroke-width:1.6;stroke-dasharray:2 14;animation:flow 2.2s linear infinite;opacity:.75}
+.edge.open{stroke:var(--gold);stroke-width:1;stroke-dasharray:5 5;opacity:.38}
+.edge.dark{stroke:#4a4e7c;stroke-width:1;stroke-dasharray:1 5;opacity:.7}
+.edge.dim{opacity:.06}
+@keyframes flow{to{stroke-dashoffset:-32}}
+#tip{position:absolute;pointer-events:none;z-index:9;padding:8px 12px 9px;background:rgba(14,17,38,.95);border:1px solid rgba(217,184,108,.45);
+  font-size:12px;color:var(--muted);opacity:0;transform:translate(-50%,-100%);transition:opacity .15s;white-space:nowrap;
+  clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px)}
+#tip b{display:block;font-size:14px;color:var(--gold2);font-weight:600;letter-spacing:1px;margin-bottom:2px}
+
+/* butterfly: a clipped window over the project's 4×4 sprite sheet */
+.bfo{position:absolute;left:0;top:0;width:64px;height:64px;pointer-events:none;z-index:6}
+.bfw{width:64px;height:64px;overflow:hidden;
+  filter:sepia(.45) hue-rotate(215deg) saturate(1.5) drop-shadow(0 0 .7px #1a0f33) drop-shadow(0 0 .7px #1a0f33) drop-shadow(0 0 5px rgba(207,162,236,.9)) drop-shadow(0 0 12px rgba(144,100,196,.6))}
+.bfw img{display:block;width:256px;height:256px}
+.drift{opacity:.45;z-index:0}
+
+/* ---------- right page ---------- */
+#detail{position:absolute;inset:0}
+#detail.swap .body{animation:inkIn .55s cubic-bezier(.2,.7,.2,1)}
+@keyframes inkIn{0%{opacity:0;clip-path:inset(0 100% 0 0);filter:blur(3px)}60%{opacity:1}100%{opacity:1;clip-path:inset(0 -20px 0 0);filter:blur(0)}}
+.chapter{position:absolute;left:44px;right:44px;top:30px;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--goldDim);letter-spacing:3px}
+.chapter .pg{font-family:var(--latin);letter-spacing:4px}
+#medal{position:absolute;left:30px;top:66px;width:140px;height:140px}
+#medal .glow{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(circle,var(--el) 0%,transparent 64%);opacity:.5}
+#medal svg{position:absolute;inset:0;overflow:visible}
+#medal .plate{position:absolute;left:14px;top:14px;width:112px;height:112px;background:radial-gradient(circle at 50% 36%,#2b2757,#0b0d22 76%);
+  clip-path:polygon(10px 0,102px 0,112px 10px,112px 102px,102px 112px,10px 112px,0 102px,0 10px)}
+#medal img{position:absolute;left:14px;top:14px;width:112px;height:112px}
+.sname{position:absolute;left:190px;top:76px;font-size:36px;font-weight:700;letter-spacing:5px;color:#f1e6c8;text-shadow:0 0 18px rgba(226,194,122,.25);white-space:nowrap}
+.sen{position:absolute;left:192px;top:126px;font-family:var(--italic);font-size:18px;color:#a69ecb;letter-spacing:.5px}
+.tags{position:absolute;left:190px;top:160px;display:flex;gap:8px}
+.tag{font-size:11.5px;letter-spacing:2px;padding:3px 10px 4px;border:1px solid rgba(217,184,108,.38);color:#d8c79c;background:rgba(217,184,108,.06);white-space:nowrap}
+.tag.rose{border-color:rgba(207,162,236,.45);color:var(--rose);background:rgba(207,162,236,.07)}
+.tag.el{border-color:color-mix(in srgb,var(--el) 55%,transparent);color:var(--el);background:color-mix(in srgb,var(--el) 9%,transparent)}
+.tag.dim{border-color:#3f4370;color:var(--faint);background:none}
+.desc{position:absolute;left:44px;right:44px;top:222px;height:118px;overflow:hidden;font-size:14.5px;line-height:1.85;color:#c8cce6;text-align:justify}
+.desc .cap{float:left;width:48px;height:48px;margin:5px 10px 0 0;position:relative}
+.desc .cap svg{position:absolute;inset:0}
+.desc .cap span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--gold2)}
+.desc em{font-style:normal;color:var(--gold2)}
+.desc .mp{color:var(--mana);white-space:nowrap}
+.desc .mp img{width:16px;height:16px;vertical-align:-3px;margin-right:1px}
+.stats{position:absolute;left:44px;right:44px;top:352px;height:60px;display:flex}
+.stat{flex:1;display:flex;align-items:center;gap:12px;padding-left:16px;position:relative}
+.stat+.stat::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:1px;background:linear-gradient(transparent,var(--goldFaint),transparent)}
+.stat img{width:30px;height:30px;flex:none}
+.stat .l{font-size:11.5px;color:var(--muted);letter-spacing:2px}
+.stat .n{font-family:var(--latin);font-size:23px;color:#f1e6c8;line-height:1.1}
+.stat .n small{font-size:11px;color:var(--goldDim);margin-left:3px;letter-spacing:1px}
+.lvrow{position:absolute;left:44px;right:44px;top:426px;display:flex;align-items:center;gap:14px}
+.lvrow .l{font-size:13px;color:var(--muted);letter-spacing:3px}
+.moons{display:flex;gap:9px}
+.lvrow .n{margin-left:auto;font-family:var(--latin);font-size:13px;color:var(--goldDim);letter-spacing:2px}
+.lvrow .n b{font-size:22px;color:var(--gold2);font-weight:500;margin-right:4px}
+.cmp{position:absolute;left:44px;right:44px;top:466px}
+.cmp .h{font-size:12.5px;color:var(--muted);letter-spacing:3px;margin-bottom:2px}
+.cmp .row{display:flex;align-items:baseline;height:27px;font-size:13.5px;color:#b9bedb}
+.cmp .row .lead{flex:1;margin:0 10px;border-bottom:1px dotted rgba(142,149,194,.35);transform:translateY(-4px)}
+.cmp .row .c{font-family:var(--latin);color:#9aa0c9;font-size:14px}
+.cmp .row .a{color:var(--goldDim);margin:0 8px;font-size:12px}
+.cmp .row .x{font-family:var(--latin);color:var(--gold2);font-size:15px;min-width:58px;text-align:right}
+.cmp .row .x small{font-size:10px;color:var(--goldDim);margin-left:2px}
+.cmp .note{font-size:13.5px;color:var(--muted);line-height:1.8}
+.reqs{position:absolute;left:44px;right:44px;top:566px;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
+.reqs .l{letter-spacing:2px;margin-right:4px}
+.req{display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #33386a;background:rgba(10,12,30,.5)}
+.req img{width:18px;height:18px}
+.req b{font-family:var(--latin);font-weight:500;color:var(--green)}
+.req.short b{color:var(--red)}
+.actions{position:absolute;left:44px;right:44px;top:606px;height:60px;display:flex;align-items:center;gap:14px}
+.seal-wrap{position:relative;flex:1;height:56px;padding-left:28px}
+.seal-btn{position:relative;width:100%;height:56px;border:none;cursor:pointer;color:#f6ead0;font-family:var(--serif);text-align:left;padding-left:52px;
+  background:linear-gradient(100deg,#4a2b62 0%,#33204e 55%,#28203f 100%);
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%);transition:filter .2s}
+.seal-btn::after{content:"";position:absolute;inset:3px;border:1px solid rgba(217,184,108,.45);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%);pointer-events:none}
+.seal-btn:hover{filter:brightness(1.18)}
+.seal-btn .t1{display:block;font-size:19px;letter-spacing:6px;font-weight:600}
+.seal-btn .t2{display:flex;align-items:center;gap:4px;font-size:11.5px;color:#bba9d6;letter-spacing:1px;margin-top:1px}
+.seal-btn .t2 img{width:14px;height:14px}
+.seal-btn.off{cursor:default;background:linear-gradient(100deg,#252845,#1c1f38);color:#7d82ad;filter:none}
+.seal-btn.off .t2{color:#5b6090}
+.seal{position:absolute;left:-4px;top:-6px;width:68px;height:68px;pointer-events:none;z-index:2}
+.seal-wrap.stamp .seal{animation:stamp .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes stamp{0%{transform:scale(1)}35%{transform:scale(.78) rotate(-8deg)}100%{transform:scale(1)}}
+.ghost-btn{height:56px;width:170px;border:1px solid rgba(217,184,108,.4);background:rgba(217,184,108,.05);color:#e2d3ac;font-family:var(--serif);font-size:15px;letter-spacing:3px;cursor:pointer;transition:background .2s}
+.ghost-btn small{display:block;font-size:11px;color:var(--goldDim);letter-spacing:1px;margin-top:2px}
+.ghost-btn:hover{background:rgba(217,184,108,.12)}
+.ghost-btn.off{border-color:#33386a;color:#5b6090;background:none;cursor:default}
+.ghost-btn.off small{color:#464b78}
+.toggle{display:flex;align-items:center;gap:10px;height:56px;width:170px;padding:0 14px;border:1px solid rgba(207,162,236,.35);cursor:pointer;font-size:14px;letter-spacing:2px;color:var(--rose)}
+.toggle svg{width:46px;height:24px}
+.toggle.offst{color:var(--faint);border-color:#33386a}
+.loadout{position:absolute;left:44px;right:44px;top:680px}
+.loadout .head{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);letter-spacing:3px}
+.loadout .head span:last-child{color:var(--faint);letter-spacing:1px;font-size:11.5px}
+.slots{display:flex;justify-content:space-between;margin-top:18px}
+.slot{position:relative;width:64px;height:64px;cursor:pointer}
+.slot .plate{position:absolute;left:4px;top:4px;width:56px;height:56px;background:radial-gradient(circle at 50% 38%,#1c1b3e,#0b0d21 75%);
+  clip-path:polygon(6px 0,50px 0,56px 6px,56px 50px,50px 56px,6px 56px,0 50px,0 6px)}
+.slot img{position:absolute;left:4px;top:4px;width:56px;height:56px}
+.slot svg{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.slot .e{fill:none;stroke:#3a3f6c;stroke-width:1.2;transition:stroke .2s}
+.slot:hover .e{stroke:var(--goldDim)}
+.slot.full .e{stroke:var(--gold)}
+.slot.pick .e{stroke:var(--rose);stroke-width:2}
+.slot .num{font-family:var(--latin);font-size:9px;letter-spacing:1px;fill:var(--goldDim);text-anchor:middle}
+.slot .plus{stroke:#3e4372;stroke-width:1.2}
+#foot{position:absolute;left:0;right:0;top:944px;text-align:center;font-size:12px;letter-spacing:3px;color:#4c527f}
+#foot b{font-weight:400;color:#6d73a3}
+</style>
+</head>
+<body>
+<svg id="sky" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1600 1000">
+  <defs>
+    <radialGradient id="skyG" cx="50%" cy="8%" r="95%"><stop offset="0" stop-color="#1d2458"/><stop offset=".45" stop-color="#0d1130"/><stop offset="1" stop-color="#04050d"/></radialGradient>
+    <radialGradient id="moonGlow"><stop offset="0" stop-color="#f6e6b8" stop-opacity=".35"/><stop offset="1" stop-color="#f6e6b8" stop-opacity="0"/></radialGradient>
+    <linearGradient id="moonFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff6da"/><stop offset="1" stop-color="#d7bf86"/></linearGradient>
+    <filter id="blur40"><feGaussianBlur stdDeviation="40"/></filter>
+    <mask id="crescent"><circle cx="1500" cy="74" r="56" fill="#fff"/><circle cx="1524" cy="58" r="50" fill="#000"/></mask>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#skyG)"/>
+  <g filter="url(#blur40)" opacity=".55">
+    <ellipse cx="760" cy="420" rx="900" ry="120" fill="#3b2f78" transform="rotate(-18 760 420)" opacity=".55"/>
+    <ellipse cx="700" cy="450" rx="560" ry="54" fill="#7a5bb0" transform="rotate(-18 760 420)" opacity=".35"/>
+    <ellipse cx="1200" cy="860" rx="420" ry="160" fill="#2b2d6e" opacity=".5"/>
+  </g>
+  <g id="stars"></g>
+  <circle cx="1500" cy="74" r="140" fill="url(#moonGlow)"/>
+  <circle cx="1500" cy="74" r="56" fill="url(#moonFace)" mask="url(#crescent)"/>
+  <path class="shoot" d="M1180 40 L880 210" stroke="#fff3cf" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+</svg>
+<div id="drift"></div>
+
+<div id="stage">
+  <div id="book">
+    <svg id="ribbons" width="1420" height="820"></svg>
+    <svg id="cover" width="1420" height="820" viewBox="0 0 1420 820">
+      <defs>
+        <linearGradient id="leather" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3c2249"/><stop offset=".5" stop-color="#2a1736"/><stop offset="1" stop-color="#36203f"/></linearGradient>
+        <linearGradient id="paperL" x1="0" x2="1"><stop offset="0" stop-color="#1c2348"/><stop offset=".7" stop-color="#171d3e"/><stop offset=".94" stop-color="#10152f"/><stop offset="1" stop-color="#090c1f"/></linearGradient>
+        <linearGradient id="paperR" x1="1" x2="0"><stop offset="0" stop-color="#1c2348"/><stop offset=".7" stop-color="#171d3e"/><stop offset=".94" stop-color="#10152f"/><stop offset="1" stop-color="#090c1f"/></linearGradient>
+        <linearGradient id="spine" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".45" stop-color="#03040c" stop-opacity=".85"/><stop offset=".5" stop-color="#6b5a8e" stop-opacity=".35"/><stop offset=".55" stop-color="#03040c" stop-opacity=".85"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
+        <radialGradient id="pageLight" cx="30%" cy="20%" r="80%"><stop offset="0" stop-color="#8d7cd0" stop-opacity=".10"/><stop offset="1" stop-color="#8d7cd0" stop-opacity="0"/></radialGradient>
+        <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 .8  0 0 0 0 .78  0 0 0 0 1  0 0 0 .55 0"/></filter>
+        <filter id="leatherGrain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".55" numOctaves="3" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .5 0"/></filter>
+        <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feGaussianBlur stdDeviation="18"/></filter>
+        <clipPath id="pagesClip"><path d="M34 34 Q371 20 708 30 L708 796 Q371 808 34 796Z M712 30 Q1049 20 1386 34 L1386 796 Q1049 808 712 796Z"/></clipPath>
+        <g id="corner">
+          <path d="M0 0 H70 M0 0 V70" stroke="#d9b86c" stroke-width="2" fill="none"/>
+          <path d="M6 6 H52 Q40 14 34 34 Q14 40 6 52Z" fill="#d9b86c" opacity=".9"/>
+          <path d="M14 14 Q30 18 34 34" stroke="#2a1736" stroke-width="1.2" fill="none"/>
+          <circle cx="62" cy="9" r="2.4" fill="#d9b86c"/><circle cx="9" cy="62" r="2.4" fill="#d9b86c"/>
+        </g>
+        <g id="pageCorner" fill="none" stroke="#d9b86c" stroke-width=".9" opacity=".55">
+          <path d="M0 26 V0 H26"/><path d="M5 18 Q5 5 18 5"/><path d="M0 0 L9 9"/><circle cx="11" cy="11" r="1.6" fill="#d9b86c" stroke="none"/>
+        </g>
+      </defs>
+      <ellipse cx="710" cy="830" rx="720" ry="40" fill="#000" opacity=".7" filter="url(#shadow)"/>
+      <rect x="0" y="0" width="1420" height="820" rx="16" fill="url(#leather)"/>
+      <rect x="0" y="0" width="1420" height="820" rx="16" filter="url(#leatherGrain)" opacity=".7"/>
+      <rect x="11" y="11" width="1398" height="798" rx="10" fill="none" stroke="#c9a35e" stroke-opacity=".35" stroke-dasharray="7 5"/>
+      <use href="#corner" transform="translate(4 4)"/>
+      <use href="#corner" transform="translate(1416 4) scale(-1 1)"/>
+      <use href="#corner" transform="translate(4 816) scale(1 -1)"/>
+      <use href="#corner" transform="translate(1416 816) scale(-1 -1)"/>
+      <g fill="#cfc6e6">
+        <path d="M30 40 Q371 26 708 36 L708 804 Q371 816 30 804Z" opacity=".10"/>
+        <path d="M26 46 Q371 32 708 42 L708 810 Q371 822 26 810Z" opacity=".07"/>
+        <path d="M712 36 Q1049 26 1390 40 L1390 804 Q1049 816 712 804Z" opacity=".10"/>
+        <path d="M712 42 Q1049 32 1394 46 L1394 810 Q1049 822 712 810Z" opacity=".07"/>
+      </g>
+      <path d="M34 34 Q371 20 708 30 L708 796 Q371 808 34 796Z" fill="url(#paperL)"/>
+      <path d="M712 30 Q1049 20 1386 34 L1386 796 Q1049 808 712 796Z" fill="url(#paperR)"/>
+      <g clip-path="url(#pagesClip)">
+        <rect x="34" y="20" width="1352" height="790" fill="url(#pageLight)"/>
+        <rect x="34" y="20" width="1352" height="790" filter="url(#grain)" opacity=".07"/>
+        <rect x="680" y="20" width="60" height="790" fill="url(#spine)"/>
+      </g>
+      <g fill="none" stroke="#d9b86c" stroke-opacity=".28" stroke-width=".9">
+        <path d="M54 52 Q371 40 690 48 L690 778 Q371 788 54 778Z"/>
+        <path d="M730 48 Q1049 40 1366 52 L1366 778 Q1049 788 730 778Z"/>
+      </g>
+      <use href="#pageCorner" transform="translate(60 56)"/><use href="#pageCorner" transform="translate(684 52) scale(-1 1)"/>
+      <use href="#pageCorner" transform="translate(60 772) scale(1 -1)"/><use href="#pageCorner" transform="translate(684 772) scale(-1 -1)"/>
+      <use href="#pageCorner" transform="translate(736 52)"/><use href="#pageCorner" transform="translate(1360 56) scale(-1 1)"/>
+      <use href="#pageCorner" transform="translate(736 772) scale(1 -1)"/><use href="#pageCorner" transform="translate(1360 772) scale(-1 -1)"/>
+      <g transform="translate(710 6)">
+        <path d="M-34 0 Q0 -10 34 0 L28 18 Q0 10 -28 18Z" fill="#2a1736" stroke="#d9b86c" stroke-width="1.2"/>
+        <circle r="17" cy="4" fill="#1a1230" stroke="#d9b86c" stroke-width="1.5"/>
+        <path d="M0 -8 l2.6 9.4 9.4 2.6 -9.4 2.6 L0 26 l-2.6 -9.4 -9.4 -2.6 9.4 -2.6z" transform="translate(0 -5) scale(.62)" fill="#f4e2ad"/>
+      </g>
+    </svg>
+
+    <div class="page" id="leftPage">
+      <svg id="crest" width="150" height="196" viewBox="0 0 150 196"></svg>
+      <div id="titleBlock">
+        <div class="kicker">GRIMOIRE · VOLUMEN III</div>
+        <div class="title">星蝶魔导书</div>
+        <div class="subtitle">旅途中记下的夜空术式 · <i>Liber Stellarum et Papilionum</i></div>
+      </div>
+      <div id="profile"></div>
+      <svg class="rule" id="ruleL" style="top:236px;left:40px;width:594px" viewBox="0 0 594 12"></svg>
+      <div id="chart"><svg id="chartSvg" width="634" height="490" viewBox="0 0 634 490"></svg><div id="nodes"></div><div id="tip"></div></div>
+      <div id="legend"></div>
+      <div id="chartHint">单击星点阅读 · 双击装配</div>
+    </div>
+
+    <div class="page" id="rightPage"><div id="detail"></div></div>
+
+    <svg id="close" viewBox="0 0 40 40"><circle class="o" cx="20" cy="20" r="17" fill="#1a1230" stroke="#d9b86c" stroke-width="1.5"/><circle cx="20" cy="20" r="13" fill="none" stroke="#d9b86c" stroke-opacity=".35"/><path d="M14.5 14.5 L25.5 25.5 M25.5 14.5 L14.5 25.5" stroke="#f4e2ad" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </div>
+  <div id="foot">样式预览 · 图标取自项目，进度与数值为示例 · <b>点击缎带切换篇章</b></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const ROOT = '../../';
+const ASSET = {
+  butterfly: ROOT + 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/butterFly.png',
+  mana: ROOT + 'Snippets/MagicStarIcon.png',
+  cooldown: ROOT + 'Snippets/CooldownIcon.png',
+  shield: ROOT + 'Snippets/ShieldIcon.png',
+  study: ROOT + 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/StudyBook.png',
+};
+const icon = s => `${ROOT}ElainaModSkills/Skills/${s.dir}/${s.id}.png`;
+const stage = $('#stage');
+function fit(){
+  const s = Math.min(innerWidth/1600, innerHeight/1000);
+  stage.style.transform = `translate(${(innerWidth-1600*s)/2}px,${(innerHeight-1000*s)/2}px) scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+function starPath(cx, cy, R, r, n = 5, rot = -90){
+  let d = '';
+  for (let i = 0; i < n*2; i++){
+    const a = (rot + i*180/n) * Math.PI/180, rr = i % 2 ? r : R;
+    d += (i ? 'L' : 'M') + (cx + rr*Math.cos(a)).toFixed(2) + ' ' + (cy + rr*Math.sin(a)).toFixed(2);
+  }
+  return d + 'Z';
+}
+function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const roman = n => ['0','Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ'][n];
+const el = (tag, attrs = {}, html = '') => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (html) e.innerHTML = html; return e; };
+const MP = `<span class="mp"><img class="px" src="${ASSET.mana}">魔力</span>`;
+
+/* ---------- data: project skills & icons; progress and numbers are samples ---------- */
+const ELEM = {
+  witch:  {name:'灰之魔女', c:'#ff8fd8'}, arcane:{name:'奥术', c:'#e7c4ff'}, fire:{name:'火', c:'#ff9a52'},
+  ice:    {name:'冰', c:'#9fe6ff'}, water:{name:'水', c:'#5fd3ea'}, wind:{name:'风', c:'#c6a8ff'},
+  heal:   {name:'治愈', c:'#ffe3a0'}, alchemy:{name:'炼金', c:'#86f59a'}, doll:{name:'人偶', c:'#f1c6e6'},
+};
+const CATS = {
+  all:     {name:'全部', color:'#6e55a6', ch:'序 · 星图总览'},
+  active:  {name:'术式', color:'#93405f', ch:'第 Ⅰ 章 · 术式'},
+  passive: {name:'心得', color:'#3c5d93', ch:'第 Ⅱ 章 · 心得'},
+  learned: {name:'已习得', color:'#9b7a36', ch:'附录 · 已习得'},
+};
+const C = {x:317, y:232};
+const SK = [
+  {id:'AshenWitchSkill', dir:'AshenWitch', name:'灰之魔女', en:'Ashen Witch', el:'witch', type:'passive', pos:[317,232], core:1, lv:2, max:5, on:true,
+    desc:`灰之魔女开启后，伊蕾娜使用${MP}施放技能。基础上限等同于原版最大魔力；每因灰之魔女减少 <em>1</em> 点生命上限，额外增加 <em>1</em> 点${MP}上限。${MP}不足时，可消耗每 1% 最大生命，恢复 1% ${MP}用于施法。`,
+    stats:[['魔力上限','+120',''],['生命收益','-50','%'],['类型','可开关','']],
+    up:[['额外魔力上限','+120','+150',''],['生命换算','1','1.2','%']], cost:2},
+  {id:'MagicMissileSkill', dir:'MagicMissile', name:'魔法飞弹', en:'Magic Missile', el:'arcane', type:'active', pos:[317,92], lv:3, max:5, pre:['AshenWitchSkill'],
+    desc:`对目标造成 <em>30</em> 魔法伤害。被动：魔法飞弹<em>无视敌人防御</em>；对同一目标连续命中 5 次后，对其周围的其他敌人造成一次 200% 魔法飞弹伤害的溅射伤害。`,
+    stats:[['魔力','18','MP'],['冷却','0.3','秒'],['伤害','30','']],
+    up:[['飞弹伤害','30','36',''],['溅射倍率','200','220','%'],['魔力','18','17','MP']], cost:2},
+  {id:'MultiMissileSkill', dir:'MagicMissile', name:'多重射击', en:'Multi Missile', el:'arcane', type:'active', pos:[421,92], lv:1, max:5, pre:['MagicMissileSkill'],
+    desc:`召唤一枚跟随自身的浮游法球，场上至多同时存在 <em>3</em> 枚。法球会向最近的敌人发射魔法飞弹，造成 <em>18</em> 魔法伤害。`,
+    stats:[['魔力','40','MP'],['冷却','6.0','秒'],['法球上限','3','枚']],
+    up:[['法球伤害','18','22',''],['法球上限','3','4','枚']], cost:3},
+  {id:'DollControlSkill', dir:'DollControl', name:'人偶操控', en:'Doll Control', el:'doll', type:'active', pos:[525,72], lv:0, max:5, pre:['MultiMissileSkill','IceConeSkill'],
+    desc:`以魔力丝线牵引一具小小的人偶，替伊蕾娜吸引附近敌人的注意，并在消散时回馈少量${MP}。`,
+    stats:[['魔力','35','MP'],['冷却','20.0','秒'],['持续','12','秒']], cost:3},
+  {id:'IceConeSkill', dir:'Ice', name:'冰锥', en:'Ice Cone', el:'ice', type:'active', pos:[445,208], lv:0, max:5, pre:['AshenWitchSkill'],
+    desc:`向前方展开一片冰锥，对扇形范围内的敌人造成 <em>46</em> 冰元素伤害，并累积冻结值；冻结值满时目标被冻结。`,
+    stats:[['魔力','24','MP'],['冷却','5.0','秒'],['伤害','46','']], cost:2},
+  {id:'IceShardLockSkill', dir:'Ice', name:'冰棱锁定', en:'Ice Shard Lock', el:'ice', type:'active', pos:[559,190], lv:0, max:5, pre:['IceConeSkill'],
+    desc:`在被锁定的敌人周围凝出一圈冰棱，短暂停顿后同时刺向目标。已冻结的目标承受额外伤害。`,
+    stats:[['魔力','30','MP'],['冷却','9.0','秒'],['冰棱','6','枚']], cost:3},
+  {id:'WaterBallSkill', dir:'Water', name:'水球', en:'Water Ball', el:'water', type:'active', pos:[421,316], lv:2, max:5, pre:['AshenWitchSkill'],
+    desc:`抛出一枚会弹跳的水球，命中时溅开，对附近敌人造成 <em>28</em> 水元素伤害并使其减速。`,
+    stats:[['魔力','16','MP'],['冷却','2.5','秒'],['伤害','28','']],
+    up:[['水球伤害','28','33',''],['弹跳次数','2','3','次']], cost:2},
+  {id:'WaterLaserSKill', dir:'Water', name:'水流射线', en:'Water Laser', el:'water', type:'active', pos:[535,312], lv:0, max:5, pre:['WaterBallSkill'],
+    desc:`按住施法立即持续喷射水流，松开结束引导。每 0.2 秒消耗 2 点${MP}并造成 <em>24</em> 水元素伤害，对射线末端附近的其他敌人造成 35% 溅射伤害。`,
+    stats:[['魔力','2','MP/0.2s'],['冷却','1.0','秒'],['伤害','24','']], cost:2},
+  {id:'HealSkill', dir:'Heal', name:'治疗魔法', en:'Healing', el:'heal', type:'active', pos:[459,422], lv:1, max:5, pre:['WaterBallSkill'],
+    desc:`以温和的光包裹自身，立即回复 <em>60</em> 点生命，并在之后数秒内持续缓慢回复。`,
+    stats:[['魔力','45','MP'],['冷却','30.0','秒'],['回复','60','']],
+    up:[['立即回复','60','75',''],['持续回复','4','5','/秒']], cost:3},
+  {id:'MagicBarrierSkill', dir:'MagicBarrier', name:'魔力护盾', en:'Mana Barrier', el:'witch', type:'passive', pos:[317,372], lv:1, max:5, pre:['AshenWitchSkill'], on:true,
+    desc:`需要开启灰之魔女技能才可使用。在即将受伤时开启护盾，护盾会根据因灰之魔女损失的血量提供伤害减免，并消耗相当于护盾所抵消伤害的${MP}。`,
+    stats:[['减免上限','40','%'],['类型','可开关',''],['护盾','被动','']],
+    up:[['减免上限','40','45','%']], cost:2},
+  {id:'AlchemySkill', dir:'Alchemy', name:'炼金术', en:'Alchemy', el:'alchemy', type:'passive', pos:[75,190], hidden:1, pre:['FireBurstSkill']},
+  {id:'WindSlashSkill', dir:'Wind', name:'风刃', en:'Wind Slash', el:'wind', type:'active', pos:[213,316], lv:1, max:5, pre:['AshenWitchSkill'],
+    desc:`挥出一道贯穿的风刃，对沿途所有敌人造成 <em>42</em> 魔法伤害。风刃会将弱小的敌人沿飞行方向击退。`,
+    stats:[['魔力','20','MP'],['冷却','3.0','秒'],['伤害','42','']],
+    up:[['风刃伤害','42','50',''],['击退','4','5','']], cost:2},
+  {id:'WindTornadoSkill', dir:'Wind', name:'风之龙卷', en:'Wind Tornado', el:'wind', type:'active', pos:[175,422], hidden:1, pre:['WindSlashSkill']},
+  {id:'FlightSkill', dir:'Flight', name:'飞行魔法', en:'Flight', el:'wind', type:'active', pos:[99,312], lv:0, max:5, pre:['WindSlashSkill'],
+    desc:`跨上扫帚，在一段时间内获得自由飞行的能力；飞行期间持续消耗${MP}。`,
+    stats:[['魔力','8','MP/秒'],['冷却','15.0','秒'],['速度','+30','%']], cost:2},
+  {id:'FireBurstSkill', dir:'Fire', name:'炎爆', en:'Fire Burst', el:'fire', type:'active', pos:[189,208], lv:4, max:5, pre:['AshenWitchSkill'],
+    desc:`在目标位置引发一次炎爆，对范围内敌人造成 <em>64</em> 火元素伤害，并在地面留下短暂燃烧的余烬。`,
+    stats:[['魔力','32','MP'],['冷却','7.0','秒'],['伤害','64','']],
+    up:[['炎爆伤害','64','76',''],['余烬持续','2','3','秒']], cost:3},
+  {id:'FireTornadoSkill', dir:'Fire', name:'火焰龙卷', en:'Fire Tornado', el:'fire', type:'active', pos:[213,92], lv:0, max:5, pre:['FireBurstSkill'],
+    desc:`唤起一道缓慢前进的火焰龙卷，将沿途敌人卷入并持续灼烧。`,
+    stats:[['魔力','48','MP'],['冷却','14.0','秒'],['持续','4','秒']], cost:3},
+  {id:'FireLaserSkill', dir:'Fire', name:'火焰射线', en:'Fire Laser', el:'fire', type:'active', pos:[109,72], lv:0, max:5, pre:['FireTornadoSkill'],
+    desc:`汇聚火焰为一束炽热射线，贯穿直线上的全部敌人。`,
+    stats:[['魔力','6','MP/0.2s'],['冷却','1.0','秒'],['伤害','38','']], cost:4},
+];
+SK.forEach(s => { [s.x, s.y] = s.pos; });
+const byId = Object.fromEntries(SK.map(s => [s.id, s]));
+const P = {level:37, exp:2480, next:3600, points:12, slots:['MagicMissileSkill','FireBurstSkill','WaterBallSkill','WindSlashSkill','MultiMissileSkill',null,null,null], pick:5};
+const query = new URLSearchParams(location.search);
+let cat = CATS[query.get('cat')] ? query.get('cat') : 'all', sel = byId[query.get('sel')] || byId.MagicMissileSkill;
+
+function state(s){
+  if (s.hidden) return 'hidden';
+  if (s.lv > 0) return 'learned';
+  return (s.pre || []).every(id => byId[id].lv > 0) ? 'available' : 'locked';
+}
+const STATE_NAME = {learned:'已习得', available:'可研习', locked:'未解锁', hidden:'未显现'};
+const inCat = s => cat === 'all' || (cat === 'learned' ? state(s) === 'learned' : s.type === cat);
+
+/* ---------- sky ---------- */
+(function sky(){
+  const rnd = mulberry(11); let h = '';
+  for (let i = 0; i < 300; i++){
+    const x = rnd()*1600, y = rnd()*1000, r = .3 + rnd()**3*1.5, o = .25 + rnd()*.7;
+    h += `<circle class="tw" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${rnd() < .2 ? '#e8d9ff' : '#fff'}" style="--o:${o.toFixed(2)};--d:${(2+rnd()*5).toFixed(1)}s;--dl:-${(rnd()*6).toFixed(1)}s"/>`;
+  }
+  for (let i = 0; i < 14; i++){
+    const x = rnd()*1600, y = rnd()*1000, s = 3 + rnd()*4;
+    h += `<path class="tw" d="M${x} ${y-s}Q${x} ${y} ${x+s} ${y}Q${x} ${y} ${x} ${y+s}Q${x} ${y} ${x-s} ${y}Q${x} ${y} ${x} ${y-s}Z" fill="#f6ecd0" style="--o:.8;--d:${(3+rnd()*4).toFixed(1)}s;--dl:-${(rnd()*5).toFixed(1)}s"/>`;
+  }
+  $('#stars').innerHTML = h;
+})();
+
+/* ---------- ribbons ---------- */
+function drawRibbons(){
+  const svg = $('#ribbons'); svg.innerHTML = '';
+  Object.entries(CATS).forEach(([k, c], i) => {
+    const g = el('g', {class:'ribbon' + (k === cat ? ' on' : ''), transform:`translate(${96 + i*64} 0)`});
+    const chars = [...c.name], top = -70;
+    let h = `<path d="M0 ${top} L22 ${top+12} L44 ${top} V40 H0Z" fill="${c.color}"/>
+      <path d="M3 ${top+6} L22 ${top+16} L41 ${top+6} V40 H3Z" fill="none" stroke="rgba(255,240,210,.35)" stroke-width=".8" stroke-dasharray="2 2"/>`;
+    const y0 = chars.length === 3 ? top + 32 : top + 38;
+    chars.forEach((ch, j) => h += `<text x="22" y="${y0 + j*16}">${ch}</text>`);
+    g.appendChild(el('g', {class:'body'}, h));
+    g.addEventListener('click', () => {
+      cat = k; drawRibbons(); applyFilter();
+      if (!inCat(sel)){ const first = SK.find(inCat); if (first) select(first); } else renderDetail(false);
+    });
+    svg.appendChild(g);
+  });
+  const hang = el('g', {transform:'translate(1190 800)'});
+  hang.innerHTML = `<path d="M0 0 V86 L12 76 L24 86 V0Z" fill="#5c3a7e"/><path d="M3 0 V80 L12 72 L21 80 V0" fill="none" stroke="rgba(255,240,210,.3)" stroke-dasharray="2 2"/>
+    <path d="M12 86 V96" stroke="#d9b86c"/><path d="M12 96 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#f4e2ad"/>`;
+  svg.appendChild(hang);
+}
+
+/* ---------- crest, profile, rules ---------- */
+function drawCrest(){
+  const ticks = Array.from({length:48}, (_, i) => { const a = i*7.5*Math.PI/180, r1 = i % 4 ? 66 : 62; return `<path d="M${75+r1*Math.cos(a)} ${90+r1*Math.sin(a)}L${75+69*Math.cos(a)} ${90+69*Math.sin(a)}"/>`; }).join('');
+  const stars = [[52,64,1],[96,58,1.3],[60,112,.9],[104,106,1.1],[80,48,.8],[44,92,.7],[108,82,.9]].map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#f4e2ad"/>`).join('');
+  $('#crest').innerHTML = `
+    <defs><radialGradient id="crestSky" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#2b2c63"/><stop offset="1" stop-color="#0c0e24"/></radialGradient>
+      <clipPath id="crestClip"><circle cx="75" cy="90" r="58"/></clipPath></defs>
+    <circle cx="75" cy="90" r="74" fill="none" stroke="#d9b86c" stroke-opacity=".5"/>
+    <circle cx="75" cy="90" r="70" fill="#0f1129" stroke="#d9b86c" stroke-width="1.4"/>
+    <g stroke="#d9b86c" stroke-opacity=".6" stroke-width="1">${ticks}</g>
+    <circle cx="75" cy="90" r="58" fill="url(#crestSky)" stroke="#d9b86c" stroke-opacity=".7"/>
+    <g clip-path="url(#crestClip)">
+      ${stars}
+      <path d="M48 70 L60 64 L80 48 L96 58" fill="none" stroke="#d9b86c" stroke-opacity=".35" stroke-width=".7"/>
+      <circle cx="104" cy="66" r="13" fill="#f4e2ad" opacity=".9"/><circle cx="110" cy="61" r="12" fill="#1c1d4a"/>
+      <path d="M17 150 Q75 118 133 150 V160 H17Z" fill="#141433"/>
+    </g>
+    <g transform="translate(75 96) scale(3.1)">
+      <path d="M-10.5 6.6C-5 8.8 5 8.8 10.5 6.6 8.2 5.2 5.6 4.6 3.8 4.4L1.6-4.6C1.9-7.4 4.2-8.7 7.2-8.2 4.6-11 -1.2-9.6 -2.2-4.8L-3.8 4.4C-6 4.6 -8.4 5.2 -10.5 6.6Z" fill="#221b3e" stroke="#e6c987" stroke-width=".55"/>
+      <path d="M-3.6 2.4Q0 3.6 3.4 2.4" fill="none" stroke="#cfa2ec" stroke-width="1.1"/>
+      <path d="M5.4 -9.6 l.7 1.6 1.6 .7 -1.6 .7 -.7 1.6 -.7 -1.6 -1.6 -.7 1.6 -.7z" fill="#f4e2ad"/>
+    </g>
+    <path d="M75 0 l4 9 9 4 -9 4 -4 9 -4 -9 -9 -4 9 -4z" fill="#f4e2ad"/>
+    <path d="M30 172 Q75 186 120 172" fill="none" stroke="#d9b86c" stroke-opacity=".5"/>
+    <text x="75" y="192" text-anchor="middle" font-family="Cinzel,serif" font-size="10" letter-spacing="3" fill="#8a7447">ELAINA</text>`;
+}
+function drawProfile(){
+  const learned = SK.filter(s => s.lv > 0).length, c = 2*Math.PI*31, k = P.exp/P.next;
+  $('#profile').innerHTML = `
+    <div class="lvring"><svg width="72" height="72" viewBox="0 0 72 72">
+      <defs><linearGradient id="lvG"><stop offset="0" stop-color="#9064c4"/><stop offset="1" stop-color="#f4e2ad"/></linearGradient></defs>
+      <circle cx="36" cy="36" r="31" fill="#0e1128" stroke="#2a2f57" stroke-width="3"/>
+      <circle cx="36" cy="36" r="31" fill="none" stroke="url(#lvG)" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c*k} ${c}" transform="rotate(-90 36 36)"/>
+      <circle cx="36" cy="36" r="25" fill="none" stroke="#d9b86c" stroke-opacity=".25" stroke-dasharray="1 3"/></svg><b><small>LV</small>${P.level}</b></div>
+    <div class="pcol"><span>魔女等级</span><span class="v"><em>${P.exp.toLocaleString()}</em>/ ${P.next.toLocaleString()}</span></div>
+    <div class="vsep"></div>
+    <div class="pcol"><span>研习点</span><span class="v"><img src="${ASSET.study}"><em>${P.points}</em></span></div>
+    <div class="vsep"></div>
+    <div class="pcol"><span>星图收录 &nbsp;<span style="color:var(--gold2);font-family:var(--latin)">${learned}</span> / ${SK.length}</span><div class="bar"><i style="width:${learned/SK.length*100}%"></i></div></div>`;
+}
+function rule(svg, w){
+  svg.innerHTML = `<path d="M0 6 H${w/2-34} M${w/2+34} 6 H${w}" stroke="#d9b86c" stroke-opacity=".35"/>
+    <path d="M${w/2-28} 6 h10 M${w/2+18} 6 h10" stroke="#d9b86c" stroke-opacity=".7"/>
+    <path d="M${w/2} 0 l3 6 -3 6 -3 -6z" fill="#d9b86c"/><circle cx="${w/2-12}" cy="6" r="1.6" fill="#d9b86c"/><circle cx="${w/2+12}" cy="6" r="1.6" fill="#d9b86c"/>`;
+}
+function drawLegend(){
+  const fr = (dash, stroke) => `<svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 1H11L13 3V11L11 13H3L1 11V3Z" fill="#11142c" stroke="${stroke}" ${dash ? `stroke-dasharray="${dash}"` : ''}/></svg>`;
+  $('#legend').innerHTML = `<span>${fr('', '#d9b86c')}已习得</span><span>${fr('3 2', '#d9b86c')}可研习</span><span>${fr('', '#545884')}未解锁</span><span>${fr('1 2', '#5c6090')}未显现</span>`;
+}
+
+/* ---------- chart ---------- */
+function frameSvg(core){
+  const ticks = `<path class="tick" d="M-3 10V-3H10M54 -3H67V10M67 54V67H54M10 67H-3V54"/>`;
+  return `<svg class="fr" viewBox="0 0 64 64">
+    ${core ? `<circle class="ring" cx="32" cy="32" r="46" stroke-dasharray="1 3"/><circle class="ring" cx="32" cy="32" r="51"/>` : ''}
+    <circle class="sel" cx="32" cy="32" r="${core ? 58 : 44}"/>
+    <path class="edge0" d="M8 1H56L63 8V56L56 63H8L1 56V8Z"/>${ticks}
+    <path class="gem" d="M32 -7 l4 4 -4 4 -4 -4z"/></svg>`;
+}
+function drawChart(){
+  const svg = $('#chartSvg');
+  const tick = Array.from({length:96}, (_, i) => { const a = i*3.75*Math.PI/180, r0 = i % 8 ? 231 : 225; return `<path d="M${C.x+r0*Math.cos(a)} ${C.y+r0*Math.sin(a)}L${C.x+237*Math.cos(a)} ${C.y+237*Math.sin(a)}"/>`; }).join('');
+  const rnd = mulberry(5);
+  const dust = Array.from({length:80}, () => `<circle cx="${(rnd()*634).toFixed(1)}" cy="${(rnd()*490).toFixed(1)}" r="${(.3+rnd()*.9).toFixed(2)}" fill="#c9c6f0" opacity="${(.15+rnd()*.4).toFixed(2)}"/>`).join('');
+  const upper = 'M0 -0.6C-2.4 -7.4 -10 -9 -9.6 -3 -9.2 1.6 -3.6 1.6 0 1Z', lower = 'M0 1.4C-2.6 2.2 -7.6 4.4 -5.6 8 -3.6 9.6 -1 5.6 0 2.4Z';
+  const wing = (d, mirror) => `<path d="${d}" transform="translate(${C.x} ${C.y+6}) scale(${mirror ? -24 : 24} 24)" fill="url(#wingFill)" stroke="#e8dcff" stroke-width=".045" stroke-opacity=".35" stroke-dasharray=".25 .2"/>`;
+  svg.innerHTML = `
+    <defs>
+      <radialGradient id="chartGlow"><stop offset="0" stop-color="#5a46a0" stop-opacity=".22"/><stop offset="1" stop-color="#5a46a0" stop-opacity="0"/></radialGradient>
+      <radialGradient id="wingFill" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="11"><stop offset="0" stop-color="#cfa2ec" stop-opacity=".02"/><stop offset=".7" stop-color="#9a86e0" stop-opacity=".07"/><stop offset="1" stop-color="#e8dcff" stop-opacity=".12"/></radialGradient>
+      <path id="ringText" d="M${C.x-246} ${C.y} A246 246 0 1 1 ${C.x+246} ${C.y} A246 246 0 1 1 ${C.x-246} ${C.y}"/>
+    </defs>
+    <circle cx="${C.x}" cy="${C.y}" r="240" fill="url(#chartGlow)"/>
+    ${dust}
+    <g opacity=".9">${wing(upper)}${wing(upper, true)}${wing(lower)}${wing(lower, true)}</g>
+    <path d="M${C.x} ${C.y-150} V${C.y+170}" stroke="#e8dcff" stroke-opacity=".08" stroke-dasharray="2 4"/>
+    <g fill="none" stroke="#d9b86c">
+      <circle cx="${C.x}" cy="${C.y}" r="237" stroke-opacity=".22"/>
+      <circle cx="${C.x}" cy="${C.y}" r="225" stroke-opacity=".12"/>
+      <g stroke-opacity=".3" stroke-width=".8">${tick}</g>
+    </g>
+    <text font-family="Cinzel,serif" font-size="9" letter-spacing="7" fill="#d9b86c" opacity=".2"><textPath href="#ringText" startOffset="1%">ASTRA · PAPILIO · STRIX · LUNA · IGNIS · GLACIES · AQUA · VENTUS · CINIS ·</textPath></text>
+    <g id="edges"></g>`;
+  const eg = svg.querySelector('#edges');
+  SK.forEach(s => (s.pre || []).forEach(pid => {
+    const a = byId[pid], mx = (a.x + s.x)/2, my = (a.y + s.y)/2;
+    const d = `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${(mx + (C.x-mx)*.12).toFixed(1)} ${(my + (C.y-my)*.12).toFixed(1)} ${s.x.toFixed(1)} ${s.y.toFixed(1)}`, st = state(s);
+    const kind = st === 'learned' ? 'lit' : st === 'available' ? 'open' : 'dark';
+    eg.appendChild(el('path', {d, class:`edge ${kind}`, 'data-a':pid, 'data-b':s.id}));
+    if (kind === 'lit') eg.appendChild(el('path', {d, class:'edge flow', 'data-a':pid, 'data-b':s.id}));
+  }));
+  const host = $('#nodes'); host.innerHTML = '';
+  SK.forEach(s => {
+    const st = state(s), n = document.createElement('div');
+    n.className = `node ${st}${s.core ? ' core' : ''}${s === sel ? ' on' : ''}`;
+    n.dataset.id = s.id;
+    n.style.cssText = `left:${s.x.toFixed(1)}px;top:${s.y.toFixed(1)}px;--el:${ELEM[s.el].c}`;
+    const lv = st === 'hidden' ? '' : roman(s.lv) + ' / ' + roman(s.max);
+    n.innerHTML = `<div class="halo"></div><div class="plate"></div><img class="px" src="${icon(s)}" alt="">${frameSvg(s.core)}
+      ${st === 'hidden' ? '<div class="q">?</div>' : ''}
+      <div class="name" style="${s.core ? 'top:86px' : ''}">${st === 'hidden' ? '未显现' : s.name}</div><div class="lv" style="${s.core ? 'top:103px' : ''}">${lv}</div>`;
+    n.addEventListener('click', () => select(s));
+    n.addEventListener('dblclick', () => equip(s));
+    n.addEventListener('mouseenter', () => tip(s, true));
+    n.addEventListener('mouseleave', () => tip(s, false));
+    host.appendChild(n);
+  });
+  host.appendChild(perch);
+  applyFilter();
+}
+function applyFilter(){
+  document.querySelectorAll('.node').forEach(n => n.classList.toggle('dim', !inCat(byId[n.dataset.id])));
+  document.querySelectorAll('.edge').forEach(e => e.classList.toggle('dim', !inCat(byId[e.dataset.a]) && !inCat(byId[e.dataset.b])));
+}
+function tip(s, show){
+  const t = $('#tip');
+  if (!show){ t.style.opacity = 0; return; }
+  const st = state(s);
+  t.innerHTML = `<b>${st === 'hidden' ? '？？？' : s.name}</b>${CATS[s.type].name} · ${STATE_NAME[st]}${st === 'learned' ? ` · ${s.lv}/${s.max}` : ''}`;
+  t.style.left = s.x + 'px'; t.style.top = s.y - (s.core ? 64 : 48) + 'px'; t.style.opacity = 1;
+}
+
+/* ---------- butterfly (project sprite, 4×4 frames, faces left) ---------- */
+function makeButterfly(cls){
+  const o = document.createElement('div'); o.className = 'bfo ' + (cls || '');
+  o.innerHTML = `<div class="bfw"><img src="${ASSET.butterfly}" alt=""></div>`;
+  o.img = o.querySelector('img');
+  return o;
+}
+function setFrame(o, f){ o.img.style.transform = `translate(${-(f % 4)*64}px,${-Math.floor(f/4)*64}px)`; }
+const perch = makeButterfly();
+const bf = {x:0, y:0, flip:false, anim:0};
+const perchPoint = s => ({x: s.x + (s.core ? 40 : 34), y: s.y - (s.core ? 46 : 38)});
+function placeBf(x, y, f){
+  perch.style.left = (x - 32).toFixed(1) + 'px'; perch.style.top = (y - 32).toFixed(1) + 'px';
+  perch.style.transform = bf.flip ? 'scaleX(-1)' : '';
+  setFrame(perch, f);
+}
+function flyTo(s, instant){
+  const to = perchPoint(s);
+  cancelAnimationFrame(bf.anim); clearTimeout(idleTimer);
+  if (instant){ bf.x = to.x; bf.y = to.y; placeBf(bf.x, bf.y, 14); idleFlap(); return; }
+  const from = {x:bf.x, y:bf.y}, dist = Math.hypot(to.x-from.x, to.y-from.y);
+  const ctrl = {x:(from.x+to.x)/2 + (to.y-from.y)*.25, y:Math.min(from.y, to.y) - 50 - dist*.15};
+  const dur = 520 + dist*1.4, t0 = performance.now(); bf.flip = to.x > from.x;
+  const step = now => {
+    const t = Math.min(1, (now - t0)/dur), e = t < .5 ? 4*t*t*t : 1 - (-2*t+2)**3/2, u = 1 - e;
+    bf.x = u*u*from.x + 2*u*e*ctrl.x + e*e*to.x;
+    bf.y = u*u*from.y + 2*u*e*ctrl.y + e*e*to.y + Math.sin(now/90)*2*(1-t);
+    placeBf(bf.x, bf.y, t < 1 ? Math.floor(now/38) % 16 : 14);
+    if (t < 1) bf.anim = requestAnimationFrame(step); else idleFlap();
+  };
+  bf.anim = requestAnimationFrame(step);
+}
+let idleTimer;
+function idleFlap(){
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    const t0 = performance.now();
+    const step = now => {
+      const f = Math.floor((now - t0)/55);
+      if (f >= 16){ placeBf(bf.x, bf.y, 14); idleFlap(); return; }
+      placeBf(bf.x, bf.y, f); bf.anim = requestAnimationFrame(step);
+    };
+    bf.anim = requestAnimationFrame(step);
+  }, 1800 + Math.random()*2600);
+}
+(function drift(){
+  const host = $('#drift'), list = [];
+  for (let i = 0; i < 4; i++){
+    const o = makeButterfly('drift'); host.appendChild(o);
+    list.push({o, ph:i*1.7, sp:.00005 + i*.000012, s:.42 + (i%2)*.14, lane:[.045,.955,.1,.9][i]});
+  }
+  const tick = now => {
+    const W = innerWidth, H = innerHeight;
+    list.forEach(b => {
+      const t = now*b.sp + b.ph, x = ((t*.9) % 1.2 - .1)*W, y = b.lane*H + Math.sin(t*9)*24 + Math.sin(t*23)*7;
+      b.o.style.transform = `translate(${x}px,${y}px) scale(${-b.s},${b.s})`;
+      setFrame(b.o, Math.floor(now/60 + b.ph*10) % 16);
+    });
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+})();
+
+/* ---------- detail page ---------- */
+function medal(s, st){
+  const ticks = Array.from({length:4}, (_, i) => `<circle r="2.4" fill="#d9b86c" transform="translate(70 70) rotate(${i*90+45}) translate(0 -84)"/>`).join('');
+  const filter = st === 'hidden' ? 'filter:brightness(0) drop-shadow(0 0 1px #a08ce6) drop-shadow(0 0 2px #a08ce6)' : st === 'locked' ? 'filter:grayscale(1) brightness(.5)' : st === 'available' ? 'filter:saturate(.6) brightness(.85)' : '';
+  return `<div id="medal" style="--el:${ELEM[s.el].c}">
+    <div class="glow" style="opacity:${st === 'learned' ? .5 : .14}"></div>
+    <svg viewBox="0 0 140 140">
+      <path d="M70 -6 L146 70 L70 146 L-6 70Z" fill="none" stroke="#d9b86c" stroke-opacity=".28"/>
+      <path d="M16 4H124L136 16V124L124 136H16L4 124V16Z" fill="#0f1129" stroke="#d9b86c" stroke-opacity=".8" stroke-width="1.2"/>
+      <path d="M-2 18V-2H18M122 -2H142V18M142 122V142H122M18 142H-2V122" fill="none" stroke="#d9b86c" stroke-width="1.6"/>
+      ${ticks}
+    </svg>
+    <div class="plate"></div><img class="px" src="${icon(s)}" style="${filter}" alt="">
+  </div>`;
+}
+function moon(kind){
+  if (kind === 'full') return `<svg width="22" height="22" viewBox="-11 -11 22 22"><circle r="10" fill="#f4e2ad" opacity=".18"/><circle r="7.2" fill="#ecd496"/><circle cx="-2" cy="-1.5" r="1.4" fill="#cbb075"/><circle cx="2.4" cy="2.2" r="1" fill="#cbb075"/></svg>`;
+  if (kind === 'next') return `<svg width="22" height="22" viewBox="-11 -11 22 22"><circle r="7.2" fill="none" stroke="#d9b86c" stroke-dasharray="2 2"/><path d="M0 -7.2 A7.2 7.2 0 0 1 0 7.2 A3.6 7.2 0 0 0 0 -7.2Z" fill="#cfa2ec" opacity=".8"/></svg>`;
+  return `<svg width="22" height="22" viewBox="-11 -11 22 22"><circle r="7.2" fill="none" stroke="#454a7a"/></svg>`;
+}
+const statIcon = l => l.includes('魔力') ? ASSET.mana : l.includes('冷却') ? ASSET.cooldown : (l.includes('护盾') || l.includes('减免')) ? ASSET.shield : null;
+function statHtml([l, n, u]){
+  const src = statIcon(l);
+  const ic = src ? `<img class="px" src="${src}">` : `<svg width="30" height="30" viewBox="-12 -12 24 24"><path d="${starPath(0,0,8.6,3.4,4)}" fill="none" stroke="#d9b86c" stroke-width="1.2"/></svg>`;
+  return `<div class="stat">${ic}<div><div class="l">${l}</div><div class="n">${n}<small>${u}</small></div></div></div>`;
+}
+function seal(off){
+  const blob = Array.from({length:18}, (_, i) => { const a = i*20*Math.PI/180, r = 28 + (i%3 ? 1.6 : -1.2); return `${i ? 'L' : 'M'}${(r*Math.cos(a)).toFixed(1)} ${(r*Math.sin(a)).toFixed(1)}`; }).join('') + 'Z';
+  const ink = off ? '#6f7298' : '#f6c9da';
+  return `<svg class="seal" viewBox="-34 -34 68 68">
+    <defs><radialGradient id="wax" cx="38%" cy="32%"><stop offset="0" stop-color="${off ? '#4a4c6e' : '#c0577e'}"/><stop offset=".6" stop-color="${off ? '#2c2e4a' : '#7b2650'}"/><stop offset="1" stop-color="${off ? '#1c1d33' : '#4a1131'}"/></radialGradient></defs>
+    <path d="${blob}" fill="url(#wax)"/>
+    <circle r="20" fill="none" stroke="${ink}" stroke-opacity=".55" stroke-width="1.2"/>
+    <circle r="16.5" fill="none" stroke="${ink}" stroke-opacity=".35" stroke-dasharray="1.2 2"/>
+    <g transform="translate(0 1) scale(1.15)" fill="none" stroke="${ink}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-10.5 6.6C-5 8.8 5 8.8 10.5 6.6 8.2 5.2 5.6 4.6 3.8 4.4L1.6-4.6C1.9-7.4 4.2-8.7 7.2-8.2 4.6-11 -1.2-9.6 -2.2-4.8L-3.8 4.4C-6 4.6 -8.4 5.2 -10.5 6.6Z"/><path d="M-3.6 2.2Q0 3.4 3.4 2.2"/></g>
+    <ellipse cx="-9" cy="-12" rx="7" ry="3.4" fill="#fff" opacity="${off ? .06 : .18}" transform="rotate(-30 -9 -12)"/>
+  </svg>`;
+}
+function capSvg(dim){
+  return `<svg width="48" height="48" viewBox="0 0 48 48"><rect x="2" y="2" width="44" height="44" fill="${dim ? '#14162f' : '#1d1a3c'}" stroke="#d9b86c" stroke-opacity="${dim ? .3 : .7}"/>
+    <rect x="6" y="6" width="36" height="36" fill="none" stroke="#d9b86c" stroke-opacity=".3" stroke-dasharray="1 2"/>
+    <path d="M2 2h7M2 2v7M46 46h-7M46 46v-7" stroke="#d9b86c" stroke-width="2"/></svg>`;
+}
+const canPay = s => P.points >= s.cost;
+function reqs(s, st){
+  if (!(st === 'available' || (st === 'learned' && s.lv < s.max))) return '';
+  return `<div class="reqs"><span class="l">${st === 'available' ? '研习所需' : '进修所需'}</span>
+    <span class="req ${canPay(s) ? '' : 'short'}"><img src="${ASSET.study}">研习点 <b>${P.points} / ${s.cost}</b></span></div>`;
+}
+function actions(s, st){
+  let main, side;
+  const costLine = `<img src="${ASSET.study}">消耗 ${s.cost} 研习点`;
+  if (st === 'hidden') main = {t1:'尚未显现', t2:'这一页仍被星光封存', off:true};
+  else if (st === 'locked') main = {t1:'尚未接通', t2:`需先习得「${byId[s.pre.find(id => byId[id].lv === 0)].name}」`, off:true};
+  else if (st === 'available') main = {t1:'研 习', t2: canPay(s) ? costLine : '研习点不足', off:!canPay(s), act:'learn'};
+  else if (s.lv >= s.max) main = {t1:'已臻圆满', t2:'此页已无可进修之处', off:true};
+  else main = {t1:'进 修', t2: canPay(s) ? costLine : '研习点不足', off:!canPay(s), act:'up'};
+  if (st === 'learned' && s.type === 'active'){
+    const at = P.slots.indexOf(s.id);
+    side = `<button class="ghost-btn" data-act="equip">${at >= 0 ? '卸 下' : '装 配'}<small>${at >= 0 ? `当前 · 第 ${roman(at+1)} 格` : `至第 ${roman(P.pick+1)} 格`}</small></button>`;
+  } else if (st === 'learned'){
+    side = `<div class="toggle ${s.on ? '' : 'offst'}" data-act="toggle"><svg viewBox="0 0 46 24"><rect x="1" y="3" width="44" height="18" rx="9" fill="${s.on ? 'rgba(207,162,236,.18)' : '#12142c'}" stroke="currentColor" stroke-opacity=".6"/>
+      <g transform="translate(${s.on ? 0 : -20} 0)"><circle cx="33" cy="12" r="6.5" fill="currentColor"/><path d="${starPath(33,12,3.2,1.3,4)}" fill="#1a1435"/></g></svg>${s.on ? '已启用' : '已关闭'}</div>`;
+  } else side = `<button class="ghost-btn off">装 配<small>${s.type === 'passive' ? '心得无需装配' : '习得后可装配'}</small></button>`;
+  return `<div class="actions"><div class="seal-wrap">${seal(main.off)}<button class="seal-btn ${main.off ? 'off' : ''}" data-act="${main.act || ''}"><span class="t1">${main.t1}</span><span class="t2">${main.t2}</span></button></div>${side}</div>`;
+}
+function loadout(){
+  const slots = P.slots.map((id, i) => {
+    const s = id && byId[id];
+    return `<div class="slot ${s ? 'full' : ''} ${i === P.pick ? 'pick' : ''}" data-slot="${i}"><div class="plate"></div>
+      ${s ? `<img class="px" src="${icon(s)}" alt="">` : ''}
+      <svg viewBox="0 0 64 64"><path class="e" d="M8 1H56L63 8V56L56 63H8L1 56V8Z"/>${s ? '' : '<path class="plus" d="M27 32H37M32 27V37"/>'}<text class="num" x="32" y="-6">${roman(i+1)}</text></svg></div>`;
+  }).join('');
+  return `<div class="loadout"><div class="head"><span>随身咒契</span><span>点击空位选定 · 再点「装配」或双击星点</span></div><div class="slots">${slots}</div></div>`;
+}
+function renderDetail(anim = true){
+  const s = sel, st = state(s), d = $('#detail');
+  const pg = 40 + SK.indexOf(s)*2;
+  let body;
+  if (st === 'hidden'){
+    const pre = byId[s.pre[0]];
+    body = `${medal(s, st)}
+      <div class="sname" style="color:#7d82ad">未显现之页</div><div class="sen">— folium latens —</div>
+      <div class="tags"><span class="tag dim">${CATS[s.type].name}</span><span class="tag dim">未显现</span></div>
+      <div class="desc" style="color:#7d82ad"><div class="cap">${capSvg(true)}<span style="color:#7d82ad">此</span></div>页的墨迹尚未干透，只能隐约看见一个图案的轮廓。或许当<em style="color:#b8a8d6">「${pre.name}」</em>被完整读懂之后，这一页才会向你显露它的名字。</div>
+      ${actions(s, st)}`;
+  } else {
+    const plain = s.desc.replace(/<[^>]+>/g, ''), first = plain[0];
+    const moons = Array.from({length:s.max}, (_, i) => moon(i < s.lv ? 'full' : i === s.lv && st !== 'locked' ? 'next' : 'empty')).join('');
+    let cmp;
+    if (s.lv >= s.max) cmp = `<div class="note">此页已被读至最深处。星光会在这里停留，不再改变。</div>`;
+    else if (st === 'learned' && s.up) cmp = `<div class="h">下一次进修 · ${roman(s.lv)} → ${roman(s.lv+1)}</div>` +
+      s.up.map(([l, c, x, u]) => `<div class="row"><span>${l}</span><span class="lead"></span><span class="c">${c}</span><span class="a">⟶</span><span class="x">${x}<small>${u}</small></span></div>`).join('');
+    else if (st === 'available') cmp = `<div class="note">书页已经向你敞开。研习后，<em style="font-style:normal;color:var(--gold2)">${s.name}</em>将以第 Ⅰ 阶写入星图${s.type === 'active' ? '，并可装配到随身咒契' : ''}。</div>`;
+    else cmp = `<div class="note">需先习得 ${s.pre.filter(id => byId[id].lv === 0).map(id => `<span style="color:var(--rose)">「${byId[id].name}」</span>`).join(' 与 ')}，此页的星轨才会接通。</div>`;
+    const equipped = s.type === 'active' && P.slots.includes(s.id);
+    body = `${medal(s, st)}
+      <div class="sname">${s.name}</div><div class="sen">${s.en}</div>
+      <div class="tags"><span class="tag">${CATS[s.type].name}</span><span class="tag el" style="--el:${ELEM[s.el].c}">${ELEM[s.el].name}</span>
+        <span class="tag ${st === 'learned' ? 'rose' : st === 'locked' ? 'dim' : ''}">${STATE_NAME[st]}</span>${equipped ? `<span class="tag rose">已装配 · ${roman(P.slots.indexOf(s.id)+1)}</span>` : ''}</div>
+      <div class="desc"><div class="cap">${capSvg()}<span>${first}</span></div>${s.desc.replace(first, '')}</div>
+      <div class="stats">${s.stats.map(statHtml).join('')}</div>
+      <div class="lvrow"><span class="l">研习进度</span><div class="moons">${moons}</div><span class="n"><b>${s.lv}</b>/ ${s.max}</span></div>
+      <div class="cmp">${cmp}</div>
+      ${reqs(s, st)}
+      ${actions(s, st)}`;
+  }
+  d.innerHTML = `
+    <div class="chapter"><span>${CATS[cat].ch}</span><span class="pg">— ${pg} —</span></div>
+    <svg class="rule" id="ruleR" style="left:44px;top:52px;width:586px" viewBox="0 0 586 12"></svg>
+    <div class="body">${body}</div>
+    ${loadout()}`;
+  rule($('#ruleR'), 586);
+  bindDetail();
+  if (anim){ d.classList.remove('swap'); void d.offsetWidth; d.classList.add('swap'); }
+}
+function bindDetail(){
+  const d = $('#detail');
+  d.querySelectorAll('[data-slot]').forEach(e => e.addEventListener('click', () => {
+    const i = +e.dataset.slot;
+    if (P.pick === i && P.slots[i]){ select(byId[P.slots[i]]); return; }
+    P.pick = i; renderDetail(false);
+  }));
+  const main = d.querySelector('.seal-btn[data-act]');
+  if (main && main.dataset.act) main.addEventListener('click', () => {
+    const s = sel; if (!canPay(s)) return;
+    P.points -= s.cost; s.lv++;
+    main.parentElement.classList.add('stamp');
+    setTimeout(() => { drawChart(); drawProfile(); renderDetail(false); flash(s); }, 260);
+  });
+  const eq = d.querySelector('[data-act="equip"]');
+  if (eq) eq.addEventListener('click', () => equip(sel));
+  const tg = d.querySelector('[data-act="toggle"]');
+  if (tg) tg.addEventListener('click', () => { sel.on = !sel.on; renderDetail(false); });
+}
+function flash(s){
+  const n = document.querySelector(`.node[data-id="${s.id}"]`); if (!n) return;
+  n.classList.add('flash'); setTimeout(() => n.classList.remove('flash'), 900);
+}
+function equip(s){
+  if (state(s) !== 'learned' || s.type !== 'active') return;
+  const at = P.slots.indexOf(s.id);
+  if (at >= 0 && s === sel){ P.slots[at] = null; P.pick = at; }
+  else { if (at >= 0) P.slots[at] = null; P.slots[P.pick] = s.id; const free = P.slots.indexOf(null); if (free >= 0) P.pick = free; }
+  if (s !== sel) select(s); else renderDetail(false);
+}
+function select(s){
+  if (s === sel && document.querySelector('.node.on')) return;
+  sel = s;
+  document.querySelectorAll('.node').forEach(n => n.classList.toggle('on', n.dataset.id === s.id));
+  flyTo(s); renderDetail();
+}
+
+/* ---------- boot ---------- */
+drawRibbons(); drawCrest(); drawProfile(); rule($('#ruleL'), 594); drawLegend(); drawChart(); renderDetail(false);
+flyTo(sel, true);
+$('#close').addEventListener('click', () => { const b = $('#book'); b.style.transition = 'transform .5s, opacity .5s'; b.style.transform = 'scale(.96)'; b.style.opacity = '0'; setTimeout(() => { b.style.transform = ''; b.style.opacity = ''; }, 900); });
+</script>
+</body>
+</html>

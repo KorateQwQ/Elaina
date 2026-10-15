@@ -202,7 +202,7 @@ public class MagicMissile : KLProjectile
 
         EndBeginDraw(2, 1);
 
-        RadialDissolve(new Vector4(new Vector3(1, 0.4f, 0.9f) * 7.5f, 1.0f),
+        RadialDissolve(new Vector4(new Vector3(1, 0.4f, 0.9f) * 8.5f, 1.0f),
             dissolveNoise, 0.2f,
             new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
             sweepDirection: new Vector2(1, 0),
@@ -212,14 +212,14 @@ public class MagicMissile : KLProjectile
         DrawInWorld(ball, Projectile.Center + totalMove, Color.White, new Vector2(1.0f, 0.5f) * scale2,
             Projectile.rotation);
 
-        RadialDissolve(new Vector4(new Vector3(1, 0.6f, 0.8f) *3.5f, 1.0f),
+        RadialDissolve(new Vector4(new Vector3(1, 0.7f, 0.8f) *4.5f, 1.0f),
             dissolveNoise, 0.2f,
             new Vector2((float)VisualTime % 360 / 120f, 0), new Vector2(1), 0.58f, 0.52f, -25f,
             sweepDirection: new Vector2(1, 0),
             imageTex: waterRipple, internalTextureOffset: new Vector2((float)VisualTime % 360 / 40f, 0),
             internalTextureScale: new Vector2(1.5f));
 
-        DrawInWorld(ball, Projectile.Center + move * 10 + totalMove, Color.White, new Vector2(0.8f, 0.3f) * scale2,
+        DrawInWorld(ball, Projectile.Center + move * 5 + totalMove, Color.White, new Vector2(0.9f, 0.3f) * scale2,
             Projectile.rotation);
     }
 

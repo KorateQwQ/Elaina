@@ -23,6 +23,7 @@ public class WaterLaser : ElainaBasicProjectile
 {
     public const float SplashRadius = 80f;
     public const float SplashDamageMultiplier = 0.5f;
+    public const float OutsideFreezeCooldownDamageMultiplier = 0.7f / 0.9f;
     private const float BeamWidth = 50f;
 
     private float maxDistance;
@@ -200,6 +201,10 @@ public class WaterLaser : ElainaBasicProjectile
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
+        // 命中时读取目标共享的冻结 CD；冻结中尚未起算 CD，同样使用较低倍率。
+        // 在 OnHitNPC 减 CD 之前结算，每个溅射目标独立判断。
+        if (target.GetFreezeCooldown() <= 0)
+            modifiers.SourceDamage *= OutsideFreezeCooldownDamageMultiplier;
         if (target.whoAmI != primaryTarget)
             modifiers.SourceDamage *= SplashDamageMultiplier;
         base.ModifyHitNPC(target, ref modifiers);

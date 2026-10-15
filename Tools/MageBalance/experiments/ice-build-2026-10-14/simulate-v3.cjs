@@ -10,6 +10,8 @@ const FPS=60, EPS=1e-7;
 const frames=s=>Math.max(1,Math.round(s*FPS));
 const defaults={
   duration:300, freezeBase:60, freezeDuration:4,freezeBuildSeconds:3,iceResetGap:1.2,
+  // Historical experiments start at application; runtime starts after thaw/consumption.
+  freezeCooldownStart:'application',
   // Per actual water attack / ball impact. No 30s hard cap, no ice accumulation during CD.
   waterDiscount:2/15, ballDiscount:6, waterWet:5, ballWet:15, waterBurst:5,
   filler:'water',waterWindow:15,prioritizeBuild:true,readyBasic:'ice',
@@ -40,7 +42,8 @@ function run(options={}) {
   let iceBuild=0,lastIceHit=-Infinity,buildStart=null;
   let ballReady=0,lockReady=0,thunderReady=frames(options.thunderFirst??2),cloud=null,tick=0;
   let frozenExpired=0,thunderPaidTicks=0,wetTicks=0,cloudWetTicks=0,cloudDryTicks=0,controlSacrificed=0;
-  const events=[],actions=[],freezes=[],detonations=[],clouds=[],damageEvents=[],reductions=[];
+  const events=[],actions=[],freezes=[],detonations=[],clouds=[],damageEvents=[],reductions=[],cooldownStarts=[];
+  const cooldownOnEnd=o.freezeCooldownStart==='end';
   const wet=()=>waterUntil>tick||ballUntil>tick;
   const affordable=cost=>cost<=M+EPS && (o.unlimitedMana||mana+potions*restore+EPS>=cost);
   function pay(cost,key) {
@@ -59,11 +62,19 @@ function run(options={}) {
     freezeReady-=amount;
     reductions.push({time:tick/FPS,kind,seconds:amount/FPS,freezeId});
   }
+  function endFreeze() {
+    freezeUntil=-1;
+    if(cooldownOnEnd) {
+      freezeReady=tick+frames(o.freezeBase);
+      cooldownStarts.push({time:tick/FPS,freezeId});
+    }
+  }
   function startFreeze() {
     if(freezeUntil>tick||tick<freezeReady)return;
     if(iceBuild+EPS<o.freezeBuildSeconds)return;
-    freezeStart=tick;freezeUntil=tick+frames(o.freezeDuration);freezeReady=tick+frames(o.freezeBase);freezeId++;
-    freezes.push({id:freezeId,time:tick/FPS,earliestNext:freezeReady/FPS,buildStart:buildStart/FPS,iceSeconds:iceBuild});
+    freezeStart=tick;freezeUntil=tick+frames(o.freezeDuration);freezeReady=cooldownOnEnd?0:tick+frames(o.freezeBase);freezeId++;
+    if(!cooldownOnEnd)cooldownStarts.push({time:tick/FPS,freezeId});
+    freezes.push({id:freezeId,time:tick/FPS,earliestNext:cooldownOnEnd?null:freezeReady/FPS,buildStart:buildStart/FPS,iceSeconds:iceBuild});
     iceBuild=0;buildStart=null;
   }
   function credit(key,damage){records[key].damage+=damage;if(options.trace)damageEvents.push({time:tick/FPS,key,damage});}
@@ -87,7 +98,7 @@ function run(options={}) {
         const damageB=o.lockBaseB+o.lockPerSecondB*remaining;
         detonations.push({time:tick/FPS,freezeId:remaining>0?freezeId:null,remaining,damageB});
         controlSacrificed+=remaining;
-        if(remaining>0)freezeUntil=tick;
+        if(remaining>0)endFreeze();
         events.push({type:'hit',key:'lock',at:tick+frames(o.lockDelay),damage:damageB*scale});
       } else if(e.type==='cloud') {
         assert(!cloud);
@@ -100,7 +111,7 @@ function run(options={}) {
     assert(tick>=busyUntil);assert(pay(cost,key));
     const n=frames(seconds);busyUntil=tick+n;
     records[key].count++;records[key].handSeconds+=Math.min(n,N-tick)/FPS;
-    actions.push({key,time:tick/FPS,end:(tick+n)/FPS,phase:tick<freezeReady?'cooldown':tick<freezeUntil?'frozen':'ready'});
+    actions.push({key,time:tick/FPS,end:(tick+n)/FPS,phase:tick<freezeUntil?'frozen':tick<freezeReady?'cooldown':'ready'});
     return busyUntil;
   }
   function protectedMana() {
@@ -112,7 +123,7 @@ function run(options={}) {
   }
   function canSpend(cost) {return affordable(cost+protectedMana());}
   for(tick=0;tick<N;tick++) {
-    if(freezeUntil===tick&&freezeUntil>=0){frozenExpired++;freezeUntil=-1;}
+    if(freezeUntil===tick&&freezeUntil>=0){frozenExpired++;endFreeze();}
     settle();
     if(wet())wetTicks++;
     if(cloud&&tick>=cloud.end){cloud.log.end=tick/FPS;cloud.log.reason='complete';cloud=null;}
@@ -135,7 +146,7 @@ function run(options={}) {
       const building=enabled('ice')&&tick>=freezeReady&&tick>=freezeUntil&&o.readyBasic==='ice';
       if(!acted&&!hold&&building&&o.prioritizeBuild) {
         if(canSpend(ice.cost)) {
-          const start=tick,end=cast('ice',ice.cost,ice.interval);
+          const start=tick,end=cast('ice',ice.cost,o.iceActionSeconds??ice.interval);
           events.push({type:'hit',key:'ice',at:end,damage:B.basicBudget(s,ice).total*b.e.multiplier*(o.iceHitFraction??1),
             attackStart:start,buildEligible:true,buildSeconds:ice.interval});acted=true;
         } else hold=true;
@@ -174,7 +185,7 @@ function run(options={}) {
         if(key) {
           const basic=key==='water'?water:ice;
           if(canSpend(basic.cost)) {
-            const start=tick,end=cast(key,basic.cost,basic.interval);if(key==='water')waterQuota=Math.max(0,waterQuota-1);
+            const start=tick,end=cast(key,basic.cost,key==='ice'?(o.iceActionSeconds??basic.interval):basic.interval);if(key==='water')waterQuota=Math.max(0,waterQuota-1);
             events.push({type:'hit',key,at:end,damage:B.basicBudget(s,basic).total*b.e.multiplier*(key==='ice'?(o.iceHitFraction??1):1),
               attackStart:start,buildEligible:tick>=freezeReady&&tick>=freezeUntil,buildSeconds:basic.interval});acted=true;
           }
@@ -193,9 +204,10 @@ function run(options={}) {
   assert(actions.every((a,i)=>!i||a.time+EPS>=actions[i-1].end));
   assert(Math.abs(Object.values(records).reduce((sum,r)=>sum+r.handSeconds,0)+idleTicks/FPS-T)<1e-6);
   for(let i=1;i<freezes.length;i++) {
-    const previous=freezes[i-1],elapsed=freezes[i].time-previous.time;
+    const previous=freezes[i-1];
     const reduced=reductions.filter(r=>r.freezeId===previous.id).reduce((sum,r)=>sum+r.seconds,0);
-    assert(elapsed+reduced+EPS>=o.freezeBase,'freeze fired before actual cooldown progress');
+    const cooldownStart=cooldownStarts.find(c=>c.freezeId===previous.id);
+    assert(cooldownStart&&freezes[i].time-cooldownStart.time+reduced+EPS>=o.freezeBase,'freeze fired before actual cooldown progress');
   }
   assert(detonations.every(d=>d.remaining>=0&&d.remaining<=o.freezeDuration));
   assert(freezes.every(f=>f.iceSeconds+EPS>=o.freezeBuildSeconds&&f.time-f.buildStart+EPS>=o.freezeBuildSeconds));
@@ -206,7 +218,7 @@ function run(options={}) {
     averageRemaining:detonations.length?controlSacrificed/detonations.length:0,wetCoverage:wetTicks/N,
     thunderPaidSeconds:thunderPaidTicks/FPS,thunderWetCoverage:thunderPaidTicks?cloudWetTicks/thunderPaidTicks:0,cloudDrySeconds:cloudDryTicks/FPS,
     freezeIntervals:freezes.slice(1).map((f,i)=>f.time-freezes[i].time),
-    freezes,detonations,clouds,reductions,...(options.trace?{actions,damageEvents}:{})};
+    freezes,detonations,clouds,reductions,cooldownStarts,...(options.trace?{actions,damageEvents}:{})};
 }
 function pair(options={}) {const arcane=run({...options,prefix:'arcane'}),damage=run({...options,prefix:'damage'});return {arcane,damage,lead:arcane.dps/damage.dps-1};}
 function compact(p) {return {lead:p.lead,...Object.fromEntries(['arcane','damage'].map(k=>[k,{dps:p[k].dps,ratio:p[k].ratio,freeze:p[k].freezeCount,lock:p[k].detonationCount,remaining:p[k].averageRemaining,thunderSeconds:p[k].thunderPaidSeconds,wet:p[k].wetCoverage,thunderWet:p[k].thunderWetCoverage,casts:Object.fromEntries(Object.entries(p[k].records).map(([id,r])=>[id,r.count])),idle:p[k].idleSeconds,potions:p[k].usedPotions,end:p[k].endMana}]))};}

@@ -1,0 +1,26 @@
+using System.Text.Json;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ModLoader;
+
+Terraria.Program.SavePath = AppContext.BaseDirectory;
+Main.dedServ = true;
+Main.netMode = 0;
+var rows = new List<object>();
+foreach (int mode in new[] { 0, 1, 2 }) {
+    Main.GameMode = mode;
+    foreach (int type in new[] {35, 36, 668, 113, 114, 657, 125, 126}) {
+        var npc = new NPC();
+        npc.SetDefaults(type, new NPCSpawnParams { playerCountForMultiplayerDifficultyOverride = 1, strengthMultiplierOverride = 1f });
+        rows.Add(new { mode, type, life = npc.lifeMax, defense = npc.defense });
+    }
+}
+var damage = new Dictionary<int, object>();
+foreach (int defense in new[] {0, 6, 10, 14, 18, 25, 26, 35, 50, 60}) {
+    var npc = new NPC(); npc.SetDefaults(668); npc.defense = defense;
+    var modifiers = npc.GetIncomingStrikeModifiers(DamageClass.Magic, 1);
+    damage[defense] = Enumerable.Range(0, 501).Select(n => new[] {
+        modifiers.GetDamage(n, false, false), modifiers.GetDamage(n, true, false)
+    }).ToArray();
+}
+File.WriteAllText(args[0], JsonSerializer.Serialize(new {rows, damage}, new JsonSerializerOptions {WriteIndented = true}));

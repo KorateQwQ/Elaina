@@ -235,9 +235,8 @@ namespace 伊蕾娜.Items
         
         public override bool Shoot(Player player, EntitySource_ItemUse_WithAmmo source, Vector2 position, Vector2 velocity, int type, int damage, float knockback)
         {
-            // The skill action owns projectile creation. Let ShootActionNode run its
-            // source-aware, delayed-spawn path after the action has started.
-            return player.GetModPlayer<ActionModPlayer>().CurrentActionFrame != 0;
+            // 只放行动作节点的射击，阻止物品自动发射；第 0 帧的即时技能同样有效。
+            return source?.Context == AnimAction.ShotSourceContext;
         }
     }
 }
