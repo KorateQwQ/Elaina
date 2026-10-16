@@ -27,13 +27,13 @@ public class IceShardLockSkill : ElainaSkill
     {
         return Player.whoAmI == Main.myPlayer
             && !Player.GetModPlayer<ActionModPlayer>().HasAction
-            && IceConeTargetSystem.ResolveLockTarget() != null
+            && IceConeTargetSystem.ResolveTarget() != null
             && base.CanUseSkill();
     }
 
     public override bool PreUseSkill(IEntitySource source)
     {
-        NPC target = IceConeTargetSystem.ResolveLockTarget();
+        NPC target = IceConeTargetSystem.ResolveTarget();
         if (target == null || !CanUseSkill() || !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 

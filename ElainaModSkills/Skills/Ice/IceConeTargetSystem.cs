@@ -38,20 +38,19 @@ public class IceConeTargetSystem : ModSystem
     private static float reticleRadius;
     private static Texture2D noiseTexture;
 
-    /// <summary>当前准星锁定的目标；准星没有在追踪时（例如冰锥不是当前技能）返回 null。</summary>
+    /// <summary>当前准星锁定的目标；未选中冰锥或冰凌锁、准星没有在追踪时返回 null。</summary>
     public static NPC LockedTarget => targetIndex >= 0 && IsValidTarget(Main.npc[targetIndex]) ? Main.npc[targetIndex] : null;
 
-    /// <summary>释放冰锥时使用的目标：优先沿用准星锁定，否则按同样规则即时查找一次。</summary>
+    /// <summary>冰锥与冰凌锁共用目标：优先沿用准星锁定，否则按同样规则即时查找一次。</summary>
     public static NPC ResolveTarget() => LockedTarget ?? FindTarget(Main.MouseWorld, -1);
-    public static NPC ResolveLockTarget() => FindTarget(Main.MouseWorld, targetIndex, forShardLock: true);
 
-    public static NPC FindTarget(Vector2 mouseWorld, int currentIndex, bool forShardLock = false)
+    public static NPC FindTarget(Vector2 mouseWorld, int currentIndex)
     {
         NPC best = null;
         float bestDistance = float.MaxValue;
         foreach (NPC npc in Main.ActiveNPCs)
         {
-            if (!(forShardLock ? IsValidLockTarget(npc) : IsValidTarget(npc)))
+            if (!IsValidTarget(npc))
                 continue;
 
             bool isCurrent = npc.whoAmI == currentIndex;
@@ -70,10 +69,7 @@ public class IceConeTargetSystem : ModSystem
         return best;
     }
 
-    private static bool IsValidTarget(NPC npc) => npc.active && npc.CanBeChasedBy();
-
-    // 冰封不依赖伤害或追踪弹命中；阶段无敌、immortal、chaseable=false都不妨碍选中敌人。
-    public static bool IsValidLockTarget(NPC npc) => npc is { active: true, friendly: false, townNPC: false, life: > 0, lifeMax: > 5 };
+    public static bool IsValidTarget(NPC npc) => npc.active && npc.CanBeChasedBy();
 
     private static float DistanceToHitbox(Vector2 point, NPC npc)
     {
@@ -112,9 +108,7 @@ public class IceConeTargetSystem : ModSystem
 
         Player player = Main.LocalPlayer;
         bool tracking = player.active && !player.dead && !player.ghost && IceConeSelected();
-        int skillIndex = ElainaSkillModPlayer.CurrentSkillIndex;
-        bool shardLock = tracking && ElainaSkillModPlayer.GetActiveSkill[skillIndex]?.ModSkill is IceShardLockSkill;
-        NPC target = tracking ? FindTarget(Main.MouseWorld, targetIndex, shardLock) : null;
+        NPC target = tracking ? FindTarget(Main.MouseWorld, targetIndex) : null;
         int newIndex = target?.whoAmI ?? -1;
         if (newIndex != targetIndex)
         {

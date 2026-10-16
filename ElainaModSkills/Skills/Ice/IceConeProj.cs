@@ -100,7 +100,7 @@ public class IceConeProj : ElainaBasicProjectile
             return;
 
         NPC target = Main.npc[targetIndex];
-        if (!target.active || !target.CanBeChasedBy())
+        if (!IceConeTargetSystem.IsValidTarget(target))
             return;
 
         float speed = forwardVelocity.Length();

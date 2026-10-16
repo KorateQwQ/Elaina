@@ -286,7 +286,6 @@ public class WaterBall : ElainaBasicProjectile
         state = State.Fly;
         Projectile.velocity *= 35f;
         needShoot = false;
-        Projectile.damage = (int)(Projectile.damage * WaterBallRadius/200);
         Projectile.tileCollide = true;
         if (HasAuthority())
         {
