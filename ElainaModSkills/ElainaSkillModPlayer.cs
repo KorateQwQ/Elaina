@@ -85,6 +85,11 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     private void On_PlayerOnQuickGrapple(On_Player.orig_QuickGrapple orig, Player self)
     {
+        if (ElainaSkillManager.SelectionMode != SkillSelectionMode.Slide)
+        {
+            orig(self);
+            return;
+        }
         List<string> skillButton = new List<string>(2);
         if(KeyBind.SwitchNextSkill.GetAssignedKeys().Count > 0) skillButton.Add(KeyBind.SwitchNextSkill.GetAssignedKeys()[0]);
         if(KeyBind.SwitchPreviousSkill.GetAssignedKeys().Count > 0) skillButton.Add(KeyBind.SwitchPreviousSkill.GetAssignedKeys()[0]);
@@ -119,8 +124,11 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         if (Main.netMode != NetmodeID.Server)
         {
             HandleOpenCloseSkillPanel();
-            HandleSwitchNextSkill();
-            HandleSwitchPreviousSkill();
+            if (ElainaSkillManager.SelectionMode == SkillSelectionMode.Slide)
+            {
+                HandleSwitchNextSkill();
+                HandleSwitchPreviousSkill();
+            }
         }
         base.PostUpdate();
     }

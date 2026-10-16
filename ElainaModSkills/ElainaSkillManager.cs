@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ModLoader;
+using 伊蕾娜.Config;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -9,6 +10,7 @@ namespace 伊蕾娜.ElainaModSkills;
 public class ElainaSkillManager : ModSystem
 {
     public static bool ShowCD = false;
+    public static SkillSelectionMode SelectionMode = SkillSelectionMode.Slide;
 
     public override void UpdateUI(GameTime gameTime)
     {

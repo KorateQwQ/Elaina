@@ -284,6 +284,15 @@ Configs: {
 			Tooltip: 将技能CD具体还剩余多少秒显示在技能条中
 		}
 
+		SkillSelection: {
+			Label: 技能选择方式
+			Tooltip:
+				'''
+				滑动切换：使用"切换上一个/下一个技能"按键依次切换
+				轮盘选择：按住"打开技能轮盘"按键（默认鼠标右键），移到技能上松开即可选中
+				'''
+		}
+
 		Water: {
 			Label: 水是否生成
 			// Tooltip: ""
@@ -350,6 +359,12 @@ Configs: {
 		}
 	}
 
+	SkillSelectionMode: {
+		Tooltip: ""
+		Slide.Label: 滑动切换
+		Wheel.Label: 轮盘选择
+	}
+
 	ElainaClientConfig: {
 		// DisplayName: Elaina Client Config
 
@@ -382,6 +397,7 @@ Keybinds: {
 	SwitchLastSkill.DisplayName: 切换上一个技能
 	ConstellationPreview.DisplayName: 独立技能星图预览
 	OpenLoadoutPanel.DisplayName: 打开快捷配装
+	OpenSkillWheel.DisplayName: 打开技能轮盘（按住）
 }
 
 Conditions: {
