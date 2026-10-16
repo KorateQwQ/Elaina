@@ -70,7 +70,7 @@ public sealed class Action_WaterBall : ElainaAction
     }
 
     /// <summary>
-    /// 由与本动作绑定的水球提供其 HeldInfo 已计算出的实时朝向。
+    /// 由于本动作绑定的水球提供其 HeldInfo 已计算出的实时朝向。
     /// </summary>
     public void UpdateAimFromWaterBall(int sourceActionToken, float waterBallRotation)
     {

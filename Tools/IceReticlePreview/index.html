@@ -2,22 +2,24 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>冰魔法瞄准特效预览</title>
+<title>冰锥索敌 · 冰凌锁状态预览</title>
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Microsoft YaHei","PingFang SC",sans-serif;}
 canvas{position:absolute;inset:0;width:100%;height:100%;}
 #gl{pointer-events:none;}
 #scene{cursor:crosshair;}
-#hud{position:absolute;left:16px;top:16px;width:310px;padding:14px 16px;background:rgba(8,20,42,.72);border:1px solid rgba(140,200,255,.35);border-radius:10px;color:#d8ecff;font-size:13px;backdrop-filter:blur(6px);user-select:none;}
+#hud{position:absolute;left:16px;top:16px;width:320px;padding:14px 16px;background:rgba(8,20,42,.72);border:1px solid rgba(140,200,255,.35);border-radius:10px;color:#d8ecff;font-size:13px;backdrop-filter:blur(6px);user-select:none;}
 #hud h1{font-size:16px;margin:0 0 6px;color:#c4e8ff;letter-spacing:1px;}
-.styles{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;}
-.styles button{background:rgba(40,80,130,.5);color:#cfe8ff;border:1px solid rgba(140,200,255,.3);border-radius:6px;padding:6px 4px;cursor:pointer;font-family:inherit;font-size:13px;}
-.styles button.on{background:rgba(90,170,255,.55);border-color:#bfe6ff;color:#fff;}
-#desc{min-height:58px;color:#a5c8ea;line-height:1.55;margin-bottom:6px;}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;}
+.row button{background:rgba(40,80,130,.5);color:#cfe8ff;border:1px solid rgba(140,200,255,.3);border-radius:6px;padding:6px 4px;cursor:pointer;font-family:inherit;font-size:13px;}
+.row button.on{background:rgba(90,170,255,.55);border-color:#bfe6ff;color:#fff;}
+.row button:disabled{opacity:.4;cursor:default;}
+#desc{min-height:76px;white-space:pre-line;color:#a5c8ea;line-height:1.55;margin-bottom:6px;}
 label{display:flex;align-items:center;gap:6px;margin-top:6px;}
 label span{width:64px;color:#a5c8ea;}
 input[type=range]{flex:1;}
 select{flex:1;background:#12284a;color:#d8ecff;border:1px solid rgba(140,200,255,.3);border-radius:4px;padding:2px;}
+.sep{border-top:1px solid rgba(140,200,255,.18);margin:10px 0 4px;}
 .hint{color:#7fa3c6;font-size:12px;margin-top:10px;line-height:1.6;}
 </style>
 </head>
@@ -25,16 +27,35 @@ select{flex:1;background:#12284a;color:#d8ecff;border:1px solid rgba(140,200,255
 <canvas id="scene"></canvas>
 <canvas id="gl"></canvas>
 <div id="hud">
-  <h1>❄ 冰魔法瞄准特效</h1>
-  <div class="styles" id="styles"></div>
+  <h1>❄ 冰锥索敌 · 冰凌锁</h1>
+  <div class="row" id="states">
+    <button data-s="cd">冰凌锁未冷却</button>
+    <button data-s="ready">冰凌锁冷却完毕</button>
+  </div>
   <div id="desc"></div>
-  <label><input type="checkbox" id="gallery"> 并排展示全部样式（自动循环锁定）</label>
-  <label><span>配色</span><select id="palette">
+  <label><span>冷却进度</span><input type="range" id="progress" min="0" max="1" step="0.01" value="0.4"><b id="progressV">40%</b></label>
+  <label><input type="checkbox" id="auto" checked> 自动冷却</label>
+  <label><span>冷却时长</span><input type="range" id="cdTime" min="2" max="20" step="0.5" value="6"><b id="cdTimeV">6.0s</b></label>
+  <div class="row">
+    <button id="cast">释放冰凌锁</button>
+    <button id="refund">冷却返还 30%</button>
+  </div>
+  <label><span>就绪方案</span><select id="variant"></select></label>
+  <label><input type="checkbox" id="equip" checked> 已装备冰凌锁（取消则只有菱形框）</label>
+  <label><span>并排对比</span><select id="gallery">
+    <option value="off">关闭</option><option value="states">冷却 / 就绪形态</option><option value="variants">全部就绪方案</option>
+  </select></label>
+  <label><input type="checkbox" id="moving" checked> 对比时假人移动（模拟实战）</label>
+  <div class="sep"></div>
+  <label><span>冷却配色</span><select id="palette">
     <option value="0">冰蓝</option><option value="1">霜白</option><option value="2">深寒紫</option>
+  </select></label>
+  <label><span>就绪配色</span><select id="readyPalette">
+    <option value="0">亮青</option><option value="1">霜金</option><option value="2">寒紫</option><option value="3">不变色</option>
   </select></label>
   <label><span>锁定时长</span><input type="range" id="lockTime" min="0.1" max="1" step="0.05" value="0.35"><b id="lockTimeV">0.35s</b></label>
   <label><span>尺寸</span><input type="range" id="size" min="0.6" max="2.5" step="0.05" value="1.2"><b id="sizeV">1.20×</b></label>
-  <div class="hint">把鼠标移到敌人或假人身上触发锁定，移开会解除。<br>快捷键：1–4 切换样式 · G 并排展示</div>
+  <div class="hint">把鼠标移到敌人或假人身上触发锁定，移开会解除。<br>快捷键：1–5 就绪方案 · Space 释放 · R 返还 · E 装备 · G 切换并排对比 · M 假人移动 · P 暂停</div>
 </div>
 
 <script id="vs" type="x-shader/x-vertex">
@@ -56,17 +77,28 @@ uniform float uTime;
 uniform float uLock;    // 0..1 锁定进度
 uniform float uAge;     // 完全锁定后经过的秒数，未锁定为 -1
 uniform float uAlpha;
-uniform float uStyle;
 uniform vec3 uDeep;
 uniform vec3 uMid;
+uniform float uChain;   // 冰凌锁链整体可见度（已装备 × 锁定淡入）
+uniform float uCd;      // 冰凌锁冷却进度（显示值），1 = 锁链合拢
+uniform float uReady;   // 就绪形态混合 0..1
+uniform float uReadyAge;// 锁链合拢后经过的秒数，未就绪为 -1
+uniform vec3 uReadyDeep;// 就绪形态的配色
+uniform vec3 uReadyMid;
+uniform float uVariant; // 就绪方案：0 冰凌合围 / 1 流光描边 / 2 星芒轮闪 / 3 冰晶环绕 / 4 仅变色呼吸
 
 #define TAU 6.28318530718
 const vec3 WHITE = vec3(0.95, 0.99, 1.0);
+// 锁链框比菱形框外扩的距离；第一枚链环距角点的距离；每半条边的链环间隔数（偶数，边中点正好是正面链环）
+const float CHAIN_GAP = 0.16;
+const float CHAIN_U0 = 0.12;
+const float CHAIN_N = 16.0;
 
 float gE;      // 累计能量，最后经色带映射成颜色
 float gCov;    // 实体覆盖率，决定 alpha（亮背景上保持可读）
-vec3 gExtra;   // 不走色带的显式颜色（棱镜色散等）
 float AA;
+vec3 gDeep, gMid;  // 冷却 / 就绪配色按就绪程度混合
+float gPulse;      // 就绪后每次波纹发出时的脉冲
 
 mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -94,21 +126,6 @@ float sdRhombus(vec2 p, vec2 b){
   float h = clamp(ndot(b - 2.0 * p, b) / dot(b, b), -1.0, 1.0);
   float d = length(p - 0.5 * b * vec2(1.0 - h, 1.0 + h));
   return d * sign(p.x * b.y + p.y * b.x - b.x * b.y);
-}
-float sdHex(vec2 p, float r){
-  const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
-  p = abs(p);
-  p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
-  p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
-  return length(p) * sign(p.y);
-}
-float sdTri(vec2 p, float r){
-  const float k = 1.7320508;
-  p.x = abs(p.x) - r;
-  p.y = p.y + r / k;
-  if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
-  p.x -= clamp(p.x, -2.0 * r, 0.0);
-  return -length(p) * sign(p.y);
 }
 // 极坐标重复：把角度折叠到第 idx 个扇区，扇区中心朝 +x
 vec2 prep(vec2 p, float n, out float idx){
@@ -144,15 +161,9 @@ void glint(vec2 q, float s, float k){
   gE += k * (arms * 0.9 + core * 1.8);
   gCov += k * core * 0.4;
 }
-void strokeColor(float d, float th, float k, vec3 col){
-  float c = 1.0 - smoothstep(th - AA, th + AA, d);
-  float h = exp(-max(d - th, 0.0) / (th * 2.0 + 0.02));
-  gExtra += k * col * (c * 0.8 + h * 0.3);
-  gCov += k * c * 0.3;
-}
 vec3 ramp(float E){
-  vec3 c = mix(uDeep * 0.55, uDeep, smoothstep(0.0, 0.3, E));
-  c = mix(c, uMid, smoothstep(0.25, 0.8, E));
+  vec3 c = mix(gDeep * 0.55, gDeep, smoothstep(0.0, 0.3, E));
+  c = mix(c, gMid, smoothstep(0.25, 0.8, E));
   return mix(c, WHITE, smoothstep(0.85, 1.7, E));
 }
 
@@ -168,113 +179,24 @@ void motes(vec2 p, float k){
   }
 }
 
-// ---------- 样式 0：霜晶准星 ----------
-void styleShard(vec2 p, float r, float e, float e3){
-  float t = uTime;
-  float rr = mix(1.45, 1.0, e3);
-  // 分段主环
-  vec2 q = rot(t * 0.5) * p;
-  float f = fract(atan(q.y, q.x) / TAU * 6.0);
-  stroke(abs(r - rr), 0.011, smoothstep(0.035, 0.07, min(f, 1.0 - f)) * e3);
-  // 外侧细环与刻度
-  float r2 = rr * 1.1;
-  stroke(abs(r - r2), 0.0025, 0.4 * e3);
-  vec2 qo = rot(-t * 0.2) * p;
-  float fo = fract(atan(qo.y, qo.x) / TAU * 60.0) - 0.5;
-  float major = step(0.5, fract((atan(qo.y, qo.x) / TAU * 60.0 + 0.5) / 5.0));
-  float tl = mix(0.012, 0.03, major);
-  stroke(length(vec2(fo * TAU * r / 60.0, max(abs(r - r2) - tl, 0.0))), 0.0025, 0.5 * e3);
-  // 内虚线环
-  vec2 q2 = rot(-t * 0.8) * p;
-  float fd = fract(atan(q2.y, q2.x) / TAU * 24.0);
-  float dash = smoothstep(0.0, 0.06, fd) * smoothstep(0.5, 0.44, fd);
-  stroke(abs(r - 0.74 * mix(1.3, 1.0, e3)), 0.005, dash * 0.65 * e3);
-  // 六枚冰晶向内收拢（分面明暗）
-  float idx;
-  vec2 sp = prep(rot(-TAU / 12.0) * p, 6.0, idx);
-  float longOne = mod(idx, 2.0);
-  float len = mix(0.13, 0.2, longOne);
-  float wid = mix(0.04, 0.055, longOne);
-  float dist = mix(2.0, 0.56, e) + 0.022 * sin(t * 5.0 + idx * 1.3) * uLock;
-  vec2 lp = sp - vec2(dist + len, 0.0);
-  float sh = smoothstep(0.0, 0.4, uLock);
-  facetFill(sdRhombus(lp, vec2(len, wid)), sh, smoothstep(-0.004, 0.004, lp.y));
-  stroke(sdSeg(lp, vec2(-len * 0.85, 0.0), vec2(len * 0.85, 0.0)), 0.0025, 0.7 * sh);
-  // 中心
-  stroke(abs(sdRhombus(rot(t * 1.2) * p, vec2(0.075))), 0.005, e3);
-  glint(p, 0.14, e3 * 0.7);
-  // 霜星
-  for (int i = 0; i < 5; i++){
-    float fi = float(i);
-    float an = hash(vec2(fi, 9.0)) * TAU + t * 0.15;
-    float tw = pow(0.5 + 0.5 * sin(t * 2.6 + fi * 2.1), 6.0);
-    glint(p - (rr * 1.2 + 0.08 * hash(vec2(fi, 2.0))) * vec2(cos(an), sin(an)), 0.16, tw * e3);
-  }
-}
-
-// ---------- 样式 1：冰封法阵 ----------
-void styleCircle(vec2 p, float r, float e, float e3){
-  float t = uTime;
-  float sc = mix(1.6, 1.0, e3);
-  vec2 P = p / sc;
-  float R = r / sc;
-  stroke(abs(R - 1.0) * sc, 0.01, e3);
-  stroke(abs(R - 1.035) * sc, 0.0025, e3 * 0.5);
-  stroke(abs(R - 0.84) * sc, 0.004, e3 * 0.8);
-  // 符文环
-  vec2 q = rot(t * 0.3) * P;
-  float cells = 14.0;
-  float cf = (atan(q.y, q.x) / TAU + 0.5) * cells;
-  float ci = floor(cf);
-  float arc = 0.92 * TAU / cells;
-  vec2 g = vec2((fract(cf) - 0.5) * arc, R - 0.92) / 0.05;
-  float gd = sdSeg(g, vec2(0.0, -0.7), vec2(0.0, 0.7));
-  if (hash(vec2(ci, 1.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(-0.6, 0.7), vec2(0.0, 0.0)));
-  if (hash(vec2(ci, 2.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(0.6, 0.7), vec2(0.0, 0.0)));
-  if (hash(vec2(ci, 3.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(-0.6, -0.7), vec2(0.0, 0.0)));
-  if (hash(vec2(ci, 4.0)) > 0.5) gd = min(gd, sdSeg(g, vec2(0.6, -0.7), vec2(0.0, 0.0)));
-  if (hash(vec2(ci, 5.0)) > 0.6) gd = min(gd, sdSeg(g, vec2(-0.6, 0.0), vec2(0.6, 0.0)));
-  if (hash(vec2(ci, 6.0)) > 0.6) gd = min(gd, sdSeg(g, vec2(-0.6, 0.7), vec2(0.6, 0.7)));
-  if (hash(vec2(ci, 7.0)) > 0.6) gd = min(gd, sdSeg(g, vec2(-0.6, -0.7), vec2(0.6, -0.7)));
-  float runeOn = smoothstep(ci / cells * 0.6, ci / cells * 0.6 + 0.3, uLock); // 符文逐个点亮
-  stroke(gd * 0.05 * sc, 0.0035, runeOn * 0.9);
-  float sep = length(vec2(min(fract(cf), 1.0 - fract(cf)) * arc, R - 0.92));
-  stroke(sep * sc, 0.006, e3 * 0.5);
-  // 反向旋转的六芒星
-  float f2 = smoothstep(0.3, 1.0, uLock);
-  vec2 q3 = rot(-t * 0.45) * P;
-  float hexa = min(abs(sdTri(q3, 0.6)), abs(sdTri(-q3, 0.6)));
-  stroke(hexa * sc, 0.004, f2 * 0.8);
-  stroke(abs(R - 0.7) * sc, 0.003, f2 * 0.5);
-  // 六芒星顶点的星芒
-  float vi;
-  vec2 vq = prep(q3, 6.0, vi);
-  glint((vq - vec2(0.7, 0.0)) * sc, 0.12, f2 * 0.5);
-  // 中心十字
-  vec2 ap = abs(P);
-  float cr = min(sdSeg(ap, vec2(0.1, 0.0), vec2(0.26, 0.0)), sdSeg(ap, vec2(0.0, 0.1), vec2(0.0, 0.26)));
-  stroke(cr * sc, 0.005, e3);
-  // 锁定后向内的寒潮脉冲
-  float w = fract(t * 0.8);
-  stroke(abs(R - mix(1.0, 0.15, w)) * sc, 0.004, (1.0 - w) * 0.5 * smoothstep(0.9, 1.0, uLock));
-}
-
-// ---------- 样式 2：寒霜锁定框 ----------
+// ---------- 寒霜菱形框 ----------
 float bracket(vec2 a, float s, float L){
   return min(sdSeg(a, vec2(s, s - L), vec2(s, s)), sdSeg(a, vec2(s - L, s), vec2(s, s)));
 }
-void styleBracket(vec2 p, float r, float e, float e3){
+void styleBracket(vec2 p, float r, float e, float e3, float s, float rk){
   float t = uTime;
-  float s = mix(1.6, 0.86, e);
   // 正方形转 45°，四个角指向上下左右
   vec2 a = abs(rot(TAU / 8.0) * p);
-  stroke(bracket(a, s, 0.42), 0.013, e3);
-  stroke(bracket(a, s - 0.07, 0.26), 0.003, e3 * 0.6);
-  // 顶点冰刺（分面）
+  // 冰凌锁就绪时菱形框加粗加亮，并随波纹脉冲
+  float boost = 1.0 + rk * (0.35 + 0.6 * gPulse);
+  stroke(bracket(a, s, 0.42), 0.013 + 0.005 * rk, e3 * boost);
+  stroke(bracket(a, s - 0.07, 0.26), 0.003, e3 * 0.6 * boost);
+  // 顶点冰刺（分面），作为锁链的锁桩
   float grow = smoothstep(0.5, 1.0, uLock);
+  float spikeLen = 0.17 * grow * (1.0 + 0.15 * rk);
   vec2 cp = rot(-TAU / 8.0) * (a - vec2(s));
-  vec2 sl = cp - vec2(0.17 * grow, 0.0);
-  facetFill(sdRhombus(sl, vec2(0.17 * grow + 0.001, 0.03)), grow, smoothstep(-0.004, 0.004, sl.y));
+  vec2 sl = cp - vec2(spikeLen, 0.0);
+  facetFill(sdRhombus(sl, vec2(spikeLen + 0.001, 0.03 + 0.008 * rk)), grow, smoothstep(-0.004, 0.004, sl.y));
   vec2 s1 = a - vec2(s + 0.055, s - 0.26);
   vec2 s2 = a.yx - vec2(s + 0.055, s - 0.26);
   facetFill(sdRhombus(s1, vec2(0.06 * grow + 0.001, 0.018)), grow * 0.8, step(0.0, s1.y));
@@ -299,40 +221,120 @@ void styleBracket(vec2 p, float r, float e, float e3){
   stroke(abs(sdRhombus(p, vec2(0.05))), 0.004, e3 * (0.6 + 0.4 * sin(t * 6.0)));
 }
 
-// ---------- 样式 3：霜花绽放 ----------
-void styleFlake(vec2 p, float r, float e, float e3){
+// ---------- 冰凌锁链 ----------
+// 锁链框是旋转空间里半边长 sc 的正方形；perim 返回点在其周长上的坐标 0..1（逆时针），perimPos 反过来取位置与切向
+float perim(vec2 q, float sc){
+  vec2 n = clamp(q / sc, -1.0, 1.0);
+  float u;
+  if (abs(q.x) >= abs(q.y)) u = q.x > 0.0 ? (n.y + 1.0) * 0.5 : 2.0 + (1.0 - n.y) * 0.5;
+  else u = q.y > 0.0 ? 1.0 + (1.0 - n.x) * 0.5 : 3.0 + (n.x + 1.0) * 0.5;
+  return u * 0.25;
+}
+vec2 perimPos(float h, float sc, out vec2 tang){
+  float hu = fract(h) * 4.0;
+  float side = floor(hu);
+  float f = fract(hu) * 2.0 - 1.0;
+  if (side < 0.5){ tang = vec2(0.0, 1.0); return vec2(sc, f * sc); }
+  if (side < 1.5){ tang = vec2(-1.0, 0.0); return vec2(-f * sc, sc); }
+  if (side < 2.5){ tang = vec2(0.0, -1.0); return vec2(-sc, -f * sc); }
+  tang = vec2(1.0, 0.0);
+  return vec2(f * sc, -sc);
+}
+
+// 冷却中：链环从四个顶点冰刺向各边中点逐节冻结，未成形处只留暗淡的虚点，生长前端有闪烁星芒。
+// 冷却完毕：两半锁链在边中点合拢（扣合闪光 + 菱形冲击波），整体换成就绪配色，再按 uVariant 叠加一种就绪提示。
+void lockChain(vec2 p, float s, float rk){
   float t = uTime;
-  float idx;
-  vec2 q = prep(rot(t * 0.25) * p, 6.0, idx);
-  q.y = abs(q.y);
-  float L = max(0.82 * e3, 0.11);
-  float d = sdSeg(q, vec2(0.1, 0.0), vec2(L, 0.0));
-  for (int i = 0; i < 3; i++){
-    float fi = float(i);
-    float x = 0.3 + 0.2 * fi;
-    float bl = (0.24 - 0.06 * fi) * smoothstep(x, x + 0.15, L);
-    d = min(d, sdSeg(q, vec2(x, 0.0), vec2(x, 0.0) + vec2(0.5, 0.866) * bl));
+  float sc = s + CHAIN_GAP;
+  vec2 a = abs(rot(TAU / 8.0) * p);
+  // 八向折叠：只处理一条半边，边位于 x = sc，y 从 0（边中点）到 sc（角点）
+  vec2 b = a.x > a.y ? a : a.yx;
+  float H = (sc - CHAIN_U0) / CHAIN_N;
+  float v = (sc - b.y - CHAIN_U0) / H;   // 0 = 靠冰刺的第一枚链环，N = 边中点
+  float x = b.x - sc;
+  float rv = (CHAIN_N + 1.0) * uCd - 0.5; // 已成形到第几枚链环
+
+  float flow = pow(0.5 + 0.5 * sin(v * 0.8 - t * 5.0), 6.0);
+  // 就绪后的链环亮度：只有冰凌合围会加亮，其余方案让锁链退到底纹，把注意力留给就绪提示
+  float readyK = uVariant < 0.5 ? 1.0 + 0.4 * gPulse + 0.45 * flow
+               : uVariant < 1.5 ? 0.25
+               : uVariant < 3.5 ? 0.55
+               : 0.6 * (1.0 + 0.25 * sin(t * 2.5));
+  float k = uChain * mix(0.5, readyK, uReady);
+  // 偶数位是正面链环（胶囊轮廓），奇数位是侧面链环（短杆）
+  float ie = clamp(2.0 * floor(v * 0.5 + 0.5), 0.0, CHAIN_N);
+  float io = clamp(2.0 * floor(v * 0.5) + 1.0, 1.0, CHAIN_N - 1.0);
+  vec2 qe = vec2(x, (v - ie) * H);
+  vec2 qo = vec2(x, (v - io) * H);
+  stroke(abs(length(vec2(qe.x, max(abs(qe.y) - 0.018, 0.0))) - 0.026), 0.0045, k * clamp(rv - ie + 0.5, 0.0, 1.0));
+  stroke(sdSeg(qo, vec2(0.0, -0.04), vec2(0.0, 0.04)), 0.0065, k * clamp(rv - io + 0.5, 0.0, 1.0));
+  // 绕过冰刺的系绳
+  stroke(sdSeg(b, vec2(sc), vec2(sc, sc - CHAIN_U0 + 0.044)), 0.004, k * clamp(rv + 0.5, 0.0, 1.0));
+
+  // 尚未成形的链环位置
+  float ig = clamp(floor(v + 0.5), 0.0, CHAIN_N);
+  stroke(length(vec2(x, (v - ig) * H)), 0.0035, uChain * 0.4 * (1.0 - uReady) * clamp(ig - rv + 0.5, 0.0, 1.0));
+  // 生长前端
+  float fv = clamp(rv, 0.0, CHAIN_N);
+  glint(b - vec2(sc, sc - CHAIN_U0 - fv * H), 0.16, uChain * (1.0 - uReady) * step(0.0, rv) * (0.8 + 0.3 * sin(t * 9.0)));
+
+  vec2 cp = rot(-TAU / 8.0) * (a - vec2(s));
+  vec2 q = rot(TAU / 8.0) * p;
+  float sq = max(abs(q.x), abs(q.y));
+  if (rk > 0.0 && uVariant > 0.5){
+    if (uVariant < 1.5){
+      // 流光描边：细亮框线 + 两道光点沿锁链框追逐
+      stroke(abs(sq - sc), 0.0025, rk * 0.45);
+      float u = perim(q, sc);
+      vec2 tg;
+      for (int i = 0; i < 2; i++){
+        float h = fract(t * 0.35 + float(i) * 0.5);
+        stroke(abs(sq - sc), 0.004, rk * 1.3 * exp(-fract(h - u) * 16.0));
+        glint(q - perimPos(h, sc, tg), 0.22, rk * 1.1);
+      }
+    } else if (uVariant < 2.5){
+      // 星芒轮闪：四个顶点冰刺尖端依次闪出大星芒，逆时针轮转
+      float idx = abs(p.x) > abs(p.y) ? (p.x > 0.0 ? 0.0 : 2.0) : (p.y > 0.0 ? 1.0 : 3.0);
+      float flash = exp(-fract(t * 0.9 - idx * 0.25) * 6.0);
+      float tip = 0.34 * smoothstep(0.5, 1.0, uLock);
+      glint(cp - vec2(tip + 0.02, 0.0), 0.2 + 0.28 * flash, rk * (0.35 + 1.4 * flash));
+    } else if (uVariant < 3.5){
+      // 冰晶环绕：三枚小冰晶沿锁链框巡游，身后拖短尾光
+      float u = perim(q, sc);
+      for (int i = 0; i < 3; i++){
+        vec2 tg;
+        float h = fract(t * 0.16 + float(i) / 3.0);
+        vec2 d = q - perimPos(h, sc, tg);
+        vec2 l = vec2(dot(d, tg), dot(d, vec2(-tg.y, tg.x)));
+        facetFill(sdRhombus(l, vec2(0.08, 0.036)), rk, step(0.0, l.y));
+        glint(d, 0.12, rk * 0.7);
+        stroke(abs(sq - sc), 0.003, rk * 0.8 * exp(-fract(h - u) * 28.0));
+      }
+    }
   }
-  stroke(d, 0.008, smoothstep(0.0, 0.2, uLock));
-  vec2 tp = q - vec2(L + 0.06, 0.0);
-  facetFill(sdRhombus(tp, vec2(0.065, 0.028)), e3, 0.5 + 0.5 * step(0.02, tp.y + 0.02));
-  // 主臂之间的短臂
-  float idx2;
-  vec2 q2 = prep(rot(t * 0.25 + TAU / 12.0) * p, 6.0, idx2);
-  stroke(sdSeg(q2, vec2(0.14, 0.0), vec2(0.14 + 0.2 * e3, 0.0)), 0.004, e3 * 0.7);
-  stroke(abs(sdHex(rot(-t * 0.6) * p, 0.1)), 0.005, e3);
-  glint(p, 0.18, e3 * 0.6);
-  // 棱镜色散外环
-  float ringR = mix(1.4, 1.05, e3);
-  vec2 rq = rot(-t * 0.4) * p;
-  float shim = 0.55 + 0.45 * sin(atan(rq.y, rq.x) * 3.0 + t * 2.0);
-  strokeColor(abs(r - ringR + 0.016), 0.003, shim * e3 * 0.8, vec3(0.65, 0.35, 1.0));
-  stroke(abs(r - ringR), 0.006, shim * e3);
-  strokeColor(abs(r - ringR - 0.016), 0.003, shim * e3 * 0.8, vec3(0.3, 1.0, 0.85));
-  // 环绕光点
-  for (int i = 0; i < 3; i++){
-    float an = t * 1.2 + float(i) * TAU / 3.0;
-    glint(p - ringR * vec2(cos(an), sin(an)), 0.2, e3);
+  // 冰凌合围：四根大冰凌从外侧滑入，内长外短，尖端对准目标并上下浮动；锁链框周期性外扩波纹
+  if (rk > 0.0 && uVariant < 0.5){
+    float enter = 1.0 - (1.0 - uReady) * (1.0 - uReady) * (1.0 - uReady);
+    vec2 lq = cp - vec2(0.84 + 0.7 * (1.0 - enter) + 0.035 * sin(t * 3.0), 0.0);
+    facetFill(sdRhombus(lq, lq.x < 0.0 ? vec2(0.27, 0.07) : vec2(0.1, 0.07)), rk, smoothstep(-0.004, 0.004, lq.y));
+    stroke(sdSeg(lq, vec2(-0.22, 0.0), vec2(0.07, 0.0)), 0.0025, 0.6 * rk);
+    // 两侧的小冰晶
+    vec2 q2 = rot(-0.5) * vec2(lq.x - 0.05, abs(lq.y) - 0.075);
+    facetFill(sdRhombus(q2, vec2(0.09, 0.024)), rk * 0.85, step(0.0, q2.y));
+    glint(lq + vec2(0.27, 0.0), 0.15, rk * (0.7 + 0.3 * sin(t * 5.0)));
+
+    // 周期性向外扩散的菱形波纹
+    float ph = fract(t / 1.1);
+    float fade = (1.0 - ph) * (1.0 - ph);
+    stroke(abs(max(a.x, a.y) - (sc + 0.06 + ph * 0.75)), 0.007 * (1.0 - ph) + 0.002, rk * fade);
+  }
+
+  // 合拢瞬间：边中点扣合闪光 + 向外扩散的菱形冲击波
+  if (uReadyAge >= 0.0 && uReadyAge < 0.6){
+    float kk = uReadyAge / 0.6;
+    float fade = (1.0 - kk) * (1.0 - kk);
+    glint(b - vec2(sc, 0.0), 0.45 * (0.6 + 0.4 * kk), fade * 1.5 * uChain);
+    stroke(abs(max(a.x, a.y) - (sc + kk * 0.8)), 0.012 * (1.0 - kk) + 0.003, fade * 1.2 * uChain);
   }
 }
 
@@ -341,19 +343,22 @@ void main(){
   AA = 1.0 / uRadius;
   gE = 0.0;
   gCov = 0.0;
-  gExtra = vec3(0.0);
   float r = length(p);
   float lk = clamp(uLock, 0.0, 1.0);
   float e = easeOutBack(lk);
   float e3 = 1.0 - (1.0 - lk) * (1.0 - lk) * (1.0 - lk);
+  float s = mix(1.6, 0.86, e);
+  float rk = uReady * uChain;
+  gDeep = mix(uDeep, uReadyDeep, rk);
+  gMid = mix(uMid, uReadyMid, rk);
+  gPulse = exp(-fract(uTime / 1.1) * 5.0);
 
   // 寒气笼罩目标
   gE += smoothstep(1.0, 0.1, r) * 0.12 * e3;
 
-  if (uStyle < 0.5) styleShard(p, r, e, e3);
-  else if (uStyle < 1.5) styleCircle(p, r, e, e3);
-  else if (uStyle < 2.5) styleBracket(p, r, e, e3);
-  else styleFlake(p, r, e, e3);
+  // 菱形框加粗、冰刺变长只属于冰凌合围方案
+  styleBracket(p, r, e, e3, s, uVariant < 0.5 ? rk : 0.0);
+  if (uChain > 0.0) lockChain(p, s, rk);
 
   motes(p, smoothstep(0.0, 0.5, lk));
 
@@ -365,18 +370,29 @@ void main(){
     glint(p, 0.9 * (0.6 + 0.4 * k), fk * 1.6);
   }
 
-  vec3 col = ramp(gE) * (1.0 - exp(-gE * 1.8)) + gExtra;
+  vec3 col = ramp(gE) * (1.0 - exp(-gE * 1.8));
   float a = clamp(gCov, 0.0, 1.0) * 0.55 + clamp(gE, 0.0, 1.0) * 0.06;
   gl_FragColor = vec4(col, a) * uAlpha;
 }
 </script>
 
 <script>
-const STYLES = [
-  { name: '霜晶准星', desc: '六枚分面冰晶从远处向内收拢，带一点回弹；分段主环配外圈刻度，霜星以十字星芒闪烁。偏“狙击 / 精准”的感觉。' },
-  { name: '冰封法阵', desc: '符文环逐字点亮，内层六芒星反向旋转，顶点带星芒；锁定后寒潮脉冲不断向内收缩。偏“施法 / 仪式”的感觉。' },
-  { name: '寒霜菱形框', desc: '双线菱形框收紧，四个顶点长出分面冰刺，十字准星旋转摆正、箭头对准顶点；锁定后霜纹从顶点向内蔓延。偏“战术锁定”，可读性最好。' },
-  { name: '霜花绽放', desc: '雪花从中心生长绽放，外环带棱镜色散和环绕星芒。偏“华丽 / 大招”的感觉。' },
+const STATE_DESC = {
+  cd: '冰凌锁未冷却：菱形框外圈的锁链从四个顶点冰刺向各边中点逐节冻结，成形长度就是冷却进度；未成形处只留暗淡虚点，生长前端有星芒闪烁。冷却返还时锁链会快速向前推进。',
+  ready: '冰凌锁冷却完毕：锁链在边中点合拢（扣合闪光 + 冲击波），整个准星换成就绪配色，再叠加所选方案的就绪提示。释放后锁链收回，重新开始冷却。',
+};
+const VARIANTS = [
+  { name: '冰凌合围（厚重）', desc: '菱形框加粗、锁链加亮流光，四根大冰凌从外侧对准目标，锁链框周期外扩波纹。信号最强也最厚重。' },
+  { name: '流光描边', desc: '锁链退为暗淡底纹，锁链框变成一条细亮线，两道光点沿框追逐环绕。运动明显但线条很细。' },
+  { name: '星芒轮闪', desc: '四个顶点冰刺尖端依次闪出大十字星芒，逆时针轮转。点状闪烁，几乎不增加面积。' },
+  { name: '冰晶环绕', desc: '三枚小冰晶沿锁链框巡游并拖短尾光。有持续运动，元素少而小。' },
+  { name: '仅变色呼吸', desc: '锁链合拢后只换就绪配色，加一点缓慢的呼吸明暗。最克制，主要依赖颜色区分。' },
+];
+const READY_PALETTES = [
+  { deep: [0.0, 0.62, 1.0], mid: [0.62, 1.0, 1.0] },
+  { deep: [1.0, 0.52, 0.1], mid: [1.0, 0.88, 0.55] },
+  { deep: [0.6, 0.2, 1.0], mid: [0.88, 0.7, 1.0] },
+  null,
 ];
 const PALETTES = [
   { deep: [0.1, 0.32, 1.0], mid: [0.42, 0.85, 1.0] },
@@ -391,28 +407,70 @@ const glc = $('gl');
 const gl = glc.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false });
 const bg = document.createElement('canvas');
 
-const opt = { style: 0, gallery: false, palette: 0, lockTime: 0.35, size: 1.2 };
+const opt = { gallery: 'off', variant: 1, moving: true, palette: 0, readyPalette: 0, lockTime: 0.35, size: 1.2, auto: true, cdTime: 6, equip: true, paused: false };
+
+// ---------- 冰凌锁冷却状态（与 IceConeTargetSystem 的逻辑一致） ----------
+const newCd = (progress, ready = false) => ({ ready, progress: ready ? 1 : progress, shown: ready ? 1 : progress, blend: ready ? 1 : 0, age: ready ? 99 : -1, vis: 1 });
+function stepCd(c, dt, equipped, autoRate){
+  if (!c.ready && autoRate > 0) {
+    c.progress = Math.min(1, c.progress + dt * autoRate);
+    if (c.progress >= 1) c.ready = true;
+  }
+  c.vis = equipped ? Math.min(1, c.vis + dt * 4) : Math.max(0, c.vis - dt * 4);
+  // 显示值追赶实际进度：冷却返还时锁链快速推进，释放后锁链收回
+  const target = c.ready ? 1 : c.progress;
+  c.shown += (target - c.shown) * Math.min(1, dt * 8);
+  const closed = c.ready && c.shown > 0.995;
+  if (closed) c.shown = 1;
+  c.blend = closed ? Math.min(1, c.blend + dt / 0.25) : Math.max(0, c.blend - dt * 5);
+  c.age = closed ? (c.age < 0 ? 0 : c.age + dt) : -1;
+}
+function cast(c){ if (c.ready) { c.ready = false; c.progress = 0; } }
+function refund(c, amount){ if (!c.ready) { c.progress = Math.min(1, c.progress + amount); if (c.progress >= 1) c.ready = true; } }
+
+const cd = newCd(0.4);
 
 // ---------- HUD ----------
-STYLES.forEach((s, i) => {
-  const b = document.createElement('button');
-  b.textContent = `${i + 1}. ${s.name}`;
-  b.onclick = () => setStyle(i);
-  $('styles').appendChild(b);
-});
-function setStyle(i){
-  opt.style = i;
-  [...$('styles').children].forEach((b, j) => b.classList.toggle('on', j === i));
-  $('desc').textContent = STYLES[i].desc;
-  aim.lock = 0; aim.age = -1;
+function syncHud(){
+  const st = cd.ready ? 'ready' : 'cd';
+  [...$('states').children].forEach(b => b.classList.toggle('on', b.dataset.s === st));
+  $('desc').textContent = STATE_DESC[st] + (st === 'ready' ? '\n当前方案：' + VARIANTS[opt.variant].desc : '');
+  $('progress').value = cd.progress;
+  $('progressV').textContent = Math.round(cd.progress * 100) + '%';
+  $('cast').disabled = !cd.ready;
+  $('refund').disabled = cd.ready;
 }
-$('gallery').onchange = e => { opt.gallery = e.target.checked; };
+$('states').onclick = e => {
+  const s = e.target.dataset && e.target.dataset.s;
+  if (s === 'ready') { cd.ready = true; cd.progress = 1; }
+  else if (s === 'cd' && cd.ready) { cd.ready = false; cd.progress = 0; }
+};
+$('progress').oninput = e => { cd.progress = +e.target.value; cd.ready = cd.progress >= 1; };
+$('auto').onchange = e => { opt.auto = e.target.checked; };
+$('cdTime').oninput = e => { opt.cdTime = +e.target.value; $('cdTimeV').textContent = opt.cdTime.toFixed(1) + 's'; };
+$('cast').onclick = () => cast(cd);
+$('refund').onclick = () => refund(cd, 0.3);
+$('equip').onchange = e => { opt.equip = e.target.checked; };
+VARIANTS.forEach((v, i) => $('variant').add(new Option(`${i + 1}. ${v.name}`, i)));
+$('variant').value = opt.variant;
+$('variant').onchange = e => { opt.variant = +e.target.value; };
+$('gallery').onchange = e => { opt.gallery = e.target.value; };
+$('moving').onchange = e => { opt.moving = e.target.checked; };
 $('palette').onchange = e => { opt.palette = +e.target.value; };
+$('readyPalette').onchange = e => { opt.readyPalette = +e.target.value; };
 $('lockTime').oninput = e => { opt.lockTime = +e.target.value; $('lockTimeV').textContent = opt.lockTime.toFixed(2) + 's'; };
 $('size').oninput = e => { opt.size = +e.target.value; $('sizeV').textContent = opt.size.toFixed(2) + '×'; };
 addEventListener('keydown', e => {
-  if (e.key >= '1' && e.key <= '4') setStyle(+e.key - 1);
-  if (e.key === 'g' || e.key === 'G') { $('gallery').checked = opt.gallery = !opt.gallery; }
+  if (e.code === 'Space') { cast(cd); e.preventDefault(); }
+  if (e.key === 'r' || e.key === 'R') refund(cd, 0.3);
+  if (e.key === 'e' || e.key === 'E') { $('equip').checked = opt.equip = !opt.equip; }
+  if (e.key === 'g' || e.key === 'G') {
+    const modes = ['off', 'states', 'variants'];
+    $('gallery').value = opt.gallery = modes[(modes.indexOf(opt.gallery) + 1) % modes.length];
+  }
+  if (e.key >= '1' && e.key <= String(VARIANTS.length)) { $('variant').value = opt.variant = +e.key - 1; }
+  if (e.key === 'p' || e.key === 'P') opt.paused = !opt.paused;
+  if (e.key === 'm' || e.key === 'M') { $('moving').checked = opt.moving = !opt.moving; }
 });
 
 // ---------- GL ----------
@@ -435,7 +493,7 @@ const aPos = gl.getAttribLocation(prog, 'aPos');
 gl.enableVertexAttribArray(aPos);
 gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 const U = {};
-['uCenter', 'uExtent', 'uRes', 'uRadius', 'uTime', 'uLock', 'uAge', 'uAlpha', 'uStyle', 'uDeep', 'uMid']
+['uCenter', 'uExtent', 'uRes', 'uRadius', 'uTime', 'uLock', 'uAge', 'uAlpha', 'uDeep', 'uMid', 'uChain', 'uCd', 'uReady', 'uReadyAge', 'uReadyDeep', 'uReadyMid', 'uVariant']
   .forEach(n => U[n] = gl.getUniformLocation(prog, n));
 gl.enable(gl.BLEND);
 gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -500,7 +558,6 @@ function layoutEnemies(){
   enemies.push({ type: 'slime', x: W * 0.82, y: groundY - 15, w: 46, h: 32, rad: 30, vx: 0, vy: 0, ground: true, timer: 1.2, dir: -1, squash: 0 });
   enemies.push({ type: 'eye', x: W * 0.4, y: H * 0.35, w: 42, h: 42, rad: 30 });
 }
-const galleryDummies = () => [0.2, 0.4, 0.6, 0.8].map(f => ({ type: 'dummy', x: W * f, y: H * 0.5, w: 46, h: 70, rad: 42 }));
 
 function updateEnemies(dt, t){
   for (const e of enemies) {
@@ -602,7 +659,6 @@ scene.addEventListener('mouseleave', () => { mouse.x = mouse.y = -999; });
 
 const newAim = () => ({ target: null, lock: 0, alpha: 0, age: -1, x: 0, y: 0 });
 const aim = newAim();
-const galleryAims = [newAim(), newAim(), newAim(), newAim()];
 
 function stepLock(rt, on, dt){
   if (on) { rt.lock = Math.min(1, rt.lock + dt / opt.lockTime); rt.alpha = Math.min(1, rt.alpha + dt * 10); }
@@ -633,10 +689,11 @@ function updateAim(dt){
   }
 }
 
-function drawReticle(rt, style, rad, t){
+function drawReticle(rt, c, rad, t, variant = opt.variant){
   if (rt.alpha <= 0.001) return;
   const pal = PALETTES[opt.palette];
   const R = rad * opt.size * DPR;
+  const e3 = 1 - Math.pow(1 - Math.min(rt.lock, 1), 3);
   gl.uniform2f(U.uCenter, rt.x * DPR, (H - rt.y) * DPR);
   gl.uniform1f(U.uExtent, R * 2.8);
   gl.uniform2f(U.uRes, glc.width, glc.height);
@@ -645,43 +702,78 @@ function drawReticle(rt, style, rad, t){
   gl.uniform1f(U.uLock, rt.lock);
   gl.uniform1f(U.uAge, rt.age);
   gl.uniform1f(U.uAlpha, rt.alpha);
-  gl.uniform1f(U.uStyle, style);
   gl.uniform3fv(U.uDeep, pal.deep);
   gl.uniform3fv(U.uMid, pal.mid);
+  gl.uniform1f(U.uChain, c.vis * e3);
+  gl.uniform1f(U.uCd, c.shown);
+  gl.uniform1f(U.uReady, c.blend);
+  gl.uniform1f(U.uReadyAge, c.age);
+  const rp = READY_PALETTES[opt.readyPalette] || pal;
+  gl.uniform3fv(U.uReadyDeep, rp.deep);
+  gl.uniform3fv(U.uReadyMid, rp.mid);
+  gl.uniform1f(U.uVariant, variant);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
+
+// ---------- 并排对比 ----------
+const GALLERY = [
+  { label: '冷却中 · 25%', cd: newCd(0.25) },
+  { label: '冷却中 · 70%', cd: newCd(0.7) },
+  { label: '冷却完毕', cd: newCd(1, true) },
+  { label: '循环演示', cd: newCd(0), demo: true, hold: 0 },
+];
+// 全部就绪方案并排：每个都处于冷却完毕状态
+const VARIANT_GALLERY = VARIANTS.map((v, i) => ({ label: `${i + 1}. ${v.name}`, cd: newCd(1, true), variant: i }));
+const galleryAims = GALLERY.map(newAim);
+const variantAims = VARIANT_GALLERY.map(newAim);
+// 移动时各假人走不同的横向往返 + 跳跃轨迹，模拟实战中目标移动
+const slotX = (i, n) => 360 + (W - 360) * (i + 0.5) / n;
+const galleryDummies = (t, n) => Array.from({ length: n }, (_, i) => {
+  const m = opt.moving ? 1 : 0;
+  const x = slotX(i, n) + m * Math.sin(t * (1.1 + i * 0.23) + i * 1.7) * W * 0.05;
+  const y = H * 0.5 - m * Math.abs(Math.sin(t * (1.6 + i * 0.31) + i)) * 70;
+  return { type: 'dummy', x, y, w: 46, h: 70, rad: 42 };
+});
 
 // ---------- 主循环 ----------
 let last = performance.now(), T = 0;
 function frame(now){
-  const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  const dt = opt.paused ? 0 : Math.min(0.05, (now - last) / 1000); last = now; T += dt;
   gl.viewport(0, 0, glc.width, glc.height);
   gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
 
-  if (opt.gallery) {
-    const dummies = galleryDummies();
+  stepCd(cd, dt, opt.equip, opt.auto ? 1 / opt.cdTime : 0);
+  syncHud();
+
+  if (opt.gallery !== 'off') {
+    const list = opt.gallery === 'states' ? GALLERY : VARIANT_GALLERY;
+    const aims = opt.gallery === 'states' ? galleryAims : variantAims;
+    const dummies = galleryDummies(T, list.length);
     drawScene(T, dt, dummies);
     ctx.font = '14px "Microsoft YaHei"'; ctx.textAlign = 'center'; ctx.fillStyle = '#cfe8ff';
     dummies.forEach((d, i) => {
-      const rt = galleryAims[i];
-      const phase = (T + i * 0.25) % 3.2;
-      stepLock(rt, phase < 2.2, dt);
+      const g = list[i], rt = aims[i];
+      if (g.demo) {
+        // 3 秒冷却 → 就绪停留 1.6 秒 → 释放
+        if (g.cd.ready && (g.hold += dt) > 1.6) { cast(g.cd); g.hold = 0; }
+      }
+      stepCd(g.cd, dt, opt.equip, g.demo ? 1 / 3 : 0);
+      stepLock(rt, true, dt);
       rt.x = d.x; rt.y = d.y;
-      ctx.fillText(`${i + 1}. ${STYLES[i].name}`, d.x, d.y - 120 * opt.size);
-      drawReticle(rt, i, d.rad, T);
+      ctx.fillText(g.label, slotX(i, list.length), H * 0.5 - 150 * opt.size);
+      drawReticle(rt, g.cd, d.rad, T, g.variant ?? opt.variant);
     });
   } else {
     updateEnemies(dt, T);
     drawScene(T, dt, enemies);
     updateAim(dt);
-    drawReticle(aim, opt.style, aim.target ? aim.target.rad : 30, T);
+    drawReticle(aim, cd, aim.target ? aim.target.rad : 30, T);
   }
   requestAnimationFrame(frame);
 }
 
 addEventListener('resize', resize);
 resize();
-setStyle(0);
 requestAnimationFrame(frame);
 </script>
 </body>
