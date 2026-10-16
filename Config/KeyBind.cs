@@ -19,6 +19,8 @@ namespace 伊蕾娜.Config
 
         public static ModKeybind OpenLoadoutPanel { get; private set; }
 
+        public static ModKeybind OpenSkillWheel { get; private set; }
+
         public override void Load()
         {
             BroomAcceleration = KeybindLoader.RegisterKeybind(Mod, "BroomAcceleration", "Space");
@@ -26,6 +28,7 @@ namespace 伊蕾娜.Config
             SwitchNextSkill = KeybindLoader.RegisterKeybind(Mod, "SwitchNextSkill", "E");
             SwitchPreviousSkill = KeybindLoader.RegisterKeybind(Mod, "SwitchLastSkill", "Q");
             OpenLoadoutPanel = KeybindLoader.RegisterKeybind(Mod, "OpenLoadoutPanel", "L");
+            OpenSkillWheel = KeybindLoader.RegisterKeybind(Mod, "OpenSkillWheel", "Mouse2");
         }
 
         public override void Unload()
@@ -35,6 +38,7 @@ namespace 伊蕾娜.Config
             SwitchNextSkill = null;
             SwitchPreviousSkill = null;
             OpenLoadoutPanel = null;
+            OpenSkillWheel = null;
         }
 
         public static void InitAllKeybinds()
@@ -44,6 +48,7 @@ namespace 伊蕾娜.Config
             SwitchNextSkill.BindKey(SwitchNextSkill.GetKeyDefaultName());
             SwitchPreviousSkill.BindKey(SwitchPreviousSkill.GetKeyDefaultName());
             OpenLoadoutPanel.BindKey(OpenLoadoutPanel.GetKeyDefaultName());
+            OpenSkillWheel.BindKey(OpenSkillWheel.GetKeyDefaultName());
         }
         
         class KeyInitSystem : ClientSaveLoadSystem

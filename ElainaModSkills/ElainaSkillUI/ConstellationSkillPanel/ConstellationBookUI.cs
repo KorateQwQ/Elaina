@@ -25,6 +25,7 @@ public sealed partial class ConstellationSkillPanel
     }
 
     internal static bool BookMoving => TryPanel(out var panel) && panel.Enabled && panel._book.Moving;
+    internal static bool PanelShown => TryPanel(out var panel) && panel.Enabled;
     internal static float BookDockGlow => TryPanel(out var panel) && panel.Enabled ? panel._book.DockGlow : 0;
     private static bool TryPanel(out ConstellationSkillPanel panel)
     {

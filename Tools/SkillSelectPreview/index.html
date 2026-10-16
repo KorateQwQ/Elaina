@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>伊蕾娜 · 术式轮盘选择预览</title>
+<style>
+:root{
+  color-scheme:dark;
+  --ink:#eee9f5;--muted:#b2a8c3;--faint:#897d9c;--lilac:#e8d8ff;--violet:#cab2ed;--gold:#e6cea5;
+  --line:#ba9ed02b;--panel:#1c1826e8;
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
+  --sans:"Microsoft YaHei","PingFang SC",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:#11131e;color:var(--ink);font:13px/1.6 var(--sans);-webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* ── 场景 ─────────────────────────────────────── */
+.scene{position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse at 72% 18%,#c8a9ed14,transparent 32%),
+    radial-gradient(ellipse at 50% 40%,#4b3c5c40,transparent 55%),
+    linear-gradient(#1d2033,#171b2a 60%,#10141f)}
+.scene svg{position:absolute;inset:0;width:100%;height:100%}
+.scene-hint{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;transition:opacity .2s}
+.scene-hint h1{font:normal 26px var(--serif);letter-spacing:8px;margin:0;color:#ded2ea}
+.scene-hint p{margin:14px 0 0;color:var(--muted);font-size:12px;letter-spacing:1px}
+.scene-hint kbd,.bar-hint kbd,.panel kbd{font:11px Georgia,serif;border:1px solid #c8b6d45c;border-radius:3px;padding:0 6px;margin:0 3px;background:#ffffff08;color:#f0e4ff}
+body.wheel-open .scene-hint{opacity:0}
+
+/* ── 槽位外框（与战斗栏 Ornaments 一致） ─────────── */
+@property --orbit{syntax:"<angle>";inherits:false;initial-value:0deg}
+.frame{position:relative;width:57px;height:57px;border-radius:2.5px;display:grid;place-items:center;background:#201a2d14}
+.frame:after{content:"";position:absolute;inset:0;border:.8px solid #bfa8d4;border-radius:2.5px;opacity:.48;pointer-events:none;transition:opacity .16s}
+.frame.empty:after{opacity:.26}
+.frame img{width:48px;height:48px;object-fit:contain;display:block;pointer-events:none;transition:filter .16s}
+.frame .glow{position:absolute;inset:4px;border-radius:2px;background:linear-gradient(145deg,#d1b4ed26,#b08ad90c 60%,#c9adeb20);filter:blur(5px);opacity:0;transition:opacity .2s}
+.frame .star,.frame .diamond{position:absolute;left:50%;pointer-events:none;opacity:0;transition:opacity .16s}
+.frame .star{top:-6px;width:11px;height:11px;margin-left:-5.5px;background:#f6edff;
+  clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%);filter:drop-shadow(0 0 3px #e3c8ff)}
+.frame .diamond{bottom:-4px;width:5px;height:7px;margin-left:-2.5px;background:#d6bdf0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.frame.current{background:radial-gradient(ellipse,#b99bd029,#9072aa0d 60%,transparent 76%)}
+.frame.current:after{opacity:.84;border-color:#d9c3ef}
+.frame.current .glow,.frame.current .star,.frame.current .diamond{opacity:1}
+.frame.current:before{content:"";position:absolute;inset:0;padding:1.25px;border-radius:2.5px;pointer-events:none;z-index:3;
+  background:conic-gradient(from var(--orbit),transparent 0deg 235deg,#b38ed33b 275deg,#d7b9f3b3 312deg,#faf1ff 342deg,#ead7ff 355deg,transparent 360deg);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;
+  animation:orbit 2.8s linear infinite}
+.frame.arrive{animation:arrive .45s ease-out}
+@keyframes orbit{to{--orbit:360deg}}
+@keyframes arrive{0%{filter:brightness(1.6) drop-shadow(0 0 10px #dcc0fb)}100%{filter:none}}
+.frame .cd{position:absolute;inset:4.5px;border-radius:1.5px;pointer-events:none;display:grid;place-items:center;
+  font:13px Georgia,serif;color:#f8f0ff;text-shadow:0 0 3px #140e1e,0 0 6px #140e1e}
+.frame .cd:empty{display:none}
+
+/* ── 战斗栏 ─────────────────────────────────────── */
+.bar{position:fixed;right:2.5vw;bottom:2.5vh;width:646px;height:94px}
+.bar .rack{position:absolute;left:-24px;top:-24px;width:694px;height:142px;pointer-events:none}
+.bar-slots{position:absolute;left:27px;top:25px;display:flex;gap:18px}
+.bar-slot{width:60px;height:60px;display:grid;place-items:center}
+.bar-hint{position:absolute;right:14px;top:-30px;font-size:11px;letter-spacing:1px;color:var(--muted);white-space:nowrap}
+.bar.shake{animation:shake .38s ease-in-out}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+
+/* ── 轮盘 ─────────────────────────────────────── */
+.veil{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .18s;
+  background:radial-gradient(circle at var(--ax) var(--ay),#0b0912 0,#0b091233 160px,#07060cb8 70%)}
+body.wheel-open .veil{opacity:1}
+.wheel{position:fixed;left:0;top:0;width:0;height:0;z-index:20;pointer-events:none;visibility:hidden}
+.wheel.visible{visibility:visible}
+.wheel .ring{position:absolute;left:0;top:0;transform:translate(-50%,-50%) scale(.82);opacity:0;transition:transform .2s cubic-bezier(.2,.9,.3,1.1),opacity .14s}
+.wheel.open .ring{transform:translate(-50%,-50%) scale(1);opacity:1}
+.wheel.closing .ring{transition-duration:.16s;transform:translate(-50%,-50%) scale(.94);opacity:0}
+.ring .band{fill:#16121fd1;stroke:none}
+.ring .edge{fill:none;stroke:#c5acdc38;stroke-width:1}
+.ring .dots{fill:none;stroke:#cdb6e666;stroke-width:1;stroke-dasharray:1 7}
+.ring .sep{stroke:#c5acdc26;stroke-width:1}
+.ring .tick{fill:#cdb6e680}
+.ring .tick.on{fill:#f6ecff}
+.ring .hl{fill:#c8a6f02e;transition:opacity .1s}
+.ring .hl-arc{fill:none;stroke:#f3e6ff;stroke-width:2;stroke-linecap:round;filter:drop-shadow(0 0 4px #d8b8ff)}
+.ring .needle{fill:#f3e6ff;filter:drop-shadow(0 0 3px #d8b8ff);transition:opacity .1s}
+
+.hub{position:absolute;left:0;top:0;transform:translate(-50%,-50%) scale(.8);opacity:0;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  background:radial-gradient(circle,#382d46f0,#1f1a2be8);border:1px solid #d1b7dd36;box-shadow:0 0 30px #ad79ce1a,inset 0 0 22px #140f1f;
+  transition:transform .2s cubic-bezier(.2,.9,.3,1.1),opacity .14s}
+.wheel.open .hub{transform:translate(-50%,-50%) scale(1);opacity:1}
+.wheel.closing .hub{opacity:0;transition-duration:.14s}
+.hub-name{font:15px var(--serif);letter-spacing:2px;color:#f1e6fb;white-space:nowrap}
+.hub-sub{font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap}
+.hub.small .hub-name{font-size:13px;letter-spacing:1px}
+.hub.small .hub-sub{font-size:9px}
+
+.item{position:absolute;left:0;top:0;width:64px;height:64px;display:grid;place-items:center;opacity:0;
+  transform:translate(-50%,-50%) scale(.35);
+  transition:transform .24s cubic-bezier(.2,.9,.25,1.18) var(--delay),opacity .16s var(--delay)}
+.wheel.open .item{opacity:1;transform:translate(-50%,-50%) translate(var(--x),var(--y)) scale(1)}
+.wheel.open .item.hover{transform:translate(-50%,-50%) translate(var(--x),var(--y)) scale(1.12);transition-delay:0s;transition-duration:.12s}
+.item.hover .frame:after{opacity:.95;border-color:#f1e4ff}
+.item.hover .frame{background:#baa1cf1c}
+.item.hover img{filter:brightness(1.2) drop-shadow(0 0 5px #e1bdff88)}
+.item .no{position:absolute;left:1px;top:-1px;font:9px Georgia,serif;color:#a593b6;z-index:4}
+.item.hover .no{color:#f1e4ff}
+.wheel.closing .item{transition:transform .14s ease-in,opacity .14s ease-in;transition-delay:0s;
+  transform:translate(-50%,-50%) translate(calc(var(--x) * .6),calc(var(--y) * .6)) scale(.6);opacity:0}
+.wheel.closing .item.chosen{transition:transform .26s ease-out,opacity .26s ease-in;
+  transform:translate(-50%,-50%) translate(var(--x),var(--y)) scale(1.28);opacity:0}
+.wheel.closing .item.chosen img{filter:brightness(1.7) drop-shadow(0 0 10px #ecd6ff)}
+
+/* ── 面板 ─────────────────────────────────────── */
+.panel{position:fixed;left:18px;top:18px;width:318px;max-height:calc(100vh - 36px);overflow:auto;z-index:10;
+  background:var(--panel);border:1px solid #a185b250;box-shadow:0 10px 40px #0007;padding:16px 18px 18px}
+.panel.collapsed{width:auto}
+.panel.collapsed .panel-body{display:none}
+.panel-head{display:flex;align-items:center;gap:10px}
+.panel-head h2{flex:1;margin:0;font:normal 16px var(--serif);letter-spacing:3px}
+.panel-head small{display:block;font:9px Georgia,serif;letter-spacing:2px;color:var(--faint)}
+.toggle{width:26px;height:26px;border:1px solid #a185b250;color:var(--muted)}
+.toggle:hover{border-color:#c1a1d6;color:var(--ink)}
+.section{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.section-title{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;letter-spacing:1px;margin-bottom:9px}
+.section-title span{font:12px Georgia,serif;color:var(--violet)}
+.counts{display:grid;grid-template-columns:repeat(9,1fr);gap:3px}
+.counts button{height:26px;border:1px solid #ab8fbb33;background:#16121d66;font:12px Georgia,serif;color:#b0a0bf}
+.counts button:hover{border-color:#c7aadc}
+.counts button.active{background:#b793d226;border-color:#d1b1e5;color:#f6eaff}
+.pool{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:9px}
+.chip{position:relative;aspect-ratio:1;border:1px solid #ac8cc430;background:#14111b88;display:grid;place-items:center}
+.chip img{width:30px;height:30px;object-fit:contain;opacity:.32;filter:grayscale(.8);transition:opacity .15s,filter .15s}
+.chip:hover{border-color:#c7aadc}
+.chip.on{border-color:#cfb2ea99;background:#b490be1c}
+.chip.on img{opacity:1;filter:none}
+.chip b{position:absolute;right:2px;top:0;font:normal 9px Georgia,serif;color:var(--gold)}
+.note{font-size:11px;color:var(--faint);margin-top:7px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:#cfc3db}
+.seg{display:flex;border:1px solid #a185b250}
+.seg button{padding:3px 9px;font-size:11px;color:var(--muted)}
+.seg button.active{background:#b793d22e;color:#f6eaff}
+.keybtn{min-width:64px;padding:3px 10px;border:1px solid #a185b270;font:12px Georgia,serif;color:#f0e4ff;background:#ffffff08}
+.keybtn.wait{border-color:var(--gold);color:var(--gold)}
+.hold{width:100%;margin-top:10px;padding:9px;border:1px solid #c5afd55c;background:linear-gradient(100deg,#4c3a5a77,#32283b99);color:#dcd0e6;letter-spacing:1px;touch-action:none}
+.hold:hover{border-color:#e0c6ed}
+.hold:disabled{opacity:.4;cursor:not-allowed}
+.rules{margin:0;padding-left:18px;color:var(--muted);font-size:11px;line-height:1.85}
+.rules em{font-style:normal;color:var(--lilac)}
+
+.toast{position:fixed;left:50%;top:22px;transform:translate(-50%,-8px);opacity:0;z-index:30;pointer-events:none;
+  padding:7px 18px;background:#211d2cee;border:1px solid #a185b260;color:#eadcf6;font-size:12px;letter-spacing:1px;transition:opacity .18s,transform .18s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.warn{border-color:#e6cea580;color:var(--gold)}
+
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{transition-duration:0s!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="scene" id="scene">
+  <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <defs>
+      <pattern id="stars" width="230" height="170" patternUnits="userSpaceOnUse">
+        <circle cx="30" cy="40" r=".9" fill="#d6c6ea" opacity=".45"/><circle cx="160" cy="110" r=".7" fill="#d6c6ea" opacity=".3"/>
+        <circle cx="96" cy="150" r=".6" fill="#d6c6ea" opacity=".25"/><circle cx="205" cy="22" r="1" fill="#d6c6ea" opacity=".35"/>
+      </pattern>
+    </defs>
+    <rect width="1600" height="620" fill="url(#stars)"/>
+    <circle cx="1160" cy="160" r="34" fill="#cbb6dc" opacity=".14"/>
+    <path d="M0 610 140 520 260 560 420 450 600 580 760 500 940 590 1120 480 1320 600 1600 520V900H0Z" fill="#262838" opacity=".7"/>
+    <path d="M0 720 180 640 330 690 520 600 700 700 900 650 1080 720 1280 630 1600 700V900H0Z" fill="#192230"/>
+    <path d="M0 800Q300 740 620 790T1200 780T1600 760V900H0Z" fill="#111a25"/>
+  </svg>
+  <div class="scene-hint" id="sceneHint">
+    <h1>术式轮盘</h1>
+    <p id="sceneHintText"></p>
+  </div>
+</div>
+
+<div class="veil" id="veil"></div>
+
+<div class="bar" id="bar">
+  <img class="rack" src="../../ElainaModSkills/ElainaSkillUI/BattleBar/Rack.png" alt="">
+  <div class="bar-hint" id="barHint"></div>
+  <div class="bar-slots" id="barSlots"></div>
+</div>
+
+<div class="wheel" id="wheel" aria-hidden="true">
+  <svg class="ring" id="ring"></svg>
+  <div class="hub" id="hub"><div class="hub-name" id="hubName"></div><div class="hub-sub" id="hubSub"></div></div>
+  <div id="items"></div>
+</div>
+
+<aside class="panel" id="panel">
+  <div class="panel-head">
+    <div style="flex:1"><h2>术式轮盘</h2><small>SPELL WHEEL · STYLE PREVIEW</small></div>
+    <button class="toggle" id="collapse" title="收起 / 展开">—</button>
+  </div>
+  <div class="panel-body">
+    <div class="section">
+      <div class="section-title">已装备 <span id="countLabel"></span></div>
+      <div class="counts" id="counts"></div>
+      <div class="pool" id="pool"></div>
+      <div class="note">点击图标装备 / 卸下，右上角数字为技能栏位置（最多 8 个）。</div>
+    </div>
+    <div class="section">
+      <div class="section-title">交互</div>
+      <div class="row">打开 UI 按键 <button class="keybtn" id="keyBtn"></button></div>
+      <div class="row">轮盘中心
+        <div class="seg" id="anchorSeg"><button data-v="cursor">鼠标位置</button><button data-v="screen">屏幕中心</button></div>
+      </div>
+      <div class="row">选中判定
+        <div class="seg" id="hitSeg"><button data-v="sector">扇区方向</button><button data-v="icon">悬停图标</button></div>
+      </div>
+      <div class="row">模拟冷却
+        <div class="seg" id="cdSeg"><button data-v="on">开</button><button data-v="off">关</button></div>
+      </div>
+      <button class="hold" id="hold">按住此处，拖到技能上松开</button>
+    </div>
+    <div class="section">
+      <div class="section-title">规则</div>
+      <ol class="rules">
+        <li>按住 <kbd id="ruleKey"></kbd> 展开轮盘，松开即选中鼠标所指的术式。</li>
+        <li>停在中心区域或按 <em>Esc</em> / <em>右键</em> 松开，保留原术式。</li>
+        <li>装备 <em>0</em> 个术式时无法打开轮盘。</li>
+        <li>轮盘顺序与技能栏一致：从正上方顺时针排列。</li>
+        <li>场景中左键点击 = 施放当前术式（触发模拟冷却）。</li>
+      </ol>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+const ICON = '../../ElainaModSkills/Skills/';
+// 只列出可装备的术式：心得（灰之魔女、魔力护盾）与衍生术式（冰凌锁）不进入技能栏。
+const SKILLS = [
+  {id:'MagicMissileSkill', name:'魔法飞弹', icon:'MagicMissile/MagicMissileSkill.png', cd:1.2},
+  {id:'FireBurstSkill',    name:'炎爆',     icon:'Fire/FireBurstSkill.png',            cd:6},
+  {id:'IceConeSkill',      name:'冰锥',     icon:'Ice/IceConeSkill.png',               cd:4},
+  {id:'WaterBallSkill',    name:'水球',     icon:'Water/WaterBallSkill.png',           cd:2.5},
+  {id:'WindSlashSkill',    name:'风刃',     icon:'Wind/WindSlashSkill.png',            cd:3},
+  {id:'FireLaserSkill',    name:'火焰射线', icon:'Fire/FireLaserSkill.png',            cd:8},
+  {id:'WaterLaserSKill',   name:'水流射线', icon:'Water/WaterLaserSKill.png',          cd:5},
+  {id:'HealSkill',         name:'治疗魔法', icon:'Heal/HealSkill.png',                 cd:20},
+  {id:'MultiMissileSkill', name:'多重射击', icon:'MagicMissile/MultiMissileSkill.png', cd:10},
+  {id:'FireTornadoSkill',  name:'火焰龙卷', icon:'Fire/FireTornadoSkill.png',          cd:12},
+  {id:'WindTornadoSkill',  name:'风之龙卷', icon:'Wind/WindTornadoSkill.png',          cd:12},
+  {id:'AlchemySkill',      name:'炼金术',   icon:'Alchemy/AlchemySkill.png',           cd:0},
+  {id:'FlightSkill',       name:'飞行魔法', icon:'Flight/FlightSkill.png',             cd:0},
+  {id:'DollControlSkill',  name:'人偶操控', icon:'DollControl/DollControlSkill.png',   cd:15},
+];
+const MAX = 8;
+const DEAD_ZONE = 30;
+const ITEM_HIT = 36;
+const byId = Object.fromEntries(SKILLS.map(s => [s.id, s]));
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+
+const state = {
+  equipped: SKILLS.slice(0, MAX).map(s => s.id),
+  current: 0,
+  key: {code:'KeyZ', label:'Z'},
+  anchorMode: 'cursor',
+  hitMode: 'sector',
+  cooldown: true,
+  cdEnd: {},
+  mouse: {x: innerWidth / 2, y: innerHeight / 2},
+  open: false, source: null, pointerId: null, keyHeld: false, rebinding: false,
+  hover: -1, anchor: {x: 0, y: 0}, geo: null, closeTimer: 0,
+};
+
+/* ── 工具 ───────────────────────────── */
+function el(tag, cls, parent) { const e = document.createElement(tag); if (cls) e.className = cls; if (parent) parent.append(e); return e; }
+function svg(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.append(e); return e; }
+const TAU = Math.PI * 2;
+const polar = (c, r, a) => [c + Math.sin(a) * r, c - Math.cos(a) * r];
+const angDist = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+function frame(skill, extra) {
+  const f = el('div', 'frame' + (skill ? '' : ' empty') + (extra || ''));
+  el('span', 'glow', f);
+  if (skill) {
+    const img = el('img', '', f); img.src = ICON + skill.icon; img.alt = skill.name; img.draggable = false;
+    const cd = el('div', 'cd', f); cd.dataset.cd = skill.id;
+  }
+  el('span', 'star', f); el('span', 'diamond', f);
+  return f;
+}
+
+let toastTimer = 0;
+function toast(text, warn) {
+  const t = $('toast'); t.textContent = text; t.classList.toggle('warn', !!warn); t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+function remaining(id) { return state.cooldown ? Math.max(0, ((state.cdEnd[id] || 0) - performance.now()) / 1000) : 0; }
+
+/* ── 面板与技能栏 ───────────────────── */
+function renderPanel() {
+  const n = state.equipped.length;
+  $('countLabel').textContent = `${n} / ${MAX}`;
+  const counts = $('counts'); counts.replaceChildren();
+  for (let i = 0; i <= MAX; i++) {
+    const b = el('button', i === n ? 'active' : '', counts); b.textContent = i;
+    b.title = `装备前 ${i} 个默认术式`; b.onclick = () => setLoadout(SKILLS.slice(0, i).map(s => s.id));
+  }
+  const pool = $('pool'); pool.replaceChildren();
+  for (const s of SKILLS) {
+    const idx = state.equipped.indexOf(s.id);
+    const c = el('button', 'chip' + (idx >= 0 ? ' on' : ''), pool); c.title = s.name;
+    const img = el('img', '', c); img.src = ICON + s.icon; img.alt = s.name; img.draggable = false;
+    if (idx >= 0) el('b', '', c).textContent = idx + 1;
+    c.onclick = () => toggleSkill(s.id);
+  }
+  for (const [seg, val] of [['anchorSeg', state.anchorMode], ['hitSeg', state.hitMode], ['cdSeg', state.cooldown ? 'on' : 'off']])
+    for (const b of $(seg).children) b.classList.toggle('active', b.dataset.v === val);
+  $('keyBtn').textContent = state.rebinding ? '请按键…' : state.key.label;
+  $('keyBtn').classList.toggle('wait', state.rebinding);
+  $('ruleKey').textContent = state.key.label;
+  $('hold').disabled = n === 0;
+}
+
+function renderBar(arriveIndex) {
+  const slots = $('barSlots'); slots.replaceChildren();
+  for (let i = 0; i < MAX; i++) {
+    const s = byId[state.equipped[i]];
+    const cls = (i === state.current ? ' current' : '') + (i === arriveIndex ? ' arrive' : '');
+    el('div', 'bar-slot', slots).append(frame(s, cls));
+  }
+  const n = state.equipped.length, k = `<kbd>${state.key.label}</kbd>`;
+  $('barHint').innerHTML = n ? `按住 ${k} 选择术式` : '未装备术式';
+  $('sceneHintText').innerHTML = n
+    ? `按住 ${k} 展开轮盘 · 移向术式 · 松开选中`
+    : '当前未装备术式，轮盘无法打开 —— 先在左侧装备 1~8 个';
+}
+
+function render(arriveIndex) { renderPanel(); renderBar(arriveIndex); }
+
+function setLoadout(ids) {
+  cancelWheel();
+  const prev = state.equipped[state.current];
+  state.equipped = ids.slice(0, MAX);
+  const keep = state.equipped.indexOf(prev);
+  state.current = keep >= 0 ? keep : (state.equipped.length ? 0 : -1);
+  render();
+}
+
+function toggleSkill(id) {
+  const list = state.equipped.slice(), i = list.indexOf(id);
+  if (i >= 0) list.splice(i, 1);
+  else if (list.length >= MAX) { toast('技能栏已满（最多 8 个）', true); return; }
+  else list.push(id);
+  setLoadout(list);
+}
+
+/* ── 轮盘几何 ───────────────────────── */
+function radiusFor(n) { return n <= 2 ? 86 : n <= 4 ? 98 : n <= 6 ? 112 : 124; }
+function angleFor(i, n) {
+  if (n === 2) return i === 0 ? TAU * .75 : TAU * .25;
+  return i * TAU / n;
+}
+
+function annulusSector(c, r1, r2, a0, a1) {
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const [x0, y0] = polar(c, r2, a0), [x1, y1] = polar(c, r2, a1);
+  const [x2, y2] = polar(c, r1, a1), [x3, y3] = polar(c, r1, a0);
+  return `M${x0} ${y0}A${r2} ${r2} 0 ${large} 1 ${x1} ${y1}L${x2} ${y2}A${r1} ${r1} 0 ${large} 0 ${x3} ${y3}Z`;
+}
+function arcPath(c, r, a0, a1) {
+  const [x0, y0] = polar(c, r, a0), [x1, y1] = polar(c, r, a1);
+  return `M${x0} ${y0}A${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1} ${y1}`;
+}
+function ringPath(c, r1, r2) {
+  return `M${c - r2} ${c}a${r2} ${r2} 0 1 0 ${r2 * 2} 0a${r2} ${r2} 0 1 0 ${-r2 * 2} 0Z` +
+         `M${c - r1} ${c}a${r1} ${r1} 0 1 0 ${r1 * 2} 0a${r1} ${r1} 0 1 0 ${-r1 * 2} 0Z`;
+}
+
+function buildWheel() {
+  const n = state.equipped.length, R = radiusFor(n);
+  const r1 = R - 40, r2 = R + 40, hubR = Math.max(40, R - 46), S = (R + 62) * 2, c = S / 2;
+  const half = Math.PI / n;
+  state.geo = {n, R, r1, r2, hubR, c, half};
+
+  const ring = $('ring'); ring.replaceChildren();
+  ring.setAttribute('width', S); ring.setAttribute('height', S); ring.setAttribute('viewBox', `0 0 ${S} ${S}`);
+  svg('path', {class: 'band', d: ringPath(c, r1, r2), 'fill-rule': 'evenodd'}, ring);
+  svg('circle', {class: 'edge', cx: c, cy: c, r: r1}, ring);
+  svg('circle', {class: 'edge', cx: c, cy: c, r: r2}, ring);
+  svg('circle', {class: 'dots', cx: c, cy: c, r: r2 + 9}, ring);
+  if (n > 1) for (let i = 0; i < n; i++) {
+    const a = angleFor(i, n) + half, [x0, y0] = polar(c, r1 + 6, a), [x1, y1] = polar(c, r2 - 6, a);
+    svg('line', {class: 'sep', x1: x0, y1: y0, x2: x1, y2: y1}, ring);
+  }
+  state.geo.ticks = [];
+  for (let i = 0; i < n; i++) {
+    const [x, y] = polar(c, r2 + 9, angleFor(i, n));
+    state.geo.ticks.push(svg('path', {class: 'tick', d: `M${x} ${y - 4}L${x + 3} ${y}L${x} ${y + 4}L${x - 3} ${y}Z`}, ring));
+  }
+  state.geo.hl = svg('path', {class: 'hl', 'fill-rule': 'evenodd', opacity: 0}, ring);
+  state.geo.hlArc = svg('path', {class: 'hl-arc', opacity: 0}, ring);
+  state.geo.needle = svg('path', {class: 'needle', opacity: 0, d: `M${c} ${c - hubR - 9}L${c + 5} ${c - hubR - 2}L${c} ${c - hubR + 3}L${c - 5} ${c - hubR - 2}Z`}, ring);
+
+  const hub = $('hub');
+  hub.style.width = hub.style.height = hubR * 2 + 'px';
+  hub.classList.toggle('small', hubR < 56);
+
+  const items = $('items'); items.replaceChildren();
+  state.geo.items = state.equipped.map((id, i) => {
+    const a = angleFor(i, n), it = el('div', 'item', items);
+    it.style.setProperty('--x', Math.sin(a) * R + 'px');
+    it.style.setProperty('--y', -Math.cos(a) * R + 'px');
+    it.style.setProperty('--delay', i * 16 + 'ms');
+    it.append(frame(byId[id], i === state.current ? ' current' : ''));
+    el('span', 'no', it).textContent = i + 1;
+    return {el: it, x: Math.sin(a) * R, y: -Math.cos(a) * R, a};
+  });
+}
+
+function placeWheel(x, y) {
+  const m = state.geo.r2 + 24;
+  x = Math.min(Math.max(x, m), innerWidth - m);
+  y = Math.min(Math.max(y, m), innerHeight - m);
+  state.anchor = {x, y};
+  $('wheel').style.transform = `translate(${x}px,${y}px)`;
+  document.body.style.setProperty('--ax', x + 'px');
+  document.body.style.setProperty('--ay', y + 'px');
+}
+
+/* ── 打开 / 选择 / 关闭 ─────────────── */
+function openWheel(source) {
+  if (state.open) return;
+  if (!state.equipped.length) {
+    toast('未装备术式，无法打开选择界面', true);
+    const bar = $('bar'); bar.classList.remove('shake'); void bar.offsetWidth; bar.classList.add('shake');
+    return;
+  }
+  clearTimeout(state.closeTimer);
+  state.open = true; state.source = source;
+  buildWheel();
+  if (state.anchorMode === 'screen') placeWheel(innerWidth / 2, innerHeight / 2);
+  else placeWheel(state.mouse.x, state.mouse.y);
+  const w = $('wheel');
+  w.classList.remove('open', 'closing'); w.classList.add('visible'); w.setAttribute('aria-hidden', 'false');
+  void w.offsetWidth;
+  w.classList.add('open');
+  document.body.classList.add('wheel-open');
+  setHover(pick(state.mouse.x, state.mouse.y));
+}
+
+function pick(x, y) {
+  const g = state.geo; if (!g) return -1;
+  const dx = x - state.anchor.x, dy = y - state.anchor.y, dist = Math.hypot(dx, dy);
+  updateNeedle(dx, dy, dist);
+  if (state.hitMode === 'icon') {
+    let best = -1, bestD = ITEM_HIT;
+    g.items.forEach((it, i) => { const d = Math.hypot(dx - it.x, dy - it.y); if (d < bestD) { bestD = d; best = i; } });
+    return best;
+  }
+  if (dist < DEAD_ZONE) return -1;
+  const a = (Math.atan2(dx, -dy) + TAU) % TAU;
+  let best = 0;
+  g.items.forEach((it, i) => { if (angDist(a, it.a) < angDist(a, g.items[best].a)) best = i; });
+  return best;
+}
+
+function updateNeedle(dx, dy, dist) {
+  const g = state.geo, show = state.hitMode === 'sector' && dist >= DEAD_ZONE;
+  g.needle.setAttribute('opacity', show ? 1 : 0);
+  if (show) g.needle.setAttribute('transform', `rotate(${Math.atan2(dx, -dy) * 180 / Math.PI} ${g.c} ${g.c})`);
+}
+
+function setHover(i) {
+  const g = state.geo;
+  state.hover = i;
+  g.items.forEach((it, k) => it.el.classList.toggle('hover', k === i));
+  g.ticks.forEach((t, k) => t.classList.toggle('on', k === i));
+  if (i >= 0) {
+    const a = g.items[i].a, gap = g.n > 1 ? .02 : 0;
+    const a0 = a - g.half + gap, a1 = a + g.half - gap;
+    g.hl.setAttribute('d', g.n === 1 ? ringPath(g.c, g.r1, g.r2) : annulusSector(g.c, g.r1, g.r2, a0, a1));
+    g.hlArc.setAttribute('d', g.n === 1 ? ringPath(g.c, g.r2, g.r2) : arcPath(g.c, g.r2, a0, a1));
+  }
+  g.hl.setAttribute('opacity', i >= 0 ? 1 : 0);
+  g.hlArc.setAttribute('opacity', i >= 0 ? 1 : 0);
+  updateHub();
+}
+
+function updateHub() {
+  const i = state.hover;
+  if (i < 0) {
+    $('hubName').textContent = '选择术式';
+    $('hubSub').textContent = '松开 · 保留当前';
+    return;
+  }
+  const s = byId[state.equipped[i]], left = remaining(s.id);
+  $('hubName').textContent = s.name;
+  $('hubSub').textContent = i === state.current ? '当前术式'
+    : left > 0 ? `冷却中 ${left.toFixed(1)}s` : `第 ${i + 1} 栏 · 松开选中`;
+}
+
+function closeWheel(commit) {
+  if (!state.open) return;
+  const chosen = commit ? state.hover : -1;
+  state.open = false; state.source = null; state.pointerId = null;
+  const w = $('wheel');
+  if (chosen >= 0) state.geo.items[chosen].el.classList.add('chosen');
+  w.classList.remove('open'); w.classList.add('closing'); w.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('wheel-open');
+  state.closeTimer = setTimeout(() => w.classList.remove('visible', 'closing'), 280);
+  if (chosen >= 0 && chosen !== state.current) {
+    state.current = chosen;
+    renderBar(chosen);
+    toast(`切换术式 · ${byId[state.equipped[chosen]].name}`);
+  } else if (chosen < 0) {
+    toast('已取消 · 保留当前术式');
+  }
+}
+function cancelWheel() { closeWheel(false); }
+
+/* ── 输入 ───────────────────────────── */
+addEventListener('pointermove', e => {
+  state.mouse = {x: e.clientX, y: e.clientY};
+  if (state.open) { const i = pick(e.clientX, e.clientY); if (i !== state.hover) setHover(i); }
+});
+
+addEventListener('keydown', e => {
+  if (state.rebinding) {
+    e.preventDefault();
+    if (e.code !== 'Escape') state.key = {code: e.code, label: e.code.replace(/^(Key|Digit)/, '')};
+    state.rebinding = false; render(); return;
+  }
+  if (e.code === 'Escape') { cancelWheel(); return; }
+  if (e.code !== state.key.code) return;
+  e.preventDefault();
+  if (e.repeat || state.keyHeld) return;
+  state.keyHeld = true;
+  if (!state.open) openWheel('key');
+});
+
+addEventListener('keyup', e => {
+  if (e.code !== state.key.code) return;
+  state.keyHeld = false;
+  if (state.source === 'key') closeWheel(true);
+});
+
+$('hold').addEventListener('pointerdown', e => {
+  if (e.button !== 0 || state.open) return;
+  e.preventDefault();
+  $('hold').setPointerCapture(e.pointerId);
+  state.mouse = {x: e.clientX, y: e.clientY};
+  openWheel('pointer');
+  if (state.open) state.pointerId = e.pointerId;
+});
+addEventListener('pointerup', e => {
+  if (state.source === 'pointer' && e.pointerId === state.pointerId) closeWheel(true);
+});
+
+// 按住左键拖动时再按右键不会产生新的 pointerdown，只有 mousedown 会逐键触发。
+addEventListener('mousedown', e => { if (state.open && e.button === 2) cancelWheel(); });
+addEventListener('pointerdown', e => {
+  if (state.open || e.button !== 0 || e.target.closest('.panel,.bar')) return;
+  const s = byId[state.equipped[state.current]];
+  if (!s) return;
+  if (remaining(s.id) > 0) { toast(`${s.name} 冷却中`, true); return; }
+  if (state.cooldown && s.cd > 0) state.cdEnd[s.id] = performance.now() + s.cd * 1000;
+  toast(`施放 · ${s.name}`);
+});
+addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('blur', () => { state.keyHeld = false; cancelWheel(); });
+addEventListener('resize', () => { if (state.open) cancelWheel(); });
+
+$('keyBtn').onclick = () => { cancelWheel(); state.rebinding = true; renderPanel(); };
+$('collapse').onclick = () => {
+  const p = $('panel'); p.classList.toggle('collapsed');
+  $('collapse').textContent = p.classList.contains('collapsed') ? '+' : '—';
+};
+for (const [seg, apply] of [
+  ['anchorSeg', v => state.anchorMode = v],
+  ['hitSeg', v => state.hitMode = v],
+  ['cdSeg', v => { state.cooldown = v === 'on'; if (!state.cooldown) state.cdEnd = {}; }],
+]) for (const b of $(seg).children) b.onclick = () => { apply(b.dataset.v); renderPanel(); };
+
+/* ── 冷却显示 ───────────────────────── */
+function tick() {
+  for (const node of document.querySelectorAll('[data-cd]')) {
+    const s = byId[node.dataset.cd], left = remaining(s.id);
+    if (left > 0 && s.cd > 0) {
+      const done = (1 - left / s.cd) * 360;
+      node.style.background = `conic-gradient(transparent 0deg ${done}deg,#0d0a14a8 ${done}deg 360deg)`;
+      node.textContent = left >= 10 ? Math.ceil(left) : left.toFixed(1);
+    } else if (node.textContent) {
+      node.style.background = ''; node.textContent = '';
+    }
+  }
+  if (state.open && state.hover >= 0) updateHub();
+  requestAnimationFrame(tick);
+}
+
+render();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

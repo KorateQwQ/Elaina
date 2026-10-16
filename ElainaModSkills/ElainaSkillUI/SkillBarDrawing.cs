@@ -23,36 +23,36 @@ internal static class SkillBarDrawing
             0, new Vector2(Tile / 2), .5f, SpriteEffects.None, 0);
 
     public static void DrawSlotBackground(SpriteBatch batch, Texture2D atlas,
-        Vector2 center, bool selected, bool occupied, float hover, float seconds)
+        Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1)
     {
-        Ornament(batch, atlas, selected ? 2 : 4, center, Color.White);
+        Ornament(batch, atlas, selected ? 2 : 4, center, Color.White * opacity);
         if (selected)
-            Ornament(batch, atlas, 2, center, new Color(255, 235, 255, 0) * (2.2f * ArrivalPulse(seconds)));
-        if (hover > 0 && !selected) Ornament(batch, atlas, 5, center, Color.White * hover);
+            Ornament(batch, atlas, 2, center, new Color(255, 235, 255, 0) * (2.2f * ArrivalPulse(seconds) * opacity));
+        if (hover > 0 && !selected) Ornament(batch, atlas, 5, center, Color.White * (hover * opacity));
         if (!occupied)
-            Ornament(batch, atlas, 3, center, selected ? new Color(218, 197, 238) :
-                Color.Lerp(new Color(177, 154, 195) * (113f / 255f), new Color(224, 203, 238), hover));
+            Ornament(batch, atlas, 3, center, (selected ? new Color(218, 197, 238) :
+                Color.Lerp(new Color(177, 154, 195) * (113f / 255f), new Color(224, 203, 238), hover)) * opacity);
     }
 
     public static void DrawSlotFrame(SpriteBatch batch, Texture2D atlas,
-        Vector2 center, bool selected, bool occupied, float hover, float seconds)
+        Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1)
     {
         if (!selected)
         {
             DrawRestingCorners(batch, atlas, center,
-                Color.White * MathHelper.Lerp(occupied ? .48f : .26f, .72f, hover));
+                Color.White * (MathHelper.Lerp(occupied ? .48f : .26f, .72f, hover) * opacity));
             return;
         }
         float pulse = ArrivalPulse(seconds);
-        Ornament(batch, atlas, 1, center, Color.White * (.84f + .16f * pulse));
+        Ornament(batch, atlas, 1, center, Color.White * ((.84f + .16f * pulse) * opacity));
         if (pulse > 0)
         {
             // Alpha-zero tints add light under the existing premultiplied batch.
-            Ornament(batch, atlas, 1, center, new Color(245, 222, 255, 0) * (.9f * pulse));
+            Ornament(batch, atlas, 1, center, new Color(245, 222, 255, 0) * (.9f * pulse * opacity));
             float progress = Math.Clamp(seconds / ArrivalDuration, 0, 1);
             float spread = 1 - MathF.Pow(1 - progress, 3);
             batch.Draw(atlas, center, new Rectangle(0, 0, Tile, Tile),
-                new Color(223, 192, 255, 0) * (.65f * pulse), 0, new Vector2(Tile / 2),
+                new Color(223, 192, 255, 0) * (.65f * pulse * opacity), 0, new Vector2(Tile / 2),
                 .5f * (1 + .16f * spread), SpriteEffects.None, 0);
 
         }
@@ -64,29 +64,29 @@ internal static class SkillBarDrawing
             Vector2 a = Orbit[i], b = Orbit[i + 1], middle = (a + b) * .5f;
             float angle = (MathHelper.ToDegrees(MathF.Atan2(middle.X, -middle.Y)) - rotation) % 360;
             if (angle < 0) angle += 360;
-            Color color = OrbitColor(angle);
+            Color color = OrbitColor(angle) * opacity;
             if (color.A == 0) continue;
             Vector2 delta = b - a;
             batch.Draw(atlas, center + a, new Rectangle(0, Tile, 4, 8), color,
                 MathF.Atan2(delta.Y, delta.X), new Vector2(0, 4),
                 new Vector2(delta.Length() / 4, .25f), SpriteEffects.None, 0);
         }
-        DrawSelectionMarkers(batch, atlas, center, seconds, pulse);
+        DrawSelectionMarkers(batch, atlas, center, seconds, pulse, opacity);
     }
 
     private static void DrawSelectionMarkers(SpriteBatch batch, Texture2D atlas,
-        Vector2 center, float seconds, float pulse)
+        Vector2 center, float seconds, float pulse, float opacity)
     {
         float breath = .5f + .5f * MathF.Sin(seconds * MathHelper.TwoPi / 3.6f);
         Vector2 starPosition = center + new Vector2(0, -37.5f);
         Vector2 diamondPosition = center + new Vector2(0, 34.5f);
         float starScale = 1 + .25f * pulse;
-        DrawMarker(batch, atlas, 1, starPosition, new Color(255, 255, 255, 0) * (.55f + .25f * breath + pulse), starScale);
-        DrawMarker(batch, atlas, 0, starPosition, Color.White, starScale);
-        DrawMarker(batch, atlas, 0, starPosition, new Color(255, 241, 255, 0) * (.45f * pulse), starScale);
+        DrawMarker(batch, atlas, 1, starPosition, new Color(255, 255, 255, 0) * ((.55f + .25f * breath + pulse) * opacity), starScale);
+        DrawMarker(batch, atlas, 0, starPosition, Color.White * opacity, starScale);
+        DrawMarker(batch, atlas, 0, starPosition, new Color(255, 241, 255, 0) * (.45f * pulse * opacity), starScale);
 
         // A short delayed response below the slot reinforces the main star's arrival.
-        float reveal = MathHelper.SmoothStep(0, 1, Math.Clamp((seconds - .065f) / .10f, 0, 1));
+        float reveal = MathHelper.SmoothStep(0, 1, Math.Clamp((seconds - .065f) / .10f, 0, 1)) * opacity;
         float diamondPulse = seconds < .10f ? 0 : ArrivalPulse(seconds - .10f);
         DrawMarker(batch, atlas, 3, diamondPosition,
             new Color(255, 255, 255, 0) * reveal * (.35f + .15f * breath + .5f * diamondPulse), 1);

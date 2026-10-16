@@ -6,6 +6,12 @@ using 伊蕾娜.System;
 
 namespace 伊蕾娜.Config
 {
+    public enum SkillSelectionMode
+    {
+        Slide,
+        Wheel
+    }
+
     [BackgroundColor(164, 153, 190)]
     public class BasicConfig : ModConfig
     {
@@ -28,6 +34,9 @@ namespace 伊蕾娜.Config
         //显示具体CD
         [DefaultValue(false)]
         public bool ShowCD;
+
+        [DefaultValue(SkillSelectionMode.Slide)]
+        public SkillSelectionMode SkillSelection;
         
         
         [Header("Damage")]
@@ -49,6 +58,7 @@ namespace 伊蕾娜.Config
             ElainaModplayer.LongPress = (int)(LongPress * 60);
             EXPmodplayer.DamageScale = MaxDamage;
             ElainaSkillManager.ShowCD = ShowCD;
+            ElainaSkillManager.SelectionMode = SkillSelection;
             base.OnChanged();
         }
     }
