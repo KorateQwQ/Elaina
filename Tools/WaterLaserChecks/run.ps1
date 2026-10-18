@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$GeometryOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $modName = Split-Path $repo -Leaf
@@ -26,5 +26,6 @@ $native.SetAttribute('Link', '%(Filename)%(Extension)')
 $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')
 $path = Join-Path $output 'Checks.csproj'
 $project.Save($path)
-dotnet run --project $path --configuration Release --verbosity quiet -- $repo "$output/out"
+$mode = if ($GeometryOnly) { 'geometry' } else { 'all' }
+dotnet run --project $path --configuration Release --verbosity quiet -- $repo "$output/out" $mode
 if ($LASTEXITCODE -ne 0) { throw 'Water laser checks failed.' }

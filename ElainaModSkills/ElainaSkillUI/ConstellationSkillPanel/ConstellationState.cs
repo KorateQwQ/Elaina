@@ -257,13 +257,30 @@ internal sealed class ConstellationState
     internal bool CanEquip => IsCurrentPlayer && !EmptyFilter && Current is { Active: true }
         && IsLearned(Selected) && Current.ModSkill.CanDragInSkillPanel()
         && TargetSlot >= 0 && TargetSlot < _player.ActiveSkill.Count && TargetSlot < Slots.Length && Slots[TargetSlot] != Selected;
+    internal bool CanUnequip => IsCurrentPlayer && !EmptyFilter && Current is { Active: true } && IsLearned(Selected)
+        && TargetSlot >= 0 && TargetSlot < _player.ActiveSkill.Count && TargetSlot < Slots.Length && Slots[TargetSlot] == Selected;
+    private int SlotCount => Math.Min(_player.ActiveSkill.Count, Slots.Length);
     internal bool Equip()
     {
         Refresh();
         if (!CanEquip) return false;
-        var replaced = _player.ActiveSkill[TargetSlot];
-        if (replaced != null) replaced.SkillSlot = -1;
+        int source = Array.IndexOf(Slots, Selected);
+        var displaced = _player.ActiveSkill[TargetSlot];
         KLSkillManager.EquipSkill(_player.ActiveSkill, Current.Skill, TargetSlot);
+        // An already-equipped skill trades places with the occupant instead of unequipping it.
+        if (displaced != null && source >= 0) KLSkillManager.EquipSkill(_player.ActiveSkill, displaced, source);
+        else if (displaced != null) displaced.SkillSlot = -1;
+        Refresh();
+        return true;
+    }
+    internal bool MoveSlot(int from, int to)
+    {
+        Refresh();
+        if (!IsCurrentPlayer || from == to || from < 0 || to < 0 || from >= SlotCount || to >= SlotCount
+            || _player.ActiveSkill[from] is not { } moving) return false;
+        var displaced = _player.ActiveSkill[to];
+        KLSkillManager.EquipSkill(_player.ActiveSkill, moving, to);
+        if (displaced != null) KLSkillManager.EquipSkill(_player.ActiveSkill, displaced, from);
         Refresh();
         return true;
     }

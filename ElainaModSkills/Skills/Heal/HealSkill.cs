@@ -1,9 +1,9 @@
 using KL.ActionsSystem;
 using KL.SkillSystem.SilkyUI;
-using KL.SkillSystem.UI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Heal;
 
@@ -19,8 +19,21 @@ public class HealSkill : ElainaSkill
     public override void Initialize()
     {
         MaxCD = 1;
-        MagicPointCost = 100;
+        MagicPointCost = 200;
         base.Initialize();
+    }
+
+    /// <summary>
+    /// 有可选队友时只打开选择盘，不进入魔杖的原版使用：按住期间没有挥杖与使用音效，
+    /// 松开确认目标后才由 <see cref="CastAt"/> 的施法动作出手。单人时照常走魔杖使用直接施法。
+    /// </summary>
+    public override bool BeginWandUse()
+    {
+        // 选择盘打开或还在等这次松开时，长按自动重用不能重开选择盘，也不能挥杖。
+        if (ElainaHealingWheel.OwnsPointer) return false;
+        if (!HasNearbyAlly()) return true;
+        OpenPicker();
+        return false;
     }
 
     public override bool PreUseSkill(IEntitySource source = null)
@@ -29,45 +42,38 @@ public class HealSkill : ElainaSkill
         {
             int targetIndex = pendingTargetIndex;
             ClearPendingSelection();
-
-            if (!TryGetValidTarget(targetIndex, out Player target) ||
-                !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
-            {
-                return false;
-            }
-
-            AnimAction animAction = new Action_SimpleShoot()
-                .AddNode(new ShootActionNode(
-                    1,
-                    ModContent.ProjectileType<HealProj>(),
-                    _ => target.MountedCenter,
-                    damage: 0,
-                    0,
-                    _ => Vector2.Zero,
-                    projectile => projectile.ai[0] = targetIndex));
-
-            float startRotation = (target.MountedCenter - Player.MountedCenter).ToRotation();
-            Player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
-
-            return base.PreUseSkill(source);
+            return CastAt(targetIndex, source);
         }
 
-        if (PlayerTargetSelectorUI.TryGet(out var selector) && selector.IsOpen)
+        if (ElainaHealingWheel.IsShowing)
         {
-            selector.Cancel();
-            ClearPendingSelection();
+            // Auto-reuse while holding the wand must preserve the pending release selection.
             return false;
         }
 
+        // Only eligible nearby allies justify opening a picker. Solo/out-of-range/PvP cases
+        // use the same validated cast path, consuming magic and the skill charge exactly once.
+        // 魔杖平时已在 BeginWandUse 打开选择盘；这里保留给不经魔杖的调用方。
+        if (!HasNearbyAlly()) return CastAt(Player.whoAmI, source);
+        OpenPicker();
+        return false;
+    }
+
+    private bool HasNearbyAlly()
+    {
+        for (int i = 0; i < Main.maxPlayers; i++)
+        {
+            if (i != Player.whoAmI && TryGetValidTarget(i, out _)) return true;
+        }
+        return false;
+    }
+
+    private void OpenPicker()
+    {
         pendingSkillSlot = Skill.SkillSlot;
-        bool opened = PlayerTargetSelectorUI.TryOpen(
-            new PlayerTargetSelectorOptions
-            {
-                Filter = PlayerTargetFilter.FriendlyOnly,
-                IncludeSelf = true,
-                MaxTargets = 8,
-                SearchRadius = TargetSearchRadius
-            },
+        bool opened = ElainaHealingWheel.TryOpen(
+            index => TryGetValidTarget(index, out _),
+            PendingSkillIsValid,
             OnTargetConfirmed,
             ClearPendingSelection);
 
@@ -75,15 +81,37 @@ public class HealSkill : ElainaSkill
         {
             ClearPendingSelection();
         }
+    }
 
-        return false;
+    private bool CastAt(int targetIndex, IEntitySource source)
+    {
+        if (!TryGetValidTarget(targetIndex, out Player target) ||
+            !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost)) return false;
+
+        AnimAction action = new Action_SimpleShoot().AddNode(new ShootActionNode(
+            1, ModContent.ProjectileType<HealProj>(), _ => target.MountedCenter,
+            damage: 0, 0, _ => Vector2.Zero, projectile =>
+            {
+                projectile.ai[0] = 100; // 测试阶段：十秒内的总治疗量。
+                projectile.ai[1] = targetIndex;
+            }));
+        float rotation = (target.MountedCenter - Player.MountedCenter).ToRotation();
+        Player.GetModPlayer<ActionModPlayer>().StartAction(action, rotation: rotation);
+        return base.PreUseSkill(source);
+    }
+
+    private bool PendingSkillIsValid()
+    {
+        ElainaSkillModPlayer skills = Player.GetModPlayer<ElainaSkillModPlayer>();
+        return pendingSkillSlot >= 0 && pendingSkillSlot < skills.ActiveSkill.Count
+            && ReferenceEquals(skills.ActiveSkill[pendingSkillSlot], Skill)
+            && Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled;
     }
     private void OnTargetConfirmed(int targetIndex)
     {
         int skillSlot = pendingSkillSlot;
         ElainaSkillModPlayer skillPlayer = Player.GetModPlayer<ElainaSkillModPlayer>();
-        if (skillSlot < 0 || skillSlot >= skillPlayer.ActiveSkill.Count ||
-            !ReferenceEquals(skillPlayer.ActiveSkill[skillSlot], Skill))
+        if (!PendingSkillIsValid())
         {
             ClearPendingSelection();
             return;
@@ -133,13 +161,10 @@ public class HealSkill : ElainaSkill
 
     public override void UpdateEquips(Player player)
     {
-        if (Main.mouseRight && Main.mouseRightRelease)
+        if (Main.mouseRight && Main.mouseRightRelease && ElainaHealingWheel.IsShowing)
         {
-            if (PlayerTargetSelectorUI.TryGet(out var selector) && selector.IsOpen)
-            {
-                selector.Cancel();
-                ClearPendingSelection();
-            }
+            ElainaHealingWheel.CancelOpen();
+            ClearPendingSelection();
         }
         base.UpdateEquips(player);
     }

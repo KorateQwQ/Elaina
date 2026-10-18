@@ -1,5 +1,17 @@
 # IceShardLock 冰锥深度预览
 
+## 冰锥发射瞬间拖尾
+
+运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Tools/IceDepthPreview/run.ps1 -Launch`。
+每次提取实际 `IceConeProj.AI/UpdateMovement/DrawBehind`、KL 距离采样与 `ValidTrailArray`，
+直接编译实际 `TrailManager`，并使用当前拖尾贴图、模型、Shader 和 bloom 绘制。
+检查第 24/25/26/27/30/35 帧，覆盖静止、移动、左右发射、蓄力转向，以及每三帧采样一次。
+断言蓄力阶段不提交拖尾、历史点不混入飞行轨迹、正常采样的首个前冲段为 140 像素、总长不超过 500 像素。
+`launch-*-before-*.png` 恢复从生成时采样及第 25 帧提前提交，用于复现旧问题；
+`launch-*-after-*.png` 为当前源码结果。输出位于 `.vissandbox/ice-depth-preview/out`。
+这是 FNA 离线预览：玩家位移和目标方向为固定输入，省略粒子、光照与 NPC 索敌，
+不验证游戏碰撞、联机或真实更新调度。
+
 追加`-Tracking`导出当前冰凌锁跟随预览：第12、28、29、65、96、109帧。运动、模型、绘制与`MoveWithTarget`来自实际源码；矩形为模拟目标，前29帧移动，首发抵达后固定并变为青色。该标记不属于正式技能特效，不证明游戏控制物理或联机正确。输出`tracking-*.png`；分段伤害/冰封行为另由`Tools/IceCycleChecks/run.ps1`检查。
 
 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Tools/IceDepthPreview/run.ps1`。

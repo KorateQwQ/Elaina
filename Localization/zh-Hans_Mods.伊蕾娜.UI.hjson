@@ -1,10 +1,19 @@
 // Player-facing UI. Debug controls intentionally remain in Chinese.
+HealingTarget: 治疗目标
+HealingSelf: 我
+HealingCritical: 生命垂危
+HealingFull: 生命已满
+HealingMissing: 缺失 {0} 生命
+HealingControls: 按住左键选择 · 松开确认 · 中心取消
+HealingCancel: 松开取消
 AccessorySlots: 饰品 · 推荐 {0} 槽（当前可用 {1} 槽）
 Acquirable: 可取得
 Acquisition: 获取方式
 AcquisitionHint: 可在素材页查看食材与药液的获取方式
 ActionUnavailable: 此操作不可用
 Active: 生效
+AfterLearning: 习得后
+AfterUpgrade: 进修后
 Alchemy: 炼金术
 AlchemyExpFull: 炼金经验已满
 AlchemyExperience: 炼金经验 {0} / {1}
@@ -24,7 +33,6 @@ AvailableForCrafting: 合成可用
 Back: 返回
 BaseMana: 基础魔力
 BatchCount: 制作批数
-BatchYield: 每批 ×{0}    可制 {1}
 Batches: × {0} 批
 Body: 身体
 Brew: 炼制
@@ -37,6 +45,8 @@ CannotCraft: 素材不足或当前不满足制作条件
 CannotEquip: 暂不可装配
 CannotResearchNow: 当前无法进行研究
 CannotResearchRecipe: 无法研究此配方
+CardStamp: 可制
+CardYield: 每批 ×{0}
 
 Catalog: {
 	120S: 120 秒
@@ -132,7 +142,7 @@ Catalog: {
 	IMGoodAtMakingStewButDessertsAlwaysTemptMeMore: 我擅长炖菜，不过甜点总是更容易让我动心。
 	INGREDIENTS: 素材
 	IncreasesDamageTakenButGrantsExtraMeleeDamageAndLifeSteal: 大幅提升受到的伤害，但你的近战攻击增加伤害并提供吸血效果。
-	IncreasesMaximumManaTheMoreYourManaExceedsYourLifeTheGreaterYour: 最大魔力增加；你的魔力值越高于生命值，魔法伤害越高。
+	IncreasesMaximumManaTheMoreYourManaExceedsYourLifeTheGreaterYour: 最大魔力增加；最大魔力或[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]越高于生命值，魔法伤害越高。
 	InitiallyUnlocked: 初始解锁
 	JungleGatherAtNight: 丛林 · 夜间采集
 	JungleHornetsAndSpikedJungleSlimes: 丛林 · 蜜蜂与尖刺史莱姆
@@ -228,7 +238,6 @@ Catalog: {
 
 CenterMap: 星图归位
 CharacterLevel: 角色等级
-ClearSlot: 清空此槽
 CloseMap: 关闭星图
 Collection: 星图收录
 ConditionsNotMet: 条件未满足
@@ -250,6 +259,7 @@ DisabledSuffix: " · 已关闭"
 DroppedEquipment: 背包已满，换下的装备掉在脚下
 DropperSource: 以太滴管取得
 ElainaLoadout: 只有伊蕾娜可以使用快捷配装
+Effect: 效果
 EmptyAccessory: 空槽
 EmptyAlchemy: 空气可做不出东西来
 EmptyFilter: "{0} · 暂无"
@@ -260,7 +270,6 @@ EnableSkill: 需开启「{0}」
 Enabled: 已启用
 EnabledSuffix: " · 已启用"
 Equip: 装配
-Equipped: 已装配
 Experience: 经验
 FreeAction: 无消耗，点击即可
 GearChanged: 已换上 {0} 件装备
@@ -273,19 +282,21 @@ Insight: 心得
 InvalidAlchemyAction: 炼金操作无效
 InvalidDescription: 技能描述参数待补充。
 InventoryOwned: 背包持有  {0} / {1}
-KeepAccessory: 保留原有饰品
-KeepEquipment: 保留原装备
+KeepAccessory: 清空此槽位
+KeepEquipment: 空槽
 KeepRecipe: 持有配方即可研究，不消耗配方。
 Learn: 研习
 LearnRequirements: 研习所需
 Learned: 已习得
 LegacyMaterial: 任何非武器，装备的“材料”类物品
+LegendLocked: 研究条件未满足
+LegendStamp: 可制 · 素材齐全
 Legs: 腿部
 Level: 等级
 LevelCap: 上限
 LifeChanged: 最大生命 {0} → {1}
 Loadout: 快捷配装
-LoadoutHint: 推荐物品自带前缀，换下的装备放回背包 · 魔力与生命设为本阶段数值（可降低）
+LoadoutHint: 调试换装：删除原护甲与饰品，再生成预设 · 魔力与生命设为本阶段数值
 LoadoutKey: 快捷配装键
 LoadoutStage: 第 {0} 阶段 · {1} · 等级上限 {2}
 
@@ -318,6 +329,7 @@ ManaChanged: 基础魔力 {0} → {1}
 Materials: 素材
 Max: 最大
 MaxLevel: 满级
+MaxLevelReached: 已达最高等级
 MaxLife: 最大生命
 MerchantSale: 商人售卖
 Met: 已满足
@@ -341,12 +353,14 @@ MoreRequirements: …其余需求见详情
 NeedAlchemyLevel: 需要炼金等级 {0}
 NeedObsidian: 黑曜石不足
 NeedRecipe: 需要 {0} × {1}
+NextLevel: 下一级
 NoCost: 无消耗
 NoLoadouts: SkillBalance.json 中没有阶段配装
 NoPrefix: 不指定前缀
 NoRecipeNeeded: 无需配方物品，达到等级后点击研究即可解锁。
 NoStageLoadout: SkillBalance.json 中没有这个阶段的配装
 NotLearned: 尚未习得
+NotLearnedShort: 未习得
 NotebookDock: 手札
 NotebookTitle: 魔女手札
 OtherSkill: 其他技能
@@ -381,32 +395,51 @@ Same: 一致
 SameEquipment: 装备已与推荐一致
 Seconds: 秒
 SinglePlayerLoadout: 快捷配装只在单人模式可用
-SkillEquipped: "{0}已装配至 {1} 槽"
 SkillLearned: "{0}已习得"
-SkillWheelCooldown: 冷却中 {0}s
-SkillWheelCurrent: 当前术式
-SkillWheelKeep: 松开 · 保留当前
-SkillWheelPrompt: 选择术式
-SkillWheelSlot: 第 {0} 栏 · 松开选中
-SlotCleared: "{0} 槽已清空"
+SlotHint: 点击查看技能 · 长按拖动可移动或交换
 SourceOwned: "{0} · 持有 {1}"
 Spell: 术式
 StageOwned: "{0}    持有 {1}"
 StarsRevealed: " · {0} 颗隐星显现了"
 StudyPoints: 研习点
-TargetSlot: 当前目标
 TooTired: 今天已经太累了
 TravelingMerchantSale: 旅商固定售卖
+Unequip: 卸下
 UnknownEquipment: 未识别：{0}
 UnknownPage: 这一页的内容尚未揭晓。满足研究条件后，便可记录造物的用途与制作方法。
 UnknownRecipe: 尚未登记的配方
+UnlockAfterLearning: 习得后解锁
 Unmet: 未满足
 UnmetSuffix: ：未满足
 Unresearched: 未研究
 Upgrade: 进修
 UpgradeBlocked: 进修 · {0}
 UpgradeRequirements: 进修所需
-Utility: 保留原饰品
+Utility: 空槽（旧版占位）
 WaitingForPlayer: 等待角色数据
 ZoomIn: 放大星图
 ZoomOut: 缩小星图
+AlchemyCollection: 研究收录
+AlchemyMaterialKinds: 持有 {0} 种
+AlchemyDebug: 调试
+AlchemyDebugLevel: 等级 +1
+AlchemyDebugRestock: 补充素材
+AlchemyDebugReset: 重置手记
+AlchemyLevelTitle: 炼金等级
+AlchemyCap: 上限 {0}
+AlchemyExpLabel: 炼金经验
+AlchemyOwned: 持有 {0}
+AlchemyClue: 线索
+AlchemyBatchTotal: 每批 · 共 {0} 批
+AlchemyUsedIn: 用于
+AlchemyCreations: "{0} 种造物"
+AlchemyResearchRecord: 研究记录
+AlchemyExternalSource: 外界取得
+AlchemyCraftYield: 炼制 ×{0}
+AlchemyResearchFree: 研究不消耗素材
+AlchemyCannotBrew: 此素材需从外界取得
+AlchemyMissingMaterial: "{0} ×{1}"
+AlchemyMissingList: 还缺 {0}
+AlchemyListSeparator: 、
+AlchemyCraftCapacity: 最多可制 {0} 批
+AlchemyBatchCount: 批数

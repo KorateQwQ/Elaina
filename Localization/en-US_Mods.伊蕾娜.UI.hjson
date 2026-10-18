@@ -1,10 +1,19 @@
 // Player-facing UI. Debug controls intentionally remain in Chinese.
+HealingTarget: Healing target
+HealingSelf: Me
+HealingCritical: Critical health
+HealingFull: Full health
+HealingMissing: Missing {0} life
+HealingControls: Hold to aim · Release to heal · Center to cancel
+HealingCancel: Release to cancel
 AccessorySlots: Accessories · {0} recommended slots ({1} available)
 Acquirable: Obtainable
 Acquisition: Source
 AcquisitionHint: See the materials page for ingredient sources.
 ActionUnavailable: This action is unavailable.
 Active: Active
+AfterLearning: Once learned
+AfterUpgrade: After upgrade
 Alchemy: Alchemy
 AlchemyExpFull: Alchemy EXP maxed
 AlchemyExperience: Alchemy EXP {0} / {1}
@@ -24,7 +33,6 @@ AvailableForCrafting: Available
 Back: Back
 BaseMana: Base Mana
 BatchCount: Batches
-BatchYield: Yield ×{0}    Batches {1}
 Batches: × {0} batches
 Body: Body
 Brew: Brew
@@ -37,6 +45,8 @@ CannotCraft: Missing materials or crafting requirements.
 CannotEquip: Cannot equip
 CannotResearchNow: Research is unavailable right now.
 CannotResearchRecipe: Cannot research this recipe.
+CardStamp: Craftable
+CardYield: ×{0}
 
 Catalog: {
 	120S: 120 s
@@ -77,8 +87,8 @@ Catalog: {
 	BottledWater: Bottled Water
 	BottledWater3Moonglow1MoonDew3: Bottled Water ×3 + Moonglow ×1 → Moon Dew ×3
 	BrewBasicMixturesInTheCauldronAndBuyEverydayIngredientsFromMerch: Brew basic mixtures in the cauldron and buy everyday ingredients from merchants.
-	CUISINE: CUISINE
-	CURIOS: CURIOS
+	CUISINE: Cuisine
+	CURIOS: Curios
 	Capacity: Capacity
 	CaramelBrulee: Caramel Brulee
 	ChopDownTrees: Chop down trees
@@ -130,9 +140,9 @@ Catalog: {
 	HoneyDrizzledBreadOneOfElainaSFavoriteSweetProvisionsItsEffectsV: Honey-drizzled bread, one of Elaina's favorite sweet provisions. Its effects vary depending on who eats it.
 	HoneyTouchingWater: Honey touching water
 	IMGoodAtMakingStewButDessertsAlwaysTemptMeMore: I'm good at making stew, but desserts always tempt me more.
-	INGREDIENTS: INGREDIENTS
+	INGREDIENTS: Ingredients
 	IncreasesDamageTakenButGrantsExtraMeleeDamageAndLifeSteal: Increases damage taken, but grants extra melee damage and life steal.
-	IncreasesMaximumManaTheMoreYourManaExceedsYourLifeTheGreaterYour: Increases maximum mana. The more your mana exceeds your life, the greater your magic damage.
+	IncreasesMaximumManaTheMoreYourManaExceedsYourLifeTheGreaterYour: Increases maximum mana. The more your maximum mana or [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] exceeds your life, the greater your magic damage.
 	InitiallyUnlocked: Initially unlocked
 	JungleGatherAtNight: Jungle · Gather at night
 	JungleHornetsAndSpikedJungleSlimes: Jungle · Hornets and Spiked Jungle Slimes
@@ -155,7 +165,7 @@ Catalog: {
 	ObtainedFromShimmer: Obtained from Shimmer
 	OtherPlayers: Other players
 	OwnAtLeast1OfEachRequiredMaterial: Own at least 1 of each required material
-	POTIONS: POTIONS
+	POTIONS: Potions
 	Painkiller: Painkiller
 	PerhapsAlchemyIsSimplyFindingNewPossibilitiesInOrdinaryThings: Perhaps alchemy is simply finding new possibilities in ordinary things.
 	PlentySatisfied: Plenty Satisfied
@@ -228,7 +238,6 @@ Catalog: {
 
 CenterMap: Reset view
 CharacterLevel: Character Level
-ClearSlot: Clear Slot
 CloseMap: Close journal
 Collection: Collection
 ConditionsNotMet: Requirements not met
@@ -250,6 +259,7 @@ DisabledSuffix: " · Disabled"
 DroppedEquipment: Inventory full. Replaced gear was dropped at your feet.
 DropperSource: Use an Aether Dropper
 ElainaLoadout: Only Elaina can use Quick Loadout.
+Effect: Effect
 EmptyAccessory: Empty slot
 EmptyAlchemy: I can't make something out of thin air.
 EmptyFilter: "{0} · None"
@@ -260,7 +270,6 @@ EnableSkill: Enable {0}
 Enabled: Enabled
 EnabledSuffix: " · Enabled"
 Equip: Equip
-Equipped: Equipped
 Experience: EXP
 FreeAction: No cost. Click to proceed.
 GearChanged: Equipped {0} items
@@ -273,19 +282,21 @@ Insight: Insight
 InvalidAlchemyAction: Invalid alchemy action.
 InvalidDescription: Skill description unavailable.
 InventoryOwned: In inventory  {0} / {1}
-KeepAccessory: Keep current accessory
-KeepEquipment: Keep current gear
+KeepAccessory: Clears this slot
+KeepEquipment: Empty slot
 KeepRecipe: Keep the recipe item in your inventory to research it. It will not be consumed.
 Learn: Learn
 LearnRequirements: Learning Cost
 Learned: Learned
 LegacyMaterial: Any material item that is not a weapon or equipment
+LegendLocked: Requirements unmet
+LegendStamp: Craftable · ingredients on hand
 Legs: Legs
 Level: Level
 LevelCap: Cap
 LifeChanged: Max Life {0} → {1}
 Loadout: Quick Loadout
-LoadoutHint: Recommended gear includes modifiers. Replaced gear returns to your inventory. Mana and life are set to this stage's values and may decrease.
+LoadoutHint: Debug: deletes equipped armor/accessories and creates the preset. Sets mana and life to stage values.
 LoadoutKey: Loadout key
 LoadoutStage: Stage {0} · {1} · Level cap {2}
 
@@ -318,6 +329,7 @@ ManaChanged: Base Mana {0} → {1}
 Materials: Materials
 Max: Max
 MaxLevel: Max
+MaxLevelReached: Max level reached
 MaxLife: Max Life
 MerchantSale: Sold by the Merchant
 Met: Met
@@ -341,12 +353,14 @@ MoreRequirements: …See details for other requirements
 NeedAlchemyLevel: Requires Alchemy Lv.{0}
 NeedObsidian: Not enough Obsidian.
 NeedRecipe: Requires {0} × {1}
+NextLevel: Next level
 NoCost: No cost
 NoLoadouts: No stage loadouts are configured.
 NoPrefix: No modifier specified
 NoRecipeNeeded: No recipe item needed. Reach the required level, then select Research.
 NoStageLoadout: No loadout is configured for this stage.
 NotLearned: Not learned
+NotLearnedShort: Not learned
 NotebookDock: Journal
 NotebookTitle: Witch's Journal
 OtherSkill: Other skill
@@ -381,32 +395,51 @@ Same: Same
 SameEquipment: Already wearing the recommended gear.
 Seconds: s
 SinglePlayerLoadout: Quick Loadout is only available in single player.
-SkillEquipped: "{0} equipped in slot {1}"
 SkillLearned: Learned {0}
-SkillWheelCooldown: Cooling down {0}s
-SkillWheelCurrent: Current spell
-SkillWheelKeep: Release · keep current
-SkillWheelPrompt: Choose a spell
-SkillWheelSlot: Slot {0} · release to select
-SlotCleared: Slot {0} cleared
+SlotHint: Click to view the skill · Hold and drag to move or swap
 SourceOwned: "{0} · Owned {1}"
 Spell: Spell
 StageOwned: "{0}    Owned {1}"
 StarsRevealed: " · {0} hidden stars revealed"
 StudyPoints: Study Points
-TargetSlot: Target Slot
 TooTired: I'm too tired today.
 TravelingMerchantSale: Sold by the Traveling Merchant
+Unequip: Unequip
 UnknownEquipment: Unknown: {0}
 UnknownPage: This page is yet to be revealed. Meet the research requirements to learn its uses and recipe.
 UnknownRecipe: Unknown recipe
+UnlockAfterLearning: Unlocks once learned
 Unmet: Unmet
 UnmetSuffix: ": Unmet"
 Unresearched: Unresearched
 Upgrade: Upgrade
 UpgradeBlocked: Upgrade · {0}
 UpgradeRequirements: Upgrade Cost
-Utility: Keep current accessory
+Utility: Empty slot (legacy)
 WaitingForPlayer: Waiting for player data
 ZoomIn: Zoom in
 ZoomOut: Zoom out
+AlchemyCollection: Research Collection
+AlchemyMaterialKinds: "{0} kinds owned"
+AlchemyDebug: Debug
+AlchemyDebugLevel: Level +1
+AlchemyDebugRestock: Restock
+AlchemyDebugReset: Reset Journal
+AlchemyLevelTitle: Alchemy Level
+AlchemyCap: Cap {0}
+AlchemyExpLabel: Alchemy EXP
+AlchemyOwned: Owned {0}
+AlchemyClue: Clue
+AlchemyBatchTotal: Per batch · {0} batches
+AlchemyUsedIn: Used In
+AlchemyCreations: "{0} creations"
+AlchemyResearchRecord: Research Record
+AlchemyExternalSource: Obtained Elsewhere
+AlchemyCraftYield: Brew ×{0}
+AlchemyResearchFree: Research costs no ingredients
+AlchemyCannotBrew: Obtain this ingredient elsewhere
+AlchemyMissingMaterial: "{0} ×{1}"
+AlchemyMissingList: Missing {0}
+AlchemyListSeparator: ", "
+AlchemyCraftCapacity: Up to {0} batches
+AlchemyBatchCount: Batch

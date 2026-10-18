@@ -7,82 +7,47 @@ using Microsoft.Xna.Framework;
 namespace 伊蕾娜.ElainaModAlchemy.UI;
 
 /// <summary>Measured presentation rows shared by native SUI and the FNA preview.</summary>
-internal sealed record AlchemyNotebookRow(float Height, Action<AlchemyDrawing, bool> Paint, string Entry = null);
+/// <remarks>Paint receives the pointer in row-local design units, or null when the row is not hovered.
+/// A row holding several targets (e.g. wrapped chips) resolves the clicked one through EntryAt.</remarks>
+internal sealed record AlchemyNotebookRow(float Height, Action<AlchemyDrawing, Vector2?> Paint, string Entry = null,
+    Func<Vector2, string> EntryAt = null)
+{
+    internal string EntryFor(Vector2 local) => EntryAt != null ? EntryAt(local) : Entry;
+}
 
-internal static class AlchemyNotebookPresentation
+internal static partial class AlchemyNotebookPresentation
 {
     internal static readonly Color Ink = new(238, 233, 245), Muted = new(178, 168, 195),
         Lavender = new(202, 178, 237), Gold = new(230, 206, 165), Rule = new(76, 62, 88),
-        Green = new(184, 208, 187), Red = new(224, 163, 157),
+        Green = new(184, 208, 187), Red = new(226, 128, 150),
         Pearl = new(228, 200, 239); // The skill notebook's warm pink-violet highlight.
     internal const int DesignWidth = 1100, DesignHeight = 800;
     internal const int CardWidth = AlchemyCatalogLayout.CardWidth, CardHeight = AlchemyCatalogLayout.CardHeight;
-    internal const int CatalogX = 48, CatalogY = 166, CatalogWidth = 672, CatalogHeight = 509;
-    internal const int DetailX = 780, DetailY = 274, DetailWidth = 272, DetailHeight = 342;
-    internal const int DetailContentWidth = DetailWidth - 24;
+    internal const int CatalogX = 26, CatalogY = 150, CatalogWidth = 727, CatalogHeight = 550;
+    internal const int DetailX = 790, DetailY = 286, DetailWidth = 280, DetailHeight = 307;
+    internal const int DetailContentWidth = 270;
     internal const int QuillWidth = 22, QuillHeight = 42;
     internal static readonly Rectangle CloseButtonBounds = new(1022, 22, 52, 46);
     internal static readonly IReadOnlyList<AlchemyCatalogCategory> Navigation =
         new[] { new AlchemyCatalogCategory("all", "Catalog.All", "All", "", "", "") }.Concat(AlchemyCatalog.Categories).ToArray();
 #if DEBUG
-    internal static readonly Rectangle DebugLevelUpBounds = new(626, 744, 82, 35);
+    internal static readonly Rectangle DebugLevelUpBounds = new(536, 754, 66, 26);
 
     internal static void DebugButton(AlchemyDrawing d, string label, bool hover, bool enabled = true)
     {
         hover &= enabled;
-        d.Box(0, 3, 82, 29, Gold * (hover ? .13f : .045f));
-        d.Frame(0, 3, 82, 29, Gold * (enabled ? hover ? .7f : .32f : .12f));
-        Label(d, label, 41, 11, 10, enabled ? hover ? Ink : Gold : Muted * .45f, .5f);
+        d.RoundRect(0, 2, 64, 22, 11, Ink * (hover ? .05f : 0), Ink * (enabled ? .18f : .08f), 1);
+        d.FittedText(label, 32, 7, 56, 9.5f, enabled ? Muted : Muted * .45f, .5f);
     }
 
     internal static void DebugLevelUpButton(AlchemyDrawing d, AlchemyNotebookState s, bool hover, bool enabled = true)
-        => DebugButton(d, s.Level < s.MaximumLevel ? "等级 +1" : "已满级", hover, enabled && s.Level < s.MaximumLevel);
+        => DebugButton(d, s.Level < s.MaximumLevel ? LocalizeUI("AlchemyDebugLevel") : LocalizeUI("MaxLevelReached"), hover, enabled && s.Level < s.MaximumLevel);
 #endif
     internal const string AssetRoot = "伊蕾娜/ElainaModAlchemy/UI/Assets/";
     internal static int Number(AlchemyCatalogRecipe recipe) => AlchemyCatalog.Recipes.ToList().IndexOf(recipe) + 1;
     internal static Color StateColor(string key) => key switch { "short" or "researchable" => Gold, "acquire" => Green, "locked" => Muted * .65f, _ => Lavender };
     internal static void Label(AlchemyDrawing d, string text, float x, float y, float size, Color color, float align = 0, bool serif = false)
         => d.Text(text, x, y, size, color, align, serif: serif);
-
-    internal static void Chrome(AlchemyDrawing d, AlchemyNotebookState s)
-    {
-        d.NotebookPage(DesignWidth, DesignHeight);
-        d.Line(new(32, 83), new(1068, 83), Lavender * .17f);
-        d.Line(new(26, 145), new(1074, 145), Lavender * .10f);
-        d.Line(new(26, 725), new(1074, 725), Lavender * .15f);
-        // The alchemy surface has continuous shading, without the star chart's viewport bands.
-        d.Line(new(753, 146), new(753, 725), Lavender * .24f);
-        d.Line(new(780, 260), new(1052, 260), Lavender * .12f);
-        d.Glow(21, 2, 80, 80, Pearl * .07f);
-        d.Ring(new(61, 42), 30, 30, Lavender * .17f);
-        d.Image(AssetRoot + "AlchemyCrest", 38, 17, 46, 46, Lavender);
-        Label(d, LocalizeUI("AlchemyTitle"), 101, 27, 28, Ink, serif: true);
-        ProgressHeader(d, s);
-        Label(d, LocalizeUI("Researched"), 952, 115, 10, Muted, 1);
-        d.LatinText(s.Visible.Count(s.IsUnlocked).ToString("00"), 1008, 109, 19, Ink);
-        d.LatinText("/ " + s.Visible.Count.ToString("00"), 1036, 114, 12, Muted);
-        string[] legendStates = [AlchemyNotebookState.Ready, AlchemyNotebookState.Short, AlchemyNotebookState.Locked];
-        for (int i = 0; i < legendStates.Length; i++)
-        {
-            string key = legendStates[i];
-            StateMarker(d, key, new(51 + i * 120, 702));
-            Label(d, AlchemyNotebookState.StateLabel(key), 62 + i * 120, 697, 10, Muted);
-        }
-        d.FittedText(LocalizeUI("Materials"), 33, 748, 54, 13, Ink, serif: true);
-        Label(d, LocalizeUI("AvailableForCrafting"), 33, 768, 9, Muted);
-    }
-
-    private static void ProgressHeader(AlchemyDrawing d, AlchemyNotebookState s)
-    {
-        d.Image(AssetRoot + "LevelCauldron", 850, 28, 24, 28, Gold * .9f);
-        Label(d, LocalizeUI("Alchemy"), 884, 28, 12, new Color(199, 186, 211), serif: true);
-        d.LatinText($"Lv.{s.Level}", 1024, 17, 28, Gold, 1);
-        d.RoundedBar(884, 48, 140, 3, Lavender * .14f);
-        float progress = s.Level >= s.MaximumLevel ? 1 : s.Experience / (float)Math.Max(1, s.ExperienceToNextLevel);
-        d.RoundedBar(884, 48, 140 * Math.Clamp(progress, 0, 1), 3, Pearl * .75f);
-        Label(d, s.Level >= s.MaximumLevel ? LocalizeUI("AlchemyExpFull") : LocalizeUI("AlchemyExperience", s.Experience, s.ExperienceToNextLevel),
-            884, 56, 10, Muted);
-    }
 
     // Local coordinates shared with the native SUI hit area and offline preview.
     internal static void CloseButton(AlchemyDrawing d, bool hover)
@@ -93,62 +58,159 @@ internal static class AlchemyNotebookPresentation
         d.LatinText("ESC", 21, 35, 9, hover ? Ink : Muted, 1, .6f);
     }
 
-    internal static void Category(AlchemyDrawing d, AlchemyNotebookState s, AlchemyCatalogCategory c, bool hover)
+    // Moon paper tilts with its text and seal; pixel specimens keep their native orientation.
+    private const string PaperPath = AssetRoot + "NotebookCards";
+    private const int PaperVariants = 1, PaperMargin = 12, PaperResolution = 2;
+    private const float TextWidth = CardWidth - 22; // inside the ink frame
+    internal static readonly Color PaperInk = new(52, 44, 64), PaperMuted = new(118, 108, 134),
+        StampInk = new(138, 79, 134), ResearchInk = new(147, 103, 28);
+    private static readonly Color FrameInk = new(80, 58, 70), ShadowInk = new(8, 5, 18), SealShadow = new(20, 10, 30),
+        MoteInk = new(255, 236, 190), MoteGlow = new(240, 200, 120);
+    private readonly record struct PaperTone(Color Paper, Color Light, Color Mid, Color Dark);
+    // The baked paper already contains its moon-white tint.
+    private static readonly PaperTone Tone = new(Color.White, new(200, 180, 232), new(154, 124, 201), new(94, 69, 144));
+
+    // Resting offset of the card on the desk, in design units. The quill follows it.
+    internal static Vector2 CardOffset(AlchemyCatalogRecipe r) => AlchemyCardMotion.BaseOffset(Number(r));
+
+    // Without a pose the card is drawn at rest: the selected one upright, lifted and mid-breath.
+    internal static void Card(AlchemyDrawing d, AlchemyNotebookState s, AlchemyCatalogRecipe r, bool hover, float flash = 0, AlchemyCardPose? pose = null)
     {
-        bool active = s.Category == c.Id;
-        d.Diamond(new(12, 20), 5, active || hover ? Lavender : Muted * .7f, active);
-        d.FittedText(c.Name, 26, 13, 62, 14, active || hover ? Ink : Muted, serif: true);
-        int count = c.Id == "all" ? AlchemyCatalog.Recipes.Count : AlchemyCatalog.Recipes.Count(r => r.Category == c.Id);
-        d.LatinText(count.ToString("00"), 110, 15, 11, active ? Lavender : Muted * .65f, 1);
-        if (!active) return;
-        // Match ConstellationDrawing.ActiveFilterMarker's two premultiplied halos.
-        d.Glow(0, 43, 116, 8, new Color(192, 154, 220) * .12f);
-        d.Glow(42, 33, 32, 28, new Color(207, 157, 250) * .34f);
-        for (int i = 0; i < 112; i++)
-            d.Box(2 + i, 47, 1, 1, new Color(192, 154, 220) * (.4f * (1 - Math.Abs(i - 55.5f) / 55.5f)));
-        d.Diamond(new(58, 47), 3, Lavender, true);
+        bool selected = s.SelectedId == r.Id;
+        var p = pose ?? AlchemyCardMotion.Settled(Number(r), selected, hover);
+        var origin = d.Origin;
+        d.Origin += (CardOffset(r) - new Vector2(0, p.Lift)) * d.Scale;
+        var frame = d.PushFrame(new(CardWidth / 2f, CardHeight / 2f), MathHelper.ToRadians(p.Tilt), p.Scale);
+        try
+        {
+            if (s.StateOf(r) == AlchemyNotebookState.Locked) BlankCard(d, s, r, hover, selected, flash);
+            else PaperCard(d, s, r, p, flash);
+        }
+        finally
+        {
+            d.PopFrame(frame);
+            // Paper tilts; the specimen stays upright at native size. Rotate only its anchor.
+            Vector2 pivot = new(CardWidth / 2f, CardHeight / 2f);
+            Vector2 anchor = pivot + Vector2.Transform((new Vector2(CardWidth / 2f, 46) - pivot) * p.Scale,
+                Matrix.CreateRotationZ(MathHelper.ToRadians(p.Tilt)));
+            d.ItemIcon(s.IsUnlocked(r) ? r.IconPath : r.LockedIconPath, anchor.X, anchor.Y,
+                tint: Color.White * (s.StateOf(r) == AlchemyNotebookState.Locked ? .26f : 1));
+            d.Origin = origin;
+        }
     }
 
-    internal static void Card(AlchemyDrawing d, AlchemyNotebookState s, AlchemyCatalogRecipe r, bool hover, float flash = 0)
+    // Requirements not met yet: only a dashed outline where the paper will go.
+    private static void BlankCard(AlchemyDrawing d, AlchemyNotebookState s, AlchemyCatalogRecipe r, bool hover, bool selected, float flash)
     {
-        bool selected = s.SelectedId == r.Id, unlocked = s.IsUnlocked(r);
-        Color edge = selected ? Gold : hover ? Lavender : Lavender * .23f;
-        d.Box(0, 0, CardWidth, CardHeight, Pearl * (selected ? .065f : hover ? .045f : .012f));
-        d.Glow(CardWidth / 2 - 56, 0, 112, 108, Pearl * (selected ? .14f : hover ? .10f : .035f));
-        if (unlocked) d.Frame(0, 0, CardWidth, CardHeight, edge * (selected || hover ? .72f : 1));
-        else d.DashedFrame(0, 0, CardWidth, CardHeight, edge * (selected || hover ? .72f : .7f));
-        if (selected) d.Frame(4, 4, CardWidth - 8, CardHeight - 8, Gold * .12f);
-        d.LatinText("No." + Number(r).ToString("00"), 10, 8, 9, Muted * .8f);
-        if (unlocked)
-        {
-            StateMarker(d, s.StateOf(r), new(CardWidth - 12, 13));
-            d.Ring(new(CardWidth / 2, 53), 33, 33, (selected ? Gold : Lavender) * .24f);
-            d.ItemIcon(r.IconPath, CardWidth / 2, 53);
-        }
-        else
-        {
-            StateMarker(d, s.StateOf(r), new(CardWidth - 12, 13));
-            d.CornerBrackets(CardWidth / 2 - 34, 23, 68, 62, Muted * .36f);
-            MysteryIcon(d, r, CardWidth / 2, 56);
-        }
-        if (flash > 0) d.Ring(new(CardWidth / 2, 53), 33 + (1 - flash) * 14, 33 + (1 - flash) * 14, Lavender * flash);
-        if (flash > 0) d.Glow(CardWidth / 2 - 56, -3, 112, 112, Pearl * (.24f * flash));
-        if (unlocked) d.FittedText(r.Name, CardWidth / 2, 96, CardWidth - 16, 13, selected ? Gold : Ink, .5f, true);
-        else d.Text(MaskedName(r), CardWidth / 2, 97, 14, selected ? Gold : Muted, .5f, 2, true);
-        string caption = unlocked
-            ? r.Craftable ? LocalizeUI("BatchYield", r.Yield, s.MaxBatches(r)) : LocalizeUI("StageOwned", r.Stage, s.Owned(r))
-            : s.Research(r).CanResearch ? LocalizeUI("Researchable") : s.Research(r).RequiresRecipe ? LocalizeUI("RecipeRequired") : LocalizeUI("AlchemyLevel", s.Research(r).RequiredLevel);
-        d.FittedText(caption, CardWidth / 2, 129, CardWidth - 12, 10, !unlocked && s.Research(r).CanResearch ? Gold : Muted, .5f);
+        Color faded = Muted * .55f;
+        d.Box(0, 0, CardWidth, CardHeight, (selected ? Gold : Lavender) * .07f);
+        d.DashedFrame(0, 0, CardWidth, CardHeight, selected ? Gold * .7f : Lavender * (hover ? .5f : .3f));
+
+        if (flash > 0) d.Ring(new(CardWidth / 2, 45), 26 + (1 - flash) * 14, 26 + (1 - flash) * 14, Lavender * flash);
+        NumberRule(d, r, faded, Lavender * .25f);
+        d.FittedText(MaskedName(r), CardWidth / 2, 89, TextWidth, 13, faded, .5f, true, 2);
+        var research = s.Research(r);
+        d.FittedText(research.RequiresRecipe ? LocalizeUI("RecipeRequired") : LocalizeUI("AlchemyLevel", research.RequiredLevel),
+            CardWidth / 2, 108, TextWidth, 10, faded, .5f);
     }
 
-    // Share the exact badge shapes between cards and the three-entry legend.
-    // Gathered/bought materials have no brewing badge; their source stays in the details.
-    private static void StateMarker(AlchemyDrawing d, string state, Vector2 center)
+    private static void PaperCard(AlchemyDrawing d, AlchemyNotebookState s, AlchemyCatalogRecipe r, AlchemyCardPose pose, float flash)
     {
-        if (state is AlchemyNotebookState.Locked or AlchemyNotebookState.Researchable)
-            d.DashedRing(center, 4, state == AlchemyNotebookState.Researchable ? Gold * .75f : Muted * .55f);
-        else if (state is AlchemyNotebookState.Ready or AlchemyNotebookState.Short)
-            d.Diamond(center, 3, StateColor(state), state == AlchemyNotebookState.Ready);
+        string state = s.StateOf(r);
+        bool researchable = state == AlchemyNotebookState.Researchable;
+        int number = Number(r);
+        Vector2 center = new(CardWidth / 2f, CardHeight / 2f), pin = new(CardWidth / 2f, -1);
+
+        // Atlas rows: paper, 1 px dilated outline, soft silhouette (shadow and glow).
+        int cellWidth = (CardWidth + PaperMargin * 2) * PaperResolution, cellHeight = (CardHeight + PaperMargin * 2) * PaperResolution;
+        Rectangle Cell(int row) => new(number % PaperVariants * cellWidth, row * cellHeight, cellWidth, cellHeight);
+        const float texel = 1f / PaperResolution;
+        // The shadow stays on the desk: the higher the card, the further and wider it falls.
+        float lift = pose.Lift;
+        d.Sprite(PaperPath, Cell(2), center + new Vector2(0, 3 + lift * 1.2f), texel * (1 + lift * .006f), ShadowInk * (.38f + lift * .02f));
+        if (pose.Selected > .005f)
+        {
+            float breathe = pose.Time >= 0 ? .14f * MathF.Sin(pose.Time * 2.6f) : 0;
+            d.Sprite(PaperPath, Cell(2), center, texel * 1.04f, Gold * (pose.Selected * (.4f + breathe)));
+            d.Sprite(PaperPath, Cell(1), center, texel, Gold * pose.Selected);
+        }
+        d.Sprite(PaperPath, Cell(0), center, texel, Tone.Paper);
+
+        Color edge = new Color(120, 100, 145) * .35f, marks = new Color(110, 85, 140) * .6f;
+        d.Frame(.5f, .5f, CardWidth-1, CardHeight-1, pose.Selected > .5f ? Gold : edge);
+        Color dots = new Color(90,70,115) * .28f;
+        d.Dots(6.5f,6.5f,CardWidth-6.5f,6.5f,dots);
+        d.Dots(6.5f,CardHeight-6.5f,CardWidth-6.5f,CardHeight-6.5f,dots);
+        d.Dots(6.5f,6.5f,6.5f,CardHeight-6.5f,dots);
+        d.Dots(CardWidth-6.5f,6.5f,CardWidth-6.5f,CardHeight-6.5f,dots);
+        foreach (var corner in new Vector2[] {new(6.5f,6.5f),new(CardWidth-6.5f,6.5f),new(6.5f,CardHeight-6.5f),new(CardWidth-6.5f,CardHeight-6.5f)})
+            d.Diamond(corner,2.2f,marks,true);
+        Color seal = researchable || pose.Selected > .5f ? Gold : marks;
+        d.Line(pin-new Vector2(16,0),pin-new Vector2(7,0),seal);
+        d.Line(pin+new Vector2(7,0),pin+new Vector2(16,0),seal);
+        d.Diamond(pin,6.5f,researchable || pose.Selected > .5f ? new Color(70,56,40) : new Color(226,220,234),true);
+        d.Diamond(pin,6.5f,seal);
+        d.Diamond(pin,2.4f,seal,true);
+        d.Glow(CardWidth/2-34,16,68,60,CategoryGlow(r.Category)*.20f);
+
+        bool unlocked = s.IsUnlocked(r);
+        if (researchable) d.Glow(CardWidth / 2 - 24, 21, 48, 48, new Color(214, 170, 80) * .5f);
+
+        if (flash > 0)
+        {
+            d.Ring(new(CardWidth / 2, 45), 26 + (1 - flash) * 14, 26 + (1 - flash) * 14, Tone.Mid * flash);
+            d.Glow(CardWidth / 2 - 40, 5, 80, 80, Tone.Light * (.5f * flash));
+        }
+        string name = unlocked ? r.Name : MaskedName(r);
+        float nameSize = 13;
+        var nameLines = WrapUIParagraph(name, TextWidth, t => d.Measure(t, nameSize, 0, true));
+        if (nameLines.Length > 1) nameSize = 12;
+        do
+        {
+            nameLines = WrapUIParagraph(name, TextWidth, t => d.Measure(t, nameSize, 0, true));
+            if (nameLines.Length <= 2) break;
+            nameSize -= .5f;
+        } while (nameSize > 8);
+        bool two = nameLines.Length > 1 && unlocked;
+        NumberRule(d, r, PaperMuted, FrameInk * .38f, two ? 7 : 0);
+        for (int i=0; i<Math.Min(2,nameLines.Length); i++)
+            d.FittedText(nameLines[i], CardWidth/2f, (two ? 80 : 89)+i*14, TextWidth, nameSize,
+                unlocked ? PaperInk : PaperMuted, .5f, true);
+        string caption = researchable ? LocalizeUI("Researchable") : state == AlchemyNotebookState.Ready ? LocalizeUI("CardStamp") : null;
+        if (caption != null)
+        {
+            float size = 10, width = d.Measure(caption,size);
+            if (width > TextWidth-10) { size *= (TextWidth-10)/width; width = TextWidth-10; }
+            float left = (CardWidth-width-8)/2;
+            if (researchable) d.Diamond(new(left+2.5f,118),2.5f,ResearchInk,true);
+            else d.Spark(new(left+2.5f,118),6,ResearchInk);
+            d.Text(caption,left+8,111,size,ResearchInk);
+        }
+
+        // Breath: while held, three small diamonds drift up from the seal on a 1.8 s cycle.
+        // Positions follow from the pickup time alone, so no particle list is kept.
+        if (pose.Time < 0) return;
+        for (int k = 0; k < 3; k++)
+        {
+            float age = pose.Time - .4f - k * .6f;
+            if (age < 0) continue;
+            float phase = age / 1.8f;
+            int cycle = (int)MathF.Floor(phase);
+            float u = phase - cycle, alpha = .85f * MathF.Sin(MathF.PI * u) * pose.Selected;
+            Vector2 at = pin + new Vector2((AlchemyCardMotion.Jitter(cycle + 3, k + 41) * 2 - 1) * 26 + MathF.Sin(u * 5 + k) * 2, -3 - 20 * u);
+            d.Glow(at.X - 6, at.Y - 6, 12, 12, MoteGlow * (.7f * alpha));
+            d.Diamond(at, 2.83f * (.8f - .3f * u), MoteInk * alpha, true);
+        }
+    }
+
+    // —— No.07 —— between the specimen and its name.
+    private static void NumberRule(AlchemyDrawing d, AlchemyCatalogRecipe r, Color text, Color rule, float lift = 0)
+    {
+        string label = "No." + Number(r).ToString("00");
+        float half = d.LatinWidth(label, 9) / 2, x = CardWidth / 2f;
+        d.LatinText(label, x, 76 - lift, 9, text, .5f);
+        d.Gradient(x - half - 30, 82 - lift, 24, 1, Color.Transparent, rule);
+        d.Gradient(x + half + 6, 82 - lift, 24, 1, rule, Color.Transparent);
     }
 
     private static readonly string[] MysterySuffixes = ["药水", "合剂", "露滴", "滴管", "面包", "布蕾", "树脂", "液滴", "尘", "药", "雨", "菜", "露", "粉", "蛋", "肉", "豆"];
@@ -165,133 +227,14 @@ internal static class AlchemyNotebookPresentation
         d.ItemIcon(recipe.LockedIconPath, x, y);
     }
 
-    internal static void SelectionQuill(AlchemyDrawing d, float x, float y)
-        => d.Image(AssetRoot + "SelectionQuill", x, y, QuillWidth, QuillHeight, Color.White);
-
-    internal static void Hero(AlchemyDrawing d, AlchemyNotebookState s, float brewProgress)
+    // Card-local anchor; the quill leans past the lifted paper's lower right corner.
+    // It rises with the card and moves out with its pickup scale, but does not turn with it.
+    internal static void SelectionQuill(AlchemyDrawing d, AlchemyCardPose? pose = null)
     {
-        var r = s.Current;
-        Label(d, AlchemyNotebookState.StateLabel(s.StateOf(r)), 1052, 164, 11, StateColor(s.StateOf(r)), 1);
-        d.Glow(758, 166, 108, 108, Pearl * (.13f + (brewProgress > 0 ? .08f * MathF.Sin(brewProgress * MathF.PI) : 0)));
-        float rock = brewProgress > 0 ? MathF.Sin(brewProgress * MathF.PI * 6) * .06f : 0;
-        bool unlocked = s.IsUnlocked(r);
-        if (unlocked)
-        {
-            d.Ring(new(812, 220), 32, 32, Lavender * .25f);
-            d.Diamond(new(812, 220), 39, Lavender * .13f, false);
-            d.ItemIcon(r.IconPath, 812, 220, rock);
-        }
-        else
-        {
-            d.CornerBrackets(778, 186, 68, 68, Muted * .45f);
-            MysteryIcon(d, r, 812, 220);
-        }
-        if (brewProgress > 0)
-            for (int i = 0; i < 7; i++)
-            {
-                float a = brewProgress * MathHelper.TwoPi + i * MathHelper.TwoPi / 7;
-                d.Diamond(new(812 + MathF.Cos(a) * 34, 220 + MathF.Sin(a) * 34), 2, Lavender * MathF.Sin(brewProgress * MathF.PI), true);
-            }
-        string name = unlocked ? r.Name : MaskedName(r);
-        d.FittedText(name, 858, 198, 194, 22, Ink, serif: true);
-        if (unlocked) Label(d, r.Kind, 859, 234, 10, Muted);
+        var p = pose ?? AlchemyCardMotion.Settled(0, true, false);
+        Vector2 center = new(CardWidth / 2f, CardHeight / 2f), anchor = new(CardWidth - 12 + QuillWidth / 2f, CardHeight - 43 + QuillHeight / 2f);
+        Vector2 at = center + (anchor - center) * p.Scale - new Vector2(QuillWidth, QuillHeight) / 2 - new Vector2(0, p.Lift);
+        d.Image(AssetRoot + "SelectionQuill", at.X, at.Y, QuillWidth, QuillHeight, Color.White);
     }
 
-    internal static List<AlchemyNotebookRow> DetailRows(AlchemyDrawing measure, AlchemyNotebookState s)
-    {
-        var rows = new List<AlchemyNotebookRow>();
-        var r = s.Current;
-        void Paragraph(string value, int size, Color color, int leading, int after = 0)
-        {
-            var lines = measure.WrapParagraph(value ?? "", DetailContentWidth - 5, size);
-            rows.Add(new(lines.Length * leading + after, (d, _) =>
-            {
-                for (int i = 0; i < lines.Length; i++) Label(d, lines[i], 0, i * leading, size, color);
-            }));
-        }
-        if (!s.IsUnlocked(r))
-        {
-            var research = s.Research(r);
-            Paragraph(LocalizeUI("UnknownPage"), 12, Muted, 23, 20);
-            Paragraph(LocalizeUI("ResearchRequirements"), 14, Ink, 24, 8);
-            Paragraph(LocalizeUI("AlchemyLevelRequirement", s.Level, research.RequiredLevel), 12, s.Level >= research.RequiredLevel ? Green : Red, 23, 12);
-            if (research.RequiresRecipe)
-            {
-                Paragraph(research.RecipeConfigured ? research.RecipeName : LocalizeUI("RecipeUnregistered"), 12, Ink, 23, 4);
-                Paragraph(LocalizeUI("InventoryOwned", research.RecipeOwned, research.RecipeRequired), 11,
-                    research.RecipeOwned >= research.RecipeRequired && research.RecipeConfigured ? Green : Red, 21, 8);
-                Paragraph(research.ConsumeRecipe ? LocalizeUI("ConsumeRecipe") : LocalizeUI("KeepRecipe"), 11, Muted, 21);
-            }
-            else Paragraph(LocalizeUI("NoRecipeNeeded"), 12, Muted, 23);
-            return rows;
-        }
-        Paragraph(r.Description, 12, new Color(201, 187, 211), 21, 12);
-        foreach (var effect in r.Effects)
-        {
-            var lines = measure.WrapParagraph(effect.Value, DetailContentWidth - 18, 11);
-            rows.Add(new(20 + lines.Length * 18 + 8, (d, _) =>
-            {
-                d.Diamond(new(3, 6), 2, Lavender * .65f, true);
-                Label(d, effect.Label, 12, 0, 10, Muted);
-                for (int i = 0; i < lines.Length; i++) Label(d, lines[i], 12, 19 + i * 18, 11, effect.Tone == "bad" ? Red : effect.Tone == "live" ? Green : Ink);
-            }));
-        }
-        string condition = r.Acquisition ?? r.Stage ?? LocalizeUI("ResearchedLevel", s.Research(r).RequiredLevel);
-        var stage = measure.WrapParagraph(condition, DetailContentWidth - 24, 12);
-        rows.Add(new(39 + stage.Length * 20 + (r.Craftable ? 0 : 20), (d, _) =>
-        {
-            float h = 29 + stage.Length * 20 + (r.Craftable ? 0 : 20);
-            d.Box(0, 0, DetailContentWidth - 3, h, Lavender * .025f);
-            d.Frame(0, 0, DetailContentWidth - 3, h, Lavender * .15f);
-            Label(d, r.Craftable ? LocalizeUI("ResearchNotes") : LocalizeUI("Acquisition"), 11, 9, 10, Muted);
-            for (int i = 0; i < stage.Length; i++) Label(d, stage[i], 11, 29 + i * 20, 12, Ink);
-            if (!r.Craftable) Label(d, LocalizeUI("SourceOwned", r.Stage, s.Owned(r)), 11, 30 + stage.Length * 20, 10, Muted);
-        }));
-        if (!r.Craftable) return rows;
-        rows.Add(new(30, (d, _) =>
-        {
-            Label(d, LocalizeUI("RequiredMaterials"), 0, 7, 12, Ink, serif: true);
-            Label(d, LocalizeUI("Batches", s.Quantity), DetailContentWidth - 3, 9, 10, Muted, 1);
-        }));
-        foreach (var ingredient in r.Ingredients)
-        {
-            var mats = ingredient.Choices.Select(AlchemyCatalog.GetMaterial).ToArray();
-            string name = string.Join(" / ", mats.Select(m => m.Name));
-            string entry = mats.Length == 1 ? mats[0].Entry : null;
-            float height = 46;
-            rows.Add(new(height, (d, hover) =>
-            {
-                int have = s.Available(ingredient), need = ingredient.Count * s.Quantity;
-                d.Box(0, 0, DetailContentWidth - 3, height - 4, have < need ? Red * .04f : Lavender * .018f);
-                if (hover && entry != null) d.Frame(0, 0, DetailContentWidth - 3, height - 4, Lavender * .35f);
-                for (int i = 0; i < mats.Length; i++) d.MaterialIcon(mats[i].IconPath, 2 + i * 12, 5 + i * 5, mats.Length == 1 ? 30 : 23, mats.Length == 1 ? 30 : 23);
-                Label(d, name, 40, 5, 11, entry != null ? Lavender : Ink);
-                if (entry != null) d.Line(new(40, 20), new(40 + measure.Measure(name, 11), 20), Lavender * .35f);
-                Label(d, $"{have} / {need}", DetailContentWidth - 8, 13, 10, have < need ? Red : Muted, 1);
-            }, entry));
-        }
-        return rows;
-    }
-
-    internal static string CraftLabel(AlchemyNotebookState s, bool brewing)
-        => brewing ? LocalizeUI("Brewing") : s.IsBusy ? LocalizeUI("Processing") : !s.IsUnlocked(s.Current) ? LocalizeUI("Research")
-            : !s.Current.Craftable ? s.Current.Id is "flour" or "sugar" or "egg" ? LocalizeUI("MerchantSale") : s.Current.Id is "beef" or "potato" ? LocalizeUI("TravelingMerchantSale") : LocalizeUI("DropperSource")
-            : s.MaxBatches(s.Current) < 1 ? LocalizeUI("MissingMaterials") : $"{(s.Current.Category == "food" ? LocalizeUI("Craft") : LocalizeUI("Brew"))}  × {s.Current.Yield * s.Quantity}";
-
-    internal static void CraftButton(AlchemyDrawing d, AlchemyNotebookState s, bool hover, float progress)
-    {
-        bool enabled = !s.IsBusy && progress <= 0 && (s.IsUnlocked(s.Current) ? s.CanCraft() : s.CanResearch());
-        d.Box(0, 0, 272, 38, Lavender * (enabled ? hover ? .25f : .15f : .04f));
-        d.Frame(0, 0, 272, 38, Lavender * (enabled ? .55f : .20f));
-        d.Diamond(new(9, 19), 3, Lavender * (enabled ? .8f : .3f), false);
-        d.Diamond(new(263, 19), 3, Lavender * (enabled ? .8f : .3f), false);
-        Label(d, CraftLabel(s, progress > 0), 136, 10, 14, enabled || progress > 0 ? Ink : Muted * .6f, .5f, true);
-        if (progress > 0) d.Box(0, 36, 272 * progress, 2, Lavender);
-    }
-
-    internal static string Hint(AlchemyNotebookState s, bool brewing)
-        => brewing ? LocalizeUI("BrewingHint") : !s.IsUnlocked(s.Current) ? s.Research(s.Current).Hint
-            : !s.Current.Craftable ? LocalizeUI("AcquisitionHint")
-            : s.MaxBatches(s.Current) < 1 ? LocalizeUI("MissingMaterialsHint")
-            : LocalizeUI("CraftSummary", s.Owned(s.Current), s.Current.Yield, s.MaxBatches(s.Current));
 }

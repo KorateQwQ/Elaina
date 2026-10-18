@@ -7,8 +7,9 @@ internal static class StateChecks
 {
     private static int passed;
     private static void Check(bool ok, string message) { if (!ok) throw new Exception(message); passed++; }
-    public static void Main()
+    public static void Main(string[] args)
     {
+        Terraria.Localization.Language.Load(args[0], "zh-Hans");
         var state = new AlchemyNotebookState();
         Check(state.Category == "all" && state.Visible.Count == AlchemyCatalog.Recipes.Count, "Default view includes every category");
         Check(state.Materials.Count == 0 && state.Products.Count == 0 && !state.CanCraft(), "No production demonstration stock");
@@ -29,7 +30,7 @@ internal static class StateChecks
         state.SetCategory("all"); state.Select("moondew");
         Check(state.Category == "all" && state.Visible.Count == allCount, "Selecting across categories keeps the all view active");
         Check(AlchemyCatalogLayout.Slots.Select(s => s.Recipe.Id).Distinct().Count() == allCount, "Continuous layout contains each item exactly once");
-        const int viewport = 509;
+        const int viewport = 550;
         foreach (var category in AlchemyCatalog.Categories)
         {
             state.SetCategory(category.Id);

@@ -14,7 +14,7 @@ namespace 伊蕾娜.ElainaModAlchemy.UI;
 
 // Design-space drawing shared by the native SUI controls and the offline FNA preview.
 // Font advances match the existing constellation notebook. Textures are owned by the game or ModContent.
-internal sealed class AlchemyDrawing
+internal sealed partial class AlchemyDrawing
 {
     internal static readonly Color Ink = new(238, 233, 245);
     internal static readonly Color Muted = new(178, 168, 195);
@@ -24,6 +24,21 @@ internal sealed class AlchemyDrawing
     private const string SurfacePath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookSurface";
     private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Glow";
     private const string DiscPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Disc";
+    private const string MagicIconPath = "伊蕾娜/Snippets/MagicStarIcon";
+    private const string MagicTagPrefix = "[klicon/16,0:" + MagicIconPath + "][c/4C91FFFF:";
+    private const string ChineseMagicTag = MagicTagPrefix + "魔力]";
+    private const string EnglishMagicTag = MagicTagPrefix + "Magic Power]";
+    private static readonly Color MagicColor = new(76, 145, 255);
+
+    // Treat the resource icon and its name as one inline unit for measuring and wrapping.
+    // These private markers never enter localization or the rendered text.
+    private static string PackMagicTags(string text) => text.Replace(ChineseMagicTag, "\uE000").Replace(EnglishMagicTag, "\uE001");
+    private static string UnpackMagicTags(string text) => text.Replace("\uE000", ChineseMagicTag).Replace("\uE001", EnglishMagicTag);
+    private static bool IsMagicMarker(char c) => c is '\uE000' or '\uE001';
+    private static string MagicLabel(char c) => c == '\uE000' ? "魔力" : "Magic Power";
+
+    private float MagicWidth(char marker, float size, float spacing, bool serif)
+        => size + size * .12f + spacing + Measure(MagicLabel(marker), size, spacing, serif);
     private readonly Dictionary<string, Texture2D> _textures = new(StringComparer.Ordinal);
     internal SpriteBatch Batch;
     internal Vector2 Origin;
@@ -66,17 +81,38 @@ internal sealed class AlchemyDrawing
 
     // Material slots keep their layout while the centered icon uses 75% of its fitted size.
     internal void MaterialIcon(string path, float x, float y, float width, float height)
-        => Image(path, x + width * .125f, y + height * .125f, width * .75f, height * .75f);
-
-    // Show catalog pixel art at its native size, independent of the old pencil bounds.
-    internal void ItemIcon(string path, float centerX, float centerY, float rotation = 0)
     {
-        var texture = Texture(path);
-        DrawPixel(texture, At(centerX, centerY), Color.White, rotation, Scale);
+        Texture2D texture;
+        Rectangle frame;
+        if (path.StartsWith(AlchemyCatalog.VanillaItemRoot, StringComparison.Ordinal))
+            Terraria.Main.GetItemDrawFrame(int.Parse(path[AlchemyCatalog.VanillaItemRoot.Length..]), out texture, out frame);
+        else { texture = Texture(path); frame = new(0, 0, texture.Width, texture.Height); }
+        float fit = Math.Min(1, Math.Min(width / frame.Width, height / frame.Height));
+        DrawPixel(texture, At(x + width / 2, y + height / 2), Color.White, 0, fit * Scale, frame, Outline(path));
     }
 
+    private Texture2D Outline(string path) => Texture(AlchemyNotebookPresentation.AssetRoot + "Outlines/" + path[(path.LastIndexOf('/') + 1)..]);
+
+    internal void OutlinedItem(string path, float x, float y, Color? tint = null)
+    {
+        var texture = Texture(path);
+        DrawPixel(texture, At(x, y), tint ?? Color.White, 0, Scale, outline: Outline(path));
+    }
+
+    // Show catalog pixel art at its native size, independent of the old pencil bounds.
+    internal void ItemIcon(string path, float centerX, float centerY, float rotation = 0, Color? tint = null)
+    {
+        var texture = Texture(path);
+        DrawPixel(texture, At(centerX, centerY), tint ?? Color.White, rotation, Scale);
+    }
+
+    // Atlas cell centered on a design-space point; texelSize is design units per texel.
+    internal void Sprite(string path, Rectangle source, Vector2 center, float texelSize, Color color, float rotation = 0)
+        => Batch.Draw(Texture(path), At(center.X, center.Y), source, color, rotation,
+            new Vector2(source.Width, source.Height) / 2, texelSize * Scale, SpriteEffects.None, 0);
+
     private void DrawPixel(Texture2D texture, Vector2 center, Color tint, float rotation, float scale,
-        Rectangle? sourceFrame = null)
+        Rectangle? sourceFrame = null, Texture2D outline = null)
     {
         // Capture Begin's actual state: in Deferred mode the device may still hold
         // the previous batch's state. Keep SUI's transform and clipping intact.
@@ -92,6 +128,13 @@ internal sealed class AlchemyDrawing
         try
         {
             var frame = sourceFrame ?? new Rectangle(0, 0, texture.Width, texture.Height);
+            if (outline != null)
+            {
+                int index = frame.Y / (frame.Height + 2);
+                var ring = new Rectangle(0, index * (frame.Height + 2), frame.Width + 2, frame.Height + 2);
+                Batch.Draw(outline, center, ring, new Color(236, 229, 247) * (.62f * tint.A / 255f), rotation,
+                    new Vector2(ring.Width, ring.Height) / 2, scale, SpriteEffects.None, 0);
+            }
             Batch.Draw(texture, center, frame, tint, rotation,
                 new Vector2(frame.Width, frame.Height) / 2, scale, SpriteEffects.None, 0);
         }
@@ -101,6 +144,30 @@ internal sealed class AlchemyDrawing
             Batch.GraphicsDevice.SamplerStates[0] = sampler;
             Batch.Begin(sort, blend, sampler, depth, rasterizer, effect, transform);
         }
+    }
+
+    internal readonly record struct BatchFrame(SpriteSortMode Sort, BlendState Blend, SamplerState Sampler,
+        DepthStencilState Depth, RasterizerState Rasterizer, Effect Effect, Matrix Transform);
+
+    // Rotate and scale everything drawn until PopFrame about a design-space pivot.
+    // The extra matrix is applied before SUI's own transform; screen-space clipping is unchanged,
+    // and nested pixel sprites pick up the frame through DrawPixel's state capture.
+    internal BatchFrame PushFrame(Vector2 pivot, float rotation, float scale)
+    {
+        var saved = new BatchFrame(BatchSortMode(Batch), BatchBlendState(Batch), BatchSamplerState(Batch),
+            BatchDepthState(Batch), BatchRasterizerState(Batch), BatchEffect(Batch), BatchTransform(Batch));
+        Vector2 p = At(pivot.X, pivot.Y);
+        var local = Matrix.CreateTranslation(-p.X, -p.Y, 0) * Matrix.CreateRotationZ(rotation)
+            * Matrix.CreateScale(scale, scale, 1) * Matrix.CreateTranslation(p.X, p.Y, 0);
+        Batch.End();
+        Batch.Begin(saved.Sort, saved.Blend, saved.Sampler, saved.Depth, saved.Rasterizer, saved.Effect, local * saved.Transform);
+        return saved;
+    }
+
+    internal void PopFrame(BatchFrame saved)
+    {
+        Batch.End();
+        Batch.Begin(saved.Sort, saved.Blend, saved.Sampler, saved.Depth, saved.Rasterizer, saved.Effect, saved.Transform);
     }
 
     // FNA has no public batch-state snapshot API. These accessors target the
@@ -137,10 +204,22 @@ internal sealed class AlchemyDrawing
     internal void RoundedBar(float x, float y, float width, float height, Color color)
     {
         if (width <= 0 || height <= 0) return;
-        if (width <= height) { Stretch(DiscPath, x, y, width, height, color); return; }
-        float radius = height / 2;
         // Clip each disc to its outer half, avoiding translucent overlap with the center.
         var disc = Texture(DiscPath);
+        if (height > width * 2)
+        {
+            // Upright pill, e.g. a scroll thumb.
+            float cap = width / 2;
+            int top = disc.Height / 2;
+            Batch.Draw(disc, At(x, y), new Rectangle(0, 0, disc.Width, top), color, 0, Vector2.Zero,
+                new Vector2(width / disc.Width, cap / top) * Scale, SpriteEffects.None, 0);
+            Box(x, y + cap, width, height - width, color);
+            Batch.Draw(disc, At(x, y + height - cap), new Rectangle(0, top, disc.Width, disc.Height - top), color, 0, Vector2.Zero,
+                new Vector2(width / disc.Width, cap / (disc.Height - top)) * Scale, SpriteEffects.None, 0);
+            return;
+        }
+        if (width <= height) { Stretch(DiscPath, x, y, width, height, color); return; }
+        float radius = height / 2;
         int half = disc.Width / 2;
         Batch.Draw(disc, At(x, y), new Rectangle(0, 0, half, disc.Height), color, 0, Vector2.Zero,
             new Vector2(radius / half, height / disc.Height) * Scale, SpriteEffects.None, 0);
@@ -241,6 +320,22 @@ internal sealed class AlchemyDrawing
     internal float Measure(string text, float size, float spacing = 0, bool serif = false)
     {
         if (string.IsNullOrEmpty(text)) return 0;
+        string packed = PackMagicTags(text);
+        if (packed.IndexOfAny(['\uE000', '\uE001']) >= 0)
+        {
+            float total = 0;
+            int start = 0;
+            for (int i = 0; i < packed.Length; i++)
+            {
+                if (!IsMagicMarker(packed[i])) continue;
+                if (i > start) total += Measure(packed[start..i], size, spacing, serif) + spacing;
+                total += MagicWidth(packed[i], size, spacing, serif);
+                if (i + 1 < packed.Length) total += spacing;
+                start = i + 1;
+            }
+            if (start < packed.Length) total += Measure(packed[start..], size, spacing, serif);
+            return total;
+        }
         var font = GetFont(serif);
         float factor = FontScale(font, size);
         if (spacing == 0) return font.MeasureString(text).X * factor;
@@ -255,6 +350,31 @@ internal sealed class AlchemyDrawing
         if (string.IsNullOrEmpty(text)) return;
         var font = GetFont(serif);
         float factor = FontScale(font, size), start = x - Measure(text, size, spacing, serif) * align;
+        string packed = PackMagicTags(text);
+        if (packed.IndexOfAny(['\uE000', '\uE001']) >= 0)
+        {
+            int segmentStart = 0;
+            for (int i = 0; i < packed.Length; i++)
+            {
+                if (!IsMagicMarker(packed[i])) continue;
+                if (i > segmentStart)
+                {
+                    string segment = packed[segmentStart..i];
+                    Text(segment, start, y, size, color, spacing: spacing, serif: serif);
+                    start += Measure(segment, size, spacing, serif) + spacing;
+                }
+                var icon = Texture(MagicIconPath);
+                float centerY = y + font.MeasureString("国").Y * factor * .5f;
+                DrawPixel(icon, At(start + size * .5f, centerY), Color.White * (color.A / 255f), 0,
+                    size / Math.Max(icon.Width, icon.Height) * Scale);
+                Text(MagicLabel(packed[i]), start + size * 1.12f + spacing, y, size,
+                    MagicColor * (color.A / 255f), spacing: spacing, serif: serif);
+                start += MagicWidth(packed[i], size, spacing, serif) + spacing;
+                segmentStart = i + 1;
+            }
+            if (segmentStart < packed.Length) Text(packed[segmentStart..], start, y, size, color, spacing: spacing, serif: serif);
+            return;
+        }
         if (spacing == 0)
         {
             Batch.DrawString(font, text, At(start, y), color, 0, Vector2.Zero,
@@ -268,6 +388,17 @@ internal sealed class AlchemyDrawing
                 factor * Scale, SpriteEffects.None, 0);
             start += font.MeasureString(glyph).X * factor + spacing;
         }
+    }
+
+    // A short label turned about its own center, e.g. an ink stamp. Shrinks to fit width.
+    internal void RotatedText(string text, Vector2 center, float width, float size, Color color, float rotation, bool serif = false)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        var font = GetFont(serif);
+        float measured = Measure(text, size, 0, serif);
+        if (measured > width) size *= width / measured;
+        Batch.DrawString(font, text, At(center.X, center.Y), color, rotation, font.MeasureString(text) / 2,
+            FontScale(font, size) * Scale, SpriteEffects.None, 0);
     }
 
     internal void FittedText(string text, float x, float y, float width, float size, Color color,
@@ -303,7 +434,11 @@ internal sealed class AlchemyDrawing
     }
 
     internal string[] WrapParagraph(string text, float width, float size)
-        => WrapUIParagraph(text, width, value => Measure(value, size));
+    {
+        var lines = WrapUIParagraph(PackMagicTags(text ?? ""), width, value => Measure(value, size));
+        for (int i = 0; i < lines.Length; i++) lines[i] = UnpackMagicTags(lines[i]);
+        return lines;
+    }
 
     internal float Paragraph(string text, float x, float y, float width, float size, Color color, float lineHeight = 24)
     {
@@ -315,50 +450,4 @@ internal sealed class AlchemyDrawing
         return y;
     }
 
-    // Same purple paper, exposed cover and leaf edges as ConstellationDrawing.NotebookPage.
-    internal void NotebookPage(float width, float height)
-    {
-        Color paper = Lavender, leather = new(26, 23, 35);
-        Box(-7, 4, width + 16, height + 8, leather);
-        Line(new Vector2(-8, 4), new Vector2(-8, height + 5), paper * .42f);
-        Line(new Vector2(2, height + 12), new Vector2(width + 5, height + 12), Color.Black * .35f, 2);
-        Line(new Vector2(width + 10, 12), new Vector2(width + 10, height + 7), Color.Black * .3f, 2);
-        Box(5, height, width - 6, 9, new Color(39, 32, 51));
-        Box(width, 7, 7, height - 9, new Color(39, 32, 51));
-        for (int leaf = 0; leaf < 3; leaf++)
-        {
-            float inset = leaf * 3;
-            Color edge = paper * (.38f - leaf * .045f);
-            Line(new Vector2(5, height + inset + 1), new Vector2(width - 1, height + inset + 1), edge);
-            Line(new Vector2(width + inset + 1, 9), new Vector2(width + inset + 1, height - 1), edge);
-            Line(new Vector2(width - 1, height + inset + 1), new Vector2(width + inset + 1, height - 1), edge);
-        }
-        Stretch(SurfacePath, 0, 0, width, height, Color.White);
-        Frame(1, 1, width - 2, height - 2, Lavender * .5f);
-        Frame(10, 10, width - 20, height - 20, Lavender * .13f);
-        Line(new Vector2(12, 2), new Vector2(width - 12, 2), Lavender * .1f);
-        Gradient(2, 22, 5, height - 44, new Color(13, 13, 23) * .8f, LineColor * .35f);
-        Gradient(7, 22, 5, height - 44, LineColor * .35f, new Color(13, 13, 23) * .65f);
-        PageCorner(new Vector2(10, 10), 0);
-        PageCorner(new Vector2(width - 35, 10), MathHelper.PiOver2);
-        PageCorner(new Vector2(10, height - 35), -MathHelper.PiOver2);
-        PageCorner(new Vector2(width - 35, height - 35), MathHelper.Pi);
-    }
-
-    internal void PageCorner(Vector2 topLeft, float rotation)
-    {
-        const float scale = 25f / 32;
-        var color = new Color(193, 171, 202);
-        Vector2 AtCorner(float x, float y) => topLeft + new Vector2(12.5f)
-            + Vector2.Transform(new Vector2(x - 16, y - 16) * scale, Matrix.CreateRotationZ(rotation));
-        void Stroke(float x1, float y1, float x2, float y2, float width = 1)
-            => Line(AtCorner(x1, y1), AtCorner(x2, y2), color, width * scale);
-        Stroke(1, 31, 1, 1); Stroke(1, 1, 31, 1);
-        Stroke(6, 22, 6, 6); Stroke(6, 6, 22, 6);
-        Stroke(1, 1, 10, 10, .7f);
-        Stroke(13, 3, 16, 6, .7f); Stroke(16, 6, 13, 9, .7f);
-        Stroke(13, 9, 10, 6, .7f); Stroke(10, 6, 13, 3, .7f);
-        var dot = AtCorner(6, 6);
-        Image(DiscPath, dot.X - 2 * scale, dot.Y - 2 * scale, 4 * scale, 4 * scale, color);
-    }
 }

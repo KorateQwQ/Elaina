@@ -92,6 +92,19 @@ internal static class PanelChecks
         Check(missile.SkillSlot == -1 && player.ActiveSkill[7] == state.Current.Skill, "replacement clears previous saved slot");
         var wind = state.Current.Skill;
         Check(state.ClearSlot() && wind.SkillSlot == -1 && player.ActiveSkill[7] == null, "clear slot persistence fields");
+        state.TargetSlot = 2; state.Equip();
+        state.Select(nameof(MagicMissileSkill)); state.TargetSlot = 5; state.Equip();
+        state.TargetSlot = 2;
+        Check(state.Equip() && ReferenceEquals(player.ActiveSkill[2], missile) && ReferenceEquals(player.ActiveSkill[5], wind)
+            && missile.SkillSlot == 2 && wind.SkillSlot == 5, "equipping an equipped skill swaps with the occupant");
+        Check(state.CanUnequip && !state.CanEquip, "equipped target offers unequip");
+        Check(state.MoveSlot(2, 6) && player.ActiveSkill[2] == null && ReferenceEquals(player.ActiveSkill[6], missile) && missile.SkillSlot == 6, "drag to empty slot");
+        Check(state.MoveSlot(6, 5) && ReferenceEquals(player.ActiveSkill[5], missile) && ReferenceEquals(player.ActiveSkill[6], wind)
+            && missile.SkillSlot == 5 && wind.SkillSlot == 6, "drag onto occupied slot swaps");
+        Check(!state.MoveSlot(0, 1) && !state.MoveSlot(5, 5) && !state.MoveSlot(5, 8), "drag rejects empty source, same or invalid slot");
+        state.TargetSlot = 5; state.ClearSlot(); state.TargetSlot = 6; state.ClearSlot();
+        Check(missile.SkillSlot == -1 && wind.SkillSlot == -1 && player.ActiveSkill.All(s => s == null), "unequip both");
+        state.Select(nameof(WindBladeSkill));
         int pointsBeforeFreeUpgrade = player.SkillPoint;
         Check(state.CanUpgrade(nameof(WindBladeSkill)) && state.Upgrade(nameof(WindBladeSkill)) && state.Level(nameof(WindBladeSkill)) == 2
             && player.SkillPoint == pointsBeforeFreeUpgrade && state.MaxLevel(nameof(WindBladeSkill)) == 5, "default upgrade is free below max level");

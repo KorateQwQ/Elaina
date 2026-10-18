@@ -72,7 +72,6 @@ internal sealed class PreviewGame : Game
         Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
         var cooldown = Content.Load<Effect>("Effects/Content/CDEffect");
         var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
-        var sans = Content.Load<DynamicSpriteFont>("Fonts/HarmonyOS_Sans_SC");
         var pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
         var glow = Procedural(128, (x, y) =>
@@ -82,10 +81,7 @@ internal sealed class PreviewGame : Game
         });
         var diamond = Procedural(64, (x, y) =>
             (.98f - (Math.Abs(x - 31.5f) / 32f + Math.Abs(y - 31.5f) / 32f)) / .06f);
-        var veil = new Texture2D(GraphicsDevice, 256, 256);
-        veil.SetData(VeilPixels(256));
-        art = new Art(Texture("ElainaModSkills/ElainaSkillUI/BattleBar/Ornaments"),
-            new SkillBarDrawing.StateArt(pixel, glow, diamond), veil, cooldown, serif, sans, serif);
+        art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond), cooldown, serif);
         basic = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, TextureEnabled = false };
     }
 
@@ -105,26 +101,31 @@ internal sealed class PreviewGame : Game
             Render("count8-hover-current", scale, v => Fill(v, 8, 1, 0, 0));
             Render("count8-hover-cooldown", scale, v => Fill(v, 8, 1, 4, 0));
         }
-        Render("count8-hover-en", 1, v => Fill(v, 8, 1, 7, 0, english: true));
-        Render("count8-idle-en", 1, v => Fill(v, 8, 1, -1, 0, english: true));
+        // 画布 2x 叠加轮盘 0.5x，近似高 UI 缩放下的游戏内配置。
+        Render("count8-hover-wheel0.5", 2, v => Fill(v, 8, 1, 3, 0), wheel: .5f);
         Render("count2-hover", 1, v => Fill(v, 2, 1, 1, 0));
         Render("gapped-slots", 1, v => Fill(v, 3, 1, 1, 2, slots: [0, 2, 5]));
+        foreach (float t in new[] { 1.3f, 1.7f, 2.1f })
+            Render($"flow-{t:0.0}", 1, v => Fill(v, 5, t, -1, 0));
         foreach (float t in new[] { .03f, .08f, .16f, .3f })
             Render($"open-{t:0.00}", 1, v => Fill(v, 8, t, -1, 0));
-        foreach (float t in new[] { .05f, .12f, .2f })
+        foreach (float t in new[] { .04f, .1f, .17f, .26f })
             Render($"close-{t:0.00}", 1, v => Fill(v, 8, 1, 3, 0, close: t));
         Exit();
     }
 
     private static void Fill(View view, int count, float seconds, int hovered, int current,
-        bool english = false, int[] slots = null, float close = -1)
+        int[] slots = null, float close = -1)
     {
         bool open = close < 0;
         view.Count = count;
         view.Center = new Vector2(CanvasWidth, CanvasHeight) / 2;
-        view.ScreenSize = new Vector2(CanvasWidth, CanvasHeight);
         view.Open = open;
         view.Hovered = open ? hovered : -1;
+        view.Chosen = open ? -1 : hovered;
+        view.Release = open || hovered < 0 ? -1 : Math.Clamp(close / ChosenClose, 0, 1);
+        view.Focus = hovered >= 0 ? hovered : Array.IndexOf(slots ?? [0, 1, 2, 3, 4, 5, 6, 7], current);
+        view.FocusAge = 1;
         view.Presence = open ? Math.Min(1, seconds / FadeIn) : Math.Max(0, 1 - close / FadeOut);
         view.RingScale = open ? OpeningRingScale(seconds) : MathHelper.Lerp(.94f, 1, view.Presence);
         view.Seconds = seconds + .5f;
@@ -150,35 +151,22 @@ internal sealed class PreviewGame : Game
                 Cooldown = cooling ? 3.4f : charging ? 2.1f : 0,
                 Remaining = cooling ? .57f : charging ? .4f : 0,
                 Current = slot == current,
-                Chosen = !open && i == hovered,
                 Slot = slot,
                 Stack = cooling ? 0 : 1,
                 MaxStack = charging ? 3 : 1,
                 Icon = null,
             };
         }
-
-        int shown = hovered;
-        if (shown < 0)
-        {
-            view.Name = english ? "Choose a spell" : "选择术式";
-            view.Sub = english ? "Release · keep current" : "松开 · 保留当前";
-            return;
-        }
-        int shownSlot = slots?[shown] ?? shown;
-        view.Name = english ? Skills[shownSlot].En : Skills[shownSlot].Zh;
-        view.Sub = shownSlot == current ? (english ? "Current spell" : "当前术式")
-            : shown == 4 ? (english ? "Cooling down 3.4s" : "冷却中 3.4s")
-            : english ? $"Slot {shownSlot + 1} · release to select" : $"第 {shownSlot + 1} 栏 · 松开选中";
     }
 
-    private void Render(string name, float scale, Action<View> setup)
+    private void Render(string name, float scale, Action<View> setup, float wheel = 1)
     {
         int width = (int)(CanvasWidth * scale), height = (int)(CanvasHeight * scale);
         using var target = new RenderTarget2D(GraphicsDevice, width, height);
         GraphicsDevice.SetRenderTarget(target);
         GraphicsDevice.Clear(Color.Black);
-        transform = Matrix.CreateScale(scale);
+        var canvas = Matrix.CreateScale(scale);
+        transform = canvas;
         var view = new View();
         setup(view);
         for (int i = 0; i < view.Count; i++)
@@ -190,6 +178,8 @@ internal sealed class PreviewGame : Game
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, RasterizerState.CullNone, null, transform);
         DrawBackdrop();
+        transform = ScaleAround(view.Center, wheel) * canvas;
+        Restart(batch, SpriteSortMode.Deferred, null);
         SkillWheelDrawing.Draw(batch, art, view, Sector, Restart);
         DrawPointer(view.Pointer);
         batch.End();
@@ -203,10 +193,11 @@ internal sealed class PreviewGame : Game
 
     private void DrawBackdrop()
     {
+        // 接近地表森林的青绿天色：轮盘外圈的星点和菱形在这类亮背景下最容易发虚。
         var pixel = art.State.Pixel;
         for (int y = 0; y < CanvasHeight; y += 8)
             batch.Draw(pixel, new Rectangle(0, y, (int)CanvasWidth, 8),
-                Color.Lerp(new Color(78, 112, 150), new Color(36, 44, 60), y / CanvasHeight));
+                Color.Lerp(new Color(66, 128, 132), new Color(40, 98, 96), y / CanvasHeight));
         var random = new Random(7);
         for (int i = 0; i < 40; i++)
             batch.Draw(pixel, new Rectangle(random.Next(0, 560), random.Next(0, 300), 2, 2), Color.White * .6f);

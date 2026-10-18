@@ -7,7 +7,7 @@ using Terraria.ID;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Heal;
 
-public class HealProj : ElainaBasicProjectile
+public partial class HealProj : ElainaBasicProjectile
 {
     private readonly List<VisualUnit> rainParticles = new();
     private Vector2 lastParticleAnchor;
@@ -45,13 +45,6 @@ public class HealProj : ElainaBasicProjectile
         rainGlowTexture = null;
     }
 
-    public override void SetDefaults()
-    {
-        Projectile.hide = true;
-        Projectile.timeLeft = 300;
-        base.SetDefaults();
-    }
-
     public override void OnSpawn_AllClient()
     {
         base.OnSpawn_AllClient();
@@ -59,11 +52,7 @@ public class HealProj : ElainaBasicProjectile
 
     public override void AI()
     {
-        if (!TryGetTarget(out Player target))
-        {
-            Projectile.Kill();
-            return;
-        }
+        if (!UpdateHealing(out Player target)) return;
 
         Projectile.localAI[0] = MathF.Min(Projectile.localAI[0] + 1f, TransitionDuration);
         Vector2 currentAnchor = target.VisualCenter().Floor()+new Vector2(0,-target.gravDir*10);
@@ -214,20 +203,6 @@ public class HealProj : ElainaBasicProjectile
                 new Vector2(animatedScale * 1.02f),
                 0f);
         }
-    }
-
-    private bool TryGetTarget(out Player target)
-    {
-        int targetIndex = (int)Projectile.ai[0];
-        if (targetIndex >= 0 && targetIndex < Main.maxPlayers &&
-            Main.player[targetIndex] is { active: true, dead: false } candidate)
-        {
-            target = candidate;
-            return true;
-        }
-
-        target = null;
-        return false;
     }
 
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,

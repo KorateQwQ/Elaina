@@ -2,16 +2,11 @@
 
 using System;
 using System.IO;
-using System.Linq;
 using KL.ActionsSystem;
 using KL.DamageSystem;
 using KL.Drawing;
-using KL.Dusts;
-using KL.Dusts.Water;
 using KL.Extensions;
 using KL.Utils;
-using Terraria.GameContent;
-using Terraria.ID;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Managers;
@@ -22,7 +17,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
 public class WaterLaser : ElainaBasicProjectile
 {
-    public const float SplashRadius = 80f;
+    public static float SplashRadius => 80f;
     public const float SplashDamageMultiplier = 0.5f;
     public const float OutsideFreezeCooldownDamageMultiplier = 0.7f / 0.9f;
     private const float BeamWidth = 50f;
@@ -35,13 +30,12 @@ public class WaterLaser : ElainaBasicProjectile
     private int pulseTimer;
     private bool damagePulse;
     private int primaryTarget = -1;
-    private int primaryEntity = -1;
-    private readonly HashSet<int> hitEntities = new();
+    private readonly HashSet<int> hitNpcIndices = new();
     private readonly IceWaterHitBatch iceCycleBatch = new();
     private bool IsChanneling => Projectile.ai[0] == 1f;
 
-    private float startWidth = 2f;
-    private float endWidth = 7f;
+    private readonly Vector2[] drawPoints = new Vector2[200];
+    private Action drawVisual;
     
     private List<Vector2> trailPoints = new List<Vector2>(200);
     public override void SetDefaults()
@@ -55,7 +49,7 @@ public class WaterLaser : ElainaBasicProjectile
         Projectile.friendly = false;
         Projectile.penetrate = -1;
         Projectile.usesLocalNPCImmunity = true;
-        // 每个付费脉冲只命中一次；下个脉冲开始时清理独立免疫。
+        // 每个 NPC 部位在一个付费脉冲中只命中一次；下个脉冲清理独立免疫。
         Projectile.localNPCHitCooldown = -1;
         maxDistance = 100;
         base.SetDefaults();
@@ -142,7 +136,7 @@ public class WaterLaser : ElainaBasicProjectile
                     damagePulse = true;
                     Projectile.friendly = true;
                     Array.Clear(Projectile.localNPCImmunity);
-                    hitEntities.Clear();
+                    hitNpcIndices.Clear();
                     iceCycleBatch.Reset();
                     pulseTimer = intervalFrames;
                 }
@@ -183,16 +177,13 @@ public class WaterLaser : ElainaBasicProjectile
 
     public override bool? CanDamage() => damagePulse && IsChanneling && HasAuthority();
 
-    private static int DamageEntity(NPC npc) => npc.realLife >= 0 ? npc.realLife : npc.whoAmI;
-
     public override bool? CanHitNPC(NPC target)
     {
-        int entity = DamageEntity(target);
-        if (!target.IsAttackable(Owner.dontHurtCritters) || hitEntities.Contains(entity))
+        if (!target.IsAttackable(Owner.dontHurtCritters) || hitNpcIndices.Contains(target.whoAmI))
             return false;
         if (target.whoAmI == primaryTarget) return null;
-        // 同一个 Boss 的其它身体段不能额外吃到溅射。
-        if (entity == primaryEntity || trailPoints.Count == 0) return false;
+        // 各个可受击部位独立检查溅射，不按 realLife 合并伤害目标。
+        if (trailPoints.Count == 0) return false;
         Vector2 impact = trailPoints[^1];
         return InSplash(target.Hitbox, impact)
             && Collision.CanHitLine(impact, 1, 1, target.position, target.width, target.height)
@@ -227,7 +218,7 @@ public class WaterLaser : ElainaBasicProjectile
     void LaserCollisionCheck()
     {
         trailPoints.Clear();
-        primaryTarget = primaryEntity = -1;
+        primaryTarget = -1;
         float noiseScale = DrawManager.FrameTime(10,70,30,time); // 振幅，控制波形高度
         float timeEffect = (Main.GameUpdateCount%1800)/2f;
 
@@ -298,7 +289,6 @@ public class WaterLaser : ElainaBasicProjectile
                 {
                     nearestNpcDistance = hitLength;
                     primaryTarget = npc.whoAmI;
-                    primaryEntity = DamageEntity(npc);
                 }
             }
         }
@@ -318,90 +308,62 @@ public class WaterLaser : ElainaBasicProjectile
     
     public override bool PreDraw(ref Color lightColor)
     {
-        if (!IsChanneling || trailPoints.Count == 0 || maxDistance <= 0.01f) return false;
-        DrawLaser();
-        EndBeginDraw();
-        return base.PreDraw(ref lightColor);
+        if (!IsChanneling || trailPoints.Count < 2 || maxDistance <= 0.01f) return false;
+        drawVisual ??= DrawVisual;
+        LayerDrawRequestSystem.RequestBloom("Elaina:WaterLaser", WaterLaserVisuals.Layer,
+            LayerDrawRequestSystem.DrawTiming.After, drawVisual);
+        return false;
     }
 
     public void SpawnWaterDust()
     {
-        if (trailPoints.Count == 0) return;
-        Vector2? lastPoint = trailPoints[^1];
-        if (lastPoint!=null)
+        if (trailPoints.Count < 2 || maxDistance <= 0.01f) return;
+        Vector2 direction = Projectile.velocity;
+        Vector2 normal = new(-direction.Y, direction.X);
+        // 起点只在杖尖附近浮动，避免原模板向前随机偏移 50px 留下空隙。
+        WaterLaserDust.Emit(Projectile.Center + normal * Main.rand.NextFloat(-3f, 3f),
+            direction.RotatedBy(Main.rand.NextFloat(-0.66f, 0.66f)) * Main.rand.NextFloat(5f, 8f),
+            new Vector2(40f, 18f), 15, attachedEntity: Owner);
+        if (time % 5 == 0)
+            WaterLaserDust.Emit(Projectile.Center, direction * 0.65f,
+                new Vector2(25f, 25f), 14, foam: true, attachedEntity: Owner);
+
+        // 随长度增加，每两帧最多四片；中段沿实际曲线切线移动。
+        int middleCount = Math.Clamp((int)(maxDistance / 240f), 0, 4);
+        if (time % 2 == 0)
+        for (int i = 0; i < middleCount; i++)
         {
-            
-            //前端粒子
-            KLBasicDust.SpawnDustsCircle(Projectile.Center-Projectile.velocity*20, ModContent.DustType<WaterDust>(), 1, Projectile.velocity*12.1f, 
-                1.3f,20, new Color(100, 156, 255,255),new Vector2(0.5f,0.5f),0,50,new Vector2(0.5f,0f),7,attachedEntity:Owner);
-       
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust1>(), 1, Projectile.velocity*12.1f, 
-                1.8f,20, new Color(100, 156, 255,255),new Vector2(0.5f,0.5f)*1.5f,0,50,new Vector2(0.5f,0f),7,attachedEntity:Owner);
-
-            int middleCount = (int)MathHelper.Lerp(0, 5, (maxDistance - 200) / 1000f);
-            //中间粒子
-            for (int i = 0; i < middleCount; i++)
-            {
-                Vector2 randPoint = trailPoints[Main.rand.Next(0, trailPoints.Count-1)];
-                KLBasicDust.SpawnDustsCircle(randPoint, ModContent.DustType<WaterDust>(), 1, Projectile.velocity*12.1f, 
-                    0.0f,20, new Color(100, 156, 255,155),new Vector2(0.5f,0.5f),0,0,new Vector2(0.5f,0f),7,attachedEntity:Owner);
-            }
-
-            
-            //末端粒子
-            KLBasicDust.SpawnDustsCircle(lastPoint.Value, ModContent.DustType<WaterDust>(), 2, Projectile.velocity*12.1f, 
-                6.28f,20, new Color(120, 156, 255,200),new Vector2(0.4f,0.7f),10,0,new Vector2(0.5f,0f),7);
-            
-            KLBasicDust.SpawnDustsCircle(lastPoint.Value, ModContent.DustType<ShockDust>(), 1, Projectile.velocity*5.1f, 
-                6.28f,10, Color.White,new Vector2(0.2f,0.1f),0,0,new Vector2(0.2f,0f));
+            int index = Main.rand.Next(4, trailPoints.Count - 2);
+            Vector2 tangent = (trailPoints[index + 1] - trailPoints[index]).SafeNormalize(direction);
+            WaterLaserDust.Emit(trailPoints[index], tangent * Main.rand.NextFloat(6f, 10f),
+                new Vector2(48f, 20f), 17);
         }
+
+        Vector2 impact = trailPoints[^1];
+        Vector2 endDirection = (impact - trailPoints[^2]).SafeNormalize(direction);
+        for (int i = 0; i < 2; i++)
+        {
+            Vector2 spray = endDirection.RotatedBy(Main.rand.NextFloat(-2.5f, 2.5f));
+            WaterLaserDust.Emit(impact+Main.rand.NextVector2Circular(10,10), spray * Main.rand.NextFloat(8f, 15f),
+                new Vector2(104f, 27f), Main.rand.Next(15, 22));
+        }
+        if (time % 4 == 0)
+            WaterLaserDust.Emit(impact, Vector2.Zero, new Vector2(50f), 18, foam: true);
+        Lighting.AddLight(Projectile.Center, new Vector3(0.12f, 0.35f, 0.48f));
+        Lighting.AddLight(impact, new Vector3(0.1f, 0.3f, 0.42f));
     }
-    
-    void DrawLaser()
+
+    private void DrawVisual()
     {
-        Asset<Texture2D> waterNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/水波",AssetRequestMode.ImmediateLoad);
-        Asset<Texture2D> waterNoise2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/5");
-        Asset<Texture2D> trail2 = ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/EnergyFlow", AssetRequestMode.ImmediateLoad);
-        Asset<Texture2D> trail3 = ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/noi_1", AssetRequestMode.ImmediateLoad);
-
-        Asset<Texture2D> waterNoise3 = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/T_VFX_Noise_1");
-        Asset<Texture2D> waterNoise4 = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/7");
-
-        Asset<Texture2D> noise = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/5");
-        Asset<Texture2D> headClip = ModContent.Request<Texture2D>("KL/Effects/Tex/射灯",AssetRequestMode.ImmediateLoad);//ModContent.Request<Texture2D>("KL/Effects/Tex/EnergyFlow");
-        Asset<Texture2D> headClip2 = ModContent.Request<Texture2D>("KL/Effects/Tex/射灯2",AssetRequestMode.ImmediateLoad);//ModContent.Request<Texture2D>("KL/Effects/Tex/EnergyFlow");
-        Asset<Texture2D> trail = ModContent.Request<Texture2D>("KL/Effects/Tex/Line", AssetRequestMode.ImmediateLoad);
-        Texture2D wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/wind3", AssetRequestMode.ImmediateLoad).Value;
-
-        float width = DrawManager.FrameTime(0.25f, 0.3f, 30, time);
-
-        float length = 3f;
-        
-        Vector2 imageScale = new Vector2(0.5f/(maxDistance/1000f),1f);
-        
-        Vector2 uTIme = new Vector2(-time%1800/20f,0);
-
-        startWidth = 2;
-        endWidth = 8;
-        
-        
-        TrailEffect(waterNoise2.Value,trailPoints.ToArray(),new Color(30, 180, 255,255),new Color(30, 180, 255,255),
-            startWidth,endWidth,startAlpha:1f,endAlpha:1f,blendState:2,
-            uTime:uTIme,imageScale:imageScale,
-            clipMask:waterNoise2.Value,maskTime:uTIme,threshold:0.4f,maskScale:imageScale,
-            debugPoint:false,useRforAlpha:true);
-        
-        imageScale = new Vector2(1.5f/(maxDistance/1000f),1f);
-        
-        TrailEffect(trail3.Value,trailPoints.ToArray(),new Color(255, 255, 255,255),new Color(255, 255, 255,255),
-            startWidth*0.6f,endWidth*0.6f,startAlpha:1f,endAlpha:1f,
-            uTime:uTIme,imageScale:imageScale,blendState:1,
-            clipMask:waterNoise3.Value,maskTime:uTIme*2f,threshold:0.2f,maskScale: new Vector2(0.25f/(maxDistance/1000f),1f),
-            debugPoint:false,useRforAlpha:false);
-        
+        if (!Projectile.active || !IsChanneling || trailPoints.Count < 2) return;
+        // 两层射线共享一个缓存数组，不再每层 ToArray 分配。
+        trailPoints.CopyTo(drawPoints);
+        WaterLaserVisuals.DrawBeam(drawPoints, maxDistance, time);
+        WaterLaserVisuals.BeginSprites();
+        //WaterLaserVisuals.DrawMuzzle(Projectile.Center, Projectile.velocity, time);
         EndBeginDraw();
     }
-    
+
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
@@ -410,7 +372,7 @@ public class WaterLaser : ElainaBasicProjectile
     
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        hitEntities.Add(DamageEntity(target));
+        hitNpcIndices.Add(target.whoAmI);
         iceCycleBatch.OnHit(Owner, target, damageDone, waterBall: false);
         base.OnHitNPC(target, hit, damageDone);
     }

@@ -6,10 +6,11 @@ internal sealed class PanelScene
     private ConstellationDetail _detail;
     private readonly ConstellationDrawing _draw = new(new Terraria.ModLoader.Mod());
     private readonly ConstellationButterflyMotion _butterfly = new();
+    private readonly ConstellationNodeEffects _nodeFx = new();
     private readonly ConstellationBookMotion _book = new();
     private const float DesignWidth = 1100, DesignHeight = 800;
     private const int MapX = 26, MapY = 208, MapWidth = 727, MapHeight = 473, WorldWidth = 727, WorldHeight = 550;
-    private const int SlotLeft = 74, SlotTop = 741, SlotSize = 42, SlotStride = 48, TargetLeft = 464;
+    private const int SlotLeft = 99, SlotTop = 741, SlotSize = 42, SlotStride = 48;
     private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
     private float _zoom = .84f, _flash;
     private Vector2 _pan;
@@ -19,9 +20,13 @@ internal sealed class PanelScene
     private string _hoverNode, _tooltip;
     private string _tooltipKey;
     private Rectangle? _tooltipAnchor;
+    private int _slotPress = -1, _slotDropTarget = -1;
+    private bool _slotDragging;
     private HashSet<string> _ancestors;
     private ConstellationLayoutEditor _layoutEditor;
     private bool Editing => _layoutEditor?.IsEditing == true;
+    // The fixture has no pointer: Main.MouseScreen is off-screen, so nothing is hovered.
+    private Vector2 Design(Vector2 mouse) => mouse;
     internal void RenderPrimaryButton(SpriteBatch batch, float scale, string mode, bool hover, bool pressed, float seconds)
     {
         if (_state == null)
@@ -151,11 +156,9 @@ internal sealed class PanelScene
         string[] filters = ["learned", "ready", "locked", "hidden"];
         for (int i = 0; i < 4; i++) DrawFilter(i, filters[i], false);
         for (int i = 0; i < 8; i++) DrawSlot(i, false);
-        DrawClearSlot(false);
-        CameraControl("minus", 591, false, true); CameraControl("plus", 663, false, true); CameraControl("center", 706, false, true);
-        _draw.Text(LocalizeUI("Back"), 1008, 756, 11, Muted, .5f);
+        CameraControl("minus", false, true); CameraControl("plus", false, true); CameraControl("center", false, true);
         foreach (string kind in new[] { "edit", "save", "cancel", "reset" }) DrawLayoutButton(kind, false);
-        DrawDebugButton("points", false); DrawDebugButton("reset-skills", false);
+        foreach (string kind in new[] { "points", "level", "cap", "reset-skills" }) DrawDebugButton(kind, false);
         batch.End();
         using var clip = new RasterizerState { ScissorTestEnable = true, CullMode = CullMode.None };
         Rectangle Clip(float x, float y, float w, float h) => new((int)(origin.X + x * scale), (int)(origin.Y + y * scale), (int)(w * scale), (int)(h * scale));
@@ -173,9 +176,9 @@ internal sealed class PanelScene
             3, detail.Height * detail.Height / detail.ContentHeight, Muted * .5f);
         if (scenario == "requirements-tooltip")
         {
-            float buttonY = detail.Top + detail.Rows.TakeWhile(row => !row.Actions.Any(a => a.Kind == "upgrade")).Sum(row => row.Height);
-            _draw.Tooltip(_state.Requirements(_state.Selected, true).ActionTooltip("进修至 2 级"), new Vector2(1040, buttonY + 15),
-                new Vector2(DesignWidth, DesignHeight), new Rectangle(ConstellationDetail.Left, (int)buttonY, ConstellationDetail.Width, 35));
+            var area = ConstellationDetail.PillArea(0, ConstellationDetail.Pills(_state).Length);
+            _draw.Tooltip(_state.Requirements(_state.Selected, true).ActionTooltip("进修至 2 级"), new Vector2(area.Center.X, area.Y + 15),
+                new Vector2(DesignWidth, DesignHeight), area);
         }
         batch.End();
         Console.WriteLine($"{scenario}: detail {detail.ContentHeight:0}/{detail.Height:0}, scale {scale:0.00}");

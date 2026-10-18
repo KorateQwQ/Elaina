@@ -211,6 +211,12 @@ public abstract partial class ElainaSkill : ModSkill
     }
 
     /// <summary>
+    /// 魔杖在 <see cref="CanUseSkill"/> 通过后、进入原版物品使用前调用。返回 false 时不挥杖、不播放使用音效，
+    /// 供先选目标再施法的技能只打开选择器；确认后由技能自己的施法动作出手。
+    /// </summary>
+    public virtual bool BeginWandUse() => true;
+
+    /// <summary>
     /// 在绘制技能图标后绘制冷却时间等附加信息。
     /// </summary>
     public override void PostDrawSkillIcon(Vector2 position, Vector2 scale,Color color, Effect effect = null)

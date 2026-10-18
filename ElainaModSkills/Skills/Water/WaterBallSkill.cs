@@ -33,6 +33,7 @@ public class WaterBallSkill: ElainaSkill
 
     public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale,  Color color, Effect effect = null)
     {
+        if (CurrentCD > 1) CurrentCD = 1;
         return base.PreDrawSkillIcon(position, scale, color, effect);
     }
 }

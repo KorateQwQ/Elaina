@@ -1,0 +1,209 @@
+using System.Reflection;
+using KL.SkillSystem;
+using KL.Utils;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
+using BarrierPlayer = 伊蕾娜.ElainaModSkills.Skills.MagicBarrier.MagicBarrierSkill.MagicBarrierModPlayer;
+using GameMain = Terraria.Main;
+
+static class Checks
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    static int passed, current;
+    static readonly Dictionary<int, Player[]> worlds = new();
+    static readonly Queue<Packet> pending = new();
+    static readonly List<Packet> sent = new();
+    static readonly Mod mod = new CheckMod();
+    record Packet(int From, int To, int Ignore, byte[] Bytes);
+    static void Check(bool value, string message) { if (!value) throw new Exception(message); passed++; }
+    static SkillSyncPlayer Sync(int player) => GameMain.player[player].GetModPlayer<SkillSyncPlayer>();
+    static ElainaSkillModPlayer Skills(int player) => GameMain.player[player].GetModPlayer<ElainaSkillModPlayer>();
+    static AshenWitchSkill Witch(int player) { Check(Skills(player).TryGetUnlockedModSkill<AshenWitchSkill>(out var witch), "Skill instance exists"); return witch; }
+
+    static void CreateWorld(int endpoint)
+    {
+        var players = new Player[256];
+        for (int id = 0; id < players.Length; id++)
+        {
+            var player = players[id] = new Player { whoAmI = id, active = id < 3, statLifeMax = 500, statLifeMax2 = 500, statLife = 500, statManaMax2 = 200 };
+            var parts = new ModPlayer[] { new SkillSyncPlayer(), new ElainaSkillModPlayer(), new ElainaModplayer { Elaina = id < 2 }, new ElainaAttributeModPlayer(), new BarrierPlayer() };
+            for (ushort i = 0; i < parts.Length; i++)
+            {
+                typeof(ModPlayer).GetProperty("Entity", All)!.SetValue(parts[i], player);
+                typeof(ModPlayer).GetProperty("Index", All)!.SetValue(parts[i], i);
+                typeof(ModType).GetProperty("Mod", All)!.SetValue(parts[i], mod);
+                if (endpoint == -1 && id == 0) ContentInstance.Register(parts[i]);
+            }
+            typeof(Player).GetField("modPlayers", All)!.SetValue(player, parts);
+            parts[0].Initialize();
+            player.GetModPlayer<ElainaAttributeModPlayer>().Initialize();
+        }
+        worlds[endpoint] = players;
+    }
+
+    static void At(int endpoint)
+    {
+        current = endpoint;
+        GameMain.player = worlds[endpoint];
+        GameMain.netMode = endpoint == -1 ? NetmodeID.Server : NetmodeID.MultiplayerClient;
+        GameMain.myPlayer = endpoint == -1 ? 255 : endpoint;
+    }
+
+    static void Capture(ModPacket packet, int to, int ignore)
+    {
+        var wire = new Packet(current, to, ignore, ((MemoryStream)packet.BaseStream).ToArray());
+        sent.Add(wire); pending.Enqueue(wire);
+    }
+
+    static void Deliver(Packet packet, int endpoint)
+    {
+        At(endpoint);
+        using var reader = new BinaryReader(new MemoryStream(packet.Bytes));
+        reader.ReadUInt16(); // Length is normally filled by ModPacket.Send, which is the only detour.
+        Check(reader.ReadByte() == MessageID.ModPacket, "Real tML ModPacket header");
+        reader.ReadByte(); // KL mod net id; fewer than 256 mods in this fixture.
+        Check(reader.ReadByte() == (byte)KLNetModule.NetMessageType.RPCFunction, "Real KL RPC serialization");
+        KLNetModule.HandleRPCFunction(reader, packet.From == -1 ? 256 : packet.From);
+        Check(reader.BaseStream.Position == reader.BaseStream.Length, "RPC consumes complete payload");
+    }
+
+    static void Pump()
+    {
+        int delivered = 0;
+        while (pending.TryDequeue(out var packet))
+        {
+            Check(++delivered < 1000, "No RPC response loop");
+            if (packet.From != -1) Deliver(packet, -1);
+            else foreach (int endpoint in worlds.Keys.Where(i => i >= 0 && i != packet.Ignore && (packet.To == -1 || i == packet.To)).ToArray())
+                Deliver(packet, endpoint);
+        }
+    }
+
+    static void Learn(int id, bool enabled)
+    {
+        Skills(id).UnlockSkill(Skill.NewSkill(typeof(AshenWitchSkill), mod));
+        Witch(id).IsEnabled = enabled;
+    }
+
+    static void Stats(int id, bool learned, bool enabled)
+    {
+        var player = GameMain.player[id];
+        player.statLifeMax2 = 500; player.statLife = 500;
+        Skills(id).ResetEffects(); player.GetModPlayer<BarrierPlayer>().ResetEffects(); Skills(id).UpdateEquips();
+        Check(player.statLifeMax2 == (learned && enabled ? 300 : 500), "Final max life recomputes from synchronized state");
+        Check(player.statLife == player.statLifeMax2, "Current life is clamped only by the active skill");
+        if (learned)
+        {
+            Check(Witch(id).LostMaxLife == (enabled ? 200 : 0), "LostMaxLife is derived, not transmitted");
+            Check(player.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint == (enabled ? 400 : 200), "Unique magic maximum follows life conversion");
+        }
+        Check(player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled == (learned && enabled), "Unique magic mode agrees with skill toggle");
+    }
+
+    static void LearnBarrier(int id, bool enabled)
+    {
+        Skills(id).UnlockSkill(Skill.NewSkill(typeof(MagicBarrierSkill), mod));
+        Skills(id).TryGetUnlockedModSkill<MagicBarrierSkill>(out var skill);
+        skill.IsEnabled = enabled;
+    }
+
+    static void BarrierState(int id, bool expected)
+    {
+        var player = GameMain.player[id];
+        player.statLifeMax2 = 500;
+        var barrier = player.GetModPlayer<BarrierPlayer>();
+        Skills(id).ResetEffects(); barrier.ResetEffects(); Skills(id).UpdateEquips();
+        Check(barrier.BarrierEnabled == expected, "Passive activation agrees on every endpoint");
+        player.lifeRegen = -40; player.lifeRegenCount = -599;
+        typeof(BarrierPlayer).GetMethod("ApplyLifeRegenFloor", All)!.Invoke(barrier, null);
+        Check(player.lifeRegen == (expected ? 0 : -40) && player.lifeRegenCount == (expected ? 0 : -599),
+            "Synchronized passive controls negative regen without synchronizing magic");
+    }
+
+    static void Main()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath(); GameMain.dedServ = true;
+        typeof(Mod).GetField("netID", All)!.SetValue(mod, (short)0);
+        KL.KL.KLInstance = mod;
+        typeof(Mod).Assembly.GetType("Terraria.ModLoader.ModNet")!.GetField("netMods", All)!.SetValue(null, new Mod[] { mod });
+        CreateWorld(-1); CreateWorld(0); CreateWorld(1);
+        At(-1); Sync(0).Load(); // Real KLModPlayer RPC instance registration.
+        using var sendHook = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!, (Action<ModPacket, int, int>)Capture);
+
+        At(0); Learn(0, true); LearnBarrier(0, true); var owner0 = Witch(0); Sync(0).OnEnterWorld(); Pump();
+        At(-1); Check(!ReferenceEquals(owner0, Witch(0)), "Server owns an independent skill instance"); Stats(0, true, true);
+        At(1); Learn(1, false); LearnBarrier(1, true); Sync(1).OnEnterWorld(); Pump();
+        foreach (int endpoint in worlds.Keys)
+        {
+            At(endpoint); Stats(0, true, true); Stats(1, true, false);
+            BarrierState(0, true); BarrierState(1, false);
+            Check(Skills(0).HasUnlockedSkill<MagicBarrierSkill>(), "Owner 0's shield is broadcast");
+            Check(Skills(1).HasUnlockedSkill<MagicBarrierSkill>(), "Shield is synchronized even when its prerequisite is disabled");
+        }
+        At(0); Check(ReferenceEquals(owner0, Witch(0)), "ClientToAll does not replace the owner's skill");
+        int count = sent.Count;
+        foreach (int endpoint in worlds.Keys)
+        {
+            At(endpoint);
+            for (int frame = 0; frame < 20; frame++) for (int id = 0; id < 3; id++) Sync(id).PostUpdate();
+        }
+        Check(sent.Count == count, "Unchanged state, remote players and server send no per-frame packets");
+
+        At(0); owner0.IsEnabled = false; Sync(0).PostUpdate(); Check(sent.Count == count + 1, "Witch toggle emits one owner RPC"); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); Stats(0, true, false); BarrierState(0, false); }
+        At(0); owner0.IsEnabled = true; Sync(0).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); Stats(0, true, true); BarrierState(0, true); }
+
+        At(0); Skills(0).TryGetUnlockedModSkill<MagicBarrierSkill>(out var ownerBarrier);
+        ownerBarrier.IsEnabled = false; count = sent.Count; Sync(0).PostUpdate();
+        Check(sent.Count == count + 1, "Shield toggle emits one owner RPC"); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); BarrierState(0, false); }
+        At(0); count = sent.Count; ownerBarrier.IsEnabled = true; Sync(0).PostUpdate();
+        Check(sent.Count == count + 1, "Re-enabling shield emits one owner RPC"); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); BarrierState(0, true); }
+        At(1); BarrierState(1, false); // Player 0's enabled Witch cannot activate player 1's barrier.
+
+        // A late join gets both passive states, including a disabled shield.
+        At(1); Skills(1).TryGetUnlockedModSkill<MagicBarrierSkill>(out var ownerBarrier1);
+        ownerBarrier1.IsEnabled = false; Sync(1).PostUpdate(); Pump();
+        CreateWorld(2); At(2); Sync(2).OnEnterWorld(); Pump();
+        At(2); Stats(0, true, true); Stats(1, true, false); Stats(2, false, false);
+        Check(Skills(0).HasUnlockedSkill<MagicBarrierSkill>() && Skills(1).HasUnlockedSkill<MagicBarrierSkill>(), "Late join receives shield skills");
+        Skills(1).TryGetUnlockedModSkill<MagicBarrierSkill>(out var lateBarrier1);
+        Check(!lateBarrier1.IsEnabled, "Late join receives disabled shield toggle");
+        BarrierState(0, true); BarrierState(1, false);
+        Check(!Skills(2).HasUnlockedSkill<AshenWitchSkill>(), "Joining non-Elaina never gains Ashen Witch");
+        count = sent.Count; Sync(2).PostUpdate(); Check(sent.Count == count, "Join snapshot is cached");
+
+        At(1); Witch(1).IsEnabled = true; Sync(1).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); BarrierState(1, false); }
+        At(1); ownerBarrier1.IsEnabled = true; Sync(1).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); BarrierState(1, true); }
+
+        At(0); Skills(0).LockSkill(Skills(0).UnlockedSkill[nameof(MagicBarrierSkill)]); Sync(0).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); Check(!Skills(0).HasUnlockedSkill<MagicBarrierSkill>(), "Shield revocation reaches every endpoint"); BarrierState(0, false); }
+        At(0); LearnBarrier(0, true); Sync(0).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); BarrierState(0, true); }
+
+        At(-1); Skills(0).UnlockedSkill["Unrelated"] = new Skill();
+        At(0); Skills(0).LockSkill(Skills(0).UnlockedSkill[nameof(AshenWitchSkill)]); Sync(0).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); Check(!Skills(0).HasUnlockedSkill<AshenWitchSkill>(), "Revocation reaches every endpoint"); Stats(0, false, false); BarrierState(0, false); }
+        At(-1); Check(Skills(0).UnlockedSkill.ContainsKey("Unrelated"), "Revocation preserves unrelated skills"); Skills(0).UnlockedSkill.Remove("Unrelated");
+        At(0); Learn(0, false); Sync(0).PostUpdate(); Pump();
+        foreach (int endpoint in worlds.Keys) { At(endpoint); Stats(0, true, false); BarrierState(0, false); }
+
+        // Single player keeps all passive behavior, with no transport overhead.
+        At(0); GameMain.netMode = NetmodeID.SinglePlayer; count = sent.Count;
+        Sync(0).OnEnterWorld(); Witch(0).IsEnabled = true; Sync(0).PostUpdate();
+        Check(sent.Count == count, "Single player sends no RPC"); Stats(0, true, true); BarrierState(0, true);
+        Console.WriteLine($"Skill sync: {passed} checks passed (real KL RPC dispatch, server + three clients, synchronized regen protection)." );
+    }
+    sealed class CheckMod : Mod { public override string Name => "SkillSyncChecks"; }
+}

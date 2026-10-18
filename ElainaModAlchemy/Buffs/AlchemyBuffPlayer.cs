@@ -18,7 +18,8 @@ public sealed class AlchemyBuffPlayer : ModPlayer
     public const float FeatherlightSpeedMultiplier = 1.2f;
     public float TravelSpeedMultiplier => FeatherlightActive ? FeatherlightSpeedMultiplier : 1f;
 
-    private double regenerationRemainder;
+    private int painkillerTicks;
+    private int painkillerHealingHundredths;
     private double lifeStealRemainder;
 
     public override void ResetEffects()
@@ -34,35 +35,41 @@ public sealed class AlchemyBuffPlayer : ModPlayer
     public override void UpdateDead()
     {
         ResetEffects();
-        regenerationRemainder = 0;
+        painkillerTicks = 0;
+        painkillerHealingHundredths = 0;
         lifeStealRemainder = 0;
     }
 
-    public override void UpdateLifeRegen()
+    private void UpdatePainkillerHealing()
     {
-        if (!PainkillerActive)
+        // 由所属玩家结算直接治疗，避免服务器和远端重复回血。
+        // 满血时不储存治疗，效果结束或死亡也清空计时和小数余量。
+        if (!PainkillerActive || Player.dead || Player.whoAmI != Main.myPlayer
+            || Player.statLife >= Player.statLifeMax2)
         {
-            regenerationRemainder = 0;
+            painkillerTicks = 0;
+            painkillerHealingHundredths = 0;
             return;
         }
 
-        // 原版每 2 点 lifeRegen 对应每秒恢复 1 点生命。
-        // 保留小数，避免生命上限不是 50 的倍数时损失恢复量。
-        regenerationRemainder += Player.statLifeMax2 * 0.02d;
-        int regeneration = (int)regenerationRemainder;
-        regenerationRemainder -= regeneration;
-        Player.lifeRegen += regeneration;
+        if (++painkillerTicks < 60) return;
+        painkillerTicks = 0;
+
+        // 每秒直接恢复最大生命的 1%。用百分之一生命为单位保存余量，避免浮点误差。
+        // 例如三次应恢复 1.33、1.33、1.34，实际依次治疗 1、1、2。
+        painkillerHealingHundredths += Player.statLifeMax2 % 100;
+        int healing = Player.statLifeMax2 / 100 + painkillerHealingHundredths / 100;
+        painkillerHealingHundredths %= 100;
+        healing = Math.Min(healing, Player.statLifeMax2 - Player.statLife);
+        if (healing > 0) Player.Heal(healing);
+        if (Player.statLife >= Player.statLifeMax2) painkillerHealingHundredths = 0;
     }
 
     public override void PostUpdateMiscEffects()
     {
-        // 星力同时提高魔力上限，并按当前魔力超过生命值的差额提高魔法伤害。
-        if (StarPowerActive)
-        {
-            Player.statManaMax2 += 40;
-            float difference = Math.Max(0, Player.statMana - Player.statLife);
-            Player.GetDamage(DamageClass.Magic) += Math.Min(1f, difference / 300f) * .30f;
-        }
+        UpdatePainkillerHealing();
+
+        // 星力由 ElainaStarPowerPlayer 接入当前角色使用的魔力上限。
 
         if (!BloodthirstActive || Player.moonLeech || Player.statLife >= Player.statLifeMax2)
             lifeStealRemainder = 0;

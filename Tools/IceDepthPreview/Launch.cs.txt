@@ -1,0 +1,134 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    string LaunchSource()
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        var cone = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeProj.cs"));
+        var basis = Read(Path.Combine(root, "../KL/Projectiles/KLProjectile.cs"));
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string[] fields = ["oldCenterTrailPositions", "oldCenterTrailPointCount", "distanceLimitedTrailPositions", "TrailLength", "TrailSampleCount", "TrailMaxLength"];
+        string source = """
+            namespace 伊蕾娜.ElainaModSkills.Skills.Ice {
+            public partial class ProjectilePreviewBase {
+                public sealed class OwnerContext { public Vector2 position, oldPosition; }
+                public OwnerContext Owner = new();
+                protected bool CanMoveInTimeStop => true;
+                protected bool SampleTrailInDrawBehind => true;
+                public virtual void AI() {}
+            """;
+        source += string.Join("\n", basis.DescendantNodes().OfType<FieldDeclarationSyntax>()
+            .Where(f => f.Declaration.Variables.Any(v => fields.Contains(v.Identifier.Text))));
+        source += Methods(basis, "ValidTrailArray", "RecordTrail", "RecordDistanceLimitedTrail", "DrawBehind")
+            .Replace("public override void DrawBehind", "public virtual void DrawBehind")
+            .Replace("base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);", "");
+        source += "} public partial class IceConeProj { private TrailManager.TrailHandle managedTrail;";
+        var ai = cone.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "AI");
+        // Omit particles and lighting; preserve the actual movement, owner delta, rotation, clock and trail activation.
+        ai = ai.ReplaceNodes(ai.DescendantNodes().OfType<ExpressionStatementSyntax>()
+            .Where(s => s.Expression.ToString().StartsWith("KLBasicDust.") || s.Expression.ToString().StartsWith("Lighting.")),
+            (_, _) => SyntaxFactory.ExpressionStatement(SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName("OmitParticle"))));
+        source += ai.ToFullString() + Methods(cone, "UpdateMovement", "DrawBehind")
+            .Replace("AssetManager.GetTexture(\"KL.Effects.Tex.Trail.streak_801_4r\")", "previewTrail")
+            .Replace("time > BackwardFlyTime &&", "(LegacyLaunch ? time >= BackwardFlyTime : time > BackwardFlyTime) &&");
+        source += "private void InitializeLaunchTrail() {" + string.Join("\n", cone.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "SetDefaults")
+            .Body.Statements.Where(s => s.ToString().StartsWith("Trail"))) + "}";
+        source += """
+                static bool LegacyLaunch;
+                static void OmitParticle() {}
+                void AimAtLockedTarget() {} // Target direction is supplied by the deterministic scenario below.
+                public static void DrawLaunchFrame(int frame, bool legacy, string scenario, int drawEvery) {
+                    new TrailManager().OnWorldUnload();
+                    LayerDrawRequestSystem.ClearFrame();
+                    LegacyLaunch = legacy;
+                    IncludeTrail = true;
+                    HideMesh = LegacyInvalidAlpha = false;
+                    var cone = new IceConeProj();
+                    cone.InitializeLaunchTrail();
+                    if (legacy) cone.TrailSampleCount = 50;
+                    bool left = scenario == "left";
+                    Vector2 direction = Vector2.Normalize(new Vector2(left ? -1 : 1, -.25f));
+                    cone.Projectile.Center = new Vector2(left ? 630 : 330, 420);
+                    cone.Projectile.velocity = direction * 35;
+                    Vector2 launchPoint = default;
+                    var lists = new List<int>();
+                    for (int tick = 0; tick < frame; tick++) {
+                        LayerDrawRequestSystem.ClearFrame();
+                        new TrailManager().PostUpdateProjectiles();
+                        cone.Owner.oldPosition = cone.Owner.position;
+                        if (scenario != "stationary")
+                            cone.Owner.position += new Vector2(left ? -12 : 12, tick < 17 ? -7 : 4);
+                        if (scenario == "turning" && tick > 0 && tick < 25)
+                            cone.forwardVelocity = direction.RotatedBy(.65f * MathF.Sin(tick / 24f * MathF.PI)) * 35;
+                        cone.AI();
+                        cone.Projectile.position += cone.Projectile.velocity;
+                        if (tick == 24) launchPoint = cone.Projectile.Center;
+                        if ((tick + 1) % drawEvery == 0 || tick + 1 == frame)
+                            cone.DrawBehind(0, lists, lists, lists, lists, lists);
+                        if (!legacy && tick < 25 && cone.managedTrail != null)
+                            throw new Exception("Trail was submitted before forward flight.");
+                    }
+                    float length = 0;
+                    if (cone.OldCenter != null)
+                        for (int i = 1; i < cone.OldCenter.Length; i++)
+                            length += Vector2.Distance(cone.OldCenter[i - 1], cone.OldCenter[i]);
+                    if (!legacy && frame >= 25 && cone.OldCenter != null) {
+                        Vector2 flight = Vector2.Normalize(cone.forwardVelocity);
+                        Vector2 side = new(-flight.Y, flight.X);
+                        foreach (Vector2 p in cone.OldCenter) {
+                            if (!float.IsFinite(p.X) || !float.IsFinite(p.Y) ||
+                                Math.Abs(Vector2.Dot(p - launchPoint, side)) > .02f ||
+                                Vector2.Dot(p - launchPoint, flight) < -.02f)
+                                throw new Exception("Charge movement leaked into the flight trail.");
+                        }
+                        if (frame == 25 && length > .01f) throw new Exception("Launch origin is not a single point.");
+                        if (frame == 26 && drawEvery == 1 && Math.Abs(length - 140f) > .02f)
+                            throw new Exception("First flight segment must start at the launch point.");
+                        if (length > 500.02f) throw new Exception("Trail exceeded maximum length.");
+                    }
+                    if (legacy && frame == 25 && cone.managedTrail == null)
+                        throw new Exception("Negative control failed to reproduce premature trail.");
+                    Console.WriteLine($"{scenario}, every {drawEvery}, {(legacy ? "before" : "after")}, frame {frame}: trail length={length:0.00}, submitted={cone.managedTrail != null}");
+                    TrailManager.SubmitDrawRequests();
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles);
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                }
+            }}
+            """;
+        return source;
+    }
+
+    void DrawLaunchFrames()
+    {
+        EnableBloom(true);
+        foreach (string scenario in new[] { "stationary", "moving", "left", "turning" })
+        foreach (int frame in new[] { 24, 25, 26, 27, 30, 35 })
+        foreach (bool legacy in new[] { true, false })
+            RenderLaunchFrame(scenario, frame, legacy, 1);
+        foreach (int frame in new[] { 25, 26, 27, 30, 35 })
+            RenderLaunchFrame("moving", frame, false, 3);
+        Console.WriteLine("PASS launch boundary: actual AI/movement, KL distance sampler, DrawBehind, TrailManager, TrailEffect and ice shader; charge motion excluded, first flight segment retained, both directions and skipped draws.");
+    }
+
+    void RenderLaunchFrame(string scenario, int frame, bool legacy, int drawEvery)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(33, 48, 64));
+        SingleScene.GetMethod("DrawLaunchFrame").Invoke(null, [frame, legacy, scenario, drawEvery]);
+        GraphicsDevice.SetRenderTarget(null);
+        string name = $"launch-{scenario}-{frame:000}-{(legacy ? "before" : "after")}-every{drawEvery}.png";
+        using var file = File.Create(Path.Combine(output, name));
+        target.SaveAsPng(file, Width, Height);
+    }
+}

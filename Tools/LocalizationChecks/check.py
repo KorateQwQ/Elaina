@@ -31,7 +31,11 @@ zh, en = read('zh-Hans'), read('en-US')
 assert zh.keys() == en.keys(), 'Chinese and English keys differ'
 for key in zh:
     assert re.findall(r'\{\d+(?:[^}]*)\}', zh[key]) == re.findall(r'\{\d+(?:[^}]*)\}', en[key]), key
-    assert not re.search(r'[\u4e00-\u9fff]', en[key]), f'Chinese in English value: {key}'
+    # Resource paths are identifiers, not translated prose; keep checking the visible color-tag text.
+    icon_pattern = r'\[klicon/[^:\]]+:[^\]]+\]'
+    assert re.findall(icon_pattern, zh[key]) == re.findall(icon_pattern, en[key]), f'Icon paths differ: {key}'
+    visible_english = re.sub(icon_pattern, '', en[key])
+    assert not re.search(r'[\u4e00-\u9fff]', visible_english), f'Chinese in English value: {key}'
 
 used = set()
 for folder in ('ElainaModSkills', 'ElainaModAlchemy', '炼金'):

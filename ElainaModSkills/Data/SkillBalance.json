@@ -2,9 +2,10 @@
   "schema": "elaina-mage-balance-v2",
   "configuration": {
     "version": 2,
+    "loadoutRevision": 1,
     "progression": {
       "phaseSize": 5,
-      "previewLevel": 95
+      "previewLevel": 50
     },
     "basicAttacks": [
       {
@@ -23,17 +24,17 @@
           ],
           [
             50,
-            0.6
+            0.75
           ]
         ],
         "cost": 2,
         "interval": 0.3,
-        "shots": 1
+        "shots": 1,
+        "freezeBuildup": 0
       },
       {
         "id": "IceConeSkill",
         "name": "冰锥",
-        "freezeBuildup": 2.8,
         "growthMode": "phase",
         "levelInterval": 5,
         "unlockStageCap": 25,
@@ -43,7 +44,8 @@
         "ratioCurve": [],
         "cost": 4.5,
         "interval": 0.75,
-        "shots": 3
+        "shots": 3,
+        "freezeBuildup": 2.8
       },
       {
         "id": "WindSlashSkill",
@@ -57,7 +59,8 @@
         "ratioCurve": [],
         "cost": 2.5,
         "interval": 0.4,
-        "shots": 1
+        "shots": 1,
+        "freezeBuildup": 0
       },
       {
         "id": "WaterLaserSKill",
@@ -71,7 +74,8 @@
         "ratioCurve": [],
         "cost": 1.5,
         "interval": 0.2,
-        "shots": 1
+        "shots": 1,
+        "freezeBuildup": 0
       },
       {
         "id": "FireLaserSkill",
@@ -85,16 +89,17 @@
         "ratioCurve": [],
         "cost": 3,
         "interval": 0.3,
-        "shots": 1
+        "shots": 1,
+        "freezeBuildup": 0
       }
     ],
     "selectedBasicAttackId": "IceConeSkill",
-    "stage": 19,
-    "baseDps": 3500,
+    "stage": 10,
+    "baseDps": 450,
     "baseCrit": 4,
     "slots": 6,
     "v": {
-      "armor": "nebula",
+      "armor": "adamantite",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -109,11 +114,11 @@
           "prefix": "none"
         },
         {
-          "id": "celestial",
+          "id": "sorcerer",
           "prefix": "lucky"
         },
         {
-          "id": "destroyer",
+          "id": "celestialCuffs",
           "prefix": "lucky"
         },
         {
@@ -122,20 +127,20 @@
         },
         {
           "id": "ankhShield",
+          "prefix": "menacing"
+        },
+        {
+          "id": "regenLife",
           "prefix": "lucky"
         },
         {
-          "id": "celestialShell",
-          "prefix": "lucky"
-        },
-        {
-          "id": "sorcerer",
-          "prefix": "lucky"
+          "id": "sharkTooth",
+          "prefix": "menacing"
         }
       ]
     },
     "e": {
-      "armor": "nebula",
+      "armor": "adamantite",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -150,11 +155,11 @@
           "prefix": "arcane"
         },
         {
-          "id": "celestial",
+          "id": "sorcerer",
           "prefix": "arcane"
         },
         {
-          "id": "destroyer",
+          "id": "celestialCuffs",
           "prefix": "arcane"
         },
         {
@@ -166,17 +171,17 @@
           "prefix": "arcane"
         },
         {
-          "id": "celestialShell",
+          "id": "regenLife",
           "prefix": "arcane"
         },
         {
-          "id": "sorcerer",
+          "id": "sharkTooth",
           "prefix": "arcane"
         }
       ]
     },
     "baseMana": 200,
-    "maxLife": 500,
+    "maxLife": 400,
     "ashenWitch": true,
     "extraMana": 0,
     "rate": 4,
@@ -209,7 +214,7 @@
         "shots": 1,
         "id": "WaterBallSkill",
         "name": "水球魔法",
-        "enabled": true,
+        "enabled": false,
         "cost": 150,
         "k": 1.5,
         "cd": 15,
@@ -221,7 +226,8 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 4,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -244,7 +250,8 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 4,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -255,7 +262,7 @@
         "shots": 1,
         "id": "FireBurstSkill",
         "name": "炎爆（按每层循环）",
-        "enabled": false,
+        "enabled": true,
         "cost": 50,
         "k": 10,
         "cd": 5,
@@ -267,7 +274,8 @@
         "initialCharges": 5,
         "first": 0,
         "priority": 3,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -278,7 +286,6 @@
         "shots": 1,
         "id": "IceShardLockSkill",
         "name": "冰凌锁",
-        "freezeBuildup": 0,
         "enabled": true,
         "cost": 100,
         "k": 1.7666666666666666,
@@ -291,7 +298,8 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 2,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -314,7 +322,8 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 5,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -337,7 +346,8 @@
         "initialCharges": 1,
         "first": 15,
         "priority": 1,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -348,7 +358,7 @@
         "shots": 1,
         "id": "prototype.Lightning",
         "name": "天雷",
-        "enabled": true,
+        "enabled": false,
         "cost": 450,
         "k": 0.178,
         "cd": 300,
@@ -360,7 +370,8 @@
         "initialCharges": 1,
         "first": 20,
         "priority": 7,
-        "hit": 90
+        "hit": 90,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -383,7 +394,8 @@
         "initialCharges": 1,
         "first": 0,
         "priority": 9,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       },
       {
         "growthMode": "phase",
@@ -394,19 +406,20 @@
         "shots": 1,
         "id": "MultiMissileSkill",
         "name": "多重射击",
-        "enabled": false,
+        "enabled": true,
         "cost": 10,
-        "k": 40,
-        "cd": 1,
+        "k": 60,
+        "cd": 0.16,
         "cdRatio": 1,
         "cast": 0.167,
         "delay": 0,
         "duration": 0,
-        "maxCharges": 15,
+        "maxCharges": 1,
         "initialCharges": 1,
         "first": 0,
         "priority": 9,
-        "hit": 100
+        "hit": 100,
+        "freezeBuildup": 0
       }
     ],
     "loadouts": [
@@ -1265,7 +1278,6 @@
         "baseMana": 200,
         "maxLife": 500
       }
-    ],
-    "loadoutRevision": 1
+    ]
   }
 }

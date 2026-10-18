@@ -24,6 +24,15 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
 public class WaterBall : ElainaBasicProjectile
 {
+    private static WaterChargeFlowRenderer chargeFlowRenderer;
+
+    public override void Unload()
+    {
+        WaterChargeFlowRenderer renderer = chargeFlowRenderer;
+        chargeFlowRenderer = null;
+        if (renderer != null) Main.QueueMainThreadAction(renderer.Dispose);
+    }
+
     private readonly IceWaterHitBatch iceCycleBatch = new();
     private Vector2 oldPosition;
 
@@ -335,9 +344,30 @@ public class WaterBall : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        DrawChargeFlow(false);
         DrawBall();
+        DrawChargeFlow(true);
         EndBeginDraw();
         return base.PreDraw(ref lightColor);
+    }
+
+    private void DrawChargeFlow(bool foreground)
+    {
+        if (Main.dedServ || state != State.Hold) return;
+        chargeFlowRenderer ??= new WaterChargeFlowRenderer(Main.instance.GraphicsDevice,
+            ModContent.Request<Effect>("伊蕾娜/Effects/Content/WaterChargeFlow", AssetRequestMode.ImmediateLoad).Value,
+            path => ModContent.Request<Texture2D>(path, AssetRequestMode.ImmediateLoad).Value);
+        Main.spriteBatch.End();
+        try
+        {
+            // 一次性汇聚必须使用本水球年龄；VisualTime 是全局时钟，会立即超过结束时间。
+            chargeFlowRenderer.Draw(Projectile.Center - Main.screenPosition, WaterBallRadius,
+                time / 60f, Projectile.identity, foreground, Main.GameViewMatrix.TransformationMatrix);
+        }
+        finally
+        {
+            BeginDraw();
+        }
     }
 
     void DrawBall()

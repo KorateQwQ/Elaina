@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using KL.SkillSystem;
 using Terraria.GameContent;
 using Terraria.UI;
+using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
@@ -38,11 +39,11 @@ public class IceConeTargetSystem : ModSystem
     private static float reticleRadius;
     private static Texture2D noiseTexture;
 
-    /// <summary>当前准星锁定的目标；未选中冰锥或冰凌锁、准星没有在追踪时返回 null。</summary>
-    public static NPC LockedTarget => targetIndex >= 0 && IsValidTarget(Main.npc[targetIndex]) ? Main.npc[targetIndex] : null;
+    /// <summary>当前准星锁定的目标；未手持魔杖、未选中冰锥或冰凌锁、准星没有在追踪时返回 null。</summary>
+    public static NPC LockedTarget => CanTrack && targetIndex >= 0 && IsValidTarget(Main.npc[targetIndex]) ? Main.npc[targetIndex] : null;
 
     /// <summary>冰锥与冰凌锁共用目标：优先沿用准星锁定，否则按同样规则即时查找一次。</summary>
-    public static NPC ResolveTarget() => LockedTarget ?? FindTarget(Main.MouseWorld, -1);
+    public static NPC ResolveTarget() => CanTrack ? LockedTarget ?? FindTarget(Main.MouseWorld, -1) : null;
 
     public static NPC FindTarget(Vector2 mouseWorld, int currentIndex)
     {
@@ -78,6 +79,10 @@ public class IceConeTargetSystem : ModSystem
         return Vector2.Distance(point, closest);
     }
 
+    private static bool CanTrack => !Main.dedServ && !Main.gameMenu
+        && Main.LocalPlayer is { active: true, dead: false, ghost: false }
+        && Main.LocalPlayer.HeldItem.ModItem is ElainaWand && IceConeSelected();
+
     private static bool IceConeSelected()
     {
         List<Skill> skills = ElainaSkillModPlayer.GetActiveSkill;
@@ -85,7 +90,9 @@ public class IceConeTargetSystem : ModSystem
         return index >= 0 && index < skills.Count && skills[index]?.ModSkill is IceConeSkill or IceShardLockSkill;
     }
 
-    public override void OnWorldUnload()
+    public override void OnWorldUnload() => ResetTracking();
+
+    private static void ResetTracking()
     {
         targetIndex = -1;
         lockProgress = 0f;
@@ -106,9 +113,13 @@ public class IceConeTargetSystem : ModSystem
         if (Main.dedServ)
             return;
 
-        Player player = Main.LocalPlayer;
-        bool tracking = player.active && !player.dead && !player.ghost && IceConeSelected();
-        NPC target = tracking ? FindTarget(Main.MouseWorld, targetIndex) : null;
+        if (!CanTrack)
+        {
+            ResetTracking();
+            return;
+        }
+
+        NPC target = FindTarget(Main.MouseWorld, targetIndex);
         int newIndex = target?.whoAmI ?? -1;
         if (newIndex != targetIndex)
         {
@@ -157,7 +168,7 @@ public class IceConeTargetSystem : ModSystem
 
     private static void DrawReticle()
     {
-        if (alpha <= 0f || Main.gameMenu)
+        if (alpha <= 0f || !CanTrack)
             return;
 
         Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/IceReticle", AssetRequestMode.ImmediateLoad).Value;
