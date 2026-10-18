@@ -11,6 +11,7 @@ public class ElainaSkillManager : ModSystem
 {
     public static bool ShowCD = false;
     public static SkillSelectionMode SelectionMode = SkillSelectionMode.Slide;
+    public static float WheelScale = .5f;
 
     public override void UpdateUI(GameTime gameTime)
     {

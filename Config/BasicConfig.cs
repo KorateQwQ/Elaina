@@ -37,8 +37,14 @@ namespace 伊蕾娜.Config
 
         [DefaultValue(SkillSelectionMode.Slide)]
         public SkillSelectionMode SkillSelection;
-        
-        
+
+        [DefaultValue(0.5f)]
+        [Range(0.3f, 1.5f)]
+        [Increment(0.05f)]
+        [Slider]
+        public float SkillWheelScale = 0.5f;
+
+
         [Header("Damage")]
 
         [DefaultValue(1f)]
@@ -59,6 +65,7 @@ namespace 伊蕾娜.Config
             EXPmodplayer.DamageScale = MaxDamage;
             ElainaSkillManager.ShowCD = ShowCD;
             ElainaSkillManager.SelectionMode = SkillSelection;
+            ElainaSkillManager.WheelScale = SkillWheelScale;
             base.OnChanged();
         }
     }

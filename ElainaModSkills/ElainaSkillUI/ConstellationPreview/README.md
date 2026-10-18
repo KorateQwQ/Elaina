@@ -39,7 +39,7 @@
 
 左上角继续使用现有 `Assets/HeaderHat.svg` / `HeaderHat.png` 和配套圆环菱形，仅随页眉平移；没有重新生成或替换帽子。既有绘制参考伊蕾娜动画官网 https://majotabi.jp/#Character 的人物设定，保留弯帽尖、宽帽檐、菱纹缎带及珠链挂饰。
 
-现有 `Page.png`、`StarfieldBase.png`、`Glow.png`、连线纹理、`Stars.png` / `Stars.json` 不重新生成。星形仍复用 KL 实际绘制离线生成的多尺寸图集。旧资源生成工具继续保留；本次数据同步仅运行导入器。
+现有 `Page.png`、`StarfieldBase.png`、`Glow.png`、连线纹理、`Stars.png` / `Stars.json` 不重新生成。星形图集（2026-10-19 起）由 `Tools/ConstellationSkillPanelPreview/bake_stars.py` 按 HTML `crossStar` 的三次贝塞尔几何重新烘焙（原 KL DrawCrossStar 的 waist 映射不同，星边是直线），保留原有区域坐标，另增页签星光专用的 34:12 形状；`--check` 校验是否过期。旧资源生成工具继续保留；本次数据同步仅运行导入器。
 
 ## 验证与复现
 

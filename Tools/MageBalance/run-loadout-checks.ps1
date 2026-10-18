@@ -25,5 +25,8 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/LoadoutChecks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
-dotnet run --project $projectPath --configuration Release --verbosity quiet -- (Join-Path $repo 'ElainaModSkills/Data/SkillBalance.json')
+$fixture = Join-Path $output 'browser-loadouts.json'
+node (Join-Path $PSScriptRoot 'export-loadout-fixture.cjs') $fixture
+if ($LASTEXITCODE -ne 0) { throw 'Browser loadout fixture export failed.' }
+dotnet run --project $projectPath --configuration Release --verbosity quiet -- (Join-Path $repo 'ElainaModSkills/Data/SkillBalance.json') $fixture
 if ($LASTEXITCODE -ne 0) { throw 'Loadout integration checks failed.' }

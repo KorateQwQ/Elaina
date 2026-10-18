@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>魔女手札 · 技能面板改版（第二版）</title>
+<style>
+/* ============================================================
+   第二版：以游戏内 1100×800 设计平面为准
+   · 还原：书本外框（皮面 / 书页块 / 三道页缘 / 书脊 / 角饰）、封面翻页与停靠飞行、
+           顶部标题区、四个筛选页签 + 星图收录、星图网格 / 连线 / 节点样式
+   · 保留：上一版的底部点线分割、幽灵按钮；右侧详情卡（夜色，本轮搁置未改）
+   · 第三轮：装配槽回到游戏方槽；点线分割推广到标题线 / 页签线 / 竖分栏 / 短分隔 / 缩放胶囊；
+           最外层页框改为「实线页边 + 点线内框 + 星角饰」（?frame=old 或左下按钮可对比原框）
+   · 第四轮：右侧详情不再是浮在右栏的卡片，改为直接写在书页上（?detail=card 或左下按钮可对比旧卡）
+   · 轻微优化（翻页 / 书本）：飞行时就带书本厚度、封面掠光、衬页跟随、书签丝带、柔和投影、
+           星图上下边缘淡出
+   ============================================================ */
+@font-face { font-family: "Gelasio"; src: url("../../.vissandbox/gelasio-source/Gelasio.ttf"), local("Georgia"); }
+:root {
+  --ink: #eee9f5; --muted: #b2a8c3; --lav: #cab2ed; --gold: #e6cea5; --line: #4c3e58;
+  --serif: "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+  --hsans: "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  --latin: "Gelasio", Georgia, serif;
+  --dot: rgba(236,229,247,.32);
+  /* 详情卡（上一版原样保留） */
+  --bg1: #1d1926; --tab: #0e0c13; --muted2: #9e96ae; --faint: #6c6579; --blue: #5b86d6;
+  --paper: #f4f2f7; --paper2: #e7e4ec; --paperLine: #d6d1de; --pInk: #2c2836; --pMuted: #7d7689;
+  --sans: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  --num: "Bahnschrift", "DIN Alternate", "Segoe UI", var(--sans);
+}
+/* 字体分工（只用游戏内 FontManager 已有的三款，且都只有一个字重——不用粗体 / 斜体，层级靠字号与颜色）
+   · 宋体 Noto Serif SC：写在书上的「名字」——书名、技能名、星图节点名、区块标题（角色等级 / 研习点 / 星图收录 / 装配）
+   · 黑体 HarmonyOS Sans：功能与阅读——页签、按钮、小标签（魔力 / 效果 / 进修所需…）、描述正文、状态提示
+   · Gelasio：所有数字与拉丁字符——等级、数值、MP / %、LV.、ESC、槽位键 */
+body.nightCard { --paper: #272233; --paper2: #2f2a3c; --paperLine: #3d364b; --pInk: #f0ecf6; --pMuted: #a59db3; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { font-family: var(--hsans); color: var(--ink); background: #07080d; }
+svg.defs { position: absolute; width: 0; height: 0; }
+
+/* 示意的游戏画面 + 打开时压暗的背景（BackdropAlpha，(8,10,18)×.72） */
+#world { position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 30% 20%, rgba(70,84,140,.45), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 85%, rgba(60,40,70,.5), transparent 70%),
+    linear-gradient(180deg, #1b2440, #121626 60%, #0d0f18); }
+#world::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 18%;
+  background: linear-gradient(180deg, transparent, rgba(5,6,10,.85)), repeating-linear-gradient(90deg, #141320 0 46px, #191726 46px 92px); opacity: .7; }
+#backdrop { position: fixed; inset: 0; background: rgb(8,10,18); opacity: 0; pointer-events: none; }
+
+#stageWrap { position: fixed; inset: 0; }
+#app { width: 1100px; height: 800px; position: absolute; left: 50%; top: 50%; transform-origin: center; }
+#book { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; transform-origin: 0 0; transform-style: preserve-3d; }
+#book.rest { transform-style: flat; }
+#body, #page, #pshadow, #cover, #flyleaf { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; }
+#body { pointer-events: none; }
+#body svg { position: absolute; left: 0; top: 0; overflow: visible; }
+#page { overflow: visible; }
+#page > img.surface { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; display: block; }
+#pshadow { pointer-events: none; opacity: 0; }
+#cover, #flyleaf { transform-style: preserve-3d; pointer-events: none; }
+.strip { position: absolute; left: 0; top: 0; height: 800px; transform-origin: 0 0; transform-style: preserve-3d; }
+.strip > i { position: absolute; inset: 0; backface-visibility: hidden; background-repeat: no-repeat; background-size: 1100px 800px; }
+.strip > i.b { transform: rotateY(180deg); }
+.strip > i > b { position: absolute; inset: 0; }
+
+/* 书签丝带：翻开后轻轻一晃 */
+#ribbon { transform-origin: 968px 796px; }
+#ribbon.sway { animation: sway 1.9s cubic-bezier(.3,.6,.4,1) both; }
+@keyframes sway { 0% { transform: rotate(0); } 18% { transform: rotate(5deg); } 42% { transform: rotate(-3deg); } 66% { transform: rotate(1.4deg); } 100% { transform: rotate(0); } }
+
+/* 页面上的图层 */
+svg.layer { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; overflow: visible; }
+#chrome { pointer-events: none; }
+#chrome .hit { pointer-events: all; cursor: pointer; fill: transparent; }
+#marker { transition: transform .18s ease-in-out; }
+#map { position: absolute; left: 26px; top: 150px; width: 727px; height: 558px; cursor: grab;
+  -webkit-mask: linear-gradient(180deg, transparent, #000 44px, #000 calc(100% - 30px), transparent), linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 10px), transparent);
+  -webkit-mask-composite: source-in; mask-composite: intersect; }
+#map.drag { cursor: grabbing; }
+#map .node { cursor: pointer; }
+
+/* 小工具 */
+.spark { width: 1em; height: 1em; display: inline-block; vertical-align: -.12em; fill: currentColor; }
+.dotline { height: 3px; background: radial-gradient(circle, var(--dot) .7px, transparent 1px) 0 50% / 4.5px 3px repeat-x; }
+.vdots { width: 3px; background: radial-gradient(circle, var(--dot) .7px, transparent 1px) 50% 0 / 3px 4.5px repeat-y; }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+
+/* ============ 详情卡（上一版夜色，原样缩放放入右栏） ============ */
+.cardHost { position: absolute; left: 770px; top: 153px; width: 412px; transform-origin: 0 0; }
+.card { position: absolute; left: 0; top: 0; width: 412px; height: 640px; border-radius: 16px; background: var(--paper); color: var(--pInk); font-family: var(--sans);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.5); display: flex; flex-direction: column; overflow: hidden; }
+body.nightCard .card { box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(236,229,247,.1); }
+.card::before { content: ""; position: absolute; inset: 6px; border-radius: 12px; border: 1px solid var(--paperLine); pointer-events: none; }
+.cardOuterStar { display: none; position: absolute; left: -10px; top: -10px; width: 22px; height: 22px; fill: var(--ink); filter: drop-shadow(0 0 4px rgba(255,255,255,.6)); z-index: 1; }
+.cardBody { padding: 26px 28px 0; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.cHead { display: flex; align-items: baseline; gap: 12px; }
+.cHead h2 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: 4px; }
+.cHead .kind { font-size: 12px; color: var(--pMuted); letter-spacing: 3px; margin-left: auto; }
+.pdots { height: 3px; margin: 12px 0; background: radial-gradient(circle, var(--paperLine) 1px, transparent 1.4px) 0 50% / 6px 3px repeat-x; flex: none; }
+.pdots.push { margin-top: auto; }
+body:not(.nightCard) .pdots { background-image: radial-gradient(circle, #b9b2c4 1px, transparent 1.4px); }
+.banner { height: 112px; border-radius: 8px; position: relative; overflow: hidden; flex: none;
+  background:
+    repeating-conic-gradient(from 0deg at 76% 50%, rgba(255,255,255,.07) 0 2deg, transparent 2deg 9deg),
+    radial-gradient(circle at 76% 50%, var(--bannerGlow, rgba(120,200,160,.45)), transparent 55%),
+    linear-gradient(120deg, #2b2742, #1d2036 70%); }
+.banner .art { position: absolute; right: 30px; top: 50%; width: 80px; height: 80px; margin-top: -52px; border-radius: 50%; overflow: hidden;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.85), 0 0 0 7px rgba(255,255,255,.12), 0 0 24px rgba(255,255,255,.25); background: #241f31; }
+.banner .art img { width: 100%; height: 100%; display: block; }
+.banner .tagrow { position: absolute; left: 14px; top: 12px; display: flex; gap: 6px; }
+.banner .tag { height: 26px; padding: 0 14px; border-radius: 13px; background: rgba(14,12,19,.82); color: #f2eef8; font-weight: 700; font-size: 13px; letter-spacing: 2px; display: grid; place-items: center; }
+.banner .elem { width: 26px; height: 26px; border-radius: 50%; background: #f2eef8; display: grid; place-items: center; }
+.banner .elem svg { width: 14px; height: 14px; fill: #1d1926; }
+.banner .blv { position: absolute; left: 16px; bottom: 30px; font: 700 26px/1 var(--num); color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.4); }
+.banner .blv small { font-size: 15px; opacity: .75; }
+.banner .stars { position: absolute; left: 0; right: 0; bottom: 0; height: 24px; background: rgba(14,12,19,.78); display: flex; align-items: center; gap: 3px; padding: 0 12px; }
+.banner .stars svg { width: 14px; height: 14px; }
+.banner .stars span { margin-left: auto; font: 600 11px/1 var(--num); color: rgba(242,238,248,.65); letter-spacing: 1px; }
+.banner .max { height: 26px; padding: 0 12px; border-radius: 13px; background: #ecd28f; color: #4a3a1c; font: 800 11px/26px var(--num); letter-spacing: 2px; }
+.stats { margin-top: 12px; flex: none; }
+.stats .r { display: flex; justify-content: space-between; align-items: baseline; padding: 0 10px; height: 32px; line-height: 32px; font-size: 15px; font-weight: 600; letter-spacing: 1px; border-radius: 4px; }
+.stats .r:nth-child(even) { background: var(--paper2); }
+.stats .r b { font: 700 18px/32px var(--num); }
+.stats .r b small { font-size: 12px; color: var(--pMuted); margin-left: 3px; font-family: var(--sans); font-weight: 600; }
+.desc { font-size: 14px; line-height: 1.75; letter-spacing: .5px; flex: none; }
+.desc .h { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+.desc .h .ci { width: 22px; height: 22px; border-radius: 50%; background: var(--pInk); display: grid; place-items: center; }
+.desc .h .ci svg { width: 12px; height: 12px; fill: var(--paper); }
+.desc p { margin: 0; color: var(--pInk); opacity: .88; }
+.desc em { font-style: normal; color: var(--blue); font-weight: 700; }
+body.nightCard .desc em { color: #8fb4f0; }
+.req { display: flex; align-items: center; gap: 14px; flex: none; margin-bottom: 14px; }
+.req .ri { width: 52px; height: 52px; border-radius: 50%; background: #34303f; display: grid; place-items: center; flex: none;
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px #8d869a; }
+.req .ri img { width: 30px; height: 30px; }
+.req .rt { flex: 1; }
+.req .rt b { display: block; font-size: 15px; letter-spacing: 1px; }
+.req .rt small { font-size: 12px; color: var(--pMuted); letter-spacing: 1px; }
+.req .rv { font: 700 18px/1 var(--num); text-align: right; }
+.req .rv small { font-size: 13px; color: var(--pMuted); }
+.req .ok { color: #3e9a6a; } .req .no { color: #d0566e; }
+.cardFoot { flex: none; height: 92px; margin: 0 6px 6px; border-radius: 0 0 12px 12px; position: relative; overflow: hidden;
+  background: #1a1722; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 18px; }
+.cardFoot .wm { position: absolute; left: 22px; top: 50%; width: 120px; height: 120px; margin-top: -60px; fill: rgba(236,229,247,.05); }
+.cardFoot .cs { position: absolute; width: 12px; height: 12px; fill: rgba(236,229,247,.45); }
+.cardFoot::before { content: ""; position: absolute; inset: 8px; border: 1px dashed rgba(236,229,247,.12); border-radius: 4px 4px 8px 8px; pointer-events: none; }
+.pill { all: unset; box-sizing: border-box; cursor: pointer; height: 48px; padding: 0 40px; border-radius: 24px; position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: 3px;
+  background: #f6f4f9; color: #3a3545;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3.5px #d9d4e0, 0 3px 0 rgba(0,0,0,.25); transition: transform .12s, filter .12s; }
+.pill::before, .pill::after { content: ""; position: absolute; top: 50%; width: 11px; height: 11px; margin-top: -5.5px; background: currentColor; opacity: .35;
+  -webkit-mask: var(--sparkMask) center / contain no-repeat; mask: var(--sparkMask) center / contain no-repeat; }
+.pill::before { left: 15px; } .pill::after { right: 15px; }
+.pill:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.pill:active { transform: translateY(1px); box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3.5px #d9d4e0, 0 1px 0 rgba(0,0,0,.25); }
+.pill.gold { background: linear-gradient(180deg, #f8e6ae, #efd185); color: #4f3d17; box-shadow: inset 0 0 0 2px #fff4cf, inset 0 0 0 3.5px #dcb969, 0 3px 0 rgba(0,0,0,.25); }
+.pill.gold::before, .pill.gold::after { background: #fff; opacity: .9; }
+.pill .cost { display: inline-flex; align-items: center; gap: 4px; font: 700 15px/1 var(--num); letter-spacing: 0; opacity: .8; }
+.pill .cost img { width: 18px; height: 18px; filter: brightness(.35); }
+.pill.dis { filter: grayscale(1) opacity(.5); pointer-events: none; }
+.fade { animation: fadeIn .28s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ============ 右栏详情 · 嵌页版：直接写在书页上——无底板、无投影、无圆角框；分区只用点线 ============ */
+.detail { position: absolute; left: 790px; top: 160px; width: 270px; height: 536px; display: none; color: var(--ink); }
+body.detailPage .detail { display: block; }
+body.detailPage .cardHost { display: none; }
+.detail .in { height: 100%; display: flex; flex-direction: column; }
+.detail .dotline { flex: none; margin: 13px 0; }
+.dKind { display: flex; align-items: center; gap: 6px; height: 14px; font-size: 11px; letter-spacing: 2px; color: rgb(196,180,210); }
+.dKind .spark { width: 8px; height: 8px; color: var(--lav); }
+.dKind .el { width: 11px; height: 11px; fill: rgb(196,180,210); }
+.dKind .st { margin-left: auto; font-size: 10px; letter-spacing: 1.5px; color: var(--muted2); display: flex; align-items: center; gap: 5px; }
+.dKind .st.max { color: var(--gold); } .dKind .st.ready { color: var(--gold); }
+.dHead { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.dIcon { width: 90px; height: 90px; flex: none; margin-left: -6px; overflow: visible; }
+.dName { flex: 1; min-width: 0; }
+.dName h2 { margin: 0; font: 400 25px/1.25 var(--serif); letter-spacing: 3px; color: rgb(240,231,244); white-space: nowrap; }
+.dLv { margin-top: 7px; display: flex; align-items: baseline; gap: 5px; font-family: var(--latin); color: var(--muted); }
+.dLv i { font: 9px/1 var(--latin); font-style: normal; text-transform: uppercase; letter-spacing: 1.5px; }
+.dLv b { font-weight: 400; font-size: 18px; line-height: 1; color: var(--ink); }
+.dLv b.max { color: var(--gold); }
+.dLv span { font-size: 11px; }
+.dLv .none { font: 12px/1 var(--hsans); letter-spacing: 2px; color: var(--muted2); }
+/* 进度条：深色圆角槽（无描边）比进度略大一圈，进度内缩 1px 浮在槽里；满级换暗金 */
+.dBar { margin-top: 8px; height: 5px; border-radius: 2.5px; position: relative; background: rgba(8,6,14,.55); }
+.dBar i { position: absolute; left: 1px; top: 1px; bottom: 1px; border-radius: 1.5px; background: rgba(202,178,237,.8); }
+.dBar.max i { background: rgba(230,206,165,.85); }
+.dStats { display: flex; }
+.dStats > div { flex: 1; }
+.dStats .vdots { flex: none; margin: 2px 20px; }
+.dStats small { display: block; font-size: 10px; letter-spacing: 2px; color: var(--muted2); }
+.dStats b { display: block; margin-top: 7px; font: 400 24px/1 var(--latin); color: var(--ink); white-space: nowrap; }
+.dStats b em { font: 10px/1 var(--hsans); font-style: normal; letter-spacing: 1px; margin-left: 5px; color: var(--muted); }
+.dStats b em.lat { font: 11px/1 var(--latin); letter-spacing: .5px; }
+.dStats b.nil { color: var(--faint); }
+.dDesc h4 { margin: 0 0 7px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 400; letter-spacing: 2px; color: rgb(196,180,210); }
+.dDesc h4 .spark { width: 8px; height: 8px; color: var(--lav); }
+.dDesc p { margin: 0; font-size: 13px; line-height: 1.85; letter-spacing: .5px; color: rgba(238,233,245,.86); }
+.dDesc em { font-style: normal; color: rgb(228,210,250); }
+/* 下一级预览：左名称、右「旧值 → 新值」，新值薄荷色（游戏内同款） */
+.dNext h4 { margin: 0 0 4px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 400; letter-spacing: 2px; color: rgb(196,180,210); }
+.dNext h4 .spark { width: 8px; height: 8px; color: var(--lav); }
+.dNext h4 .lv { margin-left: auto; font: 12px/1 var(--latin); letter-spacing: 0; color: var(--muted); display: flex; align-items: baseline; gap: 3px; }
+.dNext h4 .lv i { font: 8px/1 var(--latin); font-style: normal; text-transform: uppercase; letter-spacing: 1px; margin-left: 2px; }
+.dNext h4 .lv b { font-weight: 400; color: rgb(178,222,200); }
+.dNext s, .dNext h4 s { text-decoration: none; margin: 0 6px; color: rgba(178,168,195,.7); font-family: var(--hsans); }
+.dNext .r { display: flex; align-items: baseline; justify-content: space-between; height: 28px; line-height: 28px; font-size: 12px; letter-spacing: 1.5px; color: rgb(214,200,224); }
+.dNext .r + .r { box-shadow: inset 0 1px 0 rgba(236,229,247,.06); }
+.dNext .v { font: 17px/28px var(--latin); letter-spacing: 0; color: var(--muted); }
+.dNext .v b { font-weight: 400; font-size: 20px; color: rgb(178,222,200); }
+.dNext .v em { font: 10px/1 var(--hsans); font-style: normal; margin-left: 3px; letter-spacing: 1px; opacity: .8; }
+.dNext .v em.lat { font: 13px/1 var(--latin); letter-spacing: 0; margin-left: 1px; }
+.dReq { margin-top: auto; }
+.dReq .row { display: flex; align-items: center; justify-content: space-between; font-size: 10px; letter-spacing: 2px; color: var(--muted2); }
+.dReq .row .lat { font: 10px/1 var(--latin); letter-spacing: 1px; margin-left: 5px; }
+.dReq .row .spark { width: 8px; height: 8px; color: var(--lav); margin-right: 6px; }
+.dReq .need { margin-top: 9px; display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 1px; color: rgb(214,200,224); }
+.dReq .need .v { margin-left: auto; font: 15px/1 var(--latin); color: var(--muted); letter-spacing: 0; }
+.dReq .need .v b { font-weight: 400; font-size: 18px; }
+.dReq .ok { color: var(--gold); } .dReq .no { color: rgb(226,128,150); }
+.dReq .lack { margin-top: 6px; text-align: right; font-size: 10px; letter-spacing: 1.5px; color: rgb(226,128,150); }
+.bk { width: 15px; height: 15px; flex: none; display: inline-block; background: currentColor;
+  -webkit-mask: url("../../ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/StudyBook.png") center / contain no-repeat; }
+.dReq .need .bk { color: var(--gold); }
+/* 满级：一行小字即可（顶部已有「已满级」状态，这里不再大张旗鼓） */
+.dDone { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 2px; color: var(--muted2); }
+.dDone .spark { width: 8px; height: 8px; color: var(--gold); }
+.dActs { display: flex; gap: 10px; }
+/* 动作按钮：底栏幽灵胶囊放大版；主动作用金色描边，不再是奶白实心药丸 */
+.dBtn { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; height: 36px; border-radius: 18px; position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; letter-spacing: 3px; color: rgb(222,212,232);
+  box-shadow: inset 0 0 0 1px rgba(236,229,247,.26); transition: background .15s, box-shadow .15s, color .15s; }
+.dBtn:hover { color: var(--ink); background: rgba(236,229,247,.06); box-shadow: inset 0 0 0 1px rgba(236,229,247,.55); }
+.dBtn.gold { color: rgb(240,222,186); background: rgba(185,155,87,.1); box-shadow: inset 0 0 0 1px rgba(227,193,141,.6); }
+.dBtn.gold:hover { background: rgba(185,155,87,.2); box-shadow: inset 0 0 0 1px rgba(227,193,141,.95), 0 0 14px rgba(195,162,118,.18); }
+.dBtn.gold::before, .dBtn.gold::after { content: ""; position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; background: currentColor; opacity: .55;
+  -webkit-mask: var(--sparkMask) center / contain no-repeat; mask: var(--sparkMask) center / contain no-repeat; }
+.dBtn.gold::before { left: 14px; } .dBtn.gold::after { right: 14px; }
+.dBtn.dis { opacity: .4; pointer-events: none; }
+.dBtn .k { font: 12px/1 var(--latin); letter-spacing: .5px; opacity: .85; }
+.dBtn .c { display: inline-flex; align-items: center; gap: 3px; font: 12px/1 var(--latin); letter-spacing: 0; opacity: .8; }
+.dBtn .c .bk { width: 13px; height: 13px; }
+
+/* ============ 底栏（上一版的分割 / 装配 / 按钮，按 1100×800 重新排布） ============ */
+.bottomLine { position: absolute; top: 704px; height: 13px; display: flex; align-items: center; }
+.bottomLine .dotline { flex: 1; }
+.bottomLine svg { fill: var(--ink); flex: none; }
+.bottom { position: absolute; left: 32px; right: 30px; top: 719px; height: 68px; display: flex; align-items: center; }
+.equipHead { width: 66px; flex: none; }
+.equipHead h3 { margin: 0; font: 400 13px/1 var(--serif); letter-spacing: 2px; display: flex; align-items: center; gap: 5px; color: rgb(213,197,215); }
+.equipHead small { display: block; margin-top: 7px; font: 10px/1 var(--latin); color: var(--muted2); letter-spacing: 1px; padding-left: 17px; }
+/* 装配槽：回到游戏内 DrawSlot 的方槽（42×42，步距 48，编号压在上框线上，选中金框 + 下方小星） */
+.slots { width: 380px; height: 68px; flex: none; overflow: visible; }
+.slots .hit { fill: transparent; cursor: pointer; }
+.bsep { height: 50px; margin: 0 22px; display: flex; flex-direction: column; align-items: center; flex: none; }
+.bsep .vdots { flex: 1; }
+.bsep .pt { width: 4px; height: 4px; border-radius: 50%; background: rgba(236,229,247,.5); margin: 3px 0; }
+.tools { display: flex; flex-direction: column; gap: 7px; }
+.tools .lbl { font-size: 8.5px; color: var(--faint); letter-spacing: 2px; display: flex; align-items: center; gap: 4px; }
+.tools .row { display: flex; gap: 7px; }
+.ghost { all: unset; cursor: pointer; height: 22px; padding: 0 11px; border-radius: 11px; font-size: 9.5px; letter-spacing: 1.4px; color: var(--muted2);
+  box-shadow: inset 0 0 0 1px rgba(236,229,247,.18); transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+.ghost:hover { color: var(--ink); box-shadow: inset 0 0 0 1px rgba(236,229,247,.45); background: rgba(236,229,247,.05); }
+.ghost.on { color: #2c2836; background: var(--ink); box-shadow: none; }
+.ghost kbd { font: 600 7.5px/1 var(--latin); letter-spacing: .5px; padding: 2px 4px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(236,229,247,.25); }
+
+/* 停靠按钮（游戏内 PaintDock：96×30） */
+#dock { position: fixed; right: 26px; bottom: 22px; transform-origin: 100% 100%; width: 96px; height: 30px; cursor: pointer; }
+#dock .box { position: absolute; inset: 0; background: rgba(33,29,44,.86); box-shadow: inset 0 0 0 1px rgba(161,133,178,.4); transition: background .12s; }
+#dock:hover .box { background: rgb(81,64,90); box-shadow: inset 0 0 0 1px rgba(161,133,178,.8); }
+#dock .glow { position: absolute; left: -3px; top: -3px; right: -3px; bottom: -3px; box-shadow: inset 0 0 0 1px rgb(216,192,237), 0 0 18px rgba(189,161,221,.45); opacity: 0; }
+#dock .ic { position: absolute; left: 8px; top: 7px; width: 16px; height: 16px; background: rgb(215,197,174);
+  -webkit-mask: url("../../ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/StudyBook.png") center / contain no-repeat; }
+#dock .t { position: absolute; left: 29px; top: 7px; font: 12px/16px var(--hsans); color: rgb(216,197,231); }
+#dock .k { position: absolute; left: 70px; width: 18px; top: 8px; text-align: center; font: 10px/14px var(--latin); color: rgb(196,173,201); }
+
+/* 预览开关（不属于游戏 UI） */
+.dev { position: fixed; left: 14px; bottom: 12px; display: flex; gap: 8px; z-index: 9; font-size: 12px; }
+.dev button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 14px; background: rgba(236,229,247,.08); color: #b9b1c8; box-shadow: inset 0 0 0 1px rgba(236,229,247,.18); }
+.dev button:hover { color: #fff; }
+</style>
+</head>
+<body class="nightCard detailPage">
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <symbol id="sp" viewBox="-10 -10 20 20"><path d="M0,-10 C1,-3 3,-1 10,0 C3,1 1,3 0,10 C-1,3 -3,1 -10,0 C-3,-1 -1,-3 0,-10Z"/></symbol>
+    <symbol id="trio" viewBox="-30 -10 60 20"><use href="#sp" x="-10" y="-10" width="20" height="20"/><use href="#sp" x="-25" y="-3.5" width="7" height="7"/><use href="#sp" x="18" y="-3.5" width="7" height="7"/></symbol>
+    <symbol id="plus" viewBox="0 0 20 20"><path d="M9 3h2v6h6v2h-6v6H9v-6H3V9h6z"/></symbol>
+    <radialGradient id="glow"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".35" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="hdrDots" gradientUnits="userSpaceOnUse" x1="32" y1="0" x2="186" y2="0"><stop offset="0" stop-color="rgb(226,206,240)" stop-opacity=".85"/><stop offset="1" stop-color="rgb(226,206,240)" stop-opacity=".3"/></linearGradient>
+    <linearGradient id="markRule"><stop offset="0" stop-color="rgb(192,154,220)" stop-opacity="0"/><stop offset=".5" stop-color="rgb(192,154,220)" stop-opacity=".4"/><stop offset="1" stop-color="rgb(192,154,220)" stop-opacity="0"/></linearGradient>
+    <linearGradient id="bindL"><stop offset="0" stop-color="rgb(13,13,23)" stop-opacity=".8"/><stop offset="1" stop-color="rgb(76,62,88)" stop-opacity=".35"/></linearGradient>
+    <linearGradient id="bindR"><stop offset="0" stop-color="rgb(76,62,88)" stop-opacity=".35"/><stop offset="1" stop-color="rgb(13,13,23)" stop-opacity=".65"/></linearGradient>
+    <linearGradient id="blockB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2e263b"/><stop offset="1" stop-color="#241e2f"/></linearGradient>
+    <linearGradient id="blockR"><stop offset="0" stop-color="#2e263b"/><stop offset="1" stop-color="#241e2f"/></linearGradient>
+    <!-- 页缘精简版：皮面（封皮）/ 书脊圆弧 / 书页块两个面 / 订口阴影 -->
+    <linearGradient id="hideG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1100" y2="800"><stop offset="0" stop-color="rgb(29,25,39)"/><stop offset="1" stop-color="rgb(16,14,23)"/></linearGradient>
+    <linearGradient id="spineG" gradientUnits="userSpaceOnUse" x1="-11" y1="0" x2="0" y2="0"><stop offset="0" stop-color="rgb(14,12,20)"/><stop offset=".45" stop-color="rgb(50,42,66)"/><stop offset="1" stop-color="rgb(19,16,27)"/></linearGradient>
+    <!-- 书页块：纸边比页面和封皮都亮，靠「亮面 + 暗缝」读成一叠纸 -->
+    <linearGradient id="leafR" gradientUnits="userSpaceOnUse" x1="1100" y1="0" x2="1110" y2="0"><stop offset="0" stop-color="rgb(66,57,86)"/><stop offset=".6" stop-color="rgb(92,81,114)"/><stop offset="1" stop-color="rgb(84,74,105)"/></linearGradient>
+    <linearGradient id="leafB" gradientUnits="userSpaceOnUse" x1="0" y1="800" x2="0" y2="810"><stop offset="0" stop-color="rgb(48,41,63)"/><stop offset=".6" stop-color="rgb(66,57,85)"/><stop offset="1" stop-color="rgb(60,52,78)"/></linearGradient>
+    <linearGradient id="gutter"><stop offset="0" stop-color="rgb(10,9,17)" stop-opacity=".55"/><stop offset="1" stop-color="rgb(10,9,17)" stop-opacity="0"/></linearGradient>
+    <linearGradient id="ribbonG"><stop offset="0" stop-color="#4f3f66"/><stop offset=".45" stop-color="#6e5a8e"/><stop offset="1" stop-color="#4a3b60"/></linearGradient>
+    <clipPath id="clipNode"><circle r="32"/></clipPath>
+    <filter id="tintLav" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".792 0 0 0 0  0 .698 0 0 0  0 0 .929 0 0  0 0 0 1 0"/></filter>
+    <filter id="gray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.4"/></filter>
+    <filter id="bfTint" x="0" y="0" width="1" height="1"><feFlood flood-color="rgb(229,217,245)" flood-opacity=".9"/><feComposite in2="SourceAlpha" operator="in"/></filter>
+  </defs>
+</svg>
+
+<div id="world"></div>
+<div id="backdrop"></div>
+
+<div id="stageWrap"><div id="app"><div id="book">
+  <div id="body"><svg id="bodySvg" width="1100" height="800"></svg></div>
+  <div id="page">
+    <img class="surface" src="../../ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/NotebookSurface.png" alt="">
+    <svg class="layer" id="frame" viewBox="0 0 1100 800"></svg>
+    <svg id="map" viewBox="26 150 727 558"></svg>
+    <svg class="layer" id="chrome" viewBox="0 0 1100 800"></svg>
+
+    <div class="cardHost" id="cardHost"><svg class="cardOuterStar"><use href="#sp"/></svg><aside class="card" id="card"></aside></div>
+    <section class="detail" id="detail"></section>
+
+    <div class="bottomLine" style="left:26px;width:1048px">
+      <div class="dotline"></div><svg width="40" height="13"><use href="#trio"/></svg><div class="dotline" style="flex:0 0 301px"></div>
+    </div>
+    <footer class="bottom">
+      <div class="equipHead"><h3><svg class="spark"><use href="#sp"/></svg>装配</h3><small id="eqCount">5 / 8</small></div>
+      <svg class="slots" id="slots" viewBox="0 0 380 68"></svg>
+      <div class="bsep"><div class="pt"></div><div class="vdots"></div><div class="pt"></div></div>
+      <div class="tools">
+        <div class="lbl"><svg class="spark" style="width:7px;height:7px"><use href="#sp"/></svg>调试</div>
+        <div class="row">
+          <button class="ghost" id="tEdit">编辑模式</button><button class="ghost">研习点</button><button class="ghost">升级</button>
+          <button class="ghost">上限+</button><button class="ghost">重置</button>
+        </div>
+      </div>    </footer>
+  </div>
+  <div id="pshadow"></div>
+  <div id="flyleaf"></div>
+  <div id="cover"></div>
+</div></div></div>
+
+<div id="dock" title="手札 (K)"><div class="glow"></div><div class="box"></div><div class="ic"></div><div class="t">手札</div><div class="k">K</div></div>
+
+<div class="dev">
+  <button id="devBook">重放翻页</button>
+  <button id="devSlow">慢放 ×4：关</button>
+  <button id="devReplay">重放蝴蝶</button>
+  <button id="devDetail">详情：嵌页</button>
+  <button id="devCard">详情卡：夜色</button>
+  <button id="devFrame">外框：新</button>
+  <button id="devRim">页缘：精简</button>
+</div>
+
+<script>
+const IMG = "../../ElainaModSkills/";
+const ASSET = IMG + "ElainaSkillUI/ConstellationSkillPanel/Assets/";
+const BOOK = ASSET + "StudyBook.png";
+const BUTTERFLY = ASSET + "ButterflyMask.png";
+const HAT = IMG + "ElainaSkillUI/ConstellationPreview/Assets/HeaderHat.png";
+const SP_PATH = "M0,-10 C1,-3 3,-1 10,0 C3,1 1,3 0,10 C-1,3 -3,1 -10,0 C-3,-1 -1,-3 0,-10Z";
+document.documentElement.style.setProperty("--sparkMask",
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='-10 -10 20 20'><path d='${SP_PATH}'/></svg>`)}")`);
+
+/* ---------- 游戏内色板（ConstellationDrawing） ---------- */
+const rgba = (r, g, b, a = 1) => `rgba(${r},${g},${b},${+a.toFixed(4)})`;
+const INK = [238, 233, 245], MUTED = [178, 168, 195], LAV = [202, 178, 237], GOLD = [230, 206, 165];
+const LINE = [76, 62, 88], PLATE = [39, 32, 51];
+const C = (c, a = 1) => rgba(c[0], c[1], c[2], a);
+const SERIF = "'Noto Serif SC','Source Han Serif SC',serif", SANS = "'HarmonyOS Sans SC','Noto Sans SC','Microsoft YaHei UI',sans-serif", LATIN = "Gelasio,Georgia,serif";
+const NS = "vector-effect=\"non-scaling-stroke\"";
+
+const _mc = document.createElement("canvas").getContext("2d");
+function measure(s, size, font = SANS, sp = 0) { _mc.font = `${size}px ${font}`; return _mc.measureText(s).width + Math.max(0, [...s].length - 1) * sp; }
+// 左上角对齐的文字（FNA 的 Text(x, y) 语义）；align 0 / .5 / 1
+function T(s, x, y, size, col, o = {}) {
+  const sp = o.sp || 0, al = o.align || 0, font = o.font || SANS;
+  const w = measure(s, size, font, sp), x0 = x - w * al;
+  return `<text x="${x0.toFixed(2)}" y="${y}" font-size="${size}" fill="${col}" font-family="${font}" dominant-baseline="text-before-edge"` +
+    `${sp ? ` letter-spacing="${sp}"` : ""}${o.w ? ` font-weight="${o.w}"` : ""}>${s}</text>`;
+}
+const polar = (r, d) => [r * Math.cos(d * Math.PI / 180), r * Math.sin(d * Math.PI / 180)];
+const ease = v => { const t = Math.max(0, Math.min(1, v)); return t * t * (3 - 2 * t); };
+const easeOut = v => { const t = Math.max(0, Math.min(1, v)); return 1 - (1 - t) ** 3; };
+// KL CrossStar：四角星，waist 越小越瘦
+function crossStar(cx, cy, sx, sy, col, waist = .2, filled = true) {
+  const hx = sx / 2, hy = sy / 2, c = Math.min(.49, Math.max(.05, waist)), f = n => n.toFixed(2);
+  const P = (x, y) => `${f(cx + x)},${f(cy + y)}`;
+  const d = `M${P(0, -hy)}C${P(c * hx, -c * hy)} ${P(c * hx, -c * hy)} ${P(hx, 0)}C${P(c * hx, c * hy)} ${P(c * hx, c * hy)} ${P(0, hy)}` +
+            `C${P(-c * hx, c * hy)} ${P(-c * hx, c * hy)} ${P(-hx, 0)}C${P(-c * hx, -c * hy)} ${P(-c * hx, -c * hy)} ${P(0, -hy)}Z`;
+  return filled ? `<path d="${d}" fill="${col}"/>` : `<path d="${d}" fill="none" stroke="${col}" stroke-width=".9" ${NS}/>`;
+}
+const line = (x1, y1, x2, y2, col, w = 1) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${w}" ${NS}/>`;
+const frame = (x, y, w, h, col) => `<rect x="${x + .5}" y="${y + .5}" width="${w - 1}" height="${h - 1}" fill="none" stroke="${col}" stroke-width="1" ${NS}/>`;
+// 点线：与底部 .dotline 同款（直径 1.4、间距 4.5）。圆头 + 零长虚线 = 一串圆点
+const DOT = "rgba(236,229,247,.32)";
+const dots = (x1, y1, x2, y2, col = DOT, gap = 4.5) =>
+  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="0 ${gap}"/>`;
+// 竖向点线分隔：两端各一颗稍大的点（底栏 .bsep 同款）
+const dotSep = (x, y1, y2, col = DOT) =>
+  dots(x, y1 + 6, x, y2 - 6, col) + `<circle cx="${x}" cy="${y1 + 2}" r="2" fill="rgba(236,229,247,.5)"/><circle cx="${x}" cy="${y2 - 2}" r="2" fill="rgba(236,229,247,.5)"/>`;
+const trio = (cx, cy, col = C(INK), w = 40) => `<use href="#trio" x="${cx - w / 2}" y="${cy - w / 6}" width="${w}" height="${w / 3}" fill="${col}"/>`;
+// Glow.png 的近似：按颜色缓存的径向渐隐（SVG 渐变不继承引用者的 color，只能一色一份）
+const _gf = {};
+function gf(col) {
+  if (!_gf[col]) {
+    const id = "gl" + Object.keys(_gf).length;
+    document.querySelector("svg.defs defs").insertAdjacentHTML("beforeend",
+      `<radialGradient id="${id}"><stop offset="0" stop-color="${col}"/><stop offset=".35" stop-color="${col}" stop-opacity=".45"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient>`);
+    _gf[col] = `url(#${id})`;
+  }
+  return _gf[col];
+}
+// Corners：四个开口直角，size 边长、arm 臂长；rot 45° 即菱形
+function corners(cx, cy, size, arm, col, rot = 45) {
+  let d = "";
+  for (const x of [-1, 1]) for (const y of [-1, 1]) {
+    const px = x * size / 2, py = y * size / 2;
+    d += `M${px - x * arm},${py}L${px},${py}L${px},${py - y * arm}`;
+  }
+  return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1" ${NS} transform="translate(${cx} ${cy}) rotate(${rot})"/>`;
+}
+// Glow.png 的近似：径向渐隐的椭圆
+function glow(cx, cy, rx, ry, col, a) {
+  return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${col}" opacity="${a}" style="mask:radial-gradient(closest-side,#000,transparent)"/>`;
+}
+let _gid = 0;
+function glowE(cx, cy, rx, ry, col, a) {
+  const id = "g" + (_gid++);
+  return `<radialGradient id="${id}"><stop offset="0" stop-color="${col}" stop-opacity="${a}"/><stop offset=".4" stop-color="${col}" stop-opacity="${a * .5}"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient>` +
+    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${id})"/>`;
+}
+
+/* ---------- 数据（数值为示意；坐标为 727×550 世界坐标） ---------- */
+const N = [
+  { id: "witch",   name: "灰之魔女", icon: "Skills/AshenWitch/AshenWitchSkill.png",     lv: 1,  max: 5,  x: 130, y: 45,  kind: "心得", el: "star", mp: 0,  cd: 0,   glow: "rgba(230,150,220,.45)",
+    desc: "身为<em>灰之魔女</em>的自觉。每习得一门术式，魔力上限提高 <em>2%</em>。" },
+  { id: "barrier", name: "魔力护盾", icon: "Skills/MagicBarrier/MagicBarrierSkill.png", lv: 1,  max: 5,  x: 50,  y: 189, kind: "术式", el: "star", mp: 40, cd: 30,  parent: "witch", glow: "rgba(140,190,255,.45)",
+    desc: "展开一层魔力屏障，吸收 <em>120</em> 点伤害，持续 <em>8</em> 秒。" },
+  { id: "missile", name: "魔法飞弹", icon: "Skills/MagicMissile/MagicMissileSkill.png", lv: 21, max: 21, x: 218, y: 148, kind: "术式", el: "star", mp: 6,  cd: 0.5, glow: "rgba(240,150,220,.45)",
+    desc: "射出追踪敌人的魔力飞弹，造成 <em>48</em> 点魔法伤害。" },
+  { id: "wind",    name: "风刃",     icon: "Icon/WindBladeSkill.png",                    lv: 15, max: 15, x: 330, y: 162, kind: "术式", el: "wind", mp: 12, cd: 2,   glow: "rgba(230,170,240,.45)",
+    desc: "挥出新月形的风刃，贯穿路径上的敌人，造成 <em>72</em> 点伤害。" },
+  { id: "alchemy", name: "炼金术",   icon: "Skills/Alchemy/AlchemySkill.png",            lv: 1,  max: 5,  x: 146, y: 324, kind: "术式", el: "star", mp: 0,  cd: 60,  glow: "rgba(120,220,150,.5)",
+    desc: "打开炼金手札，以收集到的素材调配药剂。每级解锁 <em>1</em> 个新配方栏位。" },
+  { id: "multi",   name: "多重射击", icon: "Skills/MagicMissile/MultiMissileSkill.png", lv: 10, max: 10, x: 298, y: 315, kind: "心得", el: "star", mp: 0,  cd: 0,   parent: "missile", glow: "rgba(240,150,220,.45)",
+    desc: "魔法飞弹每次额外射出 <em>2</em> 枚，单枚伤害降低 <em>30%</em>。" },
+  { id: "flight",  name: "飞行魔法", icon: "Skills/Flight/FlightSkill.png",              lv: 1,  max: 5,  x: 418, y: 279, kind: "术式", el: "wind", mp: 2,  cd: 0,   parent: "wind", glow: "rgba(220,150,240,.45)",
+    desc: "骑上扫帚自由飞行，每秒消耗 <em>2</em> 点魔力。" },
+  { id: "laser",   name: "水流射线", icon: "Skills/Water/WaterLaserSKill.png",           lv: 11, max: 11, x: 482, y: 90,  kind: "术式", el: "water", mp: 30, cd: 8,   glow: "rgba(110,220,230,.45)",
+    desc: "蓄力后放出高压水流，每秒造成 <em>260</em> 点伤害，并使目标<em>潮湿</em>。" },
+  { id: "ball",    name: "水球",     icon: "Skills/Water/WaterBallSkill.png",            lv: 1,  max: 1,  x: 610, y: 58,  kind: "术式", el: "water", mp: 15, cd: 3,   parent: "laser", glow: "rgba(110,220,230,.45)",
+    desc: "投出会弹跳的水球，命中时溅射周围，造成 <em>90</em> 点伤害。" },
+  { id: "cone",    name: "冰锥",     icon: "Skills/Ice/IceConeSkill.png",                lv: 13, max: 13, x: 546, y: 297, kind: "术式", el: "ice", mp: 20, cd: 4,   glow: "rgba(130,180,255,.5)",
+    desc: "召唤冰锥从天而降，造成 <em>140</em> 点伤害并施加<em>寒冷</em>。" },
+  { id: "shard",   name: "冰凌锁",   icon: "Skills/Ice/IceShardLockSkill.png",           lv: 4,  max: 4,  x: 666, y: 382, kind: "术式", el: "ice", mp: 35, cd: 12,  parent: "cone", glow: "rgba(150,210,255,.5)",
+    desc: "以冰凌锁住周围敌人 <em>2.5</em> 秒，解除时碎裂造成 <em>200</em> 点伤害。" },
+  { id: "heal",    name: "治疗魔法", icon: "Skills/Heal/HealSkill.png",                  lv: 1,  max: 5,  x: 66,  y: 432, kind: "术式", el: "star", mp: 50, cd: 45,  glow: "rgba(250,200,150,.45)",
+    desc: "恢复自身 <em>80</em> 点生命，并在 <em>5</em> 秒内持续回复。" },
+  { id: "doll",    name: "人偶操控", icon: "Skills/DollControl/DollControlSkill.png",    lv: 1,  max: 5,  x: 218, y: 468, kind: "术式", el: "star", mp: 25, cd: 20,  glow: "rgba(230,150,220,.45)",
+    desc: "操纵小人偶协同作战，人偶会模仿你最近释放的术式。" },
+  { id: "fire",    name: "火焰射线", icon: "Skills/Fire/FireLaserSkill.png",             lv: 0,  max: 8,  x: 378, y: 441, kind: "术式", el: "fire", mp: 30, cd: 8,   state: "learn", glow: "rgba(255,140,90,.45)", cost: 40,
+    desc: "放出灼热的火焰射线，每秒造成 <em>240</em> 点伤害并<em>点燃</em>目标。" },
+  { id: "veil",    name: "霜幕",     icon: "Skills/Ice/FrostVeilSkill.png",              lv: 0,  max: 5,  x: 474, y: 486, kind: "心得", el: "ice", mp: 0,  cd: 0,   parent: "cone", state: "learn", glow: "rgba(150,210,255,.45)", cost: 30,
+    desc: "受到伤害时有 <em>15%</em> 概率展开霜幕，减免本次伤害的 <em>40%</em>。" },
+];
+const byId = id => N.find(n => n.id === id);
+let slots = ["cone", "heal", "laser", "shard", "ball", null, null, null];
+let points = 180, selId = "alchemy", selSlot = 1, filter = "learned", hoverId = null;
+const SLOT_KEYS = ["01", "02", "03", "04", "05", "06", "07", "08"];
+const status = n => n.state === "learn" ? "ready" : n.state === "seal" ? "locked" : n.state === "hide" ? "hidden" : "learned";
+const FILTERS = [{ k: "learned", t: "已习得" }, { k: "ready", t: "待研习" }, { k: "locked", t: "待启封" }, { k: "hidden", t: "未显现" }];
+
+/* ============================================================
+   书本外框：NotebookPage(1100, 800) 原样 + 轻微优化（柔和投影、书页块微渐变、书签丝带）
+   ============================================================ */
+let rimNew = true;
+const ribbon = () => `<g id="ribbon"><path d="M962,792 h12 v40 l-6,-6 l-6,6 Z" fill="url(#ribbonG)"/>` +
+  `<path d="M965.5,792 v36" stroke="rgba(236,220,255,.16)" stroke-width=".8"/>` +
+  crossStar(968, 820, 5.5, 5.5, "rgba(230,206,165,.75)", .3) + `</g>`;
+// 页缘精简版：一本精装书只需要三样东西——
+//   ① 封皮：比书页块大一圈（上 / 右 / 下露 4～5px，左侧露 11px 作书脊），圆角，颜色最暗
+//   ② 书页块：书页向右下错开 10px 的斜投影；纸边颜色比页面和封皮都亮（明暗：封皮 < 页面 < 纸边），
+//      面上是深色、间距不等、深浅不一的细缝——读成「一张张纸叠起来」，而不是几道装饰线
+//   ③ 柔和投影：去掉两道硬黑线
+function renderBodyRim() {
+  const w = 1100, h = 800, T = 10, M = 4;
+  let o = `<rect x="-6" y="18" width="${w + 22}" height="${h + 10}" rx="8" fill="#000" opacity=".6" style="filter:blur(16px)"/>`;
+  // ① 封皮 + 书脊
+  o += `<rect x="-11" y="-5" width="${w + T + M + 11}" height="${h + T + M + 5}" rx="5" fill="url(#hideG)"/>`;
+  o += `<path d="M-6,-5 H0 V${h + T + M} H-6 A5,5 0 0 1 -11,${h + T + M - 5} V0 A5,5 0 0 1 -6,-5Z" fill="url(#spineG)"/>`;
+  o += `<rect x="-10.5" y="-4.5" width="${w + T + M + 10}" height="${h + T + M + 4}" rx="4.5" fill="none" stroke="${C(LAV, .14)}" stroke-width="1" ${NS}/>`;
+  o += ribbon();
+  // ② 书页块：右面亮、底面暗
+  //   右上角是自由角，纸堆整体错开 → 斜切；左下角纸张订在书脊里，不会错开 → 底面一直延伸到书脊、竖直收口
+  o += `<path d="M${w},0 L${w + T},${T} V${h + T} L${w},${h}Z" fill="url(#leafR)"/>`;
+  o += `<path d="M0,${h} H${w} L${w + T},${h + T} H0Z" fill="url(#leafB)"/>`;
+  // 纸缝：深色、不等距、深浅不一；靠书脊的一端略微下弯，像纸被订口收进去
+  for (const [k, a] of [[1.3, .34], [2.4, .16], [3.2, .28], [4.6, .14], [5.5, .3], [6.9, .18], [7.8, .26], [9.0, .2]])
+    o += `<path d="M${w + k},${k} V${h + k} H10 Q3,${h + k} 0,${h + k * 1.08}" fill="none" stroke="rgba(18,14,27,${a})" stroke-width=".6"/>`;
+  // 订口：底面靠书脊的一段压暗，纸张没入书脊
+  o += `<rect x="0" y="${h}" width="18" height="${T}" fill="url(#gutter)"/>`;
+  // 最外一张纸的边：一道很细的亮边，右下转角收圆，左端在书脊处收住
+  o += `<path d="M${w},0 L${w + T},${T} V${h + T - 2} Q${w + T},${h + T} ${w + T - 2},${h + T} H0" fill="none" stroke="${C(LAV, .4)}" stroke-width="1" stroke-linejoin="round" ${NS}/>`;
+  // 书页块贴着页面的一侧压一道窄阴影，让页面「浮」在纸堆上
+  o += `<path d="M${w},0 L${w + 2.5},2.5 V${h + 2.5} H0 V${h}Z" fill="rgba(10,8,16,.35)"/>`;
+  document.getElementById("bodySvg").innerHTML = o;
+}
+function renderBody() {
+  if (rimNew) return renderBodyRim();
+  const w = 1100, h = 800, paper = LAV;
+  let o = "";
+  // 柔和投影（新增）：皮面下一层很淡的环境阴影
+  o += `<rect x="-4" y="14" width="${w + 12}" height="${h + 6}" rx="6" fill="#000" opacity=".5" filter="url(#soft)" style="filter:blur(14px)"/>`;
+  o += `<rect x="-7" y="4" width="${w + 16}" height="${h + 8}" fill="rgb(26,23,35)"/>`;
+  o += line(-8, 4, -8, h + 5, C(paper, .42));
+  o += line(2, h + 12, w + 5, h + 12, rgba(0, 0, 0, .35), 2);
+  o += line(w + 10, 12, w + 10, h + 7, rgba(0, 0, 0, .3), 2);
+  // 书签丝带（新增）：从书页块之间垂下，燕尾 + 一颗暗金小星
+  o += ribbon();
+  o += `<rect x="5" y="${h}" width="${w - 6}" height="9" fill="url(#blockB)"/>`;
+  o += `<rect x="${w}" y="7" width="7" height="${h - 9}" fill="url(#blockR)"/>`;
+  for (let leaf = 0; leaf < 3; leaf++) {
+    const inset = leaf * 3, edge = C(paper, .38 - leaf * .045);
+    o += line(5, h + inset + 1, w - 1, h + inset + 1, edge);
+    o += line(w + inset + 1, 9, w + inset + 1, h - 1, edge);
+    o += line(w - 1, h + inset + 1, w + inset + 1, h - 1, edge);
+  }
+  document.getElementById("bodySvg").innerHTML = o;
+}
+// 页面上层：内框、书脊、四角饰（NotebookSurface 之上）
+function pageCorner(x, y, rot) {
+  const s = 25 / 32, col = "rgb(193,171,202)";
+  const st = (a, b, c, d, w = 1) => `<line x1="${a - 16}" y1="${b - 16}" x2="${c - 16}" y2="${d - 16}" stroke="${col}" stroke-width="${w * s}" ${NS}/>`;
+  return `<g transform="translate(${x + 12.5} ${y + 12.5}) rotate(${rot}) scale(${s})">` +
+    st(1, 31, 1, 1) + st(1, 1, 31, 1) + st(6, 22, 6, 6) + st(6, 6, 22, 6) + st(1, 1, 10, 10, .7) +
+    st(13, 3, 16, 6, .7) + st(16, 6, 13, 9, .7) + st(13, 9, 10, 6, .7) + st(10, 6, 13, 3, .7) +
+    `<circle cx="-10" cy="-10" r="2" fill="${col}"/></g>`;
+}
+let frameNew = true;
+// 新外框的角饰：角上一颗四角星 + 向内弯的四分之一弧把两条点线接起来 + 弧内侧一颗小点
+function starCorner(cx, cy, sx, sy) {
+  const r = 14, ex = cx + sx * r, ey = cy + sy * r;
+  return glowE(cx, cy, 9, 9, "rgb(214,186,240)", .32) +
+    `<path d="M${ex},${cy} A${r},${r} 0 0 ${sx * sy > 0 ? 1 : 0} ${cx},${ey}" fill="none" stroke="${C(LAV, .42)}" stroke-width="1" ${NS}/>` +
+    crossStar(cx, cy, 11, 11, "rgb(236,226,247)", .28) +
+    `<circle cx="${cx + sx * 15.5}" cy="${cy + sy * 15.5}" r="1" fill="${C(LAV, .55)}"/>`;
+}
+function renderFrame() {
+  const w = 1100, h = 800;
+  _gid = 4000;
+  let o = "";
+  if (!frameNew) {
+    o = frame(1, 1, w - 2, h - 2, C(LAV, .5)) + frame(10, 10, w - 20, h - 20, C(LAV, .13)) + line(12, 2.5, w - 12, 2.5, C(LAV, .1));
+    o += `<rect x="2" y="22" width="5" height="${h - 44}" fill="url(#bindL)"/><rect x="7" y="22" width="5" height="${h - 44}" fill="url(#bindR)"/>`;
+    o += pageCorner(10, 10, 0) + pageCorner(w - 35, 10, 90) + pageCorner(10, h - 35, -90) + pageCorner(w - 35, h - 35, 180);
+    document.getElementById("frame").innerHTML = o;
+    return;
+  }
+  if (rimNew) {
+    // 页边只留一道实线；书脊交给外面的封皮，页内只剩一抹柔和的订口阴影
+    o += frame(0, 0, w, h, C(LAV, .34));
+    o += `<rect x="0" y="0" width="14" height="${h}" fill="url(#gutter)"/>`;
+  } else {
+    o += frame(1, 1, w - 2, h - 2, C(LAV, .42)) + frame(4, 4, w - 8, h - 8, C(LAV, .09));
+    o += `<rect x="2" y="22" width="4" height="${h - 44}" fill="url(#bindL)"/><rect x="6" y="22" width="4" height="${h - 44}" fill="url(#bindR)" opacity=".7"/>`;
+  }
+  // 内框：点线，四角让出给星角饰，左右两边正中各嵌一颗小星（上下边有标题 / 底栏内容，保持干净）
+  const L = 12.5, Rr = w - 12.5, Tp = 12.5, B = h - 12.5, g = 16, my = h / 2;
+  o += dots(L + g, Tp, Rr - g, Tp) + dots(L + g, B, Rr - g, B);
+  o += dots(L, Tp + g, L, my - 10) + dots(L, my + 10, L, B - g);
+  o += dots(Rr, Tp + g, Rr, my - 10) + dots(Rr, my + 10, Rr, B - g);
+  o += crossStar(L, my, 5, 8, C(LAV, .85), .4) + crossStar(Rr, my, 5, 8, C(LAV, .85), .4);
+  o += starCorner(L, Tp, 1, 1) + starCorner(Rr, Tp, -1, 1) + starCorner(Rr, B, -1, -1) + starCorner(L, B, 1, -1);
+  document.getElementById("frame").innerHTML = o;
+}
+
+/* ============================================================
+   顶部标题区 + 页签 + 星图收录 + 分隔线 + 缩放框（DrawChrome，原样）
+   ============================================================ */
+const TAB0 = 26, TABW = 180;
+function renderChrome() {
+  _gid = 1000;
+  let o = "";
+  // 标题下的长线 → 点线：左端亮、向右渐淡，小星处断开
+  o += dots(32, 83.5, 186, 83.5, "url(#hdrDots)") + dots(198.5, 83.5, 1068, 83.5, rgba(236, 229, 247, .24));
+  o += crossStar(192, 83.5, 5, 5, "rgb(214,192,232)", .5);
+  // 帽子徽记
+  // 收进内框上沿（12.5）与标题点线（83.5）之间：圆 r29 居中于 47，菱形四角正好内接于圆，不再压到页框点线
+  // 帽檐朝左伸得多，图标略向右偏，整顶帽子收在圆内
+  const hx = 60, hy = 47;
+  o += `<circle cx="${hx}" cy="${hy}" r="29" fill="none" stroke="${C(LAV, .16)}" stroke-width="1" ${NS}/>` + corners(hx, hy, 40, 16, C(LAV, .34));
+  o += `<image href="${HAT}" x="${hx - 16}" y="${hy - 22}" width="40" height="40" filter="url(#tintLav)"/>`;
+  o += T("魔女手札", 101, 23, 30, "rgb(240,231,244)", { font: SERIF, sp: 3 });
+  // 角色等级（PlayerLevel）
+  // 与炼金手记统一：等级区位于右栏正上方，研习点在左侧，两者之间留白。
+  const lvl = 50, cap = 50, exp = 62, expMax = 100, sealX = 823, left = 868, right = 999;
+  o += corners(sealX, 41, 36, 18, rgba(205, 177, 138, 66 / 255));
+  o += T("LV.", sealX, 19, 8, "rgb(188,167,141)", { font: LATIN, sp: 2, align: .5 });
+  o += T(String(lvl), sealX, 27, 28, "rgb(240,222,186)", { font: LATIN, align: .5 });
+  const capW = measure(String(cap), 10, LATIN), capLabelLeft = right - capW - 5 - measure("上限", 10, SANS, 1);
+  o += T("角色等级", left, 23, 11, "rgb(213,197,215)", { font: SERIF, sp: 1 });
+  o += T("上限", capLabelLeft, 24, 10, "rgb(184,167,192)", { sp: 1 });
+  o += T(String(cap), right, 23, 10, "rgb(184,167,192)", { font: LATIN, align: 1 });
+  o += T("经验", left, 44, 9, "rgb(169,154,182)", { sp: .5 });
+  o += T(`${exp} / ${expMax}`, right, 42, 10, "rgb(203,189,211)", { font: LATIN, align: 1 });
+  // 经验条：与右栏详情进度条同款——深色圆角槽 + 内缩 1px 的单色进度
+  o += `<rect x="${left}" y="61" width="${right - left}" height="5" rx="2.5" fill="rgba(8,6,14,.55)"/>` +
+       (exp > 0 ? `<rect x="${left + 1}" y="62" width="${Math.max(3, (right - left - 2) * exp / expMax)}" height="3" rx="1.5" fill="rgba(202,178,237,.8)"/>` : "");
+  // 研习点
+  const dust = String(points).padStart(2, "0"), dustLeft = 752 - measure(dust, 25, LATIN);
+  const labelLeft = dustLeft - 12 - measure("研习点", 12, SERIF, 1);
+  o += `<image href="${BOOK}" x="${labelLeft - 37}" y="28.5" width="27" height="27" style="filter:url(#tintGold)"/>`;
+  o += T("研习点", labelLeft, 33, 12, "rgb(213,197,215)", { font: SERIF, sp: 1 });
+  o += T(dust, dustLeft, 26, 25, "rgb(239,223,190)", { font: LATIN });
+  // 关闭
+  const ch = hoverClose;
+  o += corners(1053, 42, 29, 15, ch ? C(INK) : C(LAV, .7));
+  o += `<path d="M1048,37 L1058,47 M1058,37 L1048,47" stroke="${ch ? C(INK) : C(LAV)}" stroke-width="1.2" ${NS}/>`;
+  o += T("ESC", 1022, 55, 9, "rgb(164,149,178)", { font: LATIN, sp: 1 });
+  o += `<rect class="hit" data-act="close" x="1032" y="21" width="42" height="42"/>`;
+
+  // 筛选页签（DrawFilter）→ 四等分格，内容居中，格间一道短竖点线
+  //   · 数字紧跟在标签后面：原先数字右对齐到格尾，正好贴着下一个页签的图标，读起来像是下一个的
+  //   · 数字有语义色：0 → 很淡；待研习有内容 → 暗金（可以去研习了）；选中 → 亮
+  //   · 格宽 180 = 40 个点距：选中标记整体平移时，它身上那段亮点与底下点线始终对齐
+  FILTERS.forEach((f, i) => {
+    const x0 = TAB0 + i * TABW, cx = x0 + TABW / 2, active = filter === f.k, hov = hoverFilter === f.k;
+    const cnt = N.filter(n => status(n) === f.k).length, cs = String(cnt).padStart(2, "0");
+    const lw = measure(f.t, 14, SANS, 1), cw = measure(cs, 12, LATIN), x = cx - (9 + 8 + lw + 8 + cw) / 2;
+    const col = f.k === "ready" ? C(GOLD) : f.k === "locked" ? C(MUTED, .6) : C(LAV);
+    if (f.k === "hidden") o += `<circle cx="${x + 4.5}" cy="113" r="4" fill="none" stroke="${col}" stroke-width="1" stroke-dasharray="1.2 2" ${NS}/>`;
+    else o += crossStar(x + 4.5, 113, 9, 9, col, .5, f.k === "learned" || (active && f.k === "ready"));
+    o += T(f.t, x + 17, 103, 14, active ? "rgb(242,226,248)" : hov ? "rgb(222,206,232)" : "rgb(171,154,185)", { sp: 1 });
+    const ccol = active ? "rgb(228,200,239)" : !cnt ? C(MUTED, .38) : f.k === "ready" ? C(GOLD, .92) : "rgb(158,139,171)";
+    o += T(cs, x + 17 + lw + 8, 105.5, 12, ccol, { font: LATIN });
+    if (i) o += dots(x0, 104, x0, 125, rgba(236, 229, 247, .2));
+    o += `<rect class="hit" data-filter="${f.k}" x="${x0}" y="84" width="${TABW}" height="61"/>`;
+  });
+
+  // 星图收录
+  const cl = 791, cr = 1045, owned = N.filter(n => status(n) === "learned").length;
+  o += dotSep(775.5, 92, 136);
+  o += T("星图收录", cl, 101, 12, "rgb(213,197,215)", { font: SERIF, sp: 1 });
+  const total = `/ ${N.length}`, learned = String(owned).padStart(2, "0");
+  const learnedRight = cr - measure(total, 11, LATIN) - 6, starsRight = learnedRight - measure(learned, 22, LATIN) - 18;
+  const step = (starsRight - cl - 4) / Math.max(1, N.length - 1);
+  N.forEach((n, i) => {
+    const lit = status(n) === "learned", x = cl + 3 + i * step;
+    if (lit) o += glowE(x, 126, 5, 5, "rgb(213,170,255)", .2);
+    o += crossStar(x, 126, 5.66, 5.66, lit ? "rgb(234,214,245)" : "rgb(138,118,155)", .5, lit);
+  });
+  o += T(learned, learnedRight, 99, 22, "rgb(230,213,240)", { font: LATIN, align: 1 });
+  o += T(total, cr, 111, 11, "rgb(159,142,172)", { font: LATIN, align: 1 });
+
+  // 分隔线 → 点线：横线在 x753 处嵌三连星（与底部那条上下呼应），竖线连起两颗三连星
+  o += dots(26, 145.5, 731, 145.5) + trio(753.5, 145.5) + dots(776, 145.5, 1074, 145.5);
+  o += dots(753.5, 156, 753.5, 700);
+  // 缩放框 → 幽灵胶囊（与底栏按钮同款描边）+ 点线隔断
+  o += `<rect x="572.5" y="162.5" width="159" height="27" rx="13.5" fill="${hoverZoom ? "rgba(236,229,247,.05)" : "rgba(26,22,35,.45)"}" stroke="rgba(236,229,247,${hoverZoom ? .4 : .18})" stroke-width="1" ${NS}/>`;
+  const zc = (k) => hoverZoom === k ? C(INK) : C(LAV);
+  o += `<path d="M586,176 h12" stroke="${zoom > .5 ? zc("out") : C(MUTED, .3)}" stroke-width="1.1" ${NS}/>`;
+  o += T(Math.round(zoom * 100) + "%", 627, 169, 11, C(LAV), { align: .5, font: LATIN });
+  o += `<path d="M656,176 h12 M662,170 v12" stroke="${zoom < 1.5 ? zc("in") : C(MUTED, .3)}" stroke-width="1.1" ${NS}/>`;
+  o += dots(684.5, 168.5, 684.5, 184);
+  o += T("归位", 709, 169, 10, hoverZoom === "home" ? C(INK) : C(MUTED), { align: .5 });
+  o += `<rect class="hit" data-zoom="out" x="575" y="162" width="32" height="28"/><rect class="hit" data-zoom="in" x="647" y="162" width="32" height="28"/>` +
+       `<rect class="hit" data-zoom="home" x="690" y="162" width="40" height="28"/>`;
+  const chrome = document.getElementById("chrome");
+  if (!chrome.firstChild) {
+    // 选中标记（ActiveFilterMarker）常驻，切换页签时 .18s 滑过去
+    // 不再悬在线上方：直接落在页签点线上——格子下方那段点被「点亮」（中间亮、两端渐隐），正中一颗星压在线上
+    const mc = TAB0 + TABW / 2, ml = mc - 63, mr = mc + 63, sv = _gid;
+    _gid = 900;
+    chrome.innerHTML = `<g id="chromeStatic"></g><g id="marker">` +
+      `<linearGradient id="markDots" gradientUnits="userSpaceOnUse" x1="${ml}" y1="0" x2="${mr}" y2="0"><stop offset="0" stop-color="rgb(226,206,240)" stop-opacity="0"/>` +
+      `<stop offset=".5" stop-color="rgb(240,228,252)"/><stop offset="1" stop-color="rgb(226,206,240)" stop-opacity="0"/></linearGradient>` +
+      glowE(mc, 145.5, 72, 7, "rgb(192,154,220)", .16) + glowE(mc, 145.5, 24, 6, "rgb(207,157,250)", .32) +
+      dots(ml, 145.5, mr, 145.5, "url(#markDots)") +
+      // 不垫底色：一颗横向拉长的细腰闪光直接压在点线上，横臂盖住中间几颗点
+      crossStar(mc, 145.5, 34, 12, "rgb(244,234,252)", .14) + `</g>`;
+    _gid = sv;
+  }
+  chrome.querySelector("#chromeStatic").innerHTML = o;
+  chrome.querySelector("#marker").style.transform = `translateX(${FILTERS.findIndex(f => f.k === filter) * TABW}px)`;
+}
+let hoverClose = false, hoverFilter = null, hoverZoom = null;
+const chromeEl = document.getElementById("chrome");
+function setChromeHover(h) {
+  const c = !!h && h.dataset.act === "close", f = (h && h.dataset.filter) || null, z = (h && h.dataset.zoom) || null;
+  if (c === hoverClose && f === hoverFilter && z === hoverZoom) return;
+  hoverClose = c; hoverFilter = f; hoverZoom = z; renderChrome();
+}
+chromeEl.addEventListener("pointerover", e => setChromeHover(e.target.closest(".hit")));
+chromeEl.addEventListener("pointerout", e => { if (!e.relatedTarget || !e.relatedTarget.closest?.(".hit")) setChromeHover(null); });
+chromeEl.addEventListener("click", e => {
+  const h = e.target.closest(".hit"); if (!h) return;
+  if (h.dataset.act === "close") { book.request(false); return; }
+  if (h.dataset.filter) {
+    filter = h.dataset.filter; renderChrome();
+    renderSky(); return;
+  }
+  if (h.dataset.zoom === "in") setZoom(zoom + .1);
+  else if (h.dataset.zoom === "out") setZoom(zoom - .1);
+  else if (h.dataset.zoom === "home") { zoom = .84; recenter(); renderChrome(); applyCamera(); }
+});
+
+/* ============================================================
+   节点外饰星座（perch.html 定稿：多形状 + 按 id 哈希旋转）
+   ============================================================ */
+const R = 32, PERCH = -125;
+const SHAPES = [
+  [{ d: 7, a: -62, s: 1.3 }, { d: 13, a: -28, s: 3.8 }, { d: 7.5, a: 6, s: 1.5 }, { d: 12, a: 38, s: 2.6 }, { d: 6, a: 66, s: 1.2 }, { d: 21, a: -8, s: 1.1, from: 1 }],
+  [{ d: 9, a: -82, s: 1.2 }, { d: 9, a: -58, s: 2.2 }, { d: 10, a: -34, s: 3.6 }, { d: 9, a: -8, s: 1.4 }, { d: 22, a: -42, s: 1.1, from: 2 }],
+  [{ d: 6, a: -18, s: 1.2 }, { d: 11, a: 8, s: 3.4 }, { d: 7, a: 34, s: 1.4 }, { d: 12, a: 56, s: 2.3 }, { d: 21, a: 18, s: 1.1, from: 1 }],
+  [{ d: 11, a: -50, s: 3.0 }, { d: 7, a: -18, s: 1.2 }, { d: 12, a: 16, s: 3.6 }, { d: 6, a: 44, s: 1.1 }],
+];
+SHAPES.forEach(sh => sh.forEach((p, i) => { if (i && p.from == null) p.from = i - 1; }));
+const hashId = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+const normA = a => ((a + 540) % 360) - 180;
+const C_BLOCK = [[PERCH - 35, PERCH + 33], [50, 130]];
+const cFree = (a, links) => C_BLOCK.every(([lo, hi]) => { const x = normA(a); return x < lo || x > hi; }) && links.every(l => Math.abs(normA(a - l)) > 14);
+for (const n of N) n.linkA = [];
+for (const n of N) if (n.parent) { const p = byId(n.parent), a = Math.atan2(n.y - p.y, n.x - p.x) * 180 / Math.PI; p.linkA.push(a); n.linkA.push(a + 180); }
+const _cc = {};
+function constOf(n) {
+  if (_cc[n.id]) return _cc[n.id];
+  const h = hashId(n.id), sh = SHAPES[h % SHAPES.length], cands = [];
+  for (const k of [1, .8, .66]) for (const m of [1, -1]) for (let c = -180; c < 180; c += 6) {
+    const as = sh.map(p => p.a), mid = (Math.min(...as) + Math.max(...as)) / 2;
+    const p = sh.map(q => ({ ...q, a: c + m * (q.a - mid) * k }));
+    if (p.every(q => cFree(q.a, n.linkA))) cands.push(p);
+  }
+  const groups = {};
+  for (const p of cands) { const as = p.map(q => q.a), g = Math.round(normA((Math.min(...as) + Math.max(...as)) / 2) / 60); (groups[g] = groups[g] || []).push(p); }
+  const gs = Object.values(groups), grp = gs.length ? gs[(h >>> 3) % gs.length] : [sh];
+  return _cc[n.id] = grp[(h >>> 8) % grp.length];
+}
+// NodeConstellation：traced 为距上次落定 / 振翅的秒数，星点逐段点亮
+function constellation(n, col, alpha, sel, time, traced) {
+  const st = constOf(n), pos = p => polar(R + p.d, p.a), reach = [];
+  let o = "";
+  const link = (i, prog, tint, w) => {
+    const from = st[st[i].from], to = st[i], [ax, ay] = pos(from), [bx, by] = pos(to), L = Math.hypot(bx - ax, by - ay);
+    const s0 = (from.s + 1.5) / L, e0 = 1 - (to.s + 1.5) / L, e1 = s0 + (e0 - s0) * prog;
+    return `<line x1="${(ax + (bx - ax) * s0).toFixed(2)}" y1="${(ay + (by - ay) * s0).toFixed(2)}" x2="${(ax + (bx - ax) * e1).toFixed(2)}" y2="${(ay + (by - ay) * e1).toFixed(2)}" stroke="${tint}" stroke-width="${w}" ${NS}/>`;
+  };
+  st.forEach((p, i) => { reach[i] = i ? reach[p.from] + .2 : 0; if (i) o += link(i, 1, col(alpha * .45), .8); });
+  for (let i = 1; i < st.length; i++) {
+    const u = Math.max(0, Math.min(1, (traced - reach[st[i].from]) / .2)), light = 1 - Math.max(0, Math.min(1, (traced - reach[i] - .15) / .5));
+    if (u > 0 && light > 0) o += link(i, easeOut(u), rgba(255, 248, 236, light * .95 * alpha), 1.5);
+  }
+  st.forEach((p, i) => {
+    const f = (traced - reach[i]) / .4;
+    const pulse = f >= 0 && f < 1 ? 1 + (p.s > 2 ? .7 : 1.3) * Math.sin(Math.PI * f) : 1 + (sel ? .1 * Math.sin(time * 2.6 + i * 1.9) : 0);
+    const size = p.s * (sel ? 1.12 : 1) * pulse, [x, y] = pos(p);
+    if (p.s > 2) {
+      o += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${(size * 2.3).toFixed(2)}" fill="${gf("rgb(255,244,220)")}" opacity="${(.36 * alpha).toFixed(3)}" class="gw"/>`;
+      o += crossStar(x, y, size * 2, size * 2, sel ? rgba(255, 244, 220, alpha) : col(alpha), .2);
+    } else o += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${size.toFixed(2)}" fill="${col(alpha * .85)}"/>`;
+  });
+  return o;
+}
+function arc(r, from, sweep) {
+  if (sweep <= 0) return "";
+  const [x0, y0] = polar(r, from), [x1, y1] = polar(r, from + sweep);
+  return `M${x0.toFixed(2)},${y0.toFixed(2)}A${r},${r} 0 ${sweep > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)}`;
+}
+
+/* ============================================================
+   节点（DrawNode：圆盘、圆形裁切图标、细环、栖点、星座；衬底名字；Lv 牌 / 键位框已移到详情页）
+   ============================================================ */
+function nodeSvg(n) {
+  const st = status(n), sel = n.id === selId, hover = n.id === hoverId, owned = st === "learned", hidden = st === "hidden";
+  const dormant = !owned && !hidden;
+  const a = st === filter ? 1 : hover ? .8 : .18;
+  const ringA = hover || sel ? 1 : owned ? .72 : st === "ready" ? .6 : .4;
+  const accent = hover && !sel ? INK : st === "ready" ? GOLD : LAV;
+  let o = `<g class="node" data-id="${n.id}" transform="translate(${n.x} ${n.y})">`;
+  if (hover && !sel) o += `<circle r="50" fill="${gf("rgb(183,162,234)")}" opacity="${.16 * a}"/>`;
+  o += `<circle r="${R}" fill="${C(PLATE, .95 * a)}"/>`;
+  if (hidden) {
+    o += crossStar(0, 0, 14, 14, C(MUTED, .35 * a), .2);
+    o += `<circle r="${R}" fill="none" stroke="${hover ? C(INK, .5 * a) : C(MUTED, .4 * a)}" stroke-dasharray="1.3 3.9" ${NS}/>`;
+  } else {
+    const tint = dormant ? (sel || hover ? .82 : .6) * .65 : 1;
+    o += `<g clip-path="url(#clipNode)" opacity="${(a * tint).toFixed(3)}" style="mix-blend-mode:plus-lighter"><image href="${IMG + n.icon}" x="-32" y="-32" width="64" height="64"${dormant ? ' filter="url(#gray)"' : ""}/></g>`;
+    o += `<circle r="${R}" fill="none" stroke="${C(accent, ringA * a)}" stroke-width="1.2" ${NS}/>`;
+    if (!sel) {
+      const [px, py] = polar(R + 5.5, PERCH);
+      o += `<circle cx="${px.toFixed(2)}" cy="${py.toFixed(2)}" r="1" fill="${C(accent, ringA * .55 * a)}"/>`;
+      o += constellation(n, al => C(accent, al), ringA * a, false, 0, Infinity);
+    }
+  }
+  // 第五轮：去冗余——Lv 牌、键位框不再画在节点下方（等级、装配只在右页详情里出现），只保留名字
+  const tw = Math.min(136, measure(n.name, 12, SERIF, .5) + 16);
+  // Lv 牌拿掉后名字上提，贴着圆环下方（环 R=32，文字顶 41）
+  o += `<ellipse cx="0" cy="50" rx="${tw / 2}" ry="11" fill="${gf("rgb(39,32,51)")}" opacity="${a}"/>`;
+  o += T(n.name, 0, 41, 12, sel ? C(GOLD, a) : owned ? C(INK, a) : C(MUTED, a), { font: hidden ? SANS : SERIF, sp: .5, align: .5 });
+  o += `<circle r="34" fill="transparent"/>`;
+  return o + `</g>`;
+}
+
+/* ============================================================
+   星图（DrawMap：固定星点 + 跟随相机的天文网格 + 连线 + 节点）
+   ============================================================ */
+const MapX = 26, MapY = 208, MAP_CX = 389.5, MAP_CY = 429;
+const sky = document.getElementById("map");
+let zoom = .84, pan = [0, 0];
+const recenter = () => { pan = [MAP_CX - MapX - 363.5 * zoom, MAP_CY - MapY - 275 * zoom]; };
+function starfield() {
+  let o = "", seed = 173;
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 150; i++) {
+    const size = rnd() < .9 ? 1 : 2, x = 26 + rnd() * 727, y = 150 + rnd() * 558, op = .15 + rnd() * .5;
+    o += `<circle cx="${(x + size / 2).toFixed(1)}" cy="${(y + size / 2).toFixed(1)}" r="3" fill="${gf("rgb(198,161,253)")}" opacity="${(.4 * op).toFixed(3)}"/>` +
+         `<circle cx="${(x + size / 2).toFixed(1)}" cy="${(y + size / 2).toFixed(1)}" r="${size / 2}" fill="${rgba(221, 212, 248, op)}"/>`;
+  }
+  return o;
+}
+function skyGrid() {
+  const oc = rgba(189, 173, 209, .14);
+  let o = `<g transform="scale(${727 / 880} ${550 / 650})" fill="none">`;
+  for (const r of [258, 248, 188, 132])
+    o += `<circle cx="445" cy="324" r="${r}" stroke="${r === 188 ? rgba(189, 173, 209, .14 * .07) : oc}" stroke-width=".7" ${NS}${r === 132 ? ' stroke-dasharray="2.6 7.8"' : ""}/>`;
+  o += `<ellipse cx="445" cy="324" rx="359" ry="215" transform="rotate(${-.454 * 180 / Math.PI} 445 324)" stroke="${rgba(189, 173, 209, .14 * .07)}" stroke-width=".7" ${NS}/>`;
+  let d = "";
+  for (let i = 0; i < 72; i++) {
+    const an = i * Math.PI * 2 / 72, r1 = i % 6 === 0 ? 269 : 263;
+    d += `M${(445 + Math.cos(an) * 258).toFixed(1)},${(324 + Math.sin(an) * 258).toFixed(1)}L${(445 + Math.cos(an) * r1).toFixed(1)},${(324 + Math.sin(an) * r1).toFixed(1)}`;
+  }
+  for (const m of [[445, 51, 445, 71], [445, 577, 445, 597], [172, 324, 197, 324], [693, 324, 718, 324], [252, 131, 268, 147], [622, 485, 638, 501],
+                   [252, 517, 268, 501], [622, 163, 638, 147], [434, 45, 445, 36], [445, 36, 456, 45], [434, 603, 445, 612], [445, 612, 456, 603]])
+    d += `M${m[0]},${m[1]}L${m[2]},${m[3]}`;
+  o += `<path d="${d}" stroke="${oc}" stroke-width=".7" ${NS}/>`;
+  o += crossStar(87, 182, 16, 16, rgba(209, 188, 241, .22), .25) + crossStar(743, 549, 14, 14, rgba(209, 188, 241, .22), .28) + crossStar(422, 477, 10, 10, rgba(209, 188, 241, .22), .2);
+  return o + `</g>`;
+}
+const STARS = starfield(), GRID = skyGrid();
+function ancestors(id) { const s = new Set(); let n = byId(id); while (n && n.parent) { s.add(n.parent); n = byId(n.parent); } return s; }
+// SkillLink：相关金色粗线 + 光晕；已习得实线；待研习虚线 4/5；未显现虚线 2/7
+function linkSvg(p, n, anc) {
+  const st = status(n), related = (n.id === selId || anc.has(n.id)) && anc.has(p.id);
+  const dim = st !== filter && status(p) !== filter;
+  const dx = n.x - p.x, dy = n.y - p.y, L = Math.hypot(dx, dy);
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 77) return "";
+  const g = R + 12, ux = dx / L, uy = dy / L, ax = p.x + ux * g, ay = p.y + uy * g, bx = n.x - ux * g, by = n.y - uy * g;
+  const learned = st === "learned", ready = st === "ready", hidden = st === "hidden";
+  const op = dim ? .09 : related ? 1 : ready ? .65 : hidden ? .35 : 1;
+  const col = related ? [228, 201, 152] : learned ? [191, 172, 216] : ready ? [189, 157, 218] : [102, 89, 115];
+  const w = related ? 1.8 : learned ? 1.2 : 1, dash = ready || hidden ? ` stroke-dasharray="${hidden ? "2 7" : "4 5"}"` : "";
+  const seg = `x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}"`;
+  let o = "";
+  if (related || learned) o += `<line ${seg} stroke="${related ? "rgb(227,192,145)" : "rgb(185,157,222)"}" stroke-opacity="${op / 3}" stroke-width="${w + 5}" stroke-linecap="round" filter="url(#soft)"${dash}/>`;
+  return o + `<line ${seg} stroke="${C(col, op)}" stroke-width="${w}" stroke-linecap="round"${dash}/>`;
+}
+function renderSky() {
+  const anc = ancestors(selId);
+  let o = STARS + `<g id="cam">` + GRID;
+  for (const n of N) if (n.parent) o += linkSvg(byId(n.parent), n, anc);
+  o += `<g id="selGlow"></g><g id="fades"></g>`;
+  for (const n of N) if (n.id !== selId) o += nodeSvg(n);
+  o += nodeSvg(byId(selId)) + `<g id="selFx"></g><g id="dust"></g>`;
+  o += `<g id="bf"><circle r="19" fill="${gf("rgb(183,162,234)")}" opacity=".1"/>` +
+       `<svg id="bfView" x="-17" y="-17" width="34" height="34" viewBox="0 0 64 64" overflow="hidden"><image href="${BUTTERFLY}" width="256" height="256" filter="url(#bfTint)"/></svg></g>`;
+  sky.innerHTML = o + `</g>`;
+  refs = { cam: sky.querySelector("#cam"), bf: sky.querySelector("#bf"), view: sky.querySelector("#bfView"), dust: sky.querySelector("#dust"),
+           fx: sky.querySelector("#selFx"), glow: sky.querySelector("#selGlow"), fades: sky.querySelector("#fades") };
+  applyCamera();
+}
+let refs = {};
+function applyCamera() { refs.cam?.setAttribute("transform", `translate(${(MapX + pan[0]).toFixed(2)} ${(MapY + pan[1]).toFixed(2)}) scale(${zoom})`); }
+function refreshNode(id) {
+  const g = sky.querySelector(`.node[data-id="${id}"]`); if (!g) return;
+  g.outerHTML = nodeSvg(byId(id));
+}
+
+// 拖拽平移 / 滚轮缩放 / 点击选择 / 悬停
+let drag = null;
+const designScale = () => sky.getBoundingClientRect().width / 727;
+sky.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, p: [...pan], moved: false }; sky.setPointerCapture(e.pointerId); });
+sky.addEventListener("pointermove", e => {
+  if (drag) {
+    const k = designScale(), dx = (e.clientX - drag.x) / k, dy = (e.clientY - drag.y) / k;
+    if (Math.hypot(dx, dy) > 4) { drag.moved = true; sky.classList.add("drag"); }
+    if (drag.moved) { pan = [drag.p[0] + dx, drag.p[1] + dy]; applyCamera(); }
+    return;
+  }
+  const g = document.elementFromPoint(e.clientX, e.clientY)?.closest(".node"), id = g ? g.dataset.id : null;
+  if (id !== hoverId) { const old = hoverId; hoverId = id; if (old) refreshNode(old); if (id) refreshNode(id); }
+});
+sky.addEventListener("pointerleave", () => { if (hoverId) { const old = hoverId; hoverId = null; refreshNode(old); } });
+sky.addEventListener("pointerup", e => {
+  if (drag && !drag.moved) { const g = document.elementFromPoint(e.clientX, e.clientY)?.closest(".node"); if (g) select(g.dataset.id); }
+  drag = null; sky.classList.remove("drag");
+});
+sky.addEventListener("wheel", e => { e.preventDefault(); setZoom(zoom + (e.deltaY < 0 ? .1 : -.1), e); }, { passive: false });
+function setZoom(z, e) {
+  const nz = Math.max(.5, Math.min(1.5, Math.round(z * 100) / 100));
+  // 以指针（或地图中心）为锚点缩放
+  let ax = MAP_CX, ay = MAP_CY;
+  if (e) { const r = sky.getBoundingClientRect(), k = r.width / 727; ax = 26 + (e.clientX - r.left) / k; ay = 150 + (e.clientY - r.top) / k; }
+  const wx = (ax - MapX - pan[0]) / zoom, wy = (ay - MapY - pan[1]) / zoom;
+  zoom = nz; pan = [ax - MapX - wx * zoom, ay - MapY - wy * zoom];
+  applyCamera(); renderChrome();
+}
+
+/* ---------- 蝴蝶（ConstellationButterflyMotion 的同款节奏） ---------- */
+const FLIGHT = .42, WING = .8, SETTLE = .65;
+const M = { visible: false, moving: false, flapping: false, pos: [0, 0], from: [0, 0], target: [0, 0], time: 0, moveStart: 0, wingStart: 0, stopAt: 0, idleUntil: 0, rest: 0 };
+function setTarget(p) {
+  if (!M.visible) { Object.assign(M, { visible: true, pos: [...p], from: [...p], target: [...p], flapping: true, wingStart: M.time, stopAt: M.time + WING }); return; }
+  M.from = [...M.pos]; M.target = [...p]; M.moveStart = M.time; M.moving = true;
+  if (!M.flapping) { M.flapping = true; M.wingStart = M.time; }
+  M.stopAt = M.wingStart + Math.ceil((M.time + FLIGHT + SETTLE - M.wingStart) / WING) * WING;
+}
+function advance(s) {
+  M.time += s;
+  if (M.moving) {
+    const t = Math.min(1, (M.time - M.moveStart) / FLIGHT), e = 1 - Math.pow(1 - t, 3), d = Math.hypot(M.target[0] - M.from[0], M.target[1] - M.from[1]);
+    M.pos = [M.from[0] + (M.target[0] - M.from[0]) * e, M.from[1] + (M.target[1] - M.from[1]) * e - Math.sin(t * Math.PI) * Math.min(12, d * .06)];
+    if (t >= 1) { M.pos = [...M.target]; M.moving = false; }
+  }
+  for (;;) {
+    if (M.flapping) { if (M.time < M.stopAt) break; M.flapping = false; M.idleUntil = M.stopAt + 4.5 + (M.rest++ % 3) * .85; }
+    if (M.time < M.idleUntil) break;
+    M.flapping = true; M.wingStart = M.idleUntil; M.stopAt = M.wingStart + WING;
+  }
+}
+// ConstellationNodeEffects：落定 → 金弧生长 / 星座描摹；离开的节点金环淡出
+const FX = { time: 0, landed: null, landedAt: 0, tracedAt: 0, wasFlapping: false, fades: {} };
+let dust = [];
+const PO = polar(R + 2, PERCH);
+function tick(dt) {
+  advance(dt);
+  FX.time += dt;
+  if (!M.visible || M.moving) FX.landed = null;
+  else if (FX.landed !== selId) { FX.landed = selId; FX.landedAt = FX.tracedAt = FX.time; }
+  if (FX.landed && M.flapping && !FX.wasFlapping) FX.tracedAt = FX.time;
+  FX.wasFlapping = M.flapping;
+  for (const k in FX.fades) if ((FX.fades[k] -= dt / .35) <= 0) delete FX.fades[k];
+  if (!refs.bf) return;
+
+  const bx = M.pos[0] + PO[0], by = M.pos[1] + PO[1], f = M.flapping ? Math.floor((M.time - M.wingStart) / WING * 16) % 16 : 0;
+  refs.bf.setAttribute("transform", `translate(${bx.toFixed(2)} ${by.toFixed(2)}) rotate(-18)`);
+  refs.bf.style.display = M.visible ? "" : "none";
+  refs.view.setAttribute("viewBox", `${f % 4 * 64} ${Math.floor(f / 4) * 64} 64 64`);
+  const rate = !M.visible ? 0 : M.moving ? 42 : M.flapping ? 9 : 0;
+  for (let k = rate * dt; k > 0; k--) if (Math.random() < k) dust.push({ x: bx + (Math.random() - .5) * 12, y: by + (Math.random() - .3) * 8, vx: (Math.random() - .5) * 10, vy: 6 + Math.random() * 10, life: 0, max: .8 + Math.random() * .7, r: .5 + Math.random() * .9 });
+  dust = dust.filter(p => (p.life += dt) < p.max);
+  refs.dust.innerHTML = dust.map(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(.98, dt * 60); const k = p.life / p.max, a = (k < .15 ? k / .15 : 1 - (k - .15) / .85) * .85;
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.r.toFixed(2)}" fill="rgb(229,217,245)" opacity="${a.toFixed(2)}"/>`; }).join("");
+
+  // 选中节点的动态层
+  const n = byId(selId), st = status(n), a = st === filter ? 1 : n.id === hoverId ? .8 : .18;
+  const landed = FX.landed === selId, since = FX.time - FX.landedAt, traced = landed ? FX.time - FX.tracedAt : Infinity;
+  const amount = landed ? easeOut(since / .55) : 0;
+  refs.glow.innerHTML = amount > 0 ? `<circle cx="${n.x}" cy="${n.y}" r="56" fill="${gf(C(GOLD))}" opacity="${(.22 * amount * a).toFixed(3)}"/>` : "";
+  refs.fades.innerHTML = Object.entries(FX.fades).map(([id, v]) => { const m = byId(id);
+    return `<circle cx="${m.x}" cy="${m.y}" r="${R}" fill="none" stroke="${C(GOLD, v)}" stroke-width="1.6" ${NS}/>`; }).join("");
+  if (st === "hidden") { refs.fx.innerHTML = ""; return; }
+  let o = `<g transform="translate(${n.x} ${n.y})">` + constellation(n, al => C(GOLD, al), a, true, FX.time, traced);
+  if (landed) {
+    const prog = easeOut(since / .55);
+    o += `<path d="${arc(R, PERCH, 180 * prog)}${arc(R, PERCH - 180 * prog, 180 * prog)}" fill="none" stroke="${C(GOLD, a)}" stroke-width="1.6" ${NS}/>`;
+    const crest = prog * Math.min(1, .65 + .2 * Math.sin(FX.time * 2.1) + (M.flapping ? .25 : 0)) * a, span = 24 * prog;
+    o += `<path d="${arc(R, PERCH - span, span * 2)}" fill="none" stroke="${C(GOLD, crest * .3)}" stroke-width="4.5" ${NS}/>` +
+         `<path d="${arc(R, PERCH - span, span * 2)}" fill="none" stroke="${rgba(255, 248, 236, crest)}" stroke-width="2.2" ${NS}/>`;
+    const pk = since / .6;
+    if (pk < 1) o += `<circle r="${(R + easeOut(pk) * 11).toFixed(2)}" fill="none" stroke="${C(GOLD, .55 * (1 - pk) * a)}" ${NS}/>`;
+    const rp = since / .7;
+    if (rp < 1) { const [px, py] = polar(R, PERCH); o += `<circle cx="${px.toFixed(2)}" cy="${py.toFixed(2)}" r="${(2 + easeOut(rp) * 13).toFixed(2)}" fill="none" stroke="${rgba(245, 236, 255, .8 * (1 - rp) * a)}" ${NS}/>`; }
+  }
+  refs.fx.innerHTML = o + `</g>`;
+}
+
+/* ---------- 详情卡（上一版夜色，未改） ---------- */
+const ELEM = {
+  star: SP_PATH,
+  water: "M0,-9 C4,-3 7,1 7,4 A7,7 0 0 1 -7,4 C-7,1 -4,-3 0,-9Z",
+  ice: "M-1,-10h2v7l5-4 1.4 1.4-6.4 5v0.6h0.6l5-6.4 1.4 1.4-4 5h7v2h-7l4 5-1.4 1.4-5-6.4H1v0.6l6.4 5-1.4 1.4-5-4v7h-2v-7l-5 4-1.4-1.4 6.4-5V1h-.6l-5 6.4-1.4-1.4 4-5h-7v-2h7l-4-5 1.4-1.4 5 6.4H-1v-.6l-6.4-5 1.4-1.4 5 4z",
+  wind: "M-9,-3h11a3,3 0 1 0 -3,-3h-2a5,5 0 1 1 5,5h-11zM-9,2h14a3,3 0 1 1 -3,3h2a1,1 0 1 0 1,-1h-14z",
+  fire: "M0,-10 C5,-4 8,0 7,4 A7,7 0 0 1 -7,4 C-8,0 -4,-3 -2,-7 C-1,-3 2,-2 0,-10Z",
+};
+const ELN = { star: "星", water: "水", ice: "冰", wind: "风", fire: "火" };
+const CARD_K = 302 / 412, CARD_H = 553 / CARD_K;
+document.getElementById("cardHost").style.transform = `scale(${CARD_K})`;
+document.getElementById("card").style.height = CARD_H + "px";
+function renderCard(anim = true) {
+  if (detailNew) return renderDetail(anim);
+  const n = byId(selId), learn = n.state === "learn", max = n.lv >= n.max;
+  const filled = learn ? 0 : Math.max(1, Math.round(n.lv / n.max * 5));
+  const cost = learn ? n.cost : 20 + Math.floor(n.lv / 2) * 5, enough = points >= cost;
+  const eq = slots.indexOf(n.id);
+  const stats = [
+    ["魔力消耗", n.mp ? `${n.mp}<small>MP</small>` : `—`],
+    ["冷却", n.cd ? `${n.cd}<small>秒</small>` : `—`],
+    ["等级", learn ? `未习得` : `${n.lv}<small>/ ${n.max}</small>`],
+  ];
+  const card = document.getElementById("card");
+  card.style.setProperty("--bannerGlow", n.glow);
+  card.innerHTML = `
+    <div class="cardBody ${anim ? "fade" : ""}">
+      <div class="cHead"><h2>${n.name}</h2><span class="kind">${n.kind} · ${learn ? "待研习" : max ? "已满级" : "已习得"}</span></div>
+      <div class="pdots"></div>
+      <div class="banner">
+        <div class="tagrow"><span class="tag">${n.kind} · ${ELN[n.el]}</span><span class="elem"><svg viewBox="-10 -10 20 20"><path d="${ELEM[n.el]}"/></svg></span>${max ? `<span class="max">MAX</span>` : ""}</div>
+        <div class="blv">${learn ? `<small>未习得</small>` : `<small>Lv.</small>${n.lv}`}</div>
+        <div class="art"><img src="${IMG + n.icon}" alt="" ${learn ? 'style="filter:grayscale(.85) brightness(.8)"' : ""}></div>
+        <div class="stars">${[0, 1, 2, 3, 4].map(i => `<svg viewBox="-10 -10 20 20" style="fill:${i < filled ? "#f6e3a8" : "rgba(242,238,248,.25)"}"><path d="${SP_PATH}"/></svg>`).join("")}
+          <span>研习进度 ${learn ? 0 : n.lv} / ${n.max}</span></div>
+      </div>
+      <div class="stats">${stats.map(([k, v]) => `<div class="r"><span>${k}</span><b>${v}</b></div>`).join("")}</div>
+      <div class="pdots"></div>
+      <div class="desc"><div class="h"><span class="ci"><svg viewBox="-10 -10 20 20"><path d="${SP_PATH}"/></svg></span>效果</div><p>${n.desc}</p></div>
+      <div class="pdots push"></div>
+      ${max ? `<div class="req"><div class="ri"><svg viewBox="-10 -10 20 20" style="width:24px;height:24px;fill:#ecd28f"><path d="${SP_PATH}"/></svg></div>
+                <div class="rt"><b>已臻化境</b><small>这门${n.kind}已研习到极致</small></div></div>`
+            : `<div class="req"><div class="ri"><img src="${BOOK}" alt=""></div>
+                <div class="rt"><b>${learn ? "研习所需" : "进修所需"}</b><small>${learn ? "习得后解锁" : `进修后 Lv.${n.lv + 1}`}</small></div>
+                <div class="rv"><span class="${enough ? "ok" : "no"}">${points}</span><small> / ${cost}</small></div></div>`}
+    </div>
+    <div class="cardFoot">
+      <svg class="wm" viewBox="-10 -10 20 20"><path d="${SP_PATH}"/></svg>
+      <svg class="cs" style="left:14px;top:14px" viewBox="-10 -10 20 20"><path d="${SP_PATH}"/></svg>
+      <svg class="cs" style="right:14px;top:14px" viewBox="-10 -10 20 20"><path d="${SP_PATH}"/></svg>
+      ${max ? "" : `<button class="pill ${enough ? "" : "dis"}" id="btnUp">${learn ? "研习" : "进修"}<span class="cost"><img src="${BOOK}" alt="">${cost}</span></button>`}
+      ${learn ? "" : `<button class="pill gold" id="btnEq">${eq >= 0 ? `卸下 <span class="num">${String(eq + 1).padStart(2, "0")}</span>` : `装配 <span class="num">${String(selSlot + 1).padStart(2, "0")}</span>`}</button>`}
+    </div>`;
+  bindActs(n, cost);
+}
+// 研习 / 进修、装配 / 卸下：两版详情共用
+function bindActs(n, cost) {
+  const up = document.getElementById("btnUp");
+  if (up) up.onclick = () => { points -= cost; if (n.state === "learn") { delete n.state; n.lv = 1; } else n.lv++;
+    renderChrome(); renderSky(); renderCard(); FX.tracedAt = FX.time; };
+  const eb = document.getElementById("btnEq");
+  if (eb) eb.onclick = () => { const eq = slots.indexOf(n.id); if (eq >= 0) slots[eq] = null; else slots[selSlot] = n.id; renderSlots(); renderSky(); renderCard(); };
+}
+
+/* ---------- 右栏详情 · 嵌页版 ----------
+   不再是「放在右边的一张卡」，而是书页右栏本身：
+   · 没有底板 / 投影 / 圆角框，文字直接写在纸上；左边界对齐上方「星图收录」，底部动作落在底栏点线之上
+   · 分区只用全页通用的点线（与标题线、页签线、底栏同款），不另起一套框线语言
+   · 图标用方框完整显示（技能图标本身按方形绘制，圆形裁切会切掉四角）：
+     一道断角细方框 + 左上角一颗小星，无底板、无光晕
+   · 可升级时在「效果」下给出下一级数值预览：当前值 → 下一级值（游戏内同款）
+   · 数字用 Gelasio，名字用宋体，强调色只用页面已有的薰衣草 / 暗金；预览的新值用游戏里的薄荷色 */
+let detailNew = true;
+const pad2 = i => String(i + 1).padStart(2, "0");
+// 单位：拉丁字符（MP / %）跟数字走 Gelasio，汉字单位（秒）用黑体
+const unit = u => !u ? "" : /^[ -~]+$/.test(u) ? `<em class="lat">${u}</em>` : `<em>${u}</em>`;
+// 每级成长（示意数值）：[名称, Lv.1 数值, 每级增量, 单位]；Lv.n = 基础 + (n-1)·增量
+const GROW = {
+  witch:   [["魔力上限", 2, 2, "%"]],
+  barrier: [["吸收伤害", 120, 20], ["持续", 8, .5, "秒"]],
+  missile: [["伤害", 8, 2]],
+  wind:    [["伤害", 44, 2]],
+  alchemy: [["配方栏位", 1, 1]],
+  multi:   [["单枚伤害降低", 75, -5, "%"]],
+  flight:  [["飞行速度", 100, 10, "%"]],
+  laser:   [["每秒伤害", 160, 10]],
+  ball:    [["伤害", 90, 0]],
+  cone:    [["伤害", 80, 5]],
+  shard:   [["碎裂伤害", 140, 20], ["锁定", 1, .5, "秒"]],
+  heal:    [["回复生命", 80, 10], ["持续回复", 5, 1, "秒"]],
+  doll:    [["人偶数量", 1, 1]],
+  fire:    [["每秒伤害", 240, 15]],
+  veil:    [["触发概率", 15, 3, "%"], ["伤害减免", 40, 5, "%"]],
+};
+const growAt = (g, lv) => +(g[1] + (lv - 1) * g[2]).toFixed(2);
+// 轻量图标框：一根细线、一点星光，其余交给留白
+// · 无底板、无内框：图标直接放在纸上，背后只垫一抹很淡的技能色
+// · 一道低透明度的细方框；四角各断开一小段，让线条「呼吸」
+// · 左上角一颗小四角星压在断口上（页框星角饰的最小版），不加光晕
+// · 状态只换颜色：已习得 = 薰衣草，满级 = 暗金，待研习 = 更淡 + 图标去色
+function detailIcon(n, learn, max) {
+  const H = 33, g = 4;                               // 框半边长 / 角上断口
+  const tone = max ? GOLD : LAV, a = learn ? .5 : 1, ln = C(tone, .32 * a);
+  let o = `<svg class="dIcon" viewBox="-45 -45 90 90">`;
+  o += `<rect x="-45" y="-45" width="90" height="90" fill="${gf(n.glow)}" opacity="${learn ? .08 : .2}" style="mask:radial-gradient(closest-side,#000,transparent)"/>`;
+  o += `<image href="${IMG + n.icon}" x="-28" y="-28" width="56" height="56"${learn ? ' filter="url(#gray)" opacity=".45"' : ""}/>`;
+  o += line(-H + g, -H, H - g, -H, ln) + line(-H + g, H, H - g, H, ln) + line(-H, -H + g, -H, H - g, ln) + line(H, -H + g, H, H - g, ln);
+  for (const [sx, sy] of [[1, -1], [-1, 1], [1, 1]]) o += `<circle cx="${sx * H}" cy="${sy * H}" r=".9" fill="${C(tone, .45 * a)}"/>`;
+  o += crossStar(-H, -H, 8, 8, max ? C(GOLD, .95) : C(INK, .9 * a), .3);
+  return o + `</svg>`;
+}
+function renderDetail(anim = true) {
+  const n = byId(selId), learn = n.state === "learn", max = n.lv >= n.max;
+  const cost = learn ? n.cost : 20 + Math.floor(n.lv / 2) * 5, enough = points >= cost;
+  const eq = slots.indexOf(n.id), sp = `<svg class="spark"><use href="#sp"/></svg>`;
+  const stat = (k, v, u) => `<div><small>${k}</small>${v ? `<b>${v}${unit(u)}</b>` : `<b class="nil">—</b>`}</div>`;
+  const st = learn ? `<span class="st ready">${sp}待研习</span>` : max ? `<span class="st max">${sp}已满级</span>` : `<span class="st">已习得</span>`;
+  let foot;
+  if (max) foot = `<div class="dDone">${sp}已达最高等级</div>`;
+  else foot = `<div class="dReq">
+      <div class="row"><span>${sp}${learn ? "研习所需" : "进修所需"}</span><span>${learn ? "习得后解锁" : `进修后<span class="lat">LV. ${n.lv + 1}</span>`}</span></div>
+      <div class="need"><i class="bk"></i>研习点<span class="v"><b class="${enough ? "ok" : "no"}">${points}</b> / ${cost}</span></div>
+      ${enough ? "" : `<div class="lack">还缺 ${cost - points}</div>`}
+    </div>`;
+  // 下一级预览：已习得未满级 → 当前 → 下一级；待研习 → 习得后的 Lv.1；满级不显示
+  const grow = GROW[n.id] || [], fmt = (v, u) => `${v}${unit(u)}`;
+  const next = max || !grow.length ? "" : `<div class="dotline"></div><div class="dNext">
+      <h4>${sp}${learn ? "习得后" : "下一级"}<span class="lv">${learn ? `<i>Lv.</i>1` : `<i>Lv.</i>${n.lv}<s>→</s><i>Lv.</i><b>${n.lv + 1}</b>`}</span></h4>
+      ${grow.map(g => `<div class="r"><span>${g[0]}</span><span class="v">${learn ? "" : `${fmt(growAt(g, n.lv), g[3])}<s>→</s>`}<b>${fmt(growAt(g, learn ? 1 : n.lv + 1), g[3])}</b></span></div>`).join("")}
+    </div>`;
+  const acts = [];
+  if (!max) acts.push(`<button class="dBtn ${learn ? "gold" : ""} ${enough ? "" : "dis"}" id="btnUp">${learn ? "研习" : "进修"}<span class="c"><i class="bk"></i>${cost}</span></button>`);
+  if (!learn) acts.push(eq >= 0 ? `<button class="dBtn" id="btnEq">卸下<span class="k">${pad2(eq)}</span></button>`
+                                : `<button class="dBtn gold" id="btnEq">装配<span class="k">${pad2(selSlot)}</span></button>`);
+  document.getElementById("detail").innerHTML = `<div class="in ${anim ? "fade" : ""}">
+    <div class="dKind">${sp}${n.kind}${st}</div>
+    <div class="dHead">${detailIcon(n, learn, max)}
+      <div class="dName"><h2>${n.name}</h2>
+        <div class="dLv">${learn ? `<span class="none">未习得</span><span style="margin-left:auto">/ ${n.max}</span>` : `<i>Lv.</i><b class="${max ? "max" : ""}">${n.lv}</b><span>/ ${n.max}</span>`}</div>
+        <div class="dBar ${max ? "max" : ""}"><i style="width:calc(${(learn ? 0 : n.lv / n.max * 100).toFixed(1)}% - 2px)${learn ? ";display:none" : ""}"></i></div>
+      </div></div>
+    <div class="dotline"></div>
+    <div class="dStats">${stat("魔力", n.mp, "MP")}<div class="vdots"></div>${stat("冷却", n.cd, "秒")}</div>
+    <div class="dotline"></div>
+    <div class="dDesc"><h4>${sp}效果</h4><p>${n.desc}</p></div>
+    ${next}
+    ${foot}
+    <div class="dotline"></div>
+    <div class="dActs">${acts.join("")}</div>
+  </div>`;
+  bindActs(n, cost);
+}
+
+/* ---------- 装配栏（游戏内 DrawSlot 原样：方槽 + 三层内框 + 压线编号 + 选中金框 / 光晕 / 小星） ---------- */
+let hoverSlot = -1;
+function renderSlots() {
+  _gid = 3000;
+  const SURF = "rgb(32,30,47)", Y = 17;
+  let o = "";
+  slots.forEach((id, i) => {
+    const n = id && byId(id), x = 1 + i * 48, y = Y, on = i === selSlot, hov = i === hoverSlot, cx = x + 21, cy = y + 21;
+    if (on) o += glowE(cx, cy, 33, 33, "rgb(195,162,118)", .32);
+    o += `<rect x="${x}" y="${y}" width="42" height="42" fill="${on ? rgba(185, 155, 87, .125) : "rgb(33,27,44)"}"/>`;
+    for (let k = 1; k <= 3; k++) o += frame(x + k, y + k, 42 - 2 * k, 42 - 2 * k, on ? rgba(185, 155, 87, .106) : rgba(52, 35, 62, .333));
+    o += frame(x, y, 42, 42, on ? "rgb(227,193,141)" : hov ? C(LAV) : rgba(164, 136, 179, .34));
+    if (n) o += `<image href="${IMG + n.icon}" x="${cx - 16}" y="${cy - 16}" width="32" height="32"/>`;
+    else o += `<path d="M${cx - 7},${cy + .5}h14M${cx + .5},${cy - 7}v14" stroke="rgb(155,125,173)" stroke-width="1" ${NS}/>`;
+    // 编号压在上框线上：先垫一块页面底色把框线切开
+    const key = SLOT_KEYS[i], kw = measure(key, 9, LATIN);
+    o += `<rect x="${x - 3}" y="${y - 6}" width="${kw + 6}" height="10" fill="${SURF}"/>`;
+    o += T(key, x, y - 7.5, 9, on ? "rgb(227,193,141)" : hov ? "rgb(240,192,222)" : "rgb(222,166,200)", { font: LATIN });
+    if (on) o += crossStar(cx, y + 44, 8.5, 8.5, "rgb(227,193,141)", .5);
+    o += `<rect class="hit" data-i="${i}" x="${x - 3}" y="${y - 8}" width="48" height="54"><title>${key} · ${n ? `${n.name} · Lv. ${n.lv}` : "空"}</title></rect>`;
+  });
+  document.getElementById("slots").innerHTML = o;
+  document.getElementById("eqCount").textContent = `${slots.filter(Boolean).length} / ${slots.length}`;
+}
+const slotsEl = document.getElementById("slots");
+slotsEl.addEventListener("click", e => {
+  const s = e.target.closest(".hit"); if (!s) return;
+  selSlot = +s.dataset.i; const id = slots[selSlot];
+  renderSlots(); if (id) select(id); else renderCard();
+});
+slotsEl.addEventListener("pointerover", e => { const s = e.target.closest(".hit"), i = s ? +s.dataset.i : -1; if (i !== hoverSlot) { hoverSlot = i; renderSlots(); } });
+slotsEl.addEventListener("pointerleave", () => { if (hoverSlot !== -1) { hoverSlot = -1; renderSlots(); } });
+function select(id) {
+  if (id === selId) return;
+  if (FX.landed === selId || FX.landed == null) FX.fades[selId] = 1;
+  selId = id;
+  renderSky(); renderCard();
+  const n = byId(id); setTarget([n.x, n.y]);
+}
+
+/* ============================================================
+   书本翻页（ConstellationBookMotion / Renderer 同款时间线）
+   · 32 条封面纸带，CSS 3D；弯曲 bend = 32°·sin(π·Turn)·curl，curl 为临界阻尼弹簧
+   · 轻微优化：①飞行途中就带出皮面与书页块（书本厚度）②封面掠光 ③衬页滞后跟随 ④翻开后书签轻晃
+   ============================================================ */
+const book = {
+  p: 0, target: false, curl: 1, curlV: 0,
+  request(open) {
+    if (this.target === open) return;
+    if (this.p === 0 || this.p === 1) { this.curl = open ? 1 : -1; this.curlV = 0; }
+    this.target = open;
+  },
+  get moving() { return this.p !== (this.target ? 1 : 0); },
+  advance(s) {
+    if (!this.moving || s <= 0) return;
+    const dir = this.target ? 1 : -1, off = this.curl - dir, imp = this.curlV + 32 * off, decay = Math.exp(-32 * s);
+    this.curl = dir + (off + imp * s) * decay;
+    this.curlV = (this.curlV - 32 * imp * s) * decay;
+    this.p = Math.max(0, Math.min(1, this.p + dir * s / (this.target ? .56 : .44)));
+    if (!this.moving) { this.curl = this.target ? 1 : -1; this.curlV = 0; if (this.target) onOpened(); }
+  },
+};
+const STRIPS = 32, SW = 1100 / STRIPS, LEAF_STRIPS = 16, LW = 1100 / LEAF_STRIPS;
+const coverEl = document.getElementById("cover"), leafEl = document.getElementById("flyleaf");
+const coverStrips = [], leafStrips = [];
+function buildStrips(el, count, list, frontUrl, backUrl) {
+  const w = 1100 / count;
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("div"); s.className = "strip"; s.style.width = (w + .7) + "px";
+    s.innerHTML = `<i class="f" style="background-image:url('${frontUrl}');background-position:${-i * w}px 0"><b class="sh"></b><b class="gl"></b></i>` +
+                  `<i class="b" style="background-image:url('${backUrl}');background-position:${-(1100 - (i + 1) * w)}px 0"><b class="sh"></b></i>`;
+    el.appendChild(s);
+    list.push({ el: s, f: s.children[0], b: s.children[1], fsh: s.children[0].children[0], fgl: s.children[0].children[1], bsh: s.children[1].children[0] });
+  }
+}
+// 封面正面 = BookCoverFront + 「魔女手札」（PaintCover：550,512 · 29px 宋体 · 字距 7）
+async function paintCovers() {
+  const load = src => new Promise(r => { const im = new Image(); im.onload = () => r(im); im.src = src; });
+  await document.fonts.load(`29px "Noto Serif SC"`);
+  const [front, back] = await Promise.all([load(ASSET + "BookCoverFront.png"), load(ASSET + "BookCoverBack.png")]);
+  const cv = document.createElement("canvas"); cv.width = 1100; cv.height = 800;
+  const g = cv.getContext("2d");
+  g.drawImage(front, 0, 0, 1100, 800);
+  g.font = `29px "Noto Serif SC"`; g.letterSpacing = "7px"; g.textBaseline = "top"; g.fillStyle = "rgb(226,208,233)";
+  const tw = g.measureText("魔女手札").width - 7;
+  g.fillText("魔女手札", 550 - tw / 2, 512);
+  const frontUrl = cv.toDataURL();
+  // 衬页：比封底略深的纸色 + 一道很淡的内框
+  const lv = document.createElement("canvas"); lv.width = 1100; lv.height = 800;
+  const h = lv.getContext("2d"), grad = h.createLinearGradient(0, 0, 1100, 800);
+  grad.addColorStop(0, "#3b3149"); grad.addColorStop(1, "#2c2539");
+  h.fillStyle = grad; h.fillRect(0, 0, 1100, 800);
+  h.strokeStyle = "rgba(202,178,237,.12)"; h.strokeRect(10.5, 10.5, 1079, 779);
+  h.strokeStyle = "rgba(202,178,237,.3)"; h.strokeRect(.5, .5, 1099, 799);
+  const leafUrl = lv.toDataURL();
+  buildStrips(coverEl, STRIPS, coverStrips, frontUrl, back.src);
+  buildStrips(leafEl, LEAF_STRIPS, leafStrips, leafUrl, leafUrl);
+}
+function layoutSheet(list, count, turn, maxAngle, bendMax, curl, alpha, z, gloss) {
+  const w = 1100 / count, bend = bendMax * Math.sin(Math.PI * turn) * curl;
+  let ex = 0, ez = 0, right = 0;
+  for (let i = 0; i < count; i++) {
+    const u = (i + .5) / count, deg = -maxAngle * turn - bend * (1 - 2 * u), a = deg * Math.PI / 180, s = list[i];
+    s.el.style.transform = `translate3d(${ex.toFixed(2)}px,0,${(ez + z).toFixed(2)}px) rotateY(${deg.toFixed(3)}deg)`;
+    // 明暗按纸带两端的角度做渐变，相邻纸带首尾相接，不会出现竖条纹
+    const edgeDeg = k => -maxAngle * turn - bend * (1 - 2 * k), dl = edgeDeg(i / count), dr = edgeDeg((i + 1) / count);
+    const sh = d => Math.abs(Math.sin(d * Math.PI / 180)) * .2, gl = d => .13 * Math.exp(-(((d + 38) / 15) ** 2)) * Math.sin(Math.PI * turn);
+    s.fsh.style.background = `linear-gradient(90deg, rgba(13,10,27,${sh(dl).toFixed(3)}), rgba(13,10,27,${sh(dr).toFixed(3)}))`;
+    s.bsh.style.background = `linear-gradient(270deg, rgba(225,212,241,${(sh(dl) * .35).toFixed(3)}), rgba(225,212,241,${(sh(dr) * .35).toFixed(3)}))`;
+    if (gloss) s.fgl.style.background = `linear-gradient(90deg, rgba(240,226,255,${gl(dl).toFixed(3)}), rgba(240,226,255,${gl(dr).toFixed(3)}))`;
+    s.f.style.opacity = s.b.style.opacity = alpha.toFixed(3);
+    ex += w * Math.cos(a); ez -= w * Math.sin(a); right = Math.max(right, ex);
+  }
+  return right;
+}
+const bookEl = document.getElementById("book"), bodyEl = document.getElementById("body"), pageEl = document.getElementById("page");
+const shadowEl = document.getElementById("pshadow"), backdropEl = document.getElementById("backdrop"), dockEl = document.getElementById("dock");
+let fitK = 1;
+function dockVector() {
+  const app = document.getElementById("app").getBoundingClientRect(), d = dockEl.getBoundingClientRect();
+  return [((d.left + d.width / 2) - app.left) / fitK - 550, ((d.top + d.height / 2) - app.top) / fitK - 400];
+}
+function renderBook() {
+  const p = book.p, turn = ease((p - .26) / .64), scene = ease(p / .04), pageA = ease((p - .3) / .5);
+  const coverA = p === 1 ? 0 : 1 - ease((p - .78) / .2), shadowA = Math.sin(Math.PI * turn) * .45;
+  backdropEl.style.opacity = (ease((p - .08) / .72) * .72).toFixed(3);
+  const glow = Math.sin(Math.PI * Math.min(1, p / .26)) * .7;
+  dockEl.querySelector(".glow").style.opacity = book.moving ? glow.toFixed(3) : 0;
+  if (p === 1) {
+    bookEl.style.transform = "none"; bookEl.classList.add("rest"); bookEl.style.visibility = "";
+    bodyEl.style.opacity = pageEl.style.opacity = 1; shadowEl.style.opacity = 0;
+    coverEl.style.display = leafEl.style.display = "none"; pageEl.style.pointerEvents = "";
+    return;
+  }
+  bookEl.classList.remove("rest");
+  bookEl.style.visibility = p === 0 ? "hidden" : "";
+  pageEl.style.pointerEvents = "none";
+  coverEl.style.display = leafEl.style.display = "";
+  const [dx, dy] = dockVector(), dlen = Math.hypot(dx, dy), sg = Math.sign(dx) || 1;
+  const travel = ease(p / .82), tucked = 1 - travel, lift = Math.min(100, dlen * .16);
+  const dockScale = Math.min(1, Math.min(96 / 1100, 30 / 800)) * .82;
+  const sc = dockScale + (1 - dockScale) * Math.pow(travel, 1.45);
+  const bank = tucked === 0 || tucked === 1 ? 0 : Math.sin(Math.PI * tucked) ** 2;
+  const tx = dx * tucked, ty = dy * tucked - lift * 4 * tucked * (1 - tucked);
+  bookEl.style.transform = `translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px) translate(550px,400px) scale(${sc.toFixed(4)}) translate(-550px,-400px) ` +
+    `translate(385px,384px) perspective(5000px) translate(-385px,-384px) translate(550px,400px) ` +
+    `rotateX(${(5 * bank).toFixed(3)}deg) rotateY(${(-7 * bank * sg).toFixed(3)}deg) rotateZ(${(9 * bank * sg).toFixed(3)}deg) translate(-550px,-400px)`;
+  // 优化①：皮面 / 书页块随封面一起出现，飞行中的合书有厚度；页面内容仍按 PageAlpha 渐显
+  bodyEl.style.opacity = scene.toFixed(3);
+  pageEl.style.opacity = (scene * pageA).toFixed(3);
+  if (!coverStrips.length) return;
+  // 优化③：衬页滞后 0.05 跟随，最终停在 -100°，与封面一起淡出
+  const leafTurn = ease((p - .31) / .62);
+  layoutSheet(leafStrips, LEAF_STRIPS, leafTurn, 100, 22, book.curl, coverA * scene, .3, false);
+  // 优化②：封面掠光
+  const right = layoutSheet(coverStrips, STRIPS, turn, 104, 32, book.curl, coverA * scene, .8, true);
+  const sw = Math.max(.12 * 1100, right), sa = shadowA * scene;
+  shadowEl.style.width = sw + "px";
+  shadowEl.style.background = `linear-gradient(90deg, rgba(9,6,18,${(.7 * sa).toFixed(3)}), rgba(41,26,59,${(.4 * sa).toFixed(3)}) 58%, transparent)`;
+  shadowEl.style.opacity = 1;
+}
+function onOpened() {
+  const r = document.getElementById("ribbon"); if (!r) return;
+  r.classList.remove("sway"); void r.getBoundingClientRect(); r.classList.add("sway");
+}
+dockEl.onclick = () => book.request(!book.target);
+addEventListener("keydown", e => {
+  if (e.key === "Escape") book.request(false);
+  if (e.key === "k" || e.key === "K") book.request(!book.target);
+});
+
+/* ---------- 预览开关 ---------- */
+let slow = 1;
+document.getElementById("devBook").onclick = () => { book.p = 0; book.target = false; book.request(true); };
+document.getElementById("devSlow").onclick = e => { slow = slow === 1 ? .25 : 1; e.target.textContent = "慢放 ×4：" + (slow === 1 ? "关" : "开"); };
+document.getElementById("devRim").onclick = e => { rimNew = !rimNew; e.target.textContent = "页缘：" + (rimNew ? "精简" : "原"); renderBody(); renderFrame(); onOpened(); };
+document.getElementById("devFrame").onclick =e => { frameNew = !frameNew; e.target.textContent = "外框：" + (frameNew ? "新" : "原"); renderFrame(); };
+document.getElementById("devCard").onclick =e => { document.body.classList.toggle("nightCard"); e.target.textContent = "详情卡：" + (document.body.classList.contains("nightCard") ? "夜色" : "月白"); };
+document.getElementById("devDetail").onclick = e => { detailNew = !detailNew; document.body.classList.toggle("detailPage", detailNew); e.target.textContent = "详情：" + (detailNew ? "嵌页" : "卡片"); renderCard(false); };
+document.getElementById("devReplay").onclick = () => { M.visible = false; FX.landed = null; const n = byId(selId); setTarget([n.x, n.y]); };
+document.getElementById("tEdit").onclick = e => e.target.classList.toggle("on");
+
+/* ---------- 缩放适配 ---------- */
+function fit() {
+  fitK = Math.min(innerWidth / 1180, innerHeight / 890);
+  document.getElementById("app").style.transform = `translate(-50%, -50%) scale(${fitK})`;
+  dockEl.style.transform = `scale(${fitK})`;
+}
+addEventListener("resize", fit); fit();
+
+// 预览参数：?sel=<节点 id>  ?book=open（跳过翻页）| ?book=0.55（定格在某一进度）  ?card=day
+const Q = new URLSearchParams(location.search);
+if (Q.get("sel") && byId(Q.get("sel"))) selId = Q.get("sel");
+if (FILTERS.some(f => f.k === Q.get("filter"))) filter = Q.get("filter");
+if (Q.get("rim") === "old") { rimNew = false; document.getElementById("devRim").textContent = "页缘：原"; }
+if (Q.get("frame") === "old") { frameNew = false; document.getElementById("devFrame").textContent = "外框：原"; }
+if (Q.get("detail") === "card") { detailNew = false; document.body.classList.remove("detailPage"); document.getElementById("devDetail").textContent = "详情：卡片"; }
+if (Q.get("card") === "day") { document.body.classList.remove("nightCard"); document.getElementById("devCard").textContent = "详情卡：月白"; }
+document.querySelector("svg.defs defs").insertAdjacentHTML("beforeend",
+  `<filter id="tintGold" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".902 0 0 0 0  0 .808 0 0 0  0 0 .647 0 0  0 0 0 1 0"/></filter>`);
+recenter();
+document.fonts.ready.then(() => {
+  renderBody(); renderFrame(); renderChrome(); renderSlots(); renderSky(); renderCard(false);
+  // 截图用：直接打开 / 定格时先把蝴蝶落定、星座描完
+  if (Q.get("book")) for (let i = 0; i < 150; i++) tick(1 / 60);
+});
+renderBody(); renderFrame(); renderChrome(); renderSlots(); renderSky(); renderCard(false);
+setTarget([byId(selId).x, byId(selId).y]);
+
+const bq = Q.get("book"), frozen = bq && bq !== "open" && !isNaN(+bq);
+paintCovers().then(() => {
+  if (bq === "open") { book.target = true; book.p = 1; }
+  else if (frozen) { book.target = true; book.p = Math.max(0, Math.min(1, +bq)); }
+  else setTimeout(() => book.request(true), 350);
+  renderBook();
+});
+renderBook();
+let last = performance.now();
+(function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;
+  if (!frozen) book.advance(dt * slow);
+  if (book.moving || !frozen) renderBook();
+  tick(dt);
+  if (Q.has("debug")) document.title = `t=${M.time.toFixed(2)} fx=${refs.fx?.innerHTML.length} landed=${FX.landed}`;
+})(last);
+</script>
+</body>
+</html>

@@ -1,0 +1,1010 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>炼金手记 · 改版预览</title>
+<style>
+/* ============================================================
+   炼金手记改版：与魔女手札（Tools/SkillPanelRedesign）共用同一套设计语言
+   · 同一张 1100×800 书页、同款页缘 / 点线内框 / 星角饰
+   · 标题区：徽记圆 + 菱角 → 宋体书名 →（留白）→ 竖点线 → LV 印 + 经验条（位于右栏正上方）→ 关闭
+   · 页签：等分格、数字紧跟标签、选中标记落在点线上；右侧「研究收录」与「星图收录」同构；页签下直接是目录，不加图例 / 工具条
+   · 左栏目录：保留「标本卡」（倾斜 / 拾起回正 / 羽毛笔 / 封印）；默认月白纸（比现版压暗一档），夜色纸作对比
+   · 右栏详情：不再是框中框，直接写在书页上，分区只用点线（与技能详情同款）
+   · 底栏：与装配栏同一结构——点线 + 三连星 / 区块标题 / 方槽 / 竖点线 / 调试幽灵按钮
+   ============================================================ */
+@font-face { font-family: "Gelasio"; src: url("../../.vissandbox/gelasio-source/Gelasio.ttf"), local("Georgia"); }
+:root {
+  --ink: #eee9f5; --muted: #b2a8c3; --muted2: #9e96ae; --faint: #6c6579; --lav: #cab2ed; --gold: #e6cea5; --rose: rgb(226,128,150); --mint: rgb(178,222,200);
+  --serif: "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+  --hsans: "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  --latin: "Gelasio", Georgia, serif;
+  --dot: rgba(236,229,247,.32);
+  /* 标本卡 · 夜色（对比用；默认 body.moon） */
+  --cBg: rgb(47,39,62); --cBg2: rgb(41,34,55); --cEdge: rgba(202,178,237,.26); --cDot: rgba(236,229,247,.2); --cMark: rgba(202,178,237,.5);
+  --cInk: rgb(240,231,244); --cMuted: rgb(170,158,190); --cFaint: rgba(178,168,195,.45); --cShadow: rgba(6,4,12,.55);
+  --cLock: rgba(178,168,195,.28); --cLockInk: rgba(178,168,195,.42); --cGold: rgb(230,206,165); --cGoldA: rgba(230,206,165,.75);
+}
+/* 默认：月白纸（接近现在游戏内的浅色纸卡，纸色压暗一档，避免在深色书页上发白刺眼） */
+body.moon {
+  --cBg: rgb(226,220,234); --cBg2: rgb(214,207,224); --cEdge: rgba(120,100,145,.35); --cDot: rgba(90,70,115,.28); --cMark: rgba(110,85,140,.6);
+  --cInk: rgb(52,44,64); --cMuted: rgb(118,108,134); --cFaint: rgba(118,108,134,.6); --cShadow: rgba(6,4,12,.6); --cGold: rgb(150,108,40); --cGoldA: rgba(150,108,40,.8);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { font-family: var(--hsans); color: var(--ink); background: #07080d; }
+svg.defs { position: absolute; width: 0; height: 0; }
+#world { position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 30% 20%, rgba(70,84,140,.45), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 85%, rgba(60,40,70,.5), transparent 70%),
+    linear-gradient(180deg, #1b2440, #121626 60%, #0d0f18); }
+#world::after { content: ""; position: absolute; inset: 0; background: rgb(8,10,18); opacity: .72; }
+#app { width: 1100px; height: 800px; position: absolute; left: 50%; top: 50%; transform-origin: center; }
+#body, #page { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; }
+#body { pointer-events: none; }
+#body svg { position: absolute; left: 0; top: 0; overflow: visible; }
+#page > img.surface { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; display: block; }
+svg.layer { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; overflow: visible; }
+#chrome { pointer-events: none; z-index: 3; }
+#chrome .hit { pointer-events: all; cursor: pointer; fill: transparent; }
+#marker { transition: transform .18s ease-in-out; }
+.spark { width: 1em; height: 1em; display: inline-block; vertical-align: -.12em; fill: currentColor; }
+.dotline { height: 3px; background: radial-gradient(circle, var(--dot) .7px, transparent 1px) 0 50% / 4.5px 3px repeat-x; }
+.vdots { width: 3px; background: radial-gradient(circle, var(--dot) .7px, transparent 1px) 50% 0 / 3px 4.5px repeat-y; }
+.lat { font-family: var(--latin); }
+img.px, image.px { image-rendering: pixelated; }
+
+/* ============ 目录：标本卡 ============ */
+#catalog { position: absolute; left: 26px; top: 150px; width: 727px; height: 550px; overflow: hidden;
+  -webkit-mask: linear-gradient(180deg, transparent, #000 16px, #000 calc(100% - 26px), transparent); mask: linear-gradient(180deg, transparent, #000 16px, #000 calc(100% - 26px), transparent); }
+#scroller { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+#scroller::-webkit-scrollbar { display: none; }
+#grid { position: relative; width: 727px; }
+.card { position: absolute; width: 118px; height: 132px; cursor: pointer;
+  transform: translate(var(--ox), var(--oy)) rotate(var(--r));
+  transition: transform .55s cubic-bezier(.3,1.55,.55,1), opacity .25s; }
+.card > svg { position: absolute; left: 0; top: 0; width: 118px; height: 132px; overflow: visible; }
+.card .sh { position: absolute; inset: 2px; transform: translate(2px, 4px); background: var(--cShadow); filter: blur(5px); transition: transform .4s, opacity .4s; opacity: .8; }
+.card.st-locked .sh { display: none; }
+.card:hover { transform: translate(var(--ox), calc(var(--oy) - 3px)) rotate(calc(var(--r) * .6)) scale(1.015); z-index: 2; }
+.card:hover .sh { transform: translate(3px, 7px); opacity: .9; }
+.card.sel { transform: translate(0, -6px) rotate(0deg) scale(1.045); z-index: 4; }
+.card.sel .sh { transform: translate(4px, 10px); opacity: 1; filter: blur(8px); }
+.card.sel > svg { animation: breathe 2.6s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { filter: drop-shadow(0 0 3px rgba(230,206,165,.35)); } 50% { filter: drop-shadow(0 0 9px rgba(230,206,165,.6)); } }
+/* 像素图标不随卡片旋转 / 缩放：最近邻采样下旋转会切歪像素行、非整数缩放会让像素一宽一窄。
+   图标只跟随位置，朝向与尺寸用反向变换抵消（缓动与卡片一致）。 */
+.card .ico { position: absolute; pointer-events: none; transform: rotate(calc(var(--r) * -1));
+  transition: transform .55s cubic-bezier(.3,1.55,.55,1); }
+.card:hover .ico { transform: rotate(calc(var(--r) * -.6)) scale(calc(1 / 1.015)); }
+.card.sel .ico { transform: scale(calc(1 / 1.045)); }
+.card.st-locked .ico { opacity: .26; filter: grayscale(1); }
+/* 物品描边（body.ol）：只用在深色书页上；纸卡上的物品自带深色轮廓，白纸上不再加边 */
+body.ol .dIcon image.px, body.ol #slots image.px, body.ol .ing img.px, body.ol .chip img.px { filter: url(#olDark); }
+/* 可制 · 丝带：悬停 / 选中时轻轻一晃（书签丝带同款节奏） */
+.card .rb { transform-box: fill-box; transform-origin: 50% 0; }
+.card:hover .rb, .card.sel .rb { animation: rbSway 1.6s cubic-bezier(.3,.6,.4,1) both; }
+@keyframes rbSway { 0% { transform: rotate(0); } 20% { transform: rotate(6deg); } 45% { transform: rotate(-3.5deg); } 70% { transform: rotate(1.5deg); } 100% { transform: rotate(0); } }
+/* 可制 · 角星：错开相位慢慢闪 */
+.card .twk { transform-box: fill-box; transform-origin: center; animation: twinkle 2.8s ease-in-out infinite; animation-delay: var(--tw, 0s); }
+@keyframes twinkle { 0%, 100% { opacity: .75; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.15); } }
+.card.flash > svg { animation: flash .9s ease-out; }
+@keyframes flash { 0% { filter: drop-shadow(0 0 0 rgba(255,244,220,0)) brightness(1); } 25% { filter: drop-shadow(0 0 14px rgba(255,244,220,.9)) brightness(1.35); } 100% { filter: drop-shadow(0 0 3px rgba(230,206,165,.35)) brightness(1); } }
+/* 选中卡封印上方升起的三颗小光点 */
+.mote { position: absolute; left: 59px; top: -2px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: rgb(255,244,220);
+  box-shadow: 0 0 4px rgba(255,236,200,.9); opacity: 0; animation: rise 2.4s ease-out infinite; pointer-events: none; }
+.mote:nth-of-type(2) { animation-delay: .8s; --dx: -7px; } .mote:nth-of-type(3) { animation-delay: 1.6s; --dx: 6px; }
+@keyframes rise { 0% { opacity: 0; transform: translate(0, 0) scale(.6); } 20% { opacity: .95; } 100% { opacity: 0; transform: translate(var(--dx, 2px), -26px) scale(1); } }
+#quill { position: absolute; width: 22px; height: 42px; z-index: 5; pointer-events: none; image-rendering: auto;
+  transition: left .45s cubic-bezier(.25,.8,.3,1), top .45s cubic-bezier(.25,.8,.3,1); filter: drop-shadow(1px 3px 2px rgba(6,4,12,.5)); }
+/* 自绘滚动条：一条竖点线 + 薰衣草滑块 */
+#sbar { position: absolute; left: 741px; top: 162px; width: 3px; height: 518px; z-index: 3; }
+#sbar .vdots { position: absolute; inset: 0; }
+#sbar i { position: absolute; left: 0; width: 3px; border-radius: 1.5px; background: rgba(202,178,237,.7); }
+#toast { position: absolute; left: 389.5px; top: 664px; transform: translate(-50%, 6px); white-space: nowrap; height: 28px; padding: 0 18px; border-radius: 14px; z-index: 6;
+  display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 1.5px; color: rgb(240,222,186);
+  background: rgba(24,19,32,.92); box-shadow: inset 0 0 0 1px rgba(227,193,141,.5), 0 6px 18px rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+#toast .spark { width: 9px; height: 9px; }
+#toast b { font: 13px/1 var(--latin); font-weight: 400; }
+
+/* ============ 右栏详情（嵌页，与技能详情同款结构） ============ */
+.detail { position: absolute; left: 790px; top: 160px; width: 270px; height: 536px; color: var(--ink); }
+.detail .in { height: 100%; display: flex; flex-direction: column; }
+.detail .dotline { flex: none; margin: 12px 0; }
+.dKind { display: flex; align-items: center; gap: 6px; height: 14px; font-size: 11px; letter-spacing: 2px; color: rgb(196,180,210); flex: none; }
+.dKind .spark { width: 8px; height: 8px; color: var(--lav); }
+.dKind .st { margin-left: auto; font-size: 10px; letter-spacing: 1.5px; color: var(--muted2); display: flex; align-items: center; gap: 5px; }
+.dKind .st.gold { color: var(--gold); } .dKind .st.rose { color: var(--rose); }
+.dHead { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex: none; }
+.dIcon { width: 76px; height: 76px; flex: none; margin-left: -4px; overflow: visible; }
+.dName { flex: 1; min-width: 0; }
+.dName h2 { margin: 0; font: 400 25px/1.25 var(--serif); letter-spacing: 3px; color: rgb(240,231,244); white-space: nowrap; }
+.dName h2.mask { color: var(--muted); letter-spacing: 4px; }
+.dSub { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 1.5px; color: var(--muted2); }
+.dSub .lat { font-size: 12px; letter-spacing: .5px; color: var(--muted); }
+.dSub .rar { display: inline-flex; gap: 3px; }
+.dSub .rar i { width: 6px; height: 6px; transform: rotate(45deg); box-shadow: inset 0 0 0 1px rgba(230,206,165,.55); }
+.dSub .rar i.on { background: rgba(230,206,165,.9); box-shadow: none; }
+.dSub .own { margin-left: auto; display: flex; align-items: baseline; gap: 5px; font-size: 10px; letter-spacing: 1.5px; }
+.dSub .own b { font: 400 16px/1 var(--latin); letter-spacing: 0; color: var(--ink); }
+.dSub .own b.nil { color: var(--faint); }
+/* 中段可滚动：长效果 / 多素材不会把底部动作挤出页面 */
+.dMid { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; margin-right: -8px; padding-right: 8px; }
+.dMid::-webkit-scrollbar { display: none; }
+.dMid.more { -webkit-mask: linear-gradient(180deg, #000 calc(100% - 22px), transparent); mask: linear-gradient(180deg, #000 calc(100% - 22px), transparent); }
+.dMid .dotline { margin: 12px 0; }
+h4.sec { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 400; letter-spacing: 2px; color: rgb(196,180,210); }
+h4.sec .spark { width: 8px; height: 8px; color: var(--lav); }
+h4.sec .r { margin-left: auto; font-size: 10px; letter-spacing: 1.5px; color: var(--muted2); }
+h4.sec .r .lat { font-size: 12px; letter-spacing: 0; color: var(--muted); }
+.dDesc p { margin: 0; font-size: 13px; line-height: 1.85; letter-spacing: .5px; color: rgba(238,233,245,.86); }
+.dDesc p .mana { color: rgb(120,165,255); }
+.dDesc p .mana img { width: 13px; height: 13px; vertical-align: -2px; margin-right: 2px; }
+/* 效果条目：与「下一级」行同款——左名称，右数值，行间一道极淡的线 */
+.rows { margin-top: 6px; }
+.rows .r { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 28px; padding: 5px 0; line-height: 18px; font-size: 12px; letter-spacing: 1.5px; color: rgb(214,200,224); }
+.rows .r + .r { box-shadow: inset 0 1px 0 rgba(236,229,247,.06); }
+.rows .r > span:first-child { flex: none; }
+.rows .v { text-align: right; font-size: 12px; letter-spacing: 1px; color: var(--ink); }
+.rows .v.num { font: 15px/18px var(--latin); letter-spacing: 0; }
+.rows .v.bad { color: var(--rose); }
+.rows .v b { font-weight: 400; } .rows .v .ok { color: var(--gold); } .rows .v .no { color: var(--rose); }
+/* 所需素材：图标 + 名称（可点击跳到该素材条目）+ 持有 / 需要 */
+.ing { display: flex; align-items: center; gap: 10px; height: 34px; }
+.ing + .ing { box-shadow: inset 0 1px 0 rgba(236,229,247,.06); }
+.ing .ii { width: 26px; height: 26px; flex: none; display: grid; place-items: center; position: relative; }
+.ing .ii::before { content: ""; position: absolute; inset: 0; transform: rotate(45deg) scale(.78); box-shadow: inset 0 0 0 1px rgba(202,178,237,.2); }
+.ing .ii img { max-width: 24px; max-height: 24px; position: relative; }
+.ing .nm { font-size: 13px; letter-spacing: 1px; color: rgb(222,212,232); }
+.ing a.nm { cursor: pointer; text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size .2s, color .15s; }
+.ing a.nm:hover { color: var(--lav); background-size: 100% 1px; }
+.ing a.nm::after { content: "›"; margin-left: 4px; font-size: 12px; color: var(--muted2); }
+.ing .v { margin-left: auto; font: 14px/1 var(--latin); color: var(--muted); white-space: nowrap; }
+.ing .v b { font-weight: 400; font-size: 17px; } .ing .v .ok { color: var(--gold); } .ing .v .no { color: var(--rose); }
+.ing .v small { font-size: 11px; color: var(--muted2); margin-left: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { all: unset; cursor: pointer; height: 22px; padding: 0 10px; border-radius: 11px; font-size: 11px; letter-spacing: 1.2px; color: rgb(214,200,224);
+  box-shadow: inset 0 0 0 1px rgba(236,229,247,.2); display: inline-flex; align-items: center; gap: 6px; transition: all .15s; }
+.chip img { max-width: 16px; max-height: 16px; }
+.chip:hover { color: var(--ink); box-shadow: inset 0 0 0 1px rgba(236,229,247,.5); background: rgba(236,229,247,.05); }
+.chip.locked { color: var(--faint); }
+.plain { margin: 0; font-size: 12px; line-height: 1.8; letter-spacing: 1px; color: rgba(238,233,245,.8); }
+.dRec { margin-top: 12px; display: flex; align-items: center; font-size: 10px; letter-spacing: 2px; color: var(--muted2); }
+.dRec .spark { width: 8px; height: 8px; color: var(--lav); margin-right: 6px; }
+.dRec span:last-child { margin-left: auto; color: rgb(196,180,210); letter-spacing: 1px; }
+/* 底部：批数胶囊（缩放胶囊同款）+ 提示 + 动作 */
+.dFoot { flex: none; }
+.dBatch { display: flex; align-items: center; gap: 10px; height: 28px; }
+.dBatch .lb { font-size: 11px; letter-spacing: 2px; color: rgb(196,180,210); }
+.step { height: 27px; border-radius: 13.5px; display: flex; align-items: center; background: rgba(26,22,35,.45); box-shadow: inset 0 0 0 1px rgba(236,229,247,.18); }
+.step button { all: unset; cursor: pointer; width: 28px; height: 27px; display: grid; place-items: center; color: var(--lav); font: 16px/1 var(--latin); }
+.step button:hover { color: var(--ink); }
+.step button.off { color: rgba(178,168,195,.3); pointer-events: none; }
+.step .q { width: 28px; text-align: center; font: 15px/27px var(--latin); color: var(--ink); }
+.step .vd { width: 3px; height: 16px; margin: 0 2px; background: radial-gradient(circle, var(--dot) .7px, transparent 1px) 50% 0 / 3px 4.5px repeat-y; }
+.step button.mx { width: auto; padding: 0 12px 0 8px; font: 11px/1 var(--hsans); letter-spacing: 1.5px; color: var(--muted); }
+.step button.mx:hover { color: var(--ink); }
+.dBatch .out { margin-left: auto; font-size: 10px; letter-spacing: 1.5px; color: var(--muted2); }
+.dBatch .out b { font: 400 17px/1 var(--latin); letter-spacing: 0; color: var(--mint); margin-left: 4px; }
+.dLack { margin: 10px 0 8px; text-align: right; font-size: 10px; letter-spacing: 1.5px; color: var(--rose); min-height: 12px; }
+.dLack.ok { color: var(--muted2); } .dLack .lat { font-size: 11px; letter-spacing: .5px; }
+.dActs { display: flex; gap: 10px; }
+.dBtn { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; height: 36px; border-radius: 18px; position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; letter-spacing: 3px; color: rgb(222,212,232);
+  box-shadow: inset 0 0 0 1px rgba(236,229,247,.26); transition: background .15s, box-shadow .15s, color .15s; }
+.dBtn:hover { color: var(--ink); background: rgba(236,229,247,.06); box-shadow: inset 0 0 0 1px rgba(236,229,247,.55); }
+.dBtn.gold { color: rgb(240,222,186); background: rgba(185,155,87,.1); box-shadow: inset 0 0 0 1px rgba(227,193,141,.6); }
+.dBtn.gold:hover { background: rgba(185,155,87,.2); box-shadow: inset 0 0 0 1px rgba(227,193,141,.95), 0 0 14px rgba(195,162,118,.18); }
+.dBtn.gold::before, .dBtn.gold::after { content: ""; position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; background: currentColor; opacity: .55;
+  -webkit-mask: var(--sparkMask) center / contain no-repeat; mask: var(--sparkMask) center / contain no-repeat; }
+.dBtn.gold::before { left: 16px; } .dBtn.gold::after { right: 16px; }
+.dBtn.dis { opacity: .4; pointer-events: none; }
+.dBtn .c { font: 13px/1 var(--latin); letter-spacing: 0; opacity: .85; }
+.dBtn .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, rgba(227,193,141,.08), rgba(227,193,141,.28)); pointer-events: none; }
+.dBtn.brew { pointer-events: none; }
+.dBtn.brew .fill { animation: brew var(--brew) linear forwards; }
+@keyframes brew { to { width: 100%; } }
+.dDone { margin-top: 2px; display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 2px; color: var(--muted2); }
+.dDone .spark { width: 8px; height: 8px; color: var(--gold); }
+.fade { animation: fadeIn .28s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ============ 底栏（与装配栏同构） ============ */
+.bottomLine { position: absolute; top: 704px; left: 26px; width: 1048px; height: 13px; display: flex; align-items: center; }
+.bottomLine .dotline { flex: 1; }
+.bottomLine svg { fill: var(--ink); flex: none; }
+.bottom { position: absolute; left: 32px; right: 30px; top: 719px; height: 68px; display: flex; align-items: center; }
+.matHead { width: 78px; flex: none; }
+.matHead h3 { margin: 0; font: 400 13px/1 var(--serif); letter-spacing: 2px; display: flex; align-items: center; gap: 5px; color: rgb(213,197,215); }
+.matHead small { display: block; margin-top: 7px; font-size: 10px; color: var(--muted2); letter-spacing: 1px; padding-left: 17px; white-space: nowrap; }
+.matHead small .lat { font-size: 11px; }
+/* 素材袋：8 格可视窗口，内容横向滚动；滚轮 / 拖动滑块 / 点轨道均可 */
+.matStrip { position: relative; width: 386px; height: 68px; flex: none; }
+.matView { position: absolute; left: 0; top: 0; width: 386px; height: 60px; overflow: hidden; }
+.matView.fadeR { -webkit-mask: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 26px), transparent); }
+.matView.fadeL { -webkit-mask: linear-gradient(90deg, transparent, #000 26px); mask: linear-gradient(90deg, transparent, #000 26px); }
+.matView.fadeL.fadeR { -webkit-mask: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 26px), transparent); mask: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 26px), transparent); }
+.slots { display: block; height: 60px; overflow: visible; }
+.slots .hit { fill: transparent; cursor: pointer; }
+/* 横向滑条：与目录滚动条同款——点线轨道 + 薰衣草滑块 */
+.hbar { position: absolute; left: 4px; right: 4px; top: 62px; height: 5px; cursor: pointer; }
+.hbar .trk { position: absolute; left: 0; right: 0; top: 1px; height: 3px; background: radial-gradient(circle, var(--dot) .7px, transparent 1px) 0 50% / 4.5px 3px repeat-x; }
+.hbar i { position: absolute; top: 1px; height: 3px; border-radius: 1.5px; background: rgba(202,178,237,.7); cursor: grab; }
+.hbar i:hover, .hbar.drag i { background: rgba(222,206,245,.95); }
+.hbar.drag i { cursor: grabbing; }
+.bsep { height: 50px; margin: 0 18px; display: flex; flex-direction: column; align-items: center; flex: none; }
+.bsep .vdots { flex: 1; }
+.bsep .pt { width: 4px; height: 4px; border-radius: 50%; background: rgba(236,229,247,.5); margin: 3px 0; }
+.tools { display: flex; flex-direction: column; gap: 7px; }
+.tools .lbl { font-size: 8.5px; color: var(--faint); letter-spacing: 2px; display: flex; align-items: center; gap: 4px; }
+.tools .row { display: flex; gap: 7px; }
+.ghost { all: unset; cursor: pointer; height: 22px; padding: 0 11px; border-radius: 11px; font-size: 9.5px; letter-spacing: 1.4px; color: var(--muted2);
+  box-shadow: inset 0 0 0 1px rgba(236,229,247,.18); transition: all .15s; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ghost:hover { color: var(--ink); box-shadow: inset 0 0 0 1px rgba(236,229,247,.45); background: rgba(236,229,247,.05); }
+.ghost.dis { opacity: .4; pointer-events: none; }
+
+
+.dev { position: fixed; left: 14px; bottom: 12px; display: flex; gap: 8px; z-index: 9; font-size: 12px; }
+.dev button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 14px; background: rgba(236,229,247,.08); color: #b9b1c8; box-shadow: inset 0 0 0 1px rgba(236,229,247,.18); }
+.dev button:hover { color: #fff; }
+</style>
+</head>
+<body class="moon ol">
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <symbol id="sp" viewBox="-10 -10 20 20"><path d="M0,-10 C1,-3 3,-1 10,0 C3,1 1,3 0,10 C-1,3 -3,1 -10,0 C-3,-1 -1,-3 0,-10Z"/></symbol>
+    <symbol id="trio" viewBox="-30 -10 60 20"><use href="#sp" x="-10" y="-10" width="20" height="20"/><use href="#sp" x="-25" y="-3.5" width="7" height="7"/><use href="#sp" x="18" y="-3.5" width="7" height="7"/></symbol>
+    <linearGradient id="hdrDots" gradientUnits="userSpaceOnUse" x1="32" y1="0" x2="186" y2="0"><stop offset="0" stop-color="rgb(226,206,240)" stop-opacity=".85"/><stop offset="1" stop-color="rgb(226,206,240)" stop-opacity=".3"/></linearGradient>
+    <linearGradient id="hideG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1100" y2="800"><stop offset="0" stop-color="rgb(29,25,39)"/><stop offset="1" stop-color="rgb(16,14,23)"/></linearGradient>
+    <linearGradient id="spineG" gradientUnits="userSpaceOnUse" x1="-11" y1="0" x2="0" y2="0"><stop offset="0" stop-color="rgb(14,12,20)"/><stop offset=".45" stop-color="rgb(50,42,66)"/><stop offset="1" stop-color="rgb(19,16,27)"/></linearGradient>
+    <linearGradient id="leafR" gradientUnits="userSpaceOnUse" x1="1100" y1="0" x2="1110" y2="0"><stop offset="0" stop-color="rgb(66,57,86)"/><stop offset=".6" stop-color="rgb(92,81,114)"/><stop offset="1" stop-color="rgb(84,74,105)"/></linearGradient>
+    <linearGradient id="leafB" gradientUnits="userSpaceOnUse" x1="0" y1="800" x2="0" y2="810"><stop offset="0" stop-color="rgb(48,41,63)"/><stop offset=".6" stop-color="rgb(66,57,85)"/><stop offset="1" stop-color="rgb(60,52,78)"/></linearGradient>
+    <linearGradient id="gutter"><stop offset="0" stop-color="rgb(10,9,17)" stop-opacity=".55"/><stop offset="1" stop-color="rgb(10,9,17)" stop-opacity="0"/></linearGradient>
+    <linearGradient id="ribbonG"><stop offset="0" stop-color="#4f3f66"/><stop offset=".45" stop-color="#6e5a8e"/><stop offset="1" stop-color="#4a3b60"/></linearGradient>
+    <filter id="tintLav" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".792 0 0 0 0  0 .698 0 0 0  0 0 .929 0 0  0 0 0 1 0"/></filter>
+    <filter id="tintGold" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".902 0 0 0 0  0 .808 0 0 0  0 0 .647 0 0  0 0 0 1 0"/></filter>
+    <radialGradient id="brewGlow"><stop offset="0" stop-color="rgb(240,210,150)" stop-opacity=".55"/><stop offset="1" stop-color="rgb(240,210,150)" stop-opacity="0"/></radialGradient>
+    <!-- 物品贴纸描边：只用在深色书页（素材行、底栏方槽、详情图标），淡薰衣草边 -->
+    <filter id="olDark" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1 0" result="dx"/><feMorphology in="SourceAlpha" operator="dilate" radius="0 1" result="dy"/>
+      <feMerge result="d"><feMergeNode in="dx"/><feMergeNode in="dy"/></feMerge><feComposite in="d" in2="SourceAlpha" operator="out" result="ring"/>
+      <feFlood flood-color="rgb(236,229,247)" flood-opacity=".62"/><feComposite in2="ring" operator="in" result="ol"/>
+      <feMerge><feMergeNode in="ol"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="gray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter>
+  </defs>
+</svg>
+
+<div id="world"></div>
+<div id="app">
+  <div id="body"><svg id="bodySvg" width="1100" height="800"></svg></div>
+  <div id="page">
+    <img class="surface" src="../../ElainaModAlchemy/UI/Assets/NotebookSurface.png" alt="">
+    <svg class="layer" id="frame" viewBox="0 0 1100 800"></svg>
+    <div id="catalog"><div id="scroller"><div id="grid"></div></div></div>
+    <div id="sbar"><div class="vdots"></div><i></i></div>
+    <div id="toast"></div>
+    <svg class="layer" id="chrome" viewBox="0 0 1100 800"></svg>
+    <section class="detail" id="detail"></section>
+
+    <div class="bottomLine"><div class="dotline"></div><svg width="40" height="13"><use href="#trio"/></svg><div class="dotline" style="flex:0 0 301px"></div></div>
+    <footer class="bottom">
+      <div class="matHead"><h3><svg class="spark"><use href="#sp"/></svg>素材</h3><small id="matCount"></small></div>
+      <div class="matStrip"><div class="matView" id="matView"><svg class="slots" id="slots"></svg></div><div class="hbar" id="hbar"><div class="trk"></div><i></i></div></div>
+      <div class="bsep"><div class="pt"></div><div class="vdots"></div><div class="pt"></div></div>
+      <div class="tools">
+        <div class="lbl"><svg class="spark" style="width:7px;height:7px"><use href="#sp"/></svg>调试</div>
+        <div class="row"><button class="ghost" id="tLv">等级 +1</button><button class="ghost" id="tFill">补充素材</button><button class="ghost" id="tReset">重置手记</button></div>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="dev">
+  <button id="devPaper">纸色：月白</button>
+  <button id="devSel">示例：素材不足</button>
+  <button id="devStamp">可制标记：题签</button>
+  <button id="devLang">语言：中文</button>
+  <button id="devOl">物品描边：贴纸</button>
+</div>
+
+<script>
+const ROOT = "../../";
+const ITEM = ROOT + "ElainaModAlchemy/item/ExampleAssets/", UIA = ROOT + "ElainaModAlchemy/UI/Assets/";
+const MYST = UIA + "MysteryPixel/", VAN = "vanilla/";
+const STAR_ICON = ROOT + "Snippets/MagicStarIcon.png";
+const SP_PATH = "M0,-10 C1,-3 3,-1 10,0 C3,1 1,3 0,10 C-1,3 -3,1 -10,0 C-3,-1 -1,-3 0,-10Z";
+const SP = `<svg class="spark"><use href="#sp"/></svg>`;
+document.documentElement.style.setProperty("--sparkMask",
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='-10 -10 20 20'><path d='${SP_PATH}'/></svg>`)}")`);
+
+/* ---------- 色板 / 绘制小工具（与技能面板预览同一份） ---------- */
+const rgba = (r, g, b, a = 1) => `rgba(${r},${g},${b},${+a.toFixed(4)})`;
+const INK = [238, 233, 245], MUTED = [178, 168, 195], LAV = [202, 178, 237], GOLD = [230, 206, 165], ROSE = [226, 128, 150];
+const C = (c, a = 1) => rgba(c[0], c[1], c[2], a);
+const SERIF = "'Noto Serif SC','Source Han Serif SC',serif", SANS = "'HarmonyOS Sans SC','Noto Sans SC','Microsoft YaHei UI',sans-serif", LATIN = "Gelasio,Georgia,serif";
+const NS = "vector-effect=\"non-scaling-stroke\"";
+const _mc = document.createElement("canvas").getContext("2d");
+function measure(s, size, font = SANS, sp = 0) { _mc.font = `${size}px ${font}`; return _mc.measureText(s).width + Math.max(0, [...s].length - 1) * sp; }
+function T(s, x, y, size, col, o = {}) {
+  const sp = o.sp || 0, al = o.align || 0, font = o.font || SANS;
+  const w = measure(s, size, font, sp), x0 = x - w * al;
+  return `<text x="${x0.toFixed(2)}" y="${y}" font-size="${size}" fill="${col}" font-family="${font}" dominant-baseline="text-before-edge"` +
+    `${sp ? ` letter-spacing="${sp}"` : ""}${o.cls ? ` class="${o.cls}"` : ""}>${s}</text>`;
+}
+function crossStar(cx, cy, sx, sy, col, waist = .2, filled = true) {
+  const hx = sx / 2, hy = sy / 2, c = Math.min(.49, Math.max(.05, waist)), f = n => n.toFixed(2);
+  const P = (x, y) => `${f(cx + x)},${f(cy + y)}`;
+  const d = `M${P(0, -hy)}C${P(c * hx, -c * hy)} ${P(c * hx, -c * hy)} ${P(hx, 0)}C${P(c * hx, c * hy)} ${P(c * hx, c * hy)} ${P(0, hy)}` +
+            `C${P(-c * hx, c * hy)} ${P(-c * hx, c * hy)} ${P(-hx, 0)}C${P(-c * hx, -c * hy)} ${P(-c * hx, -c * hy)} ${P(0, -hy)}Z`;
+  return filled ? `<path d="${d}" fill="${col}"/>` : `<path d="${d}" fill="none" stroke="${col}" stroke-width=".9" ${NS}/>`;
+}
+const line = (x1, y1, x2, y2, col, w = 1) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${w}" ${NS}/>`;
+const frame = (x, y, w, h, col) => `<rect x="${x + .5}" y="${y + .5}" width="${w - 1}" height="${h - 1}" fill="none" stroke="${col}" stroke-width="1" ${NS}/>`;
+const DOT = "rgba(236,229,247,.32)";
+const dots = (x1, y1, x2, y2, col = DOT, gap = 4.5) =>
+  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="0 ${gap}"/>`;
+const dotSep = (x, y1, y2, col = DOT) =>
+  dots(x, y1 + 6, x, y2 - 6, col) + `<circle cx="${x}" cy="${y1 + 2}" r="2" fill="rgba(236,229,247,.5)"/><circle cx="${x}" cy="${y2 - 2}" r="2" fill="rgba(236,229,247,.5)"/>`;
+const trio = (cx, cy, col = C(INK), w = 40) => `<use href="#trio" x="${cx - w / 2}" y="${cy - w / 6}" width="${w}" height="${w / 3}" fill="${col}"/>`;
+const diamond = (cx, cy, s, fill, stroke) => `<path d="M${cx},${cy - s}L${cx + s},${cy}L${cx},${cy + s}L${cx - s},${cy}Z" fill="${fill || "none"}"${stroke ? ` stroke="${stroke}" stroke-width="1" ${NS}` : ""}/>`;
+function corners(cx, cy, size, arm, col, rot = 45) {
+  let d = "";
+  for (const x of [-1, 1]) for (const y of [-1, 1]) { const px = x * size / 2, py = y * size / 2; d += `M${px - x * arm},${py}L${px},${py}L${px},${py - y * arm}`; }
+  return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1" ${NS} transform="translate(${cx} ${cy}) rotate(${rot})"/>`;
+}
+let _gid = 0;
+function glowE(cx, cy, rx, ry, col, a) {
+  const id = "g" + (_gid++);
+  return `<radialGradient id="${id}"><stop offset="0" stop-color="${col}" stop-opacity="${a}"/><stop offset=".4" stop-color="${col}" stop-opacity="${a * .5}"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient>` +
+    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${id})"/>`;
+}
+const pad2 = n => String(n).padStart(2, "0");
+
+/* ============================================================
+   数据：AlchemyCatalog.cs 的真实条目与中文本地化；数量 / 等级门槛为示意
+   ============================================================ */
+const CATS = [{ k: "all", t: "全部" }, { k: "potion", t: "魔药" }, { k: "curio", t: "奇物" }, { k: "food", t: "料理" }, { k: "material", t: "素材" }];
+/* 英文检查（只覆盖目录卡片、页签、图例——右栏详情仍是中文）
+   · en    建议词条：可制 = Craftable（与 Researchable 同一构词），题签里省掉 Yield，只留 ×n
+   · enRaw 现有词条直译：CardStamp「Ready」+ CardYield「Yield ×{0}」 */
+let lang = "zh";
+const LANGS = { zh: "中文", enRaw: "English · 现有词条", en: "English · 建议词条" };
+const EN_CAT = { all: "All", potion: "Potions", curio: "Curios", food: "Cuisine", material: "Ingredients" };
+const EN_NAME = { mana: "Moon Dew Elixir", painkiller: "Painkiller", bloodlust: "Bloodthirst Potion", starpower: "Star Power Potion", focus: "Concentration Potion",
+  resonance: "Resonance Potion", featherlight: "Featherlight Potion", isolation: "Purification Dew", dropper: "Aether Dropper", mimic: "Ashen Facsimile Dust",
+  trace: "Revealing Dust", rain: "Bottled Rain", bread: "Honey Bread", stew: "Beef Stew", brulee: "Caramel Brulee", moondew: "Moon Dew", resin: "Warm Resin",
+  flour: "Flour", sugar: "Sugar", egg: "Egg", beef: "Beef", potato: "Potato", shimmer: "Shimmer Droplet" };
+const isEn = () => lang !== "zh";
+const L = (zh, en, raw = en) => lang === "zh" ? zh : lang === "enRaw" ? raw : en;
+const catLabel = k => isEn() ? EN_CAT[k] : CATS.find(c => c.k === k).t;
+const cardName = r => isEn() ? EN_NAME[r.id] : r.n;
+const cardMask = r => isEn() ? "???" : maskName(r.n);   // 游戏内 MaskedName：非中文名直接显示 ???
+const RARITY = ["普通", "精良", "稀有", "珍奇"];   // AlchemyCatalogRecipe.RarityName（Catalog.Common / Fine / Rare / Exotic）
+const CAT_GLOW = { potion: "rgb(206,160,245)", curio: "rgb(130,200,235)", food: "rgb(245,190,130)", material: "rgb(190,205,170)" };
+const MATS = {
+  water: ["瓶装水", "玻璃瓶 · 水源"], moonglow: ["月光草", "丛林 · 夜间采集"], star: ["坠落之星", "夜空坠落"], glowingmushroom: ["发光蘑菇", "发光蘑菇生物群落"],
+  daybloom: ["太阳花", "森林地表 · 白昼"], honeyblock: ["蜂蜜块", "蜂蜜与水接触"], deathweed: ["死亡草", "腐化或猩红之地"], blinkroot: ["闪耀根", "地下泥土与土块"],
+  lens: ["晶状体", "恶魔眼掉落"], stinger: ["毒刺", "丛林 · 蜜蜂与尖刺史莱姆"], feather: ["羽毛", "天空 · 鸟妖"], powder: ["净化粉", "树妖出售"],
+  glass: ["玻璃", "熔炉 · 沙块"], aetherblock: ["以太块", "微光中取得"], obsidian: ["黑曜石", "水与熔岩接触"], bone: ["骨头", "地牢敌怪掉落"],
+  cloud: ["云块", "天空岛"], waterleaf: ["幌菊", "沙漠 · 雨天开花"], honey: ["蜂蜜瓶", "玻璃瓶 · 蜂蜜"], wood: ["木材", "砍伐树木"], gel: ["凝胶", "史莱姆掉落"],
+  moondew: ["月露", "瓶装水×3＋月光草×1 → 月露×3", "MoonDew"], resin: ["温香树脂", "木材×20＋凝胶×2 → 树脂×2", "WarmResin"],
+  flour: ["面粉", "商人出售", "Flour"], sugar: ["糖", "商人出售", "Sugar"], egg: ["鸡蛋", "商人出售", "Egg"], beef: ["牛肉", "旅商 · 固定售卖", "Beef"],
+  potato: ["土豆", "旅商 · 固定售卖", "Potato"], shimmer: ["微光液滴", "以太滴管 · 从微光中取得", "ShimmerDroplet"],
+};
+const matIcon = id => MATS[id][2] ? ITEM + MATS[id][2] + "_Pixel.png" : VAN + id + ".png";
+const MANA = `<span class="mana"><img class="px" src="${STAR_ICON}" alt="">魔力</span>`;
+// [id, 名称, 分类, 美术, 小类, 研究记录, 描述, 手记, 稀有度, 每批, 像素宽高, 素材(数量,id), 效果, 额外]
+const R = [
+  { id: "mana", n: "月露合剂", c: "potion", art: "MoonDewElixir", kind: "魔药 · 回复", stage: "初始直接解锁", rar: 1, y: 3, w: 33, h: 40, lv: 1, init: true,
+    d: "融合了月与星尘的魔力药水。脱战后可将其存入药水槽；收藏后会自动补满充能。",
+    ing: [[3, "moondew"], [1, "star"], [1, "glowingmushroom"]], fx: [["每格恢复", "最大独特魔力的 50%"], ["使用限制", "仅脱战时可补充药水槽"]] },
+  { id: "painkiller", n: "止痛药", c: "potion", art: "Painkiller", kind: "魔药 · 回复", stage: "炼金等级 1 时研究", rar: 1, y: 3, w: 32, h: 34, lv: 1, init: true,
+    d: "提供持续的生命恢复。", ing: [[1, "moondew"], [1, "daybloom"], [1, "honeyblock"], [1, "resin"]], fx: [["持续时间", "60 秒"], ["每秒恢复", "最大生命的 1%"]] },
+  { id: "bloodlust", n: "嗜血药水", c: "potion", art: "BloodthirstPotion", kind: "魔药 · 战斗", stage: "肉后血月敌人掉落", rar: 2, y: 1, w: 30, h: 40, lv: 10,
+    d: "大幅提升受到的伤害，但你的近战攻击增加伤害并提供吸血效果。", ing: [[1, "moondew"], [1, "deathweed"]], fx: [["近战生命偷取", "+5%"], ["近战伤害", "+10%"], ["受到的伤害", "+20%", "bad"]] },
+  { id: "starpower", n: "星力药水", c: "potion", art: "StarPowerPotion", kind: "魔药 · 战斗", stage: "巫师出售配方", rar: 2, y: 1, w: 31, h: 36, lv: 6, recipe: "星力药水配方",
+    d: `最大魔力增加；最大魔力或${MANA}越高于生命值，魔法伤害越高。`, ing: [[1, "moondew"], [1, "star"]], fx: [["最大魔力", "+40"], ["最大魔法伤害", "+30%"], ["所需生命差值", "300"]] },
+  { id: "focus", n: "集中药水", c: "potion", art: "ConcentrationPotion", kind: "魔药 · 战斗", stage: "夜晚军火商出售配方", rar: 2, y: 1, w: 19, h: 38, lv: 5,
+    d: "你的远程攻击方向距离目标中心越近，造成的伤害就越高。", ing: [[1, "moondew"], [1, "lens"]], fx: [["伤害增幅", "+5% ~ +30%"], ["最大判定角度", "30 度"]] },
+  { id: "resonance", n: "共鸣药水", c: "potion", art: "ResonancePotion", kind: "魔药 · 战斗", stage: "夜晚巫医出售配方", rar: 1, y: 1, w: 31, h: 39, lv: 5,
+    d: "鞭子命中敌人后赋予共鸣标记，你的召唤物攻击被共鸣的敌人时伤害增加。", ing: [[1, "moondew"], [1, "stinger"]], fx: [["标记时间", "3 秒"], ["召唤物伤害", "+20%"]] },
+  { id: "featherlight", n: "轻羽药水", c: "potion", art: "FeatherlightPotion", kind: "魔药 · 功能", stage: "需要炼金等级 2", rar: 1, y: 3, w: 19, h: 38, lv: 2,
+    d: "使你变得身轻如燕，移动速度、飞行速度和扫帚速度增加。", ing: [[1, "moondew"], [1, "feather"], [1, "daybloom"]], fx: [["速度增幅", "+20%"]] },
+  { id: "isolation", n: "净土露滴", c: "potion", art: "PurificationDew", kind: "魔药 · 功能", stage: "肉后树妖出售配方", rar: 2, y: 1, w: 19, h: 34, lv: 8,
+    d: "使用后在目标位置滴下净土露滴，其会下落穿透物块并净化附近所有物块。", ing: [[1, "moondew"], [10, "powder"], [1, "daybloom"]], fx: [["作用范围", "附近所有物块"], ["特性", "下落时穿透物块"]] },
+  { id: "dropper", n: "以太滴管", c: "curio", art: "AetherDropper", kind: "奇物 · 功能", stage: "需要炼金等级 3", rar: 2, y: 1, w: 19, h: 34, lv: 3,
+    d: "可以吸收并重新释放微光。", ing: [[10, "glass"], [3, "aetherblock"]], fx: [["容量", "1 格微光"]] },
+  { id: "mimic", n: "灰赝尘", c: "curio", art: "AshenFacsimileDust", kind: "奇物 · 功能", stage: "需要炼金等级 3", rar: 2, y: 50, w: 32, h: 32, lv: 3,
+    d: "借助微光的转化之力，为尚未齐备的材料补上缺失的一部分。", ing: [[1, "shimmer"], [1, "obsidian"]],
+    fx: [["材料前提", "每种所需材料至少持有 1 件"], ["数量前提", "总需求已满足至少 50%"], ["优先级", "通过收藏优先替代原材料"]] },
+  { id: "trace", n: "显迹尘", c: "curio", art: "RevealingDust", kind: "奇物 · 功能", stage: "需要炼金等级 2", rar: 2, y: 3, w: 24, h: 25, lv: 2,
+    d: "照亮所有敌人与陷阱。", ing: [[1, "blinkroot"], [3, "bone"]], fx: [["照亮半径", "1500"], ["持续时间", "120 秒"]] },
+  { id: "rain", n: "瓶中雨", c: "curio", art: "BottledRain", kind: "奇物 · 功能", stage: "炼金等级 1 时研究", rar: 1, y: 1, w: 31, h: 38, lv: 1, init: true,
+    d: "释放一朵便携雨云，增快附近所有植物的生长，让水叶草开花。", ing: [[1, "moondew"], [10, "cloud"], [1, "waterleaf"]], fx: [["持续时间", "60 秒"]] },
+  { id: "bread", n: "蜂蜜面包", c: "food", art: "HoneyBread", kind: "料理 · 辅助", stage: "初始直接解锁", rar: 1, y: 2, w: 28, h: 20, lv: 1, init: true,
+    d: "淋上蜂蜜的面包，是伊蕾娜喜欢的甜味补给。不同旅人食用时获得的效果有所不同。", ing: [[1, "honey"], [1, "sugar"], [2, "flour"]],
+    fx: [["伊蕾娜", "酒足饭饱 · 恢复 50 生命"], ["其他玩家", "吃得好 · 不回复生命"]] },
+  { id: "stew", n: "炖菜", c: "food", art: "BeefStew", kind: "料理 · 辅助", stage: "旅商食材", rar: 1, y: 1, w: 30, h: 27, lv: 4,
+    d: "伊蕾娜擅长制作的牛肉土豆炖菜。炖得软烂又暖胃，不过并不是她最偏爱的食物。", ing: [[1, "beef"], [3, "potato"], [5, "water"]], fx: [["食用效果", "很满意"]] },
+  { id: "brulee", n: "焦糖布蕾", c: "food", art: "CaramelBrulee", kind: "料理 · 辅助", stage: "初始直接解锁", rar: 1, y: 1, w: 28, h: 21, lv: 1, init: true,
+    d: "轻轻敲开薄脆的焦糖外壳，下面是柔软细腻的蛋奶甜点。", ing: [[3, "sugar"], [1, "egg"], [1, "water"]], fx: [["食用效果", "吃得好"]] },
+  { id: "moondew", n: "月露", c: "material", art: "MoonDew", kind: "素材 · 药液", stage: "初始直接解锁", rar: 0, y: 3, w: 20, h: 28, lv: 1, init: true, out: "moondew",
+    d: "用瓶装水与月光草制成的药液基底，可直接用于炼金。", ing: [[3, "water"], [1, "moonglow"]], fx: [["用途", "作为药液基底"]] },
+  { id: "resin", n: "温香树脂", c: "material", art: "WarmResin", kind: "素材 · 药液", stage: "初始直接解锁", rar: 0, y: 2, w: 25, h: 24, lv: 1, init: true, out: "resin",
+    d: "木材和凝胶熬制成的温润树脂。", ing: [[20, "wood"], [2, "gel"]], fx: [["用途", "作为药液辅材"]] },
+  { id: "flour", n: "面粉", c: "material", art: "Flour", kind: "素材 · 食材", stage: "商人", rar: 0, y: 1, w: 20, h: 26, lv: 1, init: true, mat: "flour", acq: "向商人购买。",
+    d: "细白的烘焙用面粉，适合揉成甜面团。" },
+  { id: "sugar", n: "糖", c: "material", art: "Sugar", kind: "素材 · 食材", stage: "商人", rar: 0, y: 1, w: 24, h: 22, lv: 1, init: true, mat: "sugar", acq: "向商人购买。",
+    d: "给面团带来甜味，熬煮后也能形成焦糖外壳。" },
+  { id: "egg", n: "鸡蛋", c: "material", art: "Egg", kind: "素材 · 食材", stage: "商人", rar: 0, y: 1, w: 18, h: 24, lv: 1, init: true, mat: "egg", acq: "向商人购买。",
+    d: "料理与烘焙的基础食材。" },
+  { id: "beef", n: "牛肉", c: "material", art: "Beef", kind: "素材 · 食材", stage: "旅商", rar: 0, y: 1, w: 26, h: 22, lv: 2, mat: "beef", acq: "旅行商人到访时固定售卖。",
+    d: "适合长时间炖煮的牛肉。" },
+  { id: "potato", n: "土豆", c: "material", art: "Potato", kind: "素材 · 食材", stage: "旅商", rar: 0, y: 1, w: 26, h: 22, lv: 2, mat: "potato", acq: "旅行商人到访时固定售卖。",
+    d: "炖煮后软糯绵密，能吸足肉汤的味道。" },
+  { id: "shimmer", n: "微光液滴", c: "material", art: "ShimmerDroplet", kind: "素材 · 奇物", stage: "以太滴管", rar: 2, y: 1, w: 20, h: 28, lv: 4, mat: "shimmer", acq: "使用以太滴管从微光中取得。",
+    d: "从微光中取得的一滴奇异液体，带着转化物质的微弱力量。" },
+];
+const byId = id => R.find(r => r.id === id);
+const numOf = r => R.indexOf(r) + 1;
+const entryOfMat = m => R.find(r => r.out === m || r.mat === m);
+
+/* ---------- 角色状态（示意） ---------- */
+const INV0 = { water: 36, moonglow: 9, star: 2, glowingmushroom: 12, daybloom: 10, honeyblock: 6, blinkroot: 9, lens: 4, feather: 5, glass: 20, aetherblock: 3,
+  obsidian: 6, bone: 15, cloud: 30, waterleaf: 4, honey: 4, wood: 60, gel: 15, moondew: 2, flour: 8, sugar: 9, egg: 5 };
+const PROD0 = { painkiller: 1, bread: 3 };
+let level = 3, exp = 40, researched, inv, prod;
+function resetState() { level = 3; exp = 40; researched = new Set(R.filter(r => r.init).map(r => r.id)); inv = { ...INV0 }; prod = { ...PROD0 }; }
+resetState();
+const LV_CAP = 20, expNeed = lv => 100 + (lv - 1) * 50;
+let cat = "all", selId = "mana", qty = 1, brewing = false;
+
+const stateOf = r => researched.has(r.id) ? "done" : level >= r.lv && !r.recipe ? "ready" : "locked";
+const craftable = r => !!r.ing && !r.acq;
+const have = m => inv[m] || 0;
+const maxBatch = r => craftable(r) ? Math.min(...r.ing.map(([n, m]) => Math.floor(have(m) / n))) : 0;
+const canBrew = r => stateOf(r) === "done" && craftable(r) && maxBatch(r) >= 1;
+const owned = r => r.out ? have(r.out) : r.mat ? have(r.mat) : prod[r.id] || 0;
+const visible = () => R.filter(r => cat === "all" || r.c === cat);
+const maskName = n => { const keep = Math.floor(n.length / 2); return "?".repeat(n.length - keep) + n.slice(n.length - keep); };
+const usedIn = m => R.filter(r => r.ing && r.ing.some(([, id]) => id === m));
+
+/* ============================================================
+   书本外框（技能面板「精简页缘 + 新外框」原样）
+   ============================================================ */
+function renderBody() {
+  const w = 1100, h = 800, Tk = 10, M = 4;
+  let o = `<rect x="-6" y="18" width="${w + 22}" height="${h + 10}" rx="8" fill="#000" opacity=".6" style="filter:blur(16px)"/>`;
+  o += `<rect x="-11" y="-5" width="${w + Tk + M + 11}" height="${h + Tk + M + 5}" rx="5" fill="url(#hideG)"/>`;
+  o += `<path d="M-6,-5 H0 V${h + Tk + M} H-6 A5,5 0 0 1 -11,${h + Tk + M - 5} V0 A5,5 0 0 1 -6,-5Z" fill="url(#spineG)"/>`;
+  o += `<rect x="-10.5" y="-4.5" width="${w + Tk + M + 10}" height="${h + Tk + M + 4}" rx="4.5" fill="none" stroke="${C(LAV, .14)}" stroke-width="1" ${NS}/>`;
+  o += `<g><path d="M962,792 h12 v40 l-6,-6 l-6,6 Z" fill="url(#ribbonG)"/>` + crossStar(968, 820, 5.5, 5.5, "rgba(230,206,165,.75)", .3) + `</g>`;
+  o += `<path d="M${w},0 L${w + Tk},${Tk} V${h + Tk} L${w},${h}Z" fill="url(#leafR)"/>`;
+  o += `<path d="M0,${h} H${w} L${w + Tk},${h + Tk} H0Z" fill="url(#leafB)"/>`;
+  for (const [k, a] of [[1.3, .34], [2.4, .16], [3.2, .28], [4.6, .14], [5.5, .3], [6.9, .18], [7.8, .26], [9.0, .2]])
+    o += `<path d="M${w + k},${k} V${h + k} H10 Q3,${h + k} 0,${h + k * 1.08}" fill="none" stroke="rgba(18,14,27,${a})" stroke-width=".6"/>`;
+  o += `<rect x="0" y="${h}" width="18" height="${Tk}" fill="url(#gutter)"/>`;
+  o += `<path d="M${w},0 L${w + Tk},${Tk} V${h + Tk - 2} Q${w + Tk},${h + Tk} ${w + Tk - 2},${h + Tk} H0" fill="none" stroke="${C(LAV, .4)}" stroke-width="1" stroke-linejoin="round" ${NS}/>`;
+  o += `<path d="M${w},0 L${w + 2.5},2.5 V${h + 2.5} H0 V${h}Z" fill="rgba(10,8,16,.35)"/>`;
+  document.getElementById("bodySvg").innerHTML = o;
+}
+function starCorner(cx, cy, sx, sy) {
+  const r = 14, ex = cx + sx * r, ey = cy + sy * r;
+  return glowE(cx, cy, 9, 9, "rgb(214,186,240)", .32) +
+    `<path d="M${ex},${cy} A${r},${r} 0 0 ${sx * sy > 0 ? 1 : 0} ${cx},${ey}" fill="none" stroke="${C(LAV, .42)}" stroke-width="1" ${NS}/>` +
+    crossStar(cx, cy, 11, 11, "rgb(236,226,247)", .28) + `<circle cx="${cx + sx * 15.5}" cy="${cy + sy * 15.5}" r="1" fill="${C(LAV, .55)}"/>`;
+}
+function renderFrame() {
+  const w = 1100, h = 800; _gid = 4000;
+  let o = frame(0, 0, w, h, C(LAV, .34)) + `<rect x="0" y="0" width="14" height="${h}" fill="url(#gutter)"/>`;
+  const L = 12.5, Rr = w - 12.5, Tp = 12.5, B = h - 12.5, g = 16, my = h / 2;
+  o += dots(L + g, Tp, Rr - g, Tp) + dots(L + g, B, Rr - g, B) + dots(L, Tp + g, L, my - 10) + dots(L, my + 10, L, B - g) + dots(Rr, Tp + g, Rr, my - 10) + dots(Rr, my + 10, Rr, B - g);
+  o += crossStar(L, my, 5, 8, C(LAV, .85), .4) + crossStar(Rr, my, 5, 8, C(LAV, .85), .4);
+  o += starCorner(L, Tp, 1, 1) + starCorner(Rr, Tp, -1, 1) + starCorner(Rr, B, -1, -1) + starCorner(L, B, 1, -1);
+  document.getElementById("frame").innerHTML = o;
+}
+
+/* ============================================================
+   标题区 + 页签 + 研究收录 + 分隔 + 目录工具条
+   ============================================================ */
+const TAB0 = 26, TABW = 148.5;   // 148.5 = 33 个点距：标记平移时亮点与底下点线始终对齐
+let hov = null;
+function renderChrome() {
+  _gid = 1000;
+  let o = dots(32, 83.5, 186, 83.5, "url(#hdrDots)") + dots(198.5, 83.5, 1068, 83.5, rgba(236, 229, 247, .24)) + crossStar(192, 83.5, 5, 5, "rgb(214,192,232)", .5);
+  // 徽记：技能面板同款圆 + 菱角，内放炼金烧瓶
+  const hx = 60, hy = 47;
+  o += `<circle cx="${hx}" cy="${hy}" r="29" fill="none" stroke="${C(LAV, .16)}" stroke-width="1" ${NS}/>` + corners(hx, hy, 40, 16, C(LAV, .34));
+  o += `<image href="${UIA}AlchemyCrest.png" x="${hx - 19}" y="${hy - 20}" width="38" height="38" filter="url(#tintLav)"/>`;
+  o += T("炼金手记", 101, 23, 30, "rgb(240,231,244)", { font: SERIF, sp: 3 });
+
+  // 炼金等级：与角色等级同款 LV 印 + 经验条
+  // 等级区放在右栏正上方，左侧留白；文字右端 999，与 ESC 保持间距。
+  const sealX = 823, left = 868, right = 999, need = expNeed(level), full = level >= LV_CAP;
+  o += corners(sealX, 41, 36, 18, rgba(205, 177, 138, 66 / 255));
+  o += T("LV.", sealX, 19, 8, "rgb(188,167,141)", { font: LATIN, sp: 2, align: .5 });
+  o += T(String(level), sealX, 27, 28, "rgb(240,222,186)", { font: LATIN, align: .5 });
+  const capW = measure(String(LV_CAP), 10, LATIN), capLabelLeft = right - capW - 5 - measure("上限", 10, SANS, 1);
+  o += T("炼金等级", left, 23, 11, "rgb(213,197,215)", { font: SERIF, sp: 1 });
+  o += T("上限", capLabelLeft, 24, 10, "rgb(184,167,192)", { sp: 1 }) + T(String(LV_CAP), right, 23, 10, "rgb(184,167,192)", { font: LATIN, align: 1 });
+  o += T("炼金经验", left, 44, 9, "rgb(169,154,182)", { sp: .5 });
+  o += T(full ? "MAX" : `${exp} / ${need}`, right, 42, 10, full ? C(GOLD) : "rgb(203,189,211)", { font: LATIN, align: 1 });
+  o += `<rect x="${left}" y="61" width="${right - left}" height="5" rx="2.5" fill="rgba(8,6,14,.55)"/>`;
+  const pr = full ? 1 : exp / need;
+  if (pr > 0) o += `<rect id="expBar" x="${left + 1}" y="62" width="${Math.max(3, (right - left - 2) * pr)}" height="3" rx="1.5" fill="${full ? "rgba(230,206,165,.85)" : "rgba(202,178,237,.8)"}"/>`;
+
+  // 关闭
+  const ch = hov === "close";
+  o += corners(1053, 42, 29, 15, ch ? C(INK) : C(LAV, .7));
+  o += `<path d="M1048,37 L1058,47 M1058,37 L1048,47" stroke="${ch ? C(INK) : C(LAV)}" stroke-width="1.2" ${NS}/>`;
+  o += T("ESC", 1022, 55, 9, "rgb(164,149,178)", { font: LATIN, sp: 1 });
+  o += `<rect class="hit" data-act="close" x="1032" y="21" width="42" height="42"/>`;
+
+  // 分类页签：等分格、数字紧跟标签（原先数字右对齐到格尾，贴着下一个页签，读起来像是下一个的）
+  CATS.forEach((f, i) => {
+    const x0 = TAB0 + i * TABW, cx = x0 + TABW / 2, active = cat === f.k, hv = hov === "tab:" + f.k;
+    const cnt = R.filter(r => f.k === "all" || r.c === f.k).length, cs = pad2(cnt);
+    const ready = R.filter(r => (f.k === "all" || r.c === f.k) && stateOf(r) === "ready").length;
+    const ft = catLabel(f.k), lw = measure(ft, 14, SANS, 1), cw = measure(cs, 12, LATIN), x = cx - (9 + 8 + lw + 8 + cw) / 2;
+    o += crossStar(x + 4.5, 113, 9, 9, C(LAV), .5, active || f.k === "all");
+    o += T(ft, x + 17, 103, 14, active ? "rgb(242,226,248)" : hv ? "rgb(222,206,232)" : "rgb(171,154,185)", { sp: 1 });
+    o += T(cs, x + 17 + lw + 8, 105.5, 12, active ? "rgb(228,200,239)" : "rgb(158,139,171)", { font: LATIN });
+    // 该分类里有「可研究」条目：数字右上一颗暗金小菱（与「待研习」数字变金同义）
+    if (ready && f.k !== "all") o += diamond(x + 17 + lw + 8 + cw + 4, 104, 2.4, C(GOLD, .9));
+    if (i) o += dots(x0, 104, x0, 125, rgba(236, 229, 247, .2));
+    o += `<rect class="hit" data-tab="${f.k}" x="${x0}" y="84" width="${TABW}" height="61"/>`;
+  });
+
+  // 研究收录：星图收录同构，星换成菱（与卡片封印同形）
+  const cl = 791, cr = 1045, total = `/ ${R.length}`, done = R.filter(r => stateOf(r) === "done").length, ds = pad2(done);
+  o += dotSep(775.5, 92, 136);
+  o += T("研究收录", cl, 101, 12, "rgb(213,197,215)", { font: SERIF, sp: 1 });
+  const dr = cr - measure(total, 11, LATIN) - 6, sr = dr - measure(ds, 22, LATIN) - 16, step = (sr - cl - 4) / (R.length - 1);
+  R.forEach((r, i) => {
+    const s = stateOf(r), x = cl + 3 + i * step;
+    if (s === "done") o += glowE(x, 126, 5, 5, "rgb(213,170,255)", .2) + diamond(x, 126, 2.6, "rgb(234,214,245)");
+    else if (s === "ready") o += diamond(x, 126, 2.6, null, C(GOLD, .85));
+    else o += diamond(x, 126, 2.3, null, "rgb(118,102,135)");
+  });
+  o += T(ds, dr, 99, 22, "rgb(230,213,240)", { font: LATIN, align: 1 }) + T(total, cr, 111, 11, "rgb(159,142,172)", { font: LATIN, align: 1 });
+
+  // 分隔：横点线在 753.5 嵌三连星（与底栏呼应），竖点线隔开目录与详情
+  o += dots(26, 145.5, 731, 145.5) + trio(753.5, 145.5) + dots(776, 145.5, 1074, 145.5) + dots(753.5, 156, 753.5, 700);
+
+
+  const chrome = document.getElementById("chrome");
+  if (!chrome.firstChild) {
+    // 点亮段的起点必须落在页签点线的点阵上（起点 26、间距 4.5）：格宽 148.5 时标记中心在 100.25，
+    // 直接取 ±63 会差半个点距，两排点交错叠成「密密麻麻」。渐变仍以星为中心。
+    const mc = TAB0 + TABW / 2, ml = 26 + Math.round((mc - 63 - 26) / 4.5) * 4.5, mr = ml + 126, sv = _gid; _gid = 900;
+    chrome.innerHTML = `<g id="chromeStatic"></g><g id="marker">` +
+      `<linearGradient id="markDots" gradientUnits="userSpaceOnUse" x1="${mc - 63}" y1="0" x2="${mc + 63}" y2="0"><stop offset="0" stop-color="rgb(226,206,240)" stop-opacity="0"/>` +
+      `<stop offset=".5" stop-color="rgb(240,228,252)"/><stop offset="1" stop-color="rgb(226,206,240)" stop-opacity="0"/></linearGradient>` +
+      glowE(mc, 145.5, 72, 7, "rgb(192,154,220)", .16) + glowE(mc, 145.5, 24, 6, "rgb(207,157,250)", .32) +
+      dots(ml, 145.5, mr, 145.5, "url(#markDots)") + crossStar(mc, 145.5, 34, 12, "rgb(244,234,252)", .2) + `</g>`;
+    _gid = sv;
+  }
+  chrome.querySelector("#chromeStatic").innerHTML = o;
+  chrome.querySelector("#marker").style.transform = `translateX(${CATS.findIndex(f => f.k === cat) * TABW}px)`;
+}
+const chromeEl = document.getElementById("chrome");
+const hitKey = h => !h ? null : h.dataset.tab ? "tab:" + h.dataset.tab : h.dataset.act;
+chromeEl.addEventListener("pointerover", e => { const k = hitKey(e.target.closest(".hit")); if (k !== hov) { hov = k; renderChrome(); } });
+chromeEl.addEventListener("pointerout", e => { if (!e.relatedTarget || !e.relatedTarget.closest?.(".hit")) { if (hov) { hov = null; renderChrome(); } } });
+chromeEl.addEventListener("click", e => {
+  const h = e.target.closest(".hit"); if (!h) return;
+  e.stopPropagation();
+  if (h.dataset.tab) { setCat(h.dataset.tab); return; }
+  const a = h.dataset.act;
+  if (a === "close") toast("预览中不合上手记（游戏内：Esc / P）");
+});
+function setCat(k) {
+  if (k === cat) return;
+  cat = k;
+  if (!visible().some(r => r.id === selId)) { selId = visible()[0].id; qty = 1; renderDetail(); renderSlots(); }
+  renderChrome(); renderCards(true);
+}
+
+/* ============================================================
+   目录 · 标本卡（AlchemyCardMotion 的姿态，用 CSS 过渡近似弹簧）
+   ============================================================ */
+const CW = 118, CH = 132, COLS = 5, GX = 133, GY = 156, PADX = 38.5, PADY = 34;
+const hashId = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+function pose(id) {
+  const h = hashId(id), mag = 1.2 + (h % 1000) / 1000 * 2, sign = (h >>> 10) & 1 ? 1 : -1;
+  return { r: sign * mag, ox: ((h >>> 12) % 31) / 10 - 1.5, oy: ((h >>> 17) % 31) / 10 - 1.5 };
+}
+/* 可制标记：三种方案（左下角开关切换）
+   · ribbon  丝带：卡片右上垂下一截书签丝带，燕尾 + 暗金小星——与书本那根书签丝带同一件东西，像「这页已经夹好，随时可做」
+   · star    角星：内框右上的小菱换成一颗暗金四角星，带柔光、慢慢闪——「星亮了 = 可以做了」，和收录里点亮的星同义
+   · caption 题签（默认）：不加任何图形；说明行只写状态「◆ 可研究 / ✦ 可制」，不写数量，中英文都不用缩字 */
+let stamp = "caption";
+// 卡名排版：放不下时先缩到 11px；仍放不下就按词拆成两行（取两行中较宽者最窄的拆法），No. 线随之上移
+const NAME_W = CW - 22;
+function fitName(name, col, sp, y) {
+  const one = sz => measure(name, sz, SERIF, sp);
+  for (const sz of [13, 12, 11]) if (one(sz) <= NAME_W) return { svg: T(name, CW / 2, y + (13 - sz) / 2, sz, col, { font: SERIF, sp, align: .5 }), lift: 0 };
+  const w = name.split(" ");
+  let best = null;
+  for (let i = 1; i < w.length; i++) {
+    const a = w.slice(0, i).join(" "), b = w.slice(i).join(" "), m = Math.max(measure(a, 11.5, SERIF, sp), measure(b, 11.5, SERIF, sp));
+    if (!best || m < best.m) best = { a, b, m };
+  }
+  if (!best) return { svg: T(name, CW / 2, y + 1, 11, col, { font: SERIF, sp, align: .5 }), lift: 0 };
+  return { svg: T(best.a, CW / 2, y - 10, 11.5, col, { font: SERIF, sp, align: .5 }) + T(best.b, CW / 2, y + 2.5, 11.5, col, { font: SERIF, sp, align: .5 }), lift: 8 };
+}
+// 说明行：超出内框宽度时整体缩小（对应游戏内 FittedText）
+function capSvg(plain, html, y) {
+  const w = measure(plain, 10, SANS, .5), sz = w > NAME_W ? 10 * NAME_W / w : 10;
+  return `<text x="${CW / 2}" y="${(y + (10 - sz) / 2).toFixed(2)}" font-size="${sz.toFixed(2)}" fill="var(--cMuted)" font-family="${SANS}" text-anchor="middle" dominant-baseline="text-before-edge" letter-spacing=".5"${sz < 10 ? ' data-shrunk="1"' : ""}>${html}</text>`;
+}
+const STAMPS = { ribbon: "丝带", star: "角星", caption: "题签" };
+function brewMark(id) {
+  if (stamp === "ribbon") {
+    const x = CW - 27, w = 10, L = 30;
+    return `<g class="rb"><path d="M${x + 1},-3 h${w} v${L} l-${w / 2},-5 l-${w / 2},5 Z" fill="rgba(10,8,16,.22)"/>` +
+      `<path d="M${x},-4 h${w} v${L} l-${w / 2},-5 l-${w / 2},5 Z" fill="url(#ribbonG)"/>` +
+      `<path d="M${x + 3},-4 v${L - 4}" stroke="rgba(236,220,255,.22)" stroke-width=".8"/>` +
+      `<rect x="${x}" y="-4" width="${w}" height="3" fill="rgba(20,14,30,.35)"/>` +
+      crossStar(x + w / 2, L - 13, 6, 6, "rgb(236,212,160)", .3) + `</g>`;
+  }
+  if (stamp === "star") {
+    const x = CW - 6.5, y = 6.5;
+    return `<circle cx="${x}" cy="${y}" r="9" fill="url(#brewGlow)"/>` +
+      `<g class="twk" style="--tw:-${(hashId(id) % 28) / 10}s">${crossStar(x, y, 11, 11, "var(--cGold)", .22)}</g>` +
+      crossStar(x - 7, y + 8, 3.5, 3.5, "var(--cGoldA)", .3);
+  }
+  return "";
+}
+function cardSvg(r) {
+  const st = stateOf(r), no = "No." + pad2(numOf(r)), cx = CW / 2, sel = r.id === selId;
+  _gid = 5000 + numOf(r) * 10;
+  if (st === "locked") {
+    // 条件未满足：只留同样倾斜的虚线空位 + 极淡的问号剪影
+    let o = `<rect x=".5" y=".5" width="${CW - 1}" height="${CH - 1}" rx="2" fill="rgba(20,16,28,.18)" stroke="var(--cLock)" stroke-width="1" stroke-dasharray="3 3" ${NS}/>`;
+    o += line(30, 82, 44, 82, "var(--cLock)") + line(74, 82, 88, 82, "var(--cLock)");
+    o += T(no, cx, 76, 9, "var(--cLockInk)", { font: LATIN, align: .5 });
+    o += T(cardMask(r), cx, 90, 13, "var(--cLockInk)", { font: SERIF, sp: 2, align: .5 });
+    o += T(r.recipe ? L("需要配方", "Recipe needed") : L(`炼金 Lv.${r.lv}`, `Alchemy Lv.${r.lv}`), cx, 111, 10, "var(--cLockInk)", { align: .5, sp: .5 });
+    return o;
+  }
+  const ready = st === "ready", seal = ready ? C(GOLD) : sel ? C(GOLD) : "var(--cMark)";
+  let o = `<rect x=".5" y=".5" width="${CW - 1}" height="${CH - 1}" rx="2" fill="var(--cBg)" stroke="${sel ? "rgb(227,193,141)" : "var(--cEdge)"}" stroke-width="${sel ? 1.4 : 1}" ${NS}/>`;
+  // 纸面下沿一抹深色：像一张有厚度的卡片
+  o += `<rect x="1" y="${CH - 30}" width="${CW - 2}" height="29" fill="var(--cBg2)" opacity=".7"/>`;
+  // 内框：点线（全页通用分隔语言），四角小菱
+  o += `<rect x="6.5" y="6.5" width="${CW - 13}" height="${CH - 13}" fill="none" stroke="var(--cDot)" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="0 4.5"/>`;
+  const brew = canBrew(r);
+  for (const [x, y] of [[6.5, 6.5], [CW - 6.5, 6.5], [6.5, CH - 6.5], [CW - 6.5, CH - 6.5]])
+    if (!(brew && stamp === "star" && x > cx && y < cx)) o += diamond(x, y, 2.2, "var(--cMark)");
+  // 图标：分类色的柔光 + 1 倍像素图；可研究显示问号剪影 + 金色辉光
+  o += glowE(cx, 46, 34, 30, ready ? "rgb(240,210,150)" : CAT_GLOW[r.c], ready ? .34 : .26);
+  const nm = ready ? { svg: T(cardMask(r), cx, 89, 13, "var(--cMuted)", { font: SERIF, sp: 2, align: .5 }), lift: 0 } : fitName(cardName(r), "var(--cInk)", isEn() ? .3 : 1, 89);
+  o += line(28, 82 - nm.lift, 43, 82 - nm.lift, "var(--cFaint)") + line(75, 82 - nm.lift, 90, 82 - nm.lift, "var(--cFaint)");
+  o += T(no, cx, 76 - nm.lift, 9, "var(--cMuted)", { font: LATIN, align: .5 });
+  o += nm.svg;
+  // 说明行（题签）：只写状态，不写数量——可研究 / 可制，其余留空；每批产出与持有交给右栏
+  const tagLine = t => capSvg(t, `<tspan fill="var(--cGold)">${t}</tspan>`, 109);
+  if (ready) o += tagLine(L("◆ 可研究", "◆ Researchable"));
+  else if (stamp === "caption") { if (brew) o += tagLine(L("✦ 可制", "✦ Craftable", "✦ Ready")); }
+  else {
+    // 丝带 / 角星方案：标记在别处，说明行仍写数量
+    const t = r.acq ? L(`持有 ${have(r.mat)}`, `Owned ${have(r.mat)}`) : L(`每批 ×${r.y}`, `Yield ×${r.y}`);
+    o += capSvg(t, t, 109);
+  }
+  // 顶边封印：——◆——
+  o += line(cx - 16, .5, cx - 7, .5, seal) + line(cx + 7, .5, cx + 16, .5, seal);
+  o += diamond(cx, .5, 6.5, ready || sel ? "rgb(70,56,40)" : "var(--cBg)", seal) + diamond(cx, .5, 2.4, seal);
+  if (brew) o += brewMark(r.id);
+  return o;
+}
+// 卡片图标：1 倍原图，左上角取整到设计像素（奇数宽高时不落在半像素上）
+function cardIcon(r) {
+  const st = stateOf(r), src = st === "done" ? ITEM + r.art + "_Pixel.png" : MYST + r.art + "_Mystery_Pixel.png", cy = st === "locked" ? 48 : 46;
+  return `<img class="px ico" src="${src}" alt="" style="left:${Math.round(CW / 2 - r.w / 2)}px;top:${Math.round(cy - r.h / 2)}px;width:${r.w}px;height:${r.h}px">`;
+}
+const gridEl = document.getElementById("grid"), scroller = document.getElementById("scroller");
+let flashId = null;
+function renderCards(resetScroll) {
+  const list = visible(), rows = Math.ceil(list.length / COLS);
+  gridEl.style.height = (PADY + rows * GY + 10) + "px";
+  let o = "";
+  list.forEach((r, i) => {
+    const p = pose(r.id), x = PADX + (i % COLS) * GX, y = PADY + Math.floor(i / COLS) * GY, st = stateOf(r);
+    o += `<div class="card st-${st}${r.id === selId ? " sel" : ""}${r.id === flashId ? " flash" : ""}" data-id="${r.id}" ` +
+         `style="left:${x}px;top:${y}px;--r:${p.r.toFixed(2)}deg;--ox:${p.ox.toFixed(1)}px;--oy:${p.oy.toFixed(1)}px">` +
+         `<div class="sh"></div><svg viewBox="0 0 ${CW} ${CH}">${cardSvg(r)}</svg>${cardIcon(r)}${r.id === selId && st !== "locked" ? `<i class="mote"></i><i class="mote"></i><i class="mote"></i>` : ""}</div>`;
+  });
+  gridEl.innerHTML = o + `<img id="quill" src="${UIA}SelectionQuill.png" alt="">`;
+  placeQuill(true);
+  if (resetScroll) scroller.scrollTop = 0;
+  updateSbar();
+}
+// 选中卡只换类名，CSS 过渡负责「拾起回正 / 弹回原角度」
+function updateSelection() {
+  gridEl.querySelectorAll(".card").forEach(el => {
+    const on = el.dataset.id === selId, r = byId(el.dataset.id);
+    if (on !== el.classList.contains("sel")) {
+      el.classList.toggle("sel", on);
+      el.querySelector("svg").innerHTML = cardSvg(r);
+      el.querySelectorAll(".mote").forEach(m => m.remove());
+      if (on && stateOf(r) !== "locked") el.insertAdjacentHTML("beforeend", `<i class="mote"></i><i class="mote"></i><i class="mote"></i>`);
+    }
+  });
+  placeQuill(false);
+}
+function placeQuill(instant) {
+  const q = document.getElementById("quill"), list = visible(), i = list.findIndex(r => r.id === selId);
+  if (!q) return;
+  if (i < 0) { q.style.display = "none"; return; }
+  q.style.display = "";
+  // 锚点：卡片右下（CardWidth-12, CardHeight-43），跟随抬起 6 与放大 1.045，不随倾斜旋转
+  const x = PADX + (i % COLS) * GX, y = PADY + Math.floor(i / COLS) * GY, k = 1.045;
+  const ax = CW / 2 + (CW - 12 + 11 - CW / 2) * k - 11, ay = CH / 2 + (CH - 43 + 21 - CH / 2) * k - 21 - 6;
+  if (instant) { q.style.transition = "none"; requestAnimationFrame(() => q.style.transition = ""); }
+  q.style.left = (x + ax) + "px"; q.style.top = (y + ay) + "px";
+}
+gridEl.addEventListener("click", e => { const c = e.target.closest(".card"); if (c) select(c.dataset.id); });
+function select(id, scrollInto) {
+  if (brewing) return;
+  if (!visible().some(r => r.id === id)) { cat = "all"; renderChrome(); renderCards(); }
+  if (id !== selId) { selId = id; qty = 1; matView.scrollLeft = 0; updateSelection(); renderDetail(); renderSlots(); }
+  if (scrollInto) {
+    const i = visible().findIndex(r => r.id === id), y = PADY + Math.floor(i / COLS) * GY;
+    if (y < scroller.scrollTop + 10 || y + CH > scroller.scrollTop + 526) scroller.scrollTo({ top: Math.max(0, y - 150), behavior: "smooth" });
+  }
+}
+function updateSbar() {
+  const bar = document.querySelector("#sbar i"), sh = scroller.scrollHeight, ch = scroller.clientHeight;
+  document.getElementById("sbar").style.display = sh <= ch + 1 ? "none" : "";
+  const H = 518, th = Math.max(36, H * ch / sh), top = (H - th) * scroller.scrollTop / Math.max(1, sh - ch);
+  bar.style.height = th + "px"; bar.style.top = top + "px";
+}
+scroller.addEventListener("scroll", updateSbar);
+
+/* ============================================================
+   右栏详情：直接写在书页上（技能详情同一套结构）
+   ============================================================ */
+function detailIcon(r, st) {
+  const H = 27, g = 4, ready = st === "ready", lock = st === "locked", tone = ready ? GOLD : LAV, a = lock ? .45 : 1, ln = C(tone, .34 * a);
+  _gid = 7000;
+  let o = `<svg class="dIcon" viewBox="-38 -38 76 76">`;
+  o += glowE(0, 0, 36, 36, ready ? "rgb(240,210,150)" : CAT_GLOW[r.c], lock ? .1 : .3);
+  const src = st === "done" ? ITEM + r.art + "_Pixel.png" : MYST + r.art + "_Mystery_Pixel.png";
+  o += `<image class="px" href="${src}" x="${-r.w / 2}" y="${-r.h / 2}" width="${r.w}" height="${r.h}"${lock ? ' filter="url(#gray)" opacity=".45"' : ""}/>`;
+  o += line(-H + g, -H, H - g, -H, ln) + line(-H + g, H, H - g, H, ln) + line(-H, -H + g, -H, H - g, ln) + line(H, -H + g, H, H - g, ln);
+  for (const [sx, sy] of [[1, -1], [-1, 1], [1, 1]]) o += `<circle cx="${sx * H}" cy="${sy * H}" r=".9" fill="${C(tone, .45 * a)}"/>`;
+  o += crossStar(-H, -H, 8, 8, ready ? C(GOLD, .95) : C(INK, .9 * a), .3);
+  return o + `</svg>`;
+}
+function renderDetail(anim = true) {
+  const r = byId(selId), st = stateOf(r), done = st === "done", el = document.getElementById("detail");
+  const catName = CATS.find(c => c.k === r.c).t;
+  let status;
+  if (st === "ready") status = `<span class="st gold">${SP}可研究</span>`;
+  else if (st === "locked") status = `<span class="st">条件未满足</span>`;
+  else if (r.acq) status = `<span class="st">外界取得</span>`;
+  else status = canBrew(r) ? `<span class="st gold">${SP}可炼制</span>` : `<span class="st rose">素材不足</span>`;
+
+  // 每批产出已在批数行（产出 ×n），持有并入名字下的小字——省掉一整行数值栏，让「所需素材」不被挤到折叠线下
+  const sub = done
+    ? `<span class="lat">${"No." + pad2(numOf(r))}</span><span class="rar">${[0, 1, 2, 3].map(i => `<i class="${i <= r.rar ? "on" : ""}"></i>`).join("")}</span><span>${RARITY[r.rar]}</span>` +
+      `<span class="own">持有<b class="${owned(r) ? "" : "nil"}">${owned(r)}</b></span>`
+    : `<span class="lat">${"No." + pad2(numOf(r))}</span><span>未研究</span>`;
+  const head = `<div class="dKind">${SP}${done ? r.kind : catName}${status}</div>
+    <div class="dHead">${detailIcon(r, st)}<div class="dName"><h2 class="${done ? "" : "mask"}">${done ? r.n : maskName(r.n)}</h2><div class="dSub">${sub}</div></div></div>`;
+
+  let mid = "", foot = "";
+  if (done) {
+    mid += `<div class="dDesc"><h4 class="sec">${SP}效果</h4><p>${r.d}</p></div>`;
+    if (r.fx) mid += `<div class="rows">${r.fx.map(([k, v, t]) => `<div class="r"><span>${k}</span><span class="v ${/^[-+\d~ %.]+$/.test(v) ? "num" : ""} ${t === "bad" ? "bad" : ""}">${v}</span></div>`).join("")}</div>`;
+    mid += `<div class="dotline"></div>`;
+    if (craftable(r)) {
+      mid += `<h4 class="sec">${SP}所需素材<span class="r">每批 · 共 <span class="lat">${qty}</span> 批</span></h4>` + r.ing.map(([n, m]) => {
+        const need = n * qty, h = have(m), ent = entryOfMat(m), link = ent && stateOf(ent) === "done";
+        return `<div class="ing"><span class="ii"><img class="px" src="${matIcon(m)}" alt=""></span>` +
+          (link ? `<a class="nm" data-go="${ent.id}">${MATS[m][0]}</a>` : `<span class="nm" title="${MATS[m][1]}">${MATS[m][0]}</span>`) +
+          `<span class="v"><b class="${h >= need ? "ok" : "no"}">${h}</b> / ${need}${n > 1 && qty > 1 ? `<small>(${n}×${qty})</small>` : ""}</span></div>`;
+      }).join("");
+    } else {
+      mid += `<h4 class="sec">${SP}获取方式</h4><p class="plain">${r.acq}</p>`;
+    }
+    const m = r.out || r.mat;
+    if (m) {
+      const uses = usedIn(m);
+      if (uses.length) mid += `<div class="dotline"></div><h4 class="sec">${SP}用于<span class="r"><span class="lat">${uses.length}</span> 种造物</span></h4><div class="chips">` +
+        uses.map(u => stateOf(u) === "done" ? `<button class="chip" data-go="${u.id}"><img class="px" src="${ITEM + u.art}_Pixel.png" alt="">${u.n}</button>` : `<button class="chip locked" data-go="${u.id}">${maskName(u.n)}</button>`).join("") + `</div>`;
+    }
+    mid += `<div class="dRec">${SP}研究记录<span>${r.stage}</span></div>`;
+
+    if (craftable(r)) {
+      const mb = maxBatch(r), lack = r.ing.map(([n, m]) => [m, n * qty - have(m)]).filter(([, k]) => k > 0);
+      foot = `<div class="dotline"></div>
+        <div class="dBatch"><span class="lb">批数</span>
+          <div class="step"><button id="qDn" class="${qty <= 1 ? "off" : ""}">−</button><span class="q">${qty}</span><button id="qUp" class="${qty >= Math.max(1, mb) ? "off" : ""}">+</button><i class="vd"></i><button class="mx" id="qMax">最大</button></div>
+          <span class="out">产出<b>×${r.y * qty}</b></span></div>
+        <div class="dLack ${lack.length ? "" : "ok"}">${lack.length ? "还缺 " + lack.map(([m, k]) => `${MATS[m][0]} <span class="lat">×${k}</span>`).join("、") : `最多可制 <span class="lat">${mb}</span> 批 · 炼金经验 <span class="lat">+${(10 + 5 * r.rar) * qty}</span>`}</div>
+        <div class="dActs"><button class="dBtn gold ${lack.length ? "dis" : ""}" id="btnCraft"><i class="fill"></i>炼制<span class="c">×${r.y * qty}</span></button></div>`;
+    } else foot = `<div class="dotline"></div><div class="dDone">${SP}此素材无法在手记中炼制，需从外界取得</div>`;
+  } else {
+    const lvOk = level >= r.lv;
+    // 只写一行线索（原 Stage 文本）：它本身就是解锁条件，不再另列「研究条件」数值行；还差几级交给底部提示行
+    mid = `<div class="dRec" style="margin-top:0">${SP}线索<span>${r.stage}</span></div>`;
+    foot = st === "ready"
+      ? `<div class="dotline"></div><div class="dLack ok">研究不消耗素材</div><div class="dActs"><button class="dBtn gold" id="btnResearch">研究</button></div>`
+      : `<div class="dotline"></div><div class="dLack">${!lvOk ? `还差 <span class="lat">${r.lv - level}</span> 级` : ""}${!lvOk && r.recipe ? " · " : ""}${r.recipe ? `需要「${r.recipe}」` : ""}</div><div class="dActs"><button class="dBtn dis">条件未满足</button></div>`;
+  }
+  el.innerHTML = `<div class="in ${anim ? "fade" : ""}">${head}<div class="dotline"></div><div class="dMid" id="dMid">${mid}</div><div class="dFoot">${foot}</div></div>`;
+  const dm = document.getElementById("dMid"), fadeMore = () => dm.classList.toggle("more", dm.scrollTop + dm.clientHeight < dm.scrollHeight - 2);
+  dm.addEventListener("scroll", fadeMore); fadeMore();
+  bindDetail(r);
+}
+function bindDetail(r) {
+  const el = document.getElementById("detail");
+  el.querySelectorAll("[data-go]").forEach(a => a.onclick = () => select(a.dataset.go, true));
+  const mb = maxBatch(r), set = q => { qty = Math.max(1, Math.min(Math.max(1, mb), q)); renderDetail(false); renderSlots(); };
+  const dn = document.getElementById("qDn"), up = document.getElementById("qUp"), mx = document.getElementById("qMax");
+  if (dn) dn.onclick = () => set(qty - 1);
+  if (up) up.onclick = () => set(qty + 1);
+  if (mx) mx.onclick = () => set(mb);
+  const cb = document.getElementById("btnCraft");
+  if (cb) cb.onclick = () => craft(r, cb);
+  const rb = document.getElementById("btnResearch");
+  if (rb) rb.onclick = () => { researched.add(r.id); flash(r.id); toast(`研究完成「${r.n}」`); refreshAll(); };
+}
+function craft(r, btn) {
+  if (brewing || maxBatch(r) < qty) return;
+  brewing = true;
+  const dur = 650 + 120 * Math.min(qty, 5);
+  btn.style.setProperty("--brew", dur + "ms"); btn.classList.add("brew"); btn.childNodes[1].textContent = "炼制中";
+  setTimeout(() => {
+    brewing = false;
+    for (const [n, m] of r.ing) inv[m] = have(m) - n * qty;
+    if (r.out) inv[r.out] = have(r.out) + r.y * qty; else prod[r.id] = (prod[r.id] || 0) + r.y * qty;
+    const gain = (10 + 5 * r.rar) * qty;
+    let lvUp = false;
+    if (level < LV_CAP) { exp += gain; while (level < LV_CAP && exp >= expNeed(level)) { exp -= expNeed(level); level++; lvUp = true; } if (level >= LV_CAP) exp = 0; }
+    toast(`炼成「${r.n}」<b>× ${r.y * qty}</b> · 炼金经验 <b>+${gain}</b>${lvUp ? ` · 炼金等级提升至 <b>${level}</b>` : ""}`);
+    qty = 1; flash(r.id); refreshAll();
+  }, dur);
+}
+function flash(id) { flashId = id; setTimeout(() => { if (flashId === id) flashId = null; }, 950); }
+let toastT = 0;
+function toast(html) {
+  const t = document.getElementById("toast");
+  t.innerHTML = `${SP}${html}`; t.classList.add("on");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2800);
+}
+
+/* ============================================================
+   底栏 · 素材袋：装配栏同款方槽
+   · 原先只重复右栏的「所需素材」；现在列出背包里所有炼金素材，当前配方要用的排在最前并描金
+   · 数量压在下框线上（装配栏把键位压在上框线上，这里对称地放到下边）
+   ============================================================ */
+let hoverSlot = -1;
+const matView = document.getElementById("matView"), hbar = document.getElementById("hbar");
+function matList() {
+  const r = byId(selId), need = stateOf(r) === "done" && craftable(r) ? r.ing.map(([n, m]) => [m, n * qty]) : [];
+  const req = need.map(([m, n]) => ({ m, need: n }));
+  const rest = Object.keys(MATS).filter(m => have(m) > 0 && !need.some(([x]) => x === m)).map(m => ({ m }));
+  return req.concat(rest);
+}
+
+function renderSlots() {
+  _gid = 3000;
+  const list = matList(), n = Math.max(8, list.length), W = n * 48 - 6 + 2;
+  const SURF = "rgb(32,30,47)", Y = 9;
+  let o = "";
+  for (let i = 0; i < n; i++) {
+    const it = list[i], x = 1 + i * 48, y = Y, hv = i === hoverSlot, cx = x + 21, cy = y + 21;
+    const req = it && it.need != null, enough = req && have(it.m) >= it.need;
+    if (req) o += glowE(cx, cy, 30, 30, "rgb(195,162,118)", .2);
+    o += `<rect x="${x}" y="${y}" width="42" height="42" fill="${req ? rgba(185, 155, 87, .1) : "rgb(33,27,44)"}"/>`;
+    for (let k = 1; k <= 3; k++) o += frame(x + k, y + k, 42 - 2 * k, 42 - 2 * k, req ? rgba(185, 155, 87, .09) : rgba(52, 35, 62, .333));
+    o += frame(x, y, 42, 42, req ? (enough ? "rgba(227,193,141,.9)" : C(ROSE, .7)) : hv ? C(LAV) : rgba(164, 136, 179, .34));
+    if (!it) { o += crossStar(cx, cy, 5, 5, rgba(155, 125, 173, .35), .4); continue; }
+    // 原图 1 倍居中（只在超出 30 时缩小），不做非整数放大
+    const sz = ICON_SIZE[it.m] || [24, 24], k = Math.max(sz[0], sz[1]) > 30 ? 30 / Math.max(sz[0], sz[1]) : 1, iw = sz[0] * k, ih = sz[1] * k;
+    o += `<image class="px" href="${matIcon(it.m)}" x="${Math.round(cx - iw / 2)}" y="${Math.round(cy - 1 - ih / 2)}" width="${iw}" height="${ih}"/>`;
+    // 数量压在下框线上
+    const label = req ? `${have(it.m)}/${it.need}` : String(have(it.m)), lw = measure(label, 9, LATIN);
+    o += `<rect x="${x + 40 - lw - 3}" y="${y + 37}" width="${lw + 6}" height="10" fill="${SURF}"/>`;
+    o += T(label, x + 40, y + 36, 9, req ? (enough ? "rgb(240,222,186)" : C(ROSE)) : "rgb(203,189,211)", { font: LATIN, align: 1 });
+    if (req) o += crossStar(x + 6, y + 6, 6, 6, enough ? "rgb(227,193,141)" : C(ROSE, .9), .4);
+    const ent = entryOfMat(it.m);
+    o += `<rect class="hit" data-i="${i}" data-m="${it.m}" x="${x - 3}" y="${y - 4}" width="48" height="56"><title>${MATS[it.m][0]} · 持有 ${have(it.m)}${req ? ` · 需要 ${it.need}` : ""}\n${MATS[it.m][1]}${ent ? "\n点击查看条目" : ""}</title></rect>`;
+  }
+  const svg = document.getElementById("slots");
+  svg.setAttribute("width", W); svg.setAttribute("viewBox", `0 0 ${W} 60`); svg.innerHTML = o;
+  document.getElementById("matCount").innerHTML = `持有 <span class="lat">${Object.keys(MATS).filter(m => have(m) > 0).length}</span> 种`;
+  updateHbar();
+}
+// 滑条：滑块长度 = 可视宽 / 内容宽；位置跟随 scrollLeft；内容放得下时整条隐藏
+function updateHbar() {
+  const vw = matView.clientWidth, cw = matView.scrollWidth, max = Math.max(0, cw - vw), th = hbar.querySelector("i"), tw = hbar.clientWidth;
+  hbar.style.display = max > 0 ? "" : "none";
+  if (max > 0) { const w = Math.max(24, tw * vw / cw); th.style.width = w + "px"; th.style.left = (tw - w) * matView.scrollLeft / max + "px"; }
+  matView.classList.toggle("fadeL", matView.scrollLeft > 1);
+  matView.classList.toggle("fadeR", matView.scrollLeft < max - 1);
+}
+const scrollMats = x => { matView.scrollLeft = Math.max(0, Math.min(matView.scrollWidth - matView.clientWidth, x)); updateHbar(); };
+// 滚轮：竖向滚轮直接横向滚动素材袋
+document.querySelector(".matStrip").addEventListener("wheel", e => { e.preventDefault(); scrollMats(matView.scrollLeft + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY)); }, { passive: false });
+// 拖动滑块 / 点轨道跳转
+hbar.addEventListener("pointerdown", e => {
+  const th = hbar.querySelector("i"), tw = hbar.clientWidth, w = th.offsetWidth, max = matView.scrollWidth - matView.clientWidth;
+  const k = hbar.getBoundingClientRect().width / tw || 1;   // 页面整体缩放
+  const toScroll = left => scrollMats(max * left / Math.max(1, tw - w));
+  let grab = w / 2;
+  if (e.target === th) grab = (e.clientX - th.getBoundingClientRect().left) / k;
+  const x0 = hbar.getBoundingClientRect().left;
+  const move = ev => toScroll((ev.clientX - x0) / k - grab);
+  move(e);
+  hbar.classList.add("drag"); hbar.setPointerCapture(e.pointerId);
+  hbar.onpointermove = move;
+  hbar.onpointerup = () => { hbar.classList.remove("drag"); hbar.onpointermove = hbar.onpointerup = null; };
+});
+const slotsEl = document.getElementById("slots");
+slotsEl.addEventListener("click", e => { const s = e.target.closest(".hit"); if (!s) return; const ent = entryOfMat(s.dataset.m); if (ent) select(ent.id, true); });
+slotsEl.addEventListener("pointerover", e => { const s = e.target.closest(".hit"), i = s ? +s.dataset.i : -1; if (i !== hoverSlot) { hoverSlot = i; renderSlots(); } });
+slotsEl.addEventListener("pointerleave", () => { if (hoverSlot !== -1) { hoverSlot = -1; renderSlots(); } });
+
+/* ---------- 调试按钮 ---------- */
+document.getElementById("tLv").onclick = () => { if (level < LV_CAP) { level++; if (level >= LV_CAP) exp = 0; toast(`炼金等级 <b>${level}</b>`); refreshAll(); } };
+document.getElementById("tFill").onclick = () => {
+  const r = byId(selId);
+  if (!(stateOf(r) === "done" && craftable(r))) { toast("当前条目没有可补充的配方素材"); return; }
+  for (const [n, m] of r.ing) inv[m] = have(m) + n * 10;
+  toast(`已补充「${r.n}」单批需求的 <b>10</b> 倍素材`); refreshAll();
+};
+document.getElementById("tReset").onclick = () => { resetState(); qty = 1; toast("手记已重置"); refreshAll(); };
+function refreshAll() { renderChrome(); renderCards(); renderDetail(false); renderSlots(); document.getElementById("tLv").classList.toggle("dis", level >= LV_CAP); }
+
+
+/* ---------- 键盘：在当前分类内移动 ---------- */
+addEventListener("keydown", e => {
+  const d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -COLS, ArrowDown: COLS }[e.key];
+  if (d == null) return;
+  e.preventDefault();
+  const list = visible(), i = list.findIndex(r => r.id === selId), j = Math.max(0, Math.min(list.length - 1, i + d));
+  if (j !== i) select(list[j].id, true);
+});
+
+/* ---------- 预览开关 ---------- */
+document.getElementById("devPaper").onclick = e => { document.body.classList.toggle("moon"); e.target.textContent = "纸色：" + (document.body.classList.contains("moon") ? "月白" : "夜色"); };
+document.getElementById("devStamp").onclick = e => {
+  const ks = Object.keys(STAMPS); stamp = ks[(ks.indexOf(stamp) + 1) % ks.length];
+  e.target.textContent = "可制标记：" + STAMPS[stamp]; renderChrome(); renderCards();
+};
+document.getElementById("devOl").onclick = e => { document.body.classList.toggle("ol"); e.target.textContent = "物品描边：" + (document.body.classList.contains("ol") ? "贴纸" : "无"); };
+document.getElementById("devLang").onclick = e => {
+  const ks = Object.keys(LANGS); lang = ks[(ks.indexOf(lang) + 1) % ks.length];
+  e.target.textContent = "语言：" + LANGS[lang]; renderChrome(); renderCards();
+};
+const DEMOS = [["mana", "素材不足"], ["bread", "可炼制"], ["featherlight", "可研究"], ["starpower", "条件未满足"], ["flour", "外界素材"], ["moondew", "中间素材"]];
+let demo = 0;
+document.getElementById("devSel").onclick = e => { demo = (demo + 1) % DEMOS.length; select(DEMOS[demo][0], true); e.target.textContent = "示例：" + DEMOS[demo][1]; };
+
+function fit() { document.getElementById("app").style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / 1180, innerHeight / 860)})`; }
+addEventListener("resize", fit); fit();
+const Q = new URLSearchParams(location.search);
+if (Q.get("sel") && byId(Q.get("sel"))) selId = Q.get("sel");
+if (Q.get("researched") === "all") { const all = () => R.forEach(r => researched.add(r.id)); all(); const rs = resetState; resetState = () => { rs(); all(); }; }
+if (Q.get("outline") === "0") { document.body.classList.remove("ol"); document.getElementById("devOl").textContent = "物品描边：无"; }
+if (LANGS[Q.get("lang")]) { lang = Q.get("lang"); document.getElementById("devLang").textContent = "语言：" + LANGS[lang]; }
+if (STAMPS[Q.get("stamp")]) { stamp = Q.get("stamp"); document.getElementById("devStamp").textContent = "可制标记：" + STAMPS[stamp]; }
+if (Q.get("paper") === "night") { document.body.classList.remove("moon"); document.getElementById("devPaper").textContent = "纸色：夜色"; }
+// 素材图标的原始尺寸（底栏方槽按原图 1 倍绘制）
+const ICON_SIZE = {};
+const iconsReady = Promise.all(Object.keys(MATS).map(m => new Promise(res => {
+  const im = new Image(); im.onload = () => { ICON_SIZE[m] = [im.naturalWidth, im.naturalHeight]; res(); }; im.onerror = res; im.src = matIcon(m);
+})));
+function boot() { renderBody(); renderFrame(); refreshAll(); select(selId, true); }
+boot();
+Promise.all([document.fonts.ready, iconsReady]).then(boot);
+</script>
+</body>
+</html>

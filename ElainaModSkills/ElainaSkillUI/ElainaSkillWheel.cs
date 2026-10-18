@@ -11,7 +11,7 @@ using Terraria.GameInput;
 using Terraria.ID;
 using 伊蕾娜.Config;
 using 伊蕾娜.ElainaModSkills.UICore;
-using static 伊蕾娜.Localization.UIText;
+using 伊蕾娜.Items;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
@@ -20,7 +20,6 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 [RegisterUI("Vanilla: Radial Hotbars", "Elaina: Skill Wheel", 1002)]
 public sealed class ElainaSkillWheel : BaseBody
 {
-    private static Texture2D _veil;
     private static Effect _cdEffect;
 
     private readonly List<int> _slots = [];
@@ -29,17 +28,19 @@ public sealed class ElainaSkillWheel : BaseBody
     private readonly float[] _extentAtClose = new float[MaxItems];
     private readonly float[] _opacityAtClose = new float[MaxItems];
     private readonly SkillWheelDrawing.View _view = new();
-    private Asset<Texture2D> _ornaments;
+    private Matrix _matrix;
     private Vector2 _anchor;
     private bool _open, _anchorPending;
-    private float _time, _closeTime = -1, _presence;
-    private int _hovered = -1, _chosen = -1;
+    private float _time, _closeTime = -1, _presence, _focusAge;
+    private int _hovered = -1, _chosen = -1, _focus = -1;
 
     public ElainaSkillWheel() { Enabled = false; }
 
     public override bool IsInteractable => _open;
 
     private int Count => _skills.Count;
+
+    private static float Scale => Math.Clamp(ElainaSkillManager.WheelScale, .3f, 1.5f);
 
     protected override void OnInitialize()
     {
@@ -51,7 +52,6 @@ public sealed class ElainaSkillWheel : BaseBody
         SetLeft(0, 0, 0);
         SetTop(0, 0, 0);
         FitScreen(GraphicsDeviceHelper.GetBackBufferSizeByUIScale());
-        _ornaments = ModContent.Request<Texture2D>(ElainaSkillBar.ArtPath + "Ornaments");
     }
 
     private void FitScreen(Size screen) => SetSize(screen.Width, screen.Height, 0, 0);
@@ -75,9 +75,11 @@ public sealed class ElainaSkillWheel : BaseBody
             && SilkyUIRenderSystem.Instance.TryGetInstance(out wheel);
     }
 
-    private static bool CanStayOpen => Main.hasFocus && !Main.gameMenu && !Main.drawingPlayerChat
+    private static bool HoldingWand => Main.LocalPlayer.HeldItem.ModItem is ElainaWand;
+
+    private static bool CanStayOpen => HoldingWand && Main.hasFocus && !Main.gameMenu && !Main.drawingPlayerChat
         && !Main.ingameOptionsWindow && !Main.inFancyUI && Main.LocalPlayer is { active: true, dead: false }
-        && ElainaSkillManager.SelectionMode == SkillSelectionMode.Wheel;
+        && ElainaSkillManager.SelectionMode == SkillSelectionMode.Wheel && !ElainaHealingWheel.IsShowing;
 
     private static bool CanOpen => CanStayOpen && !Main.editSign && !Main.editChest && !Main.LocalPlayer.mouseInterface
         && !ConstellationSkillPanel.ConstellationSkillPanel.PanelShown;
@@ -85,6 +87,11 @@ public sealed class ElainaSkillWheel : BaseBody
     internal static void HandleInput(ModKeybind key)
     {
         if (key == null || !TryGet(out var wheel)) return;
+        if (!HoldingWand)
+        {
+            wheel.CloseImmediately();
+            return;
+        }
         if (wheel._open)
         {
             if (!CanStayOpen) wheel.Close(false);
@@ -98,13 +105,7 @@ public sealed class ElainaSkillWheel : BaseBody
         if (TryGet(out var wheel)) Main.QueueMainThreadAction(wheel.CloseImmediately);
     }
 
-    internal static void Unload()
-    {
-        var veil = _veil;
-        _veil = null;
-        _cdEffect = null;
-        if (veil != null) Main.QueueMainThreadAction(veil.Dispose);
-    }
+    internal static void Unload() => _cdEffect = null;
 
     private void Open()
     {
@@ -121,9 +122,9 @@ public sealed class ElainaSkillWheel : BaseBody
 
         Array.Clear(_hover);
         _open = _anchorPending = true;
-        _time = _presence = 0;
+        _time = _presence = _focusAge = 0;
         _closeTime = -1;
-        _hovered = _chosen = -1;
+        _hovered = _chosen = _focus = -1;
         Enabled = true;
     }
 
@@ -165,6 +166,11 @@ public sealed class ElainaSkillWheel : BaseBody
     protected override void UpdateStatus(GameTime gameTime)
     {
         base.UpdateStatus(gameTime);
+        if (!HoldingWand)
+        {
+            CloseImmediately();
+            return;
+        }
         float dt = Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f);
         if (_open && (!CanStayOpen || !SkillsUnchanged())) Close(false);
 
@@ -172,7 +178,7 @@ public sealed class ElainaSkillWheel : BaseBody
         {
             _anchorPending = false;
             Vector2 size = new(Width.Pixels, Height.Pixels);
-            float margin = RadiusFor(Count) + BandHalf + ScreenMargin;
+            float margin = (RadiusFor(Count) + BandHalf + ScreenMargin) * Scale;
             Vector2 mouse = Main.MouseScreen - Bounds.Position;
             _anchor = new Vector2(
                 size.X > margin * 2 ? Math.Clamp(mouse.X, margin, size.X - margin) : size.X / 2,
@@ -183,7 +189,7 @@ public sealed class ElainaSkillWheel : BaseBody
         {
             _time += dt;
             _presence = Math.Min(1, _presence + dt / FadeIn);
-            int hovered = Pick(Main.MouseScreen - Bounds.Position - _anchor, Count);
+            int hovered = Pick((Main.MouseScreen - Bounds.Position - _anchor) / Scale, Count);
             if (hovered != _hovered && hovered >= 0) SoundEngine.PlaySound(SoundID.MenuTick);
             _hovered = hovered;
             Main.LocalPlayer.mouseInterface = true;
@@ -197,6 +203,16 @@ public sealed class ElainaSkillWheel : BaseBody
 
         for (int i = 0; i < Count; i++)
             _hover[i] = MathHelper.Lerp(_hover[i], _open && i == _hovered ? 1 : 0, Math.Min(1, dt / .12f));
+
+        // 中心展示：指向的术式；指针在死区时展示当前术式；关闭后保持最后一项随轮盘淡出。
+        int focus = !_open ? (_chosen >= 0 ? _chosen : _focus)
+            : _hovered >= 0 ? _hovered : _slots.IndexOf(ElainaSkillModPlayer.CurrentSkillIndex);
+        if (focus != _focus)
+        {
+            _focus = focus;
+            _focusAge = 0;
+        }
+        _focusAge += dt;
     }
 
     private (float Extent, float Opacity) ItemMotion(int i) => _open
@@ -205,29 +221,28 @@ public sealed class ElainaSkillWheel : BaseBody
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        if (Count == 0 || _ornaments == null) return;
+        if (Count == 0 || !HoldingWand) return;
         FillView();
-        if (_veil == null)
-        {
-            const int size = 256;
-            _veil = new Texture2D(Main.instance.GraphicsDevice, size, size);
-            _veil.SetData(VeilPixels(size));
-        }
         _cdEffect ??= ModContent.Request<Effect>("KL/Effects/Content/CDEffect", AssetRequestMode.ImmediateLoad).Value;
-        var art = new SkillWheelDrawing.Art(_ornaments.Value, new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
-            _veil, _cdEffect, UIDrawKit.TitleFont, FontManager.HarmonyOS_Sans_SC?.Value ?? UIDrawKit.TitleFont, UIDrawKit.NumberFont);
+        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
+            _cdEffect, UIDrawKit.NumberFont);
+        // 整个轮盘绕自身中心按配置倍率缩放，绘制结束后恢复 SUI 的变换。
+        _matrix = ScaleAround(_view.Center, Scale) * SilkyUI.TransformMatrix;
+        Restart(spriteBatch, SpriteSortMode.Deferred, null);
         SkillWheelDrawing.Draw(spriteBatch, art, _view, PaintSector, Restart);
+        _matrix = SilkyUI.TransformMatrix;
+        Restart(spriteBatch, SpriteSortMode.Deferred, null);
     }
 
     private void PaintSector(Vector2 center, float inner, float outer, float start, float end,
         Color fill, float border, Color borderColor) =>
-        DrawAnnularSectorUI(center, inner, outer, start, end, fill, border, borderColor, SilkyUI.TransformMatrix);
+        DrawAnnularSectorUI(center, inner, outer, start, end, fill, border, borderColor, _matrix);
 
     private void Restart(SpriteBatch batch, SpriteSortMode mode, Effect effect)
     {
         batch.End();
         batch.Begin(mode, BlendState.AlphaBlend, SamplerState.LinearClamp,
-            DepthStencilState.None, SilkyUI.ScissorRasterizerState, effect, SilkyUI.TransformMatrix);
+            DepthStencilState.None, SilkyUI.ScissorRasterizerState, effect, _matrix);
     }
 
     private void FillView()
@@ -235,10 +250,13 @@ public sealed class ElainaSkillWheel : BaseBody
         SkillWheelDrawing.View view = _view;
         view.Count = Count;
         view.Center = Bounds.Position + _anchor;
-        view.Pointer = Main.MouseScreen;
-        view.ScreenSize = new Vector2(Width.Pixels, Height.Pixels);
+        view.Pointer = view.Center + (Main.MouseScreen - view.Center) / Scale;
         view.Open = _open;
         view.Hovered = _open ? _hovered : -1;
+        view.Chosen = _open ? -1 : _chosen;
+        view.Release = !_open && _chosen >= 0 && _closeTime >= 0 ? Math.Clamp(_closeTime / ChosenClose, 0, 1) : -1;
+        view.Focus = _focus;
+        view.FocusAge = _focusAge;
         view.Presence = _presence;
         view.RingScale = _open ? OpeningRingScale(_time) : MathHelper.Lerp(.94f, 1, _presence);
         view.Seconds = _time + .5f;
@@ -259,27 +277,12 @@ public sealed class ElainaSkillWheel : BaseBody
                 Cooldown = skill.CurrentCD,
                 Remaining = skill.CooldownRemainingFraction,
                 Current = _slots[i] == ElainaSkillModPlayer.CurrentSkillIndex,
-                Chosen = chosen,
                 Slot = _slots[i],
                 Stack = skill.Stack,
                 MaxStack = skill.MaxStack,
                 Icon = skill.SkillIcon?.Value,
             };
         }
-
-        int shown = _open ? _hovered : _chosen;
-        if (shown < 0)
-        {
-            view.Name = LocalizeUI("SkillWheelPrompt");
-            view.Sub = LocalizeUI("SkillWheelKeep");
-            return;
-        }
-        Skill target = _skills[shown];
-        string key = $"Mods.伊蕾娜.SkillInfo.SkillName.{target.ModSkill?.GetType().Name}";
-        view.Name = Language.Exists(key) ? Language.GetTextValue(key) : target.ModSkill?.GetType().Name ?? "";
-        view.Sub = _slots[shown] == ElainaSkillModPlayer.CurrentSkillIndex ? LocalizeUI("SkillWheelCurrent")
-            : target.Stack <= 0 && target.CurrentCD > 0 ? LocalizeUI("SkillWheelCooldown", target.CurrentCD.ToString("0.0"))
-            : LocalizeUI("SkillWheelSlot", _slots[shown] + 1);
     }
 }
 

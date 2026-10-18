@@ -54,6 +54,28 @@ test('All recommended slots use mapped accessories and Spectre stays a full dama
  }
  assert.ok(mapping.includes('["spectre"] = [ItemID.SpectreMask, ItemID.SpectreRobe, ItemID.SpectrePants]'));
 });
+test('Defaults use available mage equipment with no artificial ore-tier delay',()=>{
+ const l=B.loadoutDefaults();
+ assert.equal(l[0].armor,'amethystWood');
+ for(let i=1;i<7;i++)assert.equal(l[i].armor,'jungle');
+ for(let i=7;i<9;i++)assert.equal(l[i].armor,'titanium');
+ for(let i=9;i<12;i++)assert.equal(l[i].armor,'hallowed');
+ const first={sorcerer:8,avenger:12,celestial:12,destroyer:14,eyeGolem:14,celestialStone:14,celestialShell:14,wormScarf:4,brain:4,obsidianShield:6,ankhShield:8,frozenShield:13,charmMyths:8,regen:4};
+ for(const row of l)for(const x of row.items)assert.ok(row.stage>=(first[x.id]??1),`${row.stage}: ${x.id} is not yet available`);
+ for(let i=12;i<19;i++)assert.ok(l[i].items.some(x=>x.id==='frozenShield'));
+ const map=fs.readFileSync(path.join(__dirname,'../../ElainaModSkills/Loadout/LoadoutItems.cs'),'utf8');
+ assert.ok(!map.includes('ItemID.AdamantiteMask'));
+});
+test('Revision 1 migrates only untouched defaults and preserves lab edits',()=>{
+ const oldCtx={module:{exports:{}}};vm.runInNewContext(code.replace('return {levelDps,','return {old:Object.values(legacyPresetsV1).map(p=>loadoutDefault(p.stage,p)),levelDps,'),oldCtx);
+ const s=B.defaults(10);s.loadoutRevision=1;s.loadouts=JSON.parse(JSON.stringify(oldCtx.module.exports.old));B.applyLoadout(s,10,false);
+ const custom=s.loadouts[2];custom.maxLife=220;custom.items[1].prefix='warding';
+ s.v.armor='meteor';
+ B.migrateLoadouts(s);
+ assert.equal(s.loadoutRevision,2);assert.equal(s.loadouts[9].armor,'hallowed');assert.equal(s.e.armor,'hallowed');assert.equal(s.v.armor,'meteor');
+ assert.equal(s.loadouts[2],custom);assert.equal(custom.maxLife,220);assert.equal(custom.items[1].prefix,'warding');
+ const once=JSON.stringify(s);B.migrateLoadouts(s);assert.equal(JSON.stringify(s),once);
+});
 test('Legacy migration fills placeholders once, preserves custom gear and replaces Spectre mixes',()=>{
  const s=B.defaults(16);delete s.loadoutRevision;const l=s.loadouts[15];l.armor='spectreDarkArtist';l.baseMana=160;l.maxLife=420;
  l.items[0]={id:'sorcerer',prefix:'warding',vPrefix:'lucky'};l.items[1]={id:'utility',prefix:'arcane',vPrefix:'menacing'};
@@ -99,7 +121,7 @@ test('Invalid loadouts are rejected',()=>{
  const l=B.loadoutDefaults();l[0].maxLife=405;l[0].baseMana=20;assert.ok(B.validLoadouts(l));
 });
 test('Stage defaults read from loadouts; string preset keys still map to stages',()=>{
- const s=B.defaults(2);assert.equal(s.stage,2);near(s.baseDps,50);near(s.baseMana,200);assert.equal(s.e.armor,'magicTopaz');assert.equal(s.loadouts.length,19);
+ const s=B.defaults(2);assert.equal(s.stage,2);near(s.baseDps,50);near(s.baseMana,200);assert.equal(s.e.armor,'jungle');assert.equal(s.loadouts.length,19);
  assert.equal(B.defaults('jungle').stage,6);assert.equal(B.defaults().stage,13);
  assert.deepEqual(Array.from(s.e.items.slice(0,5),x=>x.prefix),['arcane','none','none','none','none'],'King Slime stage: one lucky prefix before the Goblin Tinkerer');
  assert.deepEqual(Array.from(s.v.items.slice(0,5),x=>x.prefix),['none','none','none','none','none']);
@@ -474,7 +496,7 @@ async function browserTests(){
   const ePrefixes=await page.locator('#eSlots select[data-prop="prefix"]').evaluateAll(xs=>xs.map(x=>x.value));
   assert.equal(vPrefixes.length,6);assert.deepEqual(vPrefixes,Array.from(B.loadoutDefault(10).items.slice(0,6),x=>x.vPrefix),'Vanilla prefixes come from the stage loadout');
   assert.deepEqual(ePrefixes,Array.from(B.loadoutDefault(10).items.slice(0,6),x=>x.prefix),'Elaina prefixes come from the stage loadout');
-  assert.equal(await page.locator('#eArmor').inputValue(),'adamantite');
+  assert.equal(await page.locator('#eArmor').inputValue(),'hallowed');
   assert.equal(await page.locator('#battleDuration').inputValue(),String(Number(duration)+7),'Changing gear preset must keep combat settings');
   assert.equal(await page.locator('#baseDps').inputValue(),'450');
   await page.locator('#preset').selectOption('6');
@@ -767,11 +789,11 @@ async function browserTests(){
   await page.getByRole('button',{name:'复制上一阶段',exact:true}).click();
   assert.equal(await page.locator('#loadoutArmor').inputValue(),'meteor');
   assert.equal(await page.locator('#loadoutMana').inputValue(),'160');
-  assert.match(await page.locator('#loadoutName').inputValue(),/巫师帽钻石长袍/,'Copy keeps the stage name');
+  assert.equal(await page.locator('#loadoutName').inputValue(),B.loadoutDefault(4).name,'Copy keeps the stage name');
   await page.getByRole('button',{name:'恢复本阶段默认',exact:true}).click();
-  assert.equal(await page.locator('#loadoutArmor').inputValue(),'wizardDiamond');
+  assert.equal(await page.locator('#loadoutArmor').inputValue(),B.loadoutDefault(4).armor);
   await page.locator('#loadoutName').fill('');await page.locator('#loadoutName').press('Tab');
-  assert.match(await page.locator('#loadoutName').inputValue(),/巫师帽钻石长袍/,'Empty names are rejected');
+  assert.equal(await page.locator('#loadoutName').inputValue(),B.loadoutDefault(4).name,'Empty names are rejected');
   await page.locator('#loadoutName').fill('<b>测试</b>');await page.locator('#loadoutName').press('Tab');
   assert.equal(await page.locator('#loadoutList b b').count(),0,'Loadout names must be escaped');
   await page.screenshot({path:path.join(out,'loadouts-desktop.png'),fullPage:true});

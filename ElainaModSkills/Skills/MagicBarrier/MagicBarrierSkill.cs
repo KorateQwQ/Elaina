@@ -34,19 +34,17 @@ public class MagicBarrierSkill : ElainaSkill
         base.Initialize();
     }
 
-    public override bool CanUseSkill()
+    private bool IsActiveFor(Player player)
     {
-        if (!AreAllPrerequisitesActive(Player.GetModPlayer<ElainaSkillModPlayer>()) || !IsEnabled)
-        {
-            return false;
-        }
-
-        return base.CanUseSkill();
+        return !player.dead && BasicStatus == Skill.SKillBasicStatus.UnLock && IsEnabled
+            && player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled
+            && AreAllPrerequisitesActive(player.GetModPlayer<ElainaSkillModPlayer>());
     }
 
     public override void UpdateEquips(Player player)
     {
-        if (CanUseSkill())
+        // 被动自行检查拥有者的生效条件，不走面向本地主动施法的 CanUseSkill。
+        if (IsActiveFor(player))
         {
             player.GetModPlayer<MagicBarrierModPlayer>().EnableBarrier();
         }
@@ -159,24 +157,24 @@ public class MagicBarrierSkill : ElainaSkill
             }
         }
 
-        internal int ResolveLifeRegenHit(int incomingDamage)
+        internal void ApplyLifeRegenFloor()
         {
-            if (!CanProcessLocalDamage() || !CanAbsorbDamage() || incomingDamage <= 0)
+            if (!barrierEnabled || Player.dead
+                || !Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled)
             {
-                return incomingDamage;
+                return;
             }
 
-            // Called at each actual vanilla life subtraction, after all regen bonuses
-            // and tick thresholds. A five-point tick stays one hit, not five tiny hits.
-            double consumed = ConsumeAbsorption(incomingDamage * DamageReduction);
-            int remainingDamage = BarrierDamageMath.GetRemainingDamage(incomingDamage, consumed);
-            ReportReduction(incomingDamage, consumed, incomingDamage - remainingDamage, dot: true);
-            return remainingDamage;
+            // Every endpoint applies the synchronized passive, independently of magic.
+            // Clear previous negative progress too, so enabling it cannot leave a DoT tick pending.
+            Player.lifeRegen = Math.Max(0, Player.lifeRegen);
+            Player.lifeRegenCount = Math.Max(0, Player.lifeRegenCount);
         }
 
         private bool CanProcessLocalDamage()
         {
-            return Main.netMode != NetmodeID.MultiplayerClient || Player.whoAmI == Main.myPlayer;
+            // 受击方结算最终伤害与魔力消耗，远端只应用受伤包和生命同步。
+            return Main.netMode != NetmodeID.Server && Player.whoAmI == Main.myPlayer;
         }
 
         private void ReportReduction(int incomingDamage, double paidDamage,

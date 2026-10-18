@@ -208,6 +208,8 @@ class Handler(BaseHTTPRequestHandler):
         route = urlsplit(self.path).path
         if route in ("/", "/index.html"):
             self.reply(200, HTML_PATH.read_bytes(), "text/html; charset=utf-8")
+        elif route == "/LOADOUT-AUDIT.md":
+            self.reply(200, HTML_PATH.with_name("LOADOUT-AUDIT.md").read_bytes(), "text/plain; charset=utf-8")
         elif route == "/favicon.ico":
             self.reply(204, b"", "image/x-icon")
         elif route == "/api/info":

@@ -8,6 +8,8 @@ internal sealed class PanelGame : Game
     private static readonly Dictionary<string, Texture2D> Textures = [];
     private bool _done;
     private static bool IconsOnly;
+    // Renders without the logic / icon checks (for layout work while an unrelated check is stale).
+    private static bool SkipChecks;
     private static bool HeadersOnly;
     private static bool LocalizationOnly;
     private static bool RequirementsOnly;
@@ -58,7 +60,7 @@ internal sealed class PanelGame : Game
             }
             Console.WriteLine(output); Exit(); return;
         }
-        if (!LocalizationOnly) IconChecks.Run(batch);
+        if (!LocalizationOnly && !SkipChecks) IconChecks.Run(batch);
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
@@ -96,6 +98,7 @@ internal sealed class PanelGame : Game
     {
         Repo = args[0]; VanillaContent = args[1]; IconsOnly = args.Contains("--icons-only");
         HeadersOnly = args.Contains("--headers-only");
+        SkipChecks = args.Contains("--skip-checks");
         LocalizationOnly = args.Contains("--localization-only");
         RequirementsOnly = args.Contains("--requirements-only");
         ToggleOnly = args.Contains("--toggle-only");
@@ -106,7 +109,7 @@ internal sealed class PanelGame : Game
         OrnamentsOnly = args.Contains("--ornaments-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
-        Fixtures.Text(); if (!HeadersOnly && !args.Contains("--localization-only")) PanelChecks.Run();
+        Fixtures.Text(); if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
         Terraria.Localization.Language.Text.Clear();
         Terraria.Localization.Language.Load(Repo, args[2]);
         // The old fixture class uses WindBladeSkill for the production WindSlashSkill.

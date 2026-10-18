@@ -214,7 +214,8 @@ namespace 伊蕾娜.Items
             if (!player.GetModPlayer<ElainaModplayer>().Elaina||Main.myPlayer!=player.whoAmI) return false;
             
             ElainaSkillModPlayer skillModPlayer = player.GetModPlayer<ElainaSkillModPlayer>();
-            return skillModPlayer.CanUseSkill();
+            // 先选目标的技能在 BeginWandUse 中打开选择器并拒绝本次使用，避免未出手就挥杖。
+            return skillModPlayer.CanUseSkill() && skillModPlayer.BeginWandUse();
         }
 
         public override bool? UseItem(Player player)

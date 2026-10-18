@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>魔女手札 · 节点边框主题草图</title>
+<style>
+:root { --ink: #eee9f5; --muted: #b2a8c3; --lav: #cab2ed; --gold: #e6cea5; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font-family: "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+  background: radial-gradient(ellipse at 30% 0%, #2e2540 0%, #1b1724 60%, #141019 100%) fixed; }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 28px 60px; }
+h1 { font-weight: 500; letter-spacing: 6px; margin: 0 0 6px; font-size: 28px; }
+p.lead { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 0 0 22px; }
+.bar { display: flex; gap: 18px; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.bar label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+input[type=range] { accent-color: #cab2ed; }
+.grid { display: grid; grid-template-columns: 170px repeat(5, 1fr); border: 1px solid rgba(202,178,237,.14);
+  background: radial-gradient(ellipse at 50% 40%, #2b2338, #1e1928); }
+.hd { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0 0; letter-spacing: 1px; }
+.theme { padding: 18px 0 18px 18px; border-top: 1px solid rgba(202,178,237,.08); }
+.theme b { display: block; font-weight: 500; font-size: 17px; letter-spacing: 4px; color: var(--lav); }
+.theme span { display: block; font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 6px; }
+.cell { border-top: 1px solid rgba(202,178,237,.08); display: flex; justify-content: center; align-items: center; }
+.cell svg { display: block; }
+
+.flapL { transform-box: view-box; transform-origin: -26px 0; animation: flapL 3.2s ease-in-out infinite; }
+.flapR { transform-box: view-box; transform-origin: 26px 0; animation: flapR 3.2s ease-in-out infinite; }
+@keyframes flapL { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.72); } }
+@keyframes flapR { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.72); } }
+.orbit { transform-box: view-box; transform-origin: 0 0; animation: orbit 9s linear infinite; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+.sway { transform-box: view-box; transform-origin: 0 -30px; animation: sway 3.6s ease-in-out infinite; }
+@keyframes sway { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+.shine { animation: shine 2.6s ease-in-out infinite; }
+@keyframes shine { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+body.still .flapL, body.still .flapR, body.still .orbit, body.still .sway, body.still .shine { animation: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>节点边框 · 主题草图</h1>
+  <p class="lead">
+    只定“大致感觉”：每个节点 = 一圈单线图标窗 + 一个主题母题，去掉刻度、宝石、多重描边。<br>
+    术式与心得用<b style="color:var(--gold);font-weight:500">同一主题的两种姿态</b>区分（展翅 / 停驻，书签 / 折页，流星 / 绕行星）。
+  </p>
+  <div class="bar">
+    <label>放大 <input type="range" id="mag" min="1" max="2.2" step=".1" value="1.5"></label>
+    <label><input type="checkbox" id="anim" checked> 动画</label>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="gray"><feColorMatrix type="saturate" values=".08"/></filter>
+    <clipPath id="c30"><circle r="29"/></clipPath>
+    <clipPath id="pg"><path d="M-26,-26 L15,-26 L26,-15 L26,26 L-26,26Z"/></clipPath>
+    <radialGradient id="glowGold">
+      <stop offset="0" stop-color="#e6cea5" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#e6cea5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tailInk" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eee9f5" stop-opacity="1"/>
+      <stop offset="1" stop-color="#cab2ed" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="tailGold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff4dc" stop-opacity="1"/>
+      <stop offset="1" stop-color="#e6cea5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<script>
+const IMG = "../../ElainaModSkills/";
+const ICON = { cone: "Skills/Ice/IceConeSkill.png", witch: "Skills/AshenWitch/AshenWitchSkill.png" };
+const LAV = [202, 178, 237], GOLD = [230, 206, 165], INK = [238, 233, 245], MUTED = [178, 168, 195], PLATE = [39, 32, 51];
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const L = 'vector-effect="non-scaling-stroke" fill="none"';
+let mag = 1.5;
+
+// 公共部件 ---------------------------------------------------------------
+function look(st) {
+  const acc = st === "sel" ? GOLD : LAV;
+  const a = st === "sel" ? 1 : st === "dim" ? .38 : .75;
+  return { acc, a, col: rgba(acc, a), soft: rgba(acc, a * .14), st };
+}
+const glow = k => k.st === "sel" ? `<circle r="46" fill="url(#glowGold)" opacity=".5"/>` : "";
+function icon(name, k, size = 46, clip) {
+  const h = size / 2, f = k.st === "dim" ? 'filter="url(#gray)" opacity=".55"' : "";
+  const img = `<image href="${IMG + ICON[name]}" x="${-h}" y="${-h}" width="${size}" height="${size}" ${f}/>`;
+  return clip ? `<g clip-path="url(#${clip})">${img}</g>` : img;
+}
+const squareWin = (k, h = 27, r = 5) =>
+  `<rect x="${-h}" y="${-h}" width="${2 * h}" height="${2 * h}" rx="${r}" fill="${rgba(PLATE, .9)}" stroke="${k.col}" ${L.replace('fill="none"', "")}/>`;
+const roundWin = (k, r = 30) => `<circle r="${r}" fill="${rgba(PLATE, .9)}" stroke="${k.col}" vector-effect="non-scaling-stroke"/>`;
+function caption(name, lv, k) {
+  const c = k.st === "sel" ? GOLD : k.st === "dim" ? MUTED : INK;
+  return (lv ? `<text y="50" font-size="7.5" text-anchor="middle" fill="${rgba(MUTED, .85)}" letter-spacing=".5">${lv}</text>` : "") +
+    `<text y="63" font-size="9.5" text-anchor="middle" fill="${rgba(c, k.st === "dim" ? .7 : 1)}" letter-spacing="1">${name}</text>`;
+}
+const star4 = (x, y, r, fill, cls = "") => { const q = r * .22;
+  return `<path class="${cls}" d="M${x},${y - r}L${x + q},${y - q}L${x + r},${y}L${x + q},${y + q}L${x},${y + r}L${x - q},${y + q}L${x - r},${y}L${x - q},${y - q}Z" fill="${fill}"/>`; };
+
+// 蝴蝶：术式 = 展翅；心得 = 停在环上的小蝶 -------------------------------
+function butterflySpell(k) {
+  const wing = side => {
+    const s = side;
+    const fore = `M${26 * s},-14 C${36 * s},-32 ${50 * s},-34 ${47 * s},-20 C${45 * s},-10 ${36 * s},-5 ${26 * s},-3`;
+    const hind = `M${26 * s},3 C${36 * s},5 ${43 * s},16 ${38 * s},23 C${34 * s},28 ${29 * s},20 ${26 * s},13`;
+    return `<g class="${k.st === "sel" ? (s < 0 ? "flapL" : "flapR") : ""}">` +
+      `<path d="${fore}" fill="${k.soft}" stroke="${k.col}" vector-effect="non-scaling-stroke"/>` +
+      `<path d="${hind}" fill="${k.soft}" stroke="${k.col}" vector-effect="non-scaling-stroke"/></g>`;
+  };
+  const antenna = s => `<path d="M${2 * s},-27 Q${5 * s},-35 ${10 * s},-37" stroke="${k.col}" ${L}/><circle cx="${10 * s}" cy="-37" r="1.3" fill="${k.col}"/>`;
+  return glow(k) + wing(-1) + wing(1) + antenna(-1) + antenna(1) + squareWin(k) + icon("cone", k);
+}
+function butterflyInsight(k) {
+  // 小蝶停在右上方，翅膀合拢
+  const b = `<g transform="translate(21 -21) rotate(35)" class="${k.st === "sel" ? "shine" : ""}">` +
+    `<path d="M0,0 C-7,-3 -9,-11 -3,-12 C0,-12 1,-6 0,0Z" fill="${rgba(k.acc, k.a * .5)}" stroke="${k.col}" vector-effect="non-scaling-stroke"/>` +
+    `<path d="M0,0 C7,-3 9,-11 3,-12 C0,-12 -1,-6 0,0Z" fill="${rgba(k.acc, k.a * .3)}" stroke="${k.col}" vector-effect="non-scaling-stroke"/></g>`;
+  return glow(k) + roundWin(k) + icon("witch", k, 46, "c30") + b;
+}
+
+// 书签：术式 = 垂下的缎带书签；心得 = 折角的手札页 ------------------------
+function bookmarkSpell(k) {
+  const tail = k.st === "sel" ? 40 : 36;
+  const ribbon = `<g class="${k.st === "sel" ? "sway" : ""}"><polygon points="-7,-35 7,-35 7,${tail} 0,${tail - 6} -7,${tail}" fill="${rgba(k.acc, k.a * .3)}" stroke="${k.col}" vector-effect="non-scaling-stroke"/></g>`;
+  return glow(k) + ribbon + squareWin(k) + icon("cone", k);
+}
+function bookmarkInsight(k) {
+  const h = 27, f = 11;
+  const page = `<path d="M${-h},${-h} L${h - f},${-h} L${h},${-h + f} L${h},${h} L${-h},${h}Z" fill="${rgba(PLATE, .9)}" stroke="${k.col}" vector-effect="non-scaling-stroke"/>`;
+  const fold = `<path d="M${h - f},${-h} L${h - f},${-h + f} L${h},${-h + f}" fill="${rgba(k.acc, k.a * .35)}" stroke="${k.col}" vector-effect="non-scaling-stroke"/>`;
+  return glow(k) + page + `<g clip-path="url(#pg)">${icon("witch", k)}</g>` + fold;
+}
+
+// 流星：术式 = 划过窗角的流星；心得 = 沿环绕行的小星 ----------------------
+function meteorSpell(k) {
+  const len = k.st === "sel" ? 34 : 24, grad = k.st === "sel" ? "tailGold" : "tailInk";
+  // 尾迹 = 锥形渐隐条：主尾一条 + 两侧细尾各一条
+  const tail = (off, l, w, a) => `<polygon points="2,${off - w} ${l},${off} 2,${off + w}" fill="url(#${grad})" opacity="${a}"/>`;
+  const m = `<g transform="translate(27 -27) rotate(-45)" opacity="${k.a}">` +
+    tail(0, len, 1.8, 1) + tail(-3, len * .6, .7, .6) + tail(3, len * .7, .7, .6) + `</g>`;
+  return glow(k) + squareWin(k) + icon("cone", k) + m + star4(27, -27, k.st === "sel" ? 6 : 4.5, rgba(k.st === "sel" ? GOLD : INK, k.a), k.st === "sel" ? "shine" : "");
+}
+function meteorInsight(k) {
+  const r = 35, segs = 8;
+  let trail = "";
+  for (let i = 0; i < segs; i++) {
+    const a0 = -60 - (i + 1) * 12, a1 = -60 - i * 12;
+    const p = a => [r * Math.cos(a * Math.PI / 180), r * Math.sin(a * Math.PI / 180)];
+    const [x0, y0] = p(a0), [x1, y1] = p(a1);
+    trail += `<path d="M${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 0 1 ${x1.toFixed(2)},${y1.toFixed(2)}" stroke="${rgba(k.st === "sel" ? GOLD : INK, k.a * (1 - i / segs))}" stroke-width="${2 - i * .2}" ${L} stroke-linecap="round"/>`;
+  }
+  const [hx, hy] = [r * Math.cos(-Math.PI / 3), r * Math.sin(-Math.PI / 3)];
+  const orb = `<g class="${k.st === "sel" ? "orbit" : ""}">${trail}${star4(hx, hy, k.st === "sel" ? 5.5 : 4, rgba(k.st === "sel" ? GOLD : INK, k.a))}</g>`;
+  return glow(k) + roundWin(k) + icon("witch", k, 46, "c30") + orb;
+}
+
+// 渲染 ---------------------------------------------------------------------
+const THEMES = [
+  ["蝴蝶", "术式：展开的双翅托住图标，选中时轻扇。<br>心得：一只合翅小蝶停在圆窗上。", butterflySpell, butterflyInsight],
+  ["书签", "术式：缎带书签穿过图标窗垂下，选中时轻摆。<br>心得：手札的一页，右上折角。", bookmarkSpell, bookmarkInsight],
+  ["流星", "术式：一颗流星擦过窗角，选中时尾迹拉长。<br>心得：一颗小星沿圆环拖尾绕行。", meteorSpell, meteorInsight],
+];
+const COLS = [["术式 · 常态", 0, "norm"], ["术式 · 选中", 0, "sel"], ["术式 · 未习得", 0, "dim"], ["心得 · 常态", 1, "norm"], ["心得 · 选中", 1, "sel"]];
+
+function render() {
+  let html = `<div class="hd"></div>` + COLS.map(c => `<div class="hd">${c[0]}</div>`).join("");
+  for (const [title, desc, spell, insight] of THEMES) {
+    html += `<div class="theme"><b>${title}</b><span>${desc}</span></div>`;
+    for (const [, kind, st] of COLS) {
+      const k = look(st);
+      const body = (kind ? insight : spell)(k);
+      const name = kind ? "灰之魔女" : "冰锥";
+      const lv = st === "dim" ? "" : kind ? "Lv 3 / 5" : "Lv 7 / 13";
+      html += `<div class="cell"><svg viewBox="-60 -58 120 127" width="${120 * mag}" height="${127 * mag}">${body}${caption(name, lv, k)}</svg></div>`;
+    }
+  }
+  document.getElementById("grid").innerHTML = html;
+}
+document.getElementById("mag").oninput = e => { mag = +e.target.value; render(); };
+document.getElementById("anim").onchange = e => document.body.classList.toggle("still", !e.target.checked);
+render();
+</script>
+</body>
+</html>

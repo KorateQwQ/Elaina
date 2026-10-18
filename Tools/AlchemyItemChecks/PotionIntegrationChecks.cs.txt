@@ -25,7 +25,7 @@ static class Checks
     {
         var player = new Player { active = true, whoAmI = index, statManaMax2 = 200, statLifeMax2 = 100, statLife = 100 };
         var parts = new ModPlayer[] { new AlchemyBuffPlayer(), new 扫帚.扫帚ModPlayer(), new ElainaModplayer(),
-            new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new ElainaManaElixirPlayer() };
+            new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new ElainaManaElixirPlayer(), new ElainaStarPowerPlayer() };
         for (ushort i = 0; i < parts.Length; i++)
         {
             parts[i].GetType().GetProperty("Entity", All)!.SetValue(parts[i], player);
@@ -88,7 +88,55 @@ static class Checks
         Check(reserve.TryRestoreMagic(), "Charge can top up a partial reserve"); Near(magic.MagicPoint, 200, "Recovery clamps at maximum unique magic");
         Check(!reserve.TryRestoreMagic() && reserve.ChargeCount == 3, "Full unique magic cannot waste a charge");
         Near(other.GetModPlayer<ElainaManaElixirPlayer>().ChargeCount, 0, "Moon dew reserve belongs to its player");
-        Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom and moon dew).");
+        CheckStarPower(player);
+        Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom, moon dew and star power).");
+    }
+
+    static void CheckStarPower(Player player)
+    {
+        var effects = player.GetModPlayer<AlchemyBuffPlayer>();
+        var star = player.GetModPlayer<ElainaStarPowerPlayer>();
+        var magic = player.GetModPlayer<ElainaAttributeModPlayer>();
+        var witch = (AshenWitchSkill)player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(AshenWitchSkill)].ModSkill;
+        effects.StarPowerActive = true;
+        witch.IsEnabled = false;
+        foreach (var sample in new (int maximum, int life, float bonus)[] { (100, 150, 0), (210, 100, .15f), (360, 100, .3f), (900, 100, .3f) })
+        {
+            player.statManaMax2 = sample.maximum; player.statMana = 0; player.statLife = sample.life;
+            player.GetDamage(DamageClass.Magic) = StatModifier.Default;
+            star.PostUpdateMiscEffects();
+            Near(player.GetDamage(DamageClass.Magic).ApplyTo(100), 100 * (1 + sample.bonus), "Star power uses maximum mana, including its own +40, with a 30% cap");
+            Check(player.statManaMax2 == sample.maximum + 40, "Star power adds exactly 40 maximum mana");
+        }
+
+        witch.IsEnabled = true;
+        player.statLifeMax2 = 400; player.statLife = 400;
+        witch.UpdateEquips(player);
+        Near(witch.LostMaxLife, 150, "Actual Ashen Witch conversion contributes 150 maximum magic");
+        void CheckUnique(int originalMax, float currentMagic, bool hat, float expectedDamage)
+        {
+            player.statManaMax2 = originalMax; magic.BonusMaxMagicPoint = 0;
+            player.GetDamage(DamageClass.Magic) = StatModifier.Default;
+            if (hat) new 伊蕾娜.Items.accessories.ElainaHat().UpdateAccessory(player, false);
+            magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, currentMagic);
+            player.statMana = 0;
+            star.PostUpdateMiscEffects();
+            Near(player.GetDamage(DamageClass.Magic).ApplyTo(100), expectedDamage, "Ashen Witch, equipment and maximum magic determine star damage");
+        }
+        CheckUnique(200, 0, false, 114); // 200 + 40 + 150 - 250 = 140
+        CheckUnique(200, 0, true, 126); // +20 独特魔力；帽子另有 +10% 魔法伤害
+        Near(magic.MaxMagicPoint, 410, "Unique maximum includes potion, hat and sacrificed life");
+        CheckUnique(200, 300, true, 126); // 当前魔力不影响星力
+        CheckUnique(250, 0, true, 131); // 原版上限加成也进入独特魔力上限
+        witch.IsEnabled = false;
+        CheckUnique(200, 0, true, 110); // 灰之魔女关闭后只使用原版上限，240 < 当前生命250
+        witch.IsEnabled = true; player.GetModPlayer<ElainaModplayer>().Elaina = false;
+        CheckUnique(200, 0, false, 100); // 非伊蕾娜不读取独特魔力
+        player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        effects.ResetEffects(); player.statManaMax2 = 200; player.GetDamage(DamageClass.Magic) = StatModifier.Default;
+        star.PostUpdateMiscEffects();
+        Near(player.statManaMax2, 200, "Expired star power grants no maximum mana");
+        Near(player.GetDamage(DamageClass.Magic).ApplyTo(100), 100, "Expired star power grants no damage");
     }
     sealed class CheckMod : Mod { public override string Name => "PotionIntegrationChecks"; }
 }

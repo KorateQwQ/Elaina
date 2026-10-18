@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>魔女手札 · 圆窗节点 + 蝴蝶停驻选中</title>
+<style>
+:root { --ink: #eee9f5; --muted: #b2a8c3; --lav: #cab2ed; --gold: #e6cea5; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font-family: "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+  background: radial-gradient(ellipse at 30% 0%, #2e2540 0%, #1b1724 60%, #141019 100%) fixed; }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 28px 60px; }
+h1 { font-weight: 500; letter-spacing: 6px; margin: 0 0 6px; font-size: 28px; }
+h2 { font-weight: 500; letter-spacing: 4px; font-size: 17px; margin: 28px 0 10px; color: var(--lav); }
+p.lead { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 0 0 18px; }
+.bar { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-size: 13px; color: var(--muted);
+  padding: 10px 14px; border: 1px solid rgba(202,178,237,.18); background: rgba(28,23,36,.9); position: sticky; top: 0; z-index: 3; }
+.bar label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.bar .val { color: var(--gold); min-width: 38px; }
+.bar button { background: rgba(202,178,237,.1); border: 1px solid rgba(202,178,237,.3); color: var(--ink);
+  font: inherit; font-size: 13px; padding: 5px 14px; cursor: pointer; letter-spacing: 1px; }
+input[type=range] { accent-color: #cab2ed; }
+.panel { border: 1px solid rgba(202,178,237,.14); background: radial-gradient(ellipse at 50% 40%, #2b2338, #1e1928); }
+.row { display: grid; grid-template-columns: 110px 1fr; align-items: center; border-top: 1px solid rgba(202,178,237,.08); }
+.row:first-child { border-top: 0; }
+.row > b { font-weight: 500; letter-spacing: 3px; color: var(--lav); padding-left: 18px; font-size: 15px; }
+.heads { display: grid; grid-template-columns: 110px repeat(5, 1fr); font-size: 12px; color: var(--muted); text-align: center; padding-top: 10px; }
+svg.stage { display: block; width: 100%; height: auto; }
+.scene { background: radial-gradient(ellipse at 45% 45%, #2d2440 0%, #221c2e 55%, #1a1522 100%); }
+.note { font-size: 12.5px; color: var(--muted); line-height: 1.8; margin-top: 10px; }
+.note b { color: var(--gold); font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <h1>圆窗节点 · 蝴蝶停驻</h1>
+  <p class="lead">
+    圆形图标窗外一圈断开的星轨，断线就是流星尾迹，星轨在左上<b style="color:var(--gold);font-weight:500">给蝴蝶留出一个空位</b>（选中时蝴蝶正好停在图标圆环上）。
+    术式 = 一大一小两颗逆行的星；心得 = 一颗顺行的星拖长尾。星不再转动 —— <b style="color:var(--gold);font-weight:500">蝴蝶每扇一次翅，就有一道流光沿尾迹跑到星头，星闪一下</b>（可切换对比旧样式）。<br>
+    选中效果完全沿用游戏内的蝴蝶（同一套 16 帧精灵、0.42s 弧线飞行、落定后每 4.5s 左右扇一次翅），在此基础上加：
+    <b style="color:var(--gold);font-weight:500">落点涟漪 → 金线从落点向两侧环绕点亮 → 落点附近保留一段亮弧，扇翅时洒落鳞粉</b>。
+  </p>
+
+  <div class="bar">
+    <label>星图缩放 <input type="range" id="zoom" min="50" max="130" step="5" value="80"><span class="val" id="zoomv">80%</span></label>
+    <label>外饰 <select id="style">
+      <option value="orbit">流星星环</option>
+      <option value="meteor">流星 / 新月</option>
+      <option value="ring">星环 / 月相</option>
+      <option value="plain">素圆（上一版）</option>
+    </select></label>
+    <label title="贴图的绘制大小（相对圆窗直径）：小于 1 时贴图比框小，露出底板">图标缩放 <input type="range" id="iscale" min=".5" max="1.5" step=".05" value=".85"><span class="val" id="iscalev">0.85×</span></label>
+    <label title="贴图上的圆形裁切半径（相对贴图半边长）：1 = 内切圆，1.41 = 不裁；同时不会超出圆窗">图标裁切 <input type="range" id="crop" min=".5" max="1.45" step=".05" value="1"><span class="val" id="cropv">1.00×</span></label>
+    <label>节点类型 <select id="kind">
+      <option value="">按数据</option>
+      <option value="insight">全部心得</option>
+      <option value="spell">全部术式</option>
+    </select></label>
+    <label title="心得星座在不同节点上的变化方式">星座变化 <select id="cvar">
+      <option value="same">统一</option>
+      <option value="rot">旋转 / 镜像</option>
+      <option value="shape">多形状</option>
+      <option value="both">多形状 + 旋转</option>
+    </select></label>
+    <button id="replay">重播落点</button>
+    <label title="圆环在蝴蝶落点处断开一小段，选中时蝴蝶正好落进缺口"><input type="checkbox" id="gap"> 落点开口</label>
+    <label><input type="checkbox" id="run" checked> 动画</label>
+  </div>
+
+  <h2>状态</h2>
+  <div class="panel">
+    <div class="heads"><span></span><span>常态</span><span>悬停</span><span>选中</span><span>未习得</span><span>未显现</span></div>
+    <div class="row"><b>术式</b><svg class="stage" id="rowSpell" viewBox="-300 -88 600 168"></svg></div>
+    <div class="row"><b>心得</b><svg class="stage" id="rowInsight" viewBox="-300 -88 600 168"></svg></div>
+  </div>
+
+  <h2>星图（点击节点切换选中，观察蝴蝶飞行与落点）</h2>
+  <div class="panel scene"><svg class="stage" id="scene" viewBox="-350 -205 700 472"></svg></div>
+  <p class="note">
+    移植要点：环与亮弧都是 <b>Arc(center, r, a0, a1)</b>；涟漪是 <b>Ring</b>；鳞粉是若干个 Glow 小点；蝴蝶本身完全复用 <b>SelectionButterfly</b>，
+    只是把绘制偏移从 (-38, -40) 改到圆环上的落点（约 -125°，距圆心 R + 2，身体下沿正好压在环线上）。点亮进度以蝴蝶 <b>Moving → false</b> 的那一刻为起点。
+  </p>
+</main>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <clipPath id="clipR"><circle r="31.5"/></clipPath>
+    <radialGradient id="glowStar">
+      <stop offset="0" stop-color="#fff4dc" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#fff4dc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGold">
+      <stop offset="0" stop-color="#e6cea5" stop-opacity=".5"/>
+      <stop offset=".5" stop-color="#e6cea5" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#e6cea5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowLav">
+      <stop offset="0" stop-color="#b7a2ea" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#b7a2ea" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="gray"><feColorMatrix type="saturate" values=".08"/></filter>
+    <filter id="sil"><feColorMatrix values="0 0 0 0 .70  0 0 0 0 .66  0 0 0 0 .78  0 0 0 .35 0"/></filter>
+    <!-- 与 SelectionButterfly 一致：Alpha 作遮罩，着色 (229,217,245) * .9 -->
+    <filter id="bfTint" x="0" y="0" width="1" height="1">
+      <feFlood flood-color="rgb(229,217,245)" flood-opacity=".9"/>
+      <feComposite in2="SourceAlpha" operator="in"/>
+    </filter>
+  </defs>
+</svg>
+
+<script>
+const IMG = "../../ElainaModSkills/";
+const BUTTERFLY = IMG + "ElainaSkillUI/ConstellationSkillPanel/Assets/butterFly.png";
+const ICON = {
+  witch: "Skills/AshenWitch/AshenWitchSkill.png", barrier: "Skills/MagicBarrier/MagicBarrierSkill.png",
+  missile: "Skills/MagicMissile/MagicMissileSkill.png", multi: "Skills/MagicMissile/MultiMissileSkill.png",
+  wind: "Icon/WindBladeSkill.png", alchemy: "Skills/Alchemy/AlchemySkill.png", flight: "Skills/Flight/FlightSkill.png",
+  cone: "Skills/Ice/IceConeSkill.png", laser: "Skills/Water/WaterLaserSKill.png", ball: "Skills/Water/WaterBallSkill.png",
+  shard: "Skills/Ice/IceShardLockSkill.png", doll: "Skills/DollControl/DollControlSkill.png", heal: "Skills/Heal/HealSkill.png",
+  fireLaser: "Skills/Fire/FireLaserSkill.png", veil: "Skills/Ice/FrostVeilSkill.png",
+};
+const LAV = [202, 178, 237], GOLD = [230, 206, 165], INK = [238, 233, 245], MUTED = [178, 168, 195], PLATE = [39, 32, 51];
+const DUST = [229, 217, 245];
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${(+a).toFixed(3)})`;
+const NS = 'vector-effect="non-scaling-stroke"';
+
+const R = 32;                 // 图标窗半径
+const PERCH = -125;           // 蝴蝶落点角度（SVG 角度，左上）
+let crop = 1, iconScale = .85, running = true;
+// 落点开口：圆环在 PERCH 处断开 PERCH_GAP 度；选中时金线从缺口两端向两侧绕开
+let gapOn = false;
+// 预览用：强制所有节点使用同一种外饰（"" = 按数据里的 kind）
+let forceKind = "";
+const kindOf = n => forceKind || n.kind;
+const PERCH_GAP = 16;
+
+/* ---------- 几何 ---------- */
+const polar = (r, deg) => [r * Math.cos(deg * Math.PI / 180), r * Math.sin(deg * Math.PI / 180)];
+function arcPath(r, a0, a1) {
+  if (a1 - a0 >= 359.9) return `M${r},0 A${r},${r} 0 1 1 ${-r},0 A${r},${r} 0 1 1 ${r},0`;
+  const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1);
+  return `M${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)}`;
+}
+// 以落点为对称轴、从缺口两端各向外延伸 span 度的两段弧（无开口时两段在落点相接）
+function perchArcs(span) {
+  const h = gapOn ? PERCH_GAP / 2 : 0;
+  return arcPath(R, PERCH + h, PERCH + h + span) + arcPath(R, PERCH - h - span, PERCH - h);
+}
+const ringPath = () => gapOn ? perchArcs(180 - PERCH_GAP / 2) : arcPath(R, 0, 360);
+const easeOut = t => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+// 蝴蝶绘制中心到圆心的距离：精灵主体在帧内偏上，中心放在环外 PERCH_DIST 处时身体正好压在环线上
+let PERCH_DIST = R + 2, PERCH_OFFSET = polar(PERCH_DIST, PERCH);
+const OR = R + 5.5;
+// 图标缩放：贴图绘制边长 = 2R × iconScale（可小于圆窗，露出底板）
+// 图标裁切：以贴图中心为圆心的圆形遮罩，半径 = 贴图半边长 × crop（1 = 内切圆，√2 ≈ 1.41 = 整张不裁），
+//          且不超过圆窗半径 —— 二者配合：缩放定大小，裁切定圆形露出多少
+function setIconScale(k) { iconScale = k; }
+const iconClipR = () => Math.min(R - .5, R * iconScale * crop);
+
+/* ---------- ConstellationButterflyMotion 的逐行移植 ---------- */
+const FLIGHT = .42, WING = .8, SETTLE = .65;
+class Motion {
+  constructor() { this.reset(); }
+  reset() {
+    this.visible = this.moving = this.flapping = false;
+    this.pos = [0, 0]; this.from = [0, 0]; this.target = [0, 0];
+    this.time = this.moveStart = this.wingStart = this.stopAt = this.idleUntil = 0; this.rest = 0;
+  }
+  get frame() { return this.flapping ? Math.floor((this.time - this.wingStart) / WING * 16) % 16 : 0; }
+  setTarget(p) {
+    if (!p) { this.reset(); return; }
+    if (!this.visible) {
+      this.visible = true; this.pos = [...p]; this.from = [...p]; this.target = [...p];
+      this.flapping = true; this.wingStart = this.time; this.stopAt = this.time + WING; return;
+    }
+    if (this.target[0] === p[0] && this.target[1] === p[1]) return;
+    this.from = [...this.pos]; this.target = [...p]; this.moveStart = this.time; this.moving = true;
+    if (!this.flapping) { this.flapping = true; this.wingStart = this.time; }
+    this.stopAt = this.wingStart + Math.ceil((this.time + FLIGHT + SETTLE - this.wingStart) / WING) * WING;
+  }
+  advance(s) {
+    if (!this.visible || !(s > 0)) return;
+    this.time += s;
+    if (this.moving) {
+      const t = Math.min(1, (this.time - this.moveStart) / FLIGHT), r = 1 - t, e = 1 - r * r * r;
+      const d = Math.hypot(this.target[0] - this.from[0], this.target[1] - this.from[1]);
+      this.pos = [this.from[0] + (this.target[0] - this.from[0]) * e,
+                  this.from[1] + (this.target[1] - this.from[1]) * e - Math.sin(t * Math.PI) * Math.min(12, d * .06)];
+      if (t >= 1) { this.pos = [...this.target]; this.moving = false; }
+    }
+    while (true) {
+      if (this.flapping) {
+        if (this.time < this.stopAt) break;
+        this.flapping = false;
+        this.idleUntil = this.stopAt + 4.5 + (this.rest++ % 3) * .85;
+      }
+      if (this.time < this.idleUntil) break;
+      this.flapping = true; this.wingStart = this.idleUntil; this.stopAt = this.wingStart + WING;
+    }
+  }
+}
+
+/* ---------- 外饰 ---------- */
+let style = "orbit";
+const star4 = (x, y, r, fill) => { const q = r * .24;
+  return `<path d="M${x},${y - r}L${x + q},${y - q}L${x + r},${y}L${x + q},${y + q}L${x},${y + r}L${x - q},${y + q}L${x - r},${y}L${x - q},${y - q}Z" fill="${fill}"/>`; };
+// 沿圆弧的变宽带：w(k) 为 a0→a1 处的宽度；outward 时内沿贴住半径 r，只向外长
+function band(r, a0, a1, w, outward, n = 28) {
+  const out = [], inn = [];
+  for (let i = 0; i <= n; i++) {
+    const k = i / n, a = a0 + (a1 - a0) * k, h = w(k);
+    out.push(polar(outward ? r + h : r + h / 2, a)); inn.push(polar(outward ? r : r - h / 2, a));
+  }
+  return "M" + out.concat(inn.reverse()).map(p => p[0].toFixed(2) + "," + p[1].toFixed(2)).join("L") + "Z";
+}
+let MR = R + 5.5;
+const MH = -20, M_LEN = 58, M_LEN_SEL = 80;   // 流星：轨道半径、星头角度、尾长
+function meteorGrads() {
+  MR = R + 5.5;
+  document.querySelectorAll("#mtInk, #mtGold").forEach(e => e.remove());
+  const grad = (id, c0, c1, len) => {
+    const [x0, y0] = polar(MR, MH - len), [x1, y1] = polar(MR, MH);
+    return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}">` +
+      `<stop offset="0" stop-color="${rgba(c0, 1)}" stop-opacity="0"/><stop offset="1" stop-color="${rgba(c1, 1)}"/></linearGradient>`;
+  };
+  document.querySelector("defs").insertAdjacentHTML("beforeend",
+    grad("mtInk", LAV, INK, M_LEN) + grad("mtGold", GOLD, [255, 244, 220], M_LEN_SEL));
+}
+meteorGrads();
+// 流星尾迹：a0（尾）→ a1（头），分段画出由细到粗、由暗到亮
+function tail(r, a0, a1, wMax, col, a, aMin, n = 30) {
+  let o = "";
+  for (let i = 0; i < n; i++) {
+    const k0 = i / n, k1 = (i + 1) / n, s0 = a0 + (a1 - a0) * k0, s1 = a0 + (a1 - a0) * k1;
+    const w = k => .5 + (wMax - .5) * Math.pow(k, 1.3);
+    o += `<path d="${band(r, s0, s1, k => w(k0 + (k1 - k0) * k), false, 3)}" fill="${rgba(col, a * (aMin + (1 - aMin) * Math.pow(k1, 1.2)))}"/>`;
+  }
+  return o;
+}
+/* 流星星环：星轨在蝴蝶落点（左上 -150°~-100°）留出空位，星与尾迹都不进入这一段。
+   from = 尾端角度，head = 星头角度；from→head 的方向就是流星前进的方向。 */
+const ORBIT = {
+  // 术式：一大一小两颗，都逆时针走 —— 大星在右上拖长尾，小星在左侧拖短尾，左下留白
+  spell: [
+    { from: 95, head: -22, w: 2.4, aMin: .14, size: 4.4 },
+    { from: 207, head: 165, w: 1.4, aMin: .08, size: 2.8 },
+  ],
+};
+const tailEnd = m => m.head - Math.sign(m.head - m.from) * 8;
+/* 心得：圆窗右侧描着一小片星座 —— 几颗星贴着圆环、用发丝线连起，像手札页边随手记下的星图。
+   与术式的「流星沿环飞」相对，心得是「静止、可被连起的星」；d = 离圆环的距离，a = 角度，from = 连向哪颗。 */
+const SHAPES = [
+  // 0 · 弯钩：五星沿环成弧，中间一颗向外分叉（原版）
+  [{ d: 7, a: -62, s: 1.3 }, { d: 13, a: -28, s: 3.8 }, { d: 7.5, a: 6, s: 1.5 }, { d: 12, a: 38, s: 2.6 },
+   { d: 6, a: 66, s: 1.2 }, { d: 21, a: -8, s: 1.1, from: 1 }],
+  // 1 · 腰带：右上三颗渐亮的星排成一线，末端挑出一颗远星
+  [{ d: 9, a: -82, s: 1.2 }, { d: 9, a: -58, s: 2.2 }, { d: 10, a: -34, s: 3.6 }, { d: 9, a: -8, s: 1.4 },
+   { d: 22, a: -42, s: 1.1, from: 2 }],
+  // 2 · 垂坠：从右侧向下垂的一串，亮星在中段，向外分出一枝
+  [{ d: 6, a: -18, s: 1.2 }, { d: 11, a: 8, s: 3.4 }, { d: 7, a: 34, s: 1.4 }, { d: 12, a: 56, s: 2.3 },
+   { d: 21, a: 18, s: 1.1, from: 1 }],
+  // 3 · 双星：两颗亮星一上一下，中间一粒小点，极简
+  [{ d: 11, a: -50, s: 3.0 }, { d: 7, a: -18, s: 1.2 }, { d: 12, a: 16, s: 3.6 }, { d: 6, a: 44, s: 1.1 }],
+];
+SHAPES.forEach(sh => sh.forEach((p, i) => { if (i && p.from == null) p.from = i - 1; }));
+const CONST = SHAPES[0];
+/* 星座变化（预览用）：same = 全部同一形状同一位置；rot = 同一形状按节点旋转 / 镜像；
+   shape = 按节点从 SHAPES 里挑一种；both = 两者叠加。都由节点 id 的哈希决定，刷新不变。 */
+let cVar = "same";
+const hashId = str => { let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+const normA = a => ((a + 540) % 360) - 180;
+// 星不能进入的角度：蝴蝶落点（左上）与正下方的等级 / 名称文字
+const C_BLOCK = [[PERCH - 35, PERCH + 33], [66, 114]];
+const cFree = (a, links = []) => C_BLOCK.every(([lo, hi]) => { const x = normA(a); return x < lo || x > hi; }) &&
+  links.every(l => Math.abs(normA(a - l)) > 14);
+// 节点连线方向（度），星座额外避开 ±14°；由场景数据在 build 时填入 n.linkA
+function linkAngles(nodes) {
+  const by = id => nodes.find(n => n.id === id);
+  for (const n of nodes) n.linkA = [];
+  for (const n of nodes) {
+    if (!n.parent) continue;
+    const p = by(n.parent), a = Math.atan2(n.y - p.y, n.x - p.x) * 180 / Math.PI;
+    p.linkA.push(a); n.linkA.push(a + 180);
+  }
+}
+// 把形状整体绕圆心转到 c 度、可镜像（m = ±1）、可按 k 收紧角跨度（左下空位较窄）
+function placeShape(sh, c, m, k) {
+  const as = sh.map(p => p.a), mid = (Math.min(...as) + Math.max(...as)) / 2;
+  return sh.map(p => ({ ...p, a: c + m * (p.a - mid) * k }));
+}
+const _cCache = {};
+function constOf(n) {
+  const key = cVar + "|" + n.id;
+  if (_cCache[key]) return _cCache[key];
+  const h = hashId(n.id), sh = cVar === "shape" || cVar === "both" ? SHAPES[h % SHAPES.length] : CONST;
+  let pts = sh;
+  if (cVar === "rot" || cVar === "both") {
+    const cands = [];
+    for (const k of [1, .8, .66]) for (const m of [1, -1]) for (let c = -180; c < 180; c += 6) {
+      const p = placeShape(sh, c, m, k);
+      if (p.every(q => cFree(q.a, n.linkA))) cands.push(p);
+    }
+    // 先按位置分成几簇再挑，避免「右侧候选多」导致几乎总落在右边
+    const groups = {};
+    for (const p of cands) { const as = p.map(q => q.a), g = Math.round(normA((Math.min(...as) + Math.max(...as)) / 2) / 60); (groups[g] = groups[g] || []).push(p); }
+    const gs = Object.values(groups), grp = gs.length ? gs[(h >>> 3) % gs.length] : [sh];
+    pts = grp[(h >>> 8) % grp.length];
+  }
+  return _cCache[key] = pts;
+}
+const cPos = p => polar(R + p.d, p.a);
+// p → q 的连线（两端各让开星的半径 + 1.5），u 为从 p 起画出的比例
+function cSeg(p, q, u = 1) {
+  const [x0, y0] = cPos(p), [x1, y1] = cPos(q), dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy);
+  const g0 = (p.s + 1.5) / L, g1 = 1 - (q.s + 1.5) / L, e = g0 + (g1 - g0) * u;
+  return `x1="${(x0 + dx * g0).toFixed(2)}" y1="${(y0 + dy * g0).toFixed(2)}" x2="${(x0 + dx * e).toFixed(2)}" y2="${(y0 + dy * e).toFixed(2)}"`;
+}
+function constellation(pts, col, a, sel) {
+  let o = "";
+  pts.forEach((p, i) => { if (i) o += `<line ${cSeg(pts[p.from], p)} stroke="${rgba(col, a * .45)}" stroke-width=".8" ${NS}/>`; });
+  for (const p of pts) {
+    const [x, y] = cPos(p), s = p.s * (sel ? 1.12 : 1);
+    const body = p.s > 2
+      ? `<circle r="${s * 1.9}" fill="url(#glowStar)" opacity="${a * .6}"/>${star4(0, 0, s, rgba(sel ? [255, 244, 220] : col, a))}`
+      : `<circle r="${s}" fill="${rgba(col, a * .85)}"/>`;
+    o += `<g transform="translate(${x.toFixed(2)} ${y.toFixed(2)})"><g class="flare">${body}</g></g>`;
+  }
+  return o;
+}
+function deco(kind, col, a, sel, n) {
+  if (style === "orbit") {
+    let o = "";
+    if (!sel && !gapOn) { const [px, py] = polar(OR, PERCH); o += `<circle cx="${px}" cy="${py}" r="1" fill="${rgba(col, a * .55)}"/>`; }
+    if (kind === "insight")
+      return o + constellation(constOf(n), col, a, sel) + `<g class="glint" style="filter:drop-shadow(0 0 1.6px rgba(230,206,165,.95))"></g>`;
+    for (const m of ORBIT[kind]) {
+      o += tail(OR, m.from, tailEnd(m), m.w, col, a, m.aMin);
+      const [x, y] = polar(OR, m.head), s = m.size * (sel ? 1.15 : 1);
+      o += `<g transform="translate(${x.toFixed(2)} ${y.toFixed(2)})"><g class="flare">` +
+        `<circle r="${s * 1.8}" fill="url(#glowStar)" opacity="${a * .7}"/>${star4(0, 0, s, rgba(sel ? [255, 244, 220] : col, a))}</g></g>`;
+      if (m.dot) { const [dx, dy] = polar(OR, m.dot); o += `<circle cx="${dx}" cy="${dy}" r="1.1" fill="${rgba(col, a * .7)}"/>`; }
+    }
+    return o + `<g class="glint"></g>`;
+  }
+  if (style === "plain")
+    return kind === "insight" ? `<circle r="${R + 4.5}" fill="none" stroke="${rgba(col, a * .45)}" stroke-dasharray="1 3.5" stroke-linecap="round" ${NS}/>` : "";
+  if (style === "meteor") {
+    if (kind === "spell") {
+      const len = sel ? M_LEN_SEL : M_LEN, [hx, hy] = polar(MR, MH);
+      return `<path d="${band(MR, MH - len, MH, k => 2.6 * Math.pow(k, 1.4))}" fill="url(#${sel ? "mtGold" : "mtInk"})" opacity="${a}"/>` +
+        `<circle cx="${hx}" cy="${hy}" r="${sel ? 9 : 7}" fill="url(#glowStar)" opacity="${a * .8}"/>` +
+        star4(hx, hy, sel ? 5.5 : 4.3, rgba(sel ? [255, 244, 220] : INK, a));
+    }
+    const [tx, ty] = polar(R + 6, 214);
+    return `<path d="${band(R + 1.6, 102, 202, k => 5.4 * Math.pow(Math.sin(Math.PI * k), .85), true)}" fill="${rgba(col, a * .85)}"/>` +
+      `<circle cx="${tx}" cy="${ty}" r="1.1" fill="${rgba(col, a * .7)}"/>`;
+  }
+  // 星环 / 月相：外圈细环在左右断开，断口里放星芒（术式）或一盈一亏的月相点（心得）
+  const rr = R + 5, line = `stroke="${rgba(col, a * .6)}" fill="none" ${NS}`;
+  let o = `<path d="${arcPath(rr, -169, -11)}" ${line}/><path d="${arcPath(rr, 11, 169)}" ${line}/>`;
+  if (kind === "spell") o += star4(rr, 0, 3.6, rgba(col, a)) + star4(-rr, 0, 3.6, rgba(col, a));
+  else o += `<circle cx="${rr}" r="2.2" fill="${rgba(col, a)}"/><circle cx="${-rr}" r="2" fill="none" stroke="${rgba(col, a)}" ${NS}/>`;
+  return o;
+}
+
+/* ---------- 节点静态部分 ---------- */
+function nodeStatic(n, view) {
+  const hidden = n.state === "hidden", dim = n.state === "dim", hover = view.hover, sel = view.selected;
+  const acc = hover && !sel ? INK : LAV;
+  const a = hover || sel ? 1 : dim ? .4 : .72;
+  const s = 2 * R * iconScale;
+  let o = `<circle class="glowSel" r="56" fill="url(#glowGold)" opacity="0"/>`;
+  if (hover && !sel) o += `<circle r="50" fill="url(#glowLav)" opacity=".35"/>`;
+  o += `<circle r="${R}" fill="${rgba(PLATE, .95)}"/>`;
+  if (hidden) {
+    const q = 1.3;
+    o += `<path d="M0,-7L${q},-${q}L7,0L${q},${q}L0,7L-${q},${q}L-7,0L-${q},-${q}Z" fill="${rgba(MUTED, .35)}"/>`;
+  } else {
+    const filter = dim ? 'filter="url(#gray)" opacity=".55"' : "";
+    document.querySelector("#clipR circle").setAttribute("r", iconClipR().toFixed(2));
+    o += `<g clip-path="url(#clipR)"><image href="${IMG + ICON[n.icon]}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}" ${filter}/></g>`;
+  }
+  if (hidden) o += `<circle r="${R}" fill="none" stroke="${rgba(MUTED, .4)}" stroke-dasharray="2 4" ${NS}/>`;
+  else {
+    o += `<path d="${ringPath()}" fill="none" stroke="${rgba(acc, a)}" stroke-width="1.2" stroke-linecap="round" ${NS}/>`;
+    o += deco(kindOf(n), sel ? GOLD : acc, a, sel, n);
+  }
+  // 动态层：点亮弧、亮弧、落地脉冲、落点涟漪
+  o += `<path class="selArc" fill="none" stroke="${rgba(GOLD, 1)}" stroke-width="1.6" stroke-linecap="round" ${NS} opacity="0"/>` +
+       `<path class="hiArc" fill="none" stroke="rgba(255,248,236,1)" stroke-width="2.2" stroke-linecap="round" ${NS} opacity="0" style="filter:drop-shadow(0 0 2px rgba(230,206,165,.9))"/>` +
+       `<circle class="pulse" r="${R}" fill="none" stroke="${rgba(GOLD, 1)}" ${NS} opacity="0"/>` +
+       `<circle class="ripple" cx="${polar(R, PERCH)[0]}" cy="${polar(R, PERCH)[1]}" r="0" fill="none" stroke="rgba(245,236,255,1)" ${NS} opacity="0"/>`;
+  const owned = !hidden && !dim;
+  const nameCol = sel ? GOLD : hidden || dim ? MUTED : INK;
+  if (owned && n.lv) o += `<text y="${R + 17}" font-size="7.5" text-anchor="middle" fill="${rgba(MUTED, .85)}" letter-spacing=".5">Lv ${n.lv}</text>`;
+  o += `<text y="${R + 30}" font-size="9.5" text-anchor="middle" fill="${rgba(nameCol, hidden || dim ? .7 : 1)}" letter-spacing="1">${hidden ? "未显现" : n.name}</text>`;
+  return o;
+}
+
+/* ---------- 舞台：节点 + 一只蝴蝶 ---------- */
+class Stage {
+  constructor(svg, nodes, opt) {
+    this.svg = svg; this.nodes = nodes; this.opt = opt;
+    this.sel = opt.selected; this.hover = null; this.zoom = opt.zoom || 1;
+    this.motion = new Motion(); this.dust = []; this.T = 0;
+    this.landed = false; this.landT = 0; this.amt = {}; this.rot = {};
+    this.motion.setTarget(this.center(this.sel));
+    this.render();
+    if (opt.interactive) {
+      svg.addEventListener("mouseover", e => { const g = e.target.closest("[data-id]"); const id = g && g.dataset.id; if (id !== this.hover) { this.hover = id; this.render(); } });
+      svg.addEventListener("mouseleave", () => { this.hover = null; this.render(); });
+      svg.addEventListener("click", e => { const g = e.target.closest("[data-id]"); if (g) this.select(g.dataset.id); });
+    }
+  }
+  byId(id) { return this.nodes.find(n => n.id === id); }
+  center(id) { const n = this.byId(id); return n.state === "hidden" ? null : [n.x, n.y]; }
+  select(id) {
+    if (id === this.sel || this.byId(id).state === "hidden") return;
+    this.sel = id; this.landed = false;
+    this.motion.setTarget(this.center(id));
+    this.render();
+  }
+  replay() { this.motion.reset(); this.motion.setTarget(this.center(this.sel)); this.landed = false; this.amt = {}; }
+  render() {
+    let o = `<g transform="scale(${this.zoom})">`;
+    if (this.opt.stars) {
+      let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 110; i++) o += `<circle cx="${(rnd() * 900 - 450).toFixed(1)}" cy="${(rnd() * 600 - 300).toFixed(1)}" r="${(rnd() * 1.1 + .3).toFixed(2)}" fill="rgba(220,205,240,${(rnd() * .3 + .08).toFixed(2)})"/>`;
+    }
+    for (const n of this.nodes) {
+      if (!n.parent) continue;
+      const p = this.byId(n.parent), dx = n.x - p.x, dy = n.y - p.y, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, g = R + 12;
+      const rel = n.id === this.sel || p.id === this.sel;
+      o += `<line x1="${p.x + ux * g}" y1="${p.y + uy * g}" x2="${n.x - ux * g}" y2="${n.y - uy * g}" stroke="${rel ? "rgba(230,206,165,.5)" : "rgba(202,178,237,.25)"}" ${NS} ${n.state === "hidden" ? 'stroke-dasharray="2 4"' : ""}/>`;
+    }
+    for (const n of this.nodes)
+      o += `<g data-id="${n.id}" transform="translate(${n.x} ${n.y})" style="cursor:${this.opt.interactive ? "pointer" : "default"}">${nodeStatic(n, { hover: n.id === this.hover, selected: n.id === this.sel })}</g>`;
+    o += `<g class="dust"></g>`;
+    o += `<g class="bf"><circle r="19" fill="url(#glowLav)" opacity=".22"/>` +
+         `<svg class="bfView" x="-17" y="-17" width="34" height="34" viewBox="0 0 64 64" overflow="hidden">` +
+         `<image href="${BUTTERFLY}" width="256" height="256" filter="url(#bfTint)"/></svg></g>`;
+    o += `</g>`;
+    this.svg.innerHTML = o;
+    this.refs = {};
+    for (const g of this.svg.querySelectorAll("[data-id]"))
+      this.refs[g.dataset.id] = { glow: g.querySelector(".glowSel"), sel: g.querySelector(".selArc"), hi: g.querySelector(".hiArc"), pulse: g.querySelector(".pulse"), ripple: g.querySelector(".ripple"), glint: g.querySelector(".glint"), flares: [...g.querySelectorAll(".flare")] };
+    this.dustG = this.svg.querySelector(".dust"); this.bfG = this.svg.querySelector(".bf"); this.bfView = this.svg.querySelector(".bfView");
+  }
+  tick(dt) {
+    this.T += dt;
+    const m = this.motion;
+    m.advance(dt);
+    if (!this.landed && m.visible && !m.moving) { this.landed = true; this.landT = this.glintAt = this.T; }
+    // 停驻后每次重新扇翅，都沿星轨送出一道流光
+    if (this.landed && m.flapping && !this.wasFlapping && !m.moving) this.glintAt = this.T;
+    this.wasFlapping = m.flapping;
+
+    // 蝴蝶：与 SelectionButterfly 相同的帧、旋转与尺寸，只是偏移到圆环落点
+    const bx = m.pos[0] + PERCH_OFFSET[0], by = m.pos[1] + PERCH_OFFSET[1];
+    const f = m.frame;
+    this.bfG.setAttribute("transform", `translate(${bx.toFixed(2)} ${by.toFixed(2)}) rotate(-18)`);
+    this.bfG.style.display = m.visible ? "" : "none";
+    this.bfView.setAttribute("viewBox", `${f % 4 * 64} ${Math.floor(f / 4) * 64} 64 64`);
+
+    // 鳞粉：飞行时拖尾，停驻扇翅时少量洒落
+    const rate = m.moving ? 42 : m.flapping ? 9 : 0;
+    let n = rate * dt; while (n > 0) { if (Math.random() < n) this.dust.push({
+      x: bx + (Math.random() - .5) * 12, y: by + (Math.random() - .3) * 8,
+      vx: (Math.random() - .5) * 10, vy: 6 + Math.random() * 10, life: 0, max: .8 + Math.random() * .7, r: .5 + Math.random() * .9 }); n -= 1; }
+    this.dust = this.dust.filter(p => (p.life += dt) < p.max);
+    let d = "";
+    for (const p of this.dust) {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .98;
+      const k = p.life / p.max, a = (k < .15 ? k / .15 : 1 - (k - .15) / .85) * .85;
+      d += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.r.toFixed(2)}" fill="${rgba(DUST, a)}"/>`;
+    }
+    this.dustG.innerHTML = d;
+
+    // 每个节点的选中层
+    for (const node of this.nodes) {
+      const r = this.refs[node.id]; if (!r) continue;
+      const isSel = node.id === this.sel && this.landed;
+      let amt = this.amt[node.id] || 0;
+      if (isSel) {
+        const t = this.T - this.landT, prog = easeOut(t / .55);
+        amt = prog;
+        r.sel.setAttribute("d", perchArcs((180 - (gapOn ? PERCH_GAP / 2 : 0)) * prog));
+        r.sel.setAttribute("opacity", 1);
+        r.hi.setAttribute("d", perchArcs(24 * prog));
+        const flap = m.flapping && !m.moving ? .25 : 0;
+        r.hi.setAttribute("opacity", (prog * Math.min(1, .65 + .2 * Math.sin(this.T * 2.1) + flap)).toFixed(3));
+        const pk = t / .6;
+        r.pulse.setAttribute("r", R + easeOut(pk) * 11);
+        r.pulse.setAttribute("opacity", pk < 1 ? (.55 * (1 - pk)).toFixed(3) : 0);
+        const rk = t / .7;
+        r.ripple.setAttribute("r", (2 + easeOut(rk) * 13).toFixed(2));
+        r.ripple.setAttribute("opacity", rk < 1 ? (.8 * (1 - rk)).toFixed(3) : 0);
+      } else {
+        amt = Math.max(0, amt - dt / .35);
+        r.sel.setAttribute("d", ringPath());
+        r.sel.setAttribute("opacity", amt.toFixed(3));
+        r.hi.setAttribute("opacity", 0); r.pulse.setAttribute("opacity", 0); r.ripple.setAttribute("opacity", 0);
+      }
+      this.amt[node.id] = amt;
+      if (r.glint) this.orbitFx(node, r, isSel);
+      r.glow.setAttribute("opacity", (amt * .5).toFixed(3));
+    }
+  }
+  // 流光：从尾端沿尾迹跑到星头（0.8s），到达后星头闪一下；平时星头只做很轻的呼吸
+  orbitFx(node, r, isSel) {
+    const t = isSel && this.glintAt != null ? this.T - this.glintAt : 99;
+    if (kindOf(node) === "insight") return this.constFx(r, isSel, t, constOf(node));
+    const specs = ORBIT[kindOf(node)], RUN = .8, FLASH = .45;
+    let g = "";
+    specs.forEach((m, i) => {
+      const end = tailEnd(m), sg = Math.sign(end - m.from), span = Math.abs(end - m.from);
+      const k = t / RUN;
+      if (k < 1) {
+        const u = k < .5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k), c = m.from + (end - m.from) * u, len = 18;
+        const fade = Math.min(1, k / .15) * Math.min(1, (1 - k) / .1 + .4);
+        for (let j = 0; j < 8; j++) {
+          const s0 = c - sg * len * (1 - j / 8), s1 = c - sg * len * (1 - (j + 1) / 8);
+          if (sg * (s0 - m.from) < 0) continue;
+          const w = .5 + (m.w - .5) * Math.pow(Math.abs(s1 - m.from) / span, 1.3) + .9;
+          g += `<path d="${band(OR, s0, s1, () => w, false, 3)}" fill="rgba(255,248,236,${(fade * Math.pow((j + 1) / 8, 1.6)).toFixed(3)})"/>`;
+        }
+      }
+      const f = (t - RUN) / FLASH;
+      const sc = f >= 0 && f < 1 ? 1 + .75 * Math.sin(Math.PI * f) : 1 + (isSel ? .07 * Math.sin(this.T * 2.4 + i * 2) : 0);
+      r.flares[i].setAttribute("transform", `scale(${sc.toFixed(3)})`);
+    });
+    r.glint.innerHTML = g;
+  }
+  // 连星：蝴蝶落下 / 每次扇翅时，从第一颗星起逐段把星座「描亮」（每段 0.2s），
+  // 每颗星在被连到的瞬间闪一下，亮线随后逐段淡回发丝线；平时各星错相微闪
+  constFx(r, isSel, t, CONST) {
+    const SEG = .2, FLASH = .4, HOLD = .15, FADE = .5;
+    const clamp = v => Math.max(0, Math.min(1, v));
+    const reach = [];
+    CONST.forEach((p, i) => reach[i] = i ? reach[p.from] + SEG : 0);
+    let g = "";
+    CONST.forEach((p, i) => {
+      if (i) {
+        const u = clamp((t - reach[p.from]) / SEG), fade = 1 - clamp((t - reach[i] - HOLD) / FADE);
+        if (u > 0 && fade > 0)
+          g += `<line ${cSeg(CONST[p.from], p, easeOut(u))} stroke="rgba(255,248,236,${(fade * .95).toFixed(3)})" stroke-width="1.5" stroke-linecap="round" ${NS}/>`;
+      }
+      const f = (t - reach[i]) / FLASH;
+      const sc = f >= 0 && f < 1 ? 1 + (p.s > 2 ? .7 : 1.3) * Math.sin(Math.PI * f)
+                                 : 1 + (isSel ? .1 * Math.sin(this.T * 2.6 + i * 1.9) : 0);
+      r.flares[i].setAttribute("transform", `scale(${sc.toFixed(3)})`);
+    });
+    r.glint.innerHTML = g;
+  }
+}
+
+/* ---------- 数据 ---------- */
+const COLS = [-240, -120, 0, 120, 240];
+const rowNodes = (kind, icon, name, lv) => [
+  { id: "norm", kind, icon, name, lv, x: COLS[0], y: 0 },
+  { id: "hover", kind, icon, name, lv, x: COLS[1], y: 0 },
+  { id: "sel", kind, icon, name, lv, x: COLS[2], y: 0 },
+  { id: "dim", kind, icon, name, state: "dim", x: COLS[3], y: 0 },
+  { id: "hidden", kind, icon, name, state: "hidden", x: COLS[4], y: 0 },
+];
+const SCENE = [
+  { id: "witch", kind: "insight", icon: "witch", name: "灰之魔女", lv: "1 / 5", x: -225, y: -158 },
+  { id: "barrier", kind: "insight", icon: "barrier", name: "魔力护盾", lv: "1 / 5", x: -330, y: -20, parent: "witch" },
+  { id: "missile", kind: "spell", icon: "missile", name: "魔法飞弹", lv: "21 / 21", x: -130, y: -40 },
+  { id: "wind", kind: "spell", icon: "wind", name: "风刃", lv: "15 / 15", x: 0, y: -70 },
+  { id: "multi", kind: "spell", icon: "multi", name: "多重射击", lv: "10 / 10", x: -60, y: 110, parent: "missile" },
+  { id: "alchemy", kind: "spell", icon: "alchemy", name: "炼金术", lv: "1 / 5", x: -230, y: 115 },
+  { id: "flight", kind: "spell", icon: "flight", name: "飞行魔法", lv: "1 / 5", x: 70, y: 80 },
+  { id: "laser", kind: "spell", icon: "laser", name: "水流射线", lv: "11 / 11", x: 150, y: -120 },
+  { id: "ball", kind: "spell", icon: "ball", name: "水球", lv: "1 / 1", x: 320, y: -190, parent: "laser" },
+  { id: "cone", kind: "spell", icon: "cone", name: "冰锥", lv: "13 / 13", x: 215, y: 60 },
+  { id: "shard", kind: "spell", icon: "shard", name: "冰凌锁", lv: "4 / 4", x: 350, y: 170, parent: "cone" },
+  { id: "veil", kind: "insight", icon: "veil", name: "霜纱", state: "dim", x: 390, y: 0, parent: "cone" },
+  { id: "fireLaser", kind: "spell", icon: "fireLaser", name: "火焰射线", state: "dim", x: 60, y: 240 },
+  { id: "heal", kind: "spell", icon: "heal", name: "治疗魔法", state: "hidden", x: -300, y: 230 },
+  { id: "doll", kind: "spell", icon: "doll", name: "人偶操控", lv: "1 / 5", x: -140, y: 260 },
+];
+linkAngles(SCENE);
+
+const stages = [];
+function build() {
+  stages.length = 0;
+  const spell = new Stage(document.getElementById("rowSpell"), rowNodes("spell", "cone", "冰锥", "7 / 13"), { selected: "sel" });
+  spell.hover = "hover"; spell.render();
+  const insight = new Stage(document.getElementById("rowInsight"), rowNodes("insight", "witch", "灰之魔女", "3 / 5"), { selected: "sel" });
+  insight.hover = "hover"; insight.render();
+  const scene = new Stage(document.getElementById("scene"), SCENE, { selected: "cone", interactive: true, stars: true, zoom: .8 });
+  stages.push(spell, insight, scene);
+  return scene;
+}
+let scene = build();
+
+// 调试：?t=秒 先快进，?still 停在该时刻（无头截图用）
+const qs = new URLSearchParams(location.search);
+if (qs.has("style")) style = document.getElementById("style").value = qs.get("style");
+if (qs.has("scale")) { setIconScale(+qs.get("scale")); document.getElementById("iscale").value = iconScale; document.getElementById("iscalev").textContent = iconScale.toFixed(2) + "×"; }
+if (qs.has("crop")) { crop = +qs.get("crop"); document.getElementById("crop").value = crop; document.getElementById("cropv").textContent = crop.toFixed(2) + "×"; }
+if (qs.has("kind")) forceKind = document.getElementById("kind").value = qs.get("kind");
+if (qs.has("cvar")) cVar = document.getElementById("cvar").value = qs.get("cvar");
+if (qs.has("perch")) { PERCH_DIST = R + +qs.get("perch"); PERCH_OFFSET = polar(PERCH_DIST, PERCH); }
+if (qs.get("gap") === "1") { gapOn = true; document.getElementById("gap").checked = true; }
+stages.forEach(s => s.render());
+if (qs.has("t")) for (let i = 0, n = Math.round(+qs.get("t") * 60); i < n; i++) stages.forEach(s => s.tick(1 / 60));
+if (qs.has("still")) { running = false; document.getElementById("run").checked = false; }
+
+document.getElementById("zoom").oninput = e => {
+  scene.zoom = e.target.value / 100; document.getElementById("zoomv").textContent = e.target.value + "%"; scene.render();
+};
+document.getElementById("iscale").oninput = e => {
+  setIconScale(+e.target.value); document.getElementById("iscalev").textContent = iconScale.toFixed(2) + "×";
+  stages.forEach(s => s.render());
+};
+document.getElementById("crop").oninput = e => {
+  crop = +e.target.value; document.getElementById("cropv").textContent = crop.toFixed(2) + "×";
+  stages.forEach(s => s.render());
+};
+document.getElementById("style").onchange = e => { style = e.target.value; stages.forEach(s => s.render()); };
+document.getElementById("replay").onclick = () => stages.forEach(s => s.replay());
+document.getElementById("run").onchange = e => running = e.target.checked;
+document.getElementById("cvar").onchange = e => { cVar = e.target.value; stages.forEach(s => s.render()); };
+document.getElementById("kind").onchange = e => { forceKind = e.target.value; stages.forEach(s => s.render()); };
+document.getElementById("gap").onchange = e => { gapOn = e.target.checked; stages.forEach(s => s.render()); };
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (running) stages.forEach(s => s.tick(dt));
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

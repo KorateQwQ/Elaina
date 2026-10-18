@@ -53,26 +53,71 @@ internal static class OrnamentPreview
         Console.WriteLine("PASS: butterfly flight, retarget, settle, idle flutter, reset and 30/60/144 FPS.");
     }
 
+    private static void CheckNodeStars()
+    {
+        var state = Fixtures.State(true);
+        foreach (var node in state.Skills)
+        {
+            var stars = ConstellationNodeStars.For(node, state.Skills);
+            Require(stars.Length >= 4 && stars[0].From < 0 && stars.Skip(1).All(s => s.From >= 0), "constellation shape " + node.id);
+            Require(ReferenceEquals(stars, ConstellationNodeStars.For(node, state.Skills)), "constellation cache " + node.id);
+            var links = state.Skills.Where(o => o != node && (node.prereqs.Contains(o.id) || o.prereqs.Contains(node.id)))
+                .Select(o => Math.Atan2(o.y - node.y, o.x - node.x) * 180 / Math.PI).ToList();
+            Require(stars.All(s => ConstellationNodeStars.IsFree(s.Angle, links)), "constellation clears perch, badge and links " + node.id);
+        }
+        var effects = new ConstellationNodeEffects(); var motion = new ConstellationButterflyMotion();
+        motion.SetTarget(new Vector2(100)); motion.Advance(1); effects.Advance(1, motion, "a");
+        Require(effects.Landed("a") && effects.SinceLanding == 0 && effects.Amount("a") == 0, "landing starts the gold arcs");
+        effects.Advance(.6f, motion, "a");
+        Require(effects.Amount("a") == 1, "gold arcs complete");
+        motion.SetTarget(new Vector2(300)); effects.Advance(.01f, motion, "b");
+        Require(!effects.Landed("a") && !effects.Landed("b") && effects.Amount("a") is > 0 and < 1, "leaving fades the old node");
+        effects.Advance(.4f, motion, "b");
+        Require(effects.Amount("a") == 0 && effects.Dust.Count > 0, "fade ends; flight sheds dust");
+        Console.WriteLine($"PASS: node constellations for {state.Skills.Count()} skills and selection timing.");
+    }
+
     internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
     {
         CheckMotion();
+        CheckNodeStars();
         string folder = Path.Combine(output, "butterfly-frames"); Directory.CreateDirectory(folder);
         var drawing = new ConstellationDrawing(new()) { Batch = batch };
+        var nodes = Fixtures.State(true).Skills.Take(2).ToArray();
+        string[] ids = [nodes[0].id, nodes[1].id];
         foreach (float scale in new[] { 1f, 1.25f })
         {
             drawing.Scale = scale;
             var motion = new ConstellationButterflyMotion();
+            var effects = new ConstellationNodeEffects();
             using var target = new RenderTarget2D(device, (int)(440 * scale), (int)(260 * scale));
             for (int frame = 0; frame <= 240; frame++)
             {
                 float time = frame / 30f;
-                motion.SetTarget(time < .3f ? new Vector2(140, 145) : new Vector2(310, 165));
+                int selected = time < .3f ? 0 : 1;
+                motion.SetTarget(selected == 0 ? new Vector2(140, 145) : new Vector2(310, 165));
                 motion.Advance(frame == 0 ? 0 : 1f / 30);
-                device.SetRenderTarget(target); device.Clear(new Color(39, 32, 51));
+                effects.Advance(frame == 0 ? 0 : 1f / 30, motion, ids[selected]);
+                device.SetRenderTarget(target); device.Clear(new Color(26, 22, 35));
                 batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
                 drawing.Text($"{time:0.00}s  {(motion.Moving ? "移动" : motion.Flapping ? "扇动" : "停驻")}", 20, 20, 13, ConstellationDrawing.Ink);
-                foreach (var p in new[] { new Vector2(140, 145), new Vector2(310, 165) })
-                    drawing.Corners(p, 58, 13, ConstellationDrawing.Gold * .7f, MathHelper.PiOver4);
+                Vector2[] centers = [new(140, 145), new(310, 165)];
+                for (int i = 0; i < 2; i++)
+                {
+                    Vector2 p = centers[i]; bool active = i == selected;
+                    float r = ConstellationDrawing.NodeRadius;
+                    drawing.Dot(p, r, ConstellationDrawing.NodePlate * .95f);
+                    drawing.SkillIcon(nodes[i], p, 2 * r, Color.White, round: true);
+                    drawing.Ring(p, r, r, ConstellationDrawing.Lavender * (active ? 1 : .72f), 1.2f);
+                    if (!active) drawing.Dot(p + ConstellationDrawing.Polar(r + 5.5f, ConstellationDrawing.PerchAngle), 1,
+                        ConstellationDrawing.Lavender * (.72f * .55f));
+                    drawing.NodeConstellation(p, 1, ConstellationNodeStars.For(nodes[i], nodes), active ? ConstellationDrawing.Gold
+                        : ConstellationDrawing.Lavender, active ? 1 : .72f, active, effects.Time, effects.SinceTrace(ids[i]));
+                    drawing.NodeSelection(p, 1, effects.Amount(ids[i]), effects.Landed(ids[i]), effects.SinceLanding,
+                        effects.Time, effects.Flutter);
+                }
+                foreach (var mote in effects.Dust)
+                    drawing.Dot(mote.Position, mote.Radius, new Color(229, 217, 245) * ConstellationNodeEffects.MoteOpacity(mote));
                 drawing.SelectionButterfly(motion.Position, motion.Frame, 1);
                 batch.End(); device.SetRenderTarget(null);
                 using var stream = File.Create(Path.Combine(folder, $"butterfly-{scale:0.00}-{frame:000}.png"));

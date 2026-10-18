@@ -4,14 +4,18 @@ param(
     [switch]$CompileOnly,
     [switch]$BookOnly,
     [switch]$QuillOnly,
+    [switch]$StarPowerOnly,
+    [switch]$ExportMaterials,
+    [string]$Scene = '',
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug',
     [string]$Python = 'python'
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-if (!$CompileOnly) {
-    & $Python (Join-Path $PSScriptRoot 'prepare_pencil.py') --check
-    if ($LASTEXITCODE -ne 0) { throw 'Notebook pencil assets are stale or have incorrect alpha. Run prepare_pencil.py before previewing.' }
+# Validate the actual pixel outline assets used by this renderer.
+if (!$CompileOnly -and !$ExportMaterials) {
+    & $Python (Join-Path $PSScriptRoot 'bake_redesign.py') --check
+    if ($LASTEXITCODE -ne 0) { throw 'Notebook redesign assets are stale. Export materials and run bake_redesign.py.' }
 }
 $out = Join-Path $repo '.vissandbox/alchemy-preview'
 $ui = Join-Path $repo 'ElainaModAlchemy/UI'
@@ -42,7 +46,7 @@ $null = Add-PreviewItem 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocaliz
 $null = Add-PreviewItem 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-PreviewItem 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','NotebookFixture')) { $null = Add-PreviewItem 'Compile' "$out/$name.cs" }
-foreach ($name in @('AlchemyDrawing','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
+foreach ($name in @('AlchemyDrawing','AlchemyNotebookSkin','AlchemyNotebookRedesign','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyCardMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
     $path = Join-Path $ui "$name.cs"
     if (!(Test-Path -LiteralPath $path)) { throw "Missing production presentation source: $path" }
     $null = Add-PreviewItem 'Compile' $path
@@ -62,6 +66,9 @@ else {
     $previewArgs = @($repo, $Tml, $Culture)
     if ($BookOnly) { $previewArgs += '--book-only' }
     if ($QuillOnly) { $previewArgs += '--quill-only' }
+    if ($StarPowerOnly) { $previewArgs += '--star-power-only' }
+    if ($ExportMaterials) { $previewArgs += '--export-materials' }
+    if ($Scene) { $previewArgs += "--scene=$Scene" }
     dotnet run --project $projectPath --configuration $Configuration -- @previewArgs
 }
 if ($LASTEXITCODE -ne 0) { throw 'Alchemy FNA preview failed.' }

@@ -228,7 +228,7 @@ public sealed class QuickLoadoutPanel : BaseBody
             else
             {
                 ItemCell(x, y, 36, 0, 0);
-                bool keep = LoadoutItems.KeepsSlot(entry.Id);
+                bool keep = LoadoutItems.IsEmptySlot(entry.Id);
                 Text(entry.Id == "empty" ? LocalizeUI("EmptyAccessory") : keep ? LocalizeUI("Utility") : LocalizeUI("UnknownEquipment", entry.Id), x + 44, y + 1, 11, keep ? Ink : Warn, maxWidth: 190);
                 Text(LocalizeUI("KeepAccessory"), x + 44, y + 19, 10, Muted);
             }

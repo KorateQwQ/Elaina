@@ -7,6 +7,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using ReLogic.Graphics;
+using SilkyUIFramework;
+using SilkyUIFramework.Graphics2D;
 using Terraria.GameContent;
 using Terraria;
 using Terraria.ModLoader;
@@ -29,6 +31,23 @@ internal sealed class ConstellationDrawing
     internal static readonly Color GrowthLabel = new(188, 168, 207);
     internal static readonly Color GrowthNext = new(180, 211, 198);
     internal static readonly Color DetailRule = new Color(183, 152, 204) * (37 / 255f);
+    internal static readonly Color NodePlate = new(39, 32, 51);
+    // Tools/SkillPanelRedesign/index.html: quiet labels, dotted rules and the detail's value colors.
+    internal static readonly Color Muted2 = new(158, 150, 174);
+    internal static readonly Color Faint = new(108, 101, 121);
+    internal static readonly Color Mint = new(178, 222, 200);
+    internal static readonly Color Shortfall = new(226, 128, 150);
+    internal static readonly Color SlotGold = new(227, 193, 141);
+    internal static readonly Color Heading = new(196, 180, 210);
+    internal static readonly Color SerifLabel = new(213, 197, 215);
+    internal static readonly Color DotColor = new Color(236, 229, 247) * .32f;
+    // Skill nodes (Tools/SkillFramePreview/perch.html): ring radius, icon scale inside it and
+    // the butterfly perch on the upper left of the ring, in unzoomed world pixels / degrees.
+    internal const float NodeRadius = 32, PerchAngle = -125;
+    internal static Vector2 Polar(float radius, float degrees)
+        => new(radius * MathF.Cos(MathHelper.ToRadians(degrees)), radius * MathF.Sin(MathHelper.ToRadians(degrees)));
+    // The sprite body sits high in its cell; this center puts it on the ring line.
+    internal static readonly Vector2 PerchOffset = Polar(NodeRadius + 2, PerchAngle);
     private readonly Dictionary<string, Texture2D> _textures = [];
     private readonly SkillIconVariants _skillIcons = new();
     private readonly Dictionary<string, ConstellationToggleAnimation> _toggles = [];
@@ -46,6 +65,8 @@ internal sealed class ConstellationDrawing
         public int[][] Levels { get; set; }
     }
     internal SpriteBatch Batch;
+    // Batch's transform matrix, for the SDF clipping that bypasses the batch.
+    internal Matrix Transform = Matrix.Identity;
     internal Vector2 Origin;
     internal float Scale = 1;
 
@@ -85,6 +106,12 @@ internal sealed class ConstellationDrawing
             new Vector2(width / tex.Width, height / tex.Height) * Scale, SpriteEffects.None, 0);
     }
 
+    // NotebookSurface is drawn 1:1 over the 1100×800 design plane, so the same rectangle
+    // re-covers drawn lines with the exact page texture instead of an approximate solid color.
+    internal void SurfacePatch(int x, int y, int width, int height)
+        => Batch.Draw(Texture("NotebookSurface"), At(x, y), new Rectangle(x, y, width, height), Color.White,
+            0, Vector2.Zero, Scale, SpriteEffects.None, 0);
+
     internal void Box(float x, float y, float w, float h, Color color)
         => Batch.Draw(TextureAssets.MagicPixel.Value, At(x, y), new Rectangle(0, 0, 1, 1), color,
             0, Vector2.Zero, new Vector2(w, h) * Scale, SpriteEffects.None, 0);
@@ -103,50 +130,157 @@ internal sealed class ConstellationDrawing
         int index = filter switch { "ready" => 1, "locked" => 2, "hidden" => 3, _ => 0 };
         _filterMarker ??= new ConstellationTween(index, .18f);
         _filterMarker.SetTarget(index);
-        ActiveFilterMarker(new Vector2(91 + _filterMarker.Value * 145, 139));
+        // Tabs are 180 wide (40 dot steps), so the lit dots always land on the rule's dots.
+        ActiveFilterMarker(new Vector2(116 + _filterMarker.Value * 180, 145.5f));
     }
 
-    internal void UpgradeButton(string id, bool enabled, bool hover, bool pressed)
+    private float ButtonHover(string id, bool enabled, bool hover, bool pressed = false)
     {
         if (!_buttons.TryGetValue(id, out var motion)) _buttons[id] = motion = new ConstellationToggleAnimation(false);
         motion.SetTarget(enabled && pressed, enabled && hover);
-        float highlight = motion.Hover, push = motion.Position;
-        Color fill = new Color(190, 162, 208) * ((enabled ? .115f + highlight * .075f : .035f) * (1 - push * .28f));
-        Color border = Color.Lerp(new Color(185, 156, 198), new Color(217, 187, 232), highlight)
-            * (enabled ? .33f + highlight * .15f : .16f);
-        Image("UpgradeFill", 0, 0, 276, 35, fill);
-        Image("UpgradeOutline", 0, 0, 276, 35, border);
+        return motion.Hover;
     }
 
-    internal void PrimaryActionButton(float x, float y, string label, string suffix, bool studyCost,
-        bool enabled, bool hover, bool pressed, Color textColor)
+    internal void UpgradeButton(string id, bool enabled, bool hover, bool pressed)
+        => PillFrame(0, 0, 276, 35, false, enabled, ButtonHover(id, enabled, hover, pressed));
+
+    // Detail actions: a large ghost pill; the main action has a gold stroke and two sparks.
+    private void PillFrame(float x, float y, float width, float height, bool gold, bool enabled, float highlight)
     {
-        const string key = "primary-action";
-        if (!_buttons.TryGetValue(key, out var motion)) _buttons[key] = motion = new ConstellationToggleAnimation(false);
-        motion.SetTarget(enabled && pressed, enabled && hover);
-        float highlight = motion.Hover, push = motion.Position;
-        Color fill = Color.Lerp(new Color(126, 92, 154), new Color(161, 121, 187), highlight)
-            * ((enabled ? .49f : .115f) * (1 - push * .25f));
-        Color edge = Color.Lerp(new Color(198, 163, 218), new Color(232, 201, 245), highlight)
-            * (enabled ? .57f : .22f);
-        Image("PrimaryActionFill", x, y, 276, 38, fill);
-        Image("PrimaryActionTrim", x, y, 276, 38, edge);
-        if (string.IsNullOrEmpty(suffix))
+        float alpha = enabled ? 1 : .4f;
+        if (gold)
         {
-            FittedText(label, x + 138, y + 11, 236, 14, textColor, .5f, serif: true, spacing: 2);
-            return;
+            if (highlight > 0) Shadow(x, y, width, height, height / 2, new Color(195, 162, 118) * (.18f * highlight), 14);
+            RoundRect(x, y, width, height, height / 2, new Color(185, 155, 87) * ((.1f + .1f * highlight) * alpha),
+                SlotGold * ((.6f + .35f * highlight) * alpha), 1);
         }
-        float labelWidth = Measure(label, 14, 2, true), suffixWidth = LatinWidth(suffix, 14);
-        float groupWidth = labelWidth + 20 + suffixWidth + (studyCost ? 23 : 0);
-        float start = x + (276 - groupWidth) / 2;
-        Text(label, start, y + 11, 14, textColor, serif: true, spacing: 2);
-        float tailX = start + labelWidth + 20;
+        else RoundRect(x, y, width, height, height / 2, Ink * (.06f * highlight * alpha), Ink * ((.26f + .29f * highlight) * alpha), 1);
+    }
+
+    // `tail` is the slot key, or the study cost when `studyCost` is set.
+    internal void ActionPill(string id, float x, float y, float width, string label, string tail, bool studyCost,
+        bool gold, bool enabled, bool hover)
+    {
+        const float height = 36;
+        float highlight = ButtonHover(id, enabled, hover), alpha = enabled ? 1 : .4f;
+        PillFrame(x, y, width, height, gold, enabled, highlight);
+        Color text = (gold ? new Color(240, 222, 186) : Color.Lerp(new Color(222, 212, 232), Ink, highlight)) * alpha;
+        if (gold)
+        {
+            Spark(new Vector2(x + 18.5f, y + height / 2), 9, text * .55f);
+            Spark(new Vector2(x + width - 18.5f, y + height / 2), 9, text * .55f);
+        }
+        float labelWidth = Measure(label, 13, 3), tailWidth = 0;
+        if (!string.IsNullOrEmpty(tail))
+            tailWidth = 8 + (studyCost ? 16 + LatinWidth(tail, 12) : LatinWidth(tail, 12, .5f));
+        // Fit long localized labels between the sparks.
+        float room = width - (gold ? 64 : 28) - tailWidth, fit = Math.Min(1, room / Math.Max(1, labelWidth));
+        float start = x + (width - labelWidth * fit - tailWidth) / 2;
+        Text(label, start, y + 10.5f, 13 * fit, text, spacing: 3 * fit);
+        if (tailWidth == 0) return;
+        float tailX = start + labelWidth * fit + 8;
         if (studyCost)
         {
-            Image("StudyBook", tailX, y + 10, 18, 18, Gold * (enabled ? 1 : .6f));
-            tailX += 23;
+            Image("StudyBook", tailX, y + 11.5f, 13, 13, text * .8f);
+            LatinText(tail, tailX + 16, y + 11, 12, text * .8f);
         }
-        LatinText(suffix, tailX, y + 11, 14, studyCost ? Gold * (enabled ? 1 : .6f) : textColor);
+        else LatinText(tail, tailX, y + 11, 12, text * .85f, spacing: .5f);
+    }
+
+    // Bottom-bar tools: 22px ghost pills; `on` is the filled (active) state.
+    internal void GhostButton(float x, float y, float width, string label, bool hover, bool on = false)
+    {
+        if (on) RoundRect(x, y, width, 22, 11, Ink);
+        else RoundRect(x, y, width, 22, 11, Ink * (hover ? .05f : 0), Ink * (hover ? .45f : .18f), 1);
+        Text(label, x + width / 2, y + 5.5f, 9.5f, on ? new Color(44, 40, 54) : hover ? Ink : Muted2, .5f, 1.4f);
+    }
+
+    // Hit areas of the bottom-bar tools (the pill is drawn 2px inside, 22px tall). The layout
+    // editor's save / cancel / reset replace the debug tools while editing.
+    internal static Rectangle ToolButton(string kind, bool editing)
+    {
+        var (x, width) = editing
+            ? kind switch { "save" => (597, 42), "cancel" => (646, 42), "reset" => (695, 64), _ => (526, 64) }
+            : kind switch { "points" => (597, 53), "level" => (657, 42), "cap" => (706, 49), "reset-skills" => (762, 42), _ => (526, 64) };
+        return new Rectangle(x, 753, width, 26);
+    }
+
+    // Rounded track with a 1px-inset fill (the header XP and detail level bars).
+    internal void ProgressBar(float x, float y, float width, float progress, Color fill)
+    {
+        RoundRect(x, y, width, 5, 2.5f, new Color(8, 6, 14) * .55f);
+        if (progress > 0) RoundRect(x + 1, y + 1, Math.Max(3, (width - 2) * Math.Min(1, progress)), 3, 1.5f, fill);
+    }
+
+    // SUI's SDF passes draw straight to the device (see SkillIcon): flush, draw, reopen the batch.
+    internal void RoundRect(float x, float y, float width, float height, float radius, Color fill,
+        Color border = default, float borderWidth = 0)
+    {
+        if (width <= 0 || height <= 0) return;
+        Batch.End();
+        var states = Batch.BackupStates();
+        var corner = new Vector4(Math.Min(radius, Math.Min(width, height) / 2) * Scale);
+        if (borderWidth > 0)
+            SDFRectangle.DrawWithBorder(At(x, y), new Vector2(width, height) * Scale, corner, fill, borderWidth * Scale, border, Transform);
+        else SDFRectangle.DrawWithoutBorder(At(x, y), new Vector2(width, height) * Scale, corner, fill, Transform);
+        states.Begin();
+    }
+
+    // A CSS-like blurred shadow of the rectangle: half strength at its edge, fading `blur` outward.
+    internal void Shadow(float x, float y, float width, float height, float radius, Color color, float blur)
+    {
+        Batch.End();
+        var states = Batch.BackupStates();
+        SDFRectangle.DrawShadow(At(x - blur, y - blur), new Vector2(width + blur * 2, height + blur * 2) * Scale,
+            new Vector4((radius + blur) * Scale), color, blur * 2 * Scale, Transform);
+        states.Begin();
+    }
+
+    // The redesign's dotted rule: 1.4px round dots every 4.5px.
+    internal void Dots(float x1, float y1, float x2, float y2, Color color) => Dots(new(x1, y1), new(x2, y2), _ => color);
+
+    internal void Dots(Vector2 a, Vector2 b, Func<float, Color> color, float gap = 4.5f)
+    {
+        float length = Vector2.Distance(a, b);
+        for (float p = 0; p <= length + .01f; p += gap)
+        {
+            float t = length > 0 ? Math.Min(1, p / length) : 0;
+            Dot(Vector2.Lerp(a, b, t), .7f, color(t));
+        }
+    }
+
+    // Vertical dotted divider with a larger dot at each end.
+    internal void DotSeparator(float x, float top, float bottom)
+    {
+        Dots(x, top + 6, x, bottom - 6, DotColor);
+        Dot(new Vector2(x, top + 2), 2, new Color(236, 229, 247) * .5f);
+        Dot(new Vector2(x, bottom - 2), 2, new Color(236, 229, 247) * .5f);
+    }
+
+    internal void Spark(Vector2 center, float size, Color color) => CrossStar(center, new Vector2(size), color, .2f);
+
+    // Three sparks set into a dotted rule where two rules meet.
+    internal void Trio(Vector2 center, Color color)
+    {
+        Spark(center, 13.33f, color);
+        Spark(center - new Vector2(14.33f, 0), 4.67f, color);
+        Spark(center + new Vector2(14.33f, 0), 4.67f, color);
+    }
+
+    // Detail icon frame: a hairline square with open corners and one small star, no plate.
+    internal void DetailIconFrame(Vector2 center, bool maxed, bool unlearned)
+    {
+        const float h = 33, gap = 4;
+        Color tone = maxed ? Gold : Lavender;
+        float a = unlearned ? .5f : 1;
+        Color line = tone * (.32f * a);
+        Line(center + new Vector2(-h + gap, -h), center + new Vector2(h - gap, -h), line);
+        Line(center + new Vector2(-h + gap, h), center + new Vector2(h - gap, h), line);
+        Line(center + new Vector2(-h, -h + gap), center + new Vector2(-h, h - gap), line);
+        Line(center + new Vector2(h, -h + gap), center + new Vector2(h, h - gap), line);
+        foreach (var corner in new[] { new Vector2(h, -h), new Vector2(-h, h), new Vector2(h, h) })
+            Dot(center + corner, .9f, tone * (.45f * a));
+        CrossStar(center - new Vector2(h), new Vector2(8 * .976f, 8), maxed ? Gold * .95f : Ink * (.9f * a), .28f);
     }
 
     internal void Toggle(string id, float x, float y, bool on, bool enabled, bool hover)
@@ -173,18 +307,17 @@ internal sealed class ConstellationDrawing
 
     internal void ActiveFilterMarker(Vector2 center)
     {
-        // HTML active filter: a fading rule and a violet shadow behind the diamond.
-        // Glow.png already contains premultiplied RGB for tML's rawimg loader.
-        Image("Glow", center.X - 58, center.Y - 4, 116, 8, new Color(192, 154, 220) * .12f);
-        Image("Glow", center.X - 16, center.Y - 14, 32, 28, new Color(207, 157, 250) * .34f);
-        const int width = 112;
-        for (int i = 0; i < width; i++)
+        // The tab rule's dots under the active tab light up (bright middle, fading ends), with a
+        // long thin flash laid straight on the rule. Glow.png already contains premultiplied RGB.
+        Image("Glow", center.X - 72, center.Y - 7, 144, 14, new Color(192, 154, 220) * .16f);
+        Image("Glow", center.X - 24, center.Y - 6, 48, 12, new Color(207, 157, 250) * .32f);
+        Dots(center - new Vector2(63, 0), center + new Vector2(63, 0), t =>
         {
-            float opacity = 1 - Math.Abs((i + .5f) / width * 2 - 1);
-            Box(center.X - width / 2 + i, center.Y - .5f, 1, 1,
-                new Color(192, 154, 220) * (.4f * opacity));
-        }
-        CrossStar(center, new Vector2(7), new Color(215, 186, 239), .5f);
+            float peak = 1 - Math.Abs(t * 2 - 1);
+            return Color.Lerp(new Color(226, 206, 240), new Color(240, 228, 252), peak) * peak;
+        });
+        // Baked at its own 34:12 aspect; squashing the square star blurred and hardened it.
+        CrossStar(center, new Vector2(34, 12), new Color(244, 234, 252), .2f);
     }
 
     internal void Line(Vector2 a, Vector2 b, Color color, float width = 1)
@@ -289,6 +422,106 @@ internal sealed class ConstellationDrawing
             if (!dashed || i % 4 == 0) Line(Point(i), Point(i + 1), color, width);
     }
 
+    // Circular arc from `from` degrees, sweeping `sweep` degrees clockwise on screen.
+    internal void Arc(Vector2 center, float radius, float from, float sweep, Color color, float width = 1)
+    {
+        if (sweep <= 0 || radius <= 0) return;
+        int segments = Math.Max(2, (int)MathF.Ceiling(sweep / 360 * 160));
+        Vector2 previous = center + Polar(radius, from);
+        for (int i = 1; i <= segments; i++)
+        {
+            Vector2 next = center + Polar(radius, from + sweep * i / segments);
+            Line(previous, next, color, width);
+            previous = next;
+        }
+    }
+
+    internal void Dot(Vector2 center, float radius, Color color)
+        => Image("Disc", center.X - radius, center.Y - radius, radius * 2, radius * 2, color);
+
+    // The small hashed constellation outside a node ring. `traced` is the time since the butterfly
+    // last landed or beat its wings here: links light up one by one from the first star (0.2s each),
+    // every star flashes as it is reached, then the bright links fade back to hairlines.
+    internal void NodeConstellation(Vector2 center, float zoom, ConstellationStar[] stars, Color color, float alpha,
+        bool selected, float time, float traced)
+    {
+        const float segment = .2f, flash = .4f, hold = .15f, fade = .5f;
+        Vector2 Local(ConstellationStar s) => Polar(NodeRadius + s.Distance, s.Angle);
+        // Links stop short of both stars by their radius + 1.5.
+        void Link(int i, float progress, Color tint, float width)
+        {
+            ConstellationStar from = stars[stars[i].From], to = stars[i];
+            Vector2 a = Local(from), b = Local(to);
+            float length = Vector2.Distance(a, b);
+            if (length < .01f) return;
+            float start = (from.Size + 1.5f) / length, end = 1 - (to.Size + 1.5f) / length;
+            Line(center + Vector2.Lerp(a, b, start) * zoom,
+                center + Vector2.Lerp(a, b, start + (end - start) * progress) * zoom, tint, width);
+        }
+        Span<float> reach = stackalloc float[stars.Length];
+        for (int i = 0; i < stars.Length; i++)
+        {
+            reach[i] = i == 0 ? 0 : reach[stars[i].From] + segment;
+            if (i > 0) Link(i, 1, color * (alpha * .45f), .8f);
+        }
+        for (int i = 1; i < stars.Length; i++)
+        {
+            float u = Math.Clamp((traced - reach[stars[i].From]) / segment, 0, 1);
+            float light = 1 - Math.Clamp((traced - reach[i] - hold) / fade, 0, 1);
+            if (u > 0 && light > 0)
+                Link(i, ConstellationNodeEffects.EaseOut(u), new Color(255, 248, 236) * (light * .95f * alpha), 1.5f);
+        }
+        for (int i = 0; i < stars.Length; i++)
+        {
+            var star = stars[i];
+            float f = (traced - reach[i]) / flash;
+            float pulse = f >= 0 && f < 1 ? 1 + (star.Size > 2 ? .7f : 1.3f) * MathF.Sin(MathHelper.Pi * f)
+                : 1 + (selected ? .1f * MathF.Sin(time * 2.6f + i * 1.9f) : 0);
+            float size = star.Size * (selected ? 1.12f : 1) * pulse * zoom;
+            Vector2 p = center + Local(star) * zoom;
+            if (star.Size > 2)
+            {
+                float glow = size * 2.3f;
+                Image("Glow", p.X - glow, p.Y - glow, glow * 2, glow * 2, new Color(255, 244, 220) * (.36f * alpha));
+                CrossStar(p, new Vector2(size * 2), (selected ? new Color(255, 244, 220) : color) * alpha, .2f);
+            }
+            else Dot(p, size, color * (alpha * .85f));
+        }
+    }
+
+    // Gold arcs grow both ways from the perch after landing, with a brighter crest at the perch,
+    // one outward pulse and a ripple where the butterfly touched. A left node keeps a fading ring.
+    internal void NodeSelection(Vector2 center, float zoom, float amount, bool landed, float sinceLanding,
+        float time, bool flutter, float alpha = 1)
+    {
+        float r = NodeRadius * zoom;
+        if (!landed)
+        {
+            if (amount > 0) Ring(center, r, r, Gold * (amount * alpha), 1.6f);
+            return;
+        }
+        float progress = ConstellationNodeEffects.EaseOut(sinceLanding / .55f);
+        Arc(center, r, PerchAngle, 180 * progress, Gold * alpha, 1.6f);
+        Arc(center, r, PerchAngle - 180 * progress, 180 * progress, Gold * alpha, 1.6f);
+        float crest = progress * Math.Min(1, .65f + .2f * MathF.Sin(time * 2.1f) + (flutter ? .25f : 0)) * alpha;
+        float span = 24 * progress;
+        Arc(center, r, PerchAngle - span, span * 2, Gold * (crest * .3f), 4.5f);
+        Arc(center, r, PerchAngle - span, span * 2, new Color(255, 248, 236) * crest, 2.2f);
+        float pulse = sinceLanding / .6f;
+        if (pulse < 1)
+        {
+            float radius = (NodeRadius + ConstellationNodeEffects.EaseOut(pulse) * 11) * zoom;
+            Ring(center, radius, radius, Gold * (.55f * (1 - pulse) * alpha));
+        }
+        float ripple = sinceLanding / .7f;
+        if (ripple < 1)
+        {
+            float radius = (2 + ConstellationNodeEffects.EaseOut(ripple) * 13) * zoom;
+            Ring(center + Polar(NodeRadius, PerchAngle) * zoom, radius, radius,
+                new Color(245, 236, 255) * (.8f * (1 - ripple) * alpha));
+        }
+    }
+
     internal void Icon(string name, Vector2 center, float size, Color color)
     {
         if (!_icons.TryGetValue(name, out var r)) r = _icons["star"];
@@ -296,7 +529,9 @@ internal sealed class ConstellationDrawing
             color, 0, new Vector2(r[2], r[3]) / 2, size * Scale / r[2], SpriteEffects.None, 0);
     }
 
-    internal void SkillIcon(ConstellationNode skill, Vector2 center, float size, Color color, bool hidden = false, bool uncolored = false)
+    // `round` crops the icon to the circle inscribed in its `size` square.
+    internal void SkillIcon(ConstellationNode skill, Vector2 center, float size, Color color, bool hidden = false,
+        bool uncolored = false, bool round = false)
     {
         if (hidden)
         {
@@ -325,8 +560,21 @@ internal sealed class ConstellationDrawing
         if (uncolored && !icon.Uncolored) color *= .65f;
         float factor = size / Math.Max(texture.Width, texture.Height);
         // Keep authored transparency for uncolored art; original artwork retains its additive tint.
-        Batch.Draw(texture, Origin + center * Scale, null, icon.Uncolored ? color : new Color(color.R, color.G, color.B, (byte)0), 0,
-            new Vector2(texture.Width, texture.Height) / 2, factor * Scale, SpriteEffects.None, 0);
+        Color tint = icon.Uncolored ? color : new Color(color.R, color.G, color.B, (byte)0);
+        var pivot = new Vector2(texture.Width, texture.Height) / 2;
+        if (!round)
+        {
+            Batch.Draw(texture, Origin + center * Scale, null, tint, 0, pivot, factor * Scale, SpriteEffects.None, 0);
+            return;
+        }
+        // SUI's SDF sample pass draws straight to the device: flush what is queued (which leaves the
+        // batch's state on the device), clip, then reopen the batch so later sprites layer on top.
+        Batch.End();
+        var states = Batch.BackupStates();
+        Vector2 extent = pivot * 2 * factor * Scale;
+        SDFRectangle.SampleVersion(texture, Origin + center * Scale - extent / 2, extent, Vector2.Zero, Vector2.One,
+            new Vector4(Math.Min(extent.X, extent.Y) / 2), tint, Transform);
+        states.Begin();
     }
 
     internal string[] WrapParagraph(string text, float width, float size)
@@ -355,8 +603,7 @@ internal sealed class ConstellationDrawing
         width = Math.Min(width, maxWidth + 20);
         float height = lines.Length * 18 + 14;
         var p = ConstellationTooltipPlacement.Place(new Vector2(width, height), pointer, bounds, anchor);
-        Box(p.X, p.Y, width, height, new Color(26, 22, 35));
-        Frame(p.X, p.Y, width, height, LineColor);
+        RoundRect(p.X, p.Y, width, height, 6, new Color(26, 22, 35) * .96f, new Color(236, 229, 247) * .18f, 1);
         for (int i = 0; i < lines.Length; i++) Text(lines[i], p.X + 10, p.Y + 7 + i * 18, 11, Ink);
     }
 
@@ -366,46 +613,114 @@ internal sealed class ConstellationDrawing
         if (size.X <= 0 || size.Y <= 0) return;
         var key = ((int)MathF.Round(size.X / size.Y * 1000),
             (int)MathF.Round(Math.Clamp(waist, .05f, .49f) * 1000), filled);
-        Rectangle[] levels = _stars[key];
-        // PNG assets have no automatic mipmaps. Select a prefiltered tile close to screen size.
+        Rectangle source = StarTile(_stars[key], Math.Max(size.X, size.Y) * 128f / 112);
         float extent = Math.Max(size.X, size.Y) * 128f / 112;
-        float pixels = extent * Scale * Main.UIScale;
-        int level = 0;
-        while (level + 1 < levels.Length && pixels < MathF.Sqrt(levels[level].Width * levels[level + 1].Width)) level++;
-        Rectangle source = levels[level];
         Batch.Draw(Texture("Stars"), Origin + center * Scale, source, color, 0,
             new Vector2(source.Width, source.Height) / 2, extent * Scale / source.Width, SpriteEffects.None, 0);
     }
 
+    // PNG assets have no automatic mipmaps. Select a prefiltered tile close to screen size.
+    private Rectangle StarTile(Rectangle[] levels, float extent)
+    {
+        float pixels = extent * Scale * Main.UIScale;
+        int level = 0;
+        while (level + 1 < levels.Length && pixels < MathF.Sqrt(levels[level].Width * levels[level + 1].Width)) level++;
+        return levels[level];
+    }
+
+    // 1px vertical strips colored by x, clipped to rounded corners on the left and/or right.
+    private void Strips(float x, float y, float width, float height, float leftRadius, float rightRadius, Func<float, Color> color)
+    {
+        int count = Math.Max(1, (int)MathF.Ceiling(width));
+        float step = width / count;
+        for (int i = 0; i < count; i++)
+        {
+            float mid = x + (i + .5f) * step, inset = 0;
+            float Round(float radius, float distance)
+                => radius - MathF.Sqrt(Math.Max(0, radius * radius - (radius - distance) * (radius - distance)));
+            if (mid - x < leftRadius) inset = Round(leftRadius, mid - x);
+            else if (x + width - mid < rightRadius) inset = Round(rightRadius, x + width - mid);
+            Box(x + i * step, y + inset, step, height - inset * 2, color(mid));
+        }
+    }
+
+    private static Color Stops(float t, params (float At, Color Color)[] stops)
+    {
+        t = Math.Clamp(t, 0, 1);
+        for (int i = 1; i < stops.Length; i++)
+            if (t <= stops[i].At)
+                return Color.Lerp(stops[i - 1].Color, stops[i].Color, (t - stops[i - 1].At) / Math.Max(.0001f, stops[i].At - stops[i - 1].At));
+        return stops[^1].Color;
+    }
+
+    // Approved hardcover: a dark cover (11px spine on the left), a page block offset 10px to the
+    // lower right with uneven dark seams, a bookmark ribbon and a soft drop shadow.
     internal void NotebookPage(float width, float height)
     {
-        Color paper = Lavender, leather = new(26, 23, 35);
-        // Exposed cover, page block and three fine leaf edges, outside the unchanged content plane.
-        Box(-7, 4, width + 16, height + 8, leather);
-        Line(new Vector2(-8, 4), new Vector2(-8, height + 5), paper * .42f);
-        Line(new Vector2(2, height + 12), new Vector2(width + 5, height + 12), Color.Black * .35f, 2);
-        Line(new Vector2(width + 10, 12), new Vector2(width + 10, height + 7), Color.Black * .3f, 2);
-        Box(5, height, width - 6, 9, new Color(39, 32, 51));
-        Box(width, 7, 7, height - 9, new Color(39, 32, 51));
-        for (int leaf = 0; leaf < 3; leaf++)
+        const float block = 10;
+        Shadow(-6, 18, width + 22, height + 10, 8, Color.Black * .6f, 16);
+        float diagonal = width * width + height * height;
+        Strips(-11, -5, width + block + 15, height + block + 9, 5, 5, x => Color.Lerp(new Color(29, 25, 39), new Color(16, 14, 23),
+            Math.Clamp((x * width + height / 2 * height) / diagonal, 0, 1)));
+        Strips(-11, -5, 11, height + block + 9, 5, 0, x => Stops((x + 11) / 11,
+            (0, new Color(14, 12, 20)), (.45f, new Color(50, 42, 66)), (1, new Color(19, 16, 27))));
+        RoundRect(-11, -5, width + block + 15, height + block + 9, 5, Color.Transparent, Lavender * .14f, 1);
+        // Ribbon, hanging from between the leaves with a swallowtail end.
+        for (float x = 962; x < 974; x += .5f)
         {
-            float inset = leaf * 3;
-            Color edge = paper * (.38f - leaf * .045f);
-            Line(new Vector2(5, height + inset + 1), new Vector2(width - 1, height + inset + 1), edge);
-            Line(new Vector2(width + inset + 1, 9), new Vector2(width + inset + 1, height - 1), edge);
-            Line(new Vector2(width - 1, height + inset + 1), new Vector2(width + inset + 1, height - 1), edge);
+            float notch = 6 * (1 - Math.Abs(x + .25f - 968) / 6);
+            Box(x, height - 8, .5f, 40 - notch, Stops((x + .25f - 962) / 12,
+                (0, new Color(79, 63, 102)), (.45f, new Color(110, 90, 142)), (1, new Color(74, 59, 96))));
         }
+        Line(new Vector2(965.5f, height - 8), new Vector2(965.5f, height + 28), new Color(236, 220, 255) * .16f, .8f);
+        CrossStar(new Vector2(968, height + 20), new Vector2(5.5f * .976f, 5.5f), Gold * .75f, .28f);
+        // Page block: lighter right face, darker bottom face.
+        for (float k = 0; k < block; k += .5f)
+        {
+            Box(width + k, k, .5f, height + .5f, Stops((k + .25f) / block,
+                (0, new Color(66, 57, 86)), (.6f, new Color(92, 81, 114)), (1, new Color(84, 74, 105))));
+            Box(0, height + k, width + k, .5f, Stops((k + .25f) / block,
+                (0, new Color(48, 41, 63)), (.6f, new Color(66, 57, 85)), (1, new Color(60, 52, 78))));
+        }
+        foreach (var (k, a) in new[] { (1.3f, .34f), (2.4f, .16f), (3.2f, .28f), (4.6f, .14f), (5.5f, .3f), (6.9f, .18f), (7.8f, .26f), (9f, .2f) })
+        {
+            Color seam = new Color(18, 14, 27) * a;
+            Line(new Vector2(width + k, k), new Vector2(width + k, height + k), seam, .6f);
+            Line(new Vector2(width + k, height + k), new Vector2(10, height + k), seam, .6f);
+            Line(new Vector2(10, height + k), new Vector2(0, height + k * 1.08f), seam, .6f);
+        }
+        Gradient(0, height, 18, block, new Color(10, 9, 17) * .55f, Color.Transparent);
+        Color edge = Lavender * .4f;
+        Line(new Vector2(width, 0), new Vector2(width + block, block), edge);
+        Line(new Vector2(width + block, block), new Vector2(width + block, height + block - 2), edge);
+        Line(new Vector2(width + block, height + block - 2), new Vector2(width + block - 2, height + block), edge);
+        Line(new Vector2(width + block - 2, height + block), new Vector2(0, height + block), edge);
+        Box(0, height, width, 2.5f, new Color(10, 8, 16) * .35f);
+        Box(width, 1.25f, 2.5f, height + 1.25f, new Color(10, 8, 16) * .35f);
+
         Image("NotebookSurface", 0, 0, width, height);
-        Frame(1, 1, width - 2, height - 2, Lavender * .5f);
-        Frame(10, 10, width - 20, height - 20, Lavender * .13f);
-        Line(new Vector2(12, 2), new Vector2(width - 12, 2), Lavender * .1f);
-        // A narrow recessed binding stays entirely inside the empty left margin.
-        Gradient(2, 22, 5, height - 44, new Color(13, 13, 23) * .8f, LineColor * .35f);
-        Gradient(7, 22, 5, height - 44, LineColor * .35f, new Color(13, 13, 23) * .65f);
-        PageCorner(new Vector2(10, 10), 0);
-        PageCorner(new Vector2(width - 35, 10), MathHelper.PiOver2);
-        PageCorner(new Vector2(10, height - 35), -MathHelper.PiOver2);
-        PageCorner(new Vector2(width - 35, height - 35), MathHelper.Pi);
+        Frame(.5f, .5f, width - 1, height - 1, Lavender * .34f);
+        Gradient(0, 0, 14, height, new Color(10, 9, 17) * .55f, Color.Transparent);
+        // Dotted inner frame: corners give way to star ornaments, a small star on each side.
+        float l = 12.5f, r = width - 12.5f, t = 12.5f, b = height - 12.5f, mid = height / 2;
+        const float g = 16;
+        Dots(l + g, t, r - g, t, DotColor); Dots(l + g, b, r - g, b, DotColor);
+        Dots(l, t + g, l, mid - 10, DotColor); Dots(l, mid + 10, l, b - g, DotColor);
+        Dots(r, t + g, r, mid - 10, DotColor); Dots(r, mid + 10, r, b - g, DotColor);
+        CrossStar(new Vector2(l, mid), new Vector2(6.224f, 8), Lavender * .85f, .25f);
+        CrossStar(new Vector2(r, mid), new Vector2(6.224f, 8), Lavender * .85f, .25f);
+        StarCorner(new Vector2(l, t), 1, 1); StarCorner(new Vector2(r, t), -1, 1);
+        StarCorner(new Vector2(r, b), -1, -1); StarCorner(new Vector2(l, b), 1, -1);
+    }
+
+    // A four-point star on the corner, a quarter arc around it joining the two dotted edges.
+    private void StarCorner(Vector2 corner, int sx, int sy)
+    {
+        Image("Glow", corner.X - 9, corner.Y - 9, 18, 18, new Color(214, 186, 240) * .32f);
+        float from = (sx, sy) switch { (1, 1) => 0, (-1, 1) => 90, (-1, -1) => 180, _ => 270 };
+        Arc(corner, 14, from, 90, Lavender * .42f);
+        CrossStar(corner, new Vector2(11 * .976f, 11), new Color(236, 226, 247), .28f);
+        Dot(corner + new Vector2(sx, sy) * 15.5f, 1, Lavender * .55f);
     }
 
     internal void SelectionButterfly(Vector2 node, int frame, float zoom)
@@ -413,29 +728,11 @@ internal sealed class ConstellationDrawing
         var texture = Texture("ButterflyMask");
         int cell = texture.Width / 4;
         var source = new Rectangle(frame % 4 * cell, frame / 4 * cell, cell, cell);
-        Vector2 center = node - new Vector2(38, 40) * zoom;
+        Vector2 center = node + PerchOffset * zoom;
         Image("Glow", center.X - 19 * zoom, center.Y - 19 * zoom, 38 * zoom, 38 * zoom,
             new Color(183, 162, 234) * .1f);
         Batch.Draw(texture, At(center.X, center.Y), source, new Color(229, 217, 245) * .9f,
             MathHelper.ToRadians(-18), new Vector2(cell / 2f), 34f / cell * zoom * Scale, SpriteEffects.None, 0);
-    }
-
-    // Corner tooling uses the original panel color with the reference's smaller inset form.
-    internal void PageCorner(Vector2 topLeft, float rotation)
-    {
-        const float scale = 25f / 32;
-        var color = new Color(193, 171, 202);
-        Vector2 AtCorner(float x, float y) => topLeft + new Vector2(12.5f)
-            + Vector2.Transform(new Vector2(x - 16, y - 16) * scale, Matrix.CreateRotationZ(rotation));
-        void Stroke(float x1, float y1, float x2, float y2, float width = 1)
-            => Line(AtCorner(x1, y1), AtCorner(x2, y2), color, width * scale);
-        Stroke(1, 31, 1, 1); Stroke(1, 1, 31, 1);
-        Stroke(6, 22, 6, 6); Stroke(6, 6, 22, 6);
-        Stroke(1, 1, 10, 10, .7f);
-        Stroke(13, 3, 16, 6, .7f); Stroke(16, 6, 13, 9, .7f);
-        Stroke(13, 9, 10, 6, .7f); Stroke(10, 6, 13, 3, .7f);
-        var dot = AtCorner(6, 6);
-        Image("Disc", dot.X - 2 * scale, dot.Y - 2 * scale, 4 * scale, 4 * scale, color);
     }
 
     // Open corners may rotate independently of the rectangular, unmasked artwork.
@@ -474,32 +771,29 @@ internal sealed class ConstellationDrawing
     // Share the actual drawing with the FNA fixture; only the fixture substitutes player data.
     internal void PlayerLevel(int currentLevel, int maxLevel, int experience, int experienceMax)
     {
-        const float sealX = 592, left = 637, right = 768, width = right - left;
-        Line(new Vector2(544, 15), new Vector2(544, 69), new Color(197, 173, 139) * (48 / 255f));
+        const float sealX = 823, left = 868, right = 999, width = right - left;
 
         // A single quiet diamond repeats the notebook tooling without enclosing another panel.
         Corners(new Vector2(sealX, 41), 36, 18, new Color(205, 177, 138) * (66 / 255f), MathHelper.PiOver4);
         LatinText("LV.", sealX, 19, 8, new Color(188, 167, 141), .5f, 2);
         string level = currentLevel.ToString();
         float levelSize = Math.Min(28, 28 * 56 / Math.Max(1, LatinWidth(level, 28)));
-        LatinText(level, sealX, 29 + (28 - levelSize) * .5f, levelSize, new Color(240, 222, 186), .5f);
+        LatinText(level, sealX, 27 + (28 - levelSize) * .5f, levelSize, new Color(240, 222, 186), .5f);
 
-        string cap = maxLevel.ToString();
-        float capLabelLeft = right - LatinWidth(cap, 10) - 5 - Measure(LocalizeUI("LevelCap"), 10);
-        FittedText(LocalizeUI("CharacterLevel"), left, 24, capLabelLeft - left - 8, 11,
-            new Color(213, 197, 215), serif: true, spacing: 1);
-        EmphasizedText(LocalizeUI("LevelCap"), capLabelLeft, 25, 10, new Color(205, 188, 217));
-        LatinText(cap, right, 24, 10, new Color(184, 167, 192), 1);
+        string cap = maxLevel.ToString(), capLabel = LocalizeUI("LevelCap");
+        Color capColor = new(184, 167, 192);
+        float capLabelLeft = right - LatinWidth(cap, 10) - 5 - Measure(capLabel, 10, 1);
+        FittedText(LocalizeUI("CharacterLevel"), left, 23, capLabelLeft - left - 8, 11, SerifLabel, serif: true, spacing: 1);
+        Text(capLabel, capLabelLeft, 24, 10, capColor, spacing: 1);
+        LatinText(cap, right, 23, 10, capColor, 1);
 
-        Text(LocalizeUI("Experience"), left, 45, 9, new Color(169, 154, 182), spacing: .5f);
+        Text(LocalizeUI("Experience"), left, 44, 9, new Color(169, 154, 182), spacing: .5f);
         string experienceText = $"{experience} / {experienceMax}";
-        float experienceWidth = right - left - Measure(LocalizeUI("Experience"), 9, .5f) - 10;
+        float experienceWidth = width - Measure(LocalizeUI("Experience"), 9, .5f) - 10;
         float experienceSize = Math.Min(10, 10 * experienceWidth / Math.Max(1, LatinWidth(experienceText, 10)));
-        LatinText(experienceText, right, 43, experienceSize, new Color(203, 189, 211), 1);
-        Box(left, 62, width, 3, new Color(196, 171, 208) * (38 / 255f));
+        LatinText(experienceText, right, 42, experienceSize, new Color(203, 189, 211), 1);
         float progress = experienceMax > 0 ? MathHelper.Clamp(experience / (float)experienceMax, 0, 1) : 0;
-        if (progress > 0)
-            Gradient(left, 62, width * progress, 3, new Color(165, 138, 187), new Color(228, 207, 167));
+        ProgressBar(left, 61, width, progress, Lavender * .8f);
     }
 
     internal float LatinWidth(string text, float size, float spacing = 0)
@@ -518,13 +812,7 @@ internal sealed class ConstellationDrawing
     }
 
     internal void NotebookTitle(float x, float y)
-    {
-        var color = new Color(240, 231, 244);
-        // Reinforce coverage at exactly the same sample position. Unlike an offset shadow,
-        // this gives thin bitmap strokes more ink without blur, new glyphs or wider layout.
-        FittedText(LocalizeUI("NotebookTitle"), x, y, 420, 30, color, spacing: 3, serif: true);
-        FittedText(LocalizeUI("NotebookTitle"), x, y, 420, 30, color * .45f, spacing: 3, serif: true);
-    }
+        => FittedText(LocalizeUI("NotebookTitle"), x, y, 420, 30, new Color(240, 231, 244), spacing: 3, serif: true);
 
     internal float Measure(string text, float size, float spacing = 0, bool serif = false)
     {
@@ -558,13 +846,6 @@ internal sealed class ConstellationDrawing
                 factor * Scale, SpriteEffects.None, 0);
             start += font.MeasureString(glyph).X * factor + spacing;
         }
-    }
-
-    // Small labels need a little more stroke coverage at reduced UI scales.
-    internal void EmphasizedText(string text, float x, float y, float size, Color color, float spacing = 0)
-    {
-        Text(text, x, y, size, color, spacing: spacing);
-        Text(text, x + .3f, y, size, color * .65f, spacing: spacing);
     }
 
     internal float Paragraph(string text, float x, float y, float width, float size, Color color,

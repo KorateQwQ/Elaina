@@ -1,0 +1,299 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
+
+// FNA host for SkillWheelDrawing. Sectors use BasicEffect instead of KL's vertexDraw shader;
+// Pixel/GlowDot/DiamondFill mirror UIDrawKit's procedural formulas. Strings mirror the UI hjson.
+internal sealed class PreviewGame : Game
+{
+    private const float CanvasWidth = 560, CanvasHeight = 480;
+    private static readonly (string Icon, string Zh, string En)[] Skills =
+    [
+        ("MagicMissile/MagicMissileSkill", "魔法飞弹", "Magic Missile"),
+        ("Fire/FireBurstSkill", "炎爆", "Flame Burst"),
+        ("Ice/IceConeSkill", "冰锥", "Ice Cone"),
+        ("Water/WaterBallSkill", "水球", "Water Orb"),
+        ("Wind/WindSlashSkill", "风刃", "Wind Blade"),
+        ("Fire/FireLaserSkill", "火焰射线", "Flame Beam"),
+        ("Water/WaterLaserSKill", "水流射线", "Water Beam"),
+        ("Heal/HealSkill", "治疗魔法", "Healing Magic"),
+    ];
+
+    private readonly string root, output;
+    private readonly Dictionary<string, Texture2D> textures = new();
+    private bool rendered;
+    private SpriteBatch batch;
+    private BasicEffect basic;
+    private Matrix transform;
+    private Art art;
+
+    private PreviewGame(string root, string output)
+    {
+        this.root = root;
+        this.output = output;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    private Texture2D Texture(string relative)
+    {
+        if (textures.TryGetValue(relative, out var texture)) return texture;
+        using var stream = File.OpenRead(Path.Combine(root, relative + ".png"));
+        texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++) if (data[i].A == 0) data[i] = Color.Transparent;
+        texture.SetData(data);
+        textures.Add(relative, texture);
+        return texture;
+    }
+
+    private Texture2D Procedural(int size, Func<int, int, float> intensity)
+    {
+        var texture = new Texture2D(GraphicsDevice, size, size);
+        var data = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+            data[y * size + x] = Color.White * Math.Clamp(intensity(x, y), 0, 1);
+        texture.SetData(data);
+        return texture;
+    }
+
+    protected override void LoadContent()
+    {
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
+        var cooldown = Content.Load<Effect>("Effects/Content/CDEffect");
+        var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
+        var pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        var glow = Procedural(128, (x, y) =>
+        {
+            float d = new Vector2(x - 63.5f, y - 63.5f).Length() / 63.5f;
+            return MathF.Pow(Math.Clamp(1 - d, 0, 1), 2.4f);
+        });
+        var diamond = Procedural(64, (x, y) =>
+            (.98f - (Math.Abs(x - 31.5f) / 32f + Math.Abs(y - 31.5f) / 32f)) / .06f);
+        art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond), cooldown, serif);
+        basic = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, TextureEnabled = false };
+    }
+
+    protected override void Update(GameTime time)
+    {
+        if (rendered) return;
+        rendered = true;
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        batch = new SpriteBatch(GraphicsDevice);
+
+        CheckGeometry();
+        foreach (int count in new[] { 2, 6, 8 })
+            RenderHealing(count, 1, false, false);
+        RenderHealing(8, 1.5f, false, true);
+        RenderHealing(8, 1, true, true);
+        RenderHealing(6, 1, false, false, "center");
+        RenderHealing(8, 1.5f, true, true, "center");
+        RenderHealing(6, 1, false, false, "outside");
+        // 开合动画抽帧：打开时指针在圆心；松开确认选中第 3 位；圆心松开取消。
+        foreach (float t in new[] { .04f, .1f, .18f, .3f })
+            RenderHealing(6, 1, false, false, "open", seconds: t);
+        foreach (float t in new[] { .06f, .14f, .22f, .3f })
+            RenderHealing(6, 1, false, false, "confirm", close: t);
+        foreach (float t in new[] { .06f, .12f })
+            RenderHealing(6, 1, false, false, "cancel", close: t);
+        Exit();
+    }
+
+    private static void CheckGeometry()
+    {
+        for (int count = 2; count <= 8; count++)
+        {
+            if (HealingWheelDrawing.Pick(Vector2.Zero, count) != -1) throw new Exception("Hub hit test");
+            float deadZone = HealingWheelDrawing.Radius(count) - HealingWheelDrawing.HalfBand;
+            if (HealingWheelDrawing.Pick(new Vector2(deadZone, 0), count) != -1) throw new Exception("Hub boundary cancels");
+            for (int i = 0; i < count; i++)
+            foreach (float scale in new[] { .3f, .5f, 1f, 1.5f })
+            {
+                Vector2 point = HealingWheelDrawing.TargetPosition(Vector2.Zero, i, count);
+                Vector2 anchor = new(280, 240);
+                Vector2 screen = anchor + point * scale;
+                if (HealingWheelDrawing.Pick((screen - anchor) / scale, count) != i)
+                    throw new Exception($"Sector hit test: count={count}, slot={i}, scale={scale}");
+                screen = anchor + point * scale * 10;
+                if (HealingWheelDrawing.Pick((screen - anchor) / scale, count) != i)
+                    throw new Exception($"Outside keeps direction: count={count}, slot={i}, scale={scale}");
+                screen = anchor + Vector2.Normalize(point) * (deadZone - 1) * scale;
+                if (HealingWheelDrawing.Pick((screen - anchor) / scale, count) != -1)
+                    throw new Exception("Returning to center clears selection");
+            }
+        }
+        Console.WriteLine("PASS: 2-8 target geometry, center cancellation, unbounded directions, four scales.");
+    }
+
+    private void RenderHealing(int count, float scale, bool english, bool longNames, string state = "target",
+        float seconds = 1.4f, float close = -1)
+    {
+        int width = (int)(CanvasWidth * scale), height = (int)(CanvasHeight * scale);
+        using var target = new RenderTarget2D(GraphicsDevice, width, height);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(Color.Black);
+        transform = Matrix.CreateScale(scale);
+        var view = new View { Center = new Vector2(CanvasWidth, CanvasHeight) / 2, Seconds = seconds + .5f, FocusAge = 1 };
+        HealingWheelDrawing.ConfigureFrame(view, count);
+        view.Pointer = HealingWheelDrawing.TargetPosition(view.Center, count > 2 ? 2 : 1, count);
+        if (state is "center" or "open" or "cancel") view.Pointer = view.Center;
+        if (state == "outside") view.Pointer = view.Center + (view.Pointer - view.Center) * 1.8f;
+        int picked = HealingWheelDrawing.Pick(view.Pointer - view.Center, count);
+
+        // 与 ElainaHealingWheel.FillFrame 相同的运动：打开按时间展开，关闭从完全展开的状态开始收拢。
+        bool closing = close >= 0;
+        view.Open = !closing;
+        view.Hovered = closing ? -1 : picked;
+        view.Chosen = closing ? picked : -1;
+        view.Focus = picked;
+        view.Release = view.Chosen >= 0 ? Math.Clamp(close / ChosenClose, 0, 1) : -1;
+        view.Presence = closing ? Math.Max(0, 1 - close / FadeOut) : Math.Min(1, seconds / FadeIn);
+        view.RingScale = closing ? MathHelper.Lerp(.94f, 1, view.Presence) : OpeningRingScale(seconds);
+        for (int i = 0; i < count; i++)
+        {
+            var (extent, opacity) = closing ? ClosingMotion(close, i == view.Chosen, 1, 1)
+                : (OpeningExtent(seconds, i), OpeningOpacity(seconds, i));
+            float hover = i == picked ? 1 : 0;
+            view.Items[i] = new WheelItem
+            {
+                Position = view.Center + Direction(AngleOf(i, count)) * (HealingWheelDrawing.Radius(count) * extent + 4 * hover),
+                Opacity = opacity, Hover = hover, Flash = i == view.Chosen ? 1 - view.Release : 0,
+            };
+        }
+        var people = new HealingWheelDrawing.Target[count];
+        string[] names = english ? ["Elaina", "Saya", "Fran", "Mina", "Luna", "Noelle", "Stargazer", "Amelia"]
+            : ["伊蕾娜", "莎耶", "芙兰", "米娜", "露娜", "诺艾尔", "星见旅人", "艾米莉亚"];
+        int[] hp = [360, 285, 86, 400, 178, 325, 220, 125];
+        for (int i = 0; i < count; i++) people[i] = new(i,
+            longNames && i == 2 ? (english ? "Wandering Witch of the Northern Forest" : "来自北方森林的旅行魔女伊蕾娜") : names[i],
+            hp[i], i is 2 or 5 ? 500 : 400, i == 0);
+        var labels = english ? new HealingWheelDrawing.Labels("Healing target", "Me", "Critical health", "Full health", "Missing {0} life", "Hold to aim · Release to heal · Center to cancel", "Release to cancel")
+            : new HealingWheelDrawing.Labels("治疗目标", "我", "生命垂危", "生命已满", "缺失 {0} 生命", "按住左键选择 · 松开确认 · 中心取消", "松开取消");
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, transform);
+        DrawBackdrop();
+        SkillWheelDrawing.DrawFrame(batch, art, view, Sector, Restart);
+        HealingWheelDrawing.DrawTargets(batch, art, view, people, labels, Sector, DrawSampleHead);
+        DrawPointer(view.Pointer);
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        string phase = state is "open" ? $"-{seconds:0.00}" : closing ? $"-{close:0.00}" : "";
+        string file = Path.Combine(output, $"healing-{count}-{(english ? "en" : "zh")}-{scale:0.0}{(state == "target" ? "" : "-" + state)}{phase}.png");
+        using var stream = File.Create(file);
+        target.SaveAsPng(stream, width, height);
+        Console.WriteLine(file);
+    }
+
+    private void DrawSampleHead(int index, Vector2 center, float scale, float alpha)
+    {
+        // Preview adapter only: actual game uses DrawStaticPlayerHead with real player layers and equipment.
+        if (alpha <= 0) return;
+        Texture2D portrait = Texture("Items/Armors/新版身体/ElainaUiHead");
+        Color[] palette = [Color.White, new Color(170, 165, 195), new Color(255, 220, 175),
+            new Color(205, 170, 150), new Color(210, 195, 255), new Color(175, 230, 240), Color.Pink, Color.LightGoldenrodYellow];
+        batch.End();
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, transform);
+        batch.Draw(portrait, center, new Rectangle(8, 5, 24, 23), palette[index] * alpha,
+            0, new Vector2(12, 11.5f), scale, SpriteEffects.None, 0);
+        Restart(batch, SpriteSortMode.Deferred, null);
+    }
+
+    private void DrawBackdrop()
+    {
+        // 接近地表森林的青绿天色：轮盘外圈的星点和菱形在这类亮背景下最容易发虚。
+        var pixel = art.State.Pixel;
+        for (int y = 0; y < CanvasHeight; y += 8)
+            batch.Draw(pixel, new Rectangle(0, y, (int)CanvasWidth, 8),
+                Color.Lerp(new Color(66, 128, 132), new Color(40, 98, 96), y / CanvasHeight));
+        var random = new Random(7);
+        for (int i = 0; i < 40; i++)
+            batch.Draw(pixel, new Rectangle(random.Next(0, 560), random.Next(0, 300), 2, 2), Color.White * .6f);
+        for (int x = 0; x < CanvasWidth; x += 16)
+        {
+            int top = 360 + (int)(MathF.Sin(x * .05f) * 14);
+            batch.Draw(pixel, new Rectangle(x, top, 16, (int)CanvasHeight - top), new Color(96, 70, 52));
+            batch.Draw(pixel, new Rectangle(x, top, 16, 4), new Color(72, 150, 70));
+        }
+    }
+
+    private void DrawPointer(Vector2 position)
+    {
+        var pixel = art.State.Pixel;
+        batch.Draw(pixel, new Rectangle((int)position.X - 5, (int)position.Y, 11, 1), Color.White);
+        batch.Draw(pixel, new Rectangle((int)position.X, (int)position.Y - 5, 1, 11), Color.White);
+    }
+
+    private void Restart(SpriteBatch target, SpriteSortMode mode, Effect effect)
+    {
+        target.End();
+        target.Begin(mode, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, effect, transform);
+    }
+
+    private void Sector(Vector2 center, float inner, float outer, float start, float end,
+        Color fill, float border, Color borderColor)
+    {
+        var vertices = new List<VertexPositionColor>();
+        Band(vertices, center, inner, outer, start, end, fill);
+        border = Math.Clamp(border, 0, (outer - inner) / 2);
+        if (border > 0)
+        {
+            if (inner > 0) Band(vertices, center, inner, inner + border, start, end, borderColor);
+            Band(vertices, center, outer - border, outer, start, end, borderColor);
+        }
+        batch.End();
+        var viewport = GraphicsDevice.Viewport;
+        basic.World = transform;
+        basic.View = Matrix.Identity;
+        basic.Projection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, 0, 1);
+        GraphicsDevice.BlendState = BlendState.AlphaBlend;
+        GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+        GraphicsDevice.DepthStencilState = DepthStencilState.None;
+        basic.CurrentTechnique.Passes[0].Apply();
+        GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices.ToArray(), 0, vertices.Count / 3);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, transform);
+    }
+
+    private static void Band(List<VertexPositionColor> vertices, Vector2 center, float inner, float outer,
+        float start, float end, Color color)
+    {
+        int segments = Math.Max(2, (int)MathF.Ceiling((end - start) / (MathF.PI / 32)));
+        for (int i = 0; i < segments; i++)
+        {
+            float a0 = MathHelper.Lerp(start, end, i / (float)segments);
+            float a1 = MathHelper.Lerp(start, end, (i + 1) / (float)segments);
+            Vector2 d0 = new(MathF.Cos(a0), MathF.Sin(a0)), d1 = new(MathF.Cos(a1), MathF.Sin(a1));
+            Vector3 i0 = new(center + d0 * inner, 0), i1 = new(center + d1 * inner, 0);
+            Vector3 o0 = new(center + d0 * outer, 0), o1 = new(center + d1 * outer, 0);
+            vertices.Add(new(o0, color)); vertices.Add(new(o1, color)); vertices.Add(new(i0, color));
+            vertices.Add(new(i0, color)); vertices.Add(new(o1, color)); vertices.Add(new(i1, color));
+        }
+    }
+
+    protected override void UnloadContent()
+    {
+        foreach (var texture in textures.Values) texture.Dispose();
+        base.UnloadContent();
+    }
+
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        using var game = new PreviewGame(args[0], args[1]);
+        game.Run();
+    }
+}

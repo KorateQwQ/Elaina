@@ -1,5 +1,8 @@
 using System.Reflection;
 using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using MonoMod.Cil;
+using MonoMod.RuntimeDetour;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -35,8 +38,10 @@ static class Checks
     static void Main(string[] args)
     {
         Terraria.Program.SavePath = Path.GetTempPath();
-        // Skip chat, combat text and projectile graphics in this logic integration test.
-        GameMain.dedServ = true; GameMain.netMode = NetmodeID.Server; GameMain.myPlayer = 0;
+        // Keep owner-side damage logic, suppress only chat/combat-text/projectile feedback.
+        GameMain.dedServ = true; GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
+        using var reportHook = new Hook(typeof(BarrierPlayer).GetMethod("ReportReduction", All)!,
+            (Action<BarrierPlayer, int, double, int, bool>)((_, _, _, _, _) => { }));
         var player = new Player { active = true, whoAmI = 0, statManaMax2 = 200, statLifeMax2 = 400, statLife = 400 };
         var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer() };
         for (ushort i = 0; i < parts.Length; i++)
@@ -70,7 +75,16 @@ static class Checks
             shield.ModifyHurt(ref modifiers);
             return modifiers.ToHurtInfo(damage, 0, .5f, 0f, false);
         }
-        int Dot(int damage) => (int)typeof(BarrierPlayer).GetMethod("ResolveLifeRegenHit", All)!.Invoke(shield, [damage])!;
+        void RegenFloor(bool protectedRegen)
+        {
+            float magic = attributes.MagicPoint;
+            player.lifeRegen = -40;
+            player.lifeRegenCount = -599;
+            typeof(BarrierPlayer).GetMethod("ApplyLifeRegenFloor", All)!.Invoke(shield, null);
+            Check(player.lifeRegen == (protectedRegen ? 0 : -40), "Negative regen follows passive activation");
+            Check(player.lifeRegenCount == (protectedRegen ? 0 : -599), "Negative progress is cleared only while protected");
+            Near(attributes.MagicPoint, magic, "Regen protection never consumes magic");
+        }
 
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(args[0]), out var config, out var error), "Parse live balance: " + error);
         foreach (var balance in new[] { SkillBalanceConfig.Fallback, config })
@@ -78,7 +92,7 @@ static class Checks
             typeof(SkillBalanceSystem).GetField("store", All)!.SetValue(null, new SkillBalanceFileStore(balance));
             Check(!balance.Skills.ContainsKey(nameof(MagicBarrierSkill)), "Barrier does not require an attack balance entry");
             UpdateEffects();
-            Check(barrier.CanUseSkill(), "Unlocked and enabled barrier must work without a damage balance entry");
+            Check(shield.BarrierEnabled, "Passive activation does not depend on the active-skill CanUseSkill hook");
             Check(shield.BarrierEnabled, "Normal UpdateEquips activates barrier");
         }
         Near(player.statLifeMax2, 250, "Ashen Witch retains original life rule");
@@ -95,14 +109,14 @@ static class Checks
         SetMagic(200);
         Check(Hit(80).Damage == 50, "Direct hit is reduced from 80 to 50");
         Near(attributes.MagicPoint, 170, "Absorption spends 30 magic");
-        Check(Dot(5) == 3, "Life-regen tick keeps original rounding");
-        Near(attributes.MagicPoint, 168.125, "Life-regen absorption spends fractional magic");
+        RegenFloor(true);
         Check(Hit(80, cancelled: true).Cancelled, "Cancelled hit stays cancelled");
-        Near(attributes.MagicPoint, 168.125, "Cancelled hit consumes no magic");
+        Near(attributes.MagicPoint, 170, "Cancelled hit consumes no magic");
         SetMagic(10);
         Check(Hit(80).Damage == 70, "Low magic limits absorption");
         Near(attributes.MagicPoint, 0, "Low magic can be exhausted without life conversion");
-        Check(Hit(80).Damage == 80 && Dot(5) == 5, "Empty magic grants no reduction");
+        Check(Hit(80).Damage == 80, "Empty magic grants no direct-hit reduction");
+        RegenFloor(true);
         SetMagic(200);
         Check(Hit(1).Cancelled, "Sub-one remaining damage is blocked");
         Near(attributes.MagicPoint, 199.625, "Small hit pays original fractional cost");
@@ -110,15 +124,88 @@ static class Checks
 
         barrier.IsEnabled = false; UpdateEffects(); SetMagic(200);
         Check(!shield.BarrierEnabled && Hit(80).Damage == 80, "Barrier toggle disables protection");
+        RegenFloor(false);
         Near(attributes.MagicPoint, 200, "Disabled barrier consumes no magic");
         barrier.IsEnabled = true; witch.IsEnabled = false; UpdateEffects();
-        Check(!barrier.CanUseSkill() && !shield.BarrierEnabled, "Ashen Witch toggle remains required");
+        Check(!shield.BarrierEnabled, "Ashen Witch toggle remains required");
+        RegenFloor(false);
         witch.IsEnabled = true;
         skills.UnlockedSkill.Remove(nameof(AshenWitchSkill)); UpdateEffects();
-        Check(!barrier.CanUseSkill() && !shield.BarrierEnabled, "Missing prerequisite cannot activate barrier");
+        Check(!shield.BarrierEnabled, "Missing prerequisite cannot activate barrier");
         Learn(skills, witch); UpdateEffects();
         skills.UnlockedSkill.Remove(nameof(MagicBarrierSkill)); UpdateEffects();
         Check(!shield.BarrierEnabled, "Removing the learned barrier disables it next frame");
+        Learn(skills, barrier); UpdateEffects();
+        player.GetModPlayer<ElainaModplayer>().Elaina = false; UpdateEffects(); SetMagic(200);
+        float inactiveMagic = attributes.MagicPoint;
+        Check(!shield.BarrierEnabled && Hit(80).Damage == 80, "Non-Elaina cannot activate the passive");
+        RegenFloor(false);
+        Near(attributes.MagicPoint, inactiveMagic, "Inactive passive does not spend magic");
+        player.GetModPlayer<ElainaModplayer>().Elaina = true;
+
+        // Remote clients and the server share regen protection but never pay for direct hits.
+        GameMain.netMode = NetmodeID.MultiplayerClient; GameMain.myPlayer = 1;
+        UpdateEffects(); SetMagic(200);
+        Check(shield.BarrierEnabled && Hit(80).Damage == 80, "Remote client activates passive without recalculating direct hits");
+        RegenFloor(true);
+        Near(attributes.MagicPoint, 200, "Remote direct hits and regen protection do not consume magic");
+        SetMagic(0); RegenFloor(true);
+        GameMain.netMode = NetmodeID.Server; GameMain.myPlayer = 255;
+        UpdateEffects(); SetMagic(200);
+        Check(shield.BarrierEnabled && Hit(80).Damage == 80, "Dedicated server activates passive without recalculating direct hits");
+        RegenFloor(true);
+        Near(attributes.MagicPoint, 200, "Server direct hits and regen protection do not consume magic");
+        SetMagic(0); RegenFloor(true);
+        GameMain.netMode = NetmodeID.MultiplayerClient; GameMain.myPlayer = 0;
+        UpdateEffects(); SetMagic(200);
+        Check(shield.BarrierEnabled && Hit(80).Damage == 50, "Multiplayer victim resolves the same direct-hit absorption as single player");
+        Near(attributes.MagicPoint, 170, "Only victim pays direct-hit magic");
+        RegenFloor(true);
+
+        // Execute the actual tML regen method with the production IL edit installed.
+        var patch = typeof(MagicBarrierLifeRegenSystem).GetMethod("ModifyLifeRegen", All)!;
+        using var regenHook = new ILHook(typeof(Player).GetMethod(nameof(Player.UpdateLifeRegen))!,
+            (ILContext.Manipulator)patch.CreateDelegate(typeof(ILContext.Manipulator)));
+        int damageTexts = 0;
+        // Count vanilla damage feedback without initializing the graphical font subsystem.
+        using var textHook = new Hook(typeof(CombatText).GetMethod(nameof(CombatText.NewText),
+            [typeof(Rectangle), typeof(Color), typeof(string), typeof(bool), typeof(bool)])!,
+            (Func<Rectangle, Color, string, bool, bool, int>)((_, _, _, _, _) => { damageTexts++; return -1; }));
+        GameMain.SceneMetrics = new SceneMetrics();
+        GameMain.rand = new Terraria.Utilities.UnifiedRandom(1);
+        foreach (int mode in new[] { NetmodeID.SinglePlayer, NetmodeID.MultiplayerClient, NetmodeID.Server })
+        {
+            GameMain.netMode = mode;
+            GameMain.myPlayer = mode == NetmodeID.Server ? 255 : mode == NetmodeID.MultiplayerClient ? 1 : 0;
+            foreach (string debuff in new[] { nameof(Player.onFire), nameof(Player.poisoned), nameof(Player.burned), nameof(Player.suffocating), nameof(Player.starving) })
+            {
+                var field = typeof(Player).GetField(debuff)!;
+                foreach (bool enabled in new[] { true, false })
+                {
+                    barrier.IsEnabled = enabled; UpdateEffects(); SetMagic(0);
+                    player.statLife = 100; player.lifeRegen = 0; player.lifeRegenCount = -600; player.lifeRegenTime = 0;
+                    field.SetValue(player, true);
+                    damageTexts = 0;
+                    player.UpdateLifeRegen();
+                    Check(enabled ? player.statLife == 100 && player.lifeRegen >= 0 && player.lifeRegenCount >= 0
+                                  : player.statLife < 100 && player.lifeRegen < 0,
+                        $"Actual regen: mode {mode}, {debuff}, barrier {enabled}");
+                    Check((bool)field.GetValue(player)!, "Protection preserves debuff itself");
+                    Check(enabled ? damageTexts == 0 : damageTexts > 0, "Damage text only appears for unprotected regen damage");
+                    Near(attributes.MagicPoint, 0, "Actual regen protection works without magic");
+                    field.SetValue(player, false);
+                }
+            }
+        }
+        GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
+        barrier.IsEnabled = true; UpdateEffects(); SetMagic(0);
+        player.statLife = 100; player.lifeRegen = 6; player.lifeRegenCount = 119; player.lifeRegenTime = 0;
+        player.UpdateLifeRegen();
+        Check(player.statLife == 101 && player.lifeRegen == 6 && player.lifeRegenCount == 5,
+            "Positive regen and accumulated healing are preserved");
+        player.dead = true; UpdateEffects();
+        Check(!shield.BarrierEnabled, "Dead player does not activate passive"); RegenFloor(false);
+        player.dead = false; UpdateEffects(); RegenFloor(true);
         Console.WriteLine($"Magic barrier integration: {passed} checks passed against compiled mod and tModLoader damage modifiers.");
     }
 

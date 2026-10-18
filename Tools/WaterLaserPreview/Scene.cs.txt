@@ -1,0 +1,152 @@
+namespace KL.Drawing {
+    public enum AssetRequestMode { ImmediateLoad }
+    public class Asset<T>(T value) { public T Value = value; }
+    public static class ModContent {
+        public static string Root;
+        public static Microsoft.Xna.Framework.Content.ContentManager Content;
+        public static readonly Dictionary<string, Texture2D> Textures = new();
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode = AssetRequestMode.ImmediateLoad) {
+            if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)Content.Load<Effect>(System.IO.Path.GetFileName(path)));
+            if (!Textures.TryGetValue(path, out var texture)) {
+                string file = path.StartsWith("KL/") ? System.IO.Path.Combine(Root, "..", path + ".png")
+                    : System.IO.Path.Combine(Root, path[(path.IndexOf('/') + 1)..] + ".png");
+                using var stream = System.IO.File.OpenRead(file);
+                texture = Texture2D.FromStream(Main.graphics.GraphicsDevice, stream);
+                var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+                for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+                texture.SetData(pixels); Textures.Add(path, texture);
+            }
+            return new Asset<T>((T)(object)texture);
+        }
+        public static int DustType<T>() => 1;
+    }
+    public class PreviewRandom(int seed) : Random(seed) {
+        public float NextFloat(float min, float max) => min + (max - min) * (float)NextDouble();
+    }
+    public class Entity { public Vector2 position, oldPosition; public bool active = true; }
+    public class Projectile : Entity { public Vector2 Center, velocity; }
+    public class ModProjectile {
+        public Projectile Projectile = new();
+        public virtual bool PreDraw(ref Color color) => false;
+    }
+    public class Dust : Entity {
+        public int type = 1; public float rotation; public bool noGravity, noLight;
+        public Vector2 velocity; public Color color; public object customData;
+        public static readonly List<Dust> All = new();
+        public static Dust NewDustDirect(Vector2 position, int w, int h, int type, float x, float y, int alpha, Color color, float scale) {
+            var dust = new Dust { position = position, velocity = new(x, y), color = color };
+            DustLoader.Instance.OnSpawn(dust); All.Add(dust); return dust;
+        }
+    }
+    public abstract class ModDust {
+        public virtual string Texture => "";
+        public virtual void OnSpawn(Dust dust) {}
+        public virtual bool Update(Dust dust) => false;
+        public virtual bool PreDraw(Dust dust) => false;
+    }
+    public static class DustLoader {
+        public static readonly ModDust Instance = new 伊蕾娜.ElainaModSkills.Skills.Water.WaterLaserDust();
+        public static ModDust GetDust(int type) => Instance;
+    }
+    public static class Lighting { public static void AddLight(Vector2 p, Vector3 color) {} }
+    public static class PreviewExtensions {
+        public static Vector2 RotatedBy(this Vector2 v, double r) => Vector2.Transform(v, Matrix.CreateRotationZ((float)r));
+        public static float ToRotation(this Vector2 v) => MathF.Atan2(v.Y, v.X);
+        public static Vector2 SafeNormalize(this Vector2 v, Vector2 fallback) => v.LengthSquared() > .00001f ? Vector2.Normalize(v) : fallback;
+        public static KLBasicDust.DustInfo DustInfo(this Dust d) => (KLBasicDust.DustInfo)d.customData;
+    }
+}
+namespace KL.Dusts {
+    public abstract partial class KLBasicDust : ModDust {
+        public Texture2D MainTexture;
+        public bool ShouldBloom;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Water {
+    public partial class LaserReplay {
+        // Gameplay debug output has no visual effect in the offline preview.
+        static void PrintText(object value) {}
+        readonly List<Vector2> trailPoints = new();
+        readonly Vector2[] drawPoints = new Vector2[200];
+        Action drawVisual;
+        public int time;
+        float maxDistance;
+        bool IsChanneling = true;
+        Entity Owner = new();
+        public void MoveOwner(Vector2 position, Vector2 frameVelocity) {
+            Owner.position = position;
+            Owner.oldPosition = position - frameVelocity;
+        }
+        public void Set(int frame, Vector2 origin, float angle, float length, float bend) {
+            time = frame; maxDistance = length;
+            Projectile.Center = origin; Projectile.velocity = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            trailPoints.Clear(); Vector2 normal = new(-Projectile.velocity.Y, Projectile.velocity.X);
+            for (int i = 0; i < 200; i++) {
+                float t = i / 199f;
+                trailPoints.Add(origin + Projectile.velocity * length * t + normal * (MathF.Sin(t * 9 + frame * .08f) * t * 9 + bend * t * t));
+            }
+        }
+    }
+    public static class Scene {
+        static LaserReplay laser;
+        public static int DustCount => Dust.All.Count;
+        public static void CheckAttachment() {
+            Dust.All.Clear();
+            var owner = new Entity { position = new Vector2(300, 200), oldPosition = new Vector2(276, 200) };
+            Vector2 tip = owner.position + new Vector2(20, -45);
+            WaterLaserDust.Emit(tip, Vector2.Zero, new Vector2(25), 60, attachedEntity: owner);
+            Dust particle = Dust.All.Single();
+            void Check(Vector2 expected, string stage) {
+                if (Vector2.Distance(particle.position, expected) > .001f)
+                    throw new Exception($"Attachment {stage}: expected {expected}, got {particle.position}");
+            }
+            Check(tip, "spawn after player moved");
+            DustLoader.Instance.Update(particle);
+            Check(tip, "same-frame regular dust update");
+            for (int step = 0; step < 8; step++) {
+                Vector2 move = new(step < 4 ? 24 : -24, step % 2 == 0 ? 13 : -13);
+                owner.oldPosition = owner.position; owner.position += move; tip += move;
+                DustLoader.Instance.Update(particle); Check(tip, "translation " + step);
+                // A second update must not apply the same owner movement again.
+                DustLoader.Instance.Update(particle); Check(tip, "repeated translation " + step);
+            }
+            owner.position += new Vector2(400, -150); tip += new Vector2(400, -150);
+            owner.oldPosition = owner.position; // Engine can reset oldPosition during teleport.
+            DustLoader.Instance.Update(particle); Check(tip, "owner oldPosition reset");
+            owner.active = false; DustLoader.Instance.Update(particle);
+            owner.active = true; owner.position += new Vector2(1000);
+            DustLoader.Instance.Update(particle); Check(tip, "detached owner reactivated");
+            if (particle.DustInfo().AttachedEntity != null) throw new Exception("Inactive owner did not detach");
+            Vector2 finalOrigin = new(2000, 1200);
+            Prepare(40, finalOrigin, -1.4f, 600, 0);
+            Vector2[] stationary = Dust.All.Where(d => d.DustInfo().AttachedEntity != null)
+                .Select(d => d.position - finalOrigin).ToArray();
+            foreach (Vector2 movement in new[] { new Vector2(24, 0), new Vector2(-24, 0), new Vector2(0, -18), new Vector2(22, 14) }) {
+                Prepare(40, finalOrigin, -1.4f, 600, 0, movement: movement);
+                Vector2[] moving = Dust.All.Where(d => d.DustInfo().AttachedEntity != null)
+                    .Select(d => d.position - finalOrigin).ToArray();
+                if (stationary.Length != moving.Length || stationary.Zip(moving).Any(p => Vector2.Distance(p.First, p.Second) > .01f))
+                    throw new Exception("Moving muzzle particle cloud differs from stationary cloud: " + movement);
+            }
+            Console.WriteLine("PASS attachment: no spawn/update double movement; horizontal/vertical/reversal, oldPosition reset and owner detach.");
+            Console.WriteLine("PASS actual emitter: muzzle offsets match at rest and at 24px/tick left/right, 18px/tick vertical, diagonal flight.");
+        }
+        public static void Prepare(int ticks, Vector2 origin, float angle, float length, float bend, int release = 0, Vector2 movement = default) {
+            Dust.All.Clear(); Main.rand = new PreviewRandom(47); laser = new LaserReplay();
+            for (int tick = 0; tick <= ticks + release; tick++) {
+                Vector2 currentOrigin = origin - movement * (ticks + release - tick);
+                laser.MoveOwner(currentOrigin + new Vector2(-20, 45), movement);
+                laser.Set(tick, currentOrigin, angle, length, bend);
+                if (tick <= ticks) laser.SpawnWaterDust();
+                // Match Main.Update: player -> projectile/particle spawn -> Dust.UpdateDust.
+                foreach (Dust dust in Dust.All) DustLoader.Instance.Update(dust);
+                Dust.All.RemoveAll(d => !d.active);
+            }
+        }
+        public static void Queue(bool beam, bool particles) {
+            LayerDrawRequestSystem.ClearFrame();
+            if (beam) { Color c = Color.White; laser.PreDraw(ref c); }
+            if (particles) foreach (Dust d in Dust.All) DustLoader.Instance.PreDraw(d);
+        }
+    }
+}

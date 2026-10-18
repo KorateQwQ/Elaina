@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -18,6 +19,10 @@ static class Checks
         Terraria.Program.SavePath = Path.GetTempPath();
         GameMain.dedServ = true; GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0; GameMain.gameMenu = false;
         GameMain.GameMode = 1; GameMain.rand = new UnifiedRandom(12); GameMain.showItemText = false;
+        for (int i = 0; i < GameMain.projectile.Length; i++) GameMain.projectile[i] = new Projectile();
+        Lighting.Initialize();
+        GameMain.SceneMetrics = new SceneMetrics();
+        for (int i = 0; i < GameMain.player.Length; i++) GameMain.player[i] = new Player();
         // Initialize vanilla prefix sets before the mod-load resize pass.
         new Item(ItemID.BandofRegeneration).Prefix(PrefixID.Arcane);
         var hat = new ElainaHat(); ((ILoadable)hat).Load(new CheckMod()); ContentInstance.Register(hat);
@@ -25,6 +30,41 @@ static class Checks
         typeof(ItemLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, [false]);
         typeof(PrefixLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
         hat.SetDefaults();
+        Console.WriteLine($"Runtime: Terraria {GameMain.versionNumber}; tModLoader {typeof(GameMain).Assembly.GetName().Version}");
+        using var tables = JsonDocument.Parse(File.ReadAllText(args[1]));
+        foreach (var row in tables.RootElement.GetProperty("armors").EnumerateObject())
+        {
+            string key = row.Name;
+            Check(key == "none" || LoadoutItems.Armors.ContainsKey(key), $"Browser armor {key} is mapped");
+            int[] ids = key == "none" ? [0, 0, 0] : LoadoutItems.Armors[key];
+            var p = new Player { active = true, whoAmI = 0 };
+            GameMain.player[0] = p;
+            p.statManaMax2 = 200;
+            float damage = p.GetTotalDamage(DamageClass.Magic).Additive, crit = p.GetTotalCritChance(DamageClass.Magic);
+            for (int i = 0; i < 3; i++) { p.armor[i] = new Item(ids[i]); p.GrantArmorBenefits(p.armor[i]); }
+            p.head = p.armor[0].headSlot; p.body = p.armor[1].bodySlot; p.legs = p.armor[2].legSlot;
+            p.UpdateArmorSets(0);
+            CheckStats(row, p, damage, crit);
+            for (int i = 0; i < 3; i++)
+                Check(ids[i] == 0 || (i == 0 ? p.armor[i].headSlot : i == 1 ? p.armor[i].bodySlot : p.armor[i].legSlot) >= 0, $"{key}: valid armor slot {i}");
+            if (key == "hallowed") Check(p.onHitDodge, "Hallowed grants Holy Protection");
+            if (key == "spectre") Check(p.ghostHurt && !p.ghostHeal, "Spectre uses the offensive set bonus");
+        }
+        foreach (var row in tables.RootElement.GetProperty("accessories").EnumerateObject())
+        {
+            if (row.Name is "utility" or "empty" or "elainaHat") continue;
+            Check(LoadoutItems.TryGetAccessory(row.Name, out int type), $"Browser accessory {row.Name} is mapped");
+            var p = new Player { active = true, whoAmI = 0 };
+            GameMain.player[0] = p;
+            p.statManaMax2 = 200;
+            float damage = p.GetTotalDamage(DamageClass.Magic).Additive, crit = p.GetTotalCritChance(DamageClass.Magic);
+            p.armor[3] = new Item(type);
+            Check(p.armor[3].accessory, $"{row.Name}: functional accessory");
+            p.UpdateEquips(0);
+            CheckStats(row, p, damage, crit);
+        }
+        Check(LoadoutItems.Armors["adamantite"][0] == ItemID.AdamantiteHeadgear, "Adamantite mage headgear, not ranged mask");
+        Check(LoadoutItems.Armors["forbiddenMix"][0] == ItemID.AdamantiteHeadgear, "Mixed set also uses mage headgear");
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(args[0]), out var config, out var error), error);
         foreach (var loadout in config.Loadouts)
         {
@@ -57,7 +97,36 @@ static class Checks
         GameMain.GameMode = 2; limited.extraAccessory = true;
         var seven = last with { Slots = 7 }; LoadoutApplier.Apply(limited, seven);
         Check(limited.armor.Skip(3).Take(7).All(x => !x.IsAir && x.prefix == PrefixID.Arcane), "Master slot equips a real seventh accessory with Arcane");
+        // A downgrade must erase late-game bonuses, including now-locked slots, without touching inventory.
+        for (int i = 0; i < limited.inventory.Length; i++) limited.inventory[i] = new Item(ItemID.SorcererEmblem);
+        var inventory = limited.inventory.ToArray();
+        limited.armor[10] = new Item(ItemID.FamiliarWig);
+        var vanity = limited.armor[10];
+        GameMain.GameMode = 1; limited.extraAccessory = false;
+        LoadoutApplier.Apply(limited, config.Loadouts[0]);
+        Check(limited.armor.Skip(6).Take(4).All(x => x.IsAir), "Early preset deletes surplus and locked accessories");
+        Check(limited.inventory.SequenceEqual(inventory), "A full inventory is never consumed, replaced or filled with old gear");
+        Check(ReferenceEquals(limited.armor[10], vanity), "Vanity is outside the functional loadout");
+        Check(LoadoutApplier.BaseLife(limited) == config.Loadouts[0].MaxLife && LoadoutApplier.BaseMana(limited) == config.Loadouts[0].BaseMana, "Stage downgrade resets life and mana");
+        var holes = config.Loadouts[0] with { Armor = "none", Slots = 5, Items = new SkillLoadoutItem[] {
+            new("empty", "arcane"), new("sorcerer", "none"), new("utility", "arcane"), new("sorcerer", "warding"),
+            new("notMapped", "arcane"), new("empty", "none"), new("empty", "none") } };
+        LoadoutApplier.Apply(limited, holes);
+        Check(limited.armor.Take(3).All(x => x.IsAir), "No armor means no leftover armor");
+        Check(limited.armor[4].type == ItemID.SorcererEmblem && limited.armor[4].prefix == 0, "Preset order and explicit no-prefix are respected");
+        Check(new[] {3,5,6,7,8,9}.All(i => limited.armor[i].IsAir), "Empty, utility, duplicate and unknown entries leave empty slots");
+        var robe = holes with { Armor = "wizardDiamond" }; LoadoutApplier.Apply(limited, robe);
+        Check(limited.armor[2].IsAir, "Robe preset with no legs clears old greaves");
         Console.WriteLine($"Loadout integration: {passed} checks passed using the compiled mod and real Terraria items / prefix benefits.");
+    }
+    static void CheckStats(JsonProperty row, Player p, float damage, float crit)
+    {
+        foreach (var (key, actual) in new[] { ("damage", (p.GetTotalDamage(DamageClass.Magic).Additive-damage)*100),
+            ("crit", p.GetTotalCritChance(DamageClass.Magic)-crit), ("mana", (float)p.statManaMax2-200) })
+        {
+            float expected = row.Value.GetProperty(key).GetSingle();
+            Check(Math.Abs(actual-expected) < .001f, $"{row.Name}.{key}: browser {expected}, tML {actual}");
+        }
     }
     sealed class CheckMod : Mod { public override string Name => "LoadoutChecks"; }
 }

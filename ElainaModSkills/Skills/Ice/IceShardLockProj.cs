@@ -211,7 +211,7 @@ public class IceShardLockProj : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
-        LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Glow", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+        LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Glow", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
         return false;
     }

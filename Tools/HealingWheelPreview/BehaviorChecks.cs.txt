@@ -1,0 +1,331 @@
+global using System;
+global using System.Collections.Generic;
+global using Microsoft.Xna.Framework;
+global using Terraria;
+global using Terraria.ModLoader;
+using KL.ActionsSystem;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.Skills.Heal;
+
+// Links production HealSkill.cs and HealProj.Healing.cs. Only engine/action/UI services are test doubles.
+static class BehaviorChecks
+{
+    static int passed;
+    static void Check(bool condition, string label)
+    {
+        if (!condition) throw new Exception(label);
+        passed++;
+    }
+    static HealSkill Setup(bool ally = false)
+    {
+        ElainaHealingWheel.Reset();
+        for (int i = 0; i < Terraria.Main.maxPlayers; i++) Terraria.Main.player[i] = new Player { whoAmI = i };
+        var player = Terraria.Main.player[0]; player.active = true;
+        var skill = new HealSkill { Player = player }; skill.Initialize();
+        var book = player.GetModPlayer<ElainaSkillModPlayer>();
+        book.ActiveSkill.Add(skill.Skill); book.Owner = skill;
+        Terraria.Main.player[1].active = ally;
+        Terraria.Main.player[1].Center = new Vector2(100, 0);
+        return skill;
+    }
+    static ElainaAttributeModPlayer Magic(HealSkill s) => s.Player.GetModPlayer<ElainaAttributeModPlayer>();
+    static ActionModPlayer Actions(HealSkill s) => s.Player.GetModPlayer<ActionModPlayer>();
+    static void Main()
+    {
+        var s = Setup();
+        Check(s.PreUseSkill(), "Solo cast succeeds");
+        Check(!ElainaHealingWheel.IsShowing && ElainaHealingWheel.Opens == 0, "Solo never opens a picker");
+        Check(Actions(s).LastHealing == 100, "Cast passes total healing through ai[0]");
+        Check(Magic(s).Spent == s.MagicPointCost && Actions(s).Calls == 1 && Actions(s).LastTarget == 0, "Solo pays once and targets caster");
+
+        s = Setup(true);
+        Check(!s.PreUseSkill() && ElainaHealingWheel.IsShowing, "Nearby ally opens picker without casting");
+        Check(Magic(s).Spent == 0 && Actions(s).Calls == 0, "Opening costs nothing");
+        Check(ElainaHealingWheel.ValidTarget(0) && ElainaHealingWheel.ValidTarget(1), "Self and ally selectable");
+        Action<int> callback = ElainaHealingWheel.Confirmed;
+        for (int tick = 0; tick < 120; tick++) s.PreUseSkill();
+        Check(ElainaHealingWheel.IsShowing && ElainaHealingWheel.Opens == 1
+            && ElainaHealingWheel.Confirmed == callback && ElainaHealingWheel.ValidSource(), "Holding preserves one pending selection and callback");
+        Check(Magic(s).Spent == 0 && Actions(s).Calls == 0, "Holding does not spend or cast before release");
+        ElainaHealingWheel.Confirm(1);
+        Check(Magic(s).Spent == s.MagicPointCost && Actions(s).Calls == 1 && Actions(s).LastTarget == 1, "Confirmation casts once on ally");
+        callback(1);
+        Check(Magic(s).Spent == s.MagicPointCost && Actions(s).Calls == 1, "Stale repeated confirmation cannot cast again");
+
+        s = Setup(true); s.PreUseSkill(); ElainaHealingWheel.CancelOpen();
+        Check(Magic(s).Spent == 0 && Actions(s).Calls == 0, "Cancellation costs nothing");
+        Check(!s.PreUseSkill() && ElainaHealingWheel.IsShowing, "Can reopen after cancelling");
+
+        foreach (string invalid in new[] { "far", "dead", "offline", "team", "target-pvp", "caster-pvp" })
+        {
+            s = Setup(true); Player ally = Terraria.Main.player[1];
+            switch (invalid)
+            {
+                case "far": ally.Center = new Vector2(1200.01f, 0); break;
+                case "dead": ally.dead = true; break;
+                case "offline": ally.active = false; break;
+                case "team": ally.team = 2; break;
+                case "target-pvp": ally.hostile = true; break;
+                case "caster-pvp": s.Player.hostile = true; break;
+            }
+            Check(s.PreUseSkill() && ElainaHealingWheel.Opens == 0 && Actions(s).LastTarget == 0, "Excluded ally -> direct self: " + invalid);
+        }
+        s = Setup(true); Terraria.Main.player[1].Center = new Vector2(1200, 0);
+        Check(!s.PreUseSkill() && ElainaHealingWheel.IsShowing, "Exact search boundary is selectable");
+
+        foreach (string invalid in new[] { "dead", "far", "team", "offline" })
+        {
+            s = Setup(true); s.PreUseSkill(); Player ally = Terraria.Main.player[1];
+            switch (invalid)
+            {
+                case "dead": ally.dead = true; break;
+                case "far": ally.Center = new Vector2(1300, 0); break;
+                case "team": ally.team = 3; break;
+                case "offline": ally.active = false; break;
+            }
+            ElainaHealingWheel.Confirm(1); // Bypass UI validation deliberately: the skill must revalidate too.
+            Check(Magic(s).Spent == 0 && Actions(s).Calls == 0, "Revalidate before spending: " + invalid);
+        }
+        s = Setup(true); s.PreUseSkill(); s.Player.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill.Clear();
+        Check(!ElainaHealingWheel.ValidSource(), "Unequipping invalidates open picker");
+        ElainaHealingWheel.Confirm(1);
+        Check(Actions(s).Calls == 0 && Magic(s).Spent == 0, "Unequipped skill cannot cast");
+        s = Setup(); Magic(s).Available = s.MagicPointCost - 1;
+        Check(!s.PreUseSkill() && Actions(s).Calls == 0 && Magic(s).Spent == 0, "Insufficient magic blocks direct cast");
+        s = Setup(true); s.PreUseSkill(); Magic(s).Available = s.MagicPointCost - 1; ElainaHealingWheel.Confirm(1);
+        Check(Actions(s).Calls == 0 && Magic(s).Spent == 0, "Insufficient magic at confirmation costs nothing");
+        s = Setup(true); s.PreUseSkill(); Magic(s).UniqueMagicEnabled = false;
+        Check(!ElainaHealingWheel.ValidSource(), "Disabling magic invalidates picker");
+        ElainaHealingWheel.Confirm(1);
+        Check(Actions(s).Calls == 0, "Disabled magic cannot cast");
+        s = Setup(true); s.PreUseSkill(); ElainaHealingWheel.Confirm(0);
+        Check(Actions(s).LastTarget == 0 && Magic(s).Spent == s.MagicPointCost, "Self remains selectable with allies");
+        s = Setup(); s.Player.dead = true;
+        Check(!s.PreUseSkill() && Magic(s).Spent == 0, "Dead caster cannot self-cast");
+        WandUseChecks();
+        HealingChecks();
+        Console.WriteLine($"PASS: {passed} healing skill/projectile behavior assertions.");
+    }
+    // 魔杖入口：只有直接施法才进入原版物品使用（挥杖与使用音效）；选择目标期间不出手，确认后由施法动作出手。
+    static void WandUseChecks()
+    {
+        var s = Setup();
+        Check(s.BeginWandUse() && ElainaHealingWheel.Opens == 0 && Actions(s).Calls == 0, "Solo enters wand use; cast happens in UseItem");
+        Check(s.PreUseSkill() && Actions(s).Calls == 1 && Actions(s).LastTarget == 0, "Solo wand use casts on self");
+
+        s = Setup(true);
+        Check(!s.BeginWandUse() && ElainaHealingWheel.IsShowing && ElainaHealingWheel.Opens == 1, "Ally: press opens picker without wand use");
+        Check(Magic(s).Spent == 0 && Actions(s).Calls == 0, "Opening from the wand spends and acts nothing");
+        Action<int> callback = ElainaHealingWheel.Confirmed;
+        int used = 0;
+        for (int tick = 0; tick < 120; tick++) if (s.BeginWandUse()) used++;
+        Check(used == 0, "Holding never starts wand use");
+        Check(ElainaHealingWheel.Opens == 1 && ElainaHealingWheel.Confirmed == callback && Actions(s).Calls == 0, "Holding keeps one picker and no action");
+        ElainaHealingWheel.Confirm(1);
+        Check(Actions(s).Calls == 1 && Actions(s).LastTarget == 1 && Magic(s).Spent == s.MagicPointCost, "Action starts only on confirmation");
+
+        s = Setup(true); s.BeginWandUse(); ElainaHealingWheel.CancelOpen(); ElainaHealingWheel.Closing = true;
+        Check(!s.BeginWandUse() && ElainaHealingWheel.Opens == 1 && Actions(s).Calls == 0, "Cancel while still held neither reopens nor acts");
+        ElainaHealingWheel.Closing = false;
+        Check(!s.BeginWandUse() && ElainaHealingWheel.Opens == 2, "Next press after release reopens");
+    }
+
+    static HealProj StartHealing(int netMode = 0, int life = 50, int maxLife = 500, int total = 100, int age = 0)
+    {
+        Setup(true);
+        Terraria.Main.netMode = netMode;
+        Terraria.Main.player[1].statLife = life;
+        Terraria.Main.player[1].statLifeMax2 = maxLife;
+        var spell = new HealProj(); spell.SetDefaults();
+        spell.Projectile.ai[0] = total;
+        spell.Projectile.ai[1] = 1;
+        spell.Projectile.ai[2] = age;
+        return spell;
+    }
+    static void TickHealing(HealProj spell, int ticks)
+    {
+        for (int i = 0; i < ticks && spell.Projectile.active; i++)
+        {
+            if (!spell.AdvanceHealing()) break;
+            if (--spell.Projectile.timeLeft <= 0) spell.Projectile.active = false;
+        }
+    }
+    static void HealingChecks()
+    {
+        foreach (int netMode in new[] { 0, 1, 2 })
+        {
+            var spell = StartHealing(netMode);
+            Player target = Terraria.Main.player[1];
+            Check(spell.Projectile.timeLeft == 600 && spell.Projectile.extraUpdates == 0, "Ten-second lifetime");
+            Check(!spell.Projectile.tileCollide && spell.Projectile.penetrate == -1 && spell.CanDamage() == false, "Healing projectile cannot collide/damage");
+            for (int second = 1; second <= 10; second++)
+            {
+                TickHealing(spell, 59);
+                Check(target.statLife == 50 + (second - 1) * 10, $"No premature pulse, mode={netMode}, second={second}");
+                TickHealing(spell, 1);
+                Check(target.statLife == 50 + second * 10, $"Exactly ten life per second, mode={netMode}, second={second}");
+            }
+            Check(!spell.Projectile.active && spell.Projectile.timeLeft == 0, "Expires after tenth heal");
+            Check(Terraria.Main.player[0].statLife == 50, "ai[1] targets the chosen ally, not the owner");
+            Check(target.HealTexts.Count == (netMode == 2 ? 0 : 10) && !target.BroadcastRequested, "Local healing text only; no broadcast");
+            TickHealing(spell, 120);
+            Check(target.statLife == 150, "No eleventh pulse");
+        }
+        var capped = StartHealing(life: 495); TickHealing(capped, 600);
+        Check(Terraria.Main.player[1].statLife == 500 && Terraria.Main.player[1].HealTexts.Count == 1
+            && Terraria.Main.player[1].HealTexts[0] == 5, "Cap at current max life and show only restored amount");
+        var full = StartHealing(life: 500); TickHealing(full, 180);
+        Check(Terraria.Main.player[1].HealTexts.Count == 0, "Full health produces no fake healing text");
+        Terraria.Main.player[1].statLife = 480; TickHealing(full, 60);
+        Check(Terraria.Main.player[1].statLife == 490, "No banked healing after full-health pulses");
+        var variable = StartHealing(total: 103); TickHealing(variable, 600);
+        Check(Terraria.Main.player[1].statLife == 153, "ai[0] supplies total healing including integer remainder");
+        var resumed = StartHealing(age: 300); TickHealing(resumed, 300);
+        Check(Terraria.Main.player[1].statLife == 100 && !resumed.Projectile.active, "Received age resumes remaining five pulses and lifetime");
+        var finished = StartHealing(age: 600); TickHealing(finished, 1);
+        Check(Terraria.Main.player[1].statLife == 50 && !finished.Projectile.active, "Completed projectile does not replay healing");
+        foreach (string invalid in new[] { "dead", "offline", "index", "nan", "fraction" })
+        {
+            var spell = StartHealing(); TickHealing(spell, 59);
+            switch (invalid)
+            {
+                case "dead": Terraria.Main.player[1].dead = true; break;
+                case "offline": Terraria.Main.player[1].active = false; break;
+                case "index": spell.Projectile.ai[1] = Terraria.Main.maxPlayers; break;
+                case "nan": spell.Projectile.ai[1] = float.NaN; break;
+                case "fraction": spell.Projectile.ai[1] = .5f; break;
+            }
+            TickHealing(spell, 1);
+            Check(Terraria.Main.player[1].statLife == 50 && !spell.Projectile.active, "Invalid target stops healing: " + invalid);
+        }
+    }
+}
+
+namespace Terraria
+{
+    public static class Main { public const int maxPlayers = 12; public static Player[] player = new Player[maxPlayers]; public static bool mouseRight, mouseRightRelease; public static int netMode; }
+    public sealed class Player
+    {
+        public int whoAmI, team;
+        public bool active, dead, hostile;
+        public int statLife = 50, statLifeMax2 = 500;
+        public readonly List<int> HealTexts = [];
+        public bool BroadcastRequested;
+        public void HealEffect(int amount, bool broadcast = true) { HealTexts.Add(amount); BroadcastRequested |= broadcast; }
+        public Vector2 Center;
+        public Vector2 MountedCenter => Center;
+        readonly Dictionary<Type, object> mods = new();
+        public T GetModPlayer<T>() where T : new()
+        {
+            if (!mods.TryGetValue(typeof(T), out var value)) mods[typeof(T)] = value = new T();
+            return (T)value;
+        }
+    }
+    public sealed class Projectile
+    {
+        public float[] ai = new float[3];
+        public int timeLeft, extraUpdates, penetrate;
+        public bool active = true, hide, tileCollide = true;
+        public void Kill() => active = false;
+    }
+    public static class Rotation { public static float ToRotation(this Vector2 value) => MathF.Atan2(value.Y, value.X); }
+}
+namespace Terraria.DataStructures { public interface IEntitySource { } }
+namespace Terraria.ModLoader { public static class ModContent { public static int ProjectileType<T>() => 1; } }
+namespace KL.SkillSystem.SilkyUI
+{
+    [AttributeUsage(AttributeTargets.Class)] public sealed class SkillUIInfoAttribute : Attribute { public int State, Pixels; }
+}
+namespace KL.ActionsSystem
+{
+    public class AnimAction
+    {
+        public ShootActionNode Node;
+        public AnimAction AddNode(ShootActionNode node) { Node = node; return this; }
+    }
+    public sealed class ShootActionNode
+    {
+        public readonly Action<Projectile> Configure;
+        public ShootActionNode(int tick, int type, Func<object, Vector2> position, int damage, int knockback,
+            Func<object, Vector2> velocity, Action<Projectile> configure) => Configure = configure;
+    }
+    public sealed class ActionModPlayer
+    {
+        public int Calls, LastTarget = -1, LastHealing;
+        public void StartAction(AnimAction action, float rotation)
+        {
+            Calls++; var projectile = new Projectile(); action.Node.Configure(projectile); LastTarget = (int)projectile.ai[1]; LastHealing = (int)projectile.ai[0];
+        }
+    }
+}
+namespace 伊蕾娜.ElainaActions { public sealed class Action_SimpleShoot : AnimAction { } }
+namespace 伊蕾娜.ElainaAttribute
+{
+    public sealed class ElainaAttributeModPlayer
+    {
+        public float Available = 1000, Spent;
+        public bool UniqueMagicEnabled = true;
+        public bool ConsumeMagicPoint(float cost)
+        {
+            if (Available < cost) return false;
+            Available -= cost; Spent += cost; return true;
+        }
+    }
+}
+namespace 伊蕾娜.ElainaModSkills
+{
+    public sealed class SkillStub { public int SkillSlot; }
+    public class ElainaSkill
+    {
+        public Player Player;
+        public SkillStub Skill = new();
+        public float MaxCD, MagicPointCost;
+        public virtual void Initialize() { }
+        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+        public virtual bool BeginWandUse() => true;
+        public virtual void UpdateEquips(Player player) { }
+    }
+    public sealed class ElainaSkillModPlayer
+    {
+        public List<SkillStub> ActiveSkill = [];
+        public HealSkill Owner;
+        public void UseSkill(int slot) => Owner.PreUseSkill();
+    }
+}
+namespace Terraria.ID { public static class NetmodeID { public const int Server = 2; } }
+namespace 伊蕾娜.ElainaModSkills.Skills
+{
+    public class ElainaBasicProjectile
+    {
+        public Projectile Projectile = new();
+        public virtual void SetDefaults() { }
+        public virtual bool? CanDamage() => null;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Heal
+{
+    public partial class HealProj : ElainaBasicProjectile
+    {
+        public bool AdvanceHealing() => UpdateHealing(out _);
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI
+{
+    public static class ElainaHealingWheel
+    {
+        public static bool IsShowing, Closing;
+        public static bool OwnsPointer => IsShowing || Closing;
+        public static int Opens;
+        public static Func<int, bool> ValidTarget;
+        public static Func<bool> ValidSource;
+        public static Action<int> Confirmed;
+        public static Action Cancelled;
+        public static bool TryOpen(Func<int, bool> target, Func<bool> source, Action<int> confirmed, Action cancelled)
+        { ValidTarget = target; ValidSource = source; Confirmed = confirmed; Cancelled = cancelled; Opens++; return IsShowing = true; }
+        public static void CancelOpen() { IsShowing = false; Cancelled?.Invoke(); }
+        public static void Confirm(int index) { IsShowing = false; Confirmed(index); }
+        public static void Reset() { IsShowing = Closing = false; Opens = 0; Confirmed = null; Cancelled = null; }
+    }
+}

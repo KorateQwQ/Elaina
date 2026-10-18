@@ -1,0 +1,119 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+try { using var game = new LaserProbe(args[0], args[1]); game.Run(); }
+catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
+
+internal static class Pipeline {
+    internal static Assembly CompilePipeline(string kl, string root, string output)
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            global using System;
+            global using System.Linq;
+            global using KL.Drawing;
+            global using KL.Dusts;
+            global using System.Collections.Generic;
+            global using System.Reflection;
+            global using Microsoft.Xna.Framework;
+            global using Microsoft.Xna.Framework.Graphics;
+            global using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing {
+            public class ModSystem { public virtual void Unload() {} }
+            public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+            public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+            public static class Main {
+                public static DeviceContext instance, graphics;
+                public static SpriteBatch spriteBatch;
+                public static int screenWidth, screenHeight;
+                public static Vector2 screenPosition; public static Matrix Transform = Matrix.Identity;
+                public static bool dedServ; public static PreviewRandom rand = new(42);
+                public static void NewText(string text, Color color) => throw new Exception(text);
+                public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                public static ViewContext GameViewMatrix = new();
+            }
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class PreviewOptions { public static bool PreserveBackbuffer = true; }
+            public partial class DrawSystem {
+                public void Run(float strength, int iterations, bool bloomEnabled) {
+                    SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
+            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor, vertexDraw;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += "}}\n";
+        source += File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs"));
+        // Replace the file-scoped namespace because the generated source already has block namespaces.
+        source = source.Replace("namespace KL.Drawing;", "namespace KL.Drawing {") + "\n}";
+        // The unfixed comparison disables only the new preservation setting in the actual method body.
+        source = source.Replace("presentation.RenderTargetUsage = RenderTargetUsage.PreserveContents;",
+            "if (PreviewOptions.PreserveBackbuffer) presentation.RenderTargetUsage = RenderTargetUsage.PreserveContents;");
+        var vertex = Read("Drawing/DrawHelper.vertexDraw.cs");
+        var assets = Read("Drawing/DrawHelper.Assets.cs");
+        var trail = vertex.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" && m.ParameterList.Parameters[2].Type.ToString() == "Vector4");
+        trail = trail.ReplaceNodes(trail.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        source += "namespace KL.Drawing { public partial class DrawHelper {" + trail.ToFullString();
+        source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString() + "}}";
+        source += File.ReadAllText(Path.Combine(root, "Tools/WaterLaserPreview/Scene.cs.txt"));
+        var dust = Read("Dusts/KLBasicDust.cs");
+        source += "namespace KL.Dusts { public abstract partial class KLBasicDust : ModDust {";
+        source += dust.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "DustInfo").ToFullString();
+        var update = dust.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "Update");
+        // Time-stop projectile attachment is irrelevant: these particles attach only to the owner.
+        update = update.ReplaceNodes(update.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "dustInfo.AttachedEntity is Projectile projectile"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        source += update.ToFullString() + Methods(dust, "SpawnDust", "OnSpawn") + "}}";
+        var laser = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaser.cs"))).GetCompilationUnitRoot();
+        source += "namespace 伊蕾娜.ElainaModSkills.Skills.Water { public partial class LaserReplay : ModProjectile {" + Methods(laser, "SpawnWaterDust", "PreDraw", "DrawVisual") + "}}";
+        source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");
+        File.WriteAllText(Path.Combine(output, "replay.cs.txt"), source);
+        string[] inputs = [source, File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserVisuals.cs")), File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserDust.cs"))];
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("BloomPipelineProbe", inputs.Select(s => CSharpSyntaxTree.ParseText(s)), references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+
+}

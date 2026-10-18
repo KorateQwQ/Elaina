@@ -29,14 +29,17 @@ sealed partial class Probe
                 }
             }
             namespace 伊蕾娜.ElainaModSkills.Skills.Ice {
-                public sealed class ProjectileContext { public Vector2 Center = new(480, 320), velocity; public float rotation; }
-                public class ProjectilePreviewBase {
+                public sealed class ProjectileContext {
+                    public Vector2 Center = new(480, 320), velocity;
+                    public Vector2 position { get => Center; set => Center = value; }
+                    public float rotation;
+                }
+                public partial class ProjectilePreviewBase {
                     public ProjectileContext Projectile = new();
                     public Vector2[] OldCenter = new Vector2[30];
-                    public bool ValidTrailArray() => IceConeProj.IncludeTrail;
                     public virtual bool PreDraw(ref Color color) => false;
                 }
-                public class IceConeProj : ProjectilePreviewBase {
+                public partial class IceConeProj : ProjectilePreviewBase {
                     static Effect previewEffect;
                     static Texture2D previewNoise;
                     static Texture2D previewTrail;

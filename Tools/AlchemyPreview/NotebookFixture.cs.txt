@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using 伊蕾娜.ElainaModAlchemy.UI;
 using 伊蕾娜.ElainaModAlchemy.Gameplay;
 
@@ -9,11 +10,17 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
     public AlchemyNotebookSnapshot Capture()
     {
         bool blank = scene is "new" or "locked" or "research-ready" or "recipe-missing" or "recipe-ready" or "curio-locked";
-        int level = scene is "level-max" or "curio-dust" or "curio-rain" or "vanilla-materials" ? 20 : scene is "new" or "locked" ? 1 : scene == "header-reference" ? 3 : 5;
+        int level = scene is "level-max" or "curio-dust" or "curio-rain" or "vanilla-materials" or "starpower" ? 20 : scene is "new" or "locked" ? 1 : scene is "header-reference" or "redesign-reference" ? 3 : 5;
         var materials = AlchemyCatalog.Materials.ToDictionary(m => m.Id, m => scene == "short" ? 0 : m.Initial);
+        if(scene == "redesign-reference") { materials["moondew"]=2; materials["daybloom"]=10; materials["honey"]=6; materials["resin"]=0; }
         var products = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => r.Id == "mana" ? 3 : 0);
         var unlocked = AlchemyCatalog.Recipes.Where(r => !blank && (AlchemyProgressionRules.RequiredLevel(r.Id) <= level || r.Id == "bloodlust"))
             .Select(r => r.Id).ToHashSet();
+        if(scene == "redesign-reference")
+        {
+            unlocked = AlchemyCatalog.Recipes.Where(r=>r.InitialUnlocked || r.Id is "mana" or "painkiller" or "rain" or "bread" or "brulee" or "flour" or "sugar" or "egg").Select(r=>r.Id).ToHashSet();
+            products["painkiller"]=1;
+        }
         var maximum = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => !unlocked.Contains(r.Id) || !r.Craftable ? 0
             : r.Ingredients.Min(i => i.Choices.Sum(id => materials[id]) / i.Count));
         var research = new Dictionary<string, AlchemyResearchStatus>();
@@ -23,14 +30,14 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
             int neededLevel = scroll ? 3 : AlchemyProgressionRules.RequiredLevel(entry.Id);
             int owned = scene == "recipe-ready" ? 1 : 0;
             bool ready = level >= neededLevel && (!scroll || owned > 0);
-            research[entry.Id] = new(neededLevel, scroll, true, "炼金配方手稿", owned, 1, true, ready,
-                level < neededLevel ? $"需要炼金等级 {neededLevel}" : scroll && owned == 0 ? "缺少所需配方" : "满足条件，可点击研究");
+            research[entry.Id] = new(neededLevel, scroll, true, LocalizeUI("RecipeRequired"), owned, 1, true, ready,
+                level < neededLevel ? LocalizeUI("NeedAlchemyLevel",neededLevel) : scroll && owned == 0 ? LocalizeUI("MissingRecipeInventory") : LocalizeUI("ResearchLevelMet"));
         }
         return new AlchemyNotebookSnapshot
         {
             Materials = materials, Products = products, Unlocked = unlocked, Research = research,
             MaximumBatches = maximum, Level = level, MaximumLevel = 20,
-            Experience = scene == "header-reference" ? 35 : level == 20 || scene == "new" ? 0 : 45,
+            Experience = scene == "redesign-reference" ? 40 : scene == "header-reference" ? 35 : level == 20 || scene == "new" ? 0 : 45,
             ExperienceToNextLevel = scene == "header-reference" ? 40 : AlchemyProgressionRules.ExperienceToNextLevel(level)
         };
     }

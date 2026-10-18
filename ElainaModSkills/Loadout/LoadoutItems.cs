@@ -34,9 +34,10 @@ public static class LoadoutItems
         LocalizeUI("LoadoutStages.Stage19")
     ];
 
-    /// <summary>头、身、腿；0 表示该部位保留玩家原有装备（法袍类套装不需要护腿）。</summary>
+    /// <summary>头、身、腿；0 表示清空该部位。长袍仍可同时获得护腿属性。</summary>
     public static readonly FrozenDictionary<string, int[]> Armors = new Dictionary<string, int[]>
     {
+        ["amethystWood"] = [ItemID.WoodHelmet, ItemID.AmethystRobe, ItemID.WoodGreaves],
         ["wizardAmethyst"] = [ItemID.WizardHat, ItemID.AmethystRobe, 0],
         ["magicTopaz"] = [ItemID.MagicHat, ItemID.TopazRobe, 0],
         ["magicDiamond"] = [ItemID.MagicHat, ItemID.DiamondRobe, 0],
@@ -48,10 +49,10 @@ public static class LoadoutItems
         ["palladium"] = [ItemID.PalladiumHeadgear, ItemID.PalladiumBreastplate, ItemID.PalladiumLeggings],
         ["mythril"] = [ItemID.MythrilHood, ItemID.MythrilChainmail, ItemID.MythrilGreaves],
         ["orichalcum"] = [ItemID.OrichalcumHeadgear, ItemID.OrichalcumBreastplate, ItemID.OrichalcumLeggings],
-        ["adamantite"] = [ItemID.AdamantiteMask, ItemID.AdamantiteBreastplate, ItemID.AdamantiteLeggings],
+        ["adamantite"] = [ItemID.AdamantiteHeadgear, ItemID.AdamantiteBreastplate, ItemID.AdamantiteLeggings],
         ["titanium"] = [ItemID.TitaniumHeadgear, ItemID.TitaniumBreastplate, ItemID.TitaniumLeggings],
         ["forbidden"] = [ItemID.AncientBattleArmorHat, ItemID.AncientBattleArmorShirt, ItemID.AncientBattleArmorPants],
-        ["forbiddenMix"] = [ItemID.AdamantiteMask, ItemID.AdamantiteBreastplate, ItemID.AncientBattleArmorPants],
+        ["forbiddenMix"] = [ItemID.AdamantiteHeadgear, ItemID.AdamantiteBreastplate, ItemID.AncientBattleArmorPants],
         ["hallowed"] = [ItemID.HallowedHeadgear, ItemID.HallowedPlateMail, ItemID.HallowedGreaves],
         ["chlorophyte"] = [ItemID.ChlorophyteHeadgear, ItemID.ChlorophytePlateMail, ItemID.ChlorophyteGreaves],
         ["hallowedChloroApprentice"] = [ItemID.HallowedHeadgear, ItemID.ChlorophytePlateMail, ItemID.ApprenticeTrousers],
@@ -78,6 +79,8 @@ public static class LoadoutItems
         ["celestialStone"] = ItemID.CelestialStone,
         ["celestialShell"] = ItemID.CelestialShell,
         ["regenLife"] = ItemID.BandofRegeneration,
+        ["charmMyths"] = ItemID.CharmofMyths,
+        ["frozenShield"] = ItemID.FrozenShield,
         ["shackle"] = ItemID.Shackle,
         ["sharkTooth"] = ItemID.SharkToothNecklace,
         ["wormScarf"] = ItemID.WormScarf,
@@ -106,6 +109,6 @@ public static class LoadoutItems
         return Accessories.TryGetValue(id, out type);
     }
 
-    /// <summary>旧版 utility 与空槽保留原饰品，不应用前缀，也不在网页计入预设属性。</summary>
-    public static bool KeepsSlot(string id) => id is "utility" or "empty";
+    /// <summary>旧版 utility 与 empty 均为空槽，换装时清空，不应用前缀。</summary>
+    public static bool IsEmptySlot(string id) => id is "utility" or "empty";
 }

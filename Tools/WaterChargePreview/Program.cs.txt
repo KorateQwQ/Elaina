@@ -1,0 +1,197 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+
+try { using var game = new Probe(args[0], args[1]); game.Run(); }
+catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
+
+sealed class Probe : Game
+{
+    readonly string root, output;
+    WaterChargeFlowRenderer flow;
+    Action<int, float, Vector2, float> drawBall;
+    Func<int, int, float> readFlowSeconds;
+    bool done;
+    const int Width = 1440, Height = 1200;
+    public Probe(string root, string output)
+    {
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        PreviewAssets.Root = root;
+        PreviewAssets.Device = GraphicsDevice;
+        PreviewAssets.Batch = new SpriteBatch(GraphicsDevice);
+        PreviewAssets.Content = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        flow = new WaterChargeFlowRenderer(GraphicsDevice, PreviewAssets.Content.Load<Effect>("WaterChargeFlow"),
+            path => PreviewAssets.ModContent.Request<Texture2D>(path).Value);
+        // Extract the actual current sphere method; flight-only trails are outside this preview.
+        var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterBall.cs"))).GetRoot();
+        var flowMethod = tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawChargeFlow");
+        var flowCall = flowMethod.DescendantNodes().OfType<InvocationExpressionSyntax>()
+            .Single(i => i.Expression.ToString() == "chargeFlowRenderer.Draw");
+        string clockExpression = flowCall.ArgumentList.Arguments[2].Expression.ToString();
+        var method = tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawBall");
+        var fly = method.DescendantNodes().OfType<IfStatementSyntax>().Single(n => n.Condition.ToString() == "state == State.Fly");
+        method = method.RemoveNode(fly, SyntaxRemoveOptions.KeepNoTrivia);
+        string source = """
+        using System;
+        using Microsoft.Xna.Framework;
+        using Microsoft.Xna.Framework.Graphics;
+        using static PreviewAssets;
+        public class SphereReplay {
+            int time; float WaterBallRadius, drawWidth = 1, drawHeight = 1;
+            class Body { public Vector2 Center; public float rotation; }
+            Body Projectile = new();
+            public void Draw(int ticks, float radius, Vector2 center, float rotation) {
+                time = ticks; WaterBallRadius = radius; Projectile.Center = center; Projectile.rotation = rotation;
+                DrawBall();
+            }
+        """ + method.ToFullString() + "}";
+        // Replay the consumer's actual time argument, not a manually supplied ideal clock.
+        source += "public class FlowClockReplay { int time; public int VisualTime; "
+            + "public float Read(int localTicks, int globalTicks) { time = localTicks; VisualTime = globalTicks; return "
+            + clockExpression + "; } }";
+        File.WriteAllText(Path.Combine(output, "sphere-replay.cs.txt"), source);
+        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Append(typeof(PreviewAssets).Assembly.Location)
+            .Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("SphereReplay", [CSharpSyntaxTree.ParseText(source)], refs,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        Assembly assembly = Assembly.Load(bytes.ToArray());
+        Type clockType = assembly.GetType("FlowClockReplay");
+        readFlowSeconds = clockType.GetMethod("Read").CreateDelegate<Func<int, int, float>>(Activator.CreateInstance(clockType));
+        foreach (int globalTicks in new[] { 0, 3600, 216000 })
+        foreach (int localTicks in new[] { 1, 12, 24, 48, 60, 180 })
+        {
+            float actual = readFlowSeconds(localTicks, globalTicks);
+            if (MathF.Abs(actual - localTicks / 60f) > .0001f)
+                throw new Exception($"Charge flow uses wrong clock: {clockExpression}; local={localTicks}, global={globalTicks}, seconds={actual}");
+        }
+        Console.WriteLine("PASS: actual DrawChargeFlow time argument tracks projectile age at world ages 0/60/3600 seconds.");
+        Type type = assembly.GetType("SphereReplay");
+        drawBall = type.GetMethod("Draw").CreateDelegate<Action<int, float, Vector2, float>>(Activator.CreateInstance(type));
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) { Exit(); return; } done = true;
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        for (int frame = 0; frame < 90; frame++)
+            Render(frame / 30f, 0, 1f, new Color(22, 34, 49), $"frame-{frame:000}");
+        Render(.4f, 7, 1.35f, new Color(100, 137, 150), "day-zoom");
+        Render(.4f, 2, .8f, new Color(22, 34, 49), "alternate-small");
+        Render(1.6f, 0, 1f, new Color(22, 34, 49), "ball-only", false);
+        void Render(float seconds, int seed, float zoom, Color background, string name, bool ribbons = true)
+        {
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(background);
+            Vector2 center = new(Width / 2f, Height / 2f);
+            Matrix transform = Matrix.CreateTranslation(-center.X, -center.Y, 0)
+                * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(center.X, center.Y, 0);
+            PreviewAssets.Transform = transform;
+            int ticks = (int)(seconds * 60);
+            float radius = 50 + Math.Min(150, ticks * 3);
+            float flowSeconds = readFlowSeconds(ticks, 216000 + ticks);
+            if (ribbons) flow.Draw(center, radius, flowSeconds, seed, false, transform);
+            PreviewAssets.Batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, transform);
+            drawBall(ticks, radius, center, 0);
+            PreviewAssets.Batch.End();
+            if (ribbons) flow.Draw(center, radius, flowSeconds, seed, true, transform);
+            GraphicsDevice.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(output, name + ".png"));
+            target.SaveAsPng(file, Width, Height);
+        }
+        // A charged ball held for longer must stay completely free of ambient inflow.
+        Color background = new(22, 34, 49);
+        foreach (int seed in new[] { 0, 2, 7, 31 })
+        foreach (float seconds in new[] { .2f, .8f, .84f, 1f, 1.6f, 3f, 10f })
+        {
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(background);
+            flow.Draw(new Vector2(Width / 2f, Height / 2f), 200, seconds, seed, false, Matrix.Identity);
+            flow.Draw(new Vector2(Width / 2f, Height / 2f), 200, seconds, seed, true, Matrix.Identity);
+            GraphicsDevice.SetRenderTarget(null);
+            Color[] pixels = new Color[Width * Height];
+            target.GetData(pixels);
+            bool visible = pixels.Any(p => p != background);
+            if (seconds >= .8f && visible) throw new Exception($"Inflow remains after formation: {seconds}, seed {seed}");
+            if (seconds == .2f && !visible) throw new Exception($"Missing charging inflow: seed {seed}");
+        }
+        Console.WriteLine("PASS: inflow visible during charge; no remaining pixels at 0.8/0.84/1/1.6/3/10 seconds across four seeds.");
+        Console.WriteLine("Rendered 90 animation frames, day/zoom, alternate seed and sphere-only comparison using actual FNA renderer and current sphere shader method.");
+        Exit();
+    }
+    protected override void UnloadContent()
+    {
+        flow?.Dispose();
+        PreviewAssets.Batch?.Dispose();
+        foreach (var texture in PreviewAssets.Textures.Values) texture.Dispose();
+        PreviewAssets.Content?.Dispose();
+    }
+}
+
+public static class PreviewAssets
+{
+    public static string Root;
+    public static GraphicsDevice Device;
+    public static SpriteBatch Batch;
+    public static ContentManager Content;
+    public static Matrix Transform;
+    public static readonly Dictionary<string, Texture2D> Textures = new();
+    public enum AssetRequestMode { ImmediateLoad }
+    public class Asset<T> { public T Value; public Asset(T value) { Value = value; } }
+    public static class ModContent
+    {
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode = AssetRequestMode.ImmediateLoad)
+        {
+            if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)Content.Load<Effect>("WaterBallEffect"));
+            if (!Textures.TryGetValue(path, out var texture))
+            {
+                string file = path.StartsWith("KL/") ? Path.Combine(Root, "..", path + ".png")
+                    : Path.Combine(Root, path[(path.IndexOf('/') + 1)..] + ".png");
+                using var stream = File.OpenRead(file);
+                texture = Texture2D.FromStream(Device, stream);
+                // Match tML rawimg: zero RGB only at fully transparent pixels.
+                var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+                for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+                texture.SetData(pixels);
+                Textures.Add(path, texture);
+            }
+            return new Asset<T>((T)(object)texture);
+        }
+    }
+    public static void EndBeginDraw(int state = 0, int defferred = 0, SamplerState ss = null)
+    {
+        Batch.End();
+        Batch.Begin((SpriteSortMode)defferred, state == 2 ? BlendState.NonPremultiplied : BlendState.AlphaBlend,
+            ss ?? SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, null, Transform);
+    }
+    public static void DrawInWorld(Texture2D texture, Vector2 position, Color color, Vector2 scale, float rotation)
+        => Batch.Draw(texture, position, null, color, rotation, new Vector2(texture.Width, texture.Height) * .5f, scale, SpriteEffects.None, 0);
+    public static void SetTexture(this Effect effect, int slot, Texture2D texture) => Device.Textures[slot] = texture;
+    public static void SetValue(this Effect effect, string name, float value) => effect.Parameters[name]?.SetValue(value);
+    public static void SetValue(this Effect effect, string name, bool value) => effect.Parameters[name]?.SetValue(value);
+    public static void SetValue(this Effect effect, string name, Vector2 value) => effect.Parameters[name]?.SetValue(value);
+    public static void SetValue(this Effect effect, string name, Vector4 value) => effect.Parameters[name]?.SetValue(value);
+    public static void Apply(this Effect effect) => effect.CurrentTechnique.Passes[0].Apply();
+}

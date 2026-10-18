@@ -65,7 +65,6 @@ public sealed partial class ConstellationSkillPanel
                 var oldOrigin = _draw.Origin;
                 _draw.Origin = v.Bounds.Position;
                 string visualAction = action == null ? null : action.Kind == "relation" ? action.Id : action.Kind;
-                if (action is { Kind: "upgrade", Enabled: true } && Main.mouseLeft && !Editing) visualAction = "upgrade-pressed";
                 row.Paint(_draw, visualAction);
                 _draw.Origin = oldOrigin;
                 if (action != null)
@@ -92,14 +91,6 @@ public sealed partial class ConstellationSkillPanel
                 {
                     InvalidateDetail(false);
                     Notify(_state.Find(action.Id).name + (_state.Disabled.Contains(action.Id) ? LocalizeUI("DisabledSuffix") : LocalizeUI("EnabledSuffix")));
-                }
-                else if (action.Kind == "upgrade")
-                {
-                    if (_state.Upgrade(action.Id))
-                    {
-                        InvalidateDetail(false);
-                        Notify($"{_state.Find(action.Id).name} · Lv. {_state.Level(action.Id)}");
-                    }
                 }
             };
             _detailRows.Add((view, null));

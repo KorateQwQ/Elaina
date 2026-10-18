@@ -25,11 +25,13 @@ sealed partial class Probe : Game
     readonly bool bloomPreview;
     readonly bool trailPreview;
     readonly bool trackingPreview;
+    readonly bool launchPreview;
     public Probe(string root, string output, string mode)
     {
         this.root = root; this.output = output; single = mode == "single"; bloomPreview = mode == "bloom";
         trailPreview = mode == "trail";
         trackingPreview = mode == "tracking";
+        launchPreview = mode == "launch";
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
@@ -57,8 +59,12 @@ sealed partial class Probe : Game
             global using Terraria.ModLoader;
             global using KL.Drawing;
             global using KL.Drawing.ThreeD;
+            global using KL.Projectiles;
             global using static KL.Drawing.DrawHelper;
-            namespace Terraria.ModLoader { public class ModSystem { public virtual void Unload() {} } }
+            namespace Terraria.ModLoader { public class ModSystem {
+                public virtual void Unload() {} public virtual void OnWorldUnload() {}
+                public virtual void PostUpdateProjectiles() {}
+            } }
             namespace Terraria {
                 public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
                 public sealed class Player { public int gravDir = 1; }
@@ -70,6 +76,7 @@ sealed partial class Probe : Game
                     public static Vector2 screenPosition;
                     public static Matrix Transform = Matrix.Identity;
                     public static bool gamePaused;
+                    public static bool dedServ;
                     public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
                     public static ViewContext GameViewMatrix = new();
                     public static Player LocalPlayer = new();
@@ -154,7 +161,8 @@ sealed partial class Probe : Game
         // Negative control changes only the depth-test state in the extracted real draw method.
         unitSource = unitSource.Replace("gd.DepthStencilState = DepthStencilState.Default;",
             "gd.DepthStencilState = PreviewScene.DisableDepth ? DepthStencilState.None : DepthStencilState.Default;");
-        var trees = new[] { preamble, unitSource, SingleSource(), BloomSource(), TrailSource(),
+        var trees = new[] { preamble, unitSource, SingleSource(), BloomSource(), TrailSource(), LaunchSource(),
+            File.ReadAllText(Path.Combine(kl, "Projectiles/TrailManager.cs")),
             File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeDepthRenderer.cs")),
             File.ReadAllText(Path.Combine(kl, "Drawing/ThreeD/GraphicsUtils.cs")),
             File.ReadAllText(Path.Combine(kl, "Drawing/ThreeD/Vertex3D.cs")),
@@ -219,6 +227,7 @@ sealed partial class Probe : Game
             Exit(); return;
         }
         if (trailPreview) { DrawTrailFrames(); Exit(); return; }
+        if (launchPreview) { DrawLaunchFrames(); Exit(); return; }
         if (bloomPreview) { DrawBloomFrames(); Exit(); return; }
         if (single) { DrawSingleFrames(); Exit(); return; }
         Render(25, false, RenderTargetUsage.DiscardContents, "frame-025");

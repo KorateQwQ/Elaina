@@ -1,4 +1,5 @@
 using System;
+using KL.Buffs.ElementalDebuff;
 using KL.DamageSystem;
 using KL.Drawing;
 using KL.Drawing.ThreeD;
@@ -7,6 +8,7 @@ using KL.Dusts.Burst;
 using KL.Dusts.Glow;
 using KL.Dusts.Smoke;
 using KL.Dusts.Stone;
+using KL.Extensions;
 using KL.Projectiles;
 using KL.Utils;
 using Terraria.ID;
@@ -47,7 +49,8 @@ public class IceConeProj : ElainaBasicProjectile
         Projectile.timeLeft = 600;
         TrailMaxLength = 500;
 
-        TrailSampleCount = 50;
+        // 蓄力时会跟随玩家并后撤，不能把这段移动记录成发射拖尾。
+        TrailSampleCount = 0;
         
         Projectile.friendly = true;
         Projectile.penetrate = -1;
@@ -85,13 +88,16 @@ public class IceConeProj : ElainaBasicProjectile
         }
 
         Projectile.rotation = Projectile.velocity.ToRotation();
+        // 最后一帧后撤速度为零：只记录发射起点，下一帧冲刺后再显示拖尾。
+        if (time == BackwardFlyTime - 1)
+            TrailSampleCount = 50;
         time++;
         
         Lighting.AddLight(Projectile.Center, new Color(50, 220, 255).ToVector3());
         base.AI();
     }
 
-    // ai[0] = 锁定目标 whoAmI + 1（由 IceConeSkill 设置）。后撤蓄力期间冰锥始终指向目标的预判位置，
+    // ai[0] = 锁定目标 whoAmI + 1（由 IceConeSkill 设置）。蓄力期间预判移动目标，冻结或时停时瞄准当前位置。
     // 冲刺开始后方向固定；目标失效时保持最后的方向。
     private void AimAtLockedTarget()
     {
@@ -106,8 +112,29 @@ public class IceConeProj : ElainaBasicProjectile
         float speed = forwardVelocity.Length();
         // 冲刺初速是 speed * 4 并逐渐衰减，按约 speed * 2 估算飞行时间
         float leadTime = MathHelper.Clamp(Vector2.Distance(Projectile.Center, target.Center) / (speed * 2f), 0f, 15f);
-        Vector2 aimPoint = target.Center + target.velocity * leadTime;
+        // KL 冻结和时停会保留 velocity，暂停期间不能把它当作实际移动速度。
+        Vector2 aimPoint = target.Center;
+        if (!IsTargetMovementPaused(target))
+            aimPoint += target.velocity * leadTime;
         forwardVelocity = (aimPoint - Projectile.Center).SafeNormalize(forwardVelocity / speed) * speed;
+    }
+
+    private static bool IsTargetMovementPaused(NPC target)
+    {
+        if (TimeStopManager.timeStop || IsFrozen(target))
+            return true;
+
+        // 多部位 Boss 共用元素锚点；不能只依赖 PostAI 中会被清除的 IsLogicFrozen。
+        NPC anchor = target.GetElementAnchorNPC();
+        return anchor != target && anchor is { active: true } && IsFrozen(anchor);
+    }
+
+    private static bool IsFrozen(NPC target)
+    {
+        ElementalGlobalNPC state = target.GetGlobalNPC<ElementalGlobalNPC>();
+        return target.HasBuff<ElementalAffliction_Freeze>()
+            || state.GetAffliction(ElementType.Ice)
+            || state.IsLogicFrozen;
     }
 
     private void UpdateMovement()
@@ -291,7 +318,7 @@ public class IceConeProj : ElainaBasicProjectile
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
 
         Texture2D trailTexture = AssetManager.GetTexture("KL.Effects.Tex.Trail.streak_801_4r");
-        if (time >= BackwardFlyTime && trailTexture != null && ValidTrailArray())
+        if (time > BackwardFlyTime && trailTexture != null && ValidTrailArray())
         {
             var trailState = (
                 Texture: trailTexture,

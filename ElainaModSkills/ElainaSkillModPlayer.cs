@@ -251,6 +251,10 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
         return true;
     }
+
+    /// <summary>当前技能是否让魔杖进入原版使用，须在 <see cref="CanUseSkill()"/> 通过后调用。</summary>
+    public bool BeginWandUse() => GetActiveSkill[CurrentSkillIndex].ModSkill is ElainaSkill skill && skill.BeginWandUse();
+
     public override void UseSkill(int index=0, IEntitySource source = null)
     {
         if (index < 0 || index >= GetActiveSkill.Count || GetActiveSkill[index] == null||Main.myPlayer!=Player.whoAmI) return;

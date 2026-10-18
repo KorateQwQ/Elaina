@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>星图详情 · 技能图标方窗预览</title>
+<style>
+:root { --ink: #eee9f5; --muted: #b2a8c3; --lav: #cab2ed; --gold: #e6cea5;
+  --text: #c9bbd3; --label: #9f8fae; --value: #e6d7ef; --rule: rgba(183,152,204,.145); }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font-family: "HarmonyOS Sans SC", "Microsoft YaHei UI", sans-serif;
+  background: radial-gradient(ellipse at 30% 0%, #2e2540 0%, #1b1724 60%, #141019 100%) fixed; }
+main { max-width: 1500px; margin: 0 auto; padding: 24px 28px 60px; }
+h1 { font: 500 26px "Noto Serif SC", "Source Han Serif SC", serif; letter-spacing: 6px; margin: 0 0 6px; }
+p.lead { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 0 0 16px; }
+.bar { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; font-size: 13px; color: var(--muted);
+  padding: 10px 14px; border: 1px solid rgba(202,178,237,.18); background: rgba(28,23,36,.92);
+  position: sticky; top: 0; z-index: 3; }
+.bar label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.bar select { background: #241d2e; color: var(--ink); border: 1px solid rgba(202,178,237,.3); font: inherit; padding: 3px 6px; }
+.icons { display: flex; gap: 4px; }
+.icons button { width: 34px; height: 34px; padding: 0; background: #1d1826; border: 1px solid rgba(202,178,237,.18); cursor: pointer; }
+.icons button.on { border-color: var(--lav); }
+.icons img { width: 28px; height: 28px; image-rendering: pixelated; mix-blend-mode: plus-lighter; }
+.grid { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 20px; }
+.card { flex: none; }
+.card h3 { font: 500 14px "Noto Serif SC", serif; letter-spacing: 2px; color: var(--lav); margin: 0 0 4px; }
+.card .note { font-size: 12px; color: var(--muted); margin: 0 0 8px; max-width: calc(320px * var(--z)); line-height: 1.6; }
+/* One design pixel = --z screen pixels, as the panel's UI scale. */
+.panel { position: relative; width: 320px; height: 268px; zoom: var(--z);
+  background: linear-gradient(180deg, #282131 0%, #221c2b 100%); border-left: 1px solid rgba(183,152,204,.28); overflow: hidden; }
+.panel .kind { position: absolute; left: 22px; top: 18px; font: 12px "Noto Serif SC", serif; letter-spacing: 2px; color: #c0aacd; }
+.panel svg { position: absolute; overflow: visible; }
+.panel .name { position: absolute; font: 22px "Noto Serif SC", "Source Han Serif SC", serif; letter-spacing: 1px; color: var(--ink); white-space: nowrap; }
+.panel .desc { position: absolute; left: 22px; font-size: 12px; color: var(--text); }
+.panel .stats { position: absolute; left: 22px; display: flex; gap: 34px; }
+.panel .stat span { display: block; font-size: 10px; color: var(--label); margin-bottom: 2px; }
+.panel .stat strong { font: 400 23px Gelasio, Georgia, serif; color: var(--value); }
+.panel .stat em { font-style: normal; font-size: 10px; color: #a491b3; margin-left: 5px; }
+.panel .rule { position: absolute; left: 22px; right: 22px; height: 1px; background: var(--rule); }
+.pixel { image-rendering: pixelated; }
+.smooth { image-rendering: auto; }
+</style>
+</head>
+<body>
+<main>
+<h1>星图详情 · 技能图标方窗</h1>
+<p class="lead">替换详情标题里的圆形裁切。方窗不裁切图标，56×56 的原图完整显示；默认 64 方窗内放 1:1 的 56 图标（100% UI 缩放下无插值）。
+图标按游戏内方式以加色叠加绘制。字体为系统回退，不是游戏内 Noto Serif SC / Gelasio。</p>
+
+<div class="bar">
+  <span>技能</span><div class="icons" id="icons"></div>
+  <label>方窗 <select id="frame"><option>60</option><option selected>64</option><option>72</option></select></label>
+  <label>图标 <select id="fit"><option value="native" selected>原尺寸 56</option><option value="fill">铺满内框</option></select></label>
+  <label>缩放 <select id="zoom"><option value="1">100%</option><option value="1.25">125%</option><option value="2" selected>200%</option></select></label>
+  <label>采样 <select id="sample"><option value="pixel" selected>最近邻</option><option value="smooth">线性</option></select></label>
+  <label><input type="checkbox" id="dim"> 未生效（灰暗）</label>
+</div>
+
+<div class="grid" id="grid"></div>
+</main>
+
+<script>
+const ICONS = [
+  ['炼金术', 'Alchemy/AlchemySkill'], ['爆炎', 'Fire/FireBurstSkill'], ['水球', 'Water/WaterBallSkill'],
+  ['冰凌锁', 'Ice/IceShardLockSkill'], ['魔法屏障', 'MagicBarrier/MagicBarrierSkill'], ['风刃', 'Wind/WindSlashSkill'],
+  ['治愈', 'Heal/HealSkill'], ['飞行', 'Flight/FlightSkill'],
+].map(([name, path]) => ({ name, src: '../../ElainaModSkills/Skills/' + path + '.png' }));
+
+const PLATE = 'rgb(39,32,51)', RING = 'rgba(193,163,213,.54)', LAV = '202,178,237';
+
+// Each variant returns the frame SVG body for an S×S window at (0,0); `icon` is the image element.
+const VARIANTS = [
+  { key: 'round', title: '现状 · 圆形裁切', note: '原图四角被裁掉，炼金术外圈法阵被切断。',
+    draw: (S, icon) => {
+      const r = S / 2;
+      return `<defs><clipPath id="c-round"><circle cx="${r}" cy="${r}" r="${r}"/></clipPath></defs>
+        <circle cx="${r}" cy="${r}" r="${r}" fill="${PLATE}" fill-opacity=".95"/>
+        <g clip-path="url(#c-round)">${icon(0, 0, S, S)}</g>
+        <circle cx="${r}" cy="${r}" r="${r}" fill="none" stroke="${RING}" stroke-width="1.2"/>`;
+    } },
+  { key: 'hair', title: 'A · 细框角标', note: '与下方“关联”里主动技能的方框同一语言：底板＋1px 细框，外侧四个折角标出窗口。',
+    draw: (S, icon) => {
+      const o = 4, l = 8;
+      const corner = (x, y, dx, dy) => `<path d="M${x + dx * l} ${y}H${x}V${y + dy * l}" />`;
+      return `<rect x=".5" y=".5" width="${S - 1}" height="${S - 1}" fill="${PLATE}" fill-opacity=".95" stroke="${RING}"/>
+        ${icon(0, 0, S)}
+        <g fill="none" stroke="rgba(${LAV},.72)" stroke-width="1">
+          ${corner(-o + .5, -o + .5, 1, 1)}${corner(S + o - .5, -o + .5, -1, 1)}
+          ${corner(-o + .5, S + o - .5, 1, -1)}${corner(S + o - .5, S + o - .5, -1, -1)}
+        </g>`;
+    } },
+  { key: 'chamfer', title: 'B · 切角双线', note: '呼应研习/进修按钮的切角；外框实线、内框淡线，上下中点各一颗菱形。',
+    draw: (S, icon) => {
+      const c = 7, i = 3;
+      const oct = (k, cut) => `M${k + cut} ${k}H${S - k - cut}L${S - k} ${k + cut}V${S - k - cut}L${S - k - cut} ${S - k}H${k + cut}L${k} ${S - k - cut}V${k + cut}Z`;
+      const dia = (x, y, r) => `<path d="M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z"/>`;
+      return `<defs><clipPath id="c-chamfer"><path d="${oct(.5, c)}"/></clipPath></defs>
+        <path d="${oct(.5, c)}" fill="${PLATE}" fill-opacity=".95"/>
+        <g clip-path="url(#c-chamfer)">${icon(0, 0, S)}</g>
+        <path d="${oct(.5, c)}" fill="none" stroke="${RING}" stroke-width="1.1"/>
+        <path d="${oct(i + .5, c - 1.5)}" fill="none" stroke="rgba(${LAV},.2)"/>
+        <g fill="rgb(222,204,240)">${dia(S / 2, .5, 2.6)}${dia(S / 2, S - .5, 2.6)}</g>`;
+    } },
+  { key: 'rivet', title: 'C · 双线角菱', note: '书页式双线框，四角菱形钉与顶部“星图收录”的菱形点同源，最“手札”的一款。',
+    draw: (S, icon) => {
+      const dia = (x, y, r) => `<path d="M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z"/>`;
+      return `<rect x="0" y="0" width="${S}" height="${S}" fill="${PLATE}" fill-opacity=".95"/>
+        ${icon(0, 0, S)}
+        <rect x=".5" y=".5" width="${S - 1}" height="${S - 1}" fill="none" stroke="rgba(${LAV},.46)"/>
+        <rect x="-3.5" y="-3.5" width="${S + 7}" height="${S + 7}" fill="none" stroke="rgba(${LAV},.16)"/>
+        <g fill="rgb(222,204,240)" style="filter:drop-shadow(0 0 2px rgba(${LAV},.7))">
+          ${dia(-3.5, -3.5, 3)}${dia(S + 3.5, -3.5, 3)}${dia(-3.5, S + 3.5, 3)}${dia(S + 3.5, S + 3.5, 3)}
+        </g>`;
+    } },
+  { key: 'bracket', title: 'D · 极简角括', note: '不画整圈框，只有极淡的底板与四个角括，图标存在感最强、最轻。',
+    draw: (S, icon) => {
+      const l = 11;
+      const corner = (x, y, dx, dy) => `<path d="M${x + dx * l} ${y}H${x}V${y + dy * l}" />`;
+      return `<defs><radialGradient id="g-bracket"><stop offset="0" stop-color="rgb(52,43,67)"/><stop offset="1" stop-color="${PLATE}"/></radialGradient></defs>
+        <rect x="0" y="0" width="${S}" height="${S}" fill="url(#g-bracket)" fill-opacity=".9"/>
+        <rect x=".5" y=".5" width="${S - 1}" height="${S - 1}" fill="none" stroke="rgba(${LAV},.12)"/>
+        ${icon(0, 0, S)}
+        <g fill="none" stroke="rgba(${LAV},.8)" stroke-width="1.2">
+          ${corner(.6, .6, 1, 1)}${corner(S - .6, .6, -1, 1)}${corner(.6, S - .6, 1, -1)}${corner(S - .6, S - .6, -1, -1)}
+        </g>`;
+    } },
+];
+
+const $ = id => document.getElementById(id);
+let current = 0;
+
+ICONS.forEach((it, i) => {
+  const b = document.createElement('button');
+  b.title = it.name;
+  b.innerHTML = `<img src="${it.src}" alt="">`;
+  b.onclick = () => { current = i; render(); };
+  $('icons').appendChild(b);
+});
+['frame', 'fit', 'zoom', 'sample', 'dim'].forEach(id => $(id).addEventListener('input', render));
+
+function render() {
+  [...$('icons').children].forEach((b, i) => b.classList.toggle('on', i === current));
+  const S = +$('frame').value, z = $('zoom').value, it = ICONS[current];
+  const size = $('fit').value === 'native' ? 56 : S - 4;
+  const sample = $('sample').value, dim = $('dim').checked;
+  // The current round window always stretches the icon to the ring diameter, as in game.
+  const icon = (x, y, w, s = size) => {
+    const o = (w - s) / 2;
+    return `<image href="${it.src}" x="${x + o}" y="${y + o}" width="${s}" height="${s}" class="${sample}"
+      style="mix-blend-mode:plus-lighter${dim ? ';filter:grayscale(1) brightness(.65)' : ''}"/>`;
+  };
+  // Header geometry follows DrawDetails: label at y 164, icon center 62 below, name 49 right of the window.
+  const left = 22, kindTop = 18, cy = kindTop + 62, top = cy - S / 2, below = top + S;
+  $('grid').innerHTML = VARIANTS.map(v => `
+    <div class="card" style="--z:${z}">
+      <h3>${v.title}</h3><p class="note">${v.note}</p>
+      <div class="panel">
+        <div class="kind">术 式</div>
+        <svg style="left:${left}px;top:${top}px" width="${S}" height="${S}">${v.draw(S, icon)}</svg>
+        <div class="name" style="left:${left + S + 17}px;top:${cy - 15}px">${it.name}</div>
+        <div class="desc" style="top:${below + 16}px">技能描述待补充。</div>
+        <div class="stats" style="top:${below + 48}px">
+          <div class="stat"><span>魔力</span><strong>0</strong><em>MP</em></div>
+          <div class="stat"><span>冷却</span><strong>60</strong><em>秒</em></div>
+        </div>
+        <div class="rule" style="top:${below + 108}px"></div>
+      </div>
+    </div>`).join('');
+}
+render();
+</script>
+</body>
+</html>

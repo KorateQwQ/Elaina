@@ -1,0 +1,107 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+sealed class LaserProbe : Game
+{
+    const int Width = 1200, Height = 700;
+    readonly string root, output;
+    Assembly pipeline;
+    SpriteBatch batch;
+    ContentManager effects;
+    Texture2D pixel;
+    Type main, scene, draw;
+    object renderer;
+    MethodInfo render;
+    bool done;
+    public LaserProbe(string root, string output) {
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
+    protected override void LoadContent() {
+        SDL.SDL_HideWindow(Window.Handle); Directory.CreateDirectory(output);
+        pipeline = Pipeline.CompilePipeline(Path.GetFullPath(Path.Combine(root, "../KL")), root, output);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        main = pipeline.GetType("KL.Drawing.Main"); draw = pipeline.GetType("KL.Drawing.DrawSystem");
+        scene = pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.Water.Scene");
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", Width); Set(main, "screenHeight", Height);
+        effects = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
+        var helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
+        Set(helper, "vertexDraw", effects.Load<Effect>("VertexDraw"));
+        var assets = pipeline.GetType("KL.Drawing.ModContent"); Set(assets, "Root", root); Set(assets, "Content", effects);
+        renderer = Activator.CreateInstance(draw); render = draw.GetMethod("Run");
+    }
+    protected override void Draw(GameTime time) {
+        if (done) { Exit(); return; } done = true;
+        scene.GetMethod("CheckAttachment").Invoke(null, null);
+        foreach (int tick in new[] { 6, 18, 36, 60 }) Render($"day-{tick}", tick);
+        Render("night", 60, night: true);
+        Render("zoom", 60, zoom: 1.35f);
+        Render("left", 60, angle: 2.85f);
+        Render("up", 60, angle: -1.4f, length: 510);
+        Render("moving-right-up", 60, angle: -1.4f, length: 510, movement: new Vector2(24, 0));
+        Render("moving-left-up", 60, angle: -1.4f, length: 510, movement: new Vector2(-24, 0));
+        Render("moving-diagonal", 60, angle: -1.4f, length: 510, movement: new Vector2(22, 14));
+        Render("short", 24, length: 28);
+        Render("bent", 60, bend: -95);
+        Render("backbuffer", 60, backbuffer: true);
+        var off = Render("bloom-off", 60, bloom: false);
+        var on = Render("bloom-on", 60);
+        int lit = off.Zip(on).Count(p => p.Second.R > p.First.R + 2 || p.Second.G > p.First.G + 2 || p.Second.B > p.First.B + 2);
+        if (lit < 200) throw new Exception("Bloom did not illuminate the beam and particle neighborhood: " + lit);
+        var particlesOff = Render("particles-off", 60, bloom: false, beam: false);
+        var particlesOn = Render("particles-bloom", 60, beam: false);
+        int particleGlow = particlesOff.Zip(particlesOn).Count(p => p.Second.G > p.First.G + 2);
+        if (particleGlow < 50) throw new Exception("Isolated particles did not produce bloom: " + particleGlow);
+        Render("release-8", 60, beam: false, release: 8);
+        Render("release-30", 60, beam: false, release: 30);
+        int count = (int)scene.GetProperty("DustCount").GetValue(null);
+        if (count != 0) throw new Exception("Particles survived their lifetime: " + count);
+        Console.WriteLine($"PASS: shared Bloom lit {lit} pixels; isolated particle bloom lit {particleGlow}; particles cleared after release.");
+        Console.WriteLine("Rendered actual beam/muzzle/particle drawing and KL Bloom on day/night, left/up, bend, zoom, short beam and backbuffer.");
+        Exit();
+    }
+    Color[] Render(string name, int ticks, bool night = false, float zoom = 1, float angle = .28f,
+        float length = 880, float bend = 0, bool bloom = true, bool beam = true, int release = 0, bool backbuffer = false,
+        Vector2 movement = default) {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(backbuffer ? null : target);
+        GraphicsDevice.Clear(night ? new Color(12, 23, 34) : new Color(67, 134, 141));
+        // Nonzero world camera origin catches missed world-to-screen conversions.
+        Vector2 camera = new(2000, 1200); Set(main, "screenPosition", camera);
+        Vector2 origin = angle > 2 ? new Vector2(1040, 220) : angle < -1 ? new Vector2(490, 580) : new Vector2(160, 210);
+        Matrix transform = Matrix.CreateTranslation(-600, -350, 0) * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(600, 350, 0);
+        Set(main, "Transform", transform);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view, transform);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, transform);
+        for (int x = 0; x < Width; x += 100) batch.Draw(pixel, new Rectangle(x, 0, 1, Height), new Color(48, 89, 96));
+        for (int y = 0; y < Height; y += 100) batch.Draw(pixel, new Rectangle(0, y, Width, 1), new Color(48, 89, 96));
+        // A simple wand marker locates the exact supplied action origin; this is not the player's live pose.
+        batch.Draw(pixel, origin, null, new Color(194, 165, 105), angle, new Vector2(1, .5f), new Vector2(66, 5), SpriteEffects.None, 0);
+        batch.End();
+        scene.GetMethod("Prepare").Invoke(null, [ticks, origin + camera, angle, length, bend, release, movement]);
+        scene.GetMethod("Queue").Invoke(null, [beam, true]);
+        render.Invoke(renderer, [1f, 5, bloom]);
+        var pixels = new Color[Width * Height];
+        if (backbuffer) GraphicsDevice.GetBackBufferData(pixels); else target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
+        using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
+        return pixels;
+    }
+    protected override void UnloadContent() { batch?.Dispose(); pixel?.Dispose(); effects?.Dispose(); }
+}

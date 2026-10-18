@@ -73,6 +73,107 @@ namespace Terraria.UI.Chat
         };
     }
 }
+namespace SilkyUIFramework
+{
+    // Like SUI's snapshot, read from the device right after End(); preview batches use no matrix.
+    public sealed class GraphicsDeviceStates(SpriteBatch batch)
+    {
+        private readonly GraphicsDevice _device = batch.GraphicsDevice;
+        private readonly BlendState _blend = batch.GraphicsDevice.BlendState;
+        private readonly SamplerState _sampler = batch.GraphicsDevice.SamplerStates[0];
+        private readonly DepthStencilState _depth = batch.GraphicsDevice.DepthStencilState;
+        private readonly RasterizerState _rasterizer = batch.GraphicsDevice.RasterizerState;
+        public void Begin() => batch.Begin(SpriteSortMode.Deferred, _blend, _sampler, _depth, _rasterizer);
+    }
+    public static class GraphicsDeviceHelper { public static GraphicsDeviceStates BackupStates(this SpriteBatch batch) => new(batch); }
+}
+namespace SilkyUIFramework.Graphics2D
+{
+    // CPU replay of SDFRectangle.fx's SampleVersion pass (rounded-rect SDF, ±√2/2 px smoothstep, linear
+    // sampling), since FNA cannot load SUI's compiled effect here.
+    public static class SDFRectangle
+    {
+        private static SpriteBatch _batch;
+        // CPU replays of the NoBorder / HasBorder / Shadow passes (same distance field and smoothstep).
+        public static void DrawWithoutBorder(Vector2 position, Vector2 size, Vector4 borderRadius, Color background, Matrix matrix)
+            => Fill(position, size, borderRadius, matrix, d => Vector4.Lerp(background.ToVector4(), Vector4.Zero, Step(-.7071f, .7071f, d)));
+        public static void DrawWithBorder(Vector2 position, Vector2 size, Vector4 borderRadius, Color background, float border,
+            Color borderColor, Matrix matrix)
+        {
+            float b = border * matrix.M11;
+            Fill(position, size, borderRadius, matrix, d => Vector4.Lerp(
+                Vector4.Lerp(background.ToVector4(), borderColor.ToVector4(), Step(-.7071f, .7071f, d + b)), Vector4.Zero, Step(-.7071f, .7071f, d)));
+        }
+        public static void DrawShadow(Vector2 position, Vector2 size, Vector4 borderRadius, Color background, float blur, Matrix matrix)
+        {
+            float b = blur * matrix.M11;
+            Fill(position, size, borderRadius, matrix, d => Vector4.Lerp(background.ToVector4(), Vector4.Zero, Step(-.7071f - b, .7071f, d)));
+        }
+        private static float Step(float from, float to, float x)
+        {
+            float t = Math.Clamp((x - from) / (to - from), 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+        private static void Fill(Vector2 position, Vector2 size, Vector4 borderRadius, Matrix matrix, Func<float, Vector4> shade)
+        {
+            var device = Terraria.GameContent.TextureAssets.MagicPixel.Value.GraphicsDevice;
+            position = Vector2.Transform(position, matrix); size *= matrix.M11;
+            float radius = borderRadius.X * matrix.M11;
+            int left = (int)MathF.Floor(position.X) - 1, top = (int)MathF.Floor(position.Y) - 1;
+            int width = (int)MathF.Ceiling(position.X + size.X) + 1 - left, height = (int)MathF.Ceiling(position.Y + size.Y) + 1 - top;
+            if (width <= 0 || height <= 0) return;
+            var pixels = new Color[width * height];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                Vector2 local = new Vector2(left + x + .5f, top + y + .5f) - position;
+                float qx = Math.Abs(local.X - size.X / 2) - size.X / 2 + radius, qy = Math.Abs(local.Y - size.Y / 2) - size.Y / 2 + radius;
+                float distance = Math.Min(Math.Max(qx, qy), 0) + new Vector2(Math.Max(qx, 0), Math.Max(qy, 0)).Length() - radius;
+                pixels[y * width + x] = new Color(shade(distance));
+            }
+            using var masked = new Texture2D(device, width, height);
+            masked.SetData(pixels);
+            _batch ??= new SpriteBatch(device);
+            _batch.Begin(SpriteSortMode.Immediate, device.BlendState, SamplerState.PointClamp, device.DepthStencilState, device.RasterizerState);
+            _batch.Draw(masked, new Vector2(left, top), Color.White);
+            _batch.End();
+        }
+        public static void SampleVersion(Texture2D texture, Vector2 position, Vector2 size, Vector2 uv, Vector2 uvSize,
+            Vector4 borderRadius, Color color, Matrix matrix)
+        {
+            var device = texture.GraphicsDevice;
+            position = Vector2.Transform(position, matrix); size *= matrix.M11;
+            float radius = borderRadius.X * matrix.M11;
+            int left = (int)MathF.Floor(position.X), top = (int)MathF.Floor(position.Y);
+            int width = (int)MathF.Ceiling(position.X + size.X) - left, height = (int)MathF.Ceiling(position.Y + size.Y) - top;
+            var source = new Color[texture.Width * texture.Height]; texture.GetData(source);
+            Vector4 Texel(int x, int y) => source[Math.Clamp(y, 0, texture.Height - 1) * texture.Width + Math.Clamp(x, 0, texture.Width - 1)].ToVector4();
+            var pixels = new Color[width * height];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                Vector2 local = new Vector2(left + x + .5f, top + y + .5f) - position;
+                if (local.X < 0 || local.Y < 0 || local.X > size.X || local.Y > size.Y) continue;
+                float qx = Math.Abs(local.X - size.X / 2) - size.X / 2 + radius, qy = Math.Abs(local.Y - size.Y / 2) - size.Y / 2 + radius;
+                float distance = Math.Min(Math.Max(qx, qy), 0) + new Vector2(Math.Max(qx, 0), Math.Max(qy, 0)).Length() - radius;
+                float t = Math.Clamp((distance + .7071f) / 1.4142f, 0, 1), coverage = 1 - t * t * (3 - 2 * t);
+                if (coverage <= 0) continue;
+                float sx = (uv.X + local.X / size.X * uvSize.X) * texture.Width - .5f, sy = (uv.Y + local.Y / size.Y * uvSize.Y) * texture.Height - .5f;
+                int x0 = (int)MathF.Floor(sx), y0 = (int)MathF.Floor(sy);
+                float fx = sx - x0, fy = sy - y0;
+                Vector4 sample = Vector4.Lerp(Vector4.Lerp(Texel(x0, y0), Texel(x0 + 1, y0), fx),
+                    Vector4.Lerp(Texel(x0, y0 + 1), Texel(x0 + 1, y0 + 1), fx), fy);
+                pixels[y * width + x] = new Color(sample * coverage);
+            }
+            using var masked = new Texture2D(device, width, height);
+            masked.SetData(pixels);
+            _batch ??= new SpriteBatch(device);
+            _batch.Begin(SpriteSortMode.Immediate, device.BlendState, SamplerState.PointClamp, device.DepthStencilState, device.RasterizerState);
+            _batch.Draw(masked, new Vector2(left, top), color);
+            _batch.End();
+        }
+    }
+}
 namespace SilkyUIFramework.Components
 {
     public class CursorSnippet : Terraria.UI.Chat.TextSnippet { public DynamicSpriteFont Font; public float TrueHeight; }

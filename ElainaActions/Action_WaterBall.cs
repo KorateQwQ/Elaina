@@ -16,7 +16,9 @@ public sealed class Action_WaterBall : ElainaAction
     private bool freezeAimRotation;
     private int actionToken;
 
-    public Action_WaterBall(int damage = 10) : base(HoldFrame + RecoveryFrame + 1)
+    public Action_WaterBall() : this(10) { }
+
+    public Action_WaterBall(int damage) : base(HoldFrame + RecoveryFrame + 1)
     {
         AddNode(new ShootActionNode(
             1,

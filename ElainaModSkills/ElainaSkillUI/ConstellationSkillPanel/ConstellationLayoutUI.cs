@@ -42,13 +42,13 @@ public sealed partial class ConstellationSkillPanel
     private void InitializeLayoutEditor()
     {
 #if DEBUG
-        Button(new Rectangle(566, 741, 92, 40), () =>
+        Button(ToolButton("edit", false), () =>
         {
             if (Editing) { CancelLayoutEdit(); return; }
             StopDragging();
             _layoutEditor.Begin();
         }, h => DrawLayoutButton("edit", h), "调整技能图标的位置");
-        Button(new Rectangle(667, 741, 70, 40), () =>
+        Button(ToolButton("save", true), () =>
         {
             if (!Editing) return;
             StopDragging();
@@ -59,9 +59,9 @@ public sealed partial class ConstellationSkillPanel
                 ModContent.GetInstance<global::伊蕾娜.伊蕾娜>().Logger.Warn($"保存星图布局失败：{LayoutFilePath}: {error}");
             }
         }, h => DrawLayoutButton("save", h), "保存到 " + LayoutFilePath, () => Editing);
-        Button(new Rectangle(746, 741, 70, 40), CancelLayoutEdit,
+        Button(ToolButton("cancel", true), CancelLayoutEdit,
             h => DrawLayoutButton("cancel", h), "放弃本次位置修改", () => Editing);
-        Button(new Rectangle(825, 741, 116, 40), () =>
+        Button(ToolButton("reset", true), () =>
         {
             if (!Editing) return;
             StopDragging();
@@ -69,13 +69,13 @@ public sealed partial class ConstellationSkillPanel
             Recenter();
             Notify("已恢复默认位置，点击保存后生效");
         }, h => DrawLayoutButton("reset", h), "恢复模组默认布局，可取消；保存后才覆盖本地布局", () => Editing);
-        Button(new Rectangle(667, 741, 70, 40), () =>
+        Button(ToolButton("points", false), () =>
         {
             if (Editing || !_state.DebugGrantStudyPoints()) return;
             InvalidateDetail(false);
             Notify("研习点已增加，当前 " + _state.Points);
         }, h => DrawDebugButton("points", h), "获得100研习点", () => !Editing);
-        Button(new Rectangle(746, 741, 48, 40), () =>
+        Button(ToolButton("level", false), () =>
         {
             if (Editing) return;
             var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
@@ -86,7 +86,7 @@ public sealed partial class ConstellationSkillPanel
             }
             Notify($"角色等级提升至 Lv. {playerState.GetLevel()}");
         }, h => DrawDebugButton("level", h), "提升角色当前等级", () => !Editing);
-        Button(new Rectangle(799, 741, 76, 40), () =>
+        Button(ToolButton("cap", false), () =>
         {
             if (Editing) return;
             var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
@@ -98,7 +98,7 @@ public sealed partial class ConstellationSkillPanel
             Notify($"角色进度推进至 {bossName} · Progress {bossState:0.##} · 等级上限 Lv. {playerState.GetMaxLevel()}");
         }, h => DrawDebugButton("cap", h), visible: () => !Editing,
             dynamicTooltip: () => Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().DebugGetNextBossTooltip());
-        Button(new Rectangle(880, 741, 61, 40), () =>
+        Button(ToolButton("reset-skills", false), () =>
         {
             if (Editing) return;
             StopDragging();
@@ -124,16 +124,18 @@ public sealed partial class ConstellationSkillPanel
     {
 #if DEBUG
         if (kind != "edit" && !Editing) return;
-        float x = kind switch { "edit" => 566, "save" => 667, "cancel" => 746, _ => 825 };
-        float width = kind switch { "edit" => 92, "reset" => 116, _ => 70 };
+        if (kind == "edit")
+        {
+            // The tools are debug-only; a faint caption says so.
+            _draw.Spark(new Vector2(529.5f, 744.5f), 7, Faint);
+            _draw.Text("调试", 537, 739, 8.5f, Faint, spacing: 2);
+        }
         string label = kind switch
         {
             "edit" => Editing ? "编辑中" : "编辑模式", "save" => "保存", "cancel" => "取消", _ => "恢复默认"
         };
-        Color color = kind == "save" || Editing && kind == "edit" ? Gold : Muted;
-        _draw.Box(x, 746, width, 30, color * (hover ? .13f : .045f));
-        _draw.Frame(x, 746, width, 30, color * (hover ? .7f : .32f));
-        _draw.Text(label, x + width / 2, 755, 11, hover ? Ink : color, .5f);
+        var area = ToolButton(kind, kind != "edit");
+        _draw.GhostButton(area.X, area.Y + 2, area.Width, label, hover, kind == "edit" && Editing);
 #endif
     }
 
@@ -141,25 +143,9 @@ public sealed partial class ConstellationSkillPanel
     {
 #if DEBUG
         if (Editing) return;
-        float x = kind switch { "points" => 667, "level" => 746, "cap" => 799, _ => 880 };
-        float width = kind switch { "points" => 70, "level" => 48, "cap" => 76, _ => 61 };
-        Color color = kind switch
-        {
-            "points" => Gold,
-            "level" => new Color(191, 220, 201),
-            "cap" => new Color(224, 194, 153),
-            _ => new Color(214, 177, 155)
-        };
-        _draw.Box(x, 746, width, 30, color * (hover ? .13f : .045f));
-        _draw.Frame(x, 746, width, 30, color * (hover ? .7f : .32f));
-        string label = kind switch
-        {
-            "points" => "研习点",
-            "level" => "升级",
-            "cap" => "上限+",
-            _ => "重置"
-        };
-        _draw.Text(label, x + width / 2, 755, 10, hover ? Ink : color, .5f);
+        string label = kind switch { "points" => "研习点", "level" => "升级", "cap" => "上限+", _ => "重置" };
+        var area = ToolButton(kind, false);
+        _draw.GhostButton(area.X, area.Y + 2, area.Width, label, hover);
 #endif
     }
 
