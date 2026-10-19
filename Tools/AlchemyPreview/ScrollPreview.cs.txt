@@ -1,0 +1,101 @@
+using 伊蕾娜.ElainaModAlchemy.UI;
+using P = 伊蕾娜.ElainaModAlchemy.UI.AlchemyNotebookPresentation;
+
+internal static class AlchemyScrollPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        string directory = Path.Combine(output, "scroll-frames");
+        Directory.CreateDirectory(directory);
+        CheckMotion(Path.Combine(directory, "checks.txt"));
+        foreach (var (width, height, scale) in new[] { (1280, 720, 1f), (1600, 1000, 1.25f) })
+        foreach (bool bottom in new[] { false, true })
+        foreach (bool wheel in new[] { false, true })
+        {
+            var catalog = new AlchemyScrollMotion();
+            catalog.SetRange(AlchemyCatalogLayout.HeightFor("all") - P.CatalogHeight);
+            var state = new AlchemyNotebookState(new NotebookFixture("all"));
+            var drawing = new AlchemyDrawing { Batch = batch, Scale = 1 };
+            var detail = new AlchemyScrollMotion();
+            detail.SetRange(P.DetailRows(drawing, state).Sum(r => r.Height) - P.DetailHeight);
+            catalog.Reset(bottom ? catalog.Maximum : 0);
+            detail.Reset(bottom ? detail.Maximum : 0);
+            foreach (var motion in new[] { catalog, detail })
+            {
+                if (wheel) motion.Wheel(bottom ? 120 : -120);
+                else { motion.BeginDrag(0, true); motion.DragTo(bottom ? -160 : 160); }
+            }
+            using var target = new RenderTarget2D(device, width, height);
+            for (int frame = 0; frame <= 60; frame++)
+            {
+                if (frame == 6 && !wheel) { catalog.EndDrag(); detail.EndDrag(); }
+                catalog.Advance(1f / 60); detail.Advance(1f / 60);
+                if (frame is not (0 or 6 or 12 or 24 or 60)) continue;
+                device.SetRenderTarget(target);
+                device.Clear(new Color(20, 21, 28));
+                AlchemyPreviewGame.Render(batch, width, height, scale, "all",
+                    scrollOffset: catalog.Position, detailScrollOffset: detail.Position);
+                device.SetRenderTarget(null);
+                string name = $"{(wheel ? "wheel" : "drag")}-{(bottom ? "bottom" : "top")}-{width}-{frame:000}.png";
+                using var stream = File.Create(Path.Combine(directory, name));
+                target.SaveAsPng(stream, width, height);
+            }
+        }
+        Console.WriteLine(directory);
+    }
+
+    private static void CheckMotion(string path)
+    {
+        var checks = new List<string>();
+        void Check(bool ok, string name)
+        {
+            if (!ok) throw new InvalidOperationException(name);
+            checks.Add("PASS " + name);
+        }
+        foreach (int fps in new[] { 30, 60, 144 })
+        foreach (bool bottom in new[] { false, true })
+        {
+            var m = new AlchemyScrollMotion(); m.SetRange(500);
+            float edge = bottom ? 500 : 0;
+            void Settle() { for (int i = 0; i < fps * 2; i++) m.Advance(1f / fps); }
+            m.Reset(edge); m.BeginDrag(100, false); m.DragTo(-500);
+            Check(m.Position == edge && !m.Dragging, $"{fps}/{bottom}: item press cannot drag");
+            m.BeginDrag(100, true); m.DragTo(102);
+            Check(m.Position == edge && !m.DidDrag, $"{fps}/{bottom}: click jitter ignored");
+            m.DragTo(bottom ? -1000 : 1000);
+            Check(bottom ? m.Position > 500 && m.Position < 532 : m.Position < 0 && m.Position > -32,
+                $"{fps}/{bottom}: drag has bounded elastic displacement");
+            float held = m.Position; Settle();
+            Check(m.Position == held, $"{fps}/{bottom}: held drag does not spring early");
+            m.EndDrag(); Settle();
+            Check(m.Position == edge && m.DidDrag, $"{fps}/{bottom}: release settles and suppresses click");
+            m.Wheel(bottom ? 120 : -120);
+            for (int i = 0; i < fps / 10; i++) m.Advance(1f / fps);
+            Check(bottom ? m.Position > 500 : m.Position < 0, $"{fps}/{bottom}: wheel visibly passes edge");
+            Settle(); Check(m.Position == edge, $"{fps}/{bottom}: wheel returns exactly to edge");
+            bool bounded = true;
+            for (int i = 0; i < fps; i++)
+            {
+                m.Wheel(bottom ? 120 : -120); m.Advance(1f / fps);
+                bounded &= m.Position >= -32 && m.Position <= 532;
+            }
+            Check(bounded, $"{fps}/{bottom}: repeated wheel stays bounded for one second");
+            float displaced = m.Position;
+            m.BeginDrag(100, true); m.DragTo(105); m.DragTo(100);
+            Check(Math.Abs(m.Position - displaced) < .01f, $"{fps}/{bottom}: grabbing displaced page does not jump");
+            m.EndDrag();
+            m.Wheel(bottom ? -120 : 120); Settle();
+            Check(m.Position > 0 && m.Position < 500, $"{fps}/{bottom}: reversing wheel moves back into content");
+            float before = m.Position; m.SetRange(500);
+            Check(m.Position == before, $"{fps}/{bottom}: inventory refresh preserves offset");
+            m.Reveal(400); Settle(); Check(m.Position == 400, $"{fps}/{bottom}: selection reveal settles");
+            m.SetRange(50); Check(m.Position == 50, $"{fps}/{bottom}: shrinking content clamps");
+            m.BeginDrag(100, true); m.DragTo(-900); m.Reset(m.Position);
+            Check(!m.Dragging && m.Position == 50, $"{fps}/{bottom}: focus/scale/close cancellation settles");
+            m.SetRange(0); m.Wheel(120); m.BeginDrag(0, true); m.DragTo(-100); Settle();
+            Check(m.Position == 0 && !m.Dragging, $"{fps}/{bottom}: short pages remain stable");
+        }
+        File.WriteAllLines(path, checks);
+        Console.WriteLine($"{checks.Count} scroll motion checks passed.");
+    }
+}
