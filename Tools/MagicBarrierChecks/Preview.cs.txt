@@ -1,0 +1,154 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Content;
+using SDL2;
+
+try { using var game = new Probe(args[0], args[1]); game.Run(); }
+catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
+
+sealed class Probe : Game
+{
+    readonly string root, output;
+    Type replay;
+    bool done;
+    const int Size = 192;
+    public Probe(string root, string output)
+    {
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Size, PreferredBackBufferHeight = Size,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        var source = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root,
+            "ElainaModSkills/Skills/MagicBarrier/MagicBarrierProj.cs"))).GetRoot();
+        var original = source.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+        var methods = new HashSet<string> { "AI", "RefreshLifetime", "DrawBarrier", "CreateWorldMatrix", "DrawSphere" };
+        var members = original.Members.Where(m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax
+            || m is MethodDeclarationSyntax method && methods.Contains(method.Identifier.Text));
+        string replaySource = """
+        using System;
+        using Microsoft.Xna.Framework;
+        using Microsoft.Xna.Framework.Graphics;
+        using KL.Drawing.ThreeD;
+        using Terraria;
+        public class BarrierReplay : ReplayBase {
+        """ + string.Join("\n", members.Select(m => m.ToFullString())) + """
+            public void Setup(Game game, Effect effect, Texture2D noise, Texture2D dissolve, string obj) {
+                Main.instance = game; Main.graphics = new GraphicsHolder { GraphicsDevice = game.GraphicsDevice };
+                sphere = ObjLoader.Parse(obj, Color.White); barrierEffect = effect;
+                flowNoise = noise; cellNoise = noise; dissolveNoise = dissolve;
+                dissolveOffset = new Vector2(.41f, -.72f);
+                Projectile.timeLeft = DisplayDuration;
+            }
+            public void Refresh(bool continuous) => RefreshLifetime(continuous);
+            public void Step() { VisualTime++; AI(); }
+            public void FinishTick() { Projectile.timeLeft--; }
+            public void Render() { if (Projectile.timeLeft > 0) DrawBarrier(0); }
+            public int Remaining => Projectile.timeLeft;
+            public float Fade => visualFadeProgress;
+        }
+        public class Body { public Vector2 Center; public float[] localAI = new float[3]; public int timeLeft; public bool netUpdate; }
+        public class OwnerBody { public Vector2 VisualCenter() => new Vector2(96, 96); }
+        public class ReplayBase {
+            public Body Projectile = new(); public OwnerBody Owner = new(); public int VisualTime;
+            public virtual void AI() { }
+        }
+        namespace Terraria {
+            public class GraphicsHolder { public GraphicsDevice GraphicsDevice; }
+            public class LocalPlayerBody { public int gravDir = 1; }
+            public static class Main {
+                public static Game instance; public static GraphicsHolder graphics;
+                public static int screenWidth = 192, screenHeight = 192;
+                public static Vector2 screenPosition = Vector2.Zero;
+                public static Matrix Transform = Matrix.Identity;
+                public static LocalPlayerBody LocalPlayer = new();
+            }
+        }
+        """;
+        File.WriteAllText(Path.Combine(output, "barrier-replay.cs.txt"), replaySource);
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL/Drawing/ThreeD"));
+        // Preserve the real model parser, vertex format, camera, and vertex-buffer upload.
+        string Filter(string file, params string[] excluded)
+        {
+            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, file))).GetRoot();
+            var removals = tree.DescendantNodes().Where(n =>
+                n is MethodDeclarationSyntax method && excluded.Contains(method.Identifier.Text)
+                || n is UsingDirectiveSyntax use && use.Name.ToString() == "Terraria.ModLoader").ToArray();
+            return tree.RemoveNodes(removals, SyntaxRemoveOptions.KeepNoTrivia).ToFullString();
+        }
+        var sources = new[] { replaySource,
+            Filter("ObjModel.cs", "Load", "GetOrCreateVertexBufferOnMainThread"),
+            Filter("ObjLoader.cs", "Load", "CombineAssetPath", "ResolveAssetPath", "NormalizeAssetPath"),
+            File.ReadAllText(Path.Combine(kl, "Vertex3D.cs")),
+            File.ReadAllText(Path.Combine(kl, "GraphicsUtils.cs")) };
+        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("BarrierReplay", sources.Select(s => CSharpSyntaxTree.ParseText(s)), refs,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        replay = Assembly.Load(bytes.ToArray()).GetType("BarrierReplay");
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) { Exit(); return; } done = true;
+        using var content = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        var effect = content.Load<Effect>("ThreeD/MagicBarrier3D");
+        using var noiseStream = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Noise/1.png"));
+        using var noise = Texture2D.FromStream(GraphicsDevice, noiseStream);
+        using var dissolveStream = File.OpenRead(Path.Combine(root, "../KL/Effects/Tex/Noise/Eff_Noise_105.png"));
+        using var dissolve = Texture2D.FromStream(GraphicsDevice, dissolveStream);
+        string obj = File.ReadAllText(Path.Combine(root, "../KL/Models/Sphere.obj"));
+        using var target = new RenderTarget2D(GraphicsDevice, Size, Size, false, SurfaceFormat.Color, DepthFormat.None);
+        var scenes = new[] {
+            (Name: "sustained-regen", Frames: new[] { 1, 12, 48, 120, 179, 190, 216, 232, 240 }),
+            (Name: "repeated-hits", Frames: new[] { 1, 12, 35, 36, 37, 90, 162, 200, 225 }),
+            (Name: "renew-during-fade", Frames: new[] { 1, 12, 48, 49, 50, 51, 56, 62, 110 }) };
+        using var manifest = new StreamWriter(Path.Combine(output, "frames.csv"));
+        manifest.WriteLine("scene,tick,remaining,fade,file");
+        foreach (var scene in scenes)
+        {
+            object instance = Activator.CreateInstance(replay);
+            replay.GetMethod("Setup").Invoke(instance, new object[] { this, effect, noise, dissolve, obj });
+            var step = replay.GetMethod("Step").CreateDelegate<Action>(instance);
+            var finish = replay.GetMethod("FinishTick").CreateDelegate<Action>(instance);
+            var refresh = replay.GetMethod("Refresh").CreateDelegate<Action<bool>>(instance);
+            var render = replay.GetMethod("Render").CreateDelegate<Action>(instance);
+            for (int tick = 0; tick <= scene.Frames.Max(); tick++)
+            {
+                if (scene.Name == "sustained-regen" && tick < 180) refresh(true);
+                if (scene.Name == "repeated-hits" && tick <= 162 && tick % 18 == 0) refresh(false);
+                if (scene.Name == "renew-during-fade" && tick == 50) refresh(false);
+                step();
+                if (scene.Frames.Contains(tick))
+                {
+                    GraphicsDevice.SetRenderTarget(target);
+                    GraphicsDevice.Clear(new Color(22, 34, 49));
+                    render();
+                    GraphicsDevice.SetRenderTarget(null);
+                    string name = $"{scene.Name}-{tick:000}.png";
+                    using var file = File.Create(Path.Combine(output, name));
+                    target.SaveAsPng(file, Size, Size);
+                    manifest.WriteLine($"{scene.Name},{tick},{replay.GetProperty("Remaining").GetValue(instance)},{replay.GetProperty("Fade").GetValue(instance)},{name}");
+                }
+                finish();
+            }
+        }
+        Console.WriteLine("FNA preview: 27 frames rendered from current projectile AI, refresh and drawing methods, with live shader/model/noise assets.");
+        Exit();
+    }
+}
