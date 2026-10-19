@@ -1,5 +1,22 @@
 # Battle skill bar preview
 
+## Seal state (2026-10-19)
+
+`SkillBarDrawing.DrawSealState` ports the four corner tethers, central diamond/keyhole,
+denied shake, and 0.7-second release animation from `Tools/SkillBarSealPreview/index.html`.
+The HTML reference is read-only and remains user-owned. There is no release floating text.
+`ElainaSealedSkill` supplies transient gameplay state; rendering cannot grant a release.
+`SkillSeal.fx` preserves the existing cooldown sector and adds the reference's lavender
+grayscale tone. The shared KL shader is unchanged.
+
+Recompile only this shader with `pwsh -File Tools/SkillBarPreview/compile-seal.ps1`.
+`run.ps1` loads the resulting real XNB and the current shared drawing source. Additional
+`seal-states-dark-*` and `seal-states-day-*` outputs cover sealed-ready, sealed-cooling,
+denied, release at 0.06/0.25/0.50 seconds, unsealed-cooling, and unsealed-ready at 100/150%.
+The English captions are fixture labels, not in-game floating text. The wheel preview
+also covers a sealed skill and its center display. Actual mouse routing and live network
+sockets are not exercised by these visual fixtures.
+
 The live SUI bar uses `ElainaSkillBar.cs`, `ElainaSkillSlot.cs`, and `ElainaSkillIcon.cs`.
 `SkillBarDrawing.cs` is linked directly into the offline FNA host; it is not a copy.
 The reference is `ElainaModSkills/ElainaSkillUI/NewUIExample/elaina-battle-eight-skills.html`.

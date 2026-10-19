@@ -1,0 +1,7902 @@
+{
+  "date": "2026-10-19",
+  "sourceSHA256": "51a23d92dd6c8958fc8fad8ef90ab7740c69af8198413ee6fa15d42b3cc56dba",
+  "waterBallK": 1.5,
+  "assumptions": [
+    "All scenarios use proposed freeze-to-charge lock availability, not current runtime cooldowns.",
+    "Current profile: saved ice cost15/buildup2.8; proposed profile: cost22.5/buildup5.6. Damage ratio swept independently.",
+    "Same saved stage7/8/13 loadouts, levels35/40/65, capped skill levels; lock unavailable before hardmode.",
+    "Single zero-defense persistent target, all hits land, expected crit, no armor procs; five50%-mana elixirs, no life conversion.",
+    "Cycle means ice for buildup, water otherwise; cycleFrozenIce also uses ice during the4-second freeze.",
+    "iceOnly never casts active skills; iceLock skips both water skills; iceBallLock skips only water beam.",
+    "These are representative fixed strategies, not a search for the global optimum. Scarcity may delay or skip expensive skills.",
+    "Short-fight results depend on the phase at which the fight ends. No boss HP, movement, defense or phase invulnerability is modeled.",
+    "See run.cjs and REPORT.md for timing, resource, and freeze assumptions."
+  ],
+  "rows": [
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 465.7245185185186,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 91,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 397.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 489.9693333333336,
+          "potions": 0,
+          "casts": {
+            "ice": 18,
+            "water": 68,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 421.0800000000011,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 421.0800000000011,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 536.8366666666676,
+          "potions": 0,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 158.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 463.6271851851846,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 360,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 245.7366666665888,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 487.8720000000006,
+          "potions": 2,
+          "casts": {
+            "ice": 72,
+            "water": 268,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 293.73666666660785,
+          "idleSeconds": 0,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 421.07999999999646,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 421.07999999999646,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 539.4684166666643,
+          "potions": 4,
+          "casts": {
+            "ice": 146,
+            "water": 0,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 125.73666666661072,
+          "idleSeconds": 0,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 463.2077185185155,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 898,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 212.7366666664858,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 479.55123333332904,
+          "potions": 5,
+          "casts": {
+            "ice": 178,
+            "water": 678,
+            "ball": 19,
+            "lock": 0
+          },
+          "endMana": 92.7366666665287,
+          "idleSeconds": 1.0333333333333334,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 421.0800000000049,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceLock": {
+          "dps": 421.0800000000049,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceBallLock": {
+          "dps": 437.9030333333359,
+          "potions": 5,
+          "casts": {
+            "ice": 341,
+            "water": 0,
+            "ball": 10,
+            "lock": 0
+          },
+          "endMana": 14.73666666660217,
+          "idleSeconds": 30.583333333333332,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1273.4088888888887,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 447.206666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1309.5480000000002,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 400.7066666666968,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 756.3999999999992,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 557.7066666665958,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1184.0506666666658,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 472.7066666666612,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1392.752,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 217.7066666666739,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1269.626888888886,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 220.70666666671528,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1305.765999999997,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 349.70666666670286,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 756.4000000000035,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 341.7066666666352,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 970.2253333333366,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 171.7066666666915,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1183.6541666666678,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 126.70666666667586,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1268.8704888888926,
+          "potions": 5,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 397.7066666667304,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1293.8181333333366,
+          "potions": 5,
+          "casts": {
+            "ice": 171,
+            "water": 671,
+            "ball": 19,
+            "lock": 10
+          },
+          "endMana": 63.206666666738386,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 756.4000000000153,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 224.7066666666599,
+          "idleSeconds": 0,
+          "firstPotion": 256.5
+        },
+        "iceLock": {
+          "dps": 927.4602666666816,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 199.70666666668953,
+          "idleSeconds": 0,
+          "firstPotion": 154.5
+        },
+        "iceBallLock": {
+          "dps": 981.551000000013,
+          "potions": 5,
+          "casts": {
+            "ice": 358,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 14.706666666673506,
+          "idleSeconds": 12.85,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4045.108666666668,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 463.2033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4160.100000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 416.7033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 2404.0799999999963,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 573.703333333257,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3762.3599999999956,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 488.7033333333042,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4425.119999999995,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 233.7033333333425,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4033.0966666666677,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 259.703333333365,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4148.088000000003,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 393.7033333333609,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 2404.07999999999,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 375.70333333325016,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3083.2199999999893,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 205.7033333333374,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 3761.0054999999847,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 175.70333333332547,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.2,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4030.6942666666473,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 172.7033333333817,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4145.685599999986,
+          "potions": 5,
+          "casts": {
+            "ice": 170,
+            "water": 668,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 27.703333333355218,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 2404.080000000041,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 299.70333333325965,
+          "idleSeconds": 0,
+          "firstPotion": 284.25
+        },
+        "iceLock": {
+          "dps": 2947.39200000004,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 279.7033333333378,
+          "idleSeconds": 0,
+          "firstPotion": 168.75
+        },
+        "iceBallLock": {
+          "dps": 3155.128200000034,
+          "potions": 5,
+          "casts": {
+            "ice": 365,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 4.703333333328642,
+          "idleSeconds": 8.083333333333334,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 475.88851851851854,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 91,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 397.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 505.2153333333332,
+          "potions": 0,
+          "casts": {
+            "ice": 18,
+            "water": 68,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 454.9599999999993,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 454.9599999999993,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 567.3286666666661,
+          "potions": 0,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 158.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 473.79118518518396,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 360,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 245.7366666665888,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 503.11800000000073,
+          "potions": 2,
+          "casts": {
+            "ice": 72,
+            "water": 268,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 293.73666666660785,
+          "idleSeconds": 0,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 454.95999999999844,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 454.95999999999844,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 570.1721666666658,
+          "potions": 4,
+          "casts": {
+            "ice": 146,
+            "water": 0,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 125.73666666661072,
+          "idleSeconds": 0,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 473.3717185185157,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 898,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 212.7366666664858,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 494.62783333332993,
+          "potions": 5,
+          "casts": {
+            "ice": 178,
+            "water": 678,
+            "ball": 19,
+            "lock": 0
+          },
+          "endMana": 92.7366666665287,
+          "idleSeconds": 1.0333333333333334,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 454.96000000000726,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceLock": {
+          "dps": 454.96000000000726,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceBallLock": {
+          "dps": 466.78573333333986,
+          "potions": 5,
+          "casts": {
+            "ice": 341,
+            "water": 0,
+            "ball": 10,
+            "lock": 0
+          },
+          "endMana": 14.73666666660217,
+          "idleSeconds": 30.583333333333332,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1292.4408888888886,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 447.206666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1336.5099999999995,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 400.7066666666968,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 819.8399999999978,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 557.7066666665958,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1245.9046666666645,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 472.7066666666612,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1448.2619999999981,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 217.7066666666739,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1288.658888888886,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 220.70666666671528,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1332.7279999999969,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 349.70666666670286,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 819.8400000000066,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 341.7066666666352,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1032.8723333333396,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 171.7066666666915,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1240.3536666666705,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 126.70666666667586,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1287.9024888888937,
+          "potions": 5,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 397.7066666667304,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1320.938733333338,
+          "potions": 5,
+          "casts": {
+            "ice": 171,
+            "water": 671,
+            "ball": 19,
+            "lock": 10
+          },
+          "endMana": 63.206666666738386,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 819.8399999999908,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 224.7066666666599,
+          "idleSeconds": 0,
+          "firstPotion": 256.5
+        },
+        "iceLock": {
+          "dps": 990.2658666666575,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 199.70666666668953,
+          "idleSeconds": 0,
+          "firstPotion": 154.5
+        },
+        "iceBallLock": {
+          "dps": 1038.3297999999943,
+          "potions": 5,
+          "casts": {
+            "ice": 358,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 14.706666666673506,
+          "idleSeconds": 12.85,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4105.5886666666665,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 463.2033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4245.779999999999,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 416.7033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 2605.6799999999944,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 573.703333333257,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3958.919999999994,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 488.7033333333042,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4601.519999999995,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 233.7033333333425,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4093.5766666666664,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 259.703333333365,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4233.767999999999,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 393.7033333333609,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 2605.6800000000085,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 375.70333333325016,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3282.3000000000097,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 205.7033333333374,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 3941.1855000000155,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 175.70333333332547,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.3,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4091.174266666657,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 172.7033333333817,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4231.36559999999,
+          "potions": 5,
+          "casts": {
+            "ice": 170,
+            "water": 668,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 27.703333333355218,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 2605.680000000041,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 299.70333333325965,
+          "idleSeconds": 0,
+          "firstPotion": 284.25
+        },
+        "iceLock": {
+          "dps": 3146.9760000000397,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 279.7033333333378,
+          "idleSeconds": 0,
+          "firstPotion": 168.75
+        },
+        "iceBallLock": {
+          "dps": 3338.584200000026,
+          "potions": 5,
+          "casts": {
+            "ice": 365,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 4.703333333328642,
+          "idleSeconds": 8.083333333333334,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 486.05251851851864,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 91,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 397.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 520.4613333333334,
+          "potions": 0,
+          "casts": {
+            "ice": 18,
+            "water": 68,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 488.8399999999985,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 488.8399999999985,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 597.8206666666655,
+          "potions": 0,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 158.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 483.95518518518367,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 360,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 245.7366666665888,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 518.363999999999,
+          "potions": 2,
+          "casts": {
+            "ice": 72,
+            "water": 268,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 293.73666666660785,
+          "idleSeconds": 0,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 488.8399999999971,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 488.8399999999971,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 600.875916666664,
+          "potions": 4,
+          "casts": {
+            "ice": 146,
+            "water": 0,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 125.73666666661072,
+          "idleSeconds": 0,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 483.5357185185148,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 898,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 212.7366666664858,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 509.7044333333297,
+          "potions": 5,
+          "casts": {
+            "ice": 178,
+            "water": 678,
+            "ball": 19,
+            "lock": 0
+          },
+          "endMana": 92.7366666665287,
+          "idleSeconds": 1.0333333333333334,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 488.84000000000657,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceLock": {
+          "dps": 488.84000000000657,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceBallLock": {
+          "dps": 495.66843333334236,
+          "potions": 5,
+          "casts": {
+            "ice": 341,
+            "water": 0,
+            "ball": 10,
+            "lock": 0
+          },
+          "endMana": 14.73666666660217,
+          "idleSeconds": 30.583333333333332,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1311.4728888888885,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 447.206666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1363.472,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 400.7066666666968,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 883.2799999999991,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 557.7066666665958,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1307.7586666666657,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 472.7066666666612,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1503.7719999999993,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 217.7066666666739,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1307.6908888888865,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 220.70666666671528,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1359.689999999998,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 349.70666666670286,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 883.28000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 341.7066666666352,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1095.5193333333432,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 171.7066666666915,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1297.0531666666736,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 126.70666666667586,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1306.9344888888947,
+          "potions": 5,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 397.7066666667304,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1348.0593333333393,
+          "potions": 5,
+          "casts": {
+            "ice": 171,
+            "water": 671,
+            "ball": 19,
+            "lock": 10
+          },
+          "endMana": 63.206666666738386,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 883.2800000000208,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 224.7066666666599,
+          "idleSeconds": 0,
+          "firstPotion": 256.5
+        },
+        "iceLock": {
+          "dps": 1053.071466666687,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 199.70666666668953,
+          "idleSeconds": 0,
+          "firstPotion": 154.5
+        },
+        "iceBallLock": {
+          "dps": 1095.108600000018,
+          "potions": 5,
+          "casts": {
+            "ice": 358,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 14.706666666673506,
+          "idleSeconds": 12.85,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4166.068666666668,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 463.2033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4331.460000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 416.7033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 2807.2800000000057,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 573.703333333257,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4155.480000000005,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 488.7033333333042,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4777.920000000002,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 233.7033333333425,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4154.056666666671,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 259.703333333365,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4319.448000000008,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 393.7033333333609,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 2807.280000000022,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 375.70333333325016,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3481.380000000022,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 205.7033333333374,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4121.365500000019,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 175.70333333332547,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.4,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4151.654266666657,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 172.7033333333817,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4317.045599999998,
+          "potions": 5,
+          "casts": {
+            "ice": 170,
+            "water": 668,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 27.703333333355218,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 2807.279999999938,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 299.70333333325965,
+          "idleSeconds": 0,
+          "firstPotion": 284.25
+        },
+        "iceLock": {
+          "dps": 3346.5599999999404,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 279.7033333333378,
+          "idleSeconds": 0,
+          "firstPotion": 168.75
+        },
+        "iceBallLock": {
+          "dps": 3522.040199999956,
+          "potions": 5,
+          "casts": {
+            "ice": 365,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 4.703333333328642,
+          "idleSeconds": 8.083333333333334,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 496.2165185185187,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 91,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 397.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 535.7073333333336,
+          "potions": 0,
+          "casts": {
+            "ice": 18,
+            "water": 68,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 522.7200000000008,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 522.7200000000008,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 628.3126666666673,
+          "potions": 0,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 158.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 494.11918518518445,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 360,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 245.7366666665888,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 533.6100000000005,
+          "potions": 2,
+          "casts": {
+            "ice": 72,
+            "water": 268,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 293.73666666660785,
+          "idleSeconds": 0,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 522.720000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 522.720000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 631.5796666666677,
+          "potions": 4,
+          "casts": {
+            "ice": 146,
+            "water": 0,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 125.73666666661072,
+          "idleSeconds": 0,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 493.6997185185158,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 898,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 212.7366666664858,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 524.7810333333306,
+          "potions": 5,
+          "casts": {
+            "ice": 178,
+            "water": 678,
+            "ball": 19,
+            "lock": 0
+          },
+          "endMana": 92.7366666665287,
+          "idleSeconds": 1.0333333333333334,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 522.7199999999842,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceLock": {
+          "dps": 522.7199999999842,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceBallLock": {
+          "dps": 524.5511333333217,
+          "potions": 5,
+          "casts": {
+            "ice": 341,
+            "water": 0,
+            "ball": 10,
+            "lock": 0
+          },
+          "endMana": 14.73666666660217,
+          "idleSeconds": 30.583333333333332,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1330.5048888888887,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 447.206666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1390.4340000000004,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 400.7066666666968,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 946.7200000000009,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 557.7066666665958,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1369.6126666666676,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 472.7066666666612,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1559.2820000000006,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 217.7066666666739,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1326.7228888888867,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 220.70666666671528,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1386.6519999999985,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 349.70666666670286,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 946.7199999999888,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 341.7066666666352,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1158.1663333333227,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 171.7066666666915,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1353.7526666666586,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 126.70666666667586,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1325.966488888892,
+          "potions": 5,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 397.7066666667304,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1375.1799333333295,
+          "potions": 5,
+          "casts": {
+            "ice": 171,
+            "water": 671,
+            "ball": 19,
+            "lock": 10
+          },
+          "endMana": 63.206666666738386,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 946.7199999999789,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 224.7066666666599,
+          "idleSeconds": 0,
+          "firstPotion": 256.5
+        },
+        "iceLock": {
+          "dps": 1115.8770666666458,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 199.70666666668953,
+          "idleSeconds": 0,
+          "firstPotion": 154.5
+        },
+        "iceBallLock": {
+          "dps": 1151.8873999999819,
+          "potions": 5,
+          "casts": {
+            "ice": 358,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 14.706666666673506,
+          "idleSeconds": 12.85,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4226.548666666668,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 463.2033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4417.140000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 416.7033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 3008.8800000000037,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 573.703333333257,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4352.040000000004,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 488.7033333333042,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4954.320000000003,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 233.7033333333425,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4214.53666666667,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 259.703333333365,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4405.128000000002,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 393.7033333333609,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 3008.879999999973,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 375.70333333325016,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3680.4599999999746,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 205.7033333333374,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4301.545499999985,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 175.70333333332547,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.5,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4212.1342666666515,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 172.7033333333817,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4402.725599999974,
+          "potions": 5,
+          "casts": {
+            "ice": 170,
+            "water": 668,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 27.703333333355218,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 3008.879999999922,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 299.70333333325965,
+          "idleSeconds": 0,
+          "firstPotion": 284.25
+        },
+        "iceLock": {
+          "dps": 3546.143999999923,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 279.7033333333378,
+          "idleSeconds": 0,
+          "firstPotion": 168.75
+        },
+        "iceBallLock": {
+          "dps": 3705.496199999932,
+          "potions": 5,
+          "casts": {
+            "ice": 365,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 4.703333333328642,
+          "idleSeconds": 8.083333333333334,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 528.1605185185188,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 91,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 397.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 583.6233333333336,
+          "potions": 0,
+          "casts": {
+            "ice": 18,
+            "water": 68,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 629.1999999999987,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 629.1999999999987,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 724.1446666666656,
+          "potions": 0,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 158.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 526.0631851851837,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 360,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 245.7366666665888,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 581.5259999999994,
+          "potions": 2,
+          "casts": {
+            "ice": 72,
+            "water": 268,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 293.73666666660785,
+          "idleSeconds": 0,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 629.2000000000057,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 629.2000000000057,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 728.0771666666712,
+          "potions": 4,
+          "casts": {
+            "ice": 146,
+            "water": 0,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 125.73666666661072,
+          "idleSeconds": 0,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 525.6437185185166,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 898,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 212.7366666664858,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 572.1646333333338,
+          "potions": 5,
+          "casts": {
+            "ice": 178,
+            "water": 678,
+            "ball": 19,
+            "lock": 0
+          },
+          "endMana": 92.7366666665287,
+          "idleSeconds": 1.0333333333333334,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 629.1999999999915,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceLock": {
+          "dps": 629.1999999999915,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceBallLock": {
+          "dps": 615.3253333333317,
+          "potions": 5,
+          "casts": {
+            "ice": 341,
+            "water": 0,
+            "ball": 10,
+            "lock": 0
+          },
+          "endMana": 14.73666666660217,
+          "idleSeconds": 30.583333333333332,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1387.600888888889,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 447.206666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1471.3200000000004,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 400.7066666666968,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 1137.0399999999975,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 557.7066666665958,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1555.1746666666638,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 472.7066666666612,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1725.8119999999979,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 217.7066666666739,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1383.8188888888865,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 220.70666666671528,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1467.537999999999,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 349.70666666670286,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 1137.0399999999927,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 341.7066666666352,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1346.1073333333256,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 171.7066666666915,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1523.8511666666593,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 126.70666666667586,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1383.0624888888917,
+          "potions": 5,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 397.7066666667304,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1456.5417333333326,
+          "potions": 5,
+          "casts": {
+            "ice": 171,
+            "water": 671,
+            "ball": 19,
+            "lock": 10
+          },
+          "endMana": 63.206666666738386,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 1137.0400000000193,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 224.7066666666599,
+          "idleSeconds": 0,
+          "firstPotion": 256.5
+        },
+        "iceLock": {
+          "dps": 1304.2938666666855,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 199.70666666668953,
+          "idleSeconds": 0,
+          "firstPotion": 154.5
+        },
+        "iceBallLock": {
+          "dps": 1322.2238000000157,
+          "potions": 5,
+          "casts": {
+            "ice": 358,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 14.706666666673506,
+          "idleSeconds": 12.85,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4406.476666666667,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 463.2033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4672.038000000002,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 416.7033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 3608.6400000000094,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 573.703333333257,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4936.80600000001,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 488.7033333333042,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 5479.110000000007,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 233.7033333333425,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4394.46466666667,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 259.703333333365,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4660.026000000007,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 393.7033333333609,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 3608.639999999967,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 375.70333333325016,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4272.722999999968,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 205.7033333333374,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4837.580999999978,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 175.70333333332547,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 1.8,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4392.062266666649,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 172.7033333333817,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4657.623599999973,
+          "potions": 5,
+          "casts": {
+            "ice": 170,
+            "water": 668,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 27.703333333355218,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 3608.6400000000313,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 299.70333333325965,
+          "idleSeconds": 0,
+          "firstPotion": 284.25
+        },
+        "iceLock": {
+          "dps": 4139.906400000034,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 279.7033333333378,
+          "idleSeconds": 0,
+          "firstPotion": 168.75
+        },
+        "iceBallLock": {
+          "dps": 4251.2778000000335,
+          "potions": 5,
+          "casts": {
+            "ice": 365,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 4.703333333328642,
+          "idleSeconds": 8.083333333333334,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 549.9405185185185,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 91,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 397.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 616.2933333333334,
+          "potions": 0,
+          "casts": {
+            "ice": 18,
+            "water": 68,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 701.8000000000015,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 701.8000000000015,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 413.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 789.4846666666679,
+          "potions": 0,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 158.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 547.8431851851848,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 360,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 245.7366666665888,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 614.1960000000001,
+          "potions": 2,
+          "casts": {
+            "ice": 72,
+            "water": 268,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 293.73666666660785,
+          "idleSeconds": 0,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 701.7999999999937,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 701.7999999999937,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 35.73666666659937,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 793.8709166666614,
+          "potions": 4,
+          "casts": {
+            "ice": 146,
+            "water": 0,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 125.73666666661072,
+          "idleSeconds": 0,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 547.4237185185142,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 898,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 212.7366666664858,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 604.4716333333279,
+          "potions": 5,
+          "casts": {
+            "ice": 178,
+            "water": 678,
+            "ball": 19,
+            "lock": 0
+          },
+          "endMana": 92.7366666665287,
+          "idleSeconds": 1.0333333333333334,
+          "firstPotion": 66.45
+        },
+        "iceOnly": {
+          "dps": 701.8000000000125,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceLock": {
+          "dps": 701.8000000000125,
+          "potions": 3,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 89.73666666652892,
+          "idleSeconds": 0,
+          "firstPotion": 125.25
+        },
+        "iceBallLock": {
+          "dps": 677.216833333339,
+          "potions": 5,
+          "casts": {
+            "ice": 341,
+            "water": 0,
+            "ball": 10,
+            "lock": 0
+          },
+          "endMana": 14.73666666660217,
+          "idleSeconds": 30.583333333333332,
+          "firstPotion": 37.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1425.6648888888883,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 447.206666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1525.2439999999995,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 400.7066666666968,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 1263.9200000000005,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 557.7066666665958,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1678.8826666666669,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 472.7066666666612,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1836.8319999999987,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 217.7066666666739,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1421.8828888888872,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 220.70666666671528,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1521.4620000000004,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 349.70666666670286,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 1263.9200000000012,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 341.7066666666352,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1471.4013333333342,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 171.7066666666915,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1637.2501666666635,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 126.70666666667586,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1421.1264888888923,
+          "potions": 5,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 397.7066666667304,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 1510.7829333333361,
+          "potions": 5,
+          "casts": {
+            "ice": 171,
+            "water": 671,
+            "ball": 19,
+            "lock": 10
+          },
+          "endMana": 63.206666666738386,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 1263.9199999999896,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 224.7066666666599,
+          "idleSeconds": 0,
+          "firstPotion": 256.5
+        },
+        "iceLock": {
+          "dps": 1429.905066666657,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 199.70666666668953,
+          "idleSeconds": 0,
+          "firstPotion": 154.5
+        },
+        "iceBallLock": {
+          "dps": 1435.7813999999976,
+          "potions": 5,
+          "casts": {
+            "ice": 358,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 14.706666666673506,
+          "idleSeconds": 12.85,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4527.4366666666665,
+          "potions": 0,
+          "casts": {
+            "ice": 12,
+            "water": 87,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 463.2033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4843.397999999999,
+          "potions": 0,
+          "casts": {
+            "ice": 17,
+            "water": 68,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 416.7033333333586,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 4011.84000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 573.703333333257,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 5329.9260000000095,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 488.7033333333042,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 5831.910000000006,
+          "potions": 0,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 233.7033333333425,
+          "idleSeconds": 0,
+          "firstPotion": null
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4515.42466666667,
+          "potions": 1,
+          "casts": {
+            "ice": 48,
+            "water": 344,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 259.703333333365,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4831.3859999999995,
+          "potions": 2,
+          "casts": {
+            "ice": 68,
+            "water": 268,
+            "ball": 8,
+            "lock": 4
+          },
+          "endMana": 393.7033333333609,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 4011.8400000000324,
+          "potions": 0,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 375.70333333325016,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4670.883000000032,
+          "potions": 0,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 205.7033333333374,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 5197.941000000023,
+          "potions": 3,
+          "casts": {
+            "ice": 144,
+            "water": 0,
+            "ball": 8,
+            "lock": 2
+          },
+          "endMana": 175.70333333332547,
+          "idleSeconds": 0,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "current",
+      "ratio": 2,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4513.022266666656,
+          "potions": 4,
+          "casts": {
+            "ice": 120,
+            "water": 858,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 172.7033333333817,
+          "idleSeconds": 0,
+          "firstPotion": 76.66666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 4828.983600000002,
+          "potions": 5,
+          "casts": {
+            "ice": 170,
+            "water": 668,
+            "ball": 20,
+            "lock": 10
+          },
+          "endMana": 27.703333333355218,
+          "idleSeconds": 0,
+          "firstPotion": 71.7
+        },
+        "iceOnly": {
+          "dps": 4011.8399999999315,
+          "potions": 1,
+          "casts": {
+            "ice": 400,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 299.70333333325965,
+          "idleSeconds": 0,
+          "firstPotion": 284.25
+        },
+        "iceLock": {
+          "dps": 4539.074399999933,
+          "potions": 2,
+          "casts": {
+            "ice": 396,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "endMana": 279.7033333333378,
+          "idleSeconds": 0,
+          "firstPotion": 168.75
+        },
+        "iceBallLock": {
+          "dps": 4618.189799999945,
+          "potions": 5,
+          "casts": {
+            "ice": 365,
+            "water": 0,
+            "ball": 12,
+            "lock": 3
+          },
+          "endMana": 4.703333333328642,
+          "idleSeconds": 8.083333333333334,
+          "firstPotion": 46.85
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 448.82485185185203,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 98,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 477.26433333333347,
+          "potions": 0,
+          "casts": {
+            "ice": 16,
+            "water": 77,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 238.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 421.0800000000011,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 421.0800000000011,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 536.8366666666676,
+          "potions": 1,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 151.2366666666495,
+          "idleSeconds": 0,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 448.4147962962948,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 194.7366666665938,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 477.7684999999998,
+          "potions": 3,
+          "casts": {
+            "ice": 58,
+            "water": 319,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 262.23666666661677,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 421.07999999999646,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 421.07999999999646,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 452.6307499999991,
+          "potions": 5,
+          "casts": {
+            "ice": 128,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 5.7366666666310415,
+          "idleSeconds": 16.183333333333334,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 447.7967999999963,
+          "potions": 4,
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 136.23666666650112,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 437.72959999999654,
+          "potions": 5,
+          "casts": {
+            "ice": 119,
+            "water": 850,
+            "ball": 17,
+            "lock": 0
+          },
+          "endMana": 127.23666666657093,
+          "idleSeconds": 13.233333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 309.4938000000006,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 309.4938000000006,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 314.74519999999893,
+          "potions": 5,
+          "casts": {
+            "ice": 254,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 14.736666666628121,
+          "idleSeconds": 101.3,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1243.1528888888886,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 391.706666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1286.856,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 304.7066666666929,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 756.3999999999992,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 257.70666666666745,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1184.0506666666658,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 180.20666666667069,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1392.752,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 262.7066666666871,
+          "idleSeconds": 0,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1351.9565555555528,
+          "potions": 2,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 389.2066666667069,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1394.7141666666635,
+          "potions": 3,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 315.706666666709,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 756.4000000000035,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 86.70666666666168,
+          "idleSeconds": 0,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 970.2253333333366,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 246.70666666667756,
+          "idleSeconds": 0,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1110.2914999999998,
+          "potions": 5,
+          "casts": {
+            "ice": 136,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 6.70666666670685,
+          "idleSeconds": 7.3,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1329.3553777777845,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 128.7066666667514,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1263.8305333333376,
+          "potions": 5,
+          "casts": {
+            "ice": 124,
+            "water": 864,
+            "ball": 15,
+            "lock": 11
+          },
+          "endMana": 48.706666666735,
+          "idleSeconds": 0.7333333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 627.8120000000114,
+          "potions": 5,
+          "casts": {
+            "ice": 332,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.706666666661532,
+          "idleSeconds": 51,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 735.3062000000107,
+          "potions": 5,
+          "casts": {
+            "ice": 319,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 7.206666666670474,
+          "idleSeconds": 58.833333333333336,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 710.7476000000081,
+          "potions": 5,
+          "casts": {
+            "ice": 277,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 2.206666666704268,
+          "idleSeconds": 81.8,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 3948.8866666666677,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 407.7033333333588,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4087.902000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 320.70333333335594,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 2404.0799999999963,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 273.7033333333268,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3762.3599999999956,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 196.20333333333411,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4425.119999999995,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 283.7033333333482,
+          "idleSeconds": 0,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4294.410166666665,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 113.2033333333637,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4430.454000000002,
+          "potions": 2,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 44.70333333334996,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2404.07999999999,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 135.7033333333071,
+          "idleSeconds": 0,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 3083.2199999999893,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 300.7033333333204,
+          "idleSeconds": 0,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 3572.9819999999863,
+          "potions": 5,
+          "casts": {
+            "ice": 138,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 20.70333333335028,
+          "idleSeconds": 5.433333333333334,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.2,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4222.610933333315,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 223.703333333389,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4041.8195999999757,
+          "potions": 5,
+          "casts": {
+            "ice": 122,
+            "water": 859,
+            "ball": 16,
+            "lock": 11
+          },
+          "endMana": 46.20333333334047,
+          "idleSeconds": 1.7666666666666666,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2019.4272000000287,
+          "potions": 5,
+          "casts": {
+            "ice": 336,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 19.703333333300574,
+          "idleSeconds": 48,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 2366.8092000000265,
+          "potions": 5,
+          "casts": {
+            "ice": 323,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 12.20333333330798,
+          "idleSeconds": 55.55,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 2282.6412000000187,
+          "potions": 5,
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 7.20333333335182,
+          "idleSeconds": 78.51666666666667,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 456.44785185185196,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 98,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 489.9693333333333,
+          "potions": 0,
+          "casts": {
+            "ice": 16,
+            "water": 77,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 238.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 454.9599999999993,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 454.9599999999993,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 567.3286666666661,
+          "potions": 1,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 151.2366666666495,
+          "idleSeconds": 0,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 454.76729629629443,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 194.7366666665938,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 490.0499999999994,
+          "potions": 3,
+          "casts": {
+            "ice": 58,
+            "water": 319,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 262.23666666661677,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 454.95999999999844,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 454.95999999999844,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 479.52300000000014,
+          "potions": 5,
+          "casts": {
+            "ice": 128,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 5.7366666666310415,
+          "idleSeconds": 16.183333333333334,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 453.8951999999964,
+          "potions": 4,
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 136.23666666650112,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 447.80889999999687,
+          "potions": 5,
+          "casts": {
+            "ice": 119,
+            "water": 850,
+            "ball": 17,
+            "lock": 0
+          },
+          "endMana": 127.23666666657093,
+          "idleSeconds": 13.233333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 334.39560000000404,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 334.39560000000404,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 336.25900000000195,
+          "potions": 5,
+          "casts": {
+            "ice": 254,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 14.736666666628121,
+          "idleSeconds": 101.3,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1257.4268888888882,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 391.706666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1309.06,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 304.7066666666929,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 819.8399999999978,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 257.70666666666745,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1245.9046666666645,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 180.20666666667069,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1448.2619999999981,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 262.7066666666871,
+          "idleSeconds": 0,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1363.851555555552,
+          "potions": 2,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 389.2066666667069,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1415.7286666666632,
+          "potions": 3,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 315.706666666709,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 819.8400000000066,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 86.70666666666168,
+          "idleSeconds": 0,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1032.8723333333396,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 246.70666666667756,
+          "idleSeconds": 0,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1163.8190000000027,
+          "potions": 5,
+          "casts": {
+            "ice": 136,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 6.70666666670685,
+          "idleSeconds": 7.3,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1340.7745777777845,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 128.7066666667514,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1283.3383333333384,
+          "potions": 5,
+          "casts": {
+            "ice": 124,
+            "water": 864,
+            "ball": 15,
+            "lock": 11
+          },
+          "endMana": 48.706666666735,
+          "idleSeconds": 0.7333333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 680.4671999999963,
+          "potions": 5,
+          "casts": {
+            "ice": 332,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.706666666661532,
+          "idleSeconds": 51,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 785.7409999999975,
+          "potions": 5,
+          "casts": {
+            "ice": 319,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 7.206666666670474,
+          "idleSeconds": 58.833333333333336,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 754.5212000000009,
+          "potions": 5,
+          "casts": {
+            "ice": 277,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 2.206666666704268,
+          "idleSeconds": 81.8,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 3994.2466666666674,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 407.7033333333588,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4158.4619999999995,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 320.70333333335594,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 2605.6799999999944,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 273.7033333333268,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 3958.919999999994,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 196.20333333333411,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4601.519999999995,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 283.7033333333482,
+          "idleSeconds": 0,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4332.210166666665,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 113.2033333333637,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4497.234,
+          "potions": 2,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 44.70333333334996,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2605.6800000000085,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 135.7033333333071,
+          "idleSeconds": 0,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 3282.3000000000097,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 300.7033333333204,
+          "idleSeconds": 0,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 3746.862000000018,
+          "potions": 5,
+          "casts": {
+            "ice": 138,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 20.70333333335028,
+          "idleSeconds": 5.433333333333334,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.3,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4258.898933333314,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 223.703333333389,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4102.803599999986,
+          "potions": 5,
+          "casts": {
+            "ice": 122,
+            "water": 859,
+            "ball": 16,
+            "lock": 11
+          },
+          "endMana": 46.20333333334047,
+          "idleSeconds": 1.7666666666666666,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2188.7712000000142,
+          "potions": 5,
+          "casts": {
+            "ice": 336,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 19.703333333300574,
+          "idleSeconds": 48,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 2529.6012000000087,
+          "potions": 5,
+          "casts": {
+            "ice": 323,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 12.20333333330798,
+          "idleSeconds": 55.55,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 2423.761199999991,
+          "potions": 5,
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 7.20333333335182,
+          "idleSeconds": 78.51666666666667,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 464.07085185185207,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 98,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 502.67433333333344,
+          "potions": 0,
+          "casts": {
+            "ice": 16,
+            "water": 77,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 238.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 488.8399999999985,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 488.8399999999985,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 597.8206666666655,
+          "potions": 1,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 151.2366666666495,
+          "idleSeconds": 0,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 461.11979629629445,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 194.7366666665938,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 502.3314999999985,
+          "potions": 3,
+          "casts": {
+            "ice": 58,
+            "water": 319,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 262.23666666661677,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 488.8399999999971,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 488.8399999999971,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 506.4152499999978,
+          "potions": 5,
+          "casts": {
+            "ice": 128,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 5.7366666666310415,
+          "idleSeconds": 16.183333333333334,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 459.9935999999957,
+          "potions": 4,
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 136.23666666650112,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 457.8881999999958,
+          "potions": 5,
+          "casts": {
+            "ice": 119,
+            "water": 850,
+            "ball": 17,
+            "lock": 0
+          },
+          "endMana": 127.23666666657093,
+          "idleSeconds": 13.233333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 359.297400000006,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 359.297400000006,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 357.77280000000343,
+          "potions": 5,
+          "casts": {
+            "ice": 254,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 14.736666666628121,
+          "idleSeconds": 101.3,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1271.7008888888884,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 391.706666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1331.2639999999997,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 304.7066666666929,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 883.2799999999991,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 257.70666666666745,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1307.7586666666657,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 180.20666666667069,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1503.7719999999993,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 262.7066666666871,
+          "idleSeconds": 0,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1375.7465555555523,
+          "potions": 2,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 389.2066666667069,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1436.7431666666637,
+          "potions": 3,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 315.706666666709,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 883.28000000001,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 86.70666666666168,
+          "idleSeconds": 0,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1095.5193333333432,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 246.70666666667756,
+          "idleSeconds": 0,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1217.3465000000058,
+          "potions": 5,
+          "casts": {
+            "ice": 136,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 6.70666666670685,
+          "idleSeconds": 7.3,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1352.1937777777848,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 128.7066666667514,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1302.8461333333396,
+          "potions": 5,
+          "casts": {
+            "ice": 124,
+            "water": 864,
+            "ball": 15,
+            "lock": 11
+          },
+          "endMana": 48.706666666735,
+          "idleSeconds": 0.7333333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 733.122400000016,
+          "potions": 5,
+          "casts": {
+            "ice": 332,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.706666666661532,
+          "idleSeconds": 51,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 836.1758000000151,
+          "potions": 5,
+          "casts": {
+            "ice": 319,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 7.206666666670474,
+          "idleSeconds": 58.833333333333336,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 798.2948000000122,
+          "potions": 5,
+          "casts": {
+            "ice": 277,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 2.206666666704268,
+          "idleSeconds": 81.8,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4039.606666666667,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 407.7033333333588,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4229.022,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 320.70333333335594,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 2807.2800000000057,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 273.7033333333268,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4155.480000000005,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 196.20333333333411,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4777.920000000002,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 283.7033333333482,
+          "idleSeconds": 0,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4370.010166666665,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 113.2033333333637,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4564.0140000000065,
+          "potions": 2,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 44.70333333334996,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2807.280000000022,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 135.7033333333071,
+          "idleSeconds": 0,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 3481.380000000022,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 300.7033333333204,
+          "idleSeconds": 0,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 3920.742000000019,
+          "potions": 5,
+          "casts": {
+            "ice": 138,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 20.70333333335028,
+          "idleSeconds": 5.433333333333334,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.4,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4295.186933333317,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 223.703333333389,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4163.787599999985,
+          "potions": 5,
+          "casts": {
+            "ice": 122,
+            "water": 859,
+            "ball": 16,
+            "lock": 11
+          },
+          "endMana": 46.20333333334047,
+          "idleSeconds": 1.7666666666666666,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2358.1151999999706,
+          "potions": 5,
+          "casts": {
+            "ice": 336,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 19.703333333300574,
+          "idleSeconds": 48,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 2692.3931999999772,
+          "potions": 5,
+          "casts": {
+            "ice": 323,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 12.20333333330798,
+          "idleSeconds": 55.55,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 2564.8811999999994,
+          "potions": 5,
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 7.20333333335182,
+          "idleSeconds": 78.51666666666667,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 471.693851851852,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 98,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 515.3793333333335,
+          "potions": 0,
+          "casts": {
+            "ice": 16,
+            "water": 77,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 238.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 522.7200000000008,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 522.7200000000008,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 628.3126666666673,
+          "potions": 1,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 151.2366666666495,
+          "idleSeconds": 0,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 467.47229629629476,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 194.7366666665938,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 514.6129999999996,
+          "potions": 3,
+          "casts": {
+            "ice": 58,
+            "water": 319,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 262.23666666661677,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 522.720000000001,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 522.720000000001,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 533.3075000000008,
+          "potions": 5,
+          "casts": {
+            "ice": 128,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 5.7366666666310415,
+          "idleSeconds": 16.183333333333334,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 466.09199999999623,
+          "potions": 4,
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 136.23666666650112,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 467.9674999999969,
+          "potions": 5,
+          "casts": {
+            "ice": 119,
+            "water": 850,
+            "ball": 17,
+            "lock": 0
+          },
+          "endMana": 127.23666666657093,
+          "idleSeconds": 13.233333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 384.1991999999916,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 384.1991999999916,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 379.28659999999434,
+          "potions": 5,
+          "casts": {
+            "ice": 254,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 14.736666666628121,
+          "idleSeconds": 101.3,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1285.9748888888885,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 391.706666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1353.468,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 304.7066666666929,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 946.7200000000009,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 257.70666666666745,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1369.6126666666676,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 180.20666666667069,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1559.2820000000006,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 262.7066666666871,
+          "idleSeconds": 0,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1387.6415555555527,
+          "potions": 2,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 389.2066666667069,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1457.7576666666646,
+          "potions": 3,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 315.706666666709,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 946.7199999999888,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 86.70666666666168,
+          "idleSeconds": 0,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1158.1663333333227,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 246.70666666667756,
+          "idleSeconds": 0,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1270.8739999999932,
+          "potions": 5,
+          "casts": {
+            "ice": 136,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 6.70666666670685,
+          "idleSeconds": 7.3,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1363.612977777785,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 128.7066666667514,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1322.3539333333363,
+          "potions": 5,
+          "casts": {
+            "ice": 124,
+            "water": 864,
+            "ball": 15,
+            "lock": 11
+          },
+          "endMana": 48.706666666735,
+          "idleSeconds": 0.7333333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 785.7775999999835,
+          "potions": 5,
+          "casts": {
+            "ice": 332,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.706666666661532,
+          "idleSeconds": 51,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 886.6105999999844,
+          "potions": 5,
+          "casts": {
+            "ice": 319,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 7.206666666670474,
+          "idleSeconds": 58.833333333333336,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 842.0683999999875,
+          "potions": 5,
+          "casts": {
+            "ice": 277,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 2.206666666704268,
+          "idleSeconds": 81.8,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4084.9666666666676,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 407.7033333333588,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4299.582000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 320.70333333335594,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 3008.8800000000037,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 273.7033333333268,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4352.040000000004,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 196.20333333333411,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 4954.320000000003,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 283.7033333333482,
+          "idleSeconds": 0,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4407.810166666666,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 113.2033333333637,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4630.794000000004,
+          "potions": 2,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 44.70333333334996,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 3008.879999999973,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 135.7033333333071,
+          "idleSeconds": 0,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 3680.4599999999746,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 300.7033333333204,
+          "idleSeconds": 0,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 4094.6219999999885,
+          "potions": 5,
+          "casts": {
+            "ice": 138,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 20.70333333335028,
+          "idleSeconds": 5.433333333333334,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.5,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4331.474933333316,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 223.703333333389,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4224.77159999998,
+          "potions": 5,
+          "casts": {
+            "ice": 122,
+            "water": 859,
+            "ball": 16,
+            "lock": 11
+          },
+          "endMana": 46.20333333334047,
+          "idleSeconds": 1.7666666666666666,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 2527.4591999999398,
+          "potions": 5,
+          "casts": {
+            "ice": 336,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 19.703333333300574,
+          "idleSeconds": 48,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 2855.1851999999435,
+          "potions": 5,
+          "casts": {
+            "ice": 323,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 12.20333333330798,
+          "idleSeconds": 55.55,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 2706.0011999999556,
+          "potions": 5,
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 7.20333333335182,
+          "idleSeconds": 78.51666666666667,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 495.6518518518521,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 98,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 555.3093333333337,
+          "potions": 0,
+          "casts": {
+            "ice": 16,
+            "water": 77,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 238.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 629.1999999999987,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 629.1999999999987,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 724.1446666666656,
+          "potions": 1,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 151.2366666666495,
+          "idleSeconds": 0,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 487.4372962962944,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 194.7366666665938,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 553.2119999999985,
+          "potions": 3,
+          "casts": {
+            "ice": 58,
+            "water": 319,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 262.23666666661677,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 629.2000000000057,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 629.2000000000057,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 617.8260000000032,
+          "potions": 5,
+          "casts": {
+            "ice": 128,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 5.7366666666310415,
+          "idleSeconds": 16.183333333333334,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 485.2583999999958,
+          "potions": 4,
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 136.23666666650112,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 499.64529999999775,
+          "potions": 5,
+          "casts": {
+            "ice": 119,
+            "water": 850,
+            "ball": 17,
+            "lock": 0
+          },
+          "endMana": 127.23666666657093,
+          "idleSeconds": 13.233333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 462.4620000000038,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 462.4620000000038,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 446.90140000000497,
+          "potions": 5,
+          "casts": {
+            "ice": 254,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 14.736666666628121,
+          "idleSeconds": 101.3,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1328.7968888888886,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 391.706666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1420.0800000000002,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 304.7066666666929,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 1137.0399999999975,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 257.70666666666745,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1555.1746666666638,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 180.20666666667069,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1725.8119999999979,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 262.7066666666871,
+          "idleSeconds": 0,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1423.326555555552,
+          "potions": 2,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 389.2066666667069,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1520.801166666664,
+          "potions": 3,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 315.706666666709,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 1137.0399999999927,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 86.70666666666168,
+          "idleSeconds": 0,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1346.1073333333256,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 246.70666666667756,
+          "idleSeconds": 0,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1431.4564999999936,
+          "potions": 5,
+          "casts": {
+            "ice": 136,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 6.70666666670685,
+          "idleSeconds": 7.3,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1397.8705777777855,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 128.7066666667514,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1380.8773333333363,
+          "potions": 5,
+          "casts": {
+            "ice": 124,
+            "water": 864,
+            "ball": 15,
+            "lock": 11
+          },
+          "endMana": 48.706666666735,
+          "idleSeconds": 0.7333333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 943.7432000000131,
+          "potions": 5,
+          "casts": {
+            "ice": 332,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.706666666661532,
+          "idleSeconds": 51,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1037.9150000000118,
+          "potions": 5,
+          "casts": {
+            "ice": 319,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 7.206666666670474,
+          "idleSeconds": 58.833333333333336,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 973.3892000000078,
+          "potions": 5,
+          "casts": {
+            "ice": 277,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 2.206666666704268,
+          "idleSeconds": 81.8,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4219.912666666668,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 407.7033333333588,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4509.498000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 320.70333333335594,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 3608.6400000000094,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 273.7033333333268,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 4936.80600000001,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 196.20333333333411,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 5479.110000000007,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 283.7033333333482,
+          "idleSeconds": 0,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4520.265166666667,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 113.2033333333637,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4829.4645000000055,
+          "potions": 2,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 44.70333333334996,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 3608.639999999967,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 135.7033333333071,
+          "idleSeconds": 0,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 4272.722999999968,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 300.7033333333204,
+          "idleSeconds": 0,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 4611.914999999981,
+          "potions": 5,
+          "casts": {
+            "ice": 138,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 20.70333333335028,
+          "idleSeconds": 5.433333333333334,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 1.8,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4439.4317333333165,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 223.703333333389,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4406.198999999977,
+          "potions": 5,
+          "casts": {
+            "ice": 122,
+            "water": 859,
+            "ball": 16,
+            "lock": 11
+          },
+          "endMana": 46.20333333334047,
+          "idleSeconds": 1.7666666666666666,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 3031.2576000000245,
+          "potions": 5,
+          "casts": {
+            "ice": 336,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 19.703333333300574,
+          "idleSeconds": 48,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 3339.4914000000203,
+          "potions": 5,
+          "casts": {
+            "ice": 323,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 12.20333333330798,
+          "idleSeconds": 55.55,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 3125.8332000000064,
+          "potions": 5,
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 7.20333333335182,
+          "idleSeconds": 78.51666666666667,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 7,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 511.9868518518519,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 98,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 341.73666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 582.5343333333333,
+          "potions": 0,
+          "casts": {
+            "ice": 16,
+            "water": 77,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 238.23666666664485,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 701.8000000000015,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 701.8000000000015,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 113.73666666664637,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 789.4846666666679,
+          "potions": 1,
+          "casts": {
+            "ice": 37,
+            "water": 0,
+            "ball": 2,
+            "lock": 0
+          },
+          "endMana": 151.2366666666495,
+          "idleSeconds": 0,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 7,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 501.04979629629474,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 194.7366666665938,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 579.5295,
+          "potions": 3,
+          "casts": {
+            "ice": 58,
+            "water": 319,
+            "ball": 8,
+            "lock": 0
+          },
+          "endMana": 262.23666666661677,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 701.7999999999937,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 701.7999999999937,
+          "potions": 5,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 185.7366666666145,
+          "idleSeconds": 0,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 675.4522499999961,
+          "potions": 5,
+          "casts": {
+            "ice": 128,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 5.7366666666310415,
+          "idleSeconds": 16.183333333333334,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 7,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 498.32639999999606,
+          "potions": 4,
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "endMana": 136.23666666650112,
+          "idleSeconds": 0,
+          "firstPotion": 82.91666666666667
+        },
+        "cycleFrozenIce": {
+          "dps": 521.2437999999954,
+          "potions": 5,
+          "casts": {
+            "ice": 119,
+            "water": 850,
+            "ball": 17,
+            "lock": 0
+          },
+          "endMana": 127.23666666657093,
+          "idleSeconds": 13.233333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 515.8230000000001,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceLock": {
+          "dps": 515.8230000000001,
+          "potions": 5,
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.736666666610088,
+          "idleSeconds": 79.5,
+          "firstPotion": 36.75
+        },
+        "iceBallLock": {
+          "dps": 493.0023999999954,
+          "potions": 5,
+          "casts": {
+            "ice": 254,
+            "water": 0,
+            "ball": 6,
+            "lock": 0
+          },
+          "endMana": 14.736666666628121,
+          "idleSeconds": 101.3,
+          "firstPotion": 21.483333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 8,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 1357.3448888888881,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 391.706666666698,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 1464.4879999999996,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 304.7066666666929,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 1263.9200000000005,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 257.70666666666745,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 1678.8826666666669,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 180.20666666667069,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 1836.8319999999987,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 262.7066666666871,
+          "idleSeconds": 0,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 8,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 1447.1165555555524,
+          "potions": 2,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 389.2066666667069,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1562.8301666666653,
+          "potions": 3,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 315.706666666709,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 1263.9200000000012,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 86.70666666666168,
+          "idleSeconds": 0,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1471.4013333333342,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 246.70666666667756,
+          "idleSeconds": 0,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1538.5114999999957,
+          "potions": 5,
+          "casts": {
+            "ice": 136,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 6.70666666670685,
+          "idleSeconds": 7.3,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 8,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 1420.7089777777855,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 128.7066666667514,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 1419.892933333337,
+          "potions": 5,
+          "casts": {
+            "ice": 124,
+            "water": 864,
+            "ball": 15,
+            "lock": 11
+          },
+          "endMana": 48.706666666735,
+          "idleSeconds": 0.7333333333333333,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 1049.0536000000025,
+          "potions": 5,
+          "casts": {
+            "ice": 332,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 14.706666666661532,
+          "idleSeconds": 51,
+          "firstPotion": 49.5
+        },
+        "iceLock": {
+          "dps": 1138.784600000005,
+          "potions": 5,
+          "casts": {
+            "ice": 319,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 7.206666666670474,
+          "idleSeconds": 58.833333333333336,
+          "firstPotion": 42.75
+        },
+        "iceBallLock": {
+          "dps": 1060.9364000000126,
+          "potions": 5,
+          "casts": {
+            "ice": 277,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 2.206666666704268,
+          "idleSeconds": 81.8,
+          "firstPotion": 25.233333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 13,
+      "duration": 30,
+      "strategies": {
+        "cycle": {
+          "dps": 4310.632666666667,
+          "potions": 0,
+          "casts": {
+            "ice": 10,
+            "water": 94,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 407.7033333333588,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "cycleFrozenIce": {
+          "dps": 4650.6179999999995,
+          "potions": 0,
+          "casts": {
+            "ice": 15,
+            "water": 77,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 320.70333333335594,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceOnly": {
+          "dps": 4011.84000000001,
+          "potions": 0,
+          "casts": {
+            "ice": 40,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 273.7033333333268,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceLock": {
+          "dps": 5329.9260000000095,
+          "potions": 0,
+          "casts": {
+            "ice": 39,
+            "water": 0,
+            "ball": 0,
+            "lock": 1
+          },
+          "endMana": 196.20333333333411,
+          "idleSeconds": 0,
+          "firstPotion": null
+        },
+        "iceBallLock": {
+          "dps": 5831.910000000006,
+          "potions": 1,
+          "casts": {
+            "ice": 36,
+            "water": 0,
+            "ball": 2,
+            "lock": 1
+          },
+          "endMana": 283.7033333333482,
+          "idleSeconds": 0,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 13,
+      "duration": 120,
+      "strategies": {
+        "cycle": {
+          "dps": 4595.865166666667,
+          "potions": 1,
+          "casts": {
+            "ice": 30,
+            "water": 405,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 113.2033333333637,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4963.024500000003,
+          "potions": 2,
+          "casts": {
+            "ice": 53,
+            "water": 319,
+            "ball": 8,
+            "lock": 5
+          },
+          "endMana": 44.70333333334996,
+          "idleSeconds": 0,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 4011.8400000000324,
+          "potions": 3,
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 135.7033333333071,
+          "idleSeconds": 0,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 4670.883000000032,
+          "potions": 4,
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "endMana": 300.7033333333204,
+          "idleSeconds": 0,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 4959.675000000021,
+          "potions": 5,
+          "casts": {
+            "ice": 138,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 20.70333333335028,
+          "idleSeconds": 5.433333333333334,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    },
+    {
+      "variant": "proposed",
+      "ratio": 2,
+      "stage": 13,
+      "duration": 300,
+      "strategies": {
+        "cycle": {
+          "dps": 4512.007733333314,
+          "potions": 5,
+          "casts": {
+            "ice": 72,
+            "water": 1024,
+            "ball": 20,
+            "lock": 12
+          },
+          "endMana": 223.703333333389,
+          "idleSeconds": 0,
+          "firstPotion": 61.666666666666664
+        },
+        "cycleFrozenIce": {
+          "dps": 4528.166999999984,
+          "potions": 5,
+          "casts": {
+            "ice": 122,
+            "water": 859,
+            "ball": 16,
+            "lock": 11
+          },
+          "endMana": 46.20333333334047,
+          "idleSeconds": 1.7666666666666666,
+          "firstPotion": 45.916666666666664
+        },
+        "iceOnly": {
+          "dps": 3369.9455999999554,
+          "potions": 5,
+          "casts": {
+            "ice": 336,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "endMana": 19.703333333300574,
+          "idleSeconds": 48,
+          "firstPotion": 51
+        },
+        "iceLock": {
+          "dps": 3665.07539999996,
+          "potions": 5,
+          "casts": {
+            "ice": 323,
+            "water": 0,
+            "ball": 0,
+            "lock": 3
+          },
+          "endMana": 12.20333333330798,
+          "idleSeconds": 55.55,
+          "firstPotion": 45
+        },
+        "iceBallLock": {
+          "dps": 3408.0731999999766,
+          "potions": 5,
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 7,
+            "lock": 2
+          },
+          "endMana": 7.20333333335182,
+          "idleSeconds": 78.51666666666667,
+          "firstPotion": 26.733333333333334
+        }
+      }
+    }
+  ]
+}

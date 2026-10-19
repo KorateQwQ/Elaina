@@ -8,6 +8,73 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 // Shared by the live SUI controls and the offline FNA preview.
 internal static class SkillBarDrawing
 {
+    public const float SealReleaseDuration = .7f;
+    public static bool HasSealOverlay(bool sealedState, float releaseAge) =>
+        sealedState || releaseAge >= 0 && releaseAge < SealReleaseDuration;
+
+    public static float SealTone(bool sealedState, float releaseAge)
+    {
+        if (sealedState) return 1;
+        if (releaseAge < 0) return 0;
+        float t = Math.Clamp(releaseAge / SealReleaseDuration / .45f, 0, 1);
+        return 1 - t * t * (3 - 2 * t);
+    }
+
+    public static float SealReleasePulse(float age)
+    {
+        if (age < 0 || age >= .5f) return 0;
+        if (age < .06f) return MathHelper.Lerp(.6f, 1, age / .06f);
+        return MathF.Pow(1 - (age - .06f) / .44f, 2);
+    }
+
+    /// <summary>HTML封印参考的四角束缚、钥匙孔及解封动画；不绘制提示浮字。</summary>
+    public static void DrawSealState(SpriteBatch batch, StateArt art, Vector2 center,
+        float seconds, float denyAge = 9, float releaseAge = -1, float opacity = 1)
+    {
+        float p = releaseAge >= 0 ? Math.Clamp(releaseAge / SealReleaseDuration, 0, 1) : 0;
+        float fade = (1 - p) * opacity;
+        float breath = .5f + .5f * MathF.Sin(seconds * MathHelper.TwoPi / 3.6f);
+        float deny = Math.Clamp(1 - denyAge / .38f, 0, 1);
+        float shake = 1.8f * MathF.Sin(denyAge * MathHelper.TwoPi * 9) * deny;
+        float retract = 1 - MathF.Pow(1 - Math.Clamp(p / .6f, 0, 1), 3);
+        Color edge = new(222, 205, 240), keyhole = new(236, 224, 250);
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2 direction = new(i < 2 ? -1 : 1, i % 2 == 0 ? -1 : 1);
+            Vector2 corner = center + direction * 21.5f;
+            Vector2 start = Vector2.Lerp(center + direction * 8, corner, retract);
+            if (retract < .999f)
+            {
+                Line(batch, art, start, corner, 3, new Color(202, 178, 237) * (.1f * fade));
+                Line(batch, art, start, corner, 1, new Color(205, 186, 230) * ((.5f + .5f * deny) * fade));
+            }
+            Glow(batch, art, corner, new Vector2(9), new Color(196, 150, 255, 0) * ((.25f + .45f * deny) * fade));
+            Diamond(batch, art, corner, new Vector2(3.5f, 5), edge * (.85f * fade));
+        }
+        float scale = 1 + .55f * (1 - MathF.Pow(1 - p, 3));
+        float alpha = MathF.Pow(1 - p, 1.5f) * opacity;
+        Vector2 c = center + new Vector2(shake, 0);
+        Glow(batch, art, c, new Vector2(34), Color.Black * (.55f * alpha));
+        Glow(batch, art, c, new Vector2(30 * scale), new Color(196, 150, 255, 0) * ((.22f + .16f * breath + .55f * deny) * alpha));
+        Diamond(batch, art, c, new Vector2(19 * scale), edge * alpha);
+        Diamond(batch, art, c, new Vector2(16.4f * scale), Ink * (.96f * alpha));
+        Diamond(batch, art, c, new Vector2(10.5f * scale), new Color(150, 128, 182) * (.7f * alpha));
+        Diamond(batch, art, c, new Vector2(8.9f * scale), Ink * alpha);
+        Diamond(batch, art, c + new Vector2(0, -1.4f * scale), new Vector2(4.4f * scale), keyhole * alpha);
+        Line(batch, art, c + new Vector2(0, -.8f * scale), c + new Vector2(0, 3.4f * scale), 1.4f * scale, keyhole * alpha);
+        if (releaseAge >= 0)
+        {
+            float radius = 9.5f + 26 * (1 - MathF.Pow(1 - p, 2));
+            Glow(batch, art, center, new Vector2(44 + 30 * p), new Color(214, 180, 255, 0) * (.9f * SealReleasePulse(releaseAge) * opacity));
+            for (int i = 0; i < 4; i++)
+            {
+                float angle = -MathHelper.PiOver2 + i * MathHelper.PiOver2;
+                Vector2 a = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+                Vector2 b = center + new Vector2(MathF.Cos(angle + MathHelper.PiOver2), MathF.Sin(angle + MathHelper.PiOver2)) * radius;
+                Line(batch, art, a, b, 1, new Color(241, 226, 255, 0) * (.85f * fade));
+            }
+        }
+    }
     public const int Width = 646;
     public const int Height = 94;
     private const int Tile = 192;

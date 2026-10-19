@@ -96,6 +96,8 @@ internal static class SkillWheelDrawing
         public Vector2 Position;
         public float Opacity, Hover, Flash, Cooldown, Remaining;
         public bool Current;
+        public bool Sealed;
+        public float SealDeniedAge;
         public int Slot, Stack, MaxStack;
         public Texture2D Icon;
     }
@@ -304,7 +306,9 @@ internal static class SkillWheelDrawing
             ref WheelItem item = ref view.Items[i];
             if (view.Open && item.Opacity >= .99f)
                 SkillBarDrawing.DrawSkillState(batch, art.State, art.Number, item.Position, item.Cooldown,
-                    item.Remaining, item.Stack, item.MaxStack, view.ShowNumber);
+                    item.Remaining, item.Stack, item.MaxStack, view.ShowNumber && !item.Sealed);
+            if (item.Sealed && item.Opacity > 0)
+                SkillBarDrawing.DrawSealState(batch, art.State, item.Position, view.Seconds, item.SealDeniedAge, -1, item.Opacity);
         }
     }
 
@@ -335,6 +339,7 @@ internal static class SkillWheelDrawing
         art.Cooldown.Parameters["time"]?.SetValue(1 - item.Remaining);
         art.Cooldown.Parameters["flashTime"]?.SetValue(item.Flash);
         art.Cooldown.Parameters["ready"]?.SetValue(item.Stack > 0 ? 1f : 0f);
+        art.Cooldown.Parameters["seal"]?.SetValue(item.Sealed ? 1f : 0f);
         restart(batch, SpriteSortMode.Immediate, art.Cooldown);
         batch.Draw(item.Icon, position, null, color, 0, new Vector2(item.Icon.Width, item.Icon.Height) / 2,
             size / Math.Max(item.Icon.Width, item.Icon.Height), SpriteEffects.None, 0);
@@ -389,6 +394,8 @@ internal static class SkillWheelDrawing
             }
             DrawIcon(batch, art, restart, item, center, size, (pointed ? Color.White : new Color(170, 160, 186)) * strength);
             restart(batch, SpriteSortMode.Deferred, null);
+            if (item.Sealed)
+                SkillBarDrawing.DrawSealState(batch, art.State, center, view.Seconds, item.SealDeniedAge, -1, strength);
         }
 
         // 指针只在确有选中项时出现；治疗盘的取消区比技能盘死区大，不能按固定死区判断。

@@ -1,9 +1,10 @@
 param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
+$modName = Split-Path $repo -Leaf
 $output = Join-Path $repo '.vissandbox/ice-cycle-checks'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
-foreach ($source in @("$repo/../KL/KL.csproj", "$repo/伊蕾娜.csproj")) {
+foreach ($source in @("$repo/../KL/KL.csproj", "$repo/$modName.csproj")) {
     dotnet build $source -c Debug '-t:Compile;CopyFilesToOutputDirectory' '-p:BuildProjectReferences=false' -v:q *> "$output/build.log"
     if ($LASTEXITCODE -ne 0) { Get-Content "$output/build.log" -Tail 25; throw 'Compilation failed.' }
 }
@@ -15,7 +16,7 @@ function Add-CheckItem([string]$kind, [string]$path) {
     $null = $items.AppendChild($node)
     return $node
 }
-foreach ($path in @("$Tml/tModLoader.dll", "$repo/../KL/bin/Debug/net8.0/KL.dll", "$repo/bin/Debug/net8.0/伊蕾娜.dll", "$repo/../SilkyUIFramework/bin/Debug/net8.0/SilkyUIFramework.dll")) {
+foreach ($path in @("$Tml/tModLoader.dll", "$repo/../KL/bin/Debug/net8.0/KL.dll", "$repo/bin/Debug/net8.0/$modName.dll", "$repo/../SilkyUIFramework.dll")) {
     $null = Add-CheckItem 'Reference' $path
 }
 $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"

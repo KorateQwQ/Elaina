@@ -7,6 +7,7 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
 public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
 {
+    private Effect sealEffect;
     protected override void OnInitialize()
     {
         base.OnInitialize();
@@ -66,10 +67,37 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
     {
         /*EndBeginDrawUI();
         EndBeginDrawUI();*/
-        base.Draw(gameTime, spriteBatch);
+        if (Skill?.ModSkill is ElainaSealedSkill sealedSkill
+            && SkillBarDrawing.HasSealOverlay(sealedSkill.IsSealed, sealedSkill.SealReleaseAge))
+        {
+            sealEffect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/SkillSeal", ReLogic.Content.AssetRequestMode.ImmediateLoad).Value;
+            sealEffect.Parameters["time"].SetValue(1 - Skill.CooldownRemainingFraction);
+            sealEffect.Parameters["flashTime"].SetValue(0f);
+            sealEffect.Parameters["ready"].SetValue(Skill.Stack > 0 ? 1f : 0f);
+            sealEffect.Parameters["seal"].SetValue(SkillBarDrawing.SealTone(sealedSkill.IsSealed, sealedSkill.SealReleaseAge));
+            spriteBatch.End();
+            spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, SilkyUI.ScissorRasterizerState, sealEffect, SilkyUI.TransformMatrix);
+            Texture2D texture = Texture2D.Value;
+            if (Skill.ModSkill.PreDrawSkillIcon(GetDrawCenter(), GetDrawSize(), Color.White, sealEffect))
+                spriteBatch.Draw(texture, GetDrawCenter(), null, Color.White, 0, new Vector2(texture.Width, texture.Height) / 2,
+                    ImageScale, SpriteEffects.None, 0);
+            Skill.ModSkill.PostDrawSkillIcon(GetDrawCenter(), GetDrawSize(), Color.White, sealEffect);
+        }
+        else base.Draw(gameTime, spriteBatch);
         // Skill callbacks use the legacy UI batch; restore the current SUI transform.
         spriteBatch.End();
         spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, SilkyUI.ScissorRasterizerState, null, SilkyUI.TransformMatrix);
+        if (Skill?.ModSkill is ElainaSealedSkill { IsSealed: false } released)
+        {
+            float flash = SkillBarDrawing.SealReleasePulse(released.SealReleaseAge);
+            if (flash > 0)
+            {
+                Texture2D texture = Texture2D.Value;
+                spriteBatch.Draw(texture, GetDrawCenter(), null, new Color(245, 222, 255, 0) * flash, 0,
+                    new Vector2(texture.Width, texture.Height) / 2, ImageScale, SpriteEffects.None, 0);
+            }
+        }
     }
 }

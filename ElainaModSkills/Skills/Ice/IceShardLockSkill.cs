@@ -10,7 +10,7 @@ using 伊蕾娜.ElainaAttribute;
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
 [SkillUIInfo(State = 6, Pixels = 400)]
-public class IceShardLockSkill : ElainaSkill
+public class IceShardLockSkill : ElainaSealedSkill
 {
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
@@ -34,14 +34,21 @@ public class IceShardLockSkill : ElainaSkill
     public override bool PreUseSkill(IEntitySource source)
     {
         NPC target = IceConeTargetSystem.ResolveTarget();
-        if (target == null || !CanUseSkill() || !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
+        var attributes = Player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (target == null || !CanUseSkill() || !attributes.ConsumeMagicPoint(MagicPointCost, false))
             return false;
 
-        ShootIceShardLock3D(Player, target);
+        if (!ShootIceShardLock3D(Player, target)) return false;
+        if (!attributes.ConsumeMagicPoint(MagicPointCost))
+        {
+            Player.GetModPlayer<ActionModPlayer>().InterruptCurrentAction();
+            return false;
+        }
+        Seal();
         return base.PreUseSkill(source);
     }
     
-    public void ShootIceShardLock3D(Player player, NPC target)
+    public bool ShootIceShardLock3D(Player player, NPC target)
     {
         Vector2 targetWorldPosition = target.Center;
         uint selectedSpawnSerial = target.GetGlobalNPC<IceboundNPC>().SpawnSerial;
@@ -63,7 +70,7 @@ public class IceShardLockSkill : ElainaSkill
                 }));
 
         float startRotation = aimDirection.ToRotation() * player.gravDir;
-        player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
+        return player.GetModPlayer<ActionModPlayer>().StartAction(animAction, interruptCurrentAction: false, rotation: startRotation);
     }
 
     protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 1), GetConfiguredFreezeBuildup()];

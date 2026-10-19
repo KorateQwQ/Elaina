@@ -10,9 +10,22 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 /// <summary>技能冷却由拥有者维护，NPC 冻结冷却及冻结奖励确认由服务器维护。</summary>
 public sealed class IceCyclePlayer : KLModPlayer
 {
-    private ulong nextFreezeRewardTick;
+    private long freezeEventSequence;
+    private long receivedFreezeSequence;
 
-    public override void Initialize() => nextFreezeRewardTick = 0;
+    public override void Initialize() { freezeEventSequence = receivedFreezeSequence = 0; }
+    public override void OnEnterWorld()
+    {
+        freezeEventSequence = receivedFreezeSequence = 0;
+        SealLock();
+    }
+    public override void UpdateDead() => SealLock();
+
+    private void SealLock()
+    {
+        if (Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<IceShardLockSkill>(out var skill))
+            skill.Seal();
+    }
 
     public void ReduceLockCooldown(float seconds)
     {
@@ -48,15 +61,22 @@ public sealed class IceCyclePlayer : KLModPlayer
 
     internal void OnFreezeTriggered(NPC anchor)
     {
-        if (Main.netMode == NetmodeID.MultiplayerClient || !Player.active || Player.dead
-            || Main.GameUpdateCount < nextFreezeRewardTick) return;
+        if (Main.netMode == NetmodeID.MultiplayerClient || !Player.active || Player.dead) return;
         if (!anchor.active || !anchor.HasBuff<ElementalAffliction_Freeze>()) return;
-        nextFreezeRewardTick = Main.GameUpdateCount + IceCycleBalance.FreezeRewardIntervalTicks;
+        long sequence = ++freezeEventSequence;
         if (Main.netMode == NetmodeID.Server)
-            RPC(nameof(ReceiveFreezeReward), KLNetModule.NetSendType.ServerToClients);
+            RPC(nameof(ReceiveFreezeReward), [sequence], KLNetModule.NetSendType.ServerToClients);
         else
-            ReceiveFreezeReward();
+            ReceiveFreezeReward(sequence);
     }
 
-    public void ReceiveFreezeReward() => ReduceLockCooldown(IceCycleBalance.FreezeLockRefund);
+    public void ReceiveFreezeReward(long sequence)
+    {
+        if (sequence <= receivedFreezeSequence) return;
+        receivedFreezeSequence = sequence;
+        if (Player.whoAmI != Main.myPlayer || !Player.active || Player.dead) return;
+        if (Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<IceShardLockSkill>(out var skill)
+            && skill.BasicStatus == KL.SkillSystem.Skill.SKillBasicStatus.UnLock)
+            skill.Unseal();
+    }
 }

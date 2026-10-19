@@ -223,7 +223,7 @@ public sealed class ElainaSkillWheel : BaseBody
     {
         if (Count == 0 || !HoldingWand) return;
         FillView();
-        _cdEffect ??= ModContent.Request<Effect>("KL/Effects/Content/CDEffect", AssetRequestMode.ImmediateLoad).Value;
+        _cdEffect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/SkillSeal", AssetRequestMode.ImmediateLoad).Value;
         var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
             _cdEffect, UIDrawKit.NumberFont);
         // 整个轮盘绕自身中心按配置倍率缩放，绘制结束后恢复 SUI 的变换。
@@ -281,6 +281,8 @@ public sealed class ElainaSkillWheel : BaseBody
                 Stack = skill.Stack,
                 MaxStack = skill.MaxStack,
                 Icon = skill.SkillIcon?.Value,
+                Sealed = skill.ModSkill is ElainaSealedSkill { IsSealed: true },
+                SealDeniedAge = skill.ModSkill is ElainaSealedSkill seal ? seal.SealDeniedAge : 9,
             };
         }
     }

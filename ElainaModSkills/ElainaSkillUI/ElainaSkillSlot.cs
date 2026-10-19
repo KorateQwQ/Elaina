@@ -56,8 +56,15 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
         SkillBarDrawing.DrawSlotFrame(spriteBatch, _ornaments.Value,
             Bounds.Center, _selected, HasSkill, _hover, _selectionTime);
         if (GetSlotSkill() is { } skill)
+        {
+            var seal = skill.ModSkill as ElainaSealedSkill;
+            bool bound = seal != null && SkillBarDrawing.HasSealOverlay(seal.IsSealed, seal.SealReleaseAge);
             SkillBarDrawing.DrawSkillState(spriteBatch, StateArt, UIDrawKit.NumberFont, Bounds.Center,
-                skill.CurrentCD, skill.CooldownRemainingFraction, skill.Stack, skill.MaxStack, ElainaSkillManager.ShowCD);
+                skill.CurrentCD, skill.CooldownRemainingFraction, skill.Stack, skill.MaxStack, ElainaSkillManager.ShowCD && !bound);
+            if (bound)
+                SkillBarDrawing.DrawSealState(spriteBatch, StateArt, Bounds.Center, (float)Main.GlobalTimeWrappedHourly,
+                    seal.SealDeniedAge, seal.IsSealed ? -1 : seal.SealReleaseAge);
+        }
     }
 
     private static SkillBarDrawing.StateArt StateArt => new(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill);
