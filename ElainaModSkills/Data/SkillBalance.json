@@ -2,7 +2,7 @@
   "schema": "elaina-mage-balance-v2",
   "configuration": {
     "version": 2,
-    "loadoutRevision": 1,
+    "loadoutRevision": 2,
     "progression": {
       "phaseSize": 5,
       "previewLevel": 50
@@ -40,12 +40,12 @@
         "unlockStageCap": 25,
         "unlockLevel": 21,
         "levelsPerPhase": 2,
-        "ratio": 0.9,
+        "ratio": 1.2,
         "ratioCurve": [],
-        "cost": 4.5,
+        "cost": 22.5,
         "interval": 0.75,
         "shots": 3,
-        "freezeBuildup": 2.8
+        "freezeBuildup": 5.6
       },
       {
         "id": "WindSlashSkill",
@@ -97,9 +97,9 @@
     "stage": 10,
     "baseDps": 450,
     "baseCrit": 4,
-    "slots": 6,
+    "slots": 7,
     "v": {
-      "armor": "adamantite",
+      "armor": "hallowed",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -118,7 +118,7 @@
           "prefix": "lucky"
         },
         {
-          "id": "celestialCuffs",
+          "id": "regen",
           "prefix": "lucky"
         },
         {
@@ -130,7 +130,7 @@
           "prefix": "menacing"
         },
         {
-          "id": "regenLife",
+          "id": "charmMyths",
           "prefix": "lucky"
         },
         {
@@ -140,7 +140,7 @@
       ]
     },
     "e": {
-      "armor": "adamantite",
+      "armor": "hallowed",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -159,7 +159,7 @@
           "prefix": "arcane"
         },
         {
-          "id": "celestialCuffs",
+          "id": "regen",
           "prefix": "arcane"
         },
         {
@@ -171,7 +171,7 @@
           "prefix": "arcane"
         },
         {
-          "id": "regenLife",
+          "id": "charmMyths",
           "prefix": "arcane"
         },
         {
@@ -208,13 +208,13 @@
       {
         "growthMode": "phase",
         "levelInterval": 5,
-        "unlockStageCap": 65,
-        "unlockLevel": 61,
+        "unlockStageCap": 30,
+        "unlockLevel": 26,
         "levelsPerPhase": 1,
         "shots": 1,
         "id": "WaterBallSkill",
         "name": "水球魔法",
-        "enabled": false,
+        "enabled": true,
         "cost": 150,
         "k": 1.5,
         "cd": 15,
@@ -262,7 +262,7 @@
         "shots": 1,
         "id": "FireBurstSkill",
         "name": "炎爆（按每层循环）",
-        "enabled": true,
+        "enabled": false,
         "cost": 50,
         "k": 10,
         "cd": 5,
@@ -287,8 +287,8 @@
         "id": "IceShardLockSkill",
         "name": "冰凌锁",
         "enabled": true,
-        "cost": 100,
-        "k": 1.7666666666666666,
+        "cost": 250,
+        "k": 1.06,
         "cd": 60,
         "cdRatio": 1,
         "cast": 0.75,
@@ -425,9 +425,9 @@
     "loadouts": [
       {
         "stage": 1,
-        "name": "巫师帽紫晶长袍",
-        "armor": "wizardAmethyst",
-        "slots": 5,
+        "name": "紫晶长袍木护甲",
+        "armor": "amethystWood",
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -470,9 +470,9 @@
       },
       {
         "stage": 2,
-        "name": "魔法帽黄玉长袍",
-        "armor": "magicTopaz",
-        "slots": 5,
+        "name": "丛林法师",
+        "armor": "jungle",
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -515,9 +515,9 @@
       },
       {
         "stage": 3,
-        "name": "魔法帽钻石长袍",
-        "armor": "magicDiamond",
-        "slots": 5,
+        "name": "丛林法师",
+        "armor": "jungle",
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -560,9 +560,9 @@
       },
       {
         "stage": 4,
-        "name": "巫师帽钻石长袍",
-        "armor": "wizardDiamond",
-        "slots": 5,
+        "name": "丛林法师",
+        "armor": "jungle",
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -570,7 +570,7 @@
             "vPrefix": "none"
           },
           {
-            "id": "band",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "menacing"
           },
@@ -605,9 +605,9 @@
       },
       {
         "stage": 5,
-        "name": "陨石法师",
-        "armor": "meteor",
-        "slots": 5,
+        "name": "丛林法师",
+        "armor": "jungle",
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -615,19 +615,19 @@
             "vPrefix": "none"
           },
           {
-            "id": "cuffs",
+            "id": "regen",
             "prefix": "arcane",
-            "vPrefix": "lucky"
+            "vPrefix": "menacing"
           },
           {
             "id": "wormScarf",
             "prefix": "arcane",
-            "vPrefix": "lucky"
+            "vPrefix": "menacing"
           },
           {
             "id": "regenLife",
             "prefix": "arcane",
-            "vPrefix": "lucky"
+            "vPrefix": "menacing"
           },
           {
             "id": "sharkTooth",
@@ -652,7 +652,7 @@
         "stage": 6,
         "name": "丛林法师",
         "armor": "jungle",
-        "slots": 5,
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -660,7 +660,7 @@
             "vPrefix": "none"
           },
           {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "menacing"
           },
@@ -697,7 +697,7 @@
         "stage": 7,
         "name": "丛林法师",
         "armor": "jungle",
-        "slots": 5,
+        "slots": 6,
         "items": [
           {
             "id": "elainaHat",
@@ -705,7 +705,7 @@
             "vPrefix": "none"
           },
           {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "menacing"
           },
@@ -740,9 +740,9 @@
       },
       {
         "stage": 8,
-        "name": "魔法帽钻石长袍陨石护腿",
-        "armor": "magicDiamondMeteor",
-        "slots": 6,
+        "name": "钛金法师",
+        "armor": "titanium",
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -755,52 +755,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "celestialCuffs",
-            "prefix": "arcane",
-            "vPrefix": "lucky"
-          },
-          {
-            "id": "wormScarf",
-            "prefix": "arcane",
-            "vPrefix": "lucky"
-          },
-          {
-            "id": "obsidianShield",
-            "prefix": "arcane",
-            "vPrefix": "lucky"
-          },
-          {
-            "id": "regenLife",
-            "prefix": "arcane",
-            "vPrefix": "lucky"
-          },
-          {
-            "id": "sharkTooth",
-            "prefix": "arcane",
-            "vPrefix": "menacing"
-          }
-        ],
-        "baseMana": 200,
-        "maxLife": 400
-      },
-      {
-        "stage": 9,
-        "name": "秘银法师",
-        "armor": "mythril",
-        "slots": 6,
-        "items": [
-          {
-            "id": "elainaHat",
-            "prefix": "arcane",
-            "vPrefix": "none"
-          },
-          {
-            "id": "sorcerer",
-            "prefix": "arcane",
-            "vPrefix": "lucky"
-          },
-          {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -815,7 +770,52 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "regenLife",
+            "id": "charmMyths",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "sharkTooth",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          }
+        ],
+        "baseMana": 200,
+        "maxLife": 400
+      },
+      {
+        "stage": 9,
+        "name": "钛金法师",
+        "armor": "titanium",
+        "slots": 7,
+        "items": [
+          {
+            "id": "elainaHat",
+            "prefix": "arcane",
+            "vPrefix": "none"
+          },
+          {
+            "id": "sorcerer",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "regen",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "wormScarf",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "ankhShield",
+            "prefix": "arcane",
+            "vPrefix": "lucky"
+          },
+          {
+            "id": "charmMyths",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -830,9 +830,9 @@
       },
       {
         "stage": 10,
-        "name": "精金法师",
-        "armor": "adamantite",
-        "slots": 6,
+        "name": "神圣法师",
+        "armor": "hallowed",
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -845,7 +845,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -860,7 +860,7 @@
             "vPrefix": "menacing"
           },
           {
-            "id": "regenLife",
+            "id": "charmMyths",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -875,9 +875,9 @@
       },
       {
         "stage": 11,
-        "name": "钛金法师",
-        "armor": "titanium",
-        "slots": 6,
+        "name": "神圣法师",
+        "armor": "hallowed",
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -890,7 +890,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -902,17 +902,17 @@
           {
             "id": "ankhShield",
             "prefix": "arcane",
-            "vPrefix": "lucky"
+            "vPrefix": "menacing"
           },
           {
-            "id": "regenLife",
+            "id": "charmMyths",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
           {
             "id": "sharkTooth",
             "prefix": "arcane",
-            "vPrefix": "lucky"
+            "vPrefix": "menacing"
           }
         ],
         "baseMana": 200,
@@ -922,7 +922,7 @@
         "stage": 12,
         "name": "神圣法师",
         "armor": "hallowed",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -950,7 +950,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -967,7 +967,7 @@
         "stage": 13,
         "name": "输出型幽灵套",
         "armor": "spectre",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -990,12 +990,12 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
           {
-            "id": "celestialCuffs",
+            "id": "regen",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -1012,7 +1012,7 @@
         "stage": 14,
         "name": "输出型幽灵套",
         "armor": "spectre",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -1035,7 +1035,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -1057,7 +1057,7 @@
         "stage": 15,
         "name": "输出型幽灵套",
         "armor": "spectre",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -1080,7 +1080,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -1102,7 +1102,7 @@
         "stage": 16,
         "name": "输出型幽灵套",
         "armor": "spectre",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -1125,7 +1125,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -1147,7 +1147,7 @@
         "stage": 17,
         "name": "输出型幽灵套",
         "armor": "spectre",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -1170,7 +1170,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -1192,7 +1192,7 @@
         "stage": 18,
         "name": "输出型幽灵套",
         "armor": "spectre",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -1215,7 +1215,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },
@@ -1237,7 +1237,7 @@
         "stage": 19,
         "name": "星云法师",
         "armor": "nebula",
-        "slots": 6,
+        "slots": 7,
         "items": [
           {
             "id": "elainaHat",
@@ -1260,7 +1260,7 @@
             "vPrefix": "lucky"
           },
           {
-            "id": "ankhShield",
+            "id": "frozenShield",
             "prefix": "arcane",
             "vPrefix": "lucky"
           },

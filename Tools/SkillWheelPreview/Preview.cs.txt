@@ -70,8 +70,9 @@ internal sealed class PreviewGame : Game
     protected override void LoadContent()
     {
         Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
-        var cooldown = Content.Load<Effect>("Effects/Content/CDEffect");
         var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
+        Content.RootDirectory = root;
+        var cooldown = Content.Load<Effect>("Effects/Content/SkillSeal");
         var pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
         var glow = Procedural(128, (x, y) =>
@@ -97,6 +98,10 @@ internal sealed class PreviewGame : Game
             Render($"count{count}-idle", 1, v => Fill(v, count, 1, -1, 0));
         foreach (float scale in new[] { 1f, 1.5f })
         {
+            Render("sealed-skill", scale, v => {
+                Fill(v, 8, 1, 2, 0);
+                v.Items[2].Sealed = true; v.Items[2].SealDeniedAge = 9;
+            });
             Render("count8-hover", scale, v => Fill(v, 8, 1, 3, 0));
             Render("count8-hover-current", scale, v => Fill(v, 8, 1, 0, 0));
             Render("count8-hover-cooldown", scale, v => Fill(v, 8, 1, 4, 0));
@@ -172,7 +177,7 @@ internal sealed class PreviewGame : Game
         for (int i = 0; i < view.Count; i++)
         {
             int slot = view.Items[i].Slot;
-            view.Items[i].Icon = Texture("ElainaModSkills/Skills/" + Skills[slot].Icon);
+            view.Items[i].Icon = Texture("ElainaModSkills/Skills/" + (view.Items[i].Sealed ? "Ice/IceShardLockSkill" : Skills[slot].Icon));
         }
 
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,

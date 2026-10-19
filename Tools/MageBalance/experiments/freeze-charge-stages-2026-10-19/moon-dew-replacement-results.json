@@ -1,0 +1,3833 @@
+{
+  "sourceSHA256": "172fe753b4612011003b248b2ccca3688ea166becb57fcb07e756096a5ac50be",
+  "rules": {
+    "mode": "gated",
+    "iceCost": 22.5,
+    "buildup": 5.6,
+    "beamFreeze": 0.5,
+    "beamLock": 0.3,
+    "ballFreeze": 4,
+    "ballLock": 3
+  },
+  "scenarios": {
+    "oldFiveCharges": {
+      "potions": 5
+    },
+    "oldOneCharge": {
+      "potions": 1
+    },
+    "newOneDose": {
+      "potions": 0,
+      "buffSeconds": 120
+    },
+    "newRefreshed": {
+      "potions": 0,
+      "buffSeconds": 300
+    }
+  },
+  "assumptions": [
+    "Replacement only: no old instant charges in new scenarios, and no separate0.5% regeneration potion.",
+    "A dose grants an additional1% maximum mana per second for120seconds. Reuse refreshes duration without stacking strength.",
+    "newOneDose is active only in the first120seconds. newRefreshed covers a300second fight with three doses; item use animation/cost not modeled.",
+    "oldFiveCharges is the present full combat reserve, representing up to five consumed items. oldOneCharge compares a single item.",
+    "Saved gear and skill values, capped progression; stages7/8/10/13 at35/40/50/65; lock250mana, k1.06. Formal ball15second cooldown.",
+    "One persistent zero-defense target, all hits, expected crit; full opening mana; no incoming damage, life conversion, defense/healing spells or armor procs.",
+    "Fixed representative casting policies, not globally optimal or an actual boss test. Output changes include cast timing near the end of the time window."
+  ],
+  "rows": [
+    {
+      "stage": 7,
+      "duration": 120,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 448.4147962962948,
+          "shares": {
+            "ice": 17.607023820826708,
+            "water": 47.18792318570429,
+            "ball": 35.205052993469,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 194.7366666665938,
+          "usedCharges": 1,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5014,
+            "ball": 656,
+            "lock": 0,
+            "recovery": 180
+          },
+          "regen": 1895.9999999999193,
+          "overflow": 0.2633333333333212,
+          "spent": 2511,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 421.07999999999646,
+          "shares": {
+            "ice": 100.00000000000001,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 160,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 185.7366666666145,
+          "usedCharges": 5,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 7200,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 1895.9999999999193,
+          "overflow": 0.2633333333333212,
+          "spent": 3600,
+          "idleSeconds": 0
+        },
+        "coreNoBall": {
+          "dps": 321.6023148148124,
+          "shares": {
+            "ice": 24.549730012193233,
+            "water": 75.45026998780676,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 485,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 539.8166666666666,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5770,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 80
+          },
+          "regen": 1895.9999999999193,
+          "overflow": 493.6833333332461,
+          "spent": 1402.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 120,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 448.4147962962948,
+          "shares": {
+            "ice": 17.607023820826708,
+            "water": 47.18792318570429,
+            "ball": 35.205052993469,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 194.7366666665938,
+          "usedCharges": 1,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5014,
+            "ball": 656,
+            "lock": 0,
+            "recovery": 180
+          },
+          "regen": 1895.9999999999193,
+          "overflow": 0.2633333333333212,
+          "spent": 2511,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 313.17824999999976,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 120,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 5.736666666639028,
+          "usedCharges": 1,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 5377,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 1895.9999999999193,
+          "overflow": 0.2633333333333212,
+          "spent": 2700,
+          "idleSeconds": 30.383333333333333
+        },
+        "coreNoBall": {
+          "dps": 321.6023148148124,
+          "shares": {
+            "ice": 24.549730012193233,
+            "water": 75.45026998780676,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 485,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 539.8166666666666,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5770,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 80
+          },
+          "regen": 1895.9999999999193,
+          "overflow": 493.6833333332461,
+          "spent": 1402.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 120,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 448.4147962962948,
+          "shares": {
+            "ice": 17.607023820826708,
+            "water": 47.18792318570429,
+            "ball": 35.205052993469,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 502.5866666666843,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5014,
+            "ball": 656,
+            "lock": 0,
+            "recovery": 180
+          },
+          "regen": 2543.9999999999554,
+          "overflow": 70.41333333345756,
+          "spent": 2511,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 357.9179999999984,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 137,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 1.1466666666960683,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 6124,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 2543.9999999999554,
+          "overflow": 0.35333333333335304,
+          "spent": 3082.5,
+          "idleSeconds": 17.933333333333334
+        },
+        "coreNoBall": {
+          "dps": 321.6023148148124,
+          "shares": {
+            "ice": 24.549730012193233,
+            "water": 75.45026998780676,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 485,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 540,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5770,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 80
+          },
+          "regen": 2543.9999999999554,
+          "overflow": 1141.500000000181,
+          "spent": 1402.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 120,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 448.4147962962948,
+          "shares": {
+            "ice": 17.607023820826708,
+            "water": 47.18792318570429,
+            "ball": 35.205052993469,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 424,
+            "ball": 8,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 502.5866666666843,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5014,
+            "ball": 656,
+            "lock": 0,
+            "recovery": 180
+          },
+          "regen": 2543.9999999999554,
+          "overflow": 70.41333333345756,
+          "spent": 2511,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 357.9179999999984,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 137,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 1.1466666666960683,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 6124,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 2543.9999999999554,
+          "overflow": 0.35333333333335304,
+          "spent": 3082.5,
+          "idleSeconds": 17.933333333333334
+        },
+        "coreNoBall": {
+          "dps": 321.6023148148124,
+          "shares": {
+            "ice": 24.549730012193233,
+            "water": 75.45026998780676,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 30,
+            "water": 485,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 540,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5770,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 80
+          },
+          "regen": 2543.9999999999554,
+          "overflow": 1141.500000000181,
+          "spent": 1402.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 300,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 447.7967999999963,
+          "shares": {
+            "ice": 16.926070038910698,
+            "water": 47.82029110822836,
+            "ball": 35.25363885286094,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 136.23666666650112,
+          "usedCharges": 4,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 12640,
+            "ball": 1640,
+            "lock": 0,
+            "recovery": 480
+          },
+          "regen": 4739.999999999789,
+          "overflow": 0.2633333333333212,
+          "spent": 6223.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 309.4938000000006,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 294,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 14.736666666610088,
+          "usedCharges": 5,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 13230,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 4739.999999999789,
+          "overflow": 0.2633333333333212,
+          "spent": 6615,
+          "idleSeconds": 79.5
+        },
+        "coreNoBall": {
+          "dps": 320.90275555555155,
+          "shares": {
+            "ice": 23.619117844215413,
+            "water": 76.38088215578458,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1222,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 540,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 14540,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 220
+          },
+          "regen": 4739.999999999789,
+          "overflow": 1286.9999999997817,
+          "spent": 3453,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 300,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 411.3601148148111,
+          "shares": {
+            "ice": 18.42531574411921,
+            "water": 52.79248205980706,
+            "ball": 28.78220219607374,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1087,
+            "ball": 15,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 49.236666666586636,
+          "usedCharges": 1,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 12868,
+            "ball": 1230,
+            "lock": 0,
+            "recovery": 460
+          },
+          "regen": 4739.999999999789,
+          "overflow": 0.2633333333333212,
+          "spent": 5500.5,
+          "idleSeconds": 3.3666666666666667
+        },
+        "pureIce": {
+          "dps": 258.96419999999864,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 246,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 14.736666666636108,
+          "usedCharges": 1,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 11070,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 4739.999999999789,
+          "overflow": 0.2633333333333212,
+          "spent": 5535,
+          "idleSeconds": 115.5
+        },
+        "coreNoBall": {
+          "dps": 320.90275555555155,
+          "shares": {
+            "ice": 23.619117844215413,
+            "water": 76.38088215578458,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1222,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 540,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 14540,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 220
+          },
+          "regen": 4739.999999999789,
+          "overflow": 1286.9999999997817,
+          "spent": 3453,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 300,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 427.14658148147777,
+          "shares": {
+            "ice": 17.744353644859242,
+            "water": 50.84137957082721,
+            "ball": 31.41426678431355,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1085,
+            "ball": 17,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 60.086666666634954,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 12836,
+            "ball": 1394,
+            "lock": 0,
+            "recovery": 480
+          },
+          "regen": 5387.9999999998245,
+          "overflow": 70.41333333345756,
+          "spent": 5797.5,
+          "idleSeconds": 0.8333333333333334
+        },
+        "pureIce": {
+          "dps": 276.8600999999993,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 263,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 10.146666666693138,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 11829,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 5387.9999999998245,
+          "overflow": 0.35333333333335304,
+          "spent": 5917.5,
+          "idleSeconds": 102.85
+        },
+        "coreNoBall": {
+          "dps": 320.90275555555155,
+          "shares": {
+            "ice": 23.619117844215413,
+            "water": 76.38088215578458,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1222,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 540,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 14540,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 220
+          },
+          "regen": 5387.9999999998245,
+          "overflow": 1935.00000000005,
+          "spent": 3453,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 7,
+      "duration": 300,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 447.7967999999963,
+          "shares": {
+            "ice": 16.926070038910698,
+            "water": 47.82029110822836,
+            "ball": 35.25363885286094,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1069,
+            "ball": 20,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 446.22666666671205,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 12640,
+            "ball": 1640,
+            "lock": 0,
+            "recovery": 480
+          },
+          "regen": 6360.000000001396,
+          "overflow": 230.27333333364265,
+          "spent": 6223.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 322.12620000000106,
+          "shares": {
+            "ice": 100,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 306,
+            "water": 0,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 14.64666666669195,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 13767,
+            "water": 0,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 0
+          },
+          "regen": 6360.000000001396,
+          "overflow": 0.35333333333335304,
+          "spent": 6885,
+          "idleSeconds": 70.55
+        },
+        "coreNoBall": {
+          "dps": 320.90275555555155,
+          "shares": {
+            "ice": 23.619117844215413,
+            "water": 76.38088215578458,
+            "ball": 0,
+            "lock": 0
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1222,
+            "ball": 0,
+            "lock": 0
+          },
+          "maxMana": 540,
+          "baseRegen": 15.8,
+          "endMana": 540,
+          "usedCharges": 0,
+          "interval": null,
+          "lockTimes": [],
+          "handTicks": {
+            "ice": 3240,
+            "water": 14540,
+            "ball": 0,
+            "lock": 0,
+            "recovery": 220
+          },
+          "regen": 6360.000000001396,
+          "overflow": 2907.000000000979,
+          "spent": 3453,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 120,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 1627.5104999999971,
+          "shares": {
+            "ice": 8.714229493450297,
+            "water": 22.36652236652227,
+            "ball": 17.470936951456462,
+            "lock": 51.44831118857099
+          },
+          "casts": {
+            "ice": 30,
+            "water": 401,
+            "ball": 8,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 275.20666666665727,
+          "usedCharges": 4,
+          "interval": 27.150000000000002,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            87.48333333333333,
+            114.46666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4729,
+            "ball": 656,
+            "lock": 225,
+            "recovery": 240
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 3726.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 1081.8756666666698,
+          "shares": {
+            "ice": 69.04166744977175,
+            "water": 0,
+            "ball": 0,
+            "lock": 30.958332550228256
+          },
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 261.7066666666593,
+          "usedCharges": 5,
+          "interval": 68.25,
+          "lockTimes": [
+            4.5,
+            72.75
+          ],
+          "handTicks": {
+            "ice": 7110,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 4055,
+          "idleSeconds": 0
+        },
+        "coreNoBall": {
+          "dps": 1398.4283888888858,
+          "shares": {
+            "ice": 10.14174205321207,
+            "water": 29.98199446990301,
+            "ball": 0,
+            "lock": 59.87626347688492
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 122.20666666672211,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 120,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 1355.5182777777752,
+          "shares": {
+            "ice": 10.462787726662514,
+            "water": 27.00949276105081,
+            "ball": 13.110360534914735,
+            "lock": 49.41735897737194
+          },
+          "casts": {
+            "ice": 30,
+            "water": 407,
+            "ball": 5,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 21.20666666665162,
+          "usedCharges": 1,
+          "interval": 35.050000000000004,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            64.68333333333334,
+            111.01666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4838,
+            "ball": 410,
+            "lock": 180,
+            "recovery": 160
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 3035.5,
+          "idleSeconds": 4.366666666666666
+        },
+        "pureIce": {
+          "dps": 869.1381666666637,
+          "shares": {
+            "ice": 61.464048006176114,
+            "water": 0,
+            "ball": 0,
+            "lock": 38.535951993823886
+          },
+          "casts": {
+            "ice": 113,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 14.20666666665345,
+          "usedCharges": 1,
+          "interval": 84,
+          "lockTimes": [
+            4.5,
+            88.5
+          ],
+          "handTicks": {
+            "ice": 5085,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 3042.5,
+          "idleSeconds": 33.75
+        },
+        "coreNoBall": {
+          "dps": 1398.4283888888858,
+          "shares": {
+            "ice": 10.14174205321207,
+            "water": 29.98199446990301,
+            "ball": 0,
+            "lock": 59.87626347688492
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 122.20666666672211,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 120,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 1432.696833333331,
+          "shares": {
+            "ice": 9.899163361032095,
+            "water": 25.979804287508486,
+            "ball": 17.365758119797643,
+            "lock": 46.755274231661765
+          },
+          "casts": {
+            "ice": 30,
+            "water": 413,
+            "ball": 7,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 153.10166666662514,
+          "usedCharges": 0,
+          "interval": 30.366666666666664,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4896,
+            "ball": 574,
+            "lock": 180,
+            "recovery": 200
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3344.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 958.9606666666659,
+          "shares": {
+            "ice": 65.0735761842161,
+            "water": 0,
+            "ball": 0,
+            "lock": 34.926423815783906
+          },
+          "casts": {
+            "ice": 133,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 5.101666666644462,
+          "usedCharges": 0,
+          "interval": 78.56666666666666,
+          "lockTimes": [
+            4.5,
+            83.06666666666666
+          ],
+          "handTicks": {
+            "ice": 5953,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3492.5,
+          "idleSeconds": 19.283333333333335
+        },
+        "coreNoBall": {
+          "dps": 1398.4283888888858,
+          "shares": {
+            "ice": 10.14174205321207,
+            "water": 29.98199446990301,
+            "ball": 0,
+            "lock": 59.87626347688492
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 471.77166666665994,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2868.00000000033,
+          "overflow": 406.72833333318727,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 120,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 1432.696833333331,
+          "shares": {
+            "ice": 9.899163361032095,
+            "water": 25.979804287508486,
+            "ball": 17.365758119797643,
+            "lock": 46.755274231661765
+          },
+          "casts": {
+            "ice": 30,
+            "water": 413,
+            "ball": 7,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 153.10166666662514,
+          "usedCharges": 0,
+          "interval": 30.366666666666664,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4896,
+            "ball": 574,
+            "lock": 180,
+            "recovery": 200
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3344.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 958.9606666666659,
+          "shares": {
+            "ice": 65.0735761842161,
+            "water": 0,
+            "ball": 0,
+            "lock": 34.926423815783906
+          },
+          "casts": {
+            "ice": 133,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 5.101666666644462,
+          "usedCharges": 0,
+          "interval": 78.56666666666666,
+          "lockTimes": [
+            4.5,
+            83.06666666666666
+          ],
+          "handTicks": {
+            "ice": 5953,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3492.5,
+          "idleSeconds": 19.283333333333335
+        },
+        "coreNoBall": {
+          "dps": 1398.4283888888858,
+          "shares": {
+            "ice": 10.14174205321207,
+            "water": 29.98199446990301,
+            "ball": 0,
+            "lock": 59.87626347688492
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 471.77166666665994,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2868.00000000033,
+          "overflow": 406.72833333318727,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 300,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 1298.4487111111196,
+          "shares": {
+            "ice": 8.738119498220973,
+            "water": 29.502480498438697,
+            "ball": 15.328979237309275,
+            "lock": 46.43042076603105
+          },
+          "casts": {
+            "ice": 60,
+            "water": 1078,
+            "ball": 14,
+            "lock": 9
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 167.7066666666286,
+          "usedCharges": 5,
+          "interval": 32.13333333333333,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            87.48333333333333,
+            114.46666666666667,
+            141.5,
+            171.45,
+            217.45,
+            262.93333333333334
+          ],
+          "handTicks": {
+            "ice": 2700,
+            "water": 12794,
+            "ball": 1148,
+            "lock": 405,
+            "recovery": 480
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 7317,
+          "idleSeconds": 7.883333333333334
+        },
+        "pureIce": {
+          "dps": 793.6425333333414,
+          "shares": {
+            "ice": 66.23863741173854,
+            "water": 0,
+            "ball": 0,
+            "lock": 33.761362588261456
+          },
+          "casts": {
+            "ice": 278,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 229.70666666664258,
+          "usedCharges": 5,
+          "interval": 74.54444444444444,
+          "lockTimes": [
+            4.5,
+            72.75,
+            155.11666666666667,
+            228.13333333333333
+          ],
+          "handTicks": {
+            "ice": 12510,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 7255,
+          "idleSeconds": 88.5
+        },
+        "coreNoBall": {
+          "dps": 1297.4659333333434,
+          "shares": {
+            "ice": 10.493685922851853,
+            "water": 32.71503750207707,
+            "ball": 0,
+            "lock": 56.79127657507107
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 410.2066666667833,
+          "usedCharges": 2,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 300,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 1143.5263333333419,
+          "shares": {
+            "ice": 8.76438058998195,
+            "water": 33.183378082825634,
+            "ball": 11.189388147015332,
+            "lock": 46.862853180177076
+          },
+          "casts": {
+            "ice": 53,
+            "water": 1110,
+            "ball": 9,
+            "lock": 8
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 17.206666666626504,
+          "usedCharges": 1,
+          "interval": 41.01190476190476,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            64.68333333333334,
+            111.01666666666667,
+            156.5,
+            201.98333333333332,
+            247.46666666666667,
+            292.95
+          ],
+          "handTicks": {
+            "ice": 2385,
+            "water": 13269,
+            "ball": 738,
+            "lock": 360,
+            "recovery": 320
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6207.5,
+          "idleSeconds": 15.466666666666667
+        },
+        "pureIce": {
+          "dps": 697.2015333333385,
+          "shares": {
+            "ice": 61.568567978862085,
+            "water": 0,
+            "ball": 0,
+            "lock": 38.431432021137915
+          },
+          "casts": {
+            "ice": 227,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 117.20666666664515,
+          "usedCharges": 1,
+          "interval": 76.67777777777778,
+          "lockTimes": [
+            4.5,
+            88.5,
+            161.51666666666668,
+            234.53333333333333
+          ],
+          "handTicks": {
+            "ice": 10215,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6107.5,
+          "idleSeconds": 126.75
+        },
+        "coreNoBall": {
+          "dps": 1297.4659333333434,
+          "shares": {
+            "ice": 10.493685922851853,
+            "water": 32.71503750207707,
+            "ball": 0,
+            "lock": 56.79127657507107
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 95.20666666676428,
+          "usedCharges": 1,
+          "interval": 27.72,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            281.7
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 300,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 1172.9554444444539,
+          "shares": {
+            "ice": 8.705701523757698,
+            "water": 33.486498824101034,
+            "ball": 12.1207218347499,
+            "lock": 45.68707781739136
+          },
+          "casts": {
+            "ice": 54,
+            "water": 1131,
+            "ball": 10,
+            "lock": 8
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 254.10166666659444,
+          "usedCharges": 0,
+          "interval": 35.535714285714285,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667,
+            129.83333333333334,
+            163.65,
+            209.13333333333333,
+            254.61666666666667
+          ],
+          "handTicks": {
+            "ice": 2430,
+            "water": 13496,
+            "ball": 820,
+            "lock": 360,
+            "recovery": 374
+          },
+          "regen": 6035.999999999352,
+          "overflow": 0.3983333333333121,
+          "spent": 6411.5,
+          "idleSeconds": 8.666666666666666
+        },
+        "pureIce": {
+          "dps": 729.3485333333394,
+          "shares": {
+            "ice": 63.26248410910665,
+            "water": 0,
+            "ball": 0,
+            "lock": 36.737515890893356
+          },
+          "casts": {
+            "ice": 244,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 175.60166666663454,
+          "usedCharges": 0,
+          "interval": 75.56666666666666,
+          "lockTimes": [
+            4.5,
+            83.06666666666666,
+            158.2,
+            231.2
+          ],
+          "handTicks": {
+            "ice": 10980,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 6035.999999999352,
+          "overflow": 0.3983333333333121,
+          "spent": 6490,
+          "idleSeconds": 114
+        },
+        "coreNoBall": {
+          "dps": 1297.4659333333434,
+          "shares": {
+            "ice": 10.493685922851853,
+            "water": 32.71503750207707,
+            "ball": 0,
+            "lock": 56.79127657507107
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 129.77166666668748,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 6035.999999999352,
+          "overflow": 406.72833333318727,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 8,
+      "duration": 300,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 1371.8086666666748,
+          "shares": {
+            "ice": 9.09791598731204,
+            "water": 28.598701568197793,
+            "ball": 13.472860403758853,
+            "lock": 48.830522040731324
+          },
+          "casts": {
+            "ice": 67,
+            "water": 1084,
+            "ball": 13,
+            "lock": 10
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 216.10166666662826,
+          "usedCharges": 0,
+          "interval": 29.703703703703702,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667,
+            126.2,
+            155.43333333333334,
+            184.65,
+            213.93333333333334,
+            243.23333333333332,
+            273.2
+          ],
+          "handTicks": {
+            "ice": 2989,
+            "water": 12856,
+            "ball": 1066,
+            "lock": 450,
+            "recovery": 540
+          },
+          "regen": 7170.000000002557,
+          "overflow": 0.3983333333333121,
+          "spent": 7583.5,
+          "idleSeconds": 1.65
+        },
+        "pureIce": {
+          "dps": 883.3206666666755,
+          "shares": {
+            "ice": 62.08277703604846,
+            "water": 0,
+            "ball": 0,
+            "lock": 37.91722296395154
+          },
+          "casts": {
+            "ice": 291,
+            "water": 0,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 2.1016666666484483,
+          "usedCharges": 0,
+          "interval": 71.96666666666667,
+          "lockTimes": [
+            4.5,
+            83.06666666666666,
+            152.83333333333334,
+            222.6,
+            292.3666666666667
+          ],
+          "handTicks": {
+            "ice": 13056,
+            "water": 0,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 0
+          },
+          "regen": 7170.000000002557,
+          "overflow": 0.3983333333333121,
+          "spent": 7797.5,
+          "idleSeconds": 78.65
+        },
+        "coreNoBall": {
+          "dps": 1297.4659333333434,
+          "shares": {
+            "ice": 10.493685922851853,
+            "water": 32.71503750207707,
+            "ball": 0,
+            "lock": 56.79127657507107
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 613.1016666666412,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 7170.000000002557,
+          "overflow": 1057.3983333329768,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 120,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 2134.848000000004,
+          "shares": {
+            "ice": 8.72380609767063,
+            "water": 22.314156948566644,
+            "ball": 17.483586653476,
+            "lock": 51.478450300286724
+          },
+          "casts": {
+            "ice": 30,
+            "water": 401,
+            "ball": 8,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 275.20666666665727,
+          "usedCharges": 4,
+          "interval": 27.150000000000002,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            87.48333333333333,
+            114.46666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4729,
+            "ball": 656,
+            "lock": 225,
+            "recovery": 240
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 3726.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 1420.4586666666787,
+          "shares": {
+            "ice": 69.05262525531683,
+            "water": 0,
+            "ball": 0,
+            "lock": 30.94737474468316
+          },
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 261.7066666666593,
+          "usedCharges": 5,
+          "interval": 68.25,
+          "lockTimes": [
+            4.5,
+            72.75
+          ],
+          "handTicks": {
+            "ice": 7110,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 4055,
+          "idleSeconds": 0
+        },
+        "coreNoBall": {
+          "dps": 1833.9152592592648,
+          "shares": {
+            "ice": 10.155322011728279,
+            "water": 29.918971982065194,
+            "ball": 0,
+            "lock": 59.925706006206525
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 122.20666666672211,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 120,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 1777.8322962963002,
+          "shares": {
+            "ice": 10.475678745851761,
+            "water": 26.94984020490054,
+            "ball": 13.121597604340105,
+            "lock": 49.4528834449076
+          },
+          "casts": {
+            "ice": 30,
+            "water": 407,
+            "ball": 5,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 21.20666666665162,
+          "usedCharges": 1,
+          "interval": 35.050000000000004,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            64.68333333333334,
+            111.01666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4838,
+            "ball": 410,
+            "lock": 180,
+            "recovery": 160
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 3035.5,
+          "idleSeconds": 4.366666666666666
+        },
+        "pureIce": {
+          "dps": 1141.0986666666709,
+          "shares": {
+            "ice": 61.4761913664493,
+            "water": 0,
+            "ball": 0,
+            "lock": 38.5238086335507
+          },
+          "casts": {
+            "ice": 113,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 14.20666666665345,
+          "usedCharges": 1,
+          "interval": 84,
+          "lockTimes": [
+            4.5,
+            88.5
+          ],
+          "handTicks": {
+            "ice": 5085,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 3042.5,
+          "idleSeconds": 33.75
+        },
+        "coreNoBall": {
+          "dps": 1833.9152592592648,
+          "shares": {
+            "ice": 10.155322011728279,
+            "water": 29.918971982065194,
+            "ball": 0,
+            "lock": 59.925706006206525
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 122.20666666672211,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2111.9999999998463,
+          "overflow": 0.2933333333332939,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 120,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 1879.1182222222262,
+          "shares": {
+            "ice": 9.911031557118013,
+            "water": 25.921566995016256,
+            "ball": 17.380066679028616,
+            "lock": 46.78733476883712
+          },
+          "casts": {
+            "ice": 30,
+            "water": 413,
+            "ball": 7,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 153.10166666662514,
+          "usedCharges": 0,
+          "interval": 30.366666666666664,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4896,
+            "ball": 574,
+            "lock": 180,
+            "recovery": 200
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3344.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 1259.050666666674,
+          "shares": {
+            "ice": 65.08522823545377,
+            "water": 0,
+            "ball": 0,
+            "lock": 34.91477176454622
+          },
+          "casts": {
+            "ice": 133,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 5.101666666644462,
+          "usedCharges": 0,
+          "interval": 78.56666666666666,
+          "lockTimes": [
+            4.5,
+            83.06666666666666
+          ],
+          "handTicks": {
+            "ice": 5953,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3492.5,
+          "idleSeconds": 19.283333333333335
+        },
+        "coreNoBall": {
+          "dps": 1833.9152592592648,
+          "shares": {
+            "ice": 10.155322011728279,
+            "water": 29.918971982065194,
+            "ball": 0,
+            "lock": 59.925706006206525
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 471.77166666665994,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2868.00000000033,
+          "overflow": 406.72833333318727,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 120,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 1879.1182222222262,
+          "shares": {
+            "ice": 9.911031557118013,
+            "water": 25.921566995016256,
+            "ball": 17.380066679028616,
+            "lock": 46.78733476883712
+          },
+          "casts": {
+            "ice": 30,
+            "water": 413,
+            "ball": 7,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 153.10166666662514,
+          "usedCharges": 0,
+          "interval": 30.366666666666664,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4896,
+            "ball": 574,
+            "lock": 180,
+            "recovery": 200
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3344.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 1259.050666666674,
+          "shares": {
+            "ice": 65.08522823545377,
+            "water": 0,
+            "ball": 0,
+            "lock": 34.91477176454622
+          },
+          "casts": {
+            "ice": 133,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 5.101666666644462,
+          "usedCharges": 0,
+          "interval": 78.56666666666666,
+          "lockTimes": [
+            4.5,
+            83.06666666666666
+          ],
+          "handTicks": {
+            "ice": 5953,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2868.00000000033,
+          "overflow": 0.3983333333333121,
+          "spent": 3492.5,
+          "idleSeconds": 19.283333333333335
+        },
+        "coreNoBall": {
+          "dps": 1833.9152592592648,
+          "shares": {
+            "ice": 10.155322011728279,
+            "water": 29.918971982065194,
+            "ball": 0,
+            "lock": 59.925706006206525
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 471.77166666665994,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2868.00000000033,
+          "overflow": 406.72833333318727,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 300,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 1702.8484740740728,
+          "shares": {
+            "ice": 8.749574743050143,
+            "water": 29.43964079638179,
+            "ball": 15.343326430853928,
+            "lock": 46.46745802971414
+          },
+          "casts": {
+            "ice": 60,
+            "water": 1078,
+            "ball": 14,
+            "lock": 9
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 167.7066666666286,
+          "usedCharges": 5,
+          "interval": 32.13333333333333,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            87.48333333333333,
+            114.46666666666667,
+            141.5,
+            171.45,
+            217.45,
+            262.93333333333334
+          ],
+          "handTicks": {
+            "ice": 2700,
+            "water": 12794,
+            "ball": 1148,
+            "lock": 405,
+            "recovery": 480
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 7317,
+          "idleSeconds": 7.883333333333334
+        },
+        "pureIce": {
+          "dps": 1042.0053333333465,
+          "shares": {
+            "ice": 66.25010236671895,
+            "water": 0,
+            "ball": 0,
+            "lock": 33.74989763328105
+          },
+          "casts": {
+            "ice": 278,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 229.70666666664258,
+          "usedCharges": 5,
+          "interval": 74.54444444444444,
+          "lockTimes": [
+            4.5,
+            72.75,
+            155.11666666666667,
+            228.13333333333333
+          ],
+          "handTicks": {
+            "ice": 12510,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 7255,
+          "idleSeconds": 88.5
+        },
+        "coreNoBall": {
+          "dps": 1701.378844444445,
+          "shares": {
+            "ice": 10.508559018692903,
+            "water": 32.64882360513683,
+            "ball": 0,
+            "lock": 56.842617376170274
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 410.2066666667833,
+          "usedCharges": 2,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 300,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 1499.5057777777793,
+          "shares": {
+            "ice": 8.776865147865,
+            "water": 33.11645199840679,
+            "ball": 11.201130565092845,
+            "lock": 46.90555228863537
+          },
+          "casts": {
+            "ice": 53,
+            "water": 1110,
+            "ball": 9,
+            "lock": 8
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 17.206666666626504,
+          "usedCharges": 1,
+          "interval": 41.01190476190476,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            64.68333333333334,
+            111.01666666666667,
+            156.5,
+            201.98333333333332,
+            247.46666666666667,
+            292.95
+          ],
+          "handTicks": {
+            "ice": 2385,
+            "water": 13269,
+            "ball": 738,
+            "lock": 360,
+            "recovery": 320
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6207.5,
+          "idleSeconds": 15.466666666666667
+        },
+        "pureIce": {
+          "dps": 915.3621333333429,
+          "shares": {
+            "ice": 61.58069899038904,
+            "water": 0,
+            "ball": 0,
+            "lock": 38.41930100961096
+          },
+          "casts": {
+            "ice": 227,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 117.20666666664515,
+          "usedCharges": 1,
+          "interval": 76.67777777777778,
+          "lockTimes": [
+            4.5,
+            88.5,
+            161.51666666666668,
+            234.53333333333333
+          ],
+          "handTicks": {
+            "ice": 10215,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6107.5,
+          "idleSeconds": 126.75
+        },
+        "coreNoBall": {
+          "dps": 1701.378844444445,
+          "shares": {
+            "ice": 10.508559018692903,
+            "water": 32.64882360513683,
+            "ball": 0,
+            "lock": 56.842617376170274
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 95.20666666676428,
+          "usedCharges": 1,
+          "interval": 27.72,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            281.7
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 5280.000000000041,
+          "overflow": 0.2933333333332939,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 300,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 1538.0840296296305,
+          "shares": {
+            "ice": 8.718171271324447,
+            "water": 33.41922502678483,
+            "ball": 12.1335373363794,
+            "lock": 45.72906636551133
+          },
+          "casts": {
+            "ice": 54,
+            "water": 1131,
+            "ball": 10,
+            "lock": 8
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 254.10166666659444,
+          "usedCharges": 0,
+          "interval": 35.535714285714285,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667,
+            129.83333333333334,
+            163.65,
+            209.13333333333333,
+            254.61666666666667
+          ],
+          "handTicks": {
+            "ice": 2430,
+            "water": 13496,
+            "ball": 820,
+            "lock": 360,
+            "recovery": 374
+          },
+          "regen": 6035.999999999352,
+          "overflow": 0.3983333333333121,
+          "spent": 6411.5,
+          "idleSeconds": 8.666666666666666
+        },
+        "pureIce": {
+          "dps": 957.5765333333441,
+          "shares": {
+            "ice": 63.27439937263889,
+            "water": 0,
+            "ball": 0,
+            "lock": 36.72560062736112
+          },
+          "casts": {
+            "ice": 244,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 175.60166666663454,
+          "usedCharges": 0,
+          "interval": 75.56666666666666,
+          "lockTimes": [
+            4.5,
+            83.06666666666666,
+            158.2,
+            231.2
+          ],
+          "handTicks": {
+            "ice": 10980,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 6035.999999999352,
+          "overflow": 0.3983333333333121,
+          "spent": 6490,
+          "idleSeconds": 114
+        },
+        "coreNoBall": {
+          "dps": 1701.378844444445,
+          "shares": {
+            "ice": 10.508559018692903,
+            "water": 32.64882360513683,
+            "ball": 0,
+            "lock": 56.842617376170274
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 129.77166666668748,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 6035.999999999352,
+          "overflow": 406.72833333318727,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 10,
+      "duration": 300,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 1799.1025777777766,
+          "shares": {
+            "ice": 9.109608425020195,
+            "water": 28.537052349655564,
+            "ball": 13.48512324959645,
+            "lock": 48.86821597572779
+          },
+          "casts": {
+            "ice": 67,
+            "water": 1084,
+            "ball": 13,
+            "lock": 10
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 216.10166666662826,
+          "usedCharges": 0,
+          "interval": 29.703703703703702,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            96.96666666666667,
+            126.2,
+            155.43333333333334,
+            184.65,
+            213.93333333333334,
+            243.23333333333332,
+            273.2
+          ],
+          "handTicks": {
+            "ice": 2989,
+            "water": 12856,
+            "ball": 1066,
+            "lock": 450,
+            "recovery": 540
+          },
+          "regen": 7170.000000002557,
+          "overflow": 0.3983333333333121,
+          "spent": 7583.5,
+          "idleSeconds": 1.65
+        },
+        "pureIce": {
+          "dps": 1159.7226666666809,
+          "shares": {
+            "ice": 62.09484566425121,
+            "water": 0,
+            "ball": 0,
+            "lock": 37.90515433574879
+          },
+          "casts": {
+            "ice": 291,
+            "water": 0,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 2.1016666666484483,
+          "usedCharges": 0,
+          "interval": 71.96666666666667,
+          "lockTimes": [
+            4.5,
+            83.06666666666666,
+            152.83333333333334,
+            222.6,
+            292.3666666666667
+          ],
+          "handTicks": {
+            "ice": 13056,
+            "water": 0,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 0
+          },
+          "regen": 7170.000000002557,
+          "overflow": 0.3983333333333121,
+          "spent": 7797.5,
+          "idleSeconds": 78.65
+        },
+        "coreNoBall": {
+          "dps": 1701.378844444445,
+          "shares": {
+            "ice": 10.508559018692903,
+            "water": 32.64882360513683,
+            "ball": 0,
+            "lock": 56.842617376170274
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 630,
+          "baseRegen": 17.6,
+          "endMana": 613.1016666666412,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 7170.000000002557,
+          "overflow": 1057.3983333329768,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 120,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 5169.580500000001,
+          "shares": {
+            "ice": 8.719566316841359,
+            "water": 22.364580646340606,
+            "ball": 17.470817989970364,
+            "lock": 51.44503504684767
+          },
+          "casts": {
+            "ice": 30,
+            "water": 401,
+            "ball": 8,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 329.203333333334,
+          "usedCharges": 4,
+          "interval": 27.150000000000002,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            87.48333333333333,
+            114.46666666666667
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4729,
+            "ball": 656,
+            "lock": 225,
+            "recovery": 240
+          },
+          "regen": 2135.9999999997744,
+          "overflow": 0.2966666666666242,
+          "spent": 3726.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 3437.825999999989,
+          "shares": {
+            "ice": 69.05611278755808,
+            "water": 0,
+            "ball": 0,
+            "lock": 30.943887212441922
+          },
+          "casts": {
+            "ice": 158,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 320.7033333333035,
+          "usedCharges": 5,
+          "interval": 68.25,
+          "lockTimes": [
+            4.5,
+            72.75
+          ],
+          "handTicks": {
+            "ice": 7110,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2135.9999999997744,
+          "overflow": 0.2966666666666242,
+          "spent": 4055,
+          "idleSeconds": 0
+        },
+        "coreNoBall": {
+          "dps": 4441.921166666663,
+          "shares": {
+            "ice": 10.14797388532371,
+            "water": 29.97945295967456,
+            "ball": 0,
+            "lock": 59.87257315500172
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 156.20333333336302,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2135.9999999997744,
+          "overflow": 0.2966666666666242,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 120,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 4323.351666666668,
+          "shares": {
+            "ice": 10.42628577905026,
+            "water": 27.305497162502377,
+            "ball": 13.056536768733823,
+            "lock": 49.21168028971354
+          },
+          "casts": {
+            "ice": 30,
+            "water": 414,
+            "ball": 5,
+            "lock": 4
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 49.70333333331805,
+          "usedCharges": 1,
+          "interval": 34.18888888888889,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            62.03333333333333,
+            108.43333333333334
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4920,
+            "ball": 410,
+            "lock": 180,
+            "recovery": 160
+          },
+          "regen": 2135.9999999997744,
+          "overflow": 0.2966666666666242,
+          "spent": 3046,
+          "idleSeconds": 3
+        },
+        "pureIce": {
+          "dps": 2776.703999999992,
+          "shares": {
+            "ice": 61.68849830590501,
+            "water": 0,
+            "ball": 0,
+            "lock": 38.31150169409499
+          },
+          "casts": {
+            "ice": 115,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 8.203333333310566,
+          "usedCharges": 1,
+          "interval": 84.7,
+          "lockTimes": [
+            4.5,
+            89.2
+          ],
+          "handTicks": {
+            "ice": 5158,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2135.9999999997744,
+          "overflow": 0.2966666666666242,
+          "spent": 3087.5,
+          "idleSeconds": 32.53333333333333
+        },
+        "coreNoBall": {
+          "dps": 4441.921166666663,
+          "shares": {
+            "ice": 10.14797388532371,
+            "water": 29.97945295967456,
+            "ball": 0,
+            "lock": 59.87257315500172
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 156.20333333336302,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2135.9999999997744,
+          "overflow": 0.2966666666666242,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 120,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 4550.812000000002,
+          "shares": {
+            "ice": 9.905155387653876,
+            "water": 25.97736403964828,
+            "ball": 17.365516307858904,
+            "lock": 46.75196426483894
+          },
+          "casts": {
+            "ice": 30,
+            "water": 413,
+            "ball": 7,
+            "lock": 4
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 199.09666666660883,
+          "usedCharges": 0,
+          "interval": 29.605555555555554,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            94.68333333333334
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4896,
+            "ball": 574,
+            "lock": 180,
+            "recovery": 200
+          },
+          "regen": 2903.9999999998795,
+          "overflow": 0.40333333333330756,
+          "spent": 3344.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 3077.2139999999868,
+          "shares": {
+            "ice": 65.4298661061595,
+            "water": 0,
+            "ball": 0,
+            "lock": 34.5701338938405
+          },
+          "casts": {
+            "ice": 135,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 6.096666666635482,
+          "usedCharges": 0,
+          "interval": 78.98333333333333,
+          "lockTimes": [
+            4.5,
+            83.48333333333333
+          ],
+          "handTicks": {
+            "ice": 6046,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2903.9999999998795,
+          "overflow": 0.40333333333330756,
+          "spent": 3537.5,
+          "idleSeconds": 17.733333333333334
+        },
+        "coreNoBall": {
+          "dps": 4441.921166666663,
+          "shares": {
+            "ice": 10.14797388532371,
+            "water": 29.97945295967456,
+            "ball": 0,
+            "lock": 59.87257315500172
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 483.3566666666585,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2903.9999999998795,
+          "overflow": 441.14333333315597,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 120,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 4550.812000000002,
+          "shares": {
+            "ice": 9.905155387653876,
+            "water": 25.97736403964828,
+            "ball": 17.365516307858904,
+            "lock": 46.75196426483894
+          },
+          "casts": {
+            "ice": 30,
+            "water": 413,
+            "ball": 7,
+            "lock": 4
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 199.09666666660883,
+          "usedCharges": 0,
+          "interval": 29.605555555555554,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            94.68333333333334
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 4896,
+            "ball": 574,
+            "lock": 180,
+            "recovery": 200
+          },
+          "regen": 2903.9999999998795,
+          "overflow": 0.40333333333330756,
+          "spent": 3344.5,
+          "idleSeconds": 0
+        },
+        "pureIce": {
+          "dps": 3077.2139999999868,
+          "shares": {
+            "ice": 65.4298661061595,
+            "water": 0,
+            "ball": 0,
+            "lock": 34.5701338938405
+          },
+          "casts": {
+            "ice": 135,
+            "water": 0,
+            "ball": 0,
+            "lock": 2
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 6.096666666635482,
+          "usedCharges": 0,
+          "interval": 78.98333333333333,
+          "lockTimes": [
+            4.5,
+            83.48333333333333
+          ],
+          "handTicks": {
+            "ice": 6046,
+            "water": 0,
+            "ball": 0,
+            "lock": 90,
+            "recovery": 0
+          },
+          "regen": 2903.9999999998795,
+          "overflow": 0.40333333333330756,
+          "spent": 3537.5,
+          "idleSeconds": 17.733333333333334
+        },
+        "coreNoBall": {
+          "dps": 4441.921166666663,
+          "shares": {
+            "ice": 10.14797388532371,
+            "water": 29.97945295967456,
+            "ball": 0,
+            "lock": 59.87257315500172
+          },
+          "casts": {
+            "ice": 30,
+            "water": 463,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 483.3566666666585,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7
+          ],
+          "handTicks": {
+            "ice": 1350,
+            "water": 5465,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 160
+          },
+          "regen": 2903.9999999998795,
+          "overflow": 441.14333333315597,
+          "spent": 2619.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 300,
+      "scenario": "oldFiveCharges",
+      "policies": {
+        "mixed": {
+          "dps": 4133.422066666665,
+          "shares": {
+            "ice": 8.724296580020207,
+            "water": 29.654795636564522,
+            "ball": 15.295258742106682,
+            "lock": 46.32564904130857
+          },
+          "casts": {
+            "ice": 60,
+            "water": 1090,
+            "ball": 14,
+            "lock": 9
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 244.70333333331993,
+          "usedCharges": 5,
+          "interval": 31.275,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            87.48333333333333,
+            114.46666666666667,
+            141.5,
+            168.83333333333334,
+            211.26666666666668,
+            256.06666666666666
+          ],
+          "handTicks": {
+            "ice": 2700,
+            "water": 12913,
+            "ball": 1148,
+            "lock": 405,
+            "recovery": 520
+          },
+          "regen": 5340.000000001223,
+          "overflow": 0.2966666666666242,
+          "spent": 7335,
+          "idleSeconds": 5.233333333333333
+        },
+        "pureIce": {
+          "dps": 2640.2712000000197,
+          "shares": {
+            "ice": 63.737997823860134,
+            "water": 0,
+            "ball": 0,
+            "lock": 36.26200217613987
+          },
+          "casts": {
+            "ice": 281,
+            "water": 0,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 7.203333333282467,
+          "usedCharges": 5,
+          "interval": 73.45416666666667,
+          "lockTimes": [
+            4.5,
+            72.75,
+            151.41666666666666,
+            224.86666666666667,
+            298.31666666666666
+          ],
+          "handTicks": {
+            "ice": 12625,
+            "water": 0,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 0
+          },
+          "regen": 5340.000000001223,
+          "overflow": 0.2966666666666242,
+          "spent": 7572.5,
+          "idleSeconds": 85.83333333333333
+        },
+        "coreNoBall": {
+          "dps": 4121.234599999983,
+          "shares": {
+            "ice": 10.5001156692221,
+            "water": 32.712207162387294,
+            "ball": 0,
+            "lock": 56.78767716839061
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 170.2033333333675,
+          "usedCharges": 1,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 5340.000000001223,
+          "overflow": 0.2966666666666242,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 300,
+      "scenario": "oldOneCharge",
+      "policies": {
+        "mixed": {
+          "dps": 3645.462800000005,
+          "shares": {
+            "ice": 8.902869616444852,
+            "water": 33.25808728592706,
+            "ball": 11.148806675520033,
+            "lock": 46.690236422108065
+          },
+          "casts": {
+            "ice": 54,
+            "water": 1116,
+            "ball": 9,
+            "lock": 8
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 60.70333333327019,
+          "usedCharges": 1,
+          "interval": 40.2047619047619,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            62.03333333333333,
+            108.43333333333334,
+            153.15,
+            197.86666666666667,
+            242.58333333333334,
+            287.3
+          ],
+          "handTicks": {
+            "ice": 2430,
+            "water": 13311,
+            "ball": 738,
+            "lock": 360,
+            "recovery": 320
+          },
+          "regen": 5340.000000001223,
+          "overflow": 0.2966666666666242,
+          "spent": 6239,
+          "idleSeconds": 14.016666666666667
+        },
+        "pureIce": {
+          "dps": 2245.404000000011,
+          "shares": {
+            "ice": 62.09868691781091,
+            "water": 0,
+            "ball": 0,
+            "lock": 37.901313082189084
+          },
+          "casts": {
+            "ice": 232,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 79.7033333333005,
+          "usedCharges": 1,
+          "interval": 77.2,
+          "lockTimes": [
+            4.5,
+            89.2,
+            162.65,
+            236.1
+          ],
+          "handTicks": {
+            "ice": 10440,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 5340.000000001223,
+          "overflow": 0.2966666666666242,
+          "spent": 6220,
+          "idleSeconds": 123
+        },
+        "coreNoBall": {
+          "dps": 4121.234599999983,
+          "shares": {
+            "ice": 10.5001156692221,
+            "water": 32.712207162387294,
+            "ball": 0,
+            "lock": 56.78767716839061
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 170.2033333333675,
+          "usedCharges": 1,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 5340.000000001223,
+          "overflow": 0.2966666666666242,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 300,
+      "scenario": "newOneDose",
+      "policies": {
+        "mixed": {
+          "dps": 3940.5011333333346,
+          "shares": {
+            "ice": 8.846377356707446,
+            "water": 31.099875164778034,
+            "ball": 11.460065223176265,
+            "lock": 48.59368225533825
+          },
+          "casts": {
+            "ice": 59,
+            "water": 1108,
+            "ball": 10,
+            "lock": 9
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 8.096666666558816,
+          "usedCharges": 0,
+          "interval": 35.96041666666667,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            94.68333333333334,
+            125.2,
+            158.21666666666667,
+            204.11666666666667,
+            248.83333333333334,
+            293.55
+          ],
+          "handTicks": {
+            "ice": 2638,
+            "water": 13194,
+            "ball": 820,
+            "lock": 405,
+            "recovery": 420
+          },
+          "regen": 6108.000000002506,
+          "overflow": 0.40333333333330756,
+          "spent": 6739.5,
+          "idleSeconds": 8.716666666666667
+        },
+        "pureIce": {
+          "dps": 2341.5672000000136,
+          "shares": {
+            "ice": 63.65521348266254,
+            "water": 0,
+            "ball": 0,
+            "lock": 36.344786517337454
+          },
+          "casts": {
+            "ice": 248,
+            "water": 0,
+            "ball": 0,
+            "lock": 4
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 167.59666666662352,
+          "usedCharges": 0,
+          "interval": 75.55555555555556,
+          "lockTimes": [
+            4.5,
+            83.48333333333333,
+            157.71666666666667,
+            231.16666666666666
+          ],
+          "handTicks": {
+            "ice": 11160,
+            "water": 0,
+            "ball": 0,
+            "lock": 180,
+            "recovery": 0
+          },
+          "regen": 6108.000000002506,
+          "overflow": 0.40333333333330756,
+          "spent": 6580,
+          "idleSeconds": 111
+        },
+        "coreNoBall": {
+          "dps": 4121.234599999983,
+          "shares": {
+            "ice": 10.5001156692221,
+            "water": 32.712207162387294,
+            "ball": 0,
+            "lock": 56.78767716839061
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 177.35666666665134,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 6108.000000002506,
+          "overflow": 441.14333333315597,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    },
+    {
+      "stage": 13,
+      "duration": 300,
+      "scenario": "newRefreshed",
+      "policies": {
+        "mixed": {
+          "dps": 4575.619533333319,
+          "shares": {
+            "ice": 9.194689307865433,
+            "water": 26.826813820315397,
+            "ball": 12.830157658941756,
+            "lock": 51.14833921287741
+          },
+          "casts": {
+            "ice": 71,
+            "water": 1067,
+            "ball": 13,
+            "lock": 11
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 1.5966666666312639,
+          "usedCharges": 0,
+          "interval": 28.975,
+          "lockTimes": [
+            5.866666666666666,
+            33.11666666666667,
+            60.45,
+            94.68333333333334,
+            123.3,
+            151.96666666666667,
+            180.78333333333333,
+            209.51666666666668,
+            238.2,
+            266.93333333333334,
+            295.6166666666667
+          ],
+          "handTicks": {
+            "ice": 3154,
+            "water": 12684,
+            "ball": 1066,
+            "lock": 495,
+            "recovery": 560
+          },
+          "regen": 7260.000000001941,
+          "overflow": 0.40333333333330756,
+          "spent": 7898,
+          "idleSeconds": 0.6833333333333333
+        },
+        "pureIce": {
+          "dps": 2830.7958000000226,
+          "shares": {
+            "ice": 62.42056738956611,
+            "water": 0,
+            "ball": 0,
+            "lock": 37.5794326104339
+          },
+          "casts": {
+            "ice": 295,
+            "water": 0,
+            "ball": 0,
+            "lock": 5
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 12.096666666640107,
+          "usedCharges": 0,
+          "interval": 72.12083333333334,
+          "lockTimes": [
+            4.5,
+            83.48333333333333,
+            153.31666666666666,
+            223.15,
+            292.98333333333335
+          ],
+          "handTicks": {
+            "ice": 13260,
+            "water": 0,
+            "ball": 0,
+            "lock": 225,
+            "recovery": 0
+          },
+          "regen": 7260.000000001941,
+          "overflow": 0.40333333333330756,
+          "spent": 7887.5,
+          "idleSeconds": 75.25
+        },
+        "coreNoBall": {
+          "dps": 4121.234599999983,
+          "shares": {
+            "ice": 10.5001156692221,
+            "water": 32.712207162387294,
+            "ball": 0,
+            "lock": 56.78767716839061
+          },
+          "casts": {
+            "ice": 72,
+            "water": 1173,
+            "ball": 0,
+            "lock": 11
+          },
+          "maxMana": 640,
+          "baseRegen": 17.8,
+          "endMana": 629.0966666666358,
+          "usedCharges": 0,
+          "interval": 27.55,
+          "lockTimes": [
+            4.5,
+            32.05,
+            59.6,
+            87.15,
+            114.7,
+            142.25,
+            169.8,
+            197.35,
+            224.9,
+            252.45,
+            280
+          ],
+          "handTicks": {
+            "ice": 3240,
+            "water": 13845,
+            "ball": 0,
+            "lock": 495,
+            "recovery": 420
+          },
+          "regen": 7260.000000001941,
+          "overflow": 1141.4033333328684,
+          "spent": 6129.5,
+          "idleSeconds": 0
+        }
+      }
+    }
+  ]
+}

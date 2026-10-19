@@ -227,6 +227,11 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         }
 
         Skill skill = GetActiveSkill[CurrentSkillIndex];
+        if (skill.ModSkill is ElainaSealedSkill { IsSealed: true } sealedSkill)
+        {
+            if (Main.mouseLeft) sealedSkill.NotifySealedAttempt();
+            return false;
+        }
         // InCD 只表示层数未满；只要还有一层就允许释放。
         if (skill.Stack <= 0 || skill.ModSkill is not ElainaSkill elainaSkill)
         {

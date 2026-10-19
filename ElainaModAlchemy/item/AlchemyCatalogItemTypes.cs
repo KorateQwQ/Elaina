@@ -21,7 +21,7 @@ public sealed class AlchemyCatalogItemTypes : ModSystem
         "star" => ItemID.FallenStar,
         "glowingmushroom" => ItemID.GlowingMushroom,
         "daybloom" => ItemID.Daybloom,
-        "honeyblock" => ItemID.HoneyBlock,
+        "lesserhealing" => ItemID.LesserHealingPotion,
         "deathweed" => ItemID.Deathweed,
         "vertebra" => ItemID.Vertebrae,
         "rottenchunk" => ItemID.RottenChunk,

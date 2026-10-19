@@ -28,13 +28,13 @@ SkillDesc: {
 		'''
 		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} Ice damage in total.
 		Ice-seals the target for the duration, leaving it unable to act.
-		Triggering a freeze reduces this spell's cooldown by 18 seconds (at most once every 15 seconds).
+		Starts sealed. Triggering a freeze unseals one use, which cannot stack. Casting still requires the cooldown to finish and seals the spell again. Unsealing does not reduce its cooldown.
 		'''
 	IceConeSkill:
 		'''
 		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} freeze buildup.
 		Reaching 100 buildup freezes the enemy for 4 seconds. Thawing starts a 60-second freeze cooldown that prevents further buildup.
-		Boss parts share freeze buildup and cooldown. Triggering a freeze reduces your Ice Shard Lock cooldown by 18 seconds, at most once every 15 seconds.
+		Boss parts share freeze buildup and cooldown. Triggering a freeze unseals one use of Ice Shard Lock, even during its cooldown; unused releases do not stack.
 		'''
 	WaterBallSkill:
 		'''
@@ -45,7 +45,7 @@ SkillDesc: {
 		'''
 		Hold to channel a water beam. Every {0} seconds, consumes {3} Magic Power and deals {1} Water damage, splashing enemies near the end of the beam for {2}%.
 		Deals only {4:0.#}% damage to targets not on freeze cooldown.
-		On hit, reduces the target's freeze cooldown by 0.5 seconds and Ice Shard Lock's cooldown by 0.15 seconds.
+		On hit, reduces the target's freeze cooldown by 0.5 seconds and Ice Shard Lock's cooldown by 0.3 seconds.
 		'''
 	MagicMissileSkill:
 		'''

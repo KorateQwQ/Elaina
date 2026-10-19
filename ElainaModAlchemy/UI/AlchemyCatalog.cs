@@ -116,7 +116,7 @@ public static class AlchemyCatalog
         new("star", "Catalog.FallenStar", "Fallen Star", "Catalog.FallsFromTheNightSky", 8, null, null),
         new("glowingmushroom", "Catalog.GlowingMushroom", "Glowing Mushroom", "Catalog.GlowingMushroomBiome", 12, null, null),
         new("daybloom", "Catalog.Daybloom", "Daybloom", "Catalog.SurfaceForestDaytime", 10, null, null),
-        new("honeyblock", "Catalog.HoneyBlock", "Honey Block", "Catalog.HoneyTouchingWater", 6, null, null),
+        new("lesserhealing", "Catalog.LesserHealingPotion", "Lesser Healing Potion", "Catalog.SoldByTheMerchant", 3, null, null),
         new("deathweed", "Catalog.Deathweed", "Deathweed", "Catalog.TheCorruptionOrCrimson", 7, null, null),
         new("blinkroot", "Catalog.Blinkroot", "Blinkroot", "Catalog.UndergroundDirtAndMud", 9, null, null),
         new("lens", "Catalog.Lens", "Lens", "Catalog.DroppedByDemonEyes", 4, null, null),
@@ -172,9 +172,8 @@ public static class AlchemyCatalog
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "moondew"),
+                new(1, "lesserhealing"),
                 new(1, "daybloom"),
-                new(1, "honeyblock"),
-                new(1, "resin"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
