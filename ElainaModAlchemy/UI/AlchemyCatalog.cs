@@ -117,6 +117,10 @@ public static class AlchemyCatalog
         new("glowingmushroom", "Catalog.GlowingMushroom", "Glowing Mushroom", "Catalog.GlowingMushroomBiome", 12, null, null),
         new("daybloom", "Catalog.Daybloom", "Daybloom", "Catalog.SurfaceForestDaytime", 10, null, null),
         new("lesserhealing", "Catalog.LesserHealingPotion", "Lesser Healing Potion", "Catalog.SoldByTheMerchant", 3, null, null),
+        new("regenerationpotion", "Catalog.RegenerationPotion", "Regeneration Potion", "Catalog.VanillaPotionCrafting", 3, null, null),
+        new("magicpowerpotion", "Catalog.MagicPowerPotion", "Magic Power Potion", "Catalog.VanillaPotionCrafting", 3, null, null),
+        new("archerypotion", "Catalog.ArcheryPotion", "Archery Potion", "Catalog.VanillaPotionCrafting", 3, null, null),
+        new("summoningpotion", "Catalog.SummoningPotion", "Summoning Potion", "Catalog.VanillaPotionCrafting", 3, null, null),
         new("deathweed", "Catalog.Deathweed", "Deathweed", "Catalog.TheCorruptionOrCrimson", 7, null, null),
         new("blinkroot", "Catalog.Blinkroot", "Blinkroot", "Catalog.UndergroundDirtAndMud", 9, null, null),
         new("lens", "Catalog.Lens", "Lens", "Catalog.DroppedByDemonEyes", 4, null, null),
@@ -147,7 +151,7 @@ public static class AlchemyCatalog
         {
             Id = "mana", Name = "Catalog.MoonDewElixir", EnglishName = "Moon Dew Elixir",
             Category = "potion", Art = "MoonDewElixir", Kind = "Catalog.PotionRecovery", Stage = "Catalog.AvailableFromTheStart",
-            Description = "Catalog.APotionInfusedWithMoonlightAndStardustStoreItInThePotionSlotOuts",
+            Description = "Catalog.MoonDewElixirDescription",
             Note = "Catalog.ThisTastesAwfulElaina", Rarity = 1, Yield = 3, InitialUnlocked = true,
             PixelWidth = 33, PixelHeight = 40,
             Ingredients = new AlchemyCatalogIngredient[]
@@ -158,8 +162,9 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.RecoveryPerCharge", "Catalog.50OfMaximumMagicPower"),
-                new("Catalog.UsageRestriction", "Catalog.RefillThePotionSlotOnlyOutsideCombat"),
+                new("Catalog.Duration", "Catalog.120S"),
+                new("Catalog.RecoveryPerSecond", "Catalog.1OfMaximumMagicPower"),
+                new("Catalog.UsageRestriction", "Catalog.ElainaOnly"),
             },
         },
         new()
@@ -168,7 +173,7 @@ public static class AlchemyCatalog
             Category = "potion", Art = "Painkiller", Kind = "Catalog.PotionRecovery", Stage = "Catalog.RequiresAlchemyLv1",
             Description = "Catalog.ProvidesContinuousLifeRegeneration",
             Note = "Catalog.TheRibbonsAroundTheBottlesHelpMeTellThemApart", Rarity = 1, Yield = 3,
-            PixelWidth = 32, PixelHeight = 34,
+            PixelWidth = 24, PixelHeight = 34,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "moondew"),
@@ -190,7 +195,7 @@ public static class AlchemyCatalog
             PixelWidth = 30, PixelHeight = 40,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "moondew"),
+                new(1, "regenerationpotion"),
                 new(1, "deathweed"),
             },
             Effects = new AlchemyCatalogEffect[]
@@ -210,7 +215,7 @@ public static class AlchemyCatalog
             Live = "starpower",
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "moondew"),
+                new(1, "magicpowerpotion"),
                 new(1, "star"),
             },
             Effects = new AlchemyCatalogEffect[]
@@ -229,7 +234,7 @@ public static class AlchemyCatalog
             PixelWidth = 19, PixelHeight = 38,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "moondew"),
+                new(1, "archerypotion"),
                 new(1, "lens"),
             },
             Effects = new AlchemyCatalogEffect[]
@@ -247,7 +252,7 @@ public static class AlchemyCatalog
             PixelWidth = 31, PixelHeight = 39,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "moondew"),
+                new(1, "summoningpotion"),
                 new(1, "stinger"),
             },
             Effects = new AlchemyCatalogEffect[]

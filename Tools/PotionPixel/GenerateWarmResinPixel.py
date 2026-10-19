@@ -21,7 +21,7 @@ PREVIEW = ROOT / "Tools/PotionPixel/output/WarmResin_Compare.png"
 WIDTH = 25
 PALETTE = {
     ".": (0, 0, 0, 0),
-    "a": "#332f43",  # Shared material outline.
+    "a": "#000000",  # Outer outline: pure black so it reads on the pale notebook card.
     "1": "#9a4a1c",  # Amber resin, deep edge to inner glow.
     "2": "#c96b22",
     "3": "#eb9a32",
@@ -33,11 +33,8 @@ PALETTE = {
     "e": "#e6c08e",  # End grain: wood, rim, rings.
     "f": "#c4925f",
     "r": "#a06a43",
-    "s": "#e9b97c",  # Scent curls.
-    "t": "#f6dcae",
 }
-# The glint floats without an outline.
-UNOUTLINED = ".ast"
+UNOUTLINED = ".a"
 HEIGHT = 24
 # Wood slice: top face spans per row, seen from slightly above.
 FACE = {12: (7, 17), 13: (4, 20), 14: (2, 22), 15: (1, 23),
@@ -63,7 +60,6 @@ RESIN = {
     21: ((14, "2331"),),
     22: ((14, "2h31"),),
 }
-GLINT = {3: ((21, "s"),), 4: ((20, "shs"),), 5: ((21, "s"),)}
 
 
 def wood_grid():
@@ -92,7 +88,7 @@ def to_rgba(symbol):
 
 def build_sprite():
     grid = wood_grid()
-    for layer in (RESIN, GLINT):
+    for layer in (RESIN,):
         for y, runs in layer.items():
             for start, symbols in runs:
                 assert start + len(symbols) <= WIDTH, f"Row {y} overflows"

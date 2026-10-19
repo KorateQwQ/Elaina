@@ -3,7 +3,7 @@
 星力药水采用 `Tools/PotionBottleDesigns/output/round1/svg/StarPowerPotion.svg` 的三角烧瓶；月露按手记中的**月露合剂 MoonDewElixir**处理，参考其已确认的圆瓶 SVG，不涉及材料栏的月露 MoonDew。
 
 - 星力：31×36、15 色；平行瓶颈、对称三角瓶身、深蓝药液、一大一小金色星芒、侧丝带与挂饰。
-- 月露合剂：33×40、15 色；圆肚、紫色药液、双环粉色蝴蝶结与飘带、星点和气泡。
+- 月露合剂：33×40、20 色（外轮廓纯黑，见 `README.md`）；已改为 `GenerateMoonDewElixirPixel.py` 手绘的露滴形瓶：药液液面带透视弧线、围绕浮动金色新月发光，配四芒星闪、星点与气泡；粉色蝴蝶结左右环不对称，长飘带沿右肩飘落，结下有一滴露珠落向泛起涟漪的液面。本脚本的 `moon_dew()` 直接转调新脚本。
 
 运行 `python Tools/PotionPixel/GenerateStarAndMoonPotionPixels.py` 重建正式 `ExampleAssets/*_Pixel.png`、`Tools/PotionBottleDesigns/output/round1/pixel/` 中的同名 PNG 与可编辑 `.pixel.json`，以及 `Tools/PotionPixel/preview/*_Pixel_x8.png`。绘图为整数像素簇，无 SVG 缩小采样、半透明边缘或抗锯齿。
 

@@ -1,7 +1,9 @@
-"""Approved Bottled Rain sprite on a 31x38 integer pixel grid.
+"""Former Bottled Rain sprite on a 31x38 integer pixel grid (superseded).
 
-Uses the approved SVG silhouette and the readable pencil version's three drops.
-Rebuilds the production texture alongside review assets and an editable grid.
+The live texture is now the crystal-stoppered test tube from
+Tools/PotionPixel/GenerateBottledRainPixel.py. This pear-bottle version only
+rebuilds its own review assets under BottledRain/ and no longer touches the
+production texture.
 """
 import json
 from pathlib import Path
@@ -10,7 +12,6 @@ from PIL import Image, ImageDraw, ImageFont
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-RUNTIME = ROOT / 'ElainaModAlchemy/item/ExampleAssets/BottledRain_Pixel.png'
 PALETTE = {
     '.': '#00000000', 'o': '#42364f', 'e': '#73668d',
     'v': '#8d7aac', 'l': '#b99dce', 'h': '#dfcdea',
@@ -140,7 +141,6 @@ def main():
             if point in visible and point not in seen: seen.add(point);queue.append(point)
     assert seen==visible, 'Detached pixels outside bottle'
     im.save(out/'BottledRain_Pixel.png')
-    im.save(RUNTIME)
     lookup={Image.new('RGBA',(1,1),color).getpixel((0,0)):key for key,color in PALETTE.items()}
     grid=[''.join(lookup[im.getpixel((x,y))] for x in range(im.width)) for y in range(im.height)]
     data={'name':'BottledRain','size':list(im.size),'palette':PALETTE,'pixels':grid}
@@ -149,8 +149,7 @@ def main():
     metrics={'size':list(im.size),'visibleColors':len({p for p in pixels if p[3]}),
              'alpha':sorted({p[3] for p in pixels}),'bounds':list(im.getbbox()),
              'source':'ElainaModAlchemy/item/ExampleAssets/BottledRain.svg',
-             'status':'integrated','opaqueComponents':1,
-             'runtime':RUNTIME.relative_to(ROOT).as_posix()}
+             'status':'superseded by Tools/PotionPixel/GenerateBottledRainPixel.py','opaqueComponents':1}
     (out/'metrics.json').write_text(json.dumps(metrics,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(metrics))
 

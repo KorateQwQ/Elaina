@@ -32,7 +32,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $source = [IO.File]::ReadAllText((Join-Path $ui 'ConstellationSkillPanel.cs'))
 $source += "`n" + [IO.File]::ReadAllText((Join-Path $ui 'ConstellationLayoutUI.cs'))
 $scene = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Scene.cs.txt'))
-foreach ($name in @('UpdateButterfly','CenterOn','AdvanceCamera','MapPoint','RequestTooltip','DrawChrome','DrawFilter','DrawCloseButton','CameraControl','DrawMap','DrawEdge','DrawNode','DrawDetails','DrawActionButton','DrawSlot','DrawLoadoutCaption','DrawLayoutHints','DrawLayoutButton','DrawDebugButton')) {
+foreach ($name in @('UpdateButterfly','CenterOn','AdvanceCamera','MapPoint','RequestTooltip','DrawChrome','DrawZoomCapsule','DrawRuleOrnaments','DrawFilter','DrawCloseButton','CameraControl','DrawMap','DrawEdge','DrawNode','DrawDetails','DrawActionButton','DrawSlot','DrawLoadoutCaption','DrawLayoutHints','DrawLayoutButton','DrawDebugButton')) {
     $match = [regex]::Match($source, '(?m)^    private [^\r\n]*\b' + $name + '\(')
     if (!$match.Success) { throw "Missing drawing method: $name" }
     $start = $match.Index
@@ -82,7 +82,7 @@ $null = Add-Item 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjso
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
 foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
-foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
+foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
 foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }

@@ -105,11 +105,11 @@ class BasicDesignTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     server.validate_payload(self.payload)
 
-    def test_conversion_rate_accepts_up_to_hundred(self):
-        for value in [3.5, 40, 100]:
+    def test_conversion_rate_accepts_up_to_two_hundred(self):
+        for value in [0, 3.5, 40, 100, 130, 200]:
             self.c["skills"][0]["k"] = value
             server.validate_payload(self.payload)
-        for value in [-.1, 100.1]:
+        for value in [-.1, 200.1]:
             self.c["skills"][0]["k"] = value
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):

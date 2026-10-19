@@ -130,6 +130,10 @@ static class Checks
     static void Main()
     {
         Terraria.Program.SavePath = Path.GetTempPath(); GameMain.dedServ = true;
+        // This fixture exercises skill-state RPCs without loading projectile assets.
+        // Owner-side visual creation, renewal and lifetime serialization are covered by MagicBarrierChecks.
+        using var visualHook = new Hook(typeof(BarrierPlayer).GetMethod("ShowOrRefreshBarrier", All)!,
+            (Action<BarrierPlayer, bool>)((_, _) => { }));
         typeof(Mod).GetField("netID", All)!.SetValue(mod, (short)0);
         KL.KL.KLInstance = mod;
         typeof(Mod).Assembly.GetType("Terraria.ModLoader.ModNet")!.GetField("netMods", All)!.SetValue(null, new Mod[] { mod });

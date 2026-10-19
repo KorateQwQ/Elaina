@@ -128,7 +128,7 @@ def potion(kind):
 
 
 def pills():
-    return load('painkiller_jar', HERE.parent / 'PotionPixel/GeneratePainkillerArt.py').build_sprite()
+    return load('painkiller_jar', HERE.parent / 'PotionPixel/GeneratePainkillerPixel.py').build_sprite()[0]
 
 
 def extractor():

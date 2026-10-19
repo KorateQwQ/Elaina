@@ -148,3 +148,12 @@ python Tools/ConstellationSkillPanelPreview/reference.py
 ```
 
 截图与 CSS 实测尺寸写到 `.vissandbox/constellation-skill-panel/reference`。UI 保留项目的 HarmonyOS Sans SC / Noto Serif SC / Gelasio 字体；与浏览器的微软雅黑/系统宋体仍存在字形与字宽差异。
+
+`reference.py` 生成底图后会调用 `feather_surface.py`：星图柔光在旧视口顶 y=208 处被裁出一道约 3 级亮度的台阶，星图可见区上提后它读成分割线；脚本逐列量出台阶并在 80px 内渐入抹平，保留纸面颗粒，可重复运行。
+
+## 星图背景（2026-10-20，对应 `Tools/SkillPanelRedesign/index.html`）
+
+- 可见区 `Sky`（26, 150, 727×558）比相机框 `Map*`（y 208..681）大，上到页签点线、下到底栏点线；`ConstellationDrawing.SkyEdgeFade` 用底图本身逐像素条带重新覆盖四边（上 44 / 下 30 / 左 14 / 右 10），复刻 HTML 的 CSS 遮罩。缩放胶囊（`DrawZoomCapsule`）与布局编辑提示因此改在 `DrawMap` 末尾绘制。相机取景、聚焦与平移边界仍用 `Map*`。
+- 旧天文星盘（同心圆、斜椭圆、72 格刻度）已删除，只留三颗装饰星。
+- `ConstellationSky`：150 颗固定星点各自 35%～100% 呼吸，约十分之一定时亮出小四角星芒，每 6～14 秒一颗流星；参数、种子与 HTML 一致，全部是页面坐标，不随相机移动。
+- 立绘：伊蕾娜捧手札站在星图右下，固定在页面上，画在星点之上、连线与节点之下；书页处一抹微光和上升的光点。只用夜色版（线稿版仅保留在 HTML 预览里对比）。`Assets/PortraitNight.png` 由 `python Tools/SkillPanelRedesign/build_art.py --game` 从 `ElainaModSkills/` 下的原图生成：渐隐遮罩已烘焙、裁掉透明边、1.5× 设计尺寸、预乘 Alpha，打印的矩形对应 `ConstellationDrawing.PortraitArea`；换原图后重跑并核对该矩形。

@@ -16,10 +16,11 @@ $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $null = Add-CheckItem 'Compile' "$repo/Localization/UIText.cs"
 foreach ($path in @('AlchemyRecipe.cs', 'AlchemyIngredient.cs', 'UI/AlchemyCatalog.cs', 'UI/AlchemyNotebookSnapshot.cs', 'Gameplay/*.cs', 'Crafting/*.cs', 'Buffs/*.cs')) {
-    $null = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/$path"
+    $source = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/$path"
+    if ($path -eq 'Buffs/*.cs') { $source.SetAttribute('Exclude', "$repo/ElainaModAlchemy/Buffs/MoonDewElixirBuff.cs") }
 }
 $itemSources = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/item/**/*.cs"
-# Existing mana storage and normal-workbench dust logic have separate checks and require the full mod.
+# Moon dew requires the full player implementation and is covered by run-integration.ps1.
 $itemSources.SetAttribute('Exclude', "$repo/ElainaModAlchemy/item/Potions/MoonDewElixir.cs;$repo/ElainaModAlchemy/item/AlchemyCatalogItemTypes.cs")
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')

@@ -15,6 +15,8 @@ pwsh -File Tools/AlchemyPreview/run.ps1 -Culture en-US -Configuration Release
 
 `bake_redesign.py --check` 逐像素验证当前预处理资源。新检出先用 `-ExportMaterials` 导出本机 tML / Terraria XNB；不需要旧彩铅图。原版动画贴图按帧生成边缘，运行时读取真实 `Main.GetItemDrawFrame` 并选择相同帧的遮罩，离线预览默认第零帧。新资产均使用预乘 alpha，详见 `ElainaModAlchemy/UI/README.md`。
 
+新增配方材料还须遵守 `ElainaModAlchemy/AGENTS.md`。预览启动时会按正式目录检查所有材料与配方图标的轮廓 PNG，即使新材料尚未导出到 `material-sources` 也会报出缺失路径。四种职业药水分别用 `-Scene bloodlust`、`-Scene starpower`、`-Scene focus`、`-Scene resonance` 检查材料行和底栏。
+
 这些输出是 **FNA 离线预览**。正式 SUI 滚轮、拖动、点击、游戏内内容重载和联机生命周期仍需游戏内验收。下文彩铅与旧纸卡记录仅供旧资产维护，现版不再使用其资源校验。
 
 
@@ -28,7 +30,7 @@ pwsh -File Tools/AlchemyPreview/run.ps1 -Culture en-US -Configuration Release
 
 `& Tools/AlchemyPreview/run.ps1 -QuillOnly -Configuration Release` 链接正式 `AlchemySelectionQuillMotion`，检查选中切换缓动、飞行中滚动、快速重新选择、落定后滚动、重排与缩放。15 项数值检查和 720p / 125% 缩放连续帧输出到 `output/quill-frames`。随后运行 `python Tools/AlchemyPreview/quill_contact_sheet.py` 生成帧条和 WebP 动画。卡片先绘制，羽毛笔最后在相同目录裁剪区叠加；帧图使用真实 FNA 绘制，原生 SUI 事件与裁剪树仍需游戏内检查。
 
-「全部」显示完整目录，各分类场景只绘制对应条目。`all`、`catalog-middle`、`catalog-bottom` 检查完整列表首屏、中间裁剪和末项可见性；`curio`、`food`、`material` 检查分类过滤、首行定位和滚动范围。绘制使用同一套卡片坐标和滚动偏移，包含目录滚动条；与正式 UI 一样，选中卡跳过普通循环、最后绘制在相邻卡片之上。离线帧只绘制落定姿态（`AlchemyCardMotion.Settled`），拾起弹簧、悬停和呼吸动画的实时过程需游戏内检查；实际 SUI 滚轮与点击派发仍需游戏内验证。
+「全部」显示完整目录，各分类场景只绘制对应条目。`all`、`catalog-middle`、`catalog-bottom` 检查完整列表首屏、中间裁剪和末项可见性；`curio`、`food`、`material` 检查分类过滤、首行定位和滚动范围。绘制使用同一套卡片坐标和滚动偏移，目录与详情均隐藏滚动条；与正式 UI 一样，选中卡跳过普通循环、最后绘制在相邻卡片之上。离线帧只绘制落定姿态（`AlchemyCardMotion.Settled`），拾起弹簧、悬停和呼吸动画的实时过程需游戏内检查；实际 SUI 滚轮与点击派发仍需游戏内验证。
 
 `python Tools/AlchemyPreview/bake_surface.py` 生成炼金专属的无文字底图，使用 Pillow 计算连续紫色纸页、柔和光照与详情列过渡。1100×800 不透明 RGB，无半透明预乘歧义，不包含技能星图原来的顶部/底部裁剪边界；不修改技能表底图。运行时直接加载生成的 PNG，无逐帧纹理生成或额外 RenderTarget。
 
@@ -61,3 +63,11 @@ Debug 页脚新增「等级 +1」，正式 SUI 与预览共用按钮边界和绘
 右上角进度采用炼金锅图标、`炼金术`、`Lv.` 等级、圆头经验条和下方经验文字。`CloseButtonBounds` 与 `CloseButton` 同时供正式 SUI 和预览使用。`header-reference` 仅在离线快照中使用参考图的 Lv.3、35/40，实际游戏仍读取角色进度；`level-max`、`new` 和 `close-hover` 分别检查满级、空经验条和关闭按钮悬停。`python Tools/AlchemyPreview/bake_art.py --only LevelCauldron` 从保留的 SVG 重建 96×112 透明预乘图标。
 
 `python Tools/AlchemyPreview/prepare_mystery_pixels.py` 读取正式目录的物品像素图，沿用每项原尺寸的轮廓并画入问号，输出透明像素贴图到 `UI/Assets/MysteryPixel`。未研究和已研究图标均按原图 1 倍显示。当前目录有 23 项；新增条目后重新执行脚本即可扩展。旧 `prepare_silhouettes.py` 与彩铅剪影保留作历史资源，不再是运行时未研究图标。`curio-locked` 检查奇物轮廓，`recipe-missing` / `recipe-ready` 检查配方条件与可研究状态。
+
+## 页面弹性滚动（2026-10-20）
+
+`pwsh -File Tools/AlchemyPreview/run.ps1 -ScrollOnly -Configuration Release` 链接正式 `AlchemyScrollMotion`，检查 30/60/144 FPS 的拖动、物品按下禁止拖动、点击抖动、滚轮越界与回弹、连续滚动/反向、重新抓住越界页面、选中定位、内容缩短和取消拖动。输出 `output/zh-Hans/scroll-frames/checks.txt` 及顶部/底部、拖动/滚轮的多个时间点，覆盖 720p 默认缩放和 1600×1000 的 125% 缩放。
+
+正式目录和详情使用 `AlchemyPageScrollView` 保留 SUI 容器布局与裁剪，以设计坐标计算弹性偏移，越界上限 32 像素；原生竖向滚动条不参与输入或绘制。目录卡片、详情材料行与用途链接排除拖动，详情文字与卡片间隙可拖动，松手或移出页面后释放均回弹，失焦/关闭/缩放时取消拖动。底部横向材料栏沿用原有滚动条。
+
+离线帧使用正式绘制与运动代码，输入是确定性重放；并未模拟完整 SUI 事件树。物品点击、跨区域释放、失焦与游戏内 UI 缩放仍需在游戏中验收。

@@ -79,6 +79,11 @@ svg.layer { position: absolute; left: 0; top: 0; width: 1100px; height: 800px; o
   -webkit-mask-composite: source-in; mask-composite: intersect; }
 #map.drag { cursor: grabbing; }
 #map .node { cursor: pointer; }
+/* 背景星点动态（参数见 starfield） */
+#map .tw { animation: twinkle ease-in-out infinite alternate; }
+@keyframes twinkle { from { opacity: .35; } to { opacity: 1; } }
+#map .gl { opacity: 0; transform-box: fill-box; transform-origin: center; animation: glint linear infinite; }
+@keyframes glint { 0%, 86% { opacity: 0; transform: scale(.3) rotate(0); } 92% { opacity: 1; transform: scale(1) rotate(20deg); } 100% { opacity: 0; transform: scale(.3) rotate(45deg); } }
 
 /* 小工具 */
 .spark { width: 1em; height: 1em; display: inline-block; vertical-align: -.12em; fill: currentColor; }
@@ -303,6 +308,12 @@ body.detailPage .cardHost { display: none; }
     <linearGradient id="leafB" gradientUnits="userSpaceOnUse" x1="0" y1="800" x2="0" y2="810"><stop offset="0" stop-color="rgb(48,41,63)"/><stop offset=".6" stop-color="rgb(66,57,85)"/><stop offset="1" stop-color="rgb(60,52,78)"/></linearGradient>
     <linearGradient id="gutter"><stop offset="0" stop-color="rgb(10,9,17)" stop-opacity=".55"/><stop offset="1" stop-color="rgb(10,9,17)" stop-opacity="0"/></linearGradient>
     <linearGradient id="ribbonG"><stop offset="0" stop-color="#4f3f66"/><stop offset=".45" stop-color="#6e5a8e"/><stop offset="1" stop-color="#4a3b60"/></linearGradient>
+    <!-- 立绘：裁在大腿处的半身像，下半段渐隐进页面；左右两侧也收一点，不留硬边 -->
+    <linearGradient id="artFadeV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#fff"/><stop offset=".93" stop-color="#000"/></linearGradient>
+    <mask id="artFade" maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox" x="0" y="0" width="1" height="1"><rect width="1" height="1" fill="url(#artFadeV)"/></mask>
+    <!-- 右侧贴着竖分栏点线（x≈753）收掉，不在分栏处留一道硬切边 -->
+    <linearGradient id="artFadeHG" gradientUnits="userSpaceOnUse" x1="690" y1="0" x2="750" y2="0"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+    <mask id="artFadeH" maskUnits="userSpaceOnUse" x="0" y="0" width="1100" height="800"><rect width="1100" height="800" fill="url(#artFadeHG)"/></mask>
     <clipPath id="clipNode"><circle r="32"/></clipPath>
     <filter id="tintLav" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".792 0 0 0 0  0 .698 0 0 0  0 0 .929 0 0  0 0 0 1 0"/></filter>
     <filter id="gray" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/></filter>
@@ -317,6 +328,7 @@ body.detailPage .cardHost { display: none; }
 <div id="stageWrap"><div id="app"><div id="book">
   <div id="body"><svg id="bodySvg" width="1100" height="800"></svg></div>
   <div id="page">
+    <!-- 底图星图柔光在 y=208 的硬上沿已由 Tools/ConstellationSkillPanelPreview/feather_surface.py 抹平 -->
     <img class="surface" src="../../ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/NotebookSurface.png" alt="">
     <svg class="layer" id="frame" viewBox="0 0 1100 800"></svg>
     <svg id="map" viewBox="26 150 727 558"></svg>
@@ -355,6 +367,7 @@ body.detailPage .cardHost { display: none; }
   <button id="devCard">详情卡：夜色</button>
   <button id="devFrame">外框：新</button>
   <button id="devRim">页缘：精简</button>
+  <button id="devArt">立绘：夜色</button>
 </div>
 
 <script>
@@ -813,35 +826,101 @@ const MapX = 26, MapY = 208, MAP_CX = 389.5, MAP_CY = 429;
 const sky = document.getElementById("map");
 let zoom = .84, pan = [0, 0];
 const recenter = () => { pan = [MAP_CX - MapX - 363.5 * zoom, MAP_CY - MapY - 275 * zoom]; };
-function starfield() {
-  let o = "", seed = 173;
+/* 背景星点：位置与游戏内同一组种子；动态三层，都很轻
+   · 闪烁：每颗星在 35%～100% 亮度间呼吸，周期 2.6～6.4 秒、相位随机——同一时刻亮暗参差，不会整片一起闪
+   · 星芒：约十分之一的星（含全部大星）每隔 7～14 秒亮出一颗小四角星，一闪即收
+   · 流星：每 6～14 秒一颗，只在星图左侧上半划过，0.8 秒内淡入淡出
+   闪烁 / 星芒用 CSS 动画；renderSky 每次重画星点时按页面时钟算负延迟，选中节点、切页签都不会让星星「重新起跳」 */
+const STAR_DATA = (() => {
+  let seed = 173, s2 = 911;
   const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const r2 = () => (s2 = (s2 * 9301 + 49297) % 233280) / 233280;   // 动态参数另起一个序列，不打乱星点位置
+  const list = [];
   for (let i = 0; i < 150; i++) {
     const size = rnd() < .9 ? 1 : 2, x = 26 + rnd() * 727, y = 150 + rnd() * 558, op = .15 + rnd() * .5;
-    o += `<circle cx="${(x + size / 2).toFixed(1)}" cy="${(y + size / 2).toFixed(1)}" r="3" fill="${gf("rgb(198,161,253)")}" opacity="${(.4 * op).toFixed(3)}"/>` +
-         `<circle cx="${(x + size / 2).toFixed(1)}" cy="${(y + size / 2).toFixed(1)}" r="${size / 2}" fill="${rgba(221, 212, 248, op)}"/>`;
+    const glint = size === 2 || r2() < .08;
+    list.push({ x: x + size / 2, y: y + size / 2, size, op, dur: 2.6 + r2() * 3.8, ph: r2() * 10, glint, gdur: 7 + r2() * 7, gph: r2() * 14, gs: 5 + r2() * 4 });
   }
-  return o;
+  return list;
+})();
+function starfield() {
+  const t = performance.now() / 1000, delay = (d, ph) => `-${((t + ph) % d).toFixed(2)}s`;
+  let o = "";
+  for (const s of STAR_DATA) {
+    const cx = s.x.toFixed(1), cy = s.y.toFixed(1);
+    o += `<g class="tw" style="animation-duration:${s.dur.toFixed(2)}s;animation-delay:${delay(s.dur, s.ph)}">` +
+         `<circle cx="${cx}" cy="${cy}" r="3" fill="${gf("rgb(198,161,253)")}" opacity="${(.4 * s.op).toFixed(3)}"/>` +
+         `<circle cx="${cx}" cy="${cy}" r="${s.size / 2}" fill="${rgba(221, 212, 248, s.op)}"/></g>`;
+    if (s.glint) o += `<g class="gl" style="animation-duration:${s.gdur.toFixed(2)}s;animation-delay:${delay(s.gdur, s.gph)}">` +
+         `<circle cx="${cx}" cy="${cy}" r="${(s.gs * .9).toFixed(1)}" fill="${gf("rgb(214,190,250)")}" opacity=".35"/>` +
+         crossStar(s.x, s.y, s.gs, s.gs, rgba(240, 232, 252, .85), .22) + `</g>`;
+  }
+  return o + `<defs><linearGradient id="meteorG" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="rgb(226,210,250)" stop-opacity="0"/>` +
+    `<stop offset="1" stop-color="rgb(246,240,255)"/></linearGradient></defs><g id="meteor"></g>`;
 }
+// 流星：头部一点亮光 + 渐隐的尾迹；方向固定为右上 → 左下
+const METEOR = { cur: null, next: 3 + Math.random() * 4 };
+function tickMeteor(dt) {
+  const el = refs.meteor; if (!el) return;
+  if (!METEOR.cur && (METEOR.next -= dt) <= 0) {
+    const a = (148 + Math.random() * 14) * Math.PI / 180;
+    METEOR.cur = { x: 260 + Math.random() * 360, y: 175 + Math.random() * 120, dx: Math.cos(a), dy: Math.sin(a), v: 330 + Math.random() * 120, life: 0, max: .7 + Math.random() * .3, len: 60 + Math.random() * 40 };
+    METEOR.next = 6 + Math.random() * 8;
+  }
+  const m = METEOR.cur;
+  if (!m) { if (el.firstChild) el.innerHTML = ""; return; }
+  m.life += dt;
+  if (m.life >= m.max) { METEOR.cur = null; el.innerHTML = ""; return; }
+  const k = m.life / m.max, a = Math.sin(Math.PI * k) ** 1.5 * .75, d = m.v * m.life;
+  const hx = m.x + m.dx * d, hy = m.y + m.dy * d, tl = m.len * Math.min(1, k * 3);
+  const tx = hx - m.dx * tl, ty = hy - m.dy * tl;
+  const g = sky.querySelector("#meteorG");
+  g.setAttribute("x1", tx.toFixed(1)); g.setAttribute("y1", ty.toFixed(1)); g.setAttribute("x2", hx.toFixed(1)); g.setAttribute("y2", hy.toFixed(1));
+  el.innerHTML = `<g opacity="${a.toFixed(3)}"><line x1="${tx.toFixed(1)}" y1="${ty.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${hy.toFixed(1)}" stroke="url(#meteorG)" stroke-width="1.2" stroke-linecap="round"/>` +
+    `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="5" fill="${gf("rgb(214,190,250)")}" opacity=".7"/><circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="1" fill="#fff"/></g>`;
+}
+/* 星盘底纹已删掉（游戏内同款同心圆 + 刻度的仪器感和手札的点线语言不搭，又和立绘抢位置）：只留三颗装饰星 */
 function skyGrid() {
-  const oc = rgba(189, 173, 209, .14);
-  let o = `<g transform="scale(${727 / 880} ${550 / 650})" fill="none">`;
-  for (const r of [258, 248, 188, 132])
-    o += `<circle cx="445" cy="324" r="${r}" stroke="${r === 188 ? rgba(189, 173, 209, .14 * .07) : oc}" stroke-width=".7" ${NS}${r === 132 ? ' stroke-dasharray="2.6 7.8"' : ""}/>`;
-  o += `<ellipse cx="445" cy="324" rx="359" ry="215" transform="rotate(${-.454 * 180 / Math.PI} 445 324)" stroke="${rgba(189, 173, 209, .14 * .07)}" stroke-width=".7" ${NS}/>`;
-  let d = "";
-  for (let i = 0; i < 72; i++) {
-    const an = i * Math.PI * 2 / 72, r1 = i % 6 === 0 ? 269 : 263;
-    d += `M${(445 + Math.cos(an) * 258).toFixed(1)},${(324 + Math.sin(an) * 258).toFixed(1)}L${(445 + Math.cos(an) * r1).toFixed(1)},${(324 + Math.sin(an) * r1).toFixed(1)}`;
-  }
-  for (const m of [[445, 51, 445, 71], [445, 577, 445, 597], [172, 324, 197, 324], [693, 324, 718, 324], [252, 131, 268, 147], [622, 485, 638, 501],
-                   [252, 517, 268, 501], [622, 163, 638, 147], [434, 45, 445, 36], [445, 36, 456, 45], [434, 603, 445, 612], [445, 612, 456, 603]])
-    d += `M${m[0]},${m[1]}L${m[2]},${m[3]}`;
-  o += `<path d="${d}" stroke="${oc}" stroke-width=".7" ${NS}/>`;
-  o += crossStar(87, 182, 16, 16, rgba(209, 188, 241, .22), .25) + crossStar(743, 549, 14, 14, rgba(209, 188, 241, .22), .28) + crossStar(422, 477, 10, 10, rgba(209, 188, 241, .22), .2);
-  return o + `</g>`;
+  return `<g transform="scale(${727 / 880} ${550 / 650})">` +
+    crossStar(87, 182, 16, 16, rgba(209, 188, 241, .22), .25) + crossStar(743, 549, 14, 14, rgba(209, 188, 241, .22), .28) + crossStar(422, 477, 10, 10, rgba(209, 188, 241, .22), .2) + `</g>`;
 }
-const STARS = starfield(), GRID = skyGrid();
+const GRID = skyGrid();
+
+/* ============================================================
+   立绘：伊蕾娜捧着手札站在星图右下，星图像是从她手里的书页升起来的
+   · 画在星点之上、连线 / 节点之下；固定在页面上，不随星图拖动、缩放移动（是书页上的插画，不是星图里的东西）
+   · 三种处理（build_art.py 烘焙）：夜色 = 明度映射到手札色板；线稿 = 只留描线；原色 = 对比用
+   · 书页处有一抹微光，零星的光点从书上升起
+   ============================================================ */
+const ART_SRC = { night: "assets/Elaina_Night.png", line: "assets/Elaina_Line.png", color: "assets/Elaina_Color.png" };
+const ART_NAME = { night: "夜色", line: "线稿", color: "原色", off: "关" };
+const ART_ALPHA = { night: .3, line: .5, color: .2 };
+const ART = { x: 428, y: 188, h: 620, book: [.5, .455] };   // book：书页中心在图里的比例位置
+ART.w = ART.h * 832 / 1216;
+let artMode = "night", artDust = [];
+Object.values(ART_SRC).forEach(s => { new Image().src = s; });   // 预载，切换时不闪空
+function artSvg() {
+  if (artMode === "off") return "";
+  const bx = ART.x + ART.w * ART.book[0], by = ART.y + ART.h * ART.book[1];
+  return `<g mask="url(#artFadeH)" style="opacity:${ART_ALPHA[artMode]}${artMode === "line" ? ";mix-blend-mode:screen" : ""}">` +
+    `<image href="${ART_SRC[artMode]}" x="${ART.x}" y="${ART.y}" width="${ART.w.toFixed(1)}" height="${ART.h}" mask="url(#artFade)"/></g>` +
+    `<ellipse cx="${bx.toFixed(1)}" cy="${(by - 6).toFixed(1)}" rx="90" ry="46" fill="${gf("rgb(214,190,250)")}" opacity=".16"/>` +
+    `<g id="artDust"></g>`;
+}
+function tickArt(dt) {
+  const el = refs.artDust; if (!el) return;
+  const bx = ART.x + ART.w * ART.book[0], by = ART.y + ART.h * ART.book[1];
+  for (let k = 3.2 * dt; k > 0; k--) if (Math.random() < k)
+    artDust.push({ x: bx + (Math.random() - .5) * 120, y: by - 4 - Math.random() * 10, vx: (Math.random() - .5) * 6, vy: -(9 + Math.random() * 14),
+                   life: 0, max: 2.2 + Math.random() * 1.8, s: Math.random() < .25 ? 4 + Math.random() * 2.5 : 0, r: .6 + Math.random() * .8, ph: Math.random() * 6 });
+  artDust = artDust.filter(p => (p.life += dt) < p.max);
+  el.innerHTML = artDust.map(p => {
+    p.x += (p.vx + Math.sin(p.life * 1.7 + p.ph) * 4) * dt; p.y += p.vy * dt; p.vy *= Math.pow(.985, dt * 60);
+    const k = p.life / p.max, a = (k < .2 ? k / .2 : 1 - (k - .2) / .8) * .8;
+    return p.s ? crossStar(p.x, p.y, p.s, p.s, rgba(238, 228, 252, a), .25)
+               : `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.r.toFixed(2)}" fill="rgb(229,217,245)" opacity="${a.toFixed(2)}"/>`;
+  }).join("");
+}
 function ancestors(id) { const s = new Set(); let n = byId(id); while (n && n.parent) { s.add(n.parent); n = byId(n.parent); } return s; }
 // SkillLink：相关金色粗线 + 光晕；已习得实线；待研习虚线 4/5；未显现虚线 2/7
 function linkSvg(p, n, anc) {
@@ -861,7 +940,7 @@ function linkSvg(p, n, anc) {
 }
 function renderSky() {
   const anc = ancestors(selId);
-  let o = STARS + `<g id="cam">` + GRID;
+  let o = starfield() +`<g id="art">${artSvg()}</g><g id="cam">` + GRID;
   for (const n of N) if (n.parent) o += linkSvg(byId(n.parent), n, anc);
   o += `<g id="selGlow"></g><g id="fades"></g>`;
   for (const n of N) if (n.id !== selId) o += nodeSvg(n);
@@ -870,7 +949,8 @@ function renderSky() {
        `<svg id="bfView" x="-17" y="-17" width="34" height="34" viewBox="0 0 64 64" overflow="hidden"><image href="${BUTTERFLY}" width="256" height="256" filter="url(#bfTint)"/></svg></g>`;
   sky.innerHTML = o + `</g>`;
   refs = { cam: sky.querySelector("#cam"), bf: sky.querySelector("#bf"), view: sky.querySelector("#bfView"), dust: sky.querySelector("#dust"),
-           fx: sky.querySelector("#selFx"), glow: sky.querySelector("#selGlow"), fades: sky.querySelector("#fades") };
+           fx: sky.querySelector("#selFx"), glow: sky.querySelector("#selGlow"), fades: sky.querySelector("#fades"),
+           artDust: sky.querySelector("#artDust"), meteor: sky.querySelector("#meteor") };
   applyCamera();
 }
 let refs = {};
@@ -944,6 +1024,7 @@ function tick(dt) {
   if (FX.landed && M.flapping && !FX.wasFlapping) FX.tracedAt = FX.time;
   FX.wasFlapping = M.flapping;
   for (const k in FX.fades) if ((FX.fades[k] -= dt / .35) <= 0) delete FX.fades[k];
+  tickArt(dt); tickMeteor(dt);
   if (!refs.bf) return;
 
   const bx = M.pos[0] + PO[0], by = M.pos[1] + PO[1], f = M.flapping ? Math.floor((M.time - M.wingStart) / WING * 16) % 16 : 0;
@@ -1312,7 +1393,10 @@ document.getElementById("devFrame").onclick =e => { frameNew = !frameNew; e.targ
 document.getElementById("devCard").onclick =e => { document.body.classList.toggle("nightCard"); e.target.textContent = "详情卡：" + (document.body.classList.contains("nightCard") ? "夜色" : "月白"); };
 document.getElementById("devDetail").onclick = e => { detailNew = !detailNew; document.body.classList.toggle("detailPage", detailNew); e.target.textContent = "详情：" + (detailNew ? "嵌页" : "卡片"); renderCard(false); };
 document.getElementById("devReplay").onclick = () => { M.visible = false; FX.landed = null; const n = byId(selId); setTarget([n.x, n.y]); };
-document.getElementById("tEdit").onclick = e => e.target.classList.toggle("on");
+const ART_ORDER = ["night", "line", "color", "off"];
+const setArt = m => { artMode = m; artDust = []; document.getElementById("devArt").textContent = "立绘：" + ART_NAME[m]; renderSky(); };
+document.getElementById("devArt").onclick = () => setArt(ART_ORDER[(ART_ORDER.indexOf(artMode) + 1) % ART_ORDER.length]);
+document.getElementById("tEdit").onclick =e => e.target.classList.toggle("on");
 
 /* ---------- 缩放适配 ---------- */
 function fit() {
@@ -1322,13 +1406,14 @@ function fit() {
 }
 addEventListener("resize", fit); fit();
 
-// 预览参数：?sel=<节点 id>  ?book=open（跳过翻页）| ?book=0.55（定格在某一进度）  ?card=day
+// 预览参数：?sel=<节点 id>  ?book=open（跳过翻页）| ?book=0.55（定格在某一进度）  ?card=day  ?art=night|line|color|off
 const Q = new URLSearchParams(location.search);
 if (Q.get("sel") && byId(Q.get("sel"))) selId = Q.get("sel");
 if (FILTERS.some(f => f.k === Q.get("filter"))) filter = Q.get("filter");
 if (Q.get("rim") === "old") { rimNew = false; document.getElementById("devRim").textContent = "页缘：原"; }
 if (Q.get("frame") === "old") { frameNew = false; document.getElementById("devFrame").textContent = "外框：原"; }
 if (Q.get("detail") === "card") { detailNew = false; document.body.classList.remove("detailPage"); document.getElementById("devDetail").textContent = "详情：卡片"; }
+if (ART_NAME[Q.get("art")]) { artMode = Q.get("art"); document.getElementById("devArt").textContent = "立绘：" + ART_NAME[artMode]; }
 if (Q.get("card") === "day") { document.body.classList.remove("nightCard"); document.getElementById("devCard").textContent = "详情卡：月白"; }
 document.querySelector("svg.defs defs").insertAdjacentHTML("beforeend",
   `<filter id="tintGold" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".902 0 0 0 0  0 .808 0 0 0  0 0 .647 0 0  0 0 0 1 0"/></filter>`);

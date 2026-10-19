@@ -5,12 +5,14 @@ The SVG references guide shape and marks; no rasterized SVG sampling is used.
 """
 import json
 from pathlib import Path
+import sys
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / 'Tools/PotionBottleDesigns/output/round1/pixel'
 PREVIEW = ROOT / 'Tools/PotionPixel/preview'
 ASSETS = ROOT / 'ElainaModAlchemy/item/ExampleAssets'
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 COMMON = {
     'outline':'#51415f', 'edge':'#88719b', 'glass':'#d4ccea',
@@ -82,56 +84,9 @@ def starpower():
 
 
 def moon_dew():
-    im=Image.new('RGBA',(33,40));d=ImageDraw.Draw(im)
-    c={**COMMON,'light':'#b4a4f1','violet':'#8879d7','middle':'#6753b7',
-       'dark':'#494080','pink':'#e697bd','pink_light':'#ffd1e3',
-       'pink_dark':'#ab648f'}
-    # Round bulb centered x=15, with a little canvas space for the long ribbon.
-    spans={8:(12,18),9:(12,18),10:(12,18),11:(12,18),
-           12:(10,20),13:(8,22),14:(6,24),15:(5,25),16:(4,26),
-           17:(3,27),18:(3,27),19:(2,28),20:(2,28),21:(2,28),
-           22:(1,29),23:(1,29),24:(1,29),25:(1,29),26:(1,29),
-           27:(1,29),28:(2,28),29:(2,28),30:(2,28),31:(3,27),
-           32:(3,27),33:(4,26),34:(5,25),35:(6,24),36:(8,22),
-           37:(10,20),38:(12,18)}
-    for y,(left,right) in spans.items():
-        d.line((left,y,right,y),fill=c['outline'])
-        if y==38:continue
-        fill='glass' if y<22 else 'light' if y<24 else 'violet' if y<28 else 'middle' if y<34 else 'dark'
-        d.line((left+1,y,right-1,y),fill=c[fill])
-        if y>=12:
-            d.point((right-1,y),fill=c['glass_dark'] if y<22 else c['dark'])
-    stopper(d,c)
-    d.line([(9,16),(7,18),(6,20),(5,23)],fill=c['white'])
-    d.line([(8,16),(6,18),(5,20),(4,23)],fill=c['white'])
-    d.point((4,26),fill=c['white'])
-    # Violet moon elixir keeps the reference's star and bubbles, not a crescent.
-    four_point(d,12,28,2,c['white'])
-    d.line((20,26,21,26),fill=c['light'])
-    d.line((19,27,19,28),fill=c['light'])
-    d.line((22,27,22,28),fill=c['light'])
-    d.line((20,29,21,29),fill=c['light'])
-    d.point((21,33),fill=c['light'])
-    d.point((11,34),fill=c['light'])
-    # Two pink bow loops, a knot and long folded tails distinguish this bottle
-    # from Resonance's small side tie. Every ribbon pixel touches the bottle.
-    d.polygon([(14,10),(11,7),(8,7),(6,9),(7,11),(11,12),(14,11)],fill=c['pink_dark'])
-    d.polygon([(12,10),(10,8),(8,8),(7,9),(9,10)],fill=c['pink'])
-    d.line((8,8,10,8),fill=c['pink_light'])
-    d.polygon([(16,9),(20,6),(23,6),(25,8),(24,10),(21,12),(17,12)],fill=c['pink_dark'])
-    d.polygon([(17,10),(20,7),(23,7),(24,8),(22,10),(18,11)],fill=c['pink'])
-    d.line((20,7,23,7),fill=c['pink_light'])
-    # Right tail curls outward; left tail drapes along the shoulder.
-    d.polygon([(17,11),(21,13),(24,17),(28,20),(31,20),(30,22),(32,23),(28,23),(24,21),(20,16),(16,13)],fill=c['pink_dark'])
-    d.line([(18,12),(21,14),(24,18),(27,21),(30,21)],fill=c['pink'],width=2)
-    d.line([(18,12),(21,14),(23,17)],fill=c['pink_light'])
-    d.polygon([(14,11),(17,13),(13,18),(11,23),(7,26),(8,23),(6,22),(9,20),(11,15)],fill=c['pink_dark'])
-    d.line([(14,13),(12,16),(11,20),(9,23),(8,24)],fill=c['pink'],width=2)
-    d.line([(14,13),(12,16),(11,18)],fill=c['pink_light'])
-    d.rectangle((13,9,17,12),fill=c['pink_dark'])
-    d.rectangle((14,9,16,11),fill=c['pink'])
-    d.point((14,9),fill=c['pink_light'])
-    return im
+    # The round bow bottle was replaced by the dewdrop flask in GenerateMoonDewElixirPixel.py.
+    import GenerateMoonDewElixirPixel
+    return GenerateMoonDewElixirPixel.build_sprite()[0]
 
 
 def write_sprite(name,im):

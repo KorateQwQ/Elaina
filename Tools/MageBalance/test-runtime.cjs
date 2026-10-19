@@ -199,21 +199,21 @@ Test("OccupyRatio adds B times cast seconds to active skills only", () =>
     Near(next.GetSkillDamage(b,next.Skills[missile.Id],10),current.GetSkillDamage(b,missile,10));
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });
-Test("Fractional mana costs and K above 10 are accepted and priced exactly", () =>
+Test("Fractional mana costs and K up to 200 are accepted and priced exactly", () =>
 {
     var payload = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
     payload["configuration"]["basicAttacks"][0]["cost"] = 2.5;
     payload["configuration"]["skills"][0]["cost"] = 12.5;
-    payload["configuration"]["skills"][0]["k"] = 40;
-    Check(store.Apply(payload.ToJsonString()), "Fractional cost or K 40 was rejected");
+    payload["configuration"]["skills"][0]["k"] = 200;
+    Check(store.Apply(payload.ToJsonString()), "Fractional cost or K 200 was rejected");
     var next = SkillBalanceSystem.Current;
     var water = next.Skills[payload["configuration"]["skills"][0]["id"].GetValue<string>()];
     Near(next.Skills[missile.Id].ManaCost,2.5);
     Near(water.ManaCost,12.5);
     double b = KLDpsHelper.GetLevelDps(10);
-    Near(next.GetSkillDamage(b,water,10),b*(next.OccupyRatio*Math.Max(1d/60,water.OccupySeconds)+(next.RatePer20/100/20)*12.5*water.BaseCooldown*water.CdDamageRatio*40));
-    payload["configuration"]["skills"][0]["k"] = 100.5;
-    Check(!store.Apply(payload.ToJsonString()), "K above 100 was accepted");
+    Near(next.GetSkillDamage(b,water,10),b*(next.OccupyRatio*Math.Max(1d/60,water.OccupySeconds)+(next.RatePer20/100/20)*12.5*water.BaseCooldown*water.CdDamageRatio*200));
+    payload["configuration"]["skills"][0]["k"] = 200.5;
+    Check(!store.Apply(payload.ToJsonString()), "K above 200 was accepted");
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });
 Test("Invalid curves and occupyRatio are rejected; null curve means none", () =>

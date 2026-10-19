@@ -541,7 +541,7 @@ public class WaterBall : ElainaBasicProjectile
 
     public override void OnKill(int timeLeft)
     {
-        time2 = 20;
+        // 保留飞行计时，让爆炸伤害与特效都按命中时的飞行阶段选择形状。
         Projectile.penetrate = -1;
         if (time2 > 52)
         {

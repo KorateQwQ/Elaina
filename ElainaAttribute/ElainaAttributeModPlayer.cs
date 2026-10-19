@@ -173,14 +173,14 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     }
 
     /// <summary>
-    /// 检查并按需支付独特魔力。先使用药水槽，不足时再允许灰之魔女进行生命转化。
+    /// 检查并按需支付独特魔力，不足时允许灰之魔女进行生命转化。
     /// </summary>
     public bool ConsumeMagicPoint(float cost, bool consume = true, bool allowLifeConversion = true)
     {
-        if (consume && Player.whoAmI == Main.myPlayer && Main.netMode != NetmodeID.Server)
+        /*if (consume && Player.whoAmI == Main.myPlayer && Main.netMode != NetmodeID.Server)
         {
             PrintText($"[伊蕾娜] 本次施法需要消耗 {cost:0.##} 点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]");
-        }
+        }*/
 
         if (float.IsNaN(cost) || float.IsInfinity(cost) || cost <= 0f)
         {
@@ -203,14 +203,11 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
             return true;
         }
 
-        // 预检查不得修改资源；只有药水槽与生命转化足以支付本次费用时才提交消耗。
-        var elixirPlayer = Player.GetModPlayer<ElainaManaElixirPlayer>();
+        // 预检查不得修改资源；只有生命转化足以支付本次费用时才提交消耗。
         float magicBefore = MagicPoint;
-        float magicAfterElixirs = elixirPlayer.PreviewRecovery(magicBefore, cost, out int chargesNeeded);
         int lifeCost = 0;
         float magicRecovery = 0f;
-        if (magicAfterElixirs < cost
-            && (!allowLifeConversion || !TryGetLifeConversion(cost, magicAfterElixirs, out lifeCost, out magicRecovery)))
+        if (!allowLifeConversion || !TryGetLifeConversion(cost, magicBefore, out lifeCost, out magicRecovery))
         {
             return false;
         }
@@ -222,10 +219,7 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
 
         Player.statLife -= lifeCost;
         // 扣费与补充一起结算，仅对最终余额裁剪，避免先回蓝造成提前溢出。
-        MagicPoint = magicAfterElixirs - cost + magicRecovery;
-        float elixirRecovery = Math.Min(magicAfterElixirs - magicBefore,
-            cost + MaxMagicPoint - magicBefore);
-        elixirPlayer.ConsumeCharges(chargesNeeded, elixirRecovery);
+        MagicPoint = magicBefore - cost + magicRecovery;
         InBattleState();
 
         if (lifeCost > 0 && Main.netMode == NetmodeID.MultiplayerClient)

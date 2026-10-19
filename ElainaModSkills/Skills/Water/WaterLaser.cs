@@ -17,7 +17,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
 public class WaterLaser : ElainaBasicProjectile
 {
-    public static float SplashRadius => 80f;
+    public static float SplashRadius => 230f;
     public const float SplashDamageMultiplier = 0.5f;
     public const float OutsideFreezeCooldownDamageMultiplier = 0.7f / 0.9f;
     private const float BeamWidth = 50f;

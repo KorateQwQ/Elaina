@@ -1,4 +1,5 @@
 using KL.ActionsSystem;
+using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
@@ -9,6 +10,10 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 [SkillUIInfo(State = 12, Pixels = 400)]
 public class WaterBallSkill: ElainaSkill
 {
+    // 学习门槛读取配置中的角色等级上限，默认至少达到 30。
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30));
+
     protected override object[] SkillDescriptionArgs => [GetConfiguredDamage()];
     public override void Initialize()
     {

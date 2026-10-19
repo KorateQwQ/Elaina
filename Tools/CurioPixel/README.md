@@ -23,8 +23,6 @@
 
 ## 瓶中雨像素稿
 
-`python Tools/CurioPixel/GenerateBottledRain.py` 重建已确认的正式贴图 `ElainaModAlchemy/item/ExampleAssets/BottledRain_Pixel.png`，以及 `BottledRain/` 下的像素稿、调色板字符网格 JSON、深浅背景 1×/2×/8× 预览与尺寸检查信息。原生尺寸 31×38，16 个可见颜色，Alpha 仅 0/255。
+正式贴图已改为 `Tools/PotionPixel/GenerateBottledRainPixel.py` 手绘的试管版：紫水晶瓶塞、金色管口，管内一朵淡紫受光的云、发光雨滴与金色星芒，底部积着发光的水，外轮廓纯黑。`python Tools/PotionPixel/GenerateBottledRainPixel.py` 只出预览，`--apply` 写入正式贴图与描边；`Tools/AlchemyPlan/pixels.py` 的 rain() 复用它。
 
-参照已确认的瓶中雨 SVG 和彩铅版，手绘梨形玻璃瓶、紫色封口、粉色封带、三瓣小雨云、三颗错落水滴及浅层积水。外围没有星芒或散点，轮廓为连通的闭合像素边缘。所有形状直接在整数坐标上绘制，保留内部金色小星印；没有缩小 SVG 采样。通过 `build_sprite()` 调整图层。
-
-瓶中雨已通过 `EntryId = "rain"` 接入目录 PixelPath，物品尺寸由共同基类读取目录的 31×38。`Tools/AlchemyPlan/pixels.py` 的 rain() 复用本生成器，确保完整资产重建保留定稿。不影响已接入的灰赝尘和炼金 UI 彩铅图。预览为离线像素检查，不是游戏截图。
+`python Tools/CurioPixel/GenerateBottledRain.py` 是此前的梨形瓶版本，现在只重建 `BottledRain/` 下的旧稿与预览，不再写入正式贴图。

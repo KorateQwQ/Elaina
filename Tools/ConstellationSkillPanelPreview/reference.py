@@ -66,5 +66,8 @@ capture('surface', surface, 1100, 900)
 asset = repo/'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/NotebookSurface.png'
 asset.parent.mkdir(parents=True, exist_ok=True)
 Image.open(out/'surface.png').convert('RGB').crop((0,0,1100,800)).save(asset)
+# The galaxy glow is clipped at the old viewport top (y=208); the sky now starts at y=150.
+from feather_surface import feather
+feather(asset)
 print('Reference and CSS metrics:', out)
 print('NotebookSurface.png: 1100 x 800 RGB, opaque; approx. 3.36 MiB RGBA GPU storage')
