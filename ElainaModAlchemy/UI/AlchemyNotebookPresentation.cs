@@ -10,7 +10,7 @@ namespace 伊蕾娜.ElainaModAlchemy.UI;
 /// <remarks>Paint receives the pointer in row-local design units, or null when the row is not hovered.
 /// A row holding several targets (e.g. wrapped chips) resolves the clicked one through EntryAt.</remarks>
 internal sealed record AlchemyNotebookRow(float Height, Action<AlchemyDrawing, Vector2?> Paint, string Entry = null,
-    Func<Vector2, string> EntryAt = null)
+    Func<Vector2, string> EntryAt = null, bool BlocksDragging = false)
 {
     internal string EntryFor(Vector2 local) => EntryAt != null ? EntryAt(local) : Entry;
 }

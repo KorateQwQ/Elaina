@@ -11,7 +11,7 @@
 
 所有炼金造物都是普通的正式 ModItem，按用途继承 `AlchemyItem` 或 `AlchemyPotion`，不区分“展示物品”与“正式物品”。`AlchemyItem.EntryId` 可关联炼金目录，统一取得像素贴图、基础尺寸与稀有度；本地化统一使用 `Alchemy.Items`。目录中有材料的物品通过 `AlchemyRecipe` 提供配方定义，`IsRecipeUnlocked` 读取角色研究记录。
 
-`AlchemyPotion` 用于饮用后获得 Buff 的药剂。`PotionBuffType` 是可选配置，默认 0：物品可正常存在于背包和炼金手记中，但暂不可饮用或消耗。实现效果时覆盖 `PotionBuffType`，按需覆盖 `DurationTicks`，无需更换父类。集中、共鸣、轻羽药水目前使用这一方式。净土露滴是滴落使用的药液，月露合剂提供专属魔力补给，两者直接继承 `AlchemyItem`，同样归入 `Potions/`。
+`AlchemyPotion` 用于饮用后获得 Buff 的药剂。`PotionBuffType` 是可选配置，默认 0：物品可正常存在于背包和炼金手记中，但暂不可饮用或消耗。实现效果时覆盖 `PotionBuffType`，按需覆盖 `DurationTicks`，无需更换父类。集中、共鸣、轻羽药水目前使用这一方式。月露合剂也继承 `AlchemyPotion`：仅供伊蕾娜使用，持续 120 秒，每秒恢复最大独特魔力值的 1%，不恢复原版魔力；重复饮用刷新持续时间。已移除原有五格药水槽、收藏自动补充与缺魔时自动消耗充能。净土露滴是滴落使用的药液，直接继承 `AlchemyItem`，同样归入 `Potions/`。
 
 止痛药（60 秒）、嗜血药水（1% 最大生命/秒）、星力药水已具有实际效果，均位于 `item/Potions/`。其饮用、Buff、堆叠与原有属性保持不变；制作配方已接入炼金手记，完成研究且材料足够后可以制作。
 

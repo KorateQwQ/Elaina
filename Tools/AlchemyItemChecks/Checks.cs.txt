@@ -128,10 +128,11 @@ internal static class Checks
         })
         {
             string source = File.ReadAllText(Path.Combine(repo, $"ElainaModAlchemy/item/{folder}/{name}.cs"));
-            Assert(source.Contains($"class {name} : AlchemyItem") && source.Contains($"EntryId => \"{id}\"") &&
+            string expectedBase = name == "MoonDewElixir" ? "AlchemyPotion" : "AlchemyItem";
+            Assert(source.Contains($"class {name} : {expectedBase}") && source.Contains($"EntryId => \"{id}\"") &&
                 (!source.Contains("override string LocalizationCategory") || source.Contains("\"Alchemy.Items\"")) &&
                 (!source.Contains("override string Texture") || source.Contains(AlchemyCatalog.GetRecipe(id).PixelPath)),
-                name + " keeps its existing non-Buff base, pixel asset, and localization contract");
+                name + " uses its intended base, pixel asset, and localization contract");
         }
 
         Console.WriteLine($"Alchemy items: {passed} registration, defaults, inheritance, and pixel asset checks passed; checking localization.");

@@ -70,28 +70,76 @@ static class Checks
         effects.ResetEffects(); Near(broom.最大速度(), 10, "Broom returns to normal when Buff ends");
         broom.ResetEffects(); Check(!broom.PoweredFlight, "Dismounted or unpowered broom cannot retain flight override");
 
-        var elixir = new MoonDewElixir(); ((ILoadable)elixir).Load(new CheckMod()); ContentInstance.Register(elixir); elixir.SetDefaults();
-        var reserve = player.GetModPlayer<ElainaManaElixirPlayer>(); var magic = player.GetModPlayer<ElainaAttributeModPlayer>();
-        Check(elixir.CanUseItem(player), "Elaina can store moon dew out of combat");
-        player.GetModPlayer<ElainaModplayer>().Elaina = false;
-        Check(!elixir.CanUseItem(player), "Other characters cannot drink moon dew"); player.GetModPlayer<ElainaModplayer>().Elaina = true;
-        player.dead = true; Check(!elixir.CanUseItem(player), "Dead player cannot store a charge"); player.dead = false;
-        for (int i = 0; i < 5; i++) { Check(elixir.ConsumeItem(player), "Each valid drink may consume one bottle"); elixir.OnConsumeItem(player); }
-        Check(reserve.ChargeCount == 5 && !elixir.CanUseItem(player) && !elixir.ConsumeItem(player), "Full reserve rejects drinking and consumption");
-        var save = new TagCompound(); reserve.SaveData(save); reserve.Initialize(); reserve.LoadData(save);
-        Check(reserve.ChargeCount == 5, "Moon dew reserve survives save/load");
-        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
-        Check(reserve.TryRestoreMagic(), "Stored moon dew restores unique magic");
-        Near(magic.MagicPoint, 100, "One charge restores half of the current maximum");
-        Check(reserve.ChargeCount == 4 && magic.InBattle && !elixir.CanUseItem(player), "Restoration consumes one charge and prevents combat refilling");
-        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 175);
-        Check(reserve.TryRestoreMagic(), "Charge can top up a partial reserve"); Near(magic.MagicPoint, 200, "Recovery clamps at maximum unique magic");
-        Check(!reserve.TryRestoreMagic() && reserve.ChargeCount == 3, "Full unique magic cannot waste a charge");
-        Near(other.GetModPlayer<ElainaManaElixirPlayer>().ChargeCount, 0, "Moon dew reserve belongs to its player");
+        CheckMoonDew(player, other);
         CheckStarPower(player);
         Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom, moon dew and star power).");
     }
 
+    static void CheckMoonDew(Player player, Player other)
+    {
+        var mod = new CheckMod();
+        var buff = new MoonDewElixirBuff(); ((ILoadable)buff).Load(mod); ContentInstance.Register(buff);
+        var elixir = new MoonDewElixir(); ((ILoadable)elixir).Load(mod); ContentInstance.Register(elixir); elixir.SetDefaults();
+        var recovery = player.GetModPlayer<ElainaManaElixirPlayer>();
+        var magic = player.GetModPlayer<ElainaAttributeModPlayer>();
+        var witch = (AshenWitchSkill)player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(AshenWitchSkill)].ModSkill;
+        void Tick(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                recovery.ResetEffects();
+                int index = 0; buff.Update(player, ref index);
+                recovery.PostUpdate();
+            }
+        }
+        void End() { recovery.ResetEffects(); recovery.PostUpdate(); }
+        Check(elixir.Item.buffType == buff.Type && elixir.Item.buffTime == 7200 && elixir.Item.consumable,
+            "Moon dew is a consumable 120-second buff");
+        Check(elixir.CanUseItem(player), "Elaina can drink moon dew");
+        magic.InBattleState(); Check(elixir.CanUseItem(player), "Moon dew is usable during combat");
+        player.GetModPlayer<ElainaModplayer>().Elaina = false;
+        Check(!elixir.CanUseItem(player), "Other characters cannot drink moon dew");
+        player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        player.dead = true; Check(!elixir.CanUseItem(player), "Dead players cannot drink moon dew"); player.dead = false;
+        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
+        Tick(59); Near(magic.MagicPoint, 0, "No recovery before one second");
+        Tick(1); Near(magic.MagicPoint, 2, "One second restores 1% of maximum unique magic");
+        player.statManaMax2 = 250;
+        Tick(60); Near(magic.MagicPoint, 4.5f, "Recovery uses the current maximum and preserves fractional unique magic");
+        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 249);
+        Tick(60); Near(magic.MagicPoint, 250, "Recovery cannot exceed maximum unique magic");
+        End(); magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
+        Tick(30); End(); Tick(30); Near(magic.MagicPoint, 0, "Expired buff clears partial-second progress");
+        recovery.UpdateDead(); Tick(30); Near(magic.MagicPoint, 0, "Death clears partial-second progress");
+        End();
+        player.statManaMax2 = 200;
+        float total = 0;
+        for (int i = 0; i < 120; i++)
+        {
+            magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
+            Tick(60); total += magic.MagicPoint;
+        }
+        Near(total, 240, "120 seconds restore 120% total when mana is continuously spent");
+        End(); magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
+        for (int i = 0; i < 60; i++) recovery.PostUpdate();
+        Near(magic.MagicPoint, 0, "No regeneration after the buff ends");
+        Check(!magic.ConsumeMagicPoint(1, consume: false, allowLifeConversion: false), "No reserve can fund spell costs");
+        var remote = other.GetModPlayer<ElainaManaElixirPlayer>();
+        var remoteMagic = other.GetModPlayer<ElainaAttributeModPlayer>();
+        remoteMagic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0);
+        remote.Active = true; for (int i = 0; i < 60; i++) remote.PostUpdate();
+        Near(remoteMagic.MagicPoint, 0, "Remote players do not receive duplicate recovery");
+        witch.IsEnabled = false; player.statManaMax2 = 200; player.statMana = 0;
+        Tick(7200); Near(player.statMana, 0, "Moon dew never restores vanilla mana while unique magic is disabled");
+        Near(magic.MagicPoint, 0, "Disabled unique magic receives no recovery");
+        witch.IsEnabled = true;
+        Tick(59); Near(magic.MagicPoint, 0, "Disabled time does not advance the recovery timer");
+        Tick(1); Near(magic.MagicPoint, 2, "Re-enabled unique magic recovers after one full second");
+        Near(player.statMana, 0, "Unique magic recovery leaves vanilla mana unchanged");
+        End(); player.GetModPlayer<ElainaModplayer>().Elaina = false;
+        Tick(120); Near(player.statMana, 0, "Buff cannot restore vanilla mana for other characters");
+        End(); player.GetModPlayer<ElainaModplayer>().Elaina = true;
+    }
     static void CheckStarPower(Player player)
     {
         var effects = player.GetModPlayer<AlchemyBuffPlayer>();

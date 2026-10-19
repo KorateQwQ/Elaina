@@ -153,7 +153,7 @@ def validate_payload(payload):
         if "cdRatio" not in row:
             row["cdRatio"] = 1
         number(row, "cdRatio", 0, 1)
-        number(row, "k", 0, 100)
+        number(row, "k", 0, 200)
         number(row, "cast", 0, 60)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)

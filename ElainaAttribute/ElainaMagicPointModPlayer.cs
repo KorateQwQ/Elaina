@@ -43,12 +43,7 @@ public class ElainaMagicPointModPlayer : ModPlayer
             return;
         }
 
-        if (self.cursed || self.CCed || self.dead)
-        {
-            return;
-        }
-
-        self.GetModPlayer<ElainaManaElixirPlayer>().TryRestoreMagic();
+        // 独特魔力没有瞬时回蓝药水；月露合剂通过普通饮用或快捷增益生效。
     }
 
     private static bool IsUsingUniqueMagic(Player player)

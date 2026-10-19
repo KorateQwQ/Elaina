@@ -21,7 +21,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     private LocalizedText lifeText;
     private LocalizedText manaText;
     private LocalizedText magicPointText;
-    private LocalizedText elixirRestoreText;
     private static readonly Color BorderColor = new Color(237, 240, 243);
     private static readonly Color BackgroundColor = new Color(35, 32, 42) * 0.85f;
     private static readonly Color LifeColor = new Color(220, 72, 108);
@@ -37,7 +36,6 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         lifeText = this.GetLocalization(nameof(lifeText));
         manaText = this.GetLocalization(nameof(manaText));
         magicPointText = this.GetLocalization(nameof(magicPointText));
-        elixirRestoreText = this.GetLocalization(nameof(elixirRestoreText));
     }
 
     public override void PreDrawResources(PlayerStatsSnapshot snapshot)
@@ -104,42 +102,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
             center = center - size * 0.5f;
             Main.spriteBatch.DrawString(font, text, center, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
-        DrawManaElixirSlot(spriteBatch);
         //DrawExpBar(spriteBatch);
-    }
-
-    private void DrawManaElixirSlot(SpriteBatch spriteBatch)
-    {
-        if (!Main.LocalPlayer.GetModPlayer<ElainaModplayer>().Elaina)
-        {
-            return;
-        }
-
-        var elixirPlayer = Main.LocalPlayer.GetModPlayer<ElainaManaElixirPlayer>();
-        Vector2 iconCenter = GetBaseCenter() + new Vector2(-265f, 75f);
-        Color chargeColor = new Color(100, 210, 255);
-        Color emptyColor = new Color(69, 66, 75);
-        EndBeginDrawUI();
-
-        for (int i = 0; i < ElainaManaElixirPlayer.MaxCharges; i++)
-        {
-            Vector2 center = iconCenter + new Vector2(31f + i * 12f, 0f);
-            bool charged = i < elixirPlayer.ChargeCount;
-            DrawDiamond(center, new Vector2(10f), charged ? chargeColor : emptyColor,
-                border: 1.5f, filled: true, borderColor: BorderColor);
-            DrawDiamond(center, new Vector2(13f), emptyColor,
-                border: 1f, filled: false, borderColor: BorderColor * (charged ? 1f : 0.45f));
-        }
-
-        string text = $"{elixirPlayer.TotalRestoreAmount}";//elixirRestoreText.Format(elixirPlayer.TotalRestoreAmount);
-        DynamicSpriteFont font = FontManager.HarmonyOS_Sans_SC.Value;
-        Vector2 textSize = font.MeasureString(text);
-        float scale = Math.Min(0.27f, 120f / Math.Max(1f, textSize.X));
-        Vector2 textPosition = iconCenter + new Vector2(42, -textSize.Y * scale * 0.5f+15);
-        spriteBatch.DrawString(font, text, textPosition + Vector2.One, Color.Black * 0.8f,
-            0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-        spriteBatch.DrawString(font, text, textPosition, chargeColor,
-            0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
     }
 
     public void DrawExpBar(SpriteBatch spriteBatch)

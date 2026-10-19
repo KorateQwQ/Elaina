@@ -32,7 +32,8 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private readonly List<UIView> _quantityControls = [];
     private AlchemyDrawing _draw;
     private ConstellationTween _tabMarker;
-    private SUIScrollView _catalog, _detail, _bagScroll;
+    private AlchemyPageScrollView _catalog, _detail;
+    private SUIScrollView _bagScroll;
     private AlchemyCatalogMaterial[] _bagMaterials = [];
     private float _scale = 1, _lastScale = 1, _brewTime, _flash, _toastTime;
     private string _craftedId, _toast;
@@ -67,12 +68,13 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             {
                 if (Brewing || _state.IsBusy) return;
                 _state.SetCategory(category.Id);
-                _catalog.ScrollBar.SetScrollPosition(Vector2.Zero);
+                _catalog.ResetPosition();
                 _bagScroll.ScrollBar.SetScrollPosition(Vector2.Zero);
                 Dirty(true);
             }, (d, h) => Category(d, _state, category, h));
         }
-        _catalog = Scroll(new(CatalogX, CatalogY, CatalogWidth, CatalogHeight), false);
+        _catalog = (AlchemyPageScrollView)Scroll(new(CatalogX, CatalogY, CatalogWidth, CatalogHeight), false);
+        _catalog.CanDrag = e => !_cards.Any(c => c.Recipe != null && c.View.ContainsPoint(e.MousePosition));
         _catalog.Container.FitHeight = false;
         _catalog.Container.FlexShrink = 0;
         for (int i = 0; i < AlchemyCatalog.Recipes.Count; i++)
@@ -84,7 +86,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
                 if (_cards[index].Recipe is not { } r || r.Id == _state.SelectedId) return;
                 Card(d, _state, r, v.IsMouseHovering, _craftedId == r.Id ? _flash : 0, PoseOf(r, v.IsMouseHovering));
             })) { Border = 0, Padding = new Margin(0), FlexShrink = 0, FitWidth = false, FitHeight = false }.Join(_catalog.Container);
-            view.LeftMouseClick += (_, _) => { if (_cards[index].Recipe is { } r) Select(r.Id); };
+            view.LeftMouseClick += (_, _) => { if (!_catalog.Motion.DidDrag && _cards[index].Recipe is { } r) Select(r.Id); };
             _cards.Add((view, null));
         }
         // The viewport overlay shares the catalog's native clipping and draws the picked-up
@@ -95,7 +97,9 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             Border = 0, Padding = new Margin(0), FitWidth = false, FitHeight = false
         }.Join(_catalog.Mask);
         quillLayer.SetSize(0, 0, 1, 1);
-        _detail = Scroll(new(DetailX, DetailY, DetailWidth, DetailHeight), true);
+        _detail = (AlchemyPageScrollView)Scroll(new(DetailX, DetailY, DetailWidth, DetailHeight), true);
+        _detail.CanDrag = e => !_rows.Any(r => r.View == e.Source && r.Row != null &&
+            (r.Row.BlocksDragging || r.Row.EntryFor((e.MousePosition - r.View.Bounds.Position) / _scale) != null));
         _quantityControls.Add(Button(new(826, 615, 28, 27), () => ChangeQuantity(-1), (d, h) => SmallButton(d, "−", h, _state.Quantity > 1)));
         _quantityControls.Add(Button(new(882, 615, 28, 27), () => ChangeQuantity(1), (d, h) => SmallButton(d, "+", h, _state.Quantity < _state.MaxBatches(_state.Current))));
         _quantityControls.Add(Button(new(919, 615, 42, 27), () => { _state.SetQuantity(_state.MaxBatches(_state.Current)); Dirty(false); },
@@ -149,7 +153,15 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
 
     private SUIScrollView Scroll(Rectangle area, bool column, Direction direction = Direction.Vertical)
     {
-        var scroll = new SUIScrollView(direction) { Positioning = Positioning.Absolute, Border = 0, Padding = new Margin(0), Gap = new Size(0), BackgroundColor = Color.Transparent }.Join(this);
+        SUIScrollView scroll = direction == Direction.Vertical
+            ? new AlchemyPageScrollView { AcceptInput = () => _book.IsOpen && !_book.Moving }
+            : new SUIScrollView(direction);
+        scroll.Positioning = Positioning.Absolute;
+        scroll.Border = 0;
+        scroll.Padding = new Margin(0);
+        scroll.Gap = new Size(0);
+        scroll.BackgroundColor = Color.Transparent;
+        scroll.Join(this);
         _regions.Add((scroll, area));
         scroll.Mask.IndependentRenderTarget = false;
         scroll.Mask.Border = 0;
@@ -269,7 +281,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             { Border = 0, Padding = new Margin(0), FlexShrink = 0, FitWidth = false, FitHeight = false }.Join(_detail.Container);
             view.LeftMouseClick += (_, e) =>
             {
-                if (_rows[index].Row?.EntryFor((e.MousePosition - view.Bounds.Position) / _scale) is { } entry) Select(entry);
+                if (!_detail.Motion.DidDrag && _rows[index].Row?.EntryFor((e.MousePosition - view.Bounds.Position) / _scale) is { } entry) Select(entry);
             };
             _rows.Add((view, null));
         }
@@ -286,16 +298,15 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         LayoutViews();
         if (_resetScroll)
         {
-            var bar = _catalog.ScrollBar;
             if (_revealSelection)
             {
                 // Glide to the picked entry like a wheel scroll instead of cutting to it.
-                float offset = bar.TargetScrollPosition.Y / _scale;
+                float offset = _catalog.Motion.Target;
                 float target = AlchemyCatalogLayout.Reveal(_state.Category, _state.SelectedId, offset, CatalogHeight);
-                if (target != offset) bar.TargetScrollPosition = new(0, target * _scale);
+                if (target != offset) _catalog.Motion.Reveal(target);
             }
-            else bar.SetScrollPosition(bar.CurrentScrollPosition);
-            _detail.ScrollBar.SetScrollPosition(Vector2.Zero);
+            else _catalog.ResetPosition(_catalog.Motion.Position);
+            _detail.ResetPosition();
             _revealSelection = false;
             _resetScroll = false;
         }
@@ -316,8 +327,8 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         foreach (var (v, _) in _cards) v.SetSize(CardWidth * _scale, CardHeight * _scale, 0, 0);
         foreach (var (v, row) in _rows) if (row != null) v.SetSize(DetailContentWidth * _scale, row.Height * _scale, 0, 0);
         float catalogContent = AlchemyCatalogLayout.HeightFor(_state.Category);
-        SetRange(_catalog, new(CatalogX, CatalogY, CatalogWidth, CatalogHeight), CatalogScrollBar, catalogContent);
-        SetRange(_detail, new(DetailX, DetailY, DetailWidth, DetailHeight), DetailScrollBar, _rows.Sum(r => r.Row?.Height ?? 0));
+        _catalog.SetPageRange(CatalogHeight, catalogContent, _scale);
+        _detail.SetPageRange(DetailHeight, _rows.Sum(r => r.Row?.Height ?? 0), _scale);
         if (_bagScroll != null)
         {
             float content = Math.Max(BagBounds.Width, _bagMaterials.Length * 48);
@@ -331,17 +342,6 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             KeepPosition(bar, position);
         }
         _lastScale = _scale;
-    }
-    private void SetRange(SUIScrollView scroll, Rectangle region, Rectangle hit, float content)
-    {
-        var bar = scroll.ScrollBar;
-        var position = bar.CurrentScrollPosition * (_scale / _lastScale);
-        PlaceBar(bar, region, hit);
-        // Never hide a bar whose content overflows: an invalid SUI bar is neither updated nor
-        // drawn, so its wheel and drag targets would never reach the scroll position.
-        bar.Invalid = content <= region.Height;
-        bar.SetVScrollRange(region.Height * _scale, content * _scale);
-        KeepPosition(bar, position);
     }
     private void PlaceBar(SUIScrollbar bar, Rectangle region, Rectangle hit)
     {
@@ -450,13 +450,10 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         WithLocal(this, spriteBatch, d =>
         {
             d.CatalogFade();
-            if (_detail.ScrollBar.CurrentScrollPosition.Y / _scale + DetailHeight < _rows.Sum(r => r.Row?.Height ?? 0) - 1)
+            if (_detail.Motion.Position + DetailHeight < _rows.Sum(r => r.Row?.Height ?? 0) - 1)
                 d.DetailFade();
             // Above the catalog's top fade, like the HTML chrome layer over the catalog.
             TabMarker(d, _tabMarker?.Value ?? ActiveTab());
-            PaintScrollBar(d, _catalog.ScrollBar);
-            // The detail column has no room for a bar (HTML hides it too). Its SUI bar stays valid
-            // but undrawn: wheel scrolling and dragging along the right edge still work.
             PaintScrollBar(d, _bagScroll.ScrollBar);
         });
         WithLocal(this, spriteBatch, d =>
@@ -486,8 +483,8 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     }
     private void StopDragging()
     {
-        _catalog?.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_catalog.ScrollBar, Main.MouseScreen));
-        _detail?.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_detail.ScrollBar, Main.MouseScreen));
+        _catalog?.Motion.EndDrag();
+        _detail?.Motion.EndDrag();
         _bagScroll?.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_bagScroll.ScrollBar, Main.MouseScreen));
     }
     public void Close() { RequestBook(false); }

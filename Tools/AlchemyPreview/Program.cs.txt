@@ -15,6 +15,7 @@ internal sealed class AlchemyPreviewGame : Game
     private static readonly RasterizerState ClipRasterizer = new() { CullMode = CullMode.None, ScissorTestEnable = true };
     private static bool BookOnly;
     private static bool QuillOnly;
+    private static bool ScrollOnly;
     private static bool StarPowerOnly;
     private static bool ExportMaterials;
     private static string FocusScene;
@@ -40,6 +41,17 @@ internal sealed class AlchemyPreviewGame : Game
         var vanillaIds = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(
             File.ReadAllText(Path.Combine(Repo, ".vissandbox/alchemy-preview/vanilla-item-ids.json")));
         AlchemyCatalog.ItemTypeResolver = id => vanillaIds.GetValueOrDefault(id);
+        // Check the production catalog, not only previously exported source PNGs.
+        // A new vanilla ingredient may have neither an export nor an outline yet.
+        if (!ExportMaterials)
+        {
+            var missing = AlchemyCatalog.Materials.Select(m => m.IconPath)
+                .Concat(AlchemyCatalog.Recipes.Select(r => r.PixelPath))
+                .Select(path => Path.Combine(Repo, "ElainaModAlchemy/UI/Assets/Outlines", path[(path.LastIndexOf('/') + 1)..] + ".png"))
+                .Distinct().Where(path => !File.Exists(path)).ToArray();
+            if (missing.Length > 0)
+                throw new InvalidOperationException("Missing catalog outlines. Run run.ps1 -ExportMaterials, then bake_redesign.py:\n" + string.Join("\n", missing));
+        }
         foreach (var material in AlchemyCatalog.Materials.Where(m => m.Art is null))
         {
             if (material.ItemType <= 0) throw new InvalidOperationException("Missing vanilla item ID: " + material.Id);
@@ -72,6 +84,12 @@ internal sealed class AlchemyPreviewGame : Game
             return;
         }
         using var batch = new SpriteBatch(Device);
+        if (ScrollOnly)
+        {
+            AlchemyScrollPreview.Run(Device, batch, output);
+            Exit();
+            return;
+        }
         if (QuillOnly)
         {
             AlchemyQuillPreview.Run(Device, batch, output);
@@ -85,7 +103,7 @@ internal sealed class AlchemyPreviewGame : Game
             return;
         }
         string[] scenes = ["new", "all", "potion", "bloodlust", "curio", "curio-locked", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "header-reference", "close-hover", "brew-050", "detail-bottom", "catalog-bottom", "catalog-middle", "redesign-reference", "starpower"];
-        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials" }).ToArray();
+        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials", "focus", "resonance" }).ToArray();
         if (StarPowerOnly) scenes = ["starpower"];
         if (FocusScene != null) scenes = [FocusScene];
         foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
@@ -104,7 +122,8 @@ internal sealed class AlchemyPreviewGame : Game
     }
 
     internal static void Render(SpriteBatch batch, int width, int height, float uiScale, string scene,
-        AlchemySelectionQuillMotion quill = null, string selectedId = null, float? scrollOffset = null)
+        AlchemySelectionQuillMotion quill = null, string selectedId = null, float? scrollOffset = null,
+        float? detailScrollOffset = null)
     {
         var state = new AlchemyNotebookState(new NotebookFixture(scene));
         switch (scene)
@@ -120,6 +139,7 @@ internal sealed class AlchemyPreviewGame : Game
             case "acquire": state.Select("flour"); break;
             case "bloodlust": state.Select("bloodlust"); break;
             case "starpower": state.SetCategory("potion"); state.Select("starpower"); break;
+            case "focus": case "resonance": state.SetCategory("potion"); state.Select(scene); break;
             case "detail-bottom": case "redesign-reference": state.Select("painkiller"); break;
             case "locked": state.Select("focus"); break;
             case "research-ready": state.Select("painkiller"); break;
@@ -190,14 +210,6 @@ internal sealed class AlchemyPreviewGame : Game
         batch.End();
         Begin(); At(0, 0);
         d.CatalogFade();
-        float catalogHeight = AlchemyCatalogLayout.HeightFor(state.Category);
-        if (catalogHeight > P.CatalogHeight)
-        {
-            float catalogThumb = P.CatalogHeight * P.CatalogHeight / catalogHeight;
-            float catalogThumbY = P.CatalogY + catalogOffset / (catalogHeight - P.CatalogHeight)
-                * (P.CatalogHeight - catalogThumb);
-            d.Box(P.CatalogX + P.CatalogWidth - 3, catalogThumbY, 3, catalogThumb, P.Muted * .33f);
-        }
         batch.End();
 
         Begin(Clip(P.BagBounds.X,P.BagBounds.Y,P.BagBounds.Width,P.BagBounds.Height));
@@ -213,6 +225,7 @@ internal sealed class AlchemyPreviewGame : Game
 
         var rows = P.DetailRows(d, state);
         float total = rows.Sum(row => row.Height), offset = scene == "detail-bottom" ? Math.Max(0, total - P.DetailHeight) : 0;
+        if (detailScrollOffset.HasValue) offset = detailScrollOffset.Value;
         Begin(Clip(P.DetailX, P.DetailY, P.DetailWidth, P.DetailHeight));
         float rowY = P.DetailY - offset;
         foreach (var row in rows) { At(P.DetailX, rowY); row.Paint(d, null); rowY += row.Height; }
@@ -270,6 +283,7 @@ internal sealed class AlchemyPreviewGame : Game
         StarPowerOnly = args.Contains("--star-power-only");
         ExportMaterials = args.Contains("--export-materials");
         FocusScene = args.FirstOrDefault(a => a.StartsWith("--scene="))?[8..];
+        ScrollOnly = args.Contains("--scroll-only");
         using var game = new AlchemyPreviewGame();
         game.Run();
     }

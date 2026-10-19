@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using KL.Drawing;
 using KL.Drawing.ThreeD;
 using KL.Utils;
@@ -7,6 +8,9 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 
 public class MagicBarrierProj : ElainaBasicProjectile
 {
+    internal const int DisplayDuration = 60;
+    private const int RefreshSyncInterval = 20;
+    private int ticksSinceRefreshSync;
     private static ObjModel sphere;
     private static Effect barrierEffect;
     private static Texture2D flowNoise;
@@ -60,8 +64,31 @@ public class MagicBarrierProj : ElainaBasicProjectile
         Projectile.ignoreWater = true;
         Projectile.hide = true;
 
-        Projectile.timeLeft = 60;
+        Projectile.timeLeft = DisplayDuration;
         base.SetDefaults();
+    }
+
+    internal void RefreshLifetime(bool continuous)
+    {
+        Projectile.timeLeft = Math.Max(Projectile.timeLeft, DisplayDuration);
+        // Sustained DoT renews locally every tick, but only needs periodic network updates.
+        if (!continuous || ticksSinceRefreshSync >= RefreshSyncInterval)
+        {
+            Projectile.netUpdate = true;
+            ticksSinceRefreshSync = 0;
+        }
+    }
+
+    public override void SendExtraAI(BinaryWriter writer)
+    {
+        base.SendExtraAI(writer);
+        writer.Write(Projectile.timeLeft);
+    }
+
+    public override void ReceiveExtraAI(BinaryReader reader)
+    {
+        base.ReceiveExtraAI(reader);
+        Projectile.timeLeft = reader.ReadInt32();
     }
 
     public override void OnSpawn_AllClient()
@@ -76,6 +103,12 @@ public class MagicBarrierProj : ElainaBasicProjectile
     {
         Projectile.Center = Owner.VisualCenter();
         Projectile.localAI[0] = MathF.Min(Projectile.localAI[0] + 1f, RevealDuration + FadeDuration + 1f);
+        ticksSinceRefreshSync = Math.Min(ticksSinceRefreshSync + 1, RefreshSyncInterval);
+        float targetFade = MathHelper.Clamp((FadeDuration - Projectile.timeLeft) / FadeDuration, 0f, 1f);
+        // Renewing a fading barrier reverses the dissolve smoothly without replaying its reveal.
+        visualFadeProgress = targetFade < visualFadeProgress
+            ? Math.Max(targetFade, visualFadeProgress - 1f / RevealDuration)
+            : targetFade;
         base.AI();
     }
 
@@ -127,9 +160,8 @@ public class MagicBarrierProj : ElainaBasicProjectile
 
             float time = VisualTime / 60f;
             float revealProgress = MathHelper.Clamp(Projectile.localAI[0] / RevealDuration, 0f, 1f);
-            float fadeProgress = MathHelper.Clamp((FadeDuration - Projectile.timeLeft) / FadeDuration, 0f, 1f);
+            float fadeProgress = visualFadeProgress;
             visualRevealProgress = revealProgress;
-            visualFadeProgress = fadeProgress;
             float revealScale = MathHelper.SmoothStep(0.84f, 1f, revealProgress);
             float fadeScale = MathHelper.Lerp(1f, 0.84f, fadeProgress);
             float transitionScale = revealScale * fadeScale;

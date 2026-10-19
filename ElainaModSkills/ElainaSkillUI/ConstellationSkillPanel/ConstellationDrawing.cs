@@ -88,6 +88,7 @@ internal sealed class ConstellationDrawing
 
     internal Texture2D Texture(string name)
         => LoadTexture(name is "ButterflyMask" or "BookCoverFront" or "BookCoverBack" or "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
+            or "PortraitNight"
             ? "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/" + name : Root + name);
 
     private Texture2D LoadTexture(string path)
@@ -108,9 +109,65 @@ internal sealed class ConstellationDrawing
 
     // NotebookSurface is drawn 1:1 over the 1100×800 design plane, so the same rectangle
     // re-covers drawn lines with the exact page texture instead of an approximate solid color.
-    internal void SurfacePatch(int x, int y, int width, int height)
-        => Batch.Draw(Texture("NotebookSurface"), At(x, y), new Rectangle(x, y, width, height), Color.White,
+    internal void SurfacePatch(int x, int y, int width, int height, float alpha = 1)
+        => Batch.Draw(Texture("NotebookSurface"), At(x, y), new Rectangle(x, y, width, height), Color.White * alpha,
             0, Vector2.Zero, Scale, SpriteEffects.None, 0);
+
+    // The redesign's CSS mask on the sky (44px top, 30px bottom, 14px left, 10px right): the map's
+    // content fades into the page by re-covering 1px strips with the page texture itself.
+    internal void SkyEdgeFade(Rectangle sky)
+    {
+        const int top = 44, bottom = 30, left = 14, right = 10;
+        for (int i = 0; i < top; i++) SurfacePatch(sky.X, sky.Y + i, sky.Width, 1, 1 - (i + .5f) / top);
+        for (int i = 0; i < bottom; i++) SurfacePatch(sky.X, sky.Bottom - 1 - i, sky.Width, 1, 1 - (i + .5f) / bottom);
+        for (int i = 0; i < left; i++) SurfacePatch(sky.X + i, sky.Y, 1, sky.Height, 1 - (i + .5f) / left);
+        for (int i = 0; i < right; i++) SurfacePatch(sky.Right - 1 - i, sky.Y, 1, sky.Height, 1 - (i + .5f) / right);
+    }
+
+    // Background stars of the sky, each with its own breathing and occasional glint (ConstellationSky).
+    internal void SkyStars(ConstellationSky sky)
+    {
+        foreach (var star in ConstellationSky.Stars)
+        {
+            float twinkle = sky.Twinkle(star), opacity = star.Opacity * twinkle;
+            Image("Glow", star.Center.X - 3, star.Center.Y - 3, 6, 6, new Color(198, 161, 253) * (.4f * opacity));
+            Dot(star.Center, star.Size / 2, new Color(221, 212, 248) * opacity);
+            if (!star.Glints) continue;
+            var (alpha, scale, rotation) = sky.Glint(star);
+            if (alpha <= 0) continue;
+            float size = star.GlintSize * scale, halo = size * .9f;
+            Image("Glow", star.Center.X - halo, star.Center.Y - halo, halo * 2, halo * 2, new Color(214, 190, 250) * (.35f * alpha));
+            CrossStar(star.Center, new Vector2(size), new Color(240, 232, 252) * (.85f * alpha), .2f, rotation: rotation);
+        }
+        if (sky.CurrentMeteor is not { } meteor) return;
+        var (head, tail, fade) = ConstellationSky.MeteorPose(meteor);
+        // The tail is a gradient from transparent to the bright head.
+        const int segments = 12;
+        for (int i = 0; i < segments; i++)
+            Line(Vector2.Lerp(tail, head, i / (float)segments), Vector2.Lerp(tail, head, (i + 1f) / segments),
+                Color.Lerp(new Color(226, 210, 250), new Color(246, 240, 255), (i + .5f) / segments) * ((i + .5f) / segments * fade), 1.2f);
+        Image("Glow", head.X - 5, head.Y - 5, 10, 10, new Color(214, 190, 250) * (.7f * fade));
+        Dot(head, 1, Color.White * fade);
+    }
+
+    // Design rectangle of the cropped portrait texture (build_art.py --game prints it).
+    private static readonly (float X, float Y, float Width, float Height) PortraitArea = (428, 188, 322.16f, 576.29f);
+
+    // Elaina holding the notebook (night treatment), printed on the page under the links and nodes;
+    // a soft glow on the open book and the motes rising from it. Fades are baked into the texture.
+    internal void Portrait(ConstellationSky sky)
+    {
+        var (x, y, width, height) = PortraitArea;
+        Image("PortraitNight", x, y, width, height, Color.White * .3f);
+        Vector2 book = ConstellationSky.Book;
+        Image("Glow", book.X - 90, book.Y - 52, 180, 92, new Color(214, 190, 250) * .16f);
+        foreach (var mote in sky.Motes)
+        {
+            float alpha = ConstellationSky.MoteOpacity(mote);
+            if (mote.Spark > 0) CrossStar(mote.Position, new Vector2(mote.Spark), new Color(238, 228, 252) * alpha, .2f);
+            else Dot(mote.Position, mote.Radius, new Color(229, 217, 245) * alpha);
+        }
+    }
 
     internal void Box(float x, float y, float w, float h, Color color)
         => Batch.Draw(TextureAssets.MagicPixel.Value, At(x, y), new Rectangle(0, 0, 1, 1), color,
@@ -608,14 +665,14 @@ internal sealed class ConstellationDrawing
     }
 
     // Offline KL DrawCrossStar output; all shapes and prefiltered sizes share one texture.
-    internal void CrossStar(Vector2 center, Vector2 size, Color color, float waist = .2f, bool filled = true)
+    internal void CrossStar(Vector2 center, Vector2 size, Color color, float waist = .2f, bool filled = true, float rotation = 0)
     {
         if (size.X <= 0 || size.Y <= 0) return;
         var key = ((int)MathF.Round(size.X / size.Y * 1000),
             (int)MathF.Round(Math.Clamp(waist, .05f, .49f) * 1000), filled);
         Rectangle source = StarTile(_stars[key], Math.Max(size.X, size.Y) * 128f / 112);
         float extent = Math.Max(size.X, size.Y) * 128f / 112;
-        Batch.Draw(Texture("Stars"), Origin + center * Scale, source, color, 0,
+        Batch.Draw(Texture("Stars"), Origin + center * Scale, source, color, rotation,
             new Vector2(source.Width, source.Height) / 2, extent * Scale / source.Width, SpriteEffects.None, 0);
     }
 

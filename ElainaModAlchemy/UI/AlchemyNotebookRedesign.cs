@@ -11,10 +11,7 @@ internal static partial class AlchemyNotebookPresentation
     internal const float TabWidth = 148.5f;
     internal static readonly Rectangle CraftBounds = new(790, 660, 270, 36);
     internal static readonly Rectangle BagBounds = new(110, 721, 382, 64);
-    // Scroll bar hit areas in page coordinates. Each draws as a dotted track with a 3 px lavender
-    // thumb along its middle; the hit area is wider so the thin bar can still be grabbed.
-    internal static readonly Rectangle CatalogScrollBar = new(738, 162, 9, 518);
-    internal static readonly Rectangle DetailScrollBar = new(1061, 288, 9, 303);
+    // Only the horizontal material bag has a visible scroll bar.
     internal static readonly Rectangle BagScrollBar = new(114, 780, 374, 7);
     internal static readonly Color Heading = new(196, 180, 210), Mint = new(178, 222, 200);
     private static Color Dots => AlchemyDrawing.DotColor;
@@ -203,7 +200,7 @@ internal static partial class AlchemyNotebookPresentation
                     string tail=" / "+need;
                     d.LatinText(have.ToString(),DetailContentWidth-d.LatinWidth(tail,14),height/2-11,17,have<need?Red:Gold,1);
                     d.LatinText(tail,DetailContentWidth,height/2-8,14,Muted,1);
-                },entry));
+                },entry,BlocksDragging:true));
             }
         }
         else { Section(LocalizeUI("Acquisition")); Paragraph(r.Acquisition,12,Ink*.8f,22); }

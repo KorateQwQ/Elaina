@@ -7,9 +7,13 @@ internal sealed class PanelScene
     private readonly ConstellationDrawing _draw = new(new Terraria.ModLoader.Mod());
     private readonly ConstellationButterflyMotion _butterfly = new();
     private readonly ConstellationNodeEffects _nodeFx = new();
+    private readonly ConstellationSky _sky = new();
     private readonly ConstellationBookMotion _book = new();
     private const float DesignWidth = 1100, DesignHeight = 800;
     private const int MapX = 26, MapY = 208, MapWidth = 727, MapHeight = 473, WorldWidth = 727, WorldHeight = 550;
+    private static readonly Rectangle Sky = new(26, 150, 727, 558);
+    // Offline frames advance the sky 7.3s: stars mid-breath, a meteor may be crossing.
+    internal static float SkySeconds = 7.3f;
     private const int SlotLeft = 99, SlotTop = 741, SlotSize = 42, SlotStride = 48;
     private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
     private float _zoom = .84f, _flash;
@@ -62,6 +66,7 @@ internal sealed class PanelScene
         DrawChrome(); DrawCloseButton(false);
         string[] filters = ["learned", "ready", "locked", "hidden"];
         for (int i = 0; i < filters.Length; i++) DrawFilter(i, filters[i], false);
+        DrawRuleOrnaments();
         batch.End();
     }
 
@@ -156,15 +161,21 @@ internal sealed class PanelScene
         string[] filters = ["learned", "ready", "locked", "hidden"];
         for (int i = 0; i < 4; i++) DrawFilter(i, filters[i], false);
         for (int i = 0; i < 8; i++) DrawSlot(i, false);
-        CameraControl("minus", false, true); CameraControl("plus", false, true); CameraControl("center", false, true);
         foreach (string kind in new[] { "edit", "save", "cancel", "reset" }) DrawLayoutButton(kind, false);
         foreach (string kind in new[] { "points", "level", "cap", "reset-skills" }) DrawDebugButton(kind, false);
         batch.End();
         using var clip = new RasterizerState { ScissorTestEnable = true, CullMode = CullMode.None };
         Rectangle Clip(float x, float y, float w, float h) => new((int)(origin.X + x * scale), (int)(origin.Y + y * scale), (int)(w * scale), (int)(h * scale));
-        batch.GraphicsDevice.ScissorRectangle = Clip(MapX, MapY, MapWidth, MapHeight);
+        batch.GraphicsDevice.ScissorRectangle = Clip(Sky.X, Sky.Y, Sky.Width, Sky.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
+        _sky.Reset();
+        for (float t = 0; t < SkySeconds; t += 1 / 60f) _sky.Advance(1 / 60f);
         DrawMap(); batch.End();
+        // The camera buttons are SUI children above the map viewport, as in the panel.
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        CameraControl("minus", false, true); CameraControl("plus", false, true); CameraControl("center", false, true);
+        DrawRuleOrnaments();
+        batch.End();
         batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
         float offset = scenario is "bottom" or "growth-long" ? Math.Max(0, detail.ContentHeight - detail.Height) : 0;

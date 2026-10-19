@@ -165,6 +165,12 @@ public class MagicBarrierSkill : ElainaSkill
                 return;
             }
 
+            // Check before clamping: the protected rate itself is no longer negative afterwards.
+            if (Player.lifeRegen < 0)
+            {
+                ShowOrRefreshBarrier(continuous: true);
+            }
+
             // Every endpoint applies the synchronized passive, independently of magic.
             // Clear previous negative progress too, so enabling it cannot leave a DoT tick pending.
             Player.lifeRegen = Math.Max(0, Player.lifeRegen);
@@ -205,11 +211,33 @@ public class MagicBarrierSkill : ElainaSkill
             CombatText.NewText(Player.Hitbox, new Color(200,200,200), $"-{amount}",
                 dramatic: false, dot: dot);
 
+            ShowOrRefreshBarrier();
+        }
+
+        private void ShowOrRefreshBarrier(bool continuous = false)
+        {
+            // Only the owner creates/renews the visual; projectile sync carries it to other peers.
+            if (!CanProcessLocalDamage())
+            {
+                return;
+            }
+
+            int type = ModContent.ProjectileType<MagicBarrierProj>();
+            foreach (Projectile projectile in Main.ActiveProjectiles)
+            {
+                if (projectile.owner == Player.whoAmI && projectile.type == type
+                    && projectile.ModProjectile is MagicBarrierProj barrier)
+                {
+                    barrier.RefreshLifetime(continuous);
+                    return;
+                }
+            }
+
             Projectile.NewProjectile(
                 Player.GetSource_FromThis(),
                 Player.MountedCenter,
                 Vector2.Zero,
-                ModContent.ProjectileType<MagicBarrierProj>(),
+                type,
                 0,
                 0f,
                 Player.whoAmI);

@@ -38,6 +38,7 @@ public class HealSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
+        //MaxCD = 60;
         if (pendingTargetIndex != InvalidTargetIndex)
         {
             int targetIndex = pendingTargetIndex;

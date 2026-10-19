@@ -4,6 +4,7 @@ param(
     [switch]$CompileOnly,
     [switch]$BookOnly,
     [switch]$QuillOnly,
+    [switch]$ScrollOnly,
     [switch]$StarPowerOnly,
     [switch]$ExportMaterials,
     [string]$Scene = '',
@@ -30,7 +31,7 @@ foreach ($match in [regex]::Matches($resolverText, '"([^"\r\n]+)"\s*=>\s*ItemID\
     $vanillaIds[$match.Groups[1].Value] = $itemIdType.GetField($match.Groups[2].Value).GetRawConstantValue()
 }
 [IO.File]::WriteAllText((Join-Path $out 'vanilla-item-ids.json'), ($vanillaIds | ConvertTo-Json))
-foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','NotebookFixture')) {
+foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','ScrollPreview','NotebookFixture')) {
     [IO.File]::WriteAllText((Join-Path $out "$name.cs"), [IO.File]::ReadAllText((Join-Path $PSScriptRoot "$name.cs.txt")))
 }
 $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems><NoWarn>0436</NoWarn></PropertyGroup><ItemGroup /></Project>'
@@ -45,8 +46,8 @@ $null = Add-PreviewItem 'Compile' "$repo/Localization/UIText.cs"
 $null = Add-PreviewItem 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
 $null = Add-PreviewItem 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-PreviewItem 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
-foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','NotebookFixture')) { $null = Add-PreviewItem 'Compile' "$out/$name.cs" }
-foreach ($name in @('AlchemyDrawing','AlchemyNotebookSkin','AlchemyNotebookRedesign','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyCardMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
+foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','ScrollPreview','NotebookFixture')) { $null = Add-PreviewItem 'Compile' "$out/$name.cs" }
+foreach ($name in @('AlchemyDrawing','AlchemyNotebookSkin','AlchemyNotebookRedesign','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyScrollMotion','AlchemyCardMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
     $path = Join-Path $ui "$name.cs"
     if (!(Test-Path -LiteralPath $path)) { throw "Missing production presentation source: $path" }
     $null = Add-PreviewItem 'Compile' $path
@@ -66,6 +67,7 @@ else {
     $previewArgs = @($repo, $Tml, $Culture)
     if ($BookOnly) { $previewArgs += '--book-only' }
     if ($QuillOnly) { $previewArgs += '--quill-only' }
+    if ($ScrollOnly) { $previewArgs += '--scroll-only' }
     if ($StarPowerOnly) { $previewArgs += '--star-power-only' }
     if ($ExportMaterials) { $previewArgs += '--export-materials' }
     if ($Scene) { $previewArgs += "--scene=$Scene" }

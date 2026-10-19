@@ -17,7 +17,7 @@
 - `Assets/NotebookCards.png`：284×936，单列三行（纸面、选中轮廓、柔和阴影），约 1.01 MiB RGBA8；没有重复存六份相同纸面。
 - `Assets/NotebookStars.png`：128×256，四行（方形 .2、页签星光 34:12、侧边 .778/.25、角星 .976/.28），各含 64/32/16/8/4 预滤波尺寸档，从技能 UI 的 `Stars.png` 复制；`AlchemyDrawing.Star` 按长宽比与腰宽选最接近的一行，不再把方形星硬压成细长星光；`NotebookDot.png` 为预滤波小圆点。
 - `Assets/CatalogFadeTop.png`、`CatalogFadeBottom.png`、`DetailFadeBottom.png`：从实际页面底图预先生成的淡出条，避免分数 UI 缩放时逐像素行绘制产生接缝。目录、详情与素材栏的滚动仍由原生 SUI 处理，SUI 自带滚动条只作透明的点击区域（比可见部分宽，便于拖动），可见部分由面板按 HTML 绘制：点线轨道 + 3px 薰衣草滑块，悬停或拖动时提亮。内容放得下时才把滚动条设为 Invalid；SUI 中 Invalid 的滚动条不会更新滚动位置，所以溢出时不能这样隐藏。详情栏没有留滚动条的位置（HTML 也隐藏），滚动条完全不绘制，但仍保持有效：滚轮与沿右缘拖动照常可用，底部仍用淡出提示下方还有内容。从详情或素材栏跳转条目时目录平滑滚动到该卡片；目标卡片若在另一分类中，会先以静止姿态出现再被拾起，和直接点击卡片一致。
-- `Assets/Outlines/*.png`：58 张白色预乘描边遮罩，共 178,796 字节 RGBA8；包含当前像素素材与原版材料，坠落之星八帧分别处理。仅在深色背景的详情、材料行、用途链接与底栏使用，纸卡上不描边。
+- `Assets/Outlines/*.png`：64 张白色预乘描边遮罩，共 194,668 字节 RGBA8；包含当前像素素材与原版材料（含再生、魔能、箭术、召唤药水），坠落之星八帧分别处理。仅在深色背景的详情、材料行、用途链接与底栏使用，纸卡上不描边。
 
 描边按源图 alpha 的四邻域外扩一像素预处理，运行时只加载并染为淡薰衣草色，与原图在同一 PointClamp 批次绘制。没有运行时 GetData、SetData、Texture2D 创建或用于描边的 RenderTarget。所有新 PNG 已预乘 alpha；加载仍使用 ModContent 缓存。描边增加一条 SpriteBatch 提交，未测量 GPU 时间或 FPS。旧 `CatalogPaper.png` 与生成器作为旧资产保留，正式绘制已使用新纸卡。
 
@@ -78,6 +78,8 @@ public override int CraftExperience => 20;
 
 外框沿用技能表的紫色书页主题，纸页使用炼金专属 `Assets/NotebookSurface.png` 连续渐变底图，避免技能星图裁剪区域带来的横向底色断层。底图直接取技能页底图，按 10px 网格求平均、高斯模糊（约 30px）后再用 B 样条放大，两本手记的光斑（目录区一团、详情栏上方一团）位置与亮度一致，但去掉了技能底图的矩形拼接边；加了确定性抖动，避免 8 位色阶环。改底图后须重跑 `bake_redesign.py`，淡出条是从底图裁出来的。用 `python Tools/AlchemyPreview/bake_surface.py` 重建，图片为 1100×800 不透明 RGB，按 RGBA8 加载约占 3.36 MiB，运行时缓存并单次绘制。技能表底图不受影响。局部辉光仍使用同一张 Glow.png。23 个炼金物品使用 `item/ExampleAssets/*_Pixel`，目录与详情按原图 1 倍居中绘制，随整体 UI 缩放。配方与底部素材栏中的 29 种原版材料，通过现有物品 ID 和 `Main.GetItemDrawFrame` 读取游戏贴图及当前动画帧，在槽位中居中绘制，保留原尺寸，只在超出槽位时缩小。右侧详情内容宽度比滚动区域窄 10 设计像素，为滚动条留出间隔。所有像素图标使用 `PointClamp`，绘制后恢复原批次状态；未研究剪影、字体和装饰保持现有绘制。
 
+**物品像素图的外轮廓必须是纯黑 `#000000`。** 纸卡上不画描边光环，深紫灰（如 `#51415f`、`#332f43`）的外轮廓在浅紫纸面上会糊成一片，物品形状不清楚。规则只管外轮廓，也就是与透明像素或画布边缘四邻接的不透明像素；瓶塞分隔线、蝴蝶结内线等内部线条可以继续用深紫灰。新画或重画的贴图按此执行，绘制约定见 `Tools/PotionPixel/README.md`。
+
 未研究物品使用 `Assets/MysteryPixel/*_Mystery_Pixel.png`：沿用对应物品像素图的画布和轮廓，问号直接绘进透明贴图，在手记中与已研究图标同样按原图 1 倍、Point 采样显示。修改物品像素图或新增目录条目后，运行 `python Tools/AlchemyPreview/prepare_mystery_pixels.py` 更新对应问号图。
 
 选中羽毛取自 HTML 注脚的 `notebook-quill`，注脚自身不再绘制羽毛。封面、选中标记、字体、滚动裁剪与开合动画继续沿用已实现版本。
@@ -93,3 +95,8 @@ public override int CraftExperience => 20;
 - `Tools/AlchemyPreview/run.ps1 -Configuration Release`：FNA 离线预览，包含问号、等级不足、可研究、配方不足、配方齐全、满级和制作状态。预览数据仅存在于 Tools/AlchemyPreview/NotebookFixture.cs.txt，生产界面不会使用。
 
 材料收集入口为当前 tML 的私有方法，只在加载时解析为委托，安装版本检查已覆盖；升级 tML 后应重新运行原版流程测试。离线检查不替代游戏内内容重载、实际点击/滚动及两人共享箱子的验收。
+
+
+### 页面滚动
+
+主目录与详情页隐藏竖向滚动条，支持滚轮和鼠标左键拖动非交互区域。按住物品卡、材料行或用途链接不会启动拖动；拖动过的详情行不会在松手时误触链接。`AlchemyPageScrollView` 将 SUI 坐标转换为页面设计坐标，`AlchemyScrollMotion` 统一处理拖动阻力与滚轮越界回弹（最多 32 设计像素），不改变原有视口裁剪。选中条目仍可自动滚动到可见位置。离线检查见 `Tools/AlchemyPreview/run.ps1 -ScrollOnly`。

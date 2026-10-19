@@ -45,11 +45,15 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private readonly ConstellationUIClock _controlsClock = new();
     private readonly ConstellationButterflyMotion _butterfly = new();
     private readonly ConstellationNodeEffects _nodeFx = new();
+    private readonly ConstellationSky _sky = new();
     private bool _controlsHadFocus;
     private int _detailStamp;
     private HashSet<string> _ancestors = [];
     private const float DesignWidth = 1100, DesignHeight = 800, ScreenMargin = 16;
     private const int MapX = 26, MapY = 208, MapWidth = 727, MapHeight = 473;
+    // The visible sky reaches past the camera frame (Map*) up to the tab rule; its edges fade into the
+    // page (SkyEdgeFade). Camera framing, focus and pan limits still use the Map* frame.
+    private static readonly Rectangle Sky = new(26, 150, 727, 558);
     private const int WorldWidth = 727, WorldHeight = 550;
     private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
     private const int SlotLeft = 99, SlotTop = 741, SlotSize = 42, SlotStride = 48;
@@ -81,7 +85,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             Positioning = Positioning.Absolute, OverflowHidden = true,
             IndependentRenderTarget = false, Border = 0, Padding = new Margin(0)
         }.Join(this);
-        _regions.Add((_viewport, new Rectangle(MapX, MapY, MapWidth, MapHeight)));
+        _regions.Add((_viewport, Sky));
         new PaintView((_, _) => DrawMap())
         {
             Width = new Dimension(0, 1), Height = new Dimension(0, 1), IgnoreMouseInteraction = true
@@ -288,6 +292,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         if (!Main.hasFocus || !_controlsHadFocus) delta = 0;
         _controlsHadFocus = Main.hasFocus;
         _draw.AdvanceToggleAnimations(delta);
+        _sky.Advance(delta);
         _clock += delta;
         _flash = Math.Max(0, _flash - delta);
         _toastLife = Math.Max(0, _toastLife - delta);
@@ -362,7 +367,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         new Vector2(MapWidth - 150, MapHeight - 140));
     private string HitNode(Vector2 p)
     {
-        if (!new Rectangle(MapX, MapY, MapWidth, MapHeight).Contains(p.ToPoint())) return null;
+        if (!Sky.Contains(p.ToPoint())) return null;
         // The selected node is drawn last and must also win hit testing when nodes overlap.
         foreach (var s in _state.Skills.Where(s => s.id != _state.Selected).Append(_state.Current).Reverse())
         {
@@ -443,6 +448,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _draw?.ClearToggleAnimations();
         _butterfly.Reset();
         _nodeFx.Reset();
+        _sky.Reset();
         _tooltipDelay.Reset();
         _book.Reset();
         _bookClock.Stop();
@@ -500,6 +506,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     {
         if (_state == null) return;
         base.DrawChildren(gameTime, spriteBatch);
+        DrawRuleOrnaments();
         DrawSlotDrag();
         if (_toastLife > 0)
         {
@@ -558,23 +565,33 @@ public sealed partial class ConstellationSkillPanel : BaseBody
 
         // Dotted rules; three sparks sit where the column rule meets the tab and bottom rules.
         d.Dots(26, 145.5f, 731, 145.5f, DotColor);
-        d.Trio(new Vector2(753.5f, 145.5f), Ink);
         d.Dots(776, 145.5f, 1074, 145.5f, DotColor);
         d.Dots(753.5f, 156, 753.5f, 700, DotColor);
         d.Dots(26, 725, 733, 725, DotColor);
         d.Trio(new Vector2(753.5f, 725), Ink);
         d.Dots(773, 725, 1074, 725, DotColor);
-        d.FilterMarker(_state.Filter);
+        // The zoom capsule and the layout hints sit inside the sky, so DrawMap paints them over it.
+        DrawLoadoutCaption();
+    }
 
+    // The tab rule's active-filter flash and the trio where it meets the column rule hang a few pixels
+    // below y=145.5 into the sky's top fade, which would cover them; they are drawn after the map.
+    private void DrawRuleOrnaments()
+    {
+        _draw.Trio(new Vector2(753.5f, 145.5f), Ink);
+        _draw.FilterMarker(_state.Filter);
+    }
+
+    private void DrawZoomCapsule()
+    {
         // Zoom controls share one ghost capsule, split before 归位 by a short dotted rule.
+        var d = _draw;
         Vector2 mouse = Design(Main.MouseScreen);
         bool zoomHover = _book.IsOpen && mouse.X >= 572 && mouse.X < 732 && mouse.Y >= 162 && mouse.Y < 190;
         d.RoundRect(572, 162, 160, 28, 14, zoomHover ? new Color(236, 229, 247) * .05f : new Color(26, 22, 35) * .45f,
             new Color(236, 229, 247) * (zoomHover ? .4f : .18f), 1);
         d.LatinText(MathF.Round(_zoom * 100) + "%", 627, 169, 11, Lavender, .5f);
         d.Dots(684.5f, 168.5f, 684.5f, 184, DotColor);
-        DrawLoadoutCaption();
-        DrawLayoutHints();
     }
 
     private void DrawPlayerLevel()
@@ -628,48 +645,13 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private void DrawMap()
     {
         var d = _draw;
-        // Exact seeded distribution, 1/2px sizes and opacity range from the old HTML.
-        // Stars stay fixed while the astronomical grid and nodes follow the camera.
-        int seed = 173;
-        float RandomStar() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280f; }
-        for (int i = 0; i < 125; i++)
-        {
-            float size = RandomStar() < .9f ? 1 : 2;
-            float x = MapX + RandomStar() * MapWidth, y = MapY + RandomStar() * MapHeight;
-            float opacity = .15f + RandomStar() * .5f;
-            d.Image("Glow", x + size / 2 - 3, y + size / 2 - 3, 6, 6,
-                new Color(198, 161, 253) * (.4f * opacity));
-            d.Image("Disc", x, y, size, size, new Color(221, 212, 248) * opacity);
-        }
-        // Map the old 880x650 astronomical grid into the current world, retaining
-        // its concentric rings, tilted orbit and 72 ticks instead of the new crosshair.
+        // Page-fixed layers first (Tools/SkillPanelRedesign/index.html): breathing stars and meteors,
+        // then the portrait. Only the decorative stars, links and nodes follow the camera; the old
+        // astronomical rings and ticks were dropped with the redesign.
+        d.SkyStars(_sky);
+        d.Portrait(_sky);
         Vector2 SkyPoint(float x, float y) => MapPoint(x / 880 * WorldWidth, y / 650 * WorldHeight);
-        Vector2 center = SkyPoint(445, 324);
         float sx = WorldWidth / 880f * _zoom, sy = WorldHeight / 650f * _zoom;
-        Color orbitColor = new Color(189, 173, 209) * .14f;
-        foreach (float r in new[] { 258f, 248f, 188f, 132f })
-            d.Ring(center, r * sx, r * sy, orbitColor * (r == 188 ? .07f : 1), .7f, r == 132);
-        Vector2 Orbit(float angle)
-        {
-            float x = MathF.Cos(angle) * 359, y = MathF.Sin(angle) * 215, rotation = -.454f;
-            return SkyPoint(445 + x * MathF.Cos(rotation) - y * MathF.Sin(rotation),
-                324 + x * MathF.Sin(rotation) + y * MathF.Cos(rotation));
-        }
-        for (int i = 0; i < 180; i++)
-            d.Line(Orbit(i * MathHelper.TwoPi / 180), Orbit((i + 1) * MathHelper.TwoPi / 180), orbitColor * .07f, .7f);
-        for (int i = 0; i < 72; i++)
-        {
-            float angle = i * MathHelper.TwoPi / 72, radius = i % 6 == 0 ? 269 : 263;
-            d.Line(SkyPoint(445 + MathF.Cos(angle) * 258, 324 + MathF.Sin(angle) * 258),
-                SkyPoint(445 + MathF.Cos(angle) * radius, 324 + MathF.Sin(angle) * radius), orbitColor, .7f);
-        }
-        foreach (var mark in new[] { new Vector4(445, 51, 445, 71), new Vector4(445, 577, 445, 597),
-            new Vector4(172, 324, 197, 324), new Vector4(693, 324, 718, 324),
-            new Vector4(252, 131, 268, 147), new Vector4(622, 485, 638, 501),
-            new Vector4(252, 517, 268, 501), new Vector4(622, 163, 638, 147),
-            new Vector4(434, 45, 445, 36), new Vector4(445, 36, 456, 45),
-            new Vector4(434, 603, 445, 612), new Vector4(445, 612, 456, 603) })
-            d.Line(SkyPoint(mark.X, mark.Y), SkyPoint(mark.Z, mark.W), orbitColor, .7f);
         d.CrossStar(SkyPoint(87, 182), new Vector2(16 * sx, 16 * sy), new Color(209, 188, 241) * .22f, .25f);
         d.CrossStar(SkyPoint(743, 549), new Vector2(14 * sx, 14 * sy), new Color(209, 188, 241) * .22f, .28f);
         d.CrossStar(SkyPoint(422, 477), new Vector2(10 * sx, 10 * sy), new Color(209, 188, 241) * .22f, .2f);
@@ -683,6 +665,9 @@ public sealed partial class ConstellationSkillPanel : BaseBody
                 new Color(229, 217, 245) * ConstellationNodeEffects.MoteOpacity(mote));
         if (_book.IsOpen && _butterfly.Visible)
             d.SelectionButterfly(MapPoint(_butterfly.Position.X, _butterfly.Position.Y), _butterfly.Frame, _zoom);
+        d.SkyEdgeFade(Sky);
+        DrawZoomCapsule();
+        DrawLayoutHints();
     }
 
     private void DrawEdge(ConstellationNode parent, ConstellationNode skill)

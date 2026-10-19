@@ -63,7 +63,7 @@ public sealed class SkillBalanceConfig
     [
         new("MagicMissileSkill", "魔法飞弹", SkillBalanceKind.BasicAttack, 3, .3, 1, LevelsPerPhase: 2, DpsRatio: .6,
             RatioCurve: [(1, 1), (10, .9), (20, .8), (35, .7), (50, .6)]),
-        new("WaterBallSkill", "水球魔法", SkillBalanceKind.Active, 100, 10, 1, ConversionRate: 3.3, OccupySeconds: 1, CdDamageRatio: 1)
+        new("WaterBallSkill", "水球术", SkillBalanceKind.Active, 100, 10, 1, UnlockLevel: 26, UnlockStageCap: 30, ConversionRate: 3.3, OccupySeconds: 1, CdDamageRatio: 1)
     ]);
 
     public static bool TryParse(string json, out SkillBalanceConfig config, out string error)
@@ -111,7 +111,7 @@ public sealed class SkillBalanceConfig
                 var (id, name) = ReadIdentity(row, ids);
                 skills.Add(new(id, name, SkillBalanceKind.Active, Number(row, "cost", 0, 10000),
                     Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
-                    ConversionRate: Number(row, "k", 0, 100), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
+                    ConversionRate: Number(row, "k", 0, 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
                     MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
                     GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
                     FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0)));

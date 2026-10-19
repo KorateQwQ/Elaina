@@ -1,10 +1,12 @@
 using System.Reflection;
 using KL.SkillSystem;
+using KL.Extensions;
 using Microsoft.Xna.Framework;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using Terraria;
 using Terraria.ID;
+using Terraria.DataStructures;
 using Terraria.ModLoader;
 using 伊蕾娜;
 using 伊蕾娜.ElainaAttribute;
@@ -38,10 +40,38 @@ static class Checks
     static void Main(string[] args)
     {
         Terraria.Program.SavePath = Path.GetTempPath();
-        // Keep owner-side damage logic, suppress only chat/combat-text/projectile feedback.
+        // Run real feedback routing, replacing only graphical output and engine projectile allocation.
         GameMain.dedServ = true; GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
-        using var reportHook = new Hook(typeof(BarrierPlayer).GetMethod("ReportReduction", All)!,
-            (Action<BarrierPlayer, int, double, int, bool>)((_, _, _, _, _) => { }));
+        GameMain.rand = new Terraria.Utilities.UnifiedRandom(1);
+        using var logHook = new Hook(typeof(GamePlayStatic).GetMethod("PrintText", All)!,
+            (Action<object, GamePlayStatic.LogLevel>)((_, _) => { }));
+        int damageTexts = 0, spawned = 0;
+        using var textHook = new Hook(typeof(CombatText).GetMethod(nameof(CombatText.NewText),
+            [typeof(Rectangle), typeof(Color), typeof(string), typeof(bool), typeof(bool)])!,
+            (Func<Rectangle, Color, string, bool, bool, int>)((_, _, _, _, _) => { damageTexts++; return -1; }));
+        for (int i = 0; i < GameMain.projectile.Length; i++) GameMain.projectile[i] = new Projectile();
+        MagicBarrierProj Attach(Projectile projectile)
+        {
+            var visual = new MagicBarrierProj();
+            typeof(ModProjectile).GetProperty("Entity", All)!.SetValue(visual, projectile);
+            typeof(Projectile).GetProperty("ModProjectile", All)!.SetValue(projectile, visual);
+            return visual;
+        }
+        var prototype = Attach(new Projectile { type = 5000 });
+        ContentInstance.Register(prototype);
+        using var spawnHook = new Hook(typeof(Projectile).GetMethod(nameof(Projectile.NewProjectile),
+            [typeof(IEntitySource), typeof(Vector2), typeof(Vector2), typeof(int), typeof(int), typeof(float),
+                typeof(int), typeof(float), typeof(float), typeof(float)])!,
+            (Func<IEntitySource, Vector2, Vector2, int, int, float, int, float, float, float, int>)
+            ((source, position, velocity, type, damage, knockback, owner, a0, a1, a2) =>
+            {
+                int slot = Array.FindIndex(GameMain.projectile, p => !p.active);
+                var projectile = GameMain.projectile[slot] = new Projectile
+                { active = true, type = type, owner = owner, whoAmI = slot, timeLeft = 60, Center = position };
+                Attach(projectile).OnSpawn_AllClient();
+                spawned++;
+                return slot;
+            }));
         var player = new Player { active = true, whoAmI = 0, statManaMax2 = 200, statLifeMax2 = 400, statLife = 400 };
         var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer() };
         for (ushort i = 0; i < parts.Length; i++)
@@ -85,6 +115,16 @@ static class Checks
             Check(player.lifeRegenCount == (protectedRegen ? 0 : -599), "Negative progress is cleared only while protected");
             Near(attributes.MagicPoint, magic, "Regen protection never consumes magic");
         }
+        void ClearVisuals() { foreach (var p in GameMain.projectile) p.active = false; }
+        Projectile Visual() => GameMain.projectile.Single(p => p.active && p.owner == 0);
+        void TickVisuals()
+        {
+            foreach (var p in GameMain.ActiveProjectiles)
+            {
+                p.ModProjectile.AI();
+                if (--p.timeLeft <= 0) p.active = false;
+            }
+        }
 
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(args[0]), out var config, out var error), "Parse live balance: " + error);
         foreach (var balance in new[] { SkillBalanceConfig.Fallback, config })
@@ -109,6 +149,15 @@ static class Checks
         SetMagic(200);
         Check(Hit(80).Damage == 50, "Direct hit is reduced from 80 to 50");
         Near(attributes.MagicPoint, 170, "Absorption spends 30 magic");
+        var hitVisual = Visual();
+        for (int i = 0; i < 15; i++) TickVisuals();
+        float revealAge = hitVisual.localAI[0];
+        int priorSpawns = spawned;
+        Hit(20);
+        Check(ReferenceEquals(hitVisual, Visual()) && spawned == priorSpawns && hitVisual.timeLeft == 60,
+            "Repeated direct hit renews the same projectile");
+        Near(hitVisual.localAI[0], revealAge, "Refresh never restarts the reveal animation");
+        SetMagic(170);
         RegenFloor(true);
         Check(Hit(80, cancelled: true).Cancelled, "Cancelled hit stays cancelled");
         Near(attributes.MagicPoint, 170, "Cancelled hit consumes no magic");
@@ -166,11 +215,6 @@ static class Checks
         var patch = typeof(MagicBarrierLifeRegenSystem).GetMethod("ModifyLifeRegen", All)!;
         using var regenHook = new ILHook(typeof(Player).GetMethod(nameof(Player.UpdateLifeRegen))!,
             (ILContext.Manipulator)patch.CreateDelegate(typeof(ILContext.Manipulator)));
-        int damageTexts = 0;
-        // Count vanilla damage feedback without initializing the graphical font subsystem.
-        using var textHook = new Hook(typeof(CombatText).GetMethod(nameof(CombatText.NewText),
-            [typeof(Rectangle), typeof(Color), typeof(string), typeof(bool), typeof(bool)])!,
-            (Func<Rectangle, Color, string, bool, bool, int>)((_, _, _, _, _) => { damageTexts++; return -1; }));
         GameMain.SceneMetrics = new SceneMetrics();
         GameMain.rand = new Terraria.Utilities.UnifiedRandom(1);
         foreach (int mode in new[] { NetmodeID.SinglePlayer, NetmodeID.MultiplayerClient, NetmodeID.Server })
@@ -203,6 +247,61 @@ static class Checks
         player.UpdateLifeRegen();
         Check(player.statLife == 101 && player.lifeRegen == 6 && player.lifeRegenCount == 5,
             "Positive regen and accumulated healing are preserved");
+
+        ClearVisuals(); priorSpawns = spawned;
+        RegenFloor(true);
+        var sustained = Visual();
+        Check(spawned == priorSpawns + 1, "Negative regen immediately spawns a shield even with zero magic");
+        int syncs = 0;
+        for (int tick = 0; tick < 180; tick++)
+        {
+            sustained.netUpdate = false;
+            RegenFloor(true);
+            if (sustained.netUpdate) syncs++;
+            TickVisuals();
+            Check(ReferenceEquals(sustained, Visual()) && sustained.timeLeft >= 59,
+                "Sustained negative regen keeps a single shield alive");
+        }
+        Check(spawned == priorSpawns + 1 && syncs >= 8 && syncs <= 9,
+            "Sustained refresh uses periodic sync instead of spawning or sending every tick");
+        player.lifeRegen = 0; player.lifeRegenCount = -10;
+        typeof(BarrierPlayer).GetMethod("ApplyLifeRegenFloor", All)!.Invoke(shield, null);
+        Check(sustained.timeLeft == 59, "Old negative accumulation alone does not extend the visual");
+        for (int tick = 0; tick < 45; tick++) TickVisuals();
+        var fadeField = typeof(MagicBarrierProj).GetField("visualFadeProgress", All)!;
+        float fading = (float)fadeField.GetValue(sustained.ModProjectile)!;
+        Check(fading > 0, "Shield begins fading after negative regen stops");
+        SetMagic(200); Hit(20);
+        Near((float)fadeField.GetValue(sustained.ModProjectile)!, fading, "Renewal does not snap fade progress");
+        TickVisuals();
+        float restored = (float)fadeField.GetValue(sustained.ModProjectile)!;
+        Check(restored < fading && fading - restored <= 1f / 12f + .0001f,
+            "Renewal reverses an in-progress fade smoothly");
+        Check(spawned == priorSpawns + 1, "Hit during DoT shield fade still reuses its projectile");
+        var remote = Attach(new Projectile { timeLeft = 2 });
+        using (var bytes = new MemoryStream())
+        {
+            using var writer = new BinaryWriter(bytes, System.Text.Encoding.UTF8, true);
+            sustained.ModProjectile.SendExtraAI(writer); writer.Flush(); bytes.Position = 0;
+            using var reader = new BinaryReader(bytes);
+            remote.ReceiveExtraAI(reader);
+            Check(remote.Projectile.timeLeft == sustained.timeLeft && bytes.Position == bytes.Length,
+                "Extra AI roundtrip includes renewed lifetime and base projectile state");
+        }
+        for (int tick = 0; tick < 60; tick++)
+        {
+            player.lifeRegen = tick % 2 == 0 ? 0 : 6;
+            typeof(BarrierPlayer).GetMethod("ApplyLifeRegenFloor", All)!.Invoke(shield, null);
+            TickVisuals();
+        }
+        Check(!sustained.active, "Zero/positive regen lets the shield expire normally");
+        foreach (int mode in new[] { NetmodeID.MultiplayerClient, NetmodeID.Server })
+        {
+            GameMain.netMode = mode; GameMain.myPlayer = mode == NetmodeID.Server ? 255 : 1;
+            priorSpawns = spawned; RegenFloor(true);
+            Check(spawned == priorSpawns, "Remote endpoint never creates a duplicate visual");
+        }
+        GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
         player.dead = true; UpdateEffects();
         Check(!shield.BarrierEnabled, "Dead player does not activate passive"); RegenFloor(false);
         player.dead = false; UpdateEffects(); RegenFloor(true);
