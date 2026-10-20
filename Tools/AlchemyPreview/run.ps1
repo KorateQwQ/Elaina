@@ -47,12 +47,13 @@ $null = Add-PreviewItem 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocaliz
 $null = Add-PreviewItem 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-PreviewItem 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','BookPreview','QuillPreview','ScrollPreview','NotebookFixture')) { $null = Add-PreviewItem 'Compile' "$out/$name.cs" }
-foreach ($name in @('AlchemyDrawing','AlchemyNotebookSkin','AlchemyNotebookRedesign','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyScrollMotion','AlchemyCardMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
+foreach ($name in @('AlchemyDrawing','AlchemyNotebookSkin','AlchemyNotebookRedesign','AlchemyCatalog','AlchemyCatalogLayout','AlchemySelectionQuillMotion','AlchemyCardMotion','AlchemyNotebookSnapshot','AlchemyNotebookState','AlchemyNotebookPresentation','AlchemyBookArt')) {
     $path = Join-Path $ui "$name.cs"
     if (!(Test-Path -LiteralPath $path)) { throw "Missing production presentation source: $path" }
     $null = Add-PreviewItem 'Compile' $path
 }
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyProgressionRules.cs"
+$null = Add-PreviewItem 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
 $bookUi = Join-Path $repo 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel'
 foreach ($name in @('ConstellationBookMotion','ConstellationBookRenderer','ConstellationUIClock')) {
     $null = Add-PreviewItem 'Compile' (Join-Path $bookUi "$name.cs")

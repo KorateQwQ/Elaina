@@ -2,6 +2,12 @@
 
 运行 `& Tools/ConstellationSkillPanelPreview/run.ps1`。可通过 `-Tml` 指定安装目录，`-Sources` 指定本地 Terraria 源码目录。
 
+`-DebugToolsOnly` 运行调试栏专项状态检查，并以正式 `DrawLayoutButton` / `DrawDebugButton` / `ToolButton` 导出普通、升满级悬停、精通技能悬停和布局编辑状态，覆盖 86% / 100% / 125% / 200% 缩放。输出 `output/zh-Hans/debug-tools-*.png`。状态检查链接正式 `ConstellationState`，每次抽取实际 `DebugMaxLevel`、等级规范化及 KL 解锁/升级方法；角色和技能定义为隔离夹具。覆盖当前上限、倒序前置链、阶段/等级/自定义限制、免费学习进修、模板不变、装配/冷却保留、重复调用及提升上限后补齐。此模式始终执行专项断言，不依赖通用检查；`-DebugToolsOnly -Configuration Release` 验证调试方法被排除，不输出调试栏图片。真实 Boss 上限和内存存档往返由 `Tools/CharacterProgressChecks/run.ps1` 验证；完整游戏输入与联机需另验。
+
+`-ScrollOnly -SkipChecks -Configuration Release` 链接共用的 `System/UI/ElasticScrollMotion` 与正式详情绘制，使用长描述、成长对比和关联技能夹具导出顶部/底部、拖动/滚轮的 40 个状态，覆盖 1280×720 与 1600×1000 / 125% UI 缩放。输出在 `output/zh-Hans/scroll-frames`，记录实际内容范围、越界偏移及最终回弹位置；原生滚动条不绘制。共用状态机的 30/60/144 FPS、点击抖动、连续输入、重抓、内容缩短和取消拖动检查由 `Tools/AlchemyPreview/run.ps1 -ScrollOnly -Configuration Release` 运行。这些是 FNA 离线预览，完整 SUI 输入派发、开关点击和拖出窗口释放仍需游戏内检查。
+
+2026-10-20 滚动专项验证：40 个技能详情采样、90 项共用滚动检查及炼金正式轮廓资源检查通过。现有通用业务检查 `current configured upgrade requirement is represented` 仍假定升级复用解锁材料，而正式默认升级条件现为 20 研习点，因此本次用 `-SkipChecks` 跳过通用业务/图标回归；滚动专项断言照常执行，未修改升级规则或放宽原有断言。
+
 `-OrnamentsOnly` 链接正式 `ConstellationButterflyMotion` 与边框/蝴蝶绘制，并抽取正式 `UpdateButterfly`。导出带书页厚度的新外框、选中蝴蝶、空分类与编辑模式在 1600×1000、1280×720、125% UI 缩放下的画面；`output/butterfly-frames` 包含 100% / 125% 下各 241 帧，从移动、落定到停止及间歇扇翅。状态检查覆盖 30/60/144 FPS、途中改选、落定后翼拍、静止时位置不漂移、暂停/重置和不均匀帧间隔。`python Tools/ConstellationSkillPanelPreview/bake_butterfly.py` 从已有 `butterFly.png` 重建预乘 Alpha 的同款遮罩，保留原始文件。这些是实际 FNA 绘制的离线预览，游戏内 SUI 输入与生命周期另行验收。
 
 `-CameraOnly` 每次从正式面板抽取 `CenterOn` / `AdvanceCamera` 与实际绘制方法，导出聚焦开始、100ms、200ms、350ms 和途中改选后的 FNA 离线帧，覆盖 720p 与 125% UI 缩放；检查最终图标居中、120% 倍率和改选瞬间的位置连续性。输出为 `output/camera-*.png`。使用隔离角色夹具，不模拟完整 SUI 点击、拖拽和开书输入生命周期，这些交互仍需游戏内验证。
@@ -18,7 +24,7 @@
 
 预览现在直接链接相邻 `SilkyUIFramework` 源码。旧 `-Sources` 默认路径不存在时会尝试用户 Downloads 下的 `tML 2025.06源码与ExampleMod/tModLoader`；其他机器可显式传入路径，不依赖 DLL 反编译副本。
 
-`-PrimaryOnly` 重放正式 `DrawActionButton`，导出免费研习、付费研习、材料不足、装配、已装配在 86% / 125% / 200% 的截图，以及连续悬停/按下帧。`bake_primary_button.py` 重建主按钮切角渐变与装饰覆盖图；点数、槽号和文字仍来自运行时状态。
+`-PrimaryOnly -SkipChecks -Configuration Release` 重放正式 `DrawActionButton`，导出免费研习、付费研习、材料不足、装配、已装配、满级未装配、满级已装配在 86% / 125% / 200% 的截图，以及连续悬停/按下帧。专项检查按正式命中区域连续点击进修至满级并继续点击，验证左右按钮位置/宽度不变、原进修区不触发装卸、右侧按钮仍可点击；结果写入 `primary-layout-checks.txt`，不受 `-SkipChecks` 影响。`bake_primary_button.py` 重建主按钮切角渐变与装饰覆盖图；点数、槽号和文字仍来自运行时状态。
 
 `-PolishOnly` 导出分类提示线滑动、进修悬停/按下和延迟提示的 FNA 连续帧，并检查三种尺寸下的紧凑材料列表。动态检查使用正式 `ConstellationTween` / `ConstellationTooltipDelay` / 控件绘制；提示位置检查使用正式布局方法。状态测试覆盖快速改选、提示延迟与控件切换、边缘约束和避让材料区。
 

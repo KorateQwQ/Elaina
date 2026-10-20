@@ -1,9 +1,12 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
 internal static class PrimaryButtonPreview
 {
     internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
     {
+        CheckStableActions(output);
         foreach (float scale in new[] { .86f, 1.25f, 2f })
-        foreach (string mode in new[] { "free", "paid", "missing", "equip", "equipped" })
+        foreach (string mode in new[] { "free", "paid", "missing", "equip", "equipped", "maxed", "maxed-equipped" })
         {
             using var target = new RenderTarget2D(device, (int)Math.Ceiling(316 * scale), (int)Math.Ceiling(78 * scale));
             device.SetRenderTarget(target); device.Clear(new Color(27, 25, 41));
@@ -23,6 +26,51 @@ internal static class PrimaryButtonPreview
             using var file = File.Create(Path.Combine(folder, $"primary-{frame:000}.png"));
             animation.SaveAsPng(file, animation.Width, animation.Height);
         }
-        Console.WriteLine("Primary button FNA check: free/paid/missing/equip/equipped at 86%, 125%, 200%, plus hover/press frames.");
+        Console.WriteLine("Primary button FNA check: free/paid/missing/equip/equipped/maxed/maxed-equipped at 86%, 125%, 200%, plus hover/press frames.");
+    }
+
+    private static void CheckStableActions(string output)
+    {
+        var checks = new List<string>();
+        void Check(bool ok, string name)
+        {
+            if (!ok) throw new InvalidOperationException(name);
+            checks.Add("PASS " + name);
+        }
+        foreach (bool equipped in new[] { false, true })
+        {
+            var state = Fixtures.State(true);
+            state.Select(nameof(MagicMissileSkill));
+            伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer.SkillPoint = 1000;
+            if (equipped) Check(state.Equip(), "Equip fixture before repeated upgrades");
+            string loadoutKind = equipped ? "unequip" : "equip";
+            var initial = ConstellationDetail.Pills(state);
+            var upgradeArea = ConstellationDetail.PillArea(initial.Single(p => p.Kind == "upgrade"));
+            var loadoutArea = ConstellationDetail.PillArea(initial.Single(p => p.Kind == loadoutKind));
+            string slotBefore = state.Slots[state.TargetSlot];
+            int maximum = state.MaxLevel(state.Selected).Value;
+            // Keep clicking the same point beyond max level, as in the reported accidental equip/unequip.
+            for (int click = 0; click < maximum + 3; click++)
+            {
+                var pills = ConstellationDetail.Pills(state);
+                Check(ConstellationDetail.PillArea(pills.Single(p => p.Kind == loadoutKind)) == loadoutArea,
+                    $"{loadoutKind}/{click}: loadout button keeps its position and size");
+                int hit = ConstellationDetail.PillAt(pills, new Vector2(upgradeArea.Center.X, upgradeArea.Center.Y));
+                if (state.Level(state.Selected) >= maximum)
+                    Check(hit == -1, $"{loadoutKind}/{click}: clicking former upgrade area does nothing at max level");
+                else
+                {
+                    Check(hit >= 0 && pills[hit].Kind == "upgrade", $"{loadoutKind}/{click}: same pointer still targets upgrade");
+                    Check(state.Upgrade(state.Selected), $"{loadoutKind}/{click}: upgrade succeeds");
+                }
+            }
+            Check(state.Level(state.Selected) == maximum && state.Slots[state.TargetSlot] == slotBefore,
+                $"{loadoutKind}: repeated upgrades reach max without changing equipment");
+            var final = ConstellationDetail.Pills(state);
+            int right = ConstellationDetail.PillAt(final, new Vector2(loadoutArea.Center.X, loadoutArea.Center.Y));
+            Check(right >= 0 && final[right].Kind == loadoutKind, $"{loadoutKind}: right button remains clickable at max level");
+        }
+        File.WriteAllLines(Path.Combine(output, "primary-layout-checks.txt"), checks);
+        Console.WriteLine($"{checks.Count} fixed action layout checks passed.");
     }
 }

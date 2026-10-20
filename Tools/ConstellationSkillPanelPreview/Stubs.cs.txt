@@ -41,12 +41,30 @@ namespace Terraria
     {
         public bool active = true;
         public Item[] inventory = Enumerable.Range(0, 58).Select(_ => new Item()).ToArray();
-        public T GetModPlayer<T>() where T : new() => new();
+        private readonly Dictionary<Type, object> _modPlayers = [];
+        public T GetModPlayer<T>() where T : new()
+        {
+            if (!_modPlayers.TryGetValue(typeof(T), out var value)) _modPlayers[typeof(T)] = value = new T();
+            return (T)value;
+        }
     }
     public sealed class Item { public int type, stack; public bool IsAir => stack <= 0; public void TurnToAir() { type = stack = 0; } }
     public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
 }
-namespace 伊蕾娜.System { public sealed class ElainaStatePlayer { public void DebugResetProgress() { } } }
+namespace 伊蕾娜.System
+{
+    public sealed class ElainaStatePlayer
+    {
+        public int CurrentLevel = 1, Experience, Cap = 10;
+        public const int ExperiencePerLevel = 100;
+        public int GetMaxLevel() => Cap;
+        // LIVE_NORMALIZE_LEVEL
+#if DEBUG
+        // LIVE_DEBUG_MAX_LEVEL
+        public void DebugResetProgress() { CurrentLevel = 1; Experience = 0; }
+#endif
+    }
+}
 namespace Terraria.ID { public static class ItemID { public const int Wood = 9; } }
 namespace Terraria.GameContent
 {
@@ -190,6 +208,8 @@ namespace KL.SkillSystem
         public bool IsEnabled = true;
         public float CooldownDuration;
         public int LockCalls;
+        public int UnlockCalls;
+        public virtual void OnUnlockSkillAdded() => UnlockCalls++;
         public virtual void OnLockSkill() => LockCalls++;
         public virtual Type[] PrerequisiteSkills => [];
         public virtual SkillUnlockCondition UnlockCondition { get; set; } = SkillUnlockCondition.None;
@@ -228,7 +248,7 @@ namespace KL.SkillSystem
         public List<Skill> ActiveSkill = Enumerable.Repeat<Skill>(null, 8).ToList();
         public bool CanCostSkillPoint(int amount) => amount <= 0 || SkillPoint >= amount;
         public bool TryCostSkillPoint(int amount) { if (!CanCostSkillPoint(amount)) return false; SkillPoint -= Math.Max(0, amount); return true; }
-        public void UnlockSkill(Skill skill) { skill.Level = Math.Max(1, skill.Level); skill.BasicStatus = Skill.SKillBasicStatus.UnLock; UnlockedSkill.TryAdd(skill.ModSkill.GetType().Name, skill); }
+        // LIVE_UNLOCK_SKILL
         public void LockSkill(Skill skill)
         {
             if (!UnlockedSkill.TryGetValue(skill.ModSkill.GetType().Name, out var owned) || owned.BasicStatus != Skill.SKillBasicStatus.UnLock) return;
@@ -317,3 +337,26 @@ public class UnlistedSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 {
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => null;
 }
+
+#if DEBUG
+[SkillUIInfo(State = -2)] public class MasterDependentSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override Type[] PrerequisiteSkills => [typeof(MasterBaseSkill)];
+    public override SkillUnlockCondition UnlockCondition { get; set; } = new CompositeSkillUnlockCondition(
+        SkillUnlockCondition.ByItemsAndSkillPoint(200, new SkillUnlockItem(9, 100)),
+        SkillUnlockCondition.Custom((p, _) => p.UnlockedSkill.TryGetValue(nameof(MasterBaseSkill), out var skill) && skill.Level >= 3));
+}
+[SkillUIInfo(State = -1)] public class MasterBaseSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override int MaxLevel => Main.LocalPlayer.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().CurrentLevel / 2;
+}
+[SkillUIInfo] public class MasterBlockedUpgradeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => new CompositeSkillUnlockCondition(
+        SkillUnlockCondition.BySkillPoint(100), SkillUnlockCondition.Custom((_, _) => level <= 2));
+}
+[SkillUIInfo] public class MasterNoProgressSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
+{
+    public override void TryLevelUp() { }
+}
+#endif

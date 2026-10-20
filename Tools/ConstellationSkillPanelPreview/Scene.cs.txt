@@ -35,7 +35,7 @@ internal sealed class PanelScene
     {
         if (_state == null)
         {
-            _state = Fixtures.State(mode is "equip" or "equipped");
+            _state = Fixtures.State(mode is "equip" or "equipped" or "maxed" or "maxed-equipped");
             _state.Select(nameof(MagicMissileSkill));
             _state.Current.ModSkill.UnlockCondition = mode is "paid" or "missing"
                 ? KL.SkillSystem.SkillUnlockCondition.ByItemsAndSkillPoint(20, new KL.SkillSystem.SkillUnlockItem(9, 10))
@@ -44,7 +44,9 @@ internal sealed class PanelScene
             player.SkillPoint = 100;
             player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = mode == "missing" ? 0 : 10;
             _state.TargetSlot = 3;
-            if (mode == "equipped") _state.Equip();
+            if (mode is "equipped" or "maxed-equipped") _state.Equip();
+            if (mode is "maxed" or "maxed-equipped")
+                while (_state.Upgrade(_state.Selected)) { }
         }
         _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = new Vector2(-756, -650) * scale;
         _draw.AdvanceToggleAnimations(seconds);
@@ -55,6 +57,19 @@ internal sealed class PanelScene
         batch.End();
         Terraria.Main.mouseLeft = false;
     }
+    internal void RenderDebugTools(SpriteBatch batch, float scale, bool editing, string hovered)
+    {
+        _state = Fixtures.State();
+        _layoutEditor = new(_state, new(), new());
+        if (editing) _layoutEditor.Begin();
+        _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = new Vector2(-510, -724) * scale;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        _draw.Image("NotebookSurface", 0, 0, 1100, 800);
+        foreach (string kind in new[] { "edit", "save", "cancel", "reset" }) DrawLayoutButton(kind, kind == hovered);
+        foreach (string kind in new[] { "points", "level", "max-level", "cap", "master-skills", "reset-skills" }) DrawDebugButton(kind, kind == hovered);
+        batch.End();
+    }
+
     private int _playerLevel = 120, _playerCap = 120, _playerExperience;
     internal void RenderHeader(SpriteBatch batch, float scale, int points, int level = 120, int cap = 120, int experience = 0)
     {
@@ -74,7 +89,8 @@ internal sealed class PanelScene
     // the reported high-level state so the preview covers the former overlap case.
     private void DrawPlayerLevel() => _draw.PlayerLevel(_playerLevel, _playerCap, _playerExperience, 100);
 
-    internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario)
+    internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario,
+        Func<ConstellationDetail, float> scrollPosition = null)
     {
         _book.Request(true); _book.Finish();
         _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long"));
@@ -162,7 +178,7 @@ internal sealed class PanelScene
         for (int i = 0; i < 4; i++) DrawFilter(i, filters[i], false);
         for (int i = 0; i < 8; i++) DrawSlot(i, false);
         foreach (string kind in new[] { "edit", "save", "cancel", "reset" }) DrawLayoutButton(kind, false);
-        foreach (string kind in new[] { "points", "level", "cap", "reset-skills" }) DrawDebugButton(kind, false);
+        foreach (string kind in new[] { "points", "level", "max-level", "cap", "master-skills", "reset-skills" }) DrawDebugButton(kind, false);
         batch.End();
         using var clip = new RasterizerState { ScissorTestEnable = true, CullMode = CullMode.None };
         Rectangle Clip(float x, float y, float w, float h) => new((int)(origin.X + x * scale), (int)(origin.Y + y * scale), (int)(w * scale), (int)(h * scale));
@@ -178,16 +194,15 @@ internal sealed class PanelScene
         batch.End();
         batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
-        float offset = scenario is "bottom" or "growth-long" ? Math.Max(0, detail.ContentHeight - detail.Height) : 0;
+        float offset = scrollPosition?.Invoke(detail) ??
+            (scenario is "bottom" or "growth-long" ? Math.Max(0, detail.ContentHeight - detail.Height) : 0);
         float y = detail.Top - offset;
         foreach (var row in detail.Rows) { _draw.Origin = origin + new Vector2(ConstellationDetail.Left, y) * scale; row.Paint(_draw, null); y += row.Height; }
         batch.End(); _draw.Origin = origin;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
-        if (detail.ContentHeight > detail.Height) _draw.Box(ConstellationDetail.Left + ConstellationDetail.Width + 3, detail.Top + offset / detail.ContentHeight * detail.Height,
-            3, detail.Height * detail.Height / detail.ContentHeight, Muted * .5f);
         if (scenario == "requirements-tooltip")
         {
-            var area = ConstellationDetail.PillArea(0, ConstellationDetail.Pills(_state).Length);
+            var area = ConstellationDetail.PillArea(ConstellationDetail.Pills(_state)[0]);
             _draw.Tooltip(_state.Requirements(_state.Selected, true).ActionTooltip("进修至 2 级"), new Vector2(area.Center.X, area.Y + 15),
                 new Vector2(DesignWidth, DesignHeight), area);
         }

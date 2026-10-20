@@ -1,0 +1,1970 @@
+{
+  "sourceSHA256": "1410878a7ac40d71aab69a80e178f4ca532da76552056974b23fb275e8cd6bd8",
+  "candidates": [
+    {
+      "name": "noBall",
+      "ballLock": 3,
+      "ballFreeze": 4,
+      "ballsPerLock": 0
+    },
+    {
+      "name": "current",
+      "ballLock": 3,
+      "ballFreeze": 4,
+      "ballsPerLock": 1
+    },
+    {
+      "name": "6/8",
+      "ballLock": 6,
+      "ballFreeze": 8,
+      "ballsPerLock": 1
+    },
+    {
+      "name": "8/10",
+      "ballLock": 8,
+      "ballFreeze": 10,
+      "ballsPerLock": 1
+    },
+    {
+      "name": "10/14",
+      "ballLock": 10,
+      "ballFreeze": 14,
+      "ballsPerLock": 1
+    },
+    {
+      "name": "12/16",
+      "ballLock": 12,
+      "ballFreeze": 16,
+      "ballsPerLock": 1
+    }
+  ],
+  "assumptions": [
+    "Hypothetical replacement Moon Dew, full-fight1% max mana/sec, zero instant charges, no separate0.5% potion.",
+    "Only the two ball refunds change; damage, costs,15second ball CD and60second lock/freeze CD remain saved values.",
+    "One ball in each completed lock interval, same ice opening and minimum ball action; no-ball control included.",
+    "freeMana diagnoses action/cooldown limits. Finite cases include full starting mana and water recovery; no life conversion, shields or damage taken.",
+    "Single zero-defense freezable target, full hits, expected critical damage; same approximate action/flight timings and invariants as balls-per-lock.cjs."
+  ],
+  "rows": [
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1719.3791666666666,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 234.1716666666101
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1719.3791666666666,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 234.1716666666101
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1595.245,
+      "casts": {
+        "ice": 72,
+        "water": 1173,
+        "ball": 0,
+        "lock": 11
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.43166666666667,
+      "endMana": 270.17166666658323
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1593.4366666666667,
+      "casts": {
+        "ice": 138,
+        "water": 2368,
+        "ball": 0,
+        "lock": 22
+      },
+      "gap": 27.54285714285714,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.519999999999992,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.261666666666667,
+      "endMana": 152.67166666664895
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1604.6666666666667,
+      "casts": {
+        "ice": 30,
+        "water": 432,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 34.25,
+      "firstGap": 27.333333333333332,
+      "tailGap": 34.25,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 23.108333333333334,
+      "endMana": 80.67166666668706
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1898.0958333333333,
+      "casts": {
+        "ice": 30,
+        "water": 427,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 27.170833333333334,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.170833333333334,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 27.629166666666666,
+      "endMana": 83.18499999999995
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1449.5666666666666,
+      "casts": {
+        "ice": 55,
+        "water": 1129,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 36.71666666666667,
+      "firstGap": 27.333333333333332,
+      "tailGap": 38.19666666666667,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.27,
+      "endMana": 18.671666666737867
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1397.1233333333332,
+      "casts": {
+        "ice": 102,
+        "water": 2272,
+        "ball": 16,
+        "lock": 16
+      },
+      "gap": 37.40777777777778,
+      "firstGap": 27.333333333333332,
+      "tailGap": 38.19666666666667,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.171666666666667,
+      "endMana": 206.67166666681584
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1600.0166666666667,
+      "casts": {
+        "ice": 30,
+        "water": 432,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 34.25,
+      "firstGap": 26.133333333333333,
+      "tailGap": 34.25,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 23.108333333333334,
+      "endMana": 80.67166666668848
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1896.9333333333334,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 26.020833333333332,
+      "firstGap": 26.133333333333333,
+      "tailGap": 26.020833333333332,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 139.30500000000072
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1444.6066666666666,
+      "casts": {
+        "ice": 55,
+        "water": 1129,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 36.71666666666667,
+      "firstGap": 26.133333333333333,
+      "tailGap": 38.19666666666667,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.27,
+      "endMana": 18.671666666739288
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1392.1633333333334,
+      "casts": {
+        "ice": 102,
+        "water": 2272,
+        "ball": 16,
+        "lock": 16
+      },
+      "gap": 37.40777777777778,
+      "firstGap": 26.133333333333333,
+      "tailGap": 38.19666666666667,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.171666666666667,
+      "endMana": 206.67166666681726
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1596.7875,
+      "casts": {
+        "ice": 30,
+        "water": 431,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 34.22222222222222,
+      "firstGap": 25.333333333333332,
+      "tailGap": 34.22222222222222,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 23.095833333333335,
+      "endMana": 82.17166666669122
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1897.1916666666666,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 25.216666666666665,
+      "firstGap": 25.333333333333332,
+      "tailGap": 25.216666666666665,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 178.67333333333676
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1441.765,
+      "casts": {
+        "ice": 55,
+        "water": 1128,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 36.708333333333336,
+      "firstGap": 25.333333333333332,
+      "tailGap": 38.2,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.265,
+      "endMana": 20.171666666742016
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1389.5025,
+      "casts": {
+        "ice": 102,
+        "water": 2271,
+        "ball": 16,
+        "lock": 16
+      },
+      "gap": 37.40333333333333,
+      "firstGap": 25.333333333333332,
+      "tailGap": 38.19999999999999,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.169166666666666,
+      "endMana": 208.17166666682007
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1592.6541666666667,
+      "casts": {
+        "ice": 30,
+        "water": 431,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 34.22222222222222,
+      "firstGap": 24.566666666666666,
+      "tailGap": 34.22222222222222,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 23.095833333333335,
+      "endMana": 82.17166666669543
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1904.0375,
+      "casts": {
+        "ice": 36,
+        "water": 403,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.404166666666665,
+      "firstGap": 24.566666666666666,
+      "tailGap": 24.404166666666665,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 28.454166666666666,
+      "endMana": 118.19833333333688
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1437.5283333333334,
+      "casts": {
+        "ice": 55,
+        "water": 1128,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 36.708333333333336,
+      "firstGap": 24.566666666666666,
+      "tailGap": 38.2,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.265,
+      "endMana": 20.171666666746223
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1385.3175,
+      "casts": {
+        "ice": 102,
+        "water": 2271,
+        "ball": 16,
+        "lock": 16
+      },
+      "gap": 37.40333333333333,
+      "firstGap": 24.566666666666666,
+      "tailGap": 38.19999999999999,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.169166666666666,
+      "endMana": 208.17166666682428
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1589.2958333333333,
+      "casts": {
+        "ice": 30,
+        "water": 429,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 34.12222222222222,
+      "firstGap": 23.983333333333334,
+      "tailGap": 34.12222222222222,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 23.070833333333333,
+      "endMana": 85.17166666669802
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1901.5833333333333,
+      "casts": {
+        "ice": 36,
+        "water": 404,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 23.570833333333333,
+      "firstGap": 23.733333333333334,
+      "tailGap": 23.570833333333333,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 28.466666666666665,
+      "endMana": 158.36500000000603
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1474.885,
+      "casts": {
+        "ice": 56,
+        "water": 1124,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 36.66875,
+      "firstGap": 23.983333333333334,
+      "tailGap": 38.19666666666667,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 21.32,
+      "endMana": 3.671666666748825
+    },
+    {
+      "stage": 8,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1382.5275,
+      "casts": {
+        "ice": 102,
+        "water": 2269,
+        "ball": 16,
+        "lock": 16
+      },
+      "gap": 37.382222222222225,
+      "firstGap": 23.983333333333334,
+      "tailGap": 38.19666666666667,
+      "recovery": 19.700000000000003,
+      "spentPerSecond": 20.164166666666667,
+      "endMana": 211.17166666682712
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1398.4283888888858,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 471.77166666665994
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1398.4283888888858,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 471.77166666665994
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1297.4659333333434,
+      "casts": {
+        "ice": 72,
+        "water": 1173,
+        "ball": 0,
+        "lock": 11
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 20.43166666666667,
+      "endMana": 613.1016666666412
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1296.3733555555564,
+      "casts": {
+        "ice": 138,
+        "water": 2370,
+        "ball": 0,
+        "lock": 22
+      },
+      "gap": 27.54285714285714,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.519999999999992,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 20.266666666666666,
+      "endMana": 563.2916666666449
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1543.784611111108,
+      "casts": {
+        "ice": 30,
+        "water": 427,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 27.170833333333334,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.170833333333334,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 27.629166666666666,
+      "endMana": 182.1016666665535
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1543.784611111108,
+      "casts": {
+        "ice": 30,
+        "water": 427,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 27.170833333333334,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.170833333333334,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 27.629166666666666,
+      "endMana": 182.1016666665535
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1422.3790222222303,
+      "casts": {
+        "ice": 72,
+        "water": 1088,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 27.276666666666664,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.393333333333327,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 25.506666666666668,
+      "endMana": 147.60166666651776
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1407.1812111111142,
+      "casts": {
+        "ice": 135,
+        "water": 2187,
+        "ball": 21,
+        "lock": 22
+      },
+      "gap": 28.234920634920634,
+      "firstGap": 27.333333333333332,
+      "tailGap": 28.973333333333322,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 24.946666666666665,
+      "endMana": 1.6016666665238046
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1541.8936111111082,
+      "casts": {
+        "ice": 30,
+        "water": 425,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 26.020833333333332,
+      "firstGap": 26.133333333333333,
+      "tailGap": 26.020833333333332,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 27.604166666666668,
+      "endMana": 185.10166666656923
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1542.8391111111084,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 26.020833333333332,
+      "firstGap": 26.133333333333333,
+      "tailGap": 26.020833333333332,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 184.03499999999983
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1420.7821777777856,
+      "casts": {
+        "ice": 72,
+        "water": 1082,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 27.22,
+      "firstGap": 26.133333333333333,
+      "tailGap": 28.396666666666665,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 25.476666666666667,
+      "endMana": 156.60166666656548
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1400.772822222228,
+      "casts": {
+        "ice": 136,
+        "water": 2162,
+        "ball": 21,
+        "lock": 22
+      },
+      "gap": 28.16031746031746,
+      "firstGap": 26.133333333333333,
+      "tailGap": 28.976666666666667,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 24.921666666666667,
+      "endMana": 16.601666666575316
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1542.1037222222192,
+      "casts": {
+        "ice": 30,
+        "water": 425,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 25.216666666666665,
+      "firstGap": 25.333333333333332,
+      "tailGap": 25.216666666666665,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 27.604166666666668,
+      "endMana": 185.1016666665852
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1543.0492222222194,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 25.216666666666665,
+      "firstGap": 25.333333333333332,
+      "tailGap": 25.216666666666665,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 236.91333333333455
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1419.3534222222302,
+      "casts": {
+        "ice": 72,
+        "water": 1078,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 27.21333333333333,
+      "firstGap": 25.333333333333332,
+      "tailGap": 29.186666666666667,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 25.456666666666667,
+      "endMana": 162.60166666658475
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1397.3690222222285,
+      "casts": {
+        "ice": 137,
+        "water": 2154,
+        "ball": 21,
+        "lock": 22
+      },
+      "gap": 28.136507936507936,
+      "firstGap": 25.333333333333332,
+      "tailGap": 28.976666666666667,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 24.939166666666665,
+      "endMana": 6.101666666594433
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1545.255388888886,
+      "casts": {
+        "ice": 36,
+        "water": 399,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.458333333333332,
+      "firstGap": 24.566666666666666,
+      "tailGap": 24.458333333333332,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 28.404166666666665,
+      "endMana": 89.10166666659492
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1548.6171666666637,
+      "casts": {
+        "ice": 36,
+        "water": 403,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.404166666666665,
+      "firstGap": 24.566666666666666,
+      "tailGap": 24.404166666666665,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 28.454166666666666,
+      "endMana": 190.08833333333595
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1411.9154888888966,
+      "casts": {
+        "ice": 72,
+        "water": 1069,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 27.131666666666668,
+      "firstGap": 24.566666666666666,
+      "tailGap": 29.136666666666667,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 25.411666666666665,
+      "endMana": 176.10166666659575
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1391.527933333341,
+      "casts": {
+        "ice": 138,
+        "water": 2141,
+        "ball": 21,
+        "lock": 22
+      },
+      "gap": 28.097619047619045,
+      "firstGap": 24.566666666666666,
+      "tailGap": 28.976666666666652,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 24.944166666666668,
+      "endMana": 3.1016666666050803
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 1542.5239444444417,
+      "casts": {
+        "ice": 36,
+        "water": 399,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.0875,
+      "firstGap": 23.733333333333334,
+      "tailGap": 24.0875,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 28.404166666666665,
+      "endMana": 89.10166666661338
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 1546.6211111111081,
+      "casts": {
+        "ice": 36,
+        "water": 404,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 23.570833333333333,
+      "firstGap": 23.733333333333334,
+      "tailGap": 23.570833333333333,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 28.466666666666665,
+      "endMana": 244.25500000000406
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 1411.075044444452,
+      "casts": {
+        "ice": 72,
+        "water": 1069,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 27.131666666666668,
+      "firstGap": 23.733333333333334,
+      "tailGap": 29.15,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 25.411666666666665,
+      "endMana": 176.10166666661416
+    },
+    {
+      "stage": 8,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 1389.8050222222305,
+      "casts": {
+        "ice": 138,
+        "water": 2141,
+        "ball": 21,
+        "lock": 22
+      },
+      "gap": 28.097619047619045,
+      "firstGap": 23.733333333333334,
+      "tailGap": 28.976666666666652,
+      "recovery": 23.900000000000002,
+      "spentPerSecond": 24.944166666666668,
+      "endMana": 3.1016666666234975
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 5429.014759259265,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 20,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 280.16666666656045
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 5429.014759259265,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 20,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 280.16666666656045
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 5037.06451111112,
+      "casts": {
+        "ice": 72,
+        "water": 1173,
+        "ball": 0,
+        "lock": 11
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 20,
+      "spentPerSecond": 20.43166666666667,
+      "endMana": 370.16666666638747
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "noBall",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 5032.807837036984,
+      "casts": {
+        "ice": 138,
+        "water": 2370,
+        "ball": 0,
+        "lock": 22
+      },
+      "gap": 27.54285714285714,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.519999999999992,
+      "recovery": 20,
+      "spentPerSecond": 20.266666666666666,
+      "endMana": 339.66666666617533
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 5085.205481481487,
+      "casts": {
+        "ice": 30,
+        "water": 433,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 32.894444444444446,
+      "firstGap": 27.333333333333332,
+      "tailGap": 32.894444444444446,
+      "recovery": 20,
+      "spentPerSecond": 23.120833333333334,
+      "endMana": 125.1666666666659
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 5993.327796296304,
+      "casts": {
+        "ice": 30,
+        "water": 427,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 27.170833333333334,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.170833333333334,
+      "recovery": 20,
+      "spentPerSecond": 27.629166666666666,
+      "endMana": 84.99999999999982
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4717.046807407408,
+      "casts": {
+        "ice": 60,
+        "water": 1105,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 35.75833333333333,
+      "firstGap": 27.333333333333332,
+      "tailGap": 37.47666666666667,
+      "recovery": 20,
+      "spentPerSecond": 21.525,
+      "endMana": 42.16666666668936
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "current",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4545.56238888888,
+      "casts": {
+        "ice": 108,
+        "water": 2240,
+        "ball": 16,
+        "lock": 17
+      },
+      "gap": 36.541666666666664,
+      "firstGap": 27.333333333333332,
+      "tailGap": 37.326666666666654,
+      "recovery": 20,
+      "spentPerSecond": 20.733333333333334,
+      "endMana": 59.666666666725256
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 5063.183481481485,
+      "casts": {
+        "ice": 30,
+        "water": 431,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 33.07222222222222,
+      "firstGap": 26.133333333333333,
+      "tailGap": 33.07222222222222,
+      "recovery": 20,
+      "spentPerSecond": 23.095833333333335,
+      "endMana": 128.16666666666097
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 5989.65746296297,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 26.020833333333332,
+      "firstGap": 26.133333333333333,
+      "tailGap": 26.020833333333332,
+      "recovery": 20,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 142.49999999999952
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4699.266081481479,
+      "casts": {
+        "ice": 60,
+        "water": 1104,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 35.739583333333336,
+      "firstGap": 26.133333333333333,
+      "tailGap": 37.34,
+      "recovery": 20,
+      "spentPerSecond": 21.52,
+      "endMana": 43.666666666684435
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "6/8",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4528.84198148148,
+      "casts": {
+        "ice": 108,
+        "water": 2239,
+        "ball": 16,
+        "lock": 17
+      },
+      "gap": 36.532291666666666,
+      "firstGap": 26.133333333333333,
+      "tailGap": 37.32666666666667,
+      "recovery": 20,
+      "spentPerSecond": 20.730833333333333,
+      "endMana": 61.16666666672033
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 5058.69751851852,
+      "casts": {
+        "ice": 30,
+        "water": 432,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 33.12222222222222,
+      "firstGap": 25.333333333333332,
+      "tailGap": 33.12222222222222,
+      "recovery": 20,
+      "spentPerSecond": 23.108333333333334,
+      "endMana": 126.66666666666079
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 5990.473092592599,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 25.216666666666665,
+      "firstGap": 25.333333333333332,
+      "tailGap": 25.216666666666665,
+      "recovery": 20,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 182.83333333333468
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4692.904170370367,
+      "casts": {
+        "ice": 60,
+        "water": 1105,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 35.75833333333333,
+      "firstGap": 25.333333333333332,
+      "tailGap": 37.34,
+      "recovery": 20,
+      "spentPerSecond": 21.525,
+      "endMana": 42.1666666666843
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "8/10",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4521.746003703704,
+      "casts": {
+        "ice": 108,
+        "water": 2240,
+        "ball": 16,
+        "lock": 17
+      },
+      "gap": 36.541666666666664,
+      "firstGap": 25.333333333333332,
+      "tailGap": 37.326666666666654,
+      "recovery": 20,
+      "spentPerSecond": 20.733333333333334,
+      "endMana": 59.6666666667202
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 5048.502148148149,
+      "casts": {
+        "ice": 30,
+        "water": 433,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 33.144444444444446,
+      "firstGap": 24.566666666666666,
+      "tailGap": 33.144444444444446,
+      "recovery": 20,
+      "spentPerSecond": 23.120833333333334,
+      "endMana": 125.16666666666698
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 6012.164277777784,
+      "casts": {
+        "ice": 36,
+        "water": 403,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.404166666666665,
+      "firstGap": 24.566666666666666,
+      "tailGap": 24.404166666666665,
+      "recovery": 20,
+      "spentPerSecond": 28.454166666666666,
+      "endMana": 123.33333333333428
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4679.527844444438,
+      "casts": {
+        "ice": 60,
+        "water": 1105,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 35.75833333333333,
+      "firstGap": 24.566666666666666,
+      "tailGap": 37.32666666666667,
+      "recovery": 20,
+      "spentPerSecond": 21.525,
+      "endMana": 42.16666666669044
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "10/14",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4508.532803703711,
+      "casts": {
+        "ice": 108,
+        "water": 2240,
+        "ball": 16,
+        "lock": 17
+      },
+      "gap": 36.541666666666664,
+      "firstGap": 24.566666666666666,
+      "tailGap": 37.326666666666654,
+      "recovery": 20,
+      "spentPerSecond": 20.733333333333334,
+      "endMana": 59.666666666726336
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 5041.97711111111,
+      "casts": {
+        "ice": 30,
+        "water": 433,
+        "ball": 3,
+        "lock": 4
+      },
+      "gap": 33.144444444444446,
+      "firstGap": 23.733333333333334,
+      "tailGap": 33.144444444444446,
+      "recovery": 20,
+      "spentPerSecond": 23.120833333333334,
+      "endMana": 125.16666666667216
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 6004.415796296303,
+      "casts": {
+        "ice": 36,
+        "water": 404,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 23.570833333333333,
+      "firstGap": 23.733333333333334,
+      "tailGap": 23.570833333333333,
+      "recovery": 20,
+      "spentPerSecond": 28.466666666666665,
+      "endMana": 164.50000000000293
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4672.024051851846,
+      "casts": {
+        "ice": 60,
+        "water": 1105,
+        "ball": 8,
+        "lock": 9
+      },
+      "gap": 35.75833333333333,
+      "firstGap": 23.733333333333334,
+      "tailGap": 37.32666666666667,
+      "recovery": 20,
+      "spentPerSecond": 21.525,
+      "endMana": 42.16666666669561
+    },
+    {
+      "stage": 13,
+      "prefix": "damage",
+      "candidate": "12/16",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4500.865885185194,
+      "casts": {
+        "ice": 108,
+        "water": 2240,
+        "ball": 16,
+        "lock": 17
+      },
+      "gap": 36.541666666666664,
+      "firstGap": 23.733333333333334,
+      "tailGap": 37.326666666666654,
+      "recovery": 20,
+      "spentPerSecond": 20.733333333333334,
+      "endMana": 59.66666666673151
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 4441.921166666663,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 483.3566666666585
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 4441.921166666663,
+      "casts": {
+        "ice": 30,
+        "water": 463,
+        "ball": 0,
+        "lock": 5
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 21.829166666666666,
+      "endMana": 483.3566666666585
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4121.234599999983,
+      "casts": {
+        "ice": 72,
+        "water": 1173,
+        "ball": 0,
+        "lock": 11
+      },
+      "gap": 27.55,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.55,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 20.43166666666667,
+      "endMana": 629.0966666666358
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "noBall",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4117.751866666631,
+      "casts": {
+        "ice": 138,
+        "water": 2370,
+        "ball": 0,
+        "lock": 22
+      },
+      "gap": 27.54285714285714,
+      "firstGap": 27.549999999999997,
+      "tailGap": 27.519999999999992,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 20.266666666666666,
+      "endMana": 578.4166666666403
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 4903.631833333333,
+      "casts": {
+        "ice": 30,
+        "water": 427,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 27.170833333333334,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.170833333333334,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 27.629166666666666,
+      "endMana": 228.0966666665128
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 4903.631833333333,
+      "casts": {
+        "ice": 30,
+        "water": 427,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 27.170833333333334,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.170833333333334,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 27.629166666666666,
+      "endMana": 228.0966666665128
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4521.614066666653,
+      "casts": {
+        "ice": 72,
+        "water": 1091,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 27.18,
+      "firstGap": 27.333333333333332,
+      "tailGap": 27.2,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.52166666666667,
+      "endMana": 243.09666666642593
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "current",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4480.737333333303,
+      "casts": {
+        "ice": 138,
+        "water": 2184,
+        "ball": 21,
+        "lock": 22
+      },
+      "gap": 27.753968253968257,
+      "firstGap": 27.333333333333332,
+      "tailGap": 28.580000000000005,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.051666666666666,
+      "endMana": 128.59666666645492
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 4900.628833333332,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 26.020833333333332,
+      "firstGap": 26.133333333333333,
+      "tailGap": 26.020833333333332,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 229.59666666653476
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 4900.628833333332,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 26.020833333333332,
+      "firstGap": 26.133333333333333,
+      "tailGap": 26.020833333333332,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 229.59666666653476
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4514.40686666665,
+      "casts": {
+        "ice": 72,
+        "water": 1083,
+        "ball": 11,
+        "lock": 11
+      },
+      "gap": 26.686666666666667,
+      "firstGap": 26.133333333333333,
+      "tailGap": 27.353333333333335,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.481666666666666,
+      "endMana": 255.0966666665288
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "6/8",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4456.913533333307,
+      "casts": {
+        "ice": 138,
+        "water": 2161,
+        "ball": 22,
+        "lock": 22
+      },
+      "gap": 27.668253968253968,
+      "firstGap": 26.133333333333333,
+      "tailGap": 28.49333333333333,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.24416666666667,
+      "endMana": 13.096666666561937
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 4898.2931666666655,
+      "casts": {
+        "ice": 30,
+        "water": 425,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 25.216666666666665,
+      "firstGap": 25.333333333333332,
+      "tailGap": 25.216666666666665,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 27.604166666666668,
+      "endMana": 231.09666666654826
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 4901.296166666665,
+      "casts": {
+        "ice": 30,
+        "water": 426,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 25.216666666666665,
+      "firstGap": 25.333333333333332,
+      "tailGap": 25.216666666666665,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 27.616666666666667,
+      "endMana": 241.07333333333528
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4509.868999999983,
+      "casts": {
+        "ice": 72,
+        "water": 1079,
+        "ball": 11,
+        "lock": 12
+      },
+      "gap": 26.85151515151515,
+      "firstGap": 25.333333333333332,
+      "tailGap": 28.740000000000002,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 26.295,
+      "endMana": 11.09666666656638
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "8/10",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4446.369666666643,
+      "casts": {
+        "ice": 138,
+        "water": 2153,
+        "ball": 22,
+        "lock": 22
+      },
+      "gap": 27.644444444444442,
+      "firstGap": 25.333333333333332,
+      "tailGap": 28.49333333333333,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.224166666666665,
+      "endMana": 25.096666666598054
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 4913.704833333334,
+      "casts": {
+        "ice": 36,
+        "water": 401,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.404166666666665,
+      "firstGap": 24.566666666666666,
+      "tailGap": 24.404166666666665,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 28.429166666666667,
+      "endMana": 132.0966666665729
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 4919.043500000001,
+      "casts": {
+        "ice": 36,
+        "water": 403,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 24.404166666666665,
+      "firstGap": 24.566666666666666,
+      "tailGap": 24.404166666666665,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 28.454166666666666,
+      "endMana": 195.2233333333358
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4496.6758666666565,
+      "casts": {
+        "ice": 72,
+        "water": 1071,
+        "ball": 11,
+        "lock": 12
+      },
+      "gap": 26.80606060606061,
+      "firstGap": 24.566666666666666,
+      "tailGap": 28.653333333333336,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 26.255,
+      "endMana": 23.096666666595116
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "10/14",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4450.196799999983,
+      "casts": {
+        "ice": 138,
+        "water": 2142,
+        "ball": 22,
+        "lock": 22
+      },
+      "gap": 27.608730158730157,
+      "firstGap": 24.566666666666666,
+      "tailGap": 28.49,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.196666666666665,
+      "endMana": 41.59666666662701
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": false,
+      "dps": 4902.693833333336,
+      "casts": {
+        "ice": 36,
+        "water": 400,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 23.625,
+      "firstGap": 23.733333333333334,
+      "tailGap": 23.625,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 28.416666666666668,
+      "endMana": 133.59666666658714
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 120,
+      "freeMana": true,
+      "dps": 4912.703833333336,
+      "casts": {
+        "ice": 36,
+        "water": 404,
+        "ball": 5,
+        "lock": 5
+      },
+      "gap": 23.570833333333333,
+      "firstGap": 23.733333333333334,
+      "tailGap": 23.570833333333333,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 28.466666666666665,
+      "endMana": 250.390000000003
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 300,
+      "freeMana": false,
+      "dps": 4500.873533333327,
+      "casts": {
+        "ice": 73,
+        "water": 1063,
+        "ball": 11,
+        "lock": 12
+      },
+      "gap": 26.76060606060606,
+      "firstGap": 23.733333333333334,
+      "tailGap": 28.57666666666667,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 26.29,
+      "endMana": 12.596666666608341
+    },
+    {
+      "stage": 13,
+      "prefix": "arcane",
+      "candidate": "12/16",
+      "duration": 600,
+      "freeMana": false,
+      "dps": 4438.85213333332,
+      "casts": {
+        "ice": 138,
+        "water": 2136,
+        "ball": 22,
+        "lock": 22
+      },
+      "gap": 27.585714285714282,
+      "firstGap": 23.733333333333334,
+      "tailGap": 28.49333333333333,
+      "recovery": 24.200000000000003,
+      "spentPerSecond": 25.18166666666667,
+      "endMana": 50.596666666640004
+    }
+  ]
+}

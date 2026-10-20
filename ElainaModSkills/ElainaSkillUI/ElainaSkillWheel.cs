@@ -10,6 +10,7 @@ using Terraria.Audio;
 using Terraria.GameInput;
 using Terraria.ID;
 using 伊蕾娜.Config;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using 伊蕾娜.ElainaModSkills.UICore;
 using 伊蕾娜.Items;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
@@ -28,6 +29,7 @@ public sealed class ElainaSkillWheel : BaseBody
     private readonly float[] _extentAtClose = new float[MaxItems];
     private readonly float[] _opacityAtClose = new float[MaxItems];
     private readonly SkillWheelDrawing.View _view = new();
+    private readonly ConstellationUIClock _animationClock = new();
     private Matrix _matrix;
     private Vector2 _anchor;
     private bool _open, _anchorPending;
@@ -125,6 +127,7 @@ public sealed class ElainaSkillWheel : BaseBody
         _time = _presence = _focusAge = 0;
         _closeTime = -1;
         _hovered = _chosen = _focus = -1;
+        _animationClock.Restart();
         Enabled = true;
     }
 
@@ -139,6 +142,8 @@ public sealed class ElainaSkillWheel : BaseBody
             _opacityAtClose[i] = OpeningOpacity(_time, i);
         }
         _closeTime = 0;
+        // Start the closing interval at the displayed pose, just like reversing the skill book.
+        _animationClock.Restart();
 
         if (_chosen < 0 || _slots[_chosen] == ElainaSkillModPlayer.CurrentSkillIndex) return;
         ElainaSkillModPlayer.CurrentSkillIndex = _slots[_chosen];
@@ -147,6 +152,7 @@ public sealed class ElainaSkillWheel : BaseBody
 
     private void CloseImmediately()
     {
+        _animationClock.Stop();
         _open = _anchorPending = false;
         _closeTime = -1;
         _hovered = _chosen = -1;
@@ -171,8 +177,10 @@ public sealed class ElainaSkillWheel : BaseBody
             CloseImmediately();
             return;
         }
-        float dt = Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f);
         if (_open && (!CanStayOpen || !SkillsUnchanged())) Close(false);
+        // SUI updates this state during drawing. Terraria's cached update delta can be tiny
+        // with Subtle frame skipping, so use the same real-time clock as the skill book.
+        float dt = _animationClock.Sample();
 
         if (_anchorPending)
         {

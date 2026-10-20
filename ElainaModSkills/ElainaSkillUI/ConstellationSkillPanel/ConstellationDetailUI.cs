@@ -7,18 +7,23 @@ using SilkyUIFramework.Elements;
 using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria;
+using 伊蕾娜.System.UI;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 public sealed partial class ConstellationSkillPanel
 {
-    private float _detailLayoutScale = 1;
     private void InitializeDetailScroll()
     {
-        _detailScroll = new SUIScrollView
+        _detailScroll = new ElasticPageScrollView
         {
             Positioning = Positioning.Absolute, Border = 0, Padding = new Margin(0),
-            Gap = new Size(0), BackgroundColor = Color.Transparent
+            Gap = new Size(0), BackgroundColor = Color.Transparent,
+            AcceptInput = () => Enabled && IsInteractable && _book.IsOpen &&
+                _state?.IsCurrentPlayer == true && !_state.EmptyFilter,
+            // Switches and related skill icons retain their click gestures.
+            CanDrag = e => !_detailRows.Any(r => r.View == e.Source && r.Row != null &&
+                r.Row.Actions.Any(a => a.Area.Contains(((e.MousePosition - r.View.Bounds.Position) / _scale).ToPoint())))
         }.Join(this);
         _detailScroll.Mask.IndependentRenderTarget = false;
         _detailScroll.Mask.Border = 0;
@@ -32,13 +37,6 @@ public sealed partial class ConstellationSkillPanel
         content.Padding = new Margin(0);
         content.SetHeight(0, 0);
         content.FitHeight = true;
-        _detailScroll.ScrollBar.Positioning = Positioning.Absolute;
-        _detailScroll.ScrollBar.BackgroundColor = Color.Transparent;
-        _detailScroll.ScrollBar.BarColor = (ConstellationDrawing.Muted * .33f, ConstellationDrawing.Lavender * .6f);
-        _detailScroll.ScrollBar.Border = 0;
-        _detailScroll.ScrollBar.Padding = new Margin(0);
-        // Even at the scroll boundary, do not hand this wheel input back to the game.
-        _detailScroll.MouseWheel += (_, e) => e.LockScroll(_detailScroll);
     }
 
     private void InvalidateDetail(bool resetScroll)
@@ -60,7 +58,7 @@ public sealed partial class ConstellationSkillPanel
                 var row = _detailRows[index].Row;
                 if (row == null) return;
                 var mouse = (Main.MouseScreen - v.Bounds.Position) / _scale;
-                var action = _book.IsOpen && v.IsMouseHovering
+                var action = _book.IsOpen && !_detailScroll.Motion.Dragging && v.IsMouseHovering
                     ? row.Actions.FirstOrDefault(a => a.Area.Contains(mouse.ToPoint())) : null;
                 var oldOrigin = _draw.Origin;
                 _draw.Origin = v.Bounds.Position;
@@ -80,7 +78,7 @@ public sealed partial class ConstellationSkillPanel
             }.Join(_detailScroll.Container);
             view.LeftMouseClick += (_, e) =>
             {
-                if (!_book.IsOpen || _state == null || _state.EmptyFilter) return;
+                if (!_book.IsOpen || _state == null || _state.EmptyFilter || _detailScroll.Motion.DidDrag) return;
                 var row = _detailRows[index].Row;
                 var local = (e.MousePosition - view.Bounds.Position) / _scale;
                 var action = row?.Actions.FirstOrDefault(a => a.Enabled && a.Area.Contains(local.ToPoint()));
@@ -105,7 +103,7 @@ public sealed partial class ConstellationSkillPanel
         LayoutDetail();
         if (_resetDetailScroll)
         {
-            _detailScroll.ScrollBar.SetScrollPosition(Vector2.Zero);
+            _detailScroll.ResetPosition();
             _resetDetailScroll = false;
         }
     }
@@ -117,14 +115,7 @@ public sealed partial class ConstellationSkillPanel
         _detailScroll.SetLeft(_origin.X + ConstellationDetail.Left * _scale, 0, 0);
         _detailScroll.SetTop(_origin.Y + _detail.Top * _scale, 0, 0);
         _detailScroll.SetSize(ConstellationDetail.Width * _scale, _detail.Height * _scale, 0, 0);
-        _detailScroll.ScrollBar.SetLeft((ConstellationDetail.Width + 3) * _scale, 0, 0);
-        _detailScroll.ScrollBar.SetSize(3 * _scale, _detail.Height * _scale, 0, 0);
-        _detailScroll.ScrollBar.Invalid = _detail.ContentHeight <= _detail.Height;
-        var scroll = _detailScroll.ScrollBar.CurrentScrollPosition * (_scale / _detailLayoutScale);
-        _detailLayoutScale = _scale;
-        _detailScroll.ScrollBar.SetVScrollRange(_detail.Height * _scale, _detail.ContentHeight * _scale);
-        _detailScroll.ScrollBar.SetScrollPosition(Vector2.Clamp(scroll,
-            Vector2.Zero, _detailScroll.ScrollBar.GetScrollRange()));
+        _detailScroll.SetPageRange(_detail.Height, _detail.ContentHeight, _scale);
         foreach (var (view, row) in _detailRows)
             if (row != null) view.SetSize(ConstellationDetail.Width * _scale, row.Height * _scale, 0, 0);
     }

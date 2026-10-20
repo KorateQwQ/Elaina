@@ -86,6 +86,15 @@ public sealed partial class ConstellationSkillPanel
             }
             Notify($"角色等级提升至 Lv. {playerState.GetLevel()}");
         }, h => DrawDebugButton("level", h), "提升角色当前等级", () => !Editing);
+        Button(ToolButton("max-level", false), () =>
+        {
+            if (Editing || !_state.IsCurrentPlayer) return;
+            var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
+            bool changed = playerState.DebugMaxLevel();
+            InvalidateDetail(false);
+            Notify(changed ? $"角色已升满级 · Lv. {playerState.GetLevel()}"
+                : $"当前等级已达到上限 Lv. {playerState.GetMaxLevel()}");
+        }, h => DrawDebugButton("max-level", h), "角色等级升至当前上限，经验归零，不推进 Boss 进度", () => !Editing);
         Button(ToolButton("cap", false), () =>
         {
             if (Editing) return;
@@ -98,6 +107,16 @@ public sealed partial class ConstellationSkillPanel
             Notify($"角色进度推进至 {bossName} · Progress {bossState:0.##} · 等级上限 Lv. {playerState.GetMaxLevel()}");
         }, h => DrawDebugButton("cap", h), visible: () => !Editing,
             dynamicTooltip: () => Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().DebugGetNextBossTooltip());
+        Button(ToolButton("master-skills", false), () =>
+        {
+            if (Editing) return;
+            StopDragging();
+            if (!_state.DebugMasterSkills(out int learned, out int levels)) return;
+            _ancestors = _state.Ancestors();
+            InvalidateDetail(true);
+            Notify($"精通完成 · 角色 Lv. {Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().GetLevel()} · 新学 {learned} 个技能 · 技能共提升 {levels} 级");
+        }, h => DrawDebugButton("master-skills", h),
+            "先升至当前等级上限，再学会当前可解锁的全部技能并升至当前可达最高等级；免材料与研习点，保留阶段和前置条件", () => !Editing);
         Button(ToolButton("reset-skills", false), () =>
         {
             if (Editing) return;
@@ -143,7 +162,11 @@ public sealed partial class ConstellationSkillPanel
     {
 #if DEBUG
         if (Editing) return;
-        string label = kind switch { "points" => "研习点", "level" => "升级", "cap" => "上限+", _ => "重置" };
+        string label = kind switch
+        {
+            "points" => "研习点", "level" => "升级", "max-level" => "升满级",
+            "cap" => "上限+", "master-skills" => "精通技能", _ => "重置"
+        };
         var area = ToolButton(kind, false);
         _draw.GhostButton(area.X, area.Y + 2, area.Width, label, hover);
 #endif

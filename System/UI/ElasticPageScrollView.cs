@@ -4,16 +4,16 @@ using SilkyUIFramework;
 using SilkyUIFramework.Elements;
 using Terraria;
 
-namespace 伊蕾娜.ElainaModAlchemy.UI;
+namespace 伊蕾娜.System.UI;
 
-internal sealed class AlchemyPageScrollView : SUIScrollView
+internal sealed class ElasticPageScrollView : SUIScrollView
 {
-    internal AlchemyScrollMotion Motion { get; } = new();
+    internal ElasticScrollMotion Motion { get; } = new();
     internal Func<bool> AcceptInput;
     internal Func<UIMouseEvent, bool> CanDrag;
     private float _scale = 1;
 
-    internal AlchemyPageScrollView()
+    internal ElasticPageScrollView()
     {
         // The page owns its offset; SUI's bar would clamp it during Draw.
         ScrollBar.Invalid = true;

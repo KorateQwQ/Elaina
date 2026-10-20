@@ -1,0 +1,104 @@
+using System.Diagnostics;
+using System.Reflection;
+using KL.SkillSystem;
+using SilkyUIFramework;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
+
+internal static class TimingChecks
+{
+    private static readonly GameTime ZeroTime = new(TimeSpan.Zero, TimeSpan.Zero);
+    private static int checks;
+    private static void Require(bool condition, string reason)
+    {
+        checks++;
+        if (!condition) throw new InvalidOperationException(reason);
+    }
+    private static T Read<T>(ElainaSkillWheel wheel, string name) =>
+        (T)typeof(ElainaSkillWheel).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(wheel)!;
+
+    private static ElainaSkillWheel Open(ElainaSkillWheel wheel = null)
+    {
+        wheel ??= new();
+        SilkyUIRenderSystem.Instance.Body = wheel;
+        Terraria.Main.LocalPlayer.mouseInterface = false;
+        Terraria.Main.hasFocus = true;
+        Terraria.Main.MouseScreen = new(500, 400);
+        ElainaSkillModPlayer.GetActiveSkill = Enumerable.Range(0, MaxItems).Select(_ => new Skill()).ToList();
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        ElainaSkillWheel.HandleInput(new() { Current = true, JustPressed = true });
+        Require(wheel.Enabled && wheel.IsInteractable, "press opens the production wheel");
+        return wheel;
+    }
+
+    private static void Main()
+    {
+        var wheel = Open();
+        wheel.Step(ZeroTime);
+        float before = Read<float>(wheel, "_time");
+        Thread.Sleep(55);
+        wheel.Step(ZeroTime);
+        Require(Read<float>(wheel, "_time") - before >= .04f, "zero game delta cannot stall opening");
+
+        // One slow frame must consume its full wall interval, rather than the old 100ms cap.
+        before = Read<float>(wheel, "_time");
+        var wall = Stopwatch.StartNew();
+        Thread.Sleep(170);
+        wheel.Step(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks(10)));
+        float elapsed = Read<float>(wheel, "_time") - before;
+        Require(elapsed >= .15f && elapsed <= wall.Elapsed.TotalSeconds + .02,
+            "tiny cached game delta and slow rendering still follow elapsed wall time");
+        Thread.Sleep(200);
+        wheel.Step(ZeroTime);
+        float seconds = Read<float>(wheel, "_time");
+        Require(Read<float>(wheel, "_presence") == 1 && OpeningOpacity(seconds, 7) == 1
+            && Math.Abs(OpeningExtent(seconds, 7) - 1) < .00001f, "all eight items finish opening with zero game delta");
+
+        before = Read<float>(wheel, "_time");
+        wall.Restart();
+        for (int i = 0; i < 100; i++) wheel.Step(new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(20)));
+        elapsed = Read<float>(wheel, "_time") - before;
+        Require(elapsed <= wall.Elapsed.TotalSeconds + .02,
+            "repeated draw calls do not count a stale or oversized game delta repeatedly");
+
+        // Pick the third equipped skill using the actual wheel's hit test and release handler.
+        Terraria.Main.MouseScreen = new(650, 400);
+        wheel.Step(ZeroTime);
+        Require(Read<int>(wheel, "_hovered") == 2, "right sector targets the third skill");
+        Thread.Sleep(80);
+        ElainaSkillWheel.HandleInput(new() { Current = false });
+        Require(ElainaSkillModPlayer.CurrentSkillIndex == 2 && !wheel.IsInteractable && wheel.Enabled,
+            "release commits selection while preserving the fade");
+        var closeWall = Stopwatch.StartNew();
+        wheel.Step(ZeroTime);
+        Require(Read<float>(wheel, "_closeTime") <= closeWall.Elapsed.TotalSeconds + .02,
+            "closing does not inherit time elapsed before the release");
+        Thread.Sleep(370);
+        wheel.Step(ZeroTime);
+        Require(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
+            "close completes even with zero game delta and stops the hidden clock");
+
+        Thread.Sleep(100);
+        wall.Restart();
+        Open(wheel);
+        wheel.Step(ZeroTime);
+        Require(Read<float>(wheel, "_time") <= wall.Elapsed.TotalSeconds + .02,
+            "reopening does not inherit the hidden interval");
+        Thread.Sleep(35);
+        wheel.Step(ZeroTime);
+        ElainaSkillWheel.HandleInput(new() { Current = false });
+        Open(wheel);
+        Require(Read<float>(wheel, "_time") == 0 && Read<float>(wheel, "_closeTime") == -1,
+            "rapid reopen resets the old fade");
+        Terraria.Main.hasFocus = false;
+        wheel.Step(ZeroTime);
+        Require(!wheel.IsInteractable, "loss of focus cancels the wheel");
+        wheel.ExitTree();
+        Require(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
+            "tree exit stops and clears animation");
+
+        Console.WriteLine($"PASS: {checks} production skill-wheel timing/input checks (isolated game/SUI boundary).");
+    }
+}

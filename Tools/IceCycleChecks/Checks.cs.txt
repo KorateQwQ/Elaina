@@ -97,9 +97,10 @@ static class Checks
         batch.OnHit(player, part, 1, false); Near(skill.CurrentCD, 59.7, "Shared part no extra skill refund"); Near(target.GetFreezeCooldown(), 570, "Shared anchor no duplicate freeze refund");
         batch.OnHit(player, other, 1, false); Near(skill.CurrentCD, 59.7, "Second enemy no extra skill refund"); Near(other.GetFreezeCooldown(), 570, "Independent enemy receives freeze refund");
         batch.Reset(); batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 59.4, "Next paid pulse refunds again");
-        batch = new IceWaterHitBatch(); batch.OnHit(player, target, 1, true); batch.OnHit(player, target, 1, true); batch.OnHit(player, other, 1, true);
-        Near(skill.CurrentCD, 56.4, "Orb direct and explosion refund once"); Near(target.GetFreezeCooldown(), 300, "Orb same target freezes once"); Near(other.GetFreezeCooldown(), 330, "Orb other enemy freezes once");
-        FreezeCD(target, 0); batch.Reset(); batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 56.1, "Fresh phase target still refunds lock"); Near(target.GetFreezeCooldown(), 0, "No negative freeze CD");
+        FreezeCD(target, 1200); FreezeCD(other, 1200);
+        batch = new IceWaterHitBatch(); batch.OnHit(player, target, 1, true); batch.OnHit(player, target, 1, true); batch.OnHit(player, part, 1, true); batch.OnHit(player, other, 1, true);
+        Near(skill.CurrentCD, 51.4, "Orb direct and explosion refund once"); Near(target.GetFreezeCooldown(), 600, "Orb same target and shared parts refund once"); Near(other.GetFreezeCooldown(), 600, "Orb other enemy receives ten-second freeze refund");
+        FreezeCD(target, 0); batch.Reset(); batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 51.1, "Fresh phase target still refunds lock"); Near(target.GetFreezeCooldown(), 0, "No negative freeze CD");
         batch.Reset(); batch.OnHit(otherPlayer, target, 1, true); Near(otherSkill.CurrentCD, 60, "Remote player's client callbacks do not refund");
         cycle.ReduceLockCooldown(100); Check(skill.Stack == 1 && skill.CurrentCD == 0, "Refund completes a charge immediately");
         Check(((IceShardLockSkill)skill.ModSkill).IsSealed, "Water completing cooldown cannot unseal");
@@ -148,7 +149,7 @@ static class Checks
         for (int i = 0; i < 36; i++) global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 2.8f);
         Check(freezeEvents == previousEvents, "Freeze cooldown blocks buildup");
         player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill.Clear(); batch.Reset(); batch.OnHit(player, target, 1, true);
-        Near(target.GetFreezeCooldown(), 360, "Water still reduces freeze CD without learning lock");
+        Near(target.GetFreezeCooldown(), 0, "Water still reduces freeze CD without learning lock and clamps at zero");
 
         var burst = Attach(new IceShardLockProj()); burst.Projectile.Center = Vector2.Zero;
         Check(burst.CanDamage() == false, "Lock cannot damage during gathering");
@@ -176,7 +177,13 @@ static class Checks
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)), out var config, out var error), error);
         var entry = config.Skills[nameof(IceShardLockSkill)];
         Near(entry.FreezeBuildup, 0, "Ice Shard Lock config chooses zero buildup per hit");
-        Near(config.Skills[nameof(IceConeSkill)].FreezeBuildup, 5.6, "Ice Cone config owns its per-hit buildup");
+        using var savedJson = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)));
+        double savedIceBuildup = savedJson.RootElement.GetProperty("configuration").GetProperty("basicAttacks")
+            .EnumerateArray().Single(row => row.GetProperty("id").GetString() == nameof(IceConeSkill)).GetProperty("freezeBuildup").GetDouble();
+        Near(config.Skills[nameof(IceConeSkill)].FreezeBuildup, savedIceBuildup, "Ice Cone parser preserves user-saved per-hit buildup");
+        var waterBall = config.Skills["WaterBallSkill"];
+        Near(waterBall.ManaCost, 100, "Water Ball costs one hundred mana");
+        Near(config.GetSkillDamage(1, waterBall, 95), 6.75, "Water Ball lower cost preserves its original damage budget");
         Near(entry.BaseCooldown, 60, "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
         Near(config.GetSkillDamage(1, entry, 95), 31.8, "Longer CD preserves single-cast damage budget");
         Check(entry.InitialCharges == 1 && entry.MaxCharges == 1, "One opening charge, no stockpile");

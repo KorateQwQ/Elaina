@@ -132,6 +132,16 @@ public class ElainaStatePlayer : KLModPlayer
         return true;
     }
 
+    public bool DebugMaxLevel()
+    {
+        NormalizeLevel();
+        int cap = GetMaxLevel();
+        if (CurrentLevel >= cap) return false;
+        CurrentLevel = cap;
+        Experience = 0;
+        return true;
+    }
+
     public bool DebugGetNextBoss(out string bossName, out float bossState)
     {
         return KLGameStateManager.TryGetNextBoss(Progress, out bossName, out bossState);

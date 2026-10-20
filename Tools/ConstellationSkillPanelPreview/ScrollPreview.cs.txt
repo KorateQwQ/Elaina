@@ -1,0 +1,47 @@
+using 伊蕾娜.System.UI;
+
+internal static class ScrollPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        string directory = Path.Combine(output, "scroll-frames");
+        Directory.CreateDirectory(directory);
+        var checks = new List<string>();
+        foreach (var (width, height, scale) in new[] { (1280, 720, 1f), (1600, 1000, 1.25f) })
+        foreach (bool bottom in new[] { false, true })
+        foreach (bool wheel in new[] { false, true })
+        foreach (int frame in new[] { 0, 6, 12, 24, 60 })
+        {
+            string name = $"{(wheel ? "wheel" : "drag")}-{(bottom ? "bottom" : "top")}-{width}-{frame:000}";
+            using var target = new RenderTarget2D(device, width, height);
+            device.SetRenderTarget(target);
+            device.Clear(new Color(20, 21, 28));
+            new PanelScene().Render(batch, width, height, scale, "growth-long", detail =>
+            {
+                var motion = new ElasticScrollMotion();
+                motion.SetRange(detail.ContentHeight - detail.Height);
+                if (motion.Maximum <= 0) throw new InvalidOperationException("Scroll fixture must overflow the detail viewport.");
+                float edge = bottom ? motion.Maximum : 0;
+                motion.Reset(edge);
+                if (wheel) motion.Wheel(bottom ? 120 : -120);
+                else { motion.BeginDrag(0, true); motion.DragTo(bottom ? -160 : 160); }
+                for (int i = 0; i <= frame; i++)
+                {
+                    if (i == 6 && !wheel) motion.EndDrag();
+                    motion.Advance(1f / 60);
+                }
+                if (frame == 6 && (bottom ? motion.Position <= edge : motion.Position >= edge))
+                    throw new InvalidOperationException($"{name}: missing elastic edge feedback.");
+                if (frame == 60 && motion.Position != edge)
+                    throw new InvalidOperationException($"{name}: detail did not settle at its edge.");
+                checks.Add($"PASS {name}: position={motion.Position:0.000}, maximum={motion.Maximum:0.000}");
+                return motion.Position;
+            });
+            device.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(directory, name + ".png"));
+            target.SaveAsPng(stream, width, height);
+        }
+        File.WriteAllLines(Path.Combine(directory, "checks.txt"), checks);
+        Console.WriteLine($"{checks.Count} skill detail scroll samples passed: {directory}");
+    }
+}

@@ -285,19 +285,19 @@ internal sealed class ConstellationDetail
         }
     }
 
-    internal static Rectangle PillArea(int index, int count)
+    internal static Rectangle PillArea(ConstellationPill pill)
     {
-        float width = (Width - 10 * (count - 1)) / (float)count;
-        return new Rectangle((int)MathF.Round(Left + index * (width + 10)), (int)ActionTop, (int)MathF.Round(width), (int)ActionHeight);
+        const int gap = 10, width = (Width - gap) / 2;
+        // Keep loadout actions on the right even after the upgrade action disappears at max level.
+        int slot = pill.Kind is "equip" or "unequip" ? 1 : 0;
+        return new Rectangle(Left + slot * (width + gap), (int)ActionTop, width, (int)ActionHeight);
     }
 
-    // The 10px gaps between pills count toward the nearer pill so no click falls through.
-    internal static int PillAt(int count, Vector2 point)
+    internal static int PillAt(ConstellationPill[] pills, Vector2 point)
     {
-        if (count == 0 || point.Y < ActionTop || point.Y > ActionTop + ActionHeight) return -1;
-        float width = (Width - 10 * (count - 1)) / (float)count;
-        int index = (int)MathF.Floor((point.X - Left + 5) / (width + 10));
-        return index >= 0 && index < count ? index : -1;
+        for (int i = 0; i < pills.Length; i++)
+            if (PillArea(pills[i]).Contains((int)point.X, (int)point.Y)) return i;
+        return -1;
     }
 
     internal static ConstellationPill[] Pills(ConstellationState state)
