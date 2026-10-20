@@ -20,8 +20,8 @@ foreach ($path in @('AlchemyRecipe.cs', 'AlchemyIngredient.cs', 'UI/AlchemyCatal
     if ($path -eq 'Buffs/*.cs') { $source.SetAttribute('Exclude', "$repo/ElainaModAlchemy/Buffs/MoonDewElixirBuff.cs") }
 }
 $itemSources = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/item/**/*.cs"
-# Moon dew requires the full player implementation and is covered by run-integration.ps1.
-$itemSources.SetAttribute('Exclude', "$repo/ElainaModAlchemy/item/Potions/MoonDewElixir.cs;$repo/ElainaModAlchemy/item/AlchemyCatalogItemTypes.cs")
+# Character-dependent items require the full player implementation, checked by run-integration.ps1.
+$itemSources.SetAttribute('Exclude', "$repo/ElainaModAlchemy/item/Potions/MoonDewElixir.cs;$repo/ElainaModAlchemy/item/Foods/HoneyBread.cs;$repo/ElainaModAlchemy/item/AlchemyCatalogItemTypes.cs")
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/PotionBehaviorChecks.cs.txt"

@@ -103,7 +103,7 @@ internal sealed class AlchemyPreviewGame : Game
             return;
         }
         string[] scenes = ["new", "all", "potion", "bloodlust", "curio", "curio-locked", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "header-reference", "close-hover", "brew-050", "detail-bottom", "catalog-bottom", "catalog-middle", "redesign-reference", "starpower"];
-        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials", "focus", "resonance" }).ToArray();
+        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials", "focus", "resonance", "bread", "stew", "brulee" }).ToArray();
         if (StarPowerOnly) scenes = ["starpower"];
         if (FocusScene != null) scenes = [FocusScene];
         foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
@@ -132,6 +132,7 @@ internal sealed class AlchemyPreviewGame : Game
             case "curio-dust": state.SetCategory("curio"); state.Select("mimic"); break;
             case "curio-rain": state.SetCategory("curio"); state.Select("rain"); break;
             case "food": state.SetCategory("food"); break;
+            case "bread": case "stew": case "brulee": state.SetCategory("food"); state.Select(scene); break;
             case "material": state.SetCategory("material"); break;
             case "potion": state.SetCategory("potion"); break;
             case "vanilla-materials": state.SetCategory("potion"); state.Select("isolation"); break;

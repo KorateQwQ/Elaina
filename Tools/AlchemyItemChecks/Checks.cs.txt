@@ -60,7 +60,7 @@ internal static class Checks
             .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(AlchemyItem)) && t.Name != "AshenFacsimileDust" &&
                 t.Namespace?.StartsWith("伊蕾娜.ElainaModAlchemy.item.", StringComparison.Ordinal) == true)
             .Select(t => (AlchemyItem)Activator.CreateInstance(t)).ToArray();
-        Assert(production.Length == 21, "All 21 production items in this isolated check are present");
+        Assert(production.Length == 20, "All 20 production items in this isolated check are present");
         var existingNames = new HashSet<string> { "Painkiller", "BloodthirstPotion", "StarPowerPotion",
             "ConcentrationPotion", "ResonancePotion", "FeatherlightPotion" };
         foreach (var item in production.Where(i => !existingNames.Contains(i.Name)))
@@ -69,6 +69,13 @@ internal static class Checks
             var entry = AlchemyCatalog.GetRecipe(item.EntryId);
             Assert(item.Item.width == entry.PixelWidth && item.Item.height == entry.PixelHeight &&
                 item.Item.rare == entry.Rarity, item.Name + " uses catalog dimensions and rarity");
+            if (item is AlchemyFood)
+            {
+                Assert(item.Item.consumable && item.Item.useStyle == ItemUseStyleID.EatFood &&
+                    item.Item.buffTime == 18000 && item.GetType().BaseType == typeof(AlchemyFood),
+                    item.Name + " is an edible five-minute food");
+                continue;
+            }
             Assert(item.Item.maxStack == (item.Name == "AetherDropper" ? 1 : Item.CommonMaxStack) &&
                 item.Item.value == 0 && !item.Item.consumable && item.Item.useStyle == ItemUseStyleID.None,
                 item.Name + " presentation defaults do not consume items");
@@ -120,15 +127,16 @@ internal static class Checks
             !File.Exists(Path.Combine(repo, "ElainaModAlchemy/item/AlchemyNotebookItem.cs")),
             "Redundant intermediate item base is removed");
 
-        // These two older concrete classes have player/crafting dependencies outside
-        // this isolated runtime test; check their unchanged base/asset contracts here.
+        // These concrete classes have player/crafting dependencies outside this
+        // isolated runtime test; check their base/asset contracts here.
         foreach (var (folder, name, id) in new[]
         {
-            ("Potions", "MoonDewElixir", "mana"), ("Curios", "AshenFacsimileDust", "mimic")
+            ("Potions", "MoonDewElixir", "mana"), ("Curios", "AshenFacsimileDust", "mimic"),
+            ("Foods", "HoneyBread", "bread")
         })
         {
             string source = File.ReadAllText(Path.Combine(repo, $"ElainaModAlchemy/item/{folder}/{name}.cs"));
-            string expectedBase = name == "MoonDewElixir" ? "AlchemyPotion" : "AlchemyItem";
+            string expectedBase = name switch { "MoonDewElixir" => "AlchemyPotion", "HoneyBread" => "AlchemyFood", _ => "AlchemyItem" };
             Assert(source.Contains($"class {name} : {expectedBase}") && source.Contains($"EntryId => \"{id}\"") &&
                 (!source.Contains("override string LocalizationCategory") || source.Contains("\"Alchemy.Items\"")) &&
                 (!source.Contains("override string Texture") || source.Contains(AlchemyCatalog.GetRecipe(id).PixelPath)),
@@ -136,7 +144,7 @@ internal static class Checks
         }
 
         Console.WriteLine($"Alchemy items: {passed} registration, defaults, inheritance, and pixel asset checks passed; checking localization.");
-        string[] allNames = production.Select(i => i.Name).Concat(new[] { "MoonDewElixir", "AshenFacsimileDust" }).ToArray();
+        string[] allNames = production.Select(i => i.Name).Concat(new[] { "MoonDewElixir", "AshenFacsimileDust", "HoneyBread" }).ToArray();
         foreach (string culture in new[] { "zh-Hans", "en-US" })
         {
             var texts = Localization(repo, culture);
@@ -150,7 +158,7 @@ internal static class Checks
             Assert(!texts.Keys.Any(k => k.StartsWith("Mods.伊蕾娜.Alchemy.NotebookItems.", StringComparison.Ordinal)),
                 culture + " has no obsolete NotebookItems localization keys");
         }
-        Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 21 real item registrations, 6 real Buff registrations, both localization cultures checked.");
+        Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 20 real item registrations, 6 real Buff registrations, both localization cultures checked.");
         PotionBehaviorChecks.Run(Mod);
     }
 

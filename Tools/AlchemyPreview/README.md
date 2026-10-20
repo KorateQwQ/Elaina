@@ -17,6 +17,8 @@ pwsh -File Tools/AlchemyPreview/run.ps1 -Culture en-US -Configuration Release
 
 新增配方材料还须遵守 `ElainaModAlchemy/AGENTS.md`。预览启动时会按正式目录检查所有材料与配方图标的轮廓 PNG，即使新材料尚未导出到 `material-sources` 也会报出缺失路径。四种职业药水分别用 `-Scene bloodlust`、`-Scene starpower`、`-Scene focus`、`-Scene resonance` 检查材料行和底栏。
 
+三种料理分别使用 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene bread`、`-Scene stew`、`-Scene brulee`。2026-10-20 已检查三个中文页面的默认与 125% 缩放，以及英文面包页面的 Release 预览；使用正式目录和本地化，显示面包的角色差异、30 点生命恢复、炖菜的酒足饭饱、布蕾的吃得好及统一的 5 分钟时长。图片位于上述输出目录，文件名前缀分别为 `bread`、`stew`、`brulee`。
+
 这些输出是 **FNA 离线预览**。正式 SUI 滚轮、拖动、点击、游戏内内容重载和联机生命周期仍需游戏内验收。下文彩铅与旧纸卡记录仅供旧资产维护，现版不再使用其资源校验。
 
 

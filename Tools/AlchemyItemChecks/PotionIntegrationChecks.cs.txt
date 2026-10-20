@@ -73,6 +73,7 @@ static class Checks
         CheckMoonDew(player, other);
         CheckStarPower(player);
         Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom, moon dew and star power).");
+        FoodIntegrationChecks.Run(player, other);
     }
 
     static void CheckMoonDew(Player player, Player other)

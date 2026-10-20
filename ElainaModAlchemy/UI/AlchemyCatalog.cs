@@ -385,8 +385,9 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.Elaina", "Catalog.ExquisitelyStuffedRestores50Life"),
-                new("Catalog.OtherPlayers", "Catalog.WellFedDoesNotRestoreLife"),
+                new("Catalog.Elaina", "Catalog.PlentySatisfiedRestores30Life"),
+                new("Catalog.OtherCharacters", "Catalog.WellFedDoesNotRestoreLife"),
+                new("Catalog.Duration", "Catalog.5Min"),
             },
         },
         new()
@@ -404,7 +405,8 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.FoodEffect", "Catalog.PlentySatisfied"),
+                new("Catalog.FoodEffect", "Catalog.ExquisitelyStuffed"),
+                new("Catalog.Duration", "Catalog.5Min"),
             },
         },
         new()
@@ -423,6 +425,7 @@ public static class AlchemyCatalog
             Effects = new AlchemyCatalogEffect[]
             {
                 new("Catalog.FoodEffect", "Catalog.WellFed"),
+                new("Catalog.Duration", "Catalog.5Min"),
             },
         },
         new()
