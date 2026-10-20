@@ -1,0 +1,189 @@
+using System.Reflection;
+using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using GameMain = Terraria.Main;
+
+static class FrostVeilChecks
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    static int passed;
+    static void Check(bool ok, string message) { if (!ok) throw new Exception(message); passed++; }
+    static Skill Wrap(ModSkill spell)
+    {
+        var skill = new Skill();
+        typeof(Skill).GetProperty("ModSkill", All)!.SetValue(skill, spell);
+        spell.Skill = skill; spell.Initialize();
+        skill.BasicStatus = Skill.SKillBasicStatus.UnLock;
+        skill.Level = 1;
+        return skill;
+    }
+    public static void Run(Player original)
+    {
+        GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
+        var skills = original.GetModPlayer<ElainaSkillModPlayer>();
+        var ice = Wrap(new IceConeSkill());
+        var frost = Wrap(new FrostVeilSkill());
+        var iceLock = Wrap(new IceShardLockSkill());
+        skills.SkillPoint = 20;
+        original.inventory[0] = new Item { type = ItemID.Wood, stack = 10 };
+        Check(!frost.ModSkill.UnlockCondition.CanUnlock(skills, frost.ModSkill), "Veil requires learned Ice Cone");
+        skills.UnlockedSkill[nameof(IceConeSkill)] = ice;
+        ice.Level = 12;
+        Check(!frost.ModSkill.UnlockCondition.CanUnlock(skills, frost.ModSkill), "Ice Cone 12 is insufficient");
+        ice.Level = 13;
+        Check(frost.ModSkill.UnlockCondition.CanUnlock(skills, frost.ModSkill), "Ice Cone 13 unlocks veil");
+        skills.SkillPoint = 0;
+        Check(!frost.ModSkill.UnlockCondition.CanUnlock(skills, frost.ModSkill), "Default unlock cost is retained");
+        skills.SkillPoint = 20;
+        int planteraCap = KL.Utils.KLGameStateManager.GetLevelCap(KL.Utils.KLGameStateManager.Plantera);
+        Check(planteraCap == 65 && SkillBalanceSystem.Current.GetSkillLevelCap(
+            SkillBalanceSystem.Current.Skills[nameof(IceConeSkill)], planteraCap) == 19,
+            "Post-Plantera maximum Ice Cone level is 19 in the current configuration");
+        ice.Level = 18;
+        NPC.downedChristmasIceQueen = true;
+        Check(!iceLock.ModSkill.UnlockCondition.CanUnlock(skills, iceLock.ModSkill), "Ice Queen defeat with Ice Cone 18 is insufficient");
+        ice.Level = 19;
+        NPC.downedChristmasIceQueen = false;
+        Check(!iceLock.ModSkill.UnlockCondition.CanUnlock(skills, iceLock.ModSkill), "Lock needs Ice Queen defeat");
+        NPC.downedChristmasIceQueen = true;
+        Check(iceLock.ModSkill.UnlockCondition.CanUnlock(skills, iceLock.ModSkill), "Ice Queen defeat and Ice Cone 19 unlock lock");
+        skills.UnlockedSkill.Remove(nameof(IceConeSkill));
+        Check(!iceLock.ModSkill.UnlockCondition.CanUnlock(skills, iceLock.ModSkill), "Boss defeat alone is insufficient");
+        NPC.downedChristmasIceQueen = false;
+        var materials = ((CompositeSkillUnlockCondition)ice.ModSkill.UnlockCondition).Conditions.OfType<ItemSkillUnlockCondition>().Single();
+        Check(!materials.CanUnlock(skills, ice.ModSkill), "Missing Frost Core blocks unlock");
+        original.inventory[1] = new Item { type = ItemID.FrostCore, stack = 2 };
+        Check(materials.CanUnlock(skills, ice.ModSkill), "Owned Frost Core satisfies material gate");
+        materials.Consume(skills, ice.ModSkill);
+        Check(original.inventory[1].stack == 1 && original.inventory[0].stack == 10, "Material gate consumes exactly one Frost Core");
+        Check(frost.MaxCD == 60 && ((FrostVeilSkill)frost.ModSkill).MagicPointCost == 50, "Veil uses JSON cooldown and cost");
+
+        // Use the real Skill.UseSkill path, including its stack/CD accounting.
+        for (int i = 1; i < GameMain.maxPlayers; i++) GameMain.player[i] = new Player { active = false };
+        original.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = true;
+        var attributes = original.GetModPlayer<ElainaAttributeModPlayer>();
+        attributes.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 200);
+        float expectedBlock = attributes.MaxMagicPoint / 20f;
+        frost.UseSkill();
+        Check(attributes.MagicPoint == 150 && frost.Stack == 0 && frost.CurrentCD == 60, "Cast spends 50 magic and starts 60-second cooldown");
+        Check(original.GetModPlayer<FrostVeilPlayer>().Veil.Shields == 3
+            && original.GetModPlayer<FrostVeilPlayer>().Veil.Absorption == expectedBlock, "Cast uses actual maximum magic snapshot");
+        frost.UseSkill();
+        Check(attributes.MagicPoint == 150, "Second cast during cooldown cannot spend magic");
+        original.GetModPlayer<FrostVeilPlayer>().Veil.Clear();
+
+        Network();
+        Console.WriteLine($"Frost Veil unlock/cast/network: {passed} checks passed against the compiled mod.");
+    }
+
+    sealed class Endpoint
+    {
+        public int Mode, Owner;
+        public Player[] Players = new Player[GameMain.maxPlayers];
+        public Endpoint(int mode, int owner)
+        {
+            Mode = mode; Owner = owner;
+            for (int i = 0; i < Players.Length; i++)
+            {
+                var p = Players[i] = new Player { whoAmI = i, active = i < 4, team = i == 2 ? 1 : 0,
+                    Center = new Vector2(i == 3 ? 1000 : i * 300, 0) };
+                var veil = new FrostVeilPlayer();
+                typeof(ModPlayer).GetProperty("Entity", All)!.SetValue(veil, p);
+                ushort index = (ushort)typeof(ModPlayer).GetProperty("Index", All)!.GetValue(ModContent.GetInstance<FrostVeilPlayer>())!;
+                typeof(ModPlayer).GetProperty("Index", All)!.SetValue(veil, index);
+                var parts = new ModPlayer[index + 1];
+                parts[index] = veil;
+                typeof(Player).GetField("modPlayers", All)!.SetValue(p, parts);
+            }
+        }
+        public FrostVeilPlayer Veil(int id) => Players[id].GetModPlayer<FrostVeilPlayer>();
+        public void Activate() { GameMain.netMode = Mode; GameMain.myPlayer = Owner; GameMain.player = Players; }
+    }
+    record Wire(int Sender, int Mode, int To, int Ignore, byte[] Bytes);
+    static void Network()
+    {
+        var mod = new global::伊蕾娜.伊蕾娜();
+        typeof(Mod).GetField("netID", All)!.SetValue(mod, (short)0);
+        typeof(ModNet).GetField("netMods", All)!.SetValue(null, new Mod[] { mod });
+        var system = new FrostVeilSystem();
+        typeof(ModType).GetProperty("Mod", All)!.SetValue(system, mod);
+        ContentInstance.Register(system);
+        var server = new Endpoint(NetmodeID.Server, 255);
+        var a = new Endpoint(NetmodeID.MultiplayerClient, 0);
+        var b = new Endpoint(NetmodeID.MultiplayerClient, 1);
+        var observer = new Endpoint(NetmodeID.MultiplayerClient, 2);
+        var clients = new List<Endpoint> { a, b, observer };
+        var queue = new Queue<Wire>();
+        using var sendHook = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!,
+            (Action<ModPacket, int, int>)((packet, to, ignore) => {
+                packet.Flush();
+                queue.Enqueue(new(GameMain.myPlayer, GameMain.netMode, to, ignore, ((MemoryStream)packet.BaseStream).ToArray()));
+            }));
+        void Deliver(Endpoint endpoint, Wire wire)
+        {
+            endpoint.Activate();
+            using var reader = new BinaryReader(new MemoryStream(wire.Bytes));
+            reader.ReadUInt16(); reader.ReadByte(); reader.ReadByte(); // tML length, message ID, mod ID
+            mod.HandlePacket(reader, wire.Sender);
+        }
+        void Flush()
+        {
+            while (queue.TryDequeue(out var wire))
+                if (wire.Mode == NetmodeID.MultiplayerClient) Deliver(server, wire);
+                else foreach (var client in clients)
+                    if (client.Owner != wire.Ignore && (wire.To == -1 || wire.To == client.Owner)) Deliver(client, wire);
+        }
+        void SendOwner(Endpoint client)
+        {
+            client.Activate();
+            typeof(FrostVeilSystem).GetMethod("SendOwnerState", All)!.Invoke(null, [client.Veil(client.Owner)]);
+        }
+        a.Activate(); FrostVeilSystem.Cast(a.Players[0], 25); Flush();
+        foreach (var peer in clients.Append(server))
+        {
+            Check(peer.Veil(0).Veil.Shields == 3 && peer.Veil(1).Veil.Shields == 3, "Self and nearby same-team ally receive shields");
+            Check(peer.Veil(2).Veil.Shields == 0 && peer.Veil(3).Veil.Shields == 0, "Other team and distant ally are excluded");
+            Check(peer.Veil(1).Veil.Absorption == 25, "Caster snapshot reaches the recipient and observers");
+        }
+        b.Veil(1).Veil.Consume(); SendOwner(b); Flush();
+        Check(clients.Append(server).All(p => p.Veil(1).Veil.Shields == 2), "Victim's consumed layer relays to every peer");
+        Check(clients.Append(server).All(p => p.Veil(0).Veil.Shields == 3), "One ally's hit does not consume another player's layer");
+        for (int i = 0; i < 3600; i++) b.Veil(1).Veil.Tick(true);
+        SendOwner(b); Flush();
+        Check(clients.Append(server).All(p => p.Veil(1).Veil.Shields == 3 && p.Veil(1).Veil.RemainingTicks == 3600), "Renewal syncs full layers and lifetime");
+
+        // A delayed old-layer report may arrive after another player has reapplied the skill.
+        b.Veil(1).Veil.Consume(); SendOwner(b); Wire old = queue.Dequeue();
+        a.Activate(); FrostVeilSystem.Cast(a.Players[0], 30); Flush();
+        Deliver(server, old); Flush();
+        Check(clients.Append(server).All(p => p.Veil(1).Veil.Shields == 3 && p.Veil(1).Veil.Absorption == 30),
+            "Older generation cannot overwrite a new cast");
+        // Packet attribution must match the connection, even for correctly serialized state packets.
+        Deliver(server, old with { Sender = 2 }); Flush();
+        Check(server.Veil(1).Veil.Shields == 3, "Other clients cannot change a recipient's layers");
+
+        var newcomer = new Endpoint(NetmodeID.MultiplayerClient, 3); clients.Add(newcomer);
+        server.Activate(); server.Veil(1).SyncPlayer(3, -1, true); Flush();
+        Check(newcomer.Veil(1).Veil.Shields == 3 && newcomer.Veil(1).Veil.Absorption == 30, "Late join receives existing veil");
+        b.Veil(1).Veil.Consume(); b.Veil(1).Veil.Consume(); b.Veil(1).Veil.Consume(); SendOwner(b); Flush();
+        Check(clients.Append(server).All(p => p.Veil(1).Veil.Shields == 0), "Exhaustion syncs to server, observers and late joiner");
+        for (int i = 0; i < 3600; i++) b.Veil(1).Veil.Tick(true);
+        Check(b.Veil(1).Veil.Shields == 0, "Network recipient cannot auto-renew an exhausted veil");
+        server.Players[1].hostile = true;
+        a.Activate(); FrostVeilSystem.Cast(a.Players[0], 35); Flush();
+        Check(server.Veil(1).Veil.Shields == 0, "PvP ally is excluded at server selection");
+        server.Players[1].hostile = false; server.Players[1].dead = true;
+        a.Activate(); FrostVeilSystem.Cast(a.Players[0], 35); Flush();
+        Check(server.Veil(1).Veil.Shields == 0, "Dead ally is excluded");
+        var state = server.Veil(0).Veil;
+        a.Activate(); FrostVeilSystem.Cast(a.Players[0], float.NaN); Flush();
+        Check(state.Absorption == 35, "Invalid magic snapshot is rejected");
+    }
+}

@@ -15,12 +15,23 @@ public sealed partial class ConstellationSkillPanel
     private ConstellationLayoutEditor _layoutEditor;
     private Vector2 _nodeDragStart;
     private bool Editing => _layoutEditor?.IsEditing == true;
-    internal static string LayoutFilePath => Path.Combine(Main.SavePath, "ModConfigs", "Elaina", "ConstellationLayout.json");
+#if DEBUG
+    internal static string LayoutFilePath
+    {
+        get
+        {
+            string source = ModContent.GetInstance<global::伊蕾娜.伊蕾娜>().SourceFolder;
+            return string.IsNullOrWhiteSpace(source) || !Directory.Exists(source) || !File.Exists(Path.Combine(source, "build.txt"))
+                ? null
+                : Path.Combine(source, ConstellationLayout.AssetPath.Replace('/', Path.DirectorySeparatorChar));
+        }
+    }
+#endif
 
     private void LoadLayout()
     {
         var bundled = new ConstellationLayout();
-        var saved = new ConstellationLayout();
+        var authored = new ConstellationLayout();
         string error = null;
         var mod = ModContent.GetInstance<global::伊蕾娜.伊蕾娜>();
         try { bundled = ConstellationLayout.Parse(Encoding.UTF8.GetString(mod.GetFileBytes(ConstellationLayout.AssetPath))); }
@@ -29,13 +40,20 @@ public sealed partial class ConstellationSkillPanel
             error = LocalizeUI("DefaultLayoutFailed");
             mod.Logger.Warn(error, e);
         }
-        try { saved = ConstellationLayout.Read(LayoutFilePath); }
+#if DEBUG
+        // Development edits the same tracked resource that will be bundled on the next build.
+        // Published builds never read user configuration or the developer's source directory.
+        try
+        {
+            if (LayoutFilePath is { } path) authored = ConstellationLayout.Read(path);
+        }
         catch (Exception e) when (ConstellationLayout.IsFileError(e))
         {
-            error = LocalizeUI("LocalLayoutFailed");
+            error = "源码布局读取失败，已使用模组内布局";
             mod.Logger.Warn(error, e);
         }
-        _layoutEditor = new ConstellationLayoutEditor(_state, bundled, saved);
+#endif
+        _layoutEditor = new ConstellationLayoutEditor(_state, bundled, authored);
         if (error != null) Notify(error);
     }
 
@@ -45,6 +63,11 @@ public sealed partial class ConstellationSkillPanel
         Button(ToolButton("edit", false), () =>
         {
             if (Editing) { CancelLayoutEdit(); return; }
+            if (LayoutFilePath == null)
+            {
+                Notify("未找到模组源码目录，无法保存发布布局");
+                return;
+            }
             StopDragging();
             _layoutEditor.Begin();
         }, h => DrawLayoutButton("edit", h), "调整技能图标的位置");
@@ -52,13 +75,19 @@ public sealed partial class ConstellationSkillPanel
         {
             if (!Editing) return;
             StopDragging();
-            if (_layoutEditor.Save(LayoutFilePath, out string error)) Notify("布局已保存，下次打开时自动应用");
+            string path = LayoutFilePath;
+            if (path == null)
+            {
+                Notify("未找到模组源码目录，布局尚未保存");
+                return;
+            }
+            if (_layoutEditor.Save(path, out string error)) Notify("布局已保存到项目；提交可同步远端，重新构建后随模组发布");
             else
             {
                 Notify("保存失败，布局仍可编辑；请检查文件权限");
-                ModContent.GetInstance<global::伊蕾娜.伊蕾娜>().Logger.Warn($"保存星图布局失败：{LayoutFilePath}: {error}");
+                ModContent.GetInstance<global::伊蕾娜.伊蕾娜>().Logger.Warn($"保存星图布局失败：{path}: {error}");
             }
-        }, h => DrawLayoutButton("save", h), "保存到 " + LayoutFilePath, () => Editing);
+        }, h => DrawLayoutButton("save", h), "保存到项目 Layout.json；重新构建后随模组发布", () => Editing);
         Button(ToolButton("cancel", true), CancelLayoutEdit,
             h => DrawLayoutButton("cancel", h), "放弃本次位置修改", () => Editing);
         Button(ToolButton("reset", true), () =>
@@ -68,7 +97,7 @@ public sealed partial class ConstellationSkillPanel
             _layoutEditor.RestoreDefaults();
             Recenter();
             Notify("已恢复默认位置，点击保存后生效");
-        }, h => DrawLayoutButton("reset", h), "恢复模组默认布局，可取消；保存后才覆盖本地布局", () => Editing);
+        }, h => DrawLayoutButton("reset", h), "恢复当前模组包内布局，可取消；保存后写入项目", () => Editing);
         Button(ToolButton("points", false), () =>
         {
             if (Editing || !_state.DebugGrantStudyPoints()) return;

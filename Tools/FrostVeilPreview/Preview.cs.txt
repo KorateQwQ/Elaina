@@ -1,0 +1,87 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+sealed class Preview : Game
+{
+    readonly string output;
+    SpriteBatch batch;
+    Texture2D pixel, magicPixel;
+    bool done;
+    Preview(string output, string content)
+    {
+        this.output = output;
+        Content.RootDirectory = content;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 360, PreferredBackBufferHeight = 220,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        magicPixel = Content.Load<Texture2D>("Images/MagicPixel");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return;
+        done = true;
+        int checks = 0;
+        foreach (float scale in new[] { 1f, 1.5f })
+        foreach (float gravity in new[] { 1f, -1f })
+        foreach (int count in new[] { 0, 1, 2, 3 })
+        foreach (float seconds in new[] { 0f, .5f, 1.1f })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, 300, 200);
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(Color.Transparent);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                Matrix.CreateScale(scale) * Matrix.CreateTranslation(150, 100, 0));
+            FrostVeilDrawing.Draw(batch, magicPixel, Vector2.Zero, count, seconds, gravity);
+            batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            var colors = new Color[target.Width * target.Height];
+            target.GetData(colors);
+            int visible = 0;
+            for (int y = 0; y < target.Height; y++)
+            for (int x = 0; x < target.Width; x++)
+            {
+                if (colors[y * target.Width + x].A == 0) continue;
+                visible++;
+                if (Math.Abs(x - 150) > 60 * scale || Math.Abs(y - 100) > 45 * scale)
+                    throw new Exception("Shield drawing exceeds expected bounds.");
+            }
+            if (count == 0 ? visible != 0 : visible == 0) throw new Exception("Incorrect visibility.");
+            checks++;
+        }
+        using var sheet = new RenderTarget2D(GraphicsDevice, 900, 400);
+        GraphicsDevice.SetRenderTarget(sheet);
+        GraphicsDevice.Clear(new Color(18, 23, 34));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        int[] counts = [3, 2, 1, 0, 3, 3];
+        float[] times = [0, .6f, 1.1f, 1.4f, 2, 2.5f];
+        for (int i = 0; i < 6; i++)
+        {
+            int x = i % 3 * 300, y = i / 3 * 200;
+            batch.Draw(pixel, new Rectangle(x + 2, y + 2, 296, 196), new Color(27, 34, 46));
+            batch.Draw(pixel, new Rectangle(x + 144, y + 76, 12, 12), new Color(197, 201, 210));
+            batch.Draw(pixel, new Rectangle(x + 142, y + 89, 16, 28), new Color(98, 109, 130));
+            FrostVeilDrawing.Draw(batch, magicPixel, new Vector2(x + 150, y + 100), counts[i], times[i], i == 5 ? -1 : 1);
+        }
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        string path = Path.Combine(output, "frost-veil-frames.png");
+        using (var stream = File.Create(path)) sheet.SaveAsPng(stream, sheet.Width, sheet.Height);
+        Console.WriteLine($"PASS: {checks} FNA render checks; actual MagicPixel {magicPixel.Width}x{magicPixel.Height}.\n{path}");
+        Exit();
+    }
+    protected override void UnloadContent() { pixel.Dispose(); batch.Dispose(); }
+    static void Main(string[] args) { using var game = new Preview(args[0], args[1]); game.Run(); }
+}

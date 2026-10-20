@@ -1,0 +1,186 @@
+using System.IO;
+using System.Linq;
+using Terraria.ID;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+using TMain = Terraria.Main;
+
+static class Checks
+{
+    static int passed;
+    static readonly RecallPortalSystem System = new();
+    static Player P(int i) => TMain.player[i];
+    static RecallPortalProjectile Portal(int side = 0) => TMain.ActiveProjectiles.Select(p => (RecallPortalProjectile)p.ModProjectile).First(p => p.Side == side);
+    static ElainaAttributeModPlayer Mana => P(0).GetModPlayer<ElainaAttributeModPlayer>();
+    static void Check(bool result, string label) { if (!result) throw new Exception(label); passed++; }
+    static RecallSkill Setup(int mode = 0)
+    {
+        System.OnWorldUnload(); TMain.netMode = mode; TMain.myPlayer = mode == NetmodeID.Server ? 255 : 0;
+        Wire.Queue.Clear(); Wire.Spawns.Clear(); TMain.Notices.Clear();
+        for (int i = 0; i < TMain.maxPlayers; i++) TMain.player[i] = new Player { whoAmI = i, Bottom = new Vector2(800, 900) };
+        for (int i = 0; i < TMain.maxProjectiles; i++) TMain.projectile[i] = new Projectile();
+        P(0).active = true;
+        Player.ValidBed = true; Collision.Solid = Collision.Lava = _ => false;
+        ModPacket.Sent.Clear(); RemoteClient.SectionChecks = 0; ElainaHealingWheel.Reset();
+        TMain.mouseRight = false; TMain.mouseRightRelease = true;
+        var skill = new RecallSkill { Player = P(0) }; skill.Initialize();
+        var book = P(0).GetModPlayer<ElainaSkillModPlayer>(); book.Owner = skill; book.ActiveSkill.Add(skill.Skill);
+        return skill;
+    }
+    static void Tick(int count)
+    {
+        for (int n = 0; n < count; n++)
+        {
+            foreach (Player p in TMain.player) if (p.active) p.GetModPlayer<RecallPortalPlayer>().PreUpdate();
+            System.PostUpdatePlayers();
+            foreach (Projectile p in TMain.ActiveProjectiles.ToArray()) { p.ModProjectile.AI(); if (--p.timeLeft <= 0) p.Kill(); }
+        }
+    }
+    static void Packet(RecallPortalSystem.Operation op, int sender, int claimed, params int[] args)
+    {
+        using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream);
+        writer.Write((byte)op); foreach (int arg in args) writer.Write(arg);
+        stream.Position = 0; RecallPortalSystem.HandlePacket(new BinaryReader(stream), sender, claimed);
+    }
+    static void Main()
+    {
+        Selection(); TimingAndTravel(); Lifecycle(); Input(); NetworkChecks.Run(Check);
+        Console.WriteLine($"PASS: {passed} recall behavior assertions (production source, engine/network doubles).");
+    }
+    static void Selection()
+    {
+        var s = Setup();
+        Check(s.BeginWandUse() && ElainaHealingWheel.Opens == 0, "No allies: wand enters direct self-cast without a wheel");
+        P(0).GetModPlayer<ElainaSkillModPlayer>().UseSkill(0);
+        Check(ElainaHealingWheel.Opens == 0 && TMain.ActiveProjectiles.Count() == 1 && Mana.Spent == s.MagicPointCost && s.Stack == 0,
+            "Solo direct cast uses the approved payment path exactly once");
+        s = Setup(); s.PreUseSkill();
+        Check(ElainaHealingWheel.Opens == 0 && TMain.ActiveProjectiles.Count() == 1 && Mana.Spent == s.MagicPointCost,
+            "Solo non-wand entry also casts directly on self");
+        foreach (string excluded in new[] { "dead", "offline", "team", "target-pvp", "caster-pvp" })
+        {
+            s = Setup(); P(1).active = true;
+            switch (excluded)
+            {
+                case "dead": P(1).dead = true; break;
+                case "offline": P(1).active = false; break;
+                case "team": P(1).team = 2; break;
+                case "target-pvp": P(1).hostile = true; break;
+                case "caster-pvp": P(0).hostile = true; break;
+            }
+            Check(s.BeginWandUse() && ElainaHealingWheel.Opens == 0, "No eligible ally opens no wheel: " + excluded);
+        }
+        s = Setup(); P(1).active = true;
+        Check(!s.BeginWandUse() && ElainaHealingWheel.OwnsPointer && ElainaHealingWheel.Recall, "Nearby ally opens recall wheel");
+        for (int i = 0; i < 100; i++) s.BeginWandUse();
+        Check(ElainaHealingWheel.Opens == 1 && Mana.Spent == 0 && !TMain.ActiveProjectiles.Any(), "Holding neither reopens nor spends");
+        ElainaHealingWheel.Cancel();
+        Check(Mana.Spent == 0 && s.Stack == 1, "Cancel consumes nothing");
+        s.BeginWandUse(); ElainaHealingWheel.Confirm(0);
+        Check(Mana.Spent == s.MagicPointCost && s.Stack == 0 && TMain.ActiveProjectiles.Count() == 1, "Confirmation consumes once and creates charging circle");
+        ElainaHealingWheel.Confirmed(0);
+        Check(TMain.ActiveProjectiles.Count() == 1 && Mana.Spent == s.MagicPointCost, "Stale callback cannot duplicate a cast");
+        s = Setup(); P(1).active = true; P(1).Center = P(0).Center + new Vector2(3001, 0); s.BeginWandUse();
+        Check(ElainaHealingWheel.ValidTarget(0) && !ElainaHealingWheel.ValidTarget(1), "Far ally yields a self-only wheel");
+        P(1).Center = P(0).Center + new Vector2(3000, 0);
+        Check(ElainaHealingWheel.ValidTarget(1), "Exact selection boundary is allowed");
+        s = Setup(); P(1).active = true; P(1).Center = P(0).Center + new Vector2(3001, 0); s.PreUseSkill();
+        Check(ElainaHealingWheel.OwnsPointer && ElainaHealingWheel.ValidTarget(0) && !ElainaHealingWheel.ValidTarget(1) && Mana.Spent == 0,
+            "Far ally also requires self confirmation through non-wand entry");
+        foreach (string invalid in new[] { "far", "dead", "offline", "team", "pvp", "mana", "unequipped", "disabled", "charge" })
+        {
+            s = Setup(); P(1).active = true; s.BeginWandUse();
+            switch (invalid)
+            {
+                case "far": P(1).Center += new Vector2(3100, 0); break;
+                case "dead": P(1).dead = true; break;
+                case "offline": P(1).active = false; break;
+                case "team": P(1).team = 2; break;
+                case "pvp": P(1).hostile = true; break;
+                case "mana": Mana.Available = 0; break;
+                case "unequipped": P(0).GetModPlayer<ElainaSkillModPlayer>().ActiveSkill.Clear(); break;
+                case "disabled": Mana.UniqueMagicEnabled = false; break;
+                case "charge": s.Stack = 0; break;
+            }
+            ElainaHealingWheel.Confirm(1);
+            Check(!TMain.ActiveProjectiles.Any() && Mana.Spent == 0, "Revalidate on confirmation: " + invalid);
+        }
+    }
+    static void TimingAndTravel()
+    {
+        var s = Setup(); P(1).active = P(2).active = P(3).active = true;
+        P(1).SpawnX = 400; P(1).SpawnY = 300; P(2).team = 2;
+        P(3).Bottom = P(1).Bottom + new Vector2(161, 0);
+        Vector2 origin = P(1).Bottom;
+        s.BeginWandUse(); ElainaHealingWheel.Confirm(1);
+        P(1).Bottom += new Vector2(25, 0);
+        Check(Portal().Projectile.Center == origin, "Circle stays where target stood on cast");
+        Tick(89); Check(P(0).Teleports == 0 && TMain.ActiveProjectiles.Count() == 1, "No teleport before delay");
+        Tick(1);
+        Check(P(0).Teleports == 1 && P(1).Teleports == 1 && P(2).Teleports == 0 && P(3).Teleports == 0, "Initial pulse affects only allies inside the area");
+        Check(P(0).Bottom == new Vector2(6408, 4800) && P(1).Bottom == P(0).Bottom, "Group uses selected ally's bed, not each individual's spawn");
+        Check(TMain.ActiveProjectiles.Count() == 2 && Portal(1).Ready, "Destination appears at activation");
+        RecallPortalSystem.RequestTravel(P(0), Portal(1));
+        Check(P(0).Teleports == 1, "Immediate repeat blocked by travel cooldown");
+        Tick(45); P(0).velocity = new Vector2(12, 80);
+        RecallPortalSystem.RequestTravel(P(0), Portal(1));
+        Check(P(0).Bottom == origin && P(0).Teleports == 2 && P(0).velocity == Vector2.Zero, "Free return resets motion and lands at original circle");
+        Check(Mana.Spent == s.MagicPointCost && s.Stack == 0, "Travel does not spend mana or charges");
+        Tick(45); RecallPortalSystem.RequestTravel(P(0), Portal());
+        Check(P(0).Bottom == P(1).Bottom && P(0).Teleports == 3, "Origin can send player back to destination");
+        Tick(1709); Check(TMain.ActiveProjectiles.Count() == 2, "Both portals last through the 30-second window");
+        Tick(1); Check(!TMain.ActiveProjectiles.Any(), "Both portals expire together at 30 seconds after activation");
+    }
+    static void Lifecycle()
+    {
+        Setup(); Player.ValidBed = false; P(0).SpawnX = 400; P(0).SpawnY = 300;
+        RecallPortalSystem.RequestCast(P(0), 0); Tick(90);
+        Check(P(0).Bottom == new Vector2(1608, 3200), "Broken bed falls back to world spawn");
+        foreach (string reason in new[] { "dead", "offline", "team" })
+        {
+            Setup(); P(1).active = true; RecallPortalSystem.RequestCast(P(0), 1);
+            if (reason == "dead") P(1).dead = true;
+            if (reason == "offline") P(1).active = false;
+            if (reason == "team") P(1).team = 2;
+            Tick(90); Check(!TMain.ActiveProjectiles.Any() && P(0).Teleports == 0, "Invalid anchor cancels initial pulse: " + reason);
+        }
+        Setup(); RecallPortalSystem.RequestCast(P(0), 0);
+        Collision.Solid = _ => true; Tick(90);
+        Check(!TMain.ActiveProjectiles.Any() && P(0).Teleports == 0, "Completely blocked destination cancels safely");
+        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90); Tick(45);
+        Collision.Lava = _ => true; RecallPortalSystem.RequestTravel(P(0), Portal(1));
+        Check(P(0).Teleports == 1, "Blocked return never places player in lava");
+        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90);
+        Portal(1).Projectile.Kill(); Tick(1);
+        Check(!TMain.ActiveProjectiles.Any(), "Losing one endpoint cleans up the other");
+        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90); P(0).active = false; Tick(1);
+        Check(!TMain.ActiveProjectiles.Any(), "Caster disconnect cleans up both endpoints");
+        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90); System.OnWorldUnload();
+        int before = P(0).Teleports; RecallPortalSystem.RequestTravel(P(0), Portal(1));
+        Check(P(0).Teleports == before, "World unload clears authoritative registry");
+        var late = new RecallPortalProjectile { Projectile = new Projectile { ai = [8, 1800, 1] } };
+        late.SetDefaults(); late.AI();
+        Check(late.Projectile.timeLeft <= 90 && late.CanDamage() == false && !late.ShouldUpdatePosition(), "Late projectile sync retains remaining lifetime and cannot damage/move");
+    }
+    static void Input()
+    {
+        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(135);
+        var state = P(0).GetModPlayer<RecallPortalPlayer>();
+        TMain.MouseWorld = Portal(1).Projectile.Center; TMain.mouseRight = TMain.mouseRightRelease = true;
+        state.SetControls();
+        Check(P(0).Teleports == 2 && !TMain.mouseRightRelease && !P(0).controlUseTile && !P(0).controlUseItem,
+            "Right click travels once and consumes tile/item interaction");
+        Tick(45); P(0).mouseInterface = false; TMain.MouseWorld = Portal().Projectile.Center; state.SetControls();
+        Check(P(0).Teleports == 2, "Holding right click cannot bounce back");
+        P(0).mouseInterface = false; TMain.mouseRightRelease = true; ElainaHealingWheel.OwnsPointer = true; state.SetControls();
+        Check(P(0).Teleports == 2, "Target wheel owns its cancel input");
+        ElainaHealingWheel.OwnsPointer = false; ElainaSkillWheel.IsShowing = true; state.SetControls();
+        Check(P(0).Teleports == 2, "Skill wheel prevents world interaction");
+        ElainaSkillWheel.IsShowing = false; state.SetControls();
+        Check(P(0).Teleports == 3, "A fresh right click allows return travel");
+        Check(RecallPortalDrawing.Contains(new Vector2(160, 0), 160) &&
+            !RecallPortalDrawing.Contains(new Vector2(0, 49), 160), "Hover matches visible ellipse boundary");
+    }
+}

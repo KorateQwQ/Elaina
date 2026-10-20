@@ -88,6 +88,7 @@ public class MagicMissile : KLProjectile
 
     public override void OnSpawn_AllClient()
     {
+        using var measurement = RenderPerformanceDiagnostics.MeasureSkill("MagicMissile.Spawn");
         Vector2 toward = Projectile.velocity.SafeNormalize(Projectile.velocity);
 
         KLBasicDust.SpawnDust(Projectile.Center + toward * 30f, ModContent.DustType<CircleBurst>(), toward * 0.1f, 20,

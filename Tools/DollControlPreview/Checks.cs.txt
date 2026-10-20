@@ -1,0 +1,99 @@
+using System;
+using System.Linq;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using World = Terraria.Main;
+
+static class Checks
+{
+    static int assertions;
+    static void Check(bool result, string message)
+    {
+        if (!result) throw new Exception(message);
+        assertions++;
+    }
+    public static KumaPetProjectile Reset()
+    {
+        World.myPlayer = 0; World.netMode = 0;
+        World.player = Enumerable.Range(0, World.maxPlayers).Select(i => new Player { whoAmI = i }).ToArray();
+        World.projectile = Enumerable.Range(0, World.maxProjectiles).Select(_ => new Projectile()).ToArray();
+        var skill = new DollControlSkill(); skill.Initialize(); skill.PreUseSkill();
+        return (KumaPetProjectile)World.projectile[0].ModProjectile;
+    }
+    public static void Tick(DollPetProjectile doll)
+    {
+        var owner = World.player[doll.Projectile.owner];
+        owner.Center += owner.velocity;
+        doll.AI();
+        if (doll.Projectile.active) doll.Projectile.Center += doll.Projectile.velocity;
+    }
+    public static void Run()
+    {
+        var doll = Reset();
+        var skill = new DollControlSkill(); skill.Initialize();
+        var owner = World.player[0];
+        var mana = owner.GetModPlayer<ElainaAttributeModPlayer>();
+        Check(mana.MagicPoint == 80f, "First cast must cost exactly 20");
+        Check(doll.Projectile.owner == 0 && doll.CanDamage() == false && doll.CanCutTiles() == false,
+            "Doll must be owned, harmless and unable to cut grass");
+        Check(doll.Projectile.netImportant && !doll.Projectile.tileCollide, "Doll must sync on join and pass through terrain");
+        for (int i = 0; i < 600; i++) Tick(doll);
+        Check(!doll.IsMoving && doll.Projectile.frame == 0 && doll.Projectile.active, "Idle bob must not start move animation or expire");
+        foreach (float speed in new[] { 3f, 12f, 30f })
+        {
+            owner.velocity = new Vector2(speed, 0f);
+            var frames = new System.Collections.Generic.HashSet<int>();
+            float min = float.MaxValue, max = float.MinValue;
+            for (int i = 0; i < 600; i++)
+            {
+                Tick(doll); frames.Add(doll.Projectile.frame);
+                if (i > 300) { min = Math.Min(min, doll.Projectile.Center.Y); max = Math.Max(max, doll.Projectile.Center.Y); }
+            }
+            Check(doll.IsMoving && frames.SetEquals(new[] { 0, 1, 2, 3 }), $"Four movement frames at speed {speed}");
+            Check(Vector2.Distance(owner.Center, doll.Projectile.Center) < 110f, $"Must keep up at speed {speed}");
+            Check(max - min > 5f && max - min < 15f, $"Flight must gently bob at speed {speed}: {max - min}");
+            owner.velocity = Vector2.Zero;
+            for (int i = 0; i < 180; i++) Tick(doll);
+            Check(!doll.IsMoving && doll.Projectile.frame == 0, "Stopping must restore idle");
+        }
+        owner.direction = -1; owner.velocity = new Vector2(-5f, 0f);
+        for (int i = 0; i < 180; i++) Tick(doll);
+        Check(doll.Projectile.spriteDirection == -1 && doll.Projectile.Center.X > owner.Center.X, "Leftward follow and facing");
+        owner.Center += new Vector2(5000f, 3000f);
+        doll.Projectile.netUpdate = false; doll.AI();
+        Check(Vector2.Distance(doll.Projectile.Center, owner.Center) < 100f && doll.Projectile.velocity == Vector2.Zero && doll.Projectile.netUpdate,
+            "Owner teleport must recall and sync immediately");
+        doll.Projectile.Center += new Vector2(300f, 0f);
+        Check(skill.PreUseSkill() && mana.MagicPoint == 60f && World.projectile.Count(p => p.active) == 1,
+            "Recast costs 20 and recalls without duplicates");
+        mana.MagicPoint = 19f;
+        Vector2 before = doll.Projectile.Center;
+        Check(!skill.PreUseSkill() && mana.MagicPoint == 19f && before == doll.Projectile.Center, "Insufficient mana must have no effect");
+        World.myPlayer = 1; skill.Initialize();
+        Check(skill.PreUseSkill() && World.projectile.Count(p => p.active) == 2 && doll.Projectile.owner == 0,
+            "Each player keeps their own doll");
+        World.myPlayer = 0;
+        owner.gravDir = -1f; doll.RecallToOwner(owner);
+        Check(doll.Projectile.Center.Y > owner.Center.Y, "Inverted gravity follows above inverted player");
+        World.myPlayer = 255; World.netMode = 2;
+        Check(!skill.PreUseSkill(), "Dedicated server must not cast or access LocalPlayer");
+        doll.Projectile.Center += new Vector2(5000f, 0f); before = doll.Projectile.Center;
+        doll.Projectile.netUpdate = false; doll.AI();
+        Check(doll.Projectile.Center == before && !doll.Projectile.netUpdate, "Server must not originate teleport");
+        World.myPlayer = 0; World.netMode = 0;
+        owner.dead = true; doll.AI();
+        Check(!doll.Projectile.active, "Death must remove doll");
+        doll = Reset(); World.player[0].active = false; doll.AI();
+        Check(!doll.Projectile.active, "Disconnect must remove doll");
+        doll = Reset(); doll.Projectile.owner = 255; doll.AI();
+        Check(!doll.Projectile.active, "Invalid owner must not index player array");
+        Reset(); World.projectile[0].Kill();
+        foreach (var p in World.projectile) { p.active = true; p.ModProjectile = null; }
+        mana = World.player[0].GetModPlayer<ElainaAttributeModPlayer>();
+        Check(!skill.PreUseSkill() && mana.MagicPoint == 80f, "Full projectile pool must not consume mana");
+        skill.DeserializeData(new Terraria.ModLoader.IO.TagCompound());
+        Check(skill.MaxCD == 1f && skill.MagicPointCost == 20f, "Old skill saves must restore current cost/cooldown");
+        Console.WriteLine($"PASS: {assertions} production skill/AI assertions (engine/resource host is stubbed).");
+    }
+    public static void Main() => Run();
+}

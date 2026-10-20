@@ -117,6 +117,12 @@ public class MagicBarrierSkill : ElainaSkill
 
         private void ResolveDirectHit(ref Player.HurtInfo info)
         {
+            ResolveMagicBarrierHit(ref info);
+            Player.GetModPlayer<Skills.Ice.FrostVeilPlayer>().ResolveDirectHit(ref info);
+        }
+
+        private void ResolveMagicBarrierHit(ref Player.HurtInfo info)
+        {
             if (info.Cancelled || !CanAbsorbDamage() || info.Damage <= 0)
             {
                 return;
@@ -141,7 +147,7 @@ public class MagicBarrierSkill : ElainaSkill
             }
         }
 
-        private void ApplyMinimumHitImmunity(Player.HurtInfo info)
+        internal void ApplyMinimumHitImmunity(Player.HurtInfo info)
         {
             int ticks = Player.longInvince ? 40 : 20;
             if (info.CooldownCounter == -1)

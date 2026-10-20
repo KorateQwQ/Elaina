@@ -10,7 +10,7 @@ const helper=base.match(/    protected static SkillUnlockCondition RequireConfig
 assert.ok(helper,'Configured cap helper is missing');
 const declarations=skills.map(([file,fallback])=>{
  const source=fs.readFileSync(path.join(root,`ElainaModSkills/Skills/${file}.cs`),'utf8');
- const condition=source.match(/public override SkillUnlockCondition UnlockCondition \{ get; set; \} =\s*new CompositeSkillUnlockCondition\(DefaultUnlockCost, RequireConfiguredCharacterLevelCap\(nameof\((\w+)\), (\d+)\)\);/);
+ const condition=source.match(/public override SkillUnlockCondition UnlockCondition \{ get; set; \} =\s*new CompositeSkillUnlockCondition\(DefaultUnlockCost, RequireConfiguredCharacterLevelCap\(nameof\((\w+)\), (\d+)\)[\s\S]*?;/);
  assert.ok(condition,`${file} must combine default cost with configured stage cap`);
  const name=file.split('/').at(-1);
  assert.equal(condition[1],name,'Each condition must use its own JSON ID');
@@ -24,6 +24,7 @@ try{
  fs.writeFileSync(path.join(scratch,'Program.cs'),String.raw`
 using System.Text.Json.Nodes;
 using KL.SkillSystem;
+using Terraria.ID;
 using Terraria.Localization;
 using 伊蕾娜.ElainaModSkills;
 var json=File.ReadAllText(args[0]);
@@ -45,6 +46,11 @@ foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(
  player.HasCost=false;
  Check(!condition.CanUnlock(player,skill),id+": stage readiness does not remove default material/point cost");
  player.HasCost=true;
+ if(id=="IceConeSkill"){
+  player.HasFrostCore=false;
+  Check(!condition.CanUnlock(player,skill),"Ice Cone requires a Frost Core even with stage and default cost ready");
+  player.HasFrostCore=true;
+ }
  Check(!condition.CanUnlock(null,skill),id+": null player is safe");
  var payload=JsonNode.Parse(json);
  var row=payload["configuration"]["basicAttacks"].AsArray().First(x=>x["id"].GetValue<string>()==id);
@@ -80,11 +86,16 @@ namespace KL.SkillSystem {
   public ElainaStatePlayer State=new();
   public T GetModPlayer<T>()=>(T)(object)State;
  }
- public sealed class KLSkillModPlayer {public Player Player=new();public bool HasCost=true;}
+ public sealed class KLSkillModPlayer {public Player Player=new();public bool HasCost=true,HasFrostCore=true;}
+ public readonly record struct SkillUnlockItem(int ItemType,int Stack);
  public class SkillUnlockCondition {
   private Func<KLSkillModPlayer,ModSkill,bool> predicate;
   private Func<KLSkillModPlayer,ModSkill,string> describe;
   public static SkillUnlockCondition Custom(Func<KLSkillModPlayer,ModSkill,bool> canUnlock,Func<KLSkillModPlayer,ModSkill,string> description)=>new(){predicate=canUnlock,describe=description};
+  public static SkillUnlockCondition ByItems(params SkillUnlockItem[] items){
+   if(items.Length!=1||items[0].ItemType!=ItemID.FrostCore||items[0].Stack!=1)throw new Exception("Expected exactly one Frost Core");
+   return Custom((p,_)=>p?.HasFrostCore==true,(_,_)=>"Frost Core x1");
+  }
   public virtual bool CanUnlock(KLSkillModPlayer player,ModSkill skill)=>predicate(player,skill);
   public virtual string GetDescription(KLSkillModPlayer player,ModSkill skill)=>describe(player,skill);
  }
@@ -103,6 +114,7 @@ namespace Terraria.Localization {
   }
  }
 }
+namespace Terraria.ID {public static class ItemID {public const int FrostCore=2161;}}
 `);
  const result=spawnSync('dotnet',['run','--project',path.join(scratch,'Checks.csproj'),'--',path.join(root,'ElainaModSkills/Data/SkillBalance.json')],{stdio:'inherit'});
  if(result.error)throw result.error;

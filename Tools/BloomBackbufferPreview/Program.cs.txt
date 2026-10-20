@@ -14,6 +14,11 @@ internal static class Program
 {
     static void Main(string[] args)
     {
+        // Keep the Windows graphics module available through CLR finalization. The installed
+        // FNA3D backend otherwise unloads d3d11.dll before all native teardown has finished
+        // after the disposal probes. The OS releases this module reference on process exit.
+        if (OperatingSystem.IsWindows())
+            System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
         using var game = new Probe(args[0], args[1]);
         game.Run();
     }
@@ -49,6 +54,7 @@ internal static class Program
             }
             public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
             public static class PreviewOptions { public static bool PreserveBackbuffer = true; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
             public partial class DrawSystem {
                 public void Run(float strength, int iterations, bool bloomEnabled) {
                     SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
@@ -62,7 +68,9 @@ internal static class Program
             "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
-        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}\n";
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render,
+            "CreateRender", "EnsureRenderTargets", "SwitchRender", "TargetMatches", "DetachRenderTargets", "DisposeTargets",
+            "Main_OnResolutionChanged") + "}\n";
         source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
         source += """
             public partial class DrawHelper {
@@ -176,6 +184,68 @@ internal sealed class Probe : Game
     }
     void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
     void Render(float strength, int iterations, bool enabled = true) => run.Invoke(renderer, [strength, iterations, enabled]);
+    Type TargetsType => pipeline.GetType("KL.Drawing.RenderHelper");
+    object TargetCall(string name, params object[] args) => TargetsType.GetMethod(name,
+        BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic).Invoke(null, args);
+    RenderTarget2D[] Targets() => TargetsType.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+        .Where(f => f.Name != "LastTargetRender")
+        .SelectMany(f => f.GetValue(null) switch {
+            RenderTarget2D target => new[] { target },
+            RenderTarget2D[] targets => targets.Where(t => t != null),
+            _ => Array.Empty<RenderTarget2D>()
+        }).ToArray();
+    void CheckTargetLifetime()
+    {
+        TargetCall("EnsureRenderTargets");
+        var original = Targets();
+        Check(original.Length == 17, "Expected 17 owned targets, with no unused double-resolution level");
+        for (int i = 0; i < 20; i++) TargetCall("Main_OnResolutionChanged", new Vector2(Width, Height));
+        Check(original.SequenceEqual(Targets()), "Same-size resolution notifications reallocated targets");
+        Check(original.All(t => !t.IsDisposed), "Same-size notification disposed live targets");
+
+        using var borrowed = new RenderTarget2D(GraphicsDevice, Width, Height);
+        Set(TargetsType, "LastTargetRender", borrowed);
+        // Resize the logical scene independently of the backbuffer.
+        Set(main, "screenWidth", Width + 32);
+        TargetCall("EnsureRenderTargets");
+        Check(original.All(t => t.IsDisposed), "Scene resize leaked old targets");
+        Check(!borrowed.IsDisposed, "Disposed a borrowed Terraria scene target");
+        Check(Targets().First().Width == Width + 32, "Scene target size not refreshed");
+        Set(main, "screenWidth", Width); TargetCall("EnsureRenderTargets");
+
+        // Feed reported backbuffer sizes into the real allocator without resetting the
+        // preview's swapchain. This tests target lifetimes, not OS/device reset handling.
+        // The installed FNA D3D11 backend crashed on teardown after repeated native resets.
+        foreach (var size in new[] { (800, 450), (32, 24), (Width, Height) }) {
+            var previous = Targets();
+            var presentation = GraphicsDevice.PresentationParameters;
+            presentation.BackBufferWidth = size.Item1; presentation.BackBufferHeight = size.Item2;
+            Set(main, "screenWidth", size.Item1); Set(main, "screenHeight", size.Item2);
+            TargetCall("Main_OnResolutionChanged", new Vector2(size.Item1, size.Item2));
+            var current = Targets();
+            Check(previous.All(t => t.IsDisposed), "Backbuffer resize leaked old targets");
+            Check(current.All(t => t.Width >= 1 && t.Height >= 1), "Zero-sized pyramid level");
+            Check(current.All(t => t.Width <= size.Item1 && t.Height <= size.Item2), "Oversized unused target");
+            Check(current.Any(t => t.Width == size.Item1 && t.Height == size.Item2), "Full-resolution target missing");
+        }
+        var disposedSet = Targets(); disposedSet.Last().Dispose();
+        TargetCall("EnsureRenderTargets");
+        Check(disposedSet.All(t => t.IsDisposed) && Targets().All(t => !t.IsDisposed), "Disposed pyramid level not repaired");
+
+        // Simulate unload followed by reload before the main-thread disposal callback runs.
+        var detached = TargetCall("DetachRenderTargets");
+        Check(Targets().Length == 0, "Unload retained owned references");
+        TargetCall("EnsureRenderTargets"); var reloaded = Targets();
+        TargetCall("DisposeTargets", detached);
+        Check(reloaded.All(t => !t.IsDisposed), "Delayed unload disposed the new target set");
+        TargetCall("DisposeTargets", TargetCall("DetachRenderTargets"));
+        Check(reloaded.All(t => t.IsDisposed) && Targets().Length == 0, "Final cleanup leaked targets");
+        Set(draw, "CanUseRender", false);
+        Background(); Enqueue(); Render(1, 5); Save("after-lifetime-rebuild");
+        Check(Pixels()[4 * Width + 4] == background, "Rebuilt targets lost background");
+        TargetCall("DisposeTargets", TargetCall("DetachRenderTargets"));
+        Console.WriteLine("PASS target reuse, simulated scene/backbuffer sizes, tiny sizes, disposed-level recovery, borrowed target, delayed unload cleanup");
+    }
     protected override void Draw(GameTime gameTime)
     {
         if (done) return;
@@ -222,7 +292,9 @@ internal sealed class Probe : Game
         Check(scenePixels[4 * Width + 4] == background, "Scene-target path lost background");
         GraphicsDevice.SetRenderTarget(null);
         Console.WriteLine("PASS strength, disabled bloom, active/ended batch, exception restoration, scene-target path");
+        CheckTargetLifetime();
         Console.WriteLine("FNA offline probe only; game lighting and projectile AI are not simulated. Output: " + output);
+        GraphicsDevice.Present();
         Exit();
     }
     protected override void UnloadContent()

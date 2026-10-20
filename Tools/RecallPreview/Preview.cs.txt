@@ -1,0 +1,100 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+
+sealed class Preview : Game
+{
+    readonly string output;
+    SpriteBatch batch;
+    Texture2D pixel;
+    Texture2D magicPixel;
+    bool done;
+    Preview(string output, string terrariaContent)
+    {
+        this.output = output;
+        Content.RootDirectory = terrariaContent;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 360, PreferredBackBufferHeight = 220,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        magicPixel = Content.Load<Texture2D>("Images/MagicPixel");
+        Console.WriteLine($"Real Terraria MagicPixel: {magicPixel.Width} x {magicPixel.Height}");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return;
+        done = true;
+        VerifyBounds();
+        using var target = new RenderTarget2D(GraphicsDevice, 1080, 440);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(18, 23, 34));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        int[] ages = [15, 60, 90, 210, 1800, 1880];
+        for (int i = 0; i < ages.Length; i++)
+        {
+            int x = i % 3 * 360, y = i / 3 * 220;
+            Vector2 center = new(x + 180, y + 140);
+            batch.Draw(pixel, new Rectangle(x + 2, y + 2, 356, 216), new Color(27, 34, 46));
+            batch.Draw(pixel, new Rectangle(x + 2, y + 141, 356, 77), new Color(37, 43, 43));
+            // A neutral stand-in for a player; the ring below is the production drawing method.
+            batch.Draw(pixel, new Rectangle(x + 174, y + 99, 12, 12), new Color(197, 201, 210));
+            batch.Draw(pixel, new Rectangle(x + 172, y + 112, 16, 28), new Color(98, 109, 130));
+            RecallPortalDrawing.Draw(batch, magicPixel, center, 160, ages[i], 90, 1800, i >= 3, i == 3);
+        }
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        string path = Path.Combine(output, "recall-frames.png");
+        using (var stream = File.Create(path)) target.SaveAsPng(stream, target.Width, target.Height);
+        Console.WriteLine(path);
+        Exit();
+    }
+    void VerifyBounds()
+    {
+        // Exercise the real 1x1000 game asset with the production line drawing, not a 1x1 substitute.
+        int checks = 0;
+        foreach (float scale in new[] { 1f, 1.5f })
+        foreach (SamplerState sampler in new[] { SamplerState.PointClamp, SamplerState.LinearClamp })
+        foreach (int age in new[] { 15, 60, 90, 210, 1800, 1880 })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, 720, 400);
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(Color.Transparent);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, sampler,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                Matrix.CreateTranslation(-360, -200, 0) * Matrix.CreateScale(scale) * Matrix.CreateTranslation(360, 200, 0));
+            RecallPortalDrawing.Draw(batch, magicPixel, new Vector2(360, 200), 160, age, 90, 1800, age >= 210, true);
+            batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            var colors = new Color[target.Width * target.Height];
+            target.GetData(colors);
+            int visible = 0, outside = 0;
+            for (int y = 0; y < target.Height; y++)
+            for (int x = 0; x < target.Width; x++)
+            {
+                if (colors[y * target.Width + x].A == 0) continue;
+                visible++;
+                if (Math.Abs(x - 360) > 164 * scale || Math.Abs(y - 200) > 52 * scale) outside++;
+            }
+            if (outside > 0 || visible == 0)
+            {
+                string failed = Path.Combine(output, "recall-bounds-failure.png");
+                using (var stream = File.Create(failed)) target.SaveAsPng(stream, target.Width, target.Height);
+                throw new Exception($"Portal exceeded its local bounds or disappeared: {outside} outside pixels, {visible} visible; {failed}");
+            }
+            checks++;
+        }
+        Console.WriteLine($"PASS: {checks} real-asset render bounds checks (six ages, two zooms, point/linear sampling).");
+    }
+    protected override void UnloadContent() { pixel.Dispose(); batch.Dispose(); }
+    static void Main(string[] args) { using var game = new Preview(args[0], args[1]); game.Run(); }
+}

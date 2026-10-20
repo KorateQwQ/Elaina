@@ -12,6 +12,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 [SkillUIInfo(State = 6, Pixels = 400)]
 public class IceShardLockSkill : ElainaSealedSkill
 {
+    public override Type[] PrerequisiteSkills => [typeof(IceConeSkill)];
+
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单次伤害
@@ -20,8 +22,11 @@ public class IceShardLockSkill : ElainaSealedSkill
         return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
+    // 当前成长配置下，花后角色等级上限 Lv.65 对应冰锥术满级 Lv.19。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<IceConeSkill>(7));
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<IceConeSkill>(19),
+            SkillUnlockCondition.Custom((_, _) => NPC.downedChristmasIceQueen,
+                description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.IceQueen")));
     
     public override bool CanUseSkill()
     {

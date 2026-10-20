@@ -10,9 +10,11 @@ SkillName: {
 	FireLaserSkill: 火焰射线
 	IceShardLockSkill: 冰凌锁
 	IceConeSkill: 冰锥术
+	FrostVeilSkill: 霜幕
 	WaterBallSkill: 水球术
 	WaterLaserSKill: 水流术
 	HealSkill: 治疗魔法
+	RecallSkill: 回城魔法
 	MagicMissileSkill: 魔法飞弹
 	MultiMissileSkill: 多重射击
 	AshenWitchSkill: 灰之魔女
@@ -24,6 +26,23 @@ SkillName: {
 }
 
 SkillDesc: {
+	FrostVeilSkill:
+		'''
+		为自己和{0}像素内的同队非PvP友方玩家各施加3层环绕的霜幕护盾。
+		每次受击消耗一层，抵消施法时最大魔力/20的伤害（当前{1:0.##}点），在魔力护盾的百分比减伤之后结算。
+		每轮持续60秒；到期时若仍有护盾，免费补满3层并刷新60秒。全部耗尽后不会自动恢复，需重新施放。重复施放补满并刷新，不叠加层数。
+		'''
+	DollControlSkill:
+		'''
+		消耗20点魔力召唤一只熊玩偶，漂浮跟随玩家，距离过远时传送回玩家身边。
+		每名玩家最多保留一只，再次施放会将它召回身边。当前没有攻击或其他功能。
+		'''
+	RecallSkill:
+		'''
+		按住左键选择3000像素内的一名友军或自己，松开后在其脚下召唤魔法阵。
+		1.5秒后，将阵心160像素内的友军统一传送至所选友军的出生点；无有效床时使用世界出生点。
+		两端魔法阵保留30秒，靠近后右键点击可免费往返。再次施放会关闭自己上一对魔法阵，不影响其他玩家。
+		'''
 	IceShardLockSkill:
 		'''
 		召唤15枚冰刺追袭鼠标附近的敌人，命中时造成小范围伤害，最后引发大范围冰爆，共造成{0}冰元素伤害。
@@ -78,6 +97,7 @@ SkillDesc: {
 }
 
 UnlockConditions: {
+	IceQueen: 在霜月事件中击败霜月女王
 	CharacterLevel: 角色等级达到 Lv.{0}
 	CharacterLevelCap: 角色等级上限达到 Lv.{0}
 	SkillLevel: 「{0}」达到 Lv.{1}

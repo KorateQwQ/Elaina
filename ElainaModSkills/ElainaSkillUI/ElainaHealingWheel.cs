@@ -15,7 +15,7 @@ using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
-/// <summary>Healing-only target picker; the generic KL picker remains available to other consumers.</summary>
+/// <summary>治疗与回城共用的友军选择盘。</summary>
 [RegisterUI("Vanilla: Radial Hotbars", "Elaina: Healing Wheel", 1003)]
 public sealed class ElainaHealingWheel : BaseBody
 {
@@ -37,6 +37,7 @@ public sealed class ElainaHealingWheel : BaseBody
     private int _count, _focus = -1, _hover = -1, _chosen = -1, _refresh;
     private float _time, _closeTime = -1, _presence, _focusAge, _scale = 1;
     private bool _open, _closing, _anchorPending;
+    private bool _recall;
 
     public ElainaHealingWheel() => Enabled = false;
     public override bool IsInteractable => _open || _closing;
@@ -56,7 +57,7 @@ public sealed class ElainaHealingWheel : BaseBody
     }
 
     internal static bool TryOpen(Func<int, bool> validTarget, Func<bool> validSource,
-        Action<int> confirmed, Action cancelled)
+        Action<int> confirmed, Action cancelled, bool recall = false)
     {
         if (Main.gameMenu || !Main.hasFocus || !TryGet(out var wheel)) return false;
         wheel.Cancel();
@@ -67,6 +68,7 @@ public sealed class ElainaHealingWheel : BaseBody
         wheel._validSource = validSource;
         wheel._confirmed = confirmed;
         wheel._cancelled = cancelled;
+        wheel._recall = recall;
         wheel._open = true;
         wheel._anchorPending = true;
         wheel._time = wheel._presence = wheel._focusAge = 0;
@@ -309,9 +311,11 @@ public sealed class ElainaHealingWheel : BaseBody
         FillFrame();
         var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
             null, UIDrawKit.NumberFont);
-        var labels = new HealingWheelDrawing.Labels(LocalizeUI("HealingTarget"), LocalizeUI("HealingSelf"),
-            LocalizeUI("HealingCritical"), LocalizeUI("HealingFull"), LocalizeUI("HealingMissing", "{0}"),
-            LocalizeUI("HealingControls"), LocalizeUI("HealingCancel"));
+        var labels = new HealingWheelDrawing.Labels(LocalizeUI(_recall ? "RecallTarget" : "HealingTarget"), LocalizeUI("HealingSelf"),
+            LocalizeUI(_recall ? "RecallDestination" : "HealingCritical"),
+            LocalizeUI(_recall ? "RecallDestination" : "HealingFull"),
+            LocalizeUI(_recall ? "RecallDestination" : "HealingMissing", "{0}"),
+            LocalizeUI(_recall ? "RecallControls" : "HealingControls"), LocalizeUI("HealingCancel"));
         _matrix = ScaleAround(_frame.Center, _scale) * SilkyUI.TransformMatrix;
         Restart(spriteBatch, SpriteSortMode.Deferred, null);
         try

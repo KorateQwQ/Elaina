@@ -28,6 +28,33 @@ to reproduce the black background. The fixed path keeps it enabled and checks:
 - Active SpriteBatch restoration and callbacks that end their SpriteBatch.
 - Usage, target, viewport and scissor restoration when a callback throws.
 - The existing scene-target path.
+- Reuse across repeated same-size resolution notifications, disposal on logical
+  scene/backbuffer size changes, tiny pyramid sizes, recovery of a disposed level,
+  and deferred unload disposal that cannot release a new target set.
+- Ownership checks that leave Terraria's borrowed scene target alive, followed
+  by a fresh Bloom draw after the lifecycle checks.
+
+The lifetime probe changes the reported backbuffer dimensions and allocates
+actual FNA targets. It does not reset the native swapchain, and cannot verify
+window/fullscreen transitions in the game. On Windows the host retains a module
+reference to the system `d3d11.dll` until process exit: without it, the installed
+FNA3D backend's teardown crashed in `d3d11.dll_unloaded` after the disposal checks.
+This workaround only affects the offline host; assertions and exit failures
+remain enforced. No corresponding DLL pin is added to the mod.
+
+On 2026-10-20, the five existing PNG outputs were byte-identical before and after
+the target lifetime fix. `after-lifetime-rebuild.png` checks the recreated targets.
+The two mods also compiled from source. This does not reproduce or resolve the
+reported intermittent one-second in-game stall by itself.
+
+Slow-frame diagnostics are now written by KL to `client.log` as `[RenderStall]`
+when update/draw wall time reaches 100 ms or the draw-start interval reaches
+200 ms, at most once per second outside the menu. They include Bloom time/pass
+count, target allocation time/count, the last/slowest measured normal missile
+cast or spawn, GC counts, resolution, lighting, focus and pause state. These are
+CPU wall-clock intervals, including blocking inside the calls, not GPU timestamps.
+The draw interval also includes time outside the update/draw hooks. No GPU
+readback, forced GPU wait, or OS process polling runs inside the mod.
 
 Verified on 2026-10-07 with the installed FNA D3D11 backend. PNGs were opened
 and visually checked. Lighting, projectile AI, world rendering, networking and
