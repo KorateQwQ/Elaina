@@ -1,0 +1,155 @@
+// Only the game/SUI boundary is stubbed. The wheel, clock and motion curves are production sources.
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using ReLogic.Content;
+global using Terraria;
+global using Terraria.ModLoader;
+global using static KL.Drawing.DrawHelper;
+
+namespace Terraria
+{
+    public static class Main
+    {
+        public static bool dedServ, gameMenu, drawingPlayerChat, ingameOptionsWindow, inFancyUI, editSign, editChest;
+        public static bool hasFocus = true;
+        public static int myPlayer;
+        public static Vector2 MouseScreen = new(500, 400);
+        public static Player LocalPlayer = new();
+        public static void QueueMainThreadAction(Action action) => action();
+    }
+    public sealed class Player
+    {
+        public bool active = true, dead, mouseInterface;
+        public int whoAmI;
+        public Item HeldItem = new();
+    }
+    public sealed class Item { public object ModItem = new 伊蕾娜.Items.ElainaWand(); }
+}
+namespace Terraria.ModLoader
+{
+    public class ModSystem { public virtual void OnWorldUnload() { } public virtual void Unload() { } }
+    public class ModPlayer
+    {
+        public Terraria.Player Player = Terraria.Main.LocalPlayer;
+        public virtual void ProcessTriggers(Terraria.GameInput.TriggersSet triggersSet) { }
+    }
+    public sealed class ModKeybind { public bool Current, JustPressed; }
+    public static class ModContent
+    {
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) where T : class => throw new NotSupportedException();
+    }
+}
+namespace Terraria.GameInput { public sealed class TriggersSet { } }
+namespace Terraria.Audio { public static class SoundEngine { public static void PlaySound(int sound) { } } }
+namespace Terraria.ID { public static class SoundID { public const int MenuTick = 1; } }
+namespace KL.SkillSystem
+{
+    public sealed class Skill
+    {
+        public float CurrentCD, CooldownRemainingFraction;
+        public int Stack = 1, MaxStack = 1;
+        public Asset<Texture2D> SkillIcon;
+        public object ModSkill;
+    }
+}
+namespace KL.Drawing
+{
+    public static class DrawHelper
+    {
+        public static void DrawAnnularSectorUI(Vector2 center, float inner, float outer, float start, float end,
+            Color fill, float border, Color borderColor, Matrix matrix) => throw new NotSupportedException();
+    }
+}
+namespace SilkyUIFramework
+{
+    public sealed class SilkyUI
+    {
+        public Matrix TransformMatrix = Matrix.Identity;
+        public static RasterizerState ScissorRasterizerState => throw new NotSupportedException();
+    }
+    public static class SilkyUISystem { public static object ServiceProvider = new(); }
+    public sealed class SilkyUIRenderSystem
+    {
+        public static SilkyUIRenderSystem Instance = new();
+        public object Body;
+        public bool TryGetInstance<T>(out T body) where T : class { body = Body as T; return body != null; }
+    }
+    public static class GraphicsDeviceHelper
+    {
+        public static Layout.Size GetBackBufferSizeByUIScale() => new(1000, 800);
+    }
+}
+namespace SilkyUIFramework.Layout
+{
+    public readonly record struct Size(float Width, float Height);
+    public readonly record struct Margin(float Value);
+    public readonly record struct Dimension(float Pixels);
+    public readonly record struct Bounds(Vector2 Position);
+}
+namespace SilkyUIFramework.Attributes
+{
+    [AttributeUsage(AttributeTargets.Class)]
+    public sealed class RegisterUIAttribute(string layer, string name, int order) : Attribute { }
+}
+namespace SilkyUIFramework.Extensions { internal static class Placeholder { } }
+namespace SilkyUIFramework.Elements
+{
+    public abstract class BaseBody
+    {
+        public bool Enabled, FitWidth, FitHeight;
+        public virtual bool IsInteractable => true;
+        public float Border;
+        public Layout.Margin Padding;
+        public Color BackgroundColor, BorderColor;
+        public Layout.Dimension Width = new(1000), Height = new(800);
+        public Layout.Bounds Bounds = new(Vector2.Zero);
+        public SilkyUI SilkyUI = new();
+        protected virtual void OnInitialize() { }
+        protected virtual void OnScreenSizeChanged(Layout.Size current, Layout.Size previous) { }
+        protected virtual void OnExitTree() { }
+        protected virtual void UpdateStatus(GameTime gameTime) { }
+        protected virtual void Draw(GameTime gameTime, SpriteBatch batch) => throw new NotSupportedException();
+        protected void SetLeft(float value, float percent, float alignment) { }
+        protected void SetTop(float value, float percent, float alignment) { }
+        protected void SetSize(float width, float height, float widthPercent, float heightPercent)
+        { Width = new(width); Height = new(height); }
+        public void Step(GameTime gameTime) { if (Enabled) UpdateStatus(gameTime); }
+        public void ExitTree() => OnExitTree();
+    }
+}
+namespace 伊蕾娜.Items { public sealed class ElainaWand { } }
+namespace 伊蕾娜.Config { public enum SkillSelectionMode { Wheel, Bar } }
+namespace 伊蕾娜.ElainaModSkills
+{
+    public static class KeyBind { public static ModKeybind OpenSkillWheel = new(); }
+    public static class ElainaSkillManager
+    {
+        public static float WheelScale = 1;
+        public static bool ShowCD;
+        public static Config.SkillSelectionMode SelectionMode = Config.SkillSelectionMode.Wheel;
+    }
+    public static class ElainaSkillModPlayer
+    {
+        public static List<KL.SkillSystem.Skill> GetActiveSkill = [];
+        public static int CurrentSkillIndex;
+        public static SkillBar ElainaSkillBar;
+    }
+    public sealed class SkillBar { public void UpdateSkillBar() { } }
+    public sealed class ElainaSealedSkill { public bool IsSealed; public float SealDeniedAge; }
+}
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI
+{
+    public static class ElainaHealingWheel { public static bool IsShowing; }
+}
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel
+{
+    public static class ConstellationSkillPanel { public static bool PanelShown; }
+}
+namespace 伊蕾娜.ElainaModSkills.UICore
+{
+    public static class UIDrawKit
+    {
+        public static Texture2D Pixel, GlowDot, DiamondFill;
+        public static ReLogic.Graphics.DynamicSpriteFont NumberFont;
+    }
+}

@@ -19,6 +19,8 @@ internal sealed class PanelGame : Game
     private static bool BookOnly;
     private static bool CameraOnly;
     private static bool OrnamentsOnly;
+    private static bool ScrollOnly;
+    private static bool DebugToolsOnly;
     private PanelGame()
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
@@ -42,6 +44,23 @@ internal sealed class PanelGame : Game
         if (_done) return; _done = true;
         string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output", Terraria.Localization.Language.Culture); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (DebugToolsOnly)
+        {
+#if DEBUG
+            foreach (float scale in new[] { .86f, 1f, 1.25f, 2f })
+            foreach (string scenario in new[] { "normal", "max-level", "master-skills", "editing" })
+            {
+                using var target = new RenderTarget2D(Device, (int)Math.Ceiling(450 * scale), (int)Math.Ceiling(76 * scale));
+                Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
+                new PanelScene().RenderDebugTools(batch, scale, scenario == "editing", scenario);
+                Device.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(output, $"debug-tools-{scenario}-{scale:0.00}.png"));
+                target.SaveAsPng(stream, target.Width, target.Height);
+            }
+#endif
+            Console.WriteLine(output); Exit(); return;
+        }
+        if (ScrollOnly) { ScrollPreview.Run(Device, batch, output); Exit(); return; }
         if (OrnamentsOnly) OrnamentPreview.Run(Device, batch, output);
         if (BookOnly) { BookPreview.Run(Device, batch, output); Exit(); return; }
         if (ToggleOnly) { TogglePreview.Run(Device, batch, output); Exit(); return; }
@@ -107,9 +126,13 @@ internal sealed class PanelGame : Game
         BookOnly = args.Contains("--book-only");
         CameraOnly = args.Contains("--camera-only");
         OrnamentsOnly = args.Contains("--ornaments-only");
+        ScrollOnly = args.Contains("--scroll-only");
+        DebugToolsOnly = args.Contains("--debug-tools-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
-        Fixtures.Text(); if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
+        Fixtures.Text();
+        if (DebugToolsOnly) PanelChecks.RunDebugTools();
+        else if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
         Terraria.Localization.Language.Text.Clear();
         Terraria.Localization.Language.Load(Repo, args[2]);
         // The old fixture class uses WindBladeSkill for the production WindSlashSkill.

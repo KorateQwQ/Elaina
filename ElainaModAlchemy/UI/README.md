@@ -99,4 +99,4 @@ public override int CraftExperience => 20;
 
 ### 页面滚动
 
-主目录与详情页隐藏竖向滚动条，支持滚轮和鼠标左键拖动非交互区域。按住物品卡、材料行或用途链接不会启动拖动；拖动过的详情行不会在松手时误触链接。`AlchemyPageScrollView` 将 SUI 坐标转换为页面设计坐标，`AlchemyScrollMotion` 统一处理拖动阻力与滚轮越界回弹（最多 32 设计像素），不改变原有视口裁剪。选中条目仍可自动滚动到可见位置。离线检查见 `Tools/AlchemyPreview/run.ps1 -ScrollOnly`。
+主目录与详情页隐藏竖向滚动条，支持滚轮和鼠标左键拖动非交互区域。按住物品卡、材料行或用途链接不会启动拖动；拖动过的详情行不会在松手时误触链接。共用的 `System/UI/ElasticPageScrollView` 将 SUI 坐标转换为页面设计坐标，`ElasticScrollMotion` 统一处理拖动阻力与滚轮越界回弹（最多 32 设计像素），不改变原有视口裁剪。选中条目仍可自动滚动到可见位置。离线检查见 `Tools/AlchemyPreview/run.ps1 -ScrollOnly`。

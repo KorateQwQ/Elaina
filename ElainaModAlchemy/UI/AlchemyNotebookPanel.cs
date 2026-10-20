@@ -15,6 +15,7 @@ using Terraria.GameInput;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaModAlchemy.Gameplay;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using 伊蕾娜.System.UI;
 using static 伊蕾娜.ElainaModAlchemy.UI.AlchemyNotebookPresentation;
 
 namespace 伊蕾娜.ElainaModAlchemy.UI;
@@ -32,7 +33,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private readonly List<UIView> _quantityControls = [];
     private AlchemyDrawing _draw;
     private ConstellationTween _tabMarker;
-    private AlchemyPageScrollView _catalog, _detail;
+    private ElasticPageScrollView _catalog, _detail;
     private SUIScrollView _bagScroll;
     private AlchemyCatalogMaterial[] _bagMaterials = [];
     private float _scale = 1, _lastScale = 1, _brewTime, _flash, _toastTime;
@@ -73,7 +74,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
                 Dirty(true);
             }, (d, h) => Category(d, _state, category, h));
         }
-        _catalog = (AlchemyPageScrollView)Scroll(new(CatalogX, CatalogY, CatalogWidth, CatalogHeight), false);
+        _catalog = (ElasticPageScrollView)Scroll(new(CatalogX, CatalogY, CatalogWidth, CatalogHeight), false);
         _catalog.CanDrag = e => !_cards.Any(c => c.Recipe != null && c.View.ContainsPoint(e.MousePosition));
         _catalog.Container.FitHeight = false;
         _catalog.Container.FlexShrink = 0;
@@ -97,7 +98,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             Border = 0, Padding = new Margin(0), FitWidth = false, FitHeight = false
         }.Join(_catalog.Mask);
         quillLayer.SetSize(0, 0, 1, 1);
-        _detail = (AlchemyPageScrollView)Scroll(new(DetailX, DetailY, DetailWidth, DetailHeight), true);
+        _detail = (ElasticPageScrollView)Scroll(new(DetailX, DetailY, DetailWidth, DetailHeight), true);
         _detail.CanDrag = e => !_rows.Any(r => r.View == e.Source && r.Row != null &&
             (r.Row.BlocksDragging || r.Row.EntryFor((e.MousePosition - r.View.Bounds.Position) / _scale) != null));
         _quantityControls.Add(Button(new(826, 615, 28, 27), () => ChangeQuantity(-1), (d, h) => SmallButton(d, "−", h, _state.Quantity > 1)));
@@ -154,7 +155,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private SUIScrollView Scroll(Rectangle area, bool column, Direction direction = Direction.Vertical)
     {
         SUIScrollView scroll = direction == Direction.Vertical
-            ? new AlchemyPageScrollView { AcceptInput = () => _book.IsOpen && !_book.Moving }
+            ? new ElasticPageScrollView { AcceptInput = () => _book.IsOpen && !_book.Moving }
             : new SUIScrollView(direction);
         scroll.Positioning = Positioning.Absolute;
         scroll.Border = 0;

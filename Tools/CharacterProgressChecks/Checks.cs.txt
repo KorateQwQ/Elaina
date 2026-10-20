@@ -58,11 +58,19 @@ static class Checks
         Check(player.DebugGetNextBoss(out var name, out var state) && state == 1 && name == "NPC50", "Empty external list uses original King Slime.");
         Check(player.DebugGetNextBossTooltip().Contains("5 → Lv. 10"), "Tooltip predicts the new cap.");
         Check(player.Progress == 0 && player.ProgressSet.Count == 0, "Preview never mutates character.");
+        player.Experience = 65;
+        Check(player.DebugMaxLevel() && player.CurrentLevel == 5 && player.Experience == 0,
+            "Max level reaches the initial cap and clears XP.");
+        Check(player.Progress == 0 && player.ProgressSet.Count == 0 && !player.DebugMaxLevel(),
+            "Max level is repeatable without advancing progress or recording bosses.");
         player.CurrentLevel = 5;
         player.Experience = 42;
         Check(player.DebugAdvanceMaxLevel(out _, out state) && state == 1, "Advance to King Slime.");
         Check(player.Progress == 1 && player.GetMaxLevel() == 10 && player.ProgressSet.SequenceEqual(new[] { 1f }), "Advance progress, record and cap together.");
         Check(player.CurrentLevel == 5 && player.Experience == 42, "Raising cap does not grant levels or erase XP.");
+        Check(player.DebugMaxLevel() && player.CurrentLevel == 10 && player.Experience == 0
+            && player.Progress == 1 && player.ProgressSet.SequenceEqual(new[] { 1f }),
+            "Max level reevaluates the raised cap and preserves boss history.");
         Check(player.DebugGetNextBossTooltip().Contains("NPC4"), "Tooltip immediately moves on to Eye.");
         player.DebugAdvanceMaxLevel(out _, out _);
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 3 && name.Contains(" / "), "Evil bosses share one stage.");
@@ -81,11 +89,13 @@ static class Checks
         Check(player.DebugGetNextBoss(out name, out state) && name == "Later" && state == 2, "Equal progression is not advanced twice.");
         player.DebugAdvanceMaxLevel(out _, out _);
         Check(!player.DebugGetNextBoss(out _, out _), "Do not mix vanilla fallback states into an active external list.");
+        Check(player.DebugMaxLevel() && player.CurrentLevel == player.GetMaxLevel(), "Max level follows the external progression cap.");
         var save = new TagCompound();
         player.SaveData(save);
         var loaded = new ElainaStatePlayer();
         loaded.LoadData(save);
         Check(loaded.Progress == player.Progress && loaded.GetMaxLevel() == player.GetMaxLevel() && loaded.ProgressSet.SequenceEqual(player.ProgressSet), "Save/load retains advanced progress and cap.");
+        Check(loaded.CurrentLevel == loaded.GetMaxLevel() && loaded.Experience == 0, "Save/load retains max level and XP.");
         loaded.DebugResetProgress();
         Check(loaded.DebugGetNextBoss(out _, out state) && state == .5f, "Reset on external list starts at character zero.");
         Check(player.Progress == 2, "Resetting another character does not change this one.");

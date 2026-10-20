@@ -258,7 +258,11 @@ internal sealed class ConstellationDrawing
     {
         var (x, width) = editing
             ? kind switch { "save" => (597, 42), "cancel" => (646, 42), "reset" => (695, 64), _ => (526, 64) }
-            : kind switch { "points" => (597, 53), "level" => (657, 42), "cap" => (706, 49), "reset-skills" => (762, 42), _ => (526, 64) };
+            : kind switch
+            {
+                "points" => (597, 53), "level" => (657, 42), "max-level" => (706, 53),
+                "cap" => (766, 49), "master-skills" => (822, 64), "reset-skills" => (893, 42), _ => (526, 64)
+            };
         return new Rectangle(x, 753, width, 26);
     }
 

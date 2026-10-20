@@ -56,6 +56,11 @@ internal static class PanelChecks
 {
     private static int _count;
     private static void Check(bool value, string name) { if (!value) throw new Exception(name); _count++; }
+    internal static void RunDebugTools()
+    {
+        DebugToolsChecks();
+        Console.WriteLine($"PASS: {_count} debug-tool checks (isolated player boundary)");
+    }
     internal static void Run()
     {
         var player = Fixtures.Player(typeof(UnlistedSkill), typeof(ForeignSkill), typeof(UpgradeSkill));
@@ -293,11 +298,76 @@ internal static class PanelChecks
         Check(!state.DebugGrantStudyPoints() && !state.DebugResetSkills() && player.UnlockedSkill.Count == 1, "debug actions reject menu context");
         Main.gameMenu = false; Fixtures.Player();
         Check(!state.DebugResetSkills(), "debug reset rejects a stale player");
+        DebugMasterChecks();
 #else
         var methods = typeof(ConstellationState).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        Check(!methods.Any(m => m.Name is "DebugGrantStudyPoints" or "DebugResetSkills"), "release excludes debug mutation methods");
+        Check(!methods.Any(m => m.Name is "DebugGrantStudyPoints" or "DebugResetSkills" or "DebugMasterSkills"), "release excludes debug mutation methods");
+        Check(typeof(伊蕾娜.System.ElainaStatePlayer).GetMethod("DebugMaxLevel") == null, "release excludes max-level operation");
 #endif
     }
+
+#if DEBUG
+    private static void DebugMasterChecks()
+    {
+        var player = Fixtures.Player(typeof(MasterDependentSkill), typeof(MasterBaseSkill), typeof(MasterBlockedUpgradeSkill),
+            typeof(MasterNoProgressSkill), typeof(UnlistedSkill), typeof(CycleA), typeof(CycleB));
+        var character = player.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>();
+        character.CurrentLevel = 2; character.Experience = 80;
+        Check(character.DebugMaxLevel() && character.CurrentLevel == 10 && character.Experience == 0 && character.Cap == 10,
+            "max level reaches current cap and resets XP without advancing cap");
+        Check(!character.DebugMaxLevel(), "max level is idempotent");
+        character.CurrentLevel = 2; character.Experience = 80;
+        Skill.RegisterSkill[nameof(MagicBarrierSkill)].BasicStatus = Skill.SKillBasicStatus.Hide;
+        Skill.RegisterSkill[nameof(WindBladeSkill)].ModSkill.UnlockCondition = null;
+        Skill.RegisterSkill[nameof(FireLaserSkill)].ModSkill.UnlockCondition = SkillUnlockCondition.Custom((p, _) =>
+            p.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().CurrentLevel >= 11);
+        Skill.RegisterSkill[nameof(WaterBallSkill)].ModSkill.UnlockCondition = new CompositeSkillUnlockCondition(
+            SkillUnlockCondition.BySkillPoint(200), SkillUnlockCondition.Custom((p, _) =>
+                p.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().GetMaxLevel() >= 20));
+        player.UnlockSkill(Skill.NewSkill(typeof(MagicMissileSkill)));
+        var equipped = player.UnlockedSkill[nameof(MagicMissileSkill)];
+        equipped.Level = 2; equipped.CurrentCD = 7; equipped.Stack = 0;
+        player.UnlockSkill(Skill.NewSkill(typeof(AshenWitchSkill)));
+        var overCap = player.UnlockedSkill[nameof(AshenWitchSkill)];
+        overCap.Level = 9; overCap.ModSkill.IsEnabled = false;
+        var state = new ConstellationState(player);
+        state.Select(nameof(MagicMissileSkill)); state.TargetSlot = 3; state.Equip();
+        player.SkillPoint = 0; player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 1;
+        var templates = Skill.RegisterSkill.Values.Select(s => (Skill: s, s.Level, s.ModSkill.UnlockCondition)).ToArray();
+        Check(state.DebugMasterSkills(out int learned, out int levels) && learned > 0 && levels > 0, "master learns and upgrades without resources");
+        Check(character.CurrentLevel == 10 && character.Cap == 10 && character.Experience == 0, "master uses the current character cap");
+        Check(state.Level(nameof(MasterBaseSkill)) == 5 && state.Level(nameof(MasterDependentSkill)) == 5,
+            "master resolves reverse-ordered prerequisites after leveling their dependency");
+        Check(state.Level(nameof(MasterBlockedUpgradeSkill)) == 2 && state.Level(nameof(MasterNoProgressSkill)) == 1,
+            "master respects custom upgrade gates and terminates when an override refuses progress");
+        Check(new[] { nameof(FireLaserSkill), nameof(WaterBallSkill), nameof(MagicBarrierSkill), nameof(WindBladeSkill), nameof(CycleA), nameof(CycleB), nameof(UnlistedSkill) }
+            .All(id => !player.UnlockedSkill.ContainsKey(id)), "master respects level, stage, hidden, missing-condition and cyclic gates and the learnable catalog");
+        Check(player.SkillPoint == 0 && player.Player.inventory[0].stack == 1, "master preserves points and inventory");
+        Check(ReferenceEquals(player.ActiveSkill[3], equipped) && equipped.CurrentCD == 7 && equipped.Stack == 0,
+            "master preserves equipped instances, cooldowns and charges");
+        Check(overCap.Level == 9 && !overCap.ModSkill.IsEnabled, "master preserves higher saved levels and disabled passives");
+        Check(templates.All(t => t.Skill.Level == t.Level && ReferenceEquals(t.Skill.ModSkill.UnlockCondition, t.UnlockCondition)),
+            "master never mutates shared templates or unlock conditions");
+        Check(player.UnlockedSkill.Values.All(s => s.ModSkill.UnlockCalls == 1), "learning invokes the real unlock hook exactly once");
+        Check(state.DebugMasterSkills(out learned, out levels) && learned == 0 && levels == 0, "repeated mastery has no extra learning or upgrades");
+        character.Cap = 20;
+        Check(state.DebugMasterSkills(out learned, out levels) && character.CurrentLevel == 20
+            && state.Level(nameof(MasterBaseSkill)) == 10 && state.Level(nameof(FireLaserSkill)) == 5 && state.Level(nameof(WaterBallSkill)) == 5,
+            "master reevaluates dynamic caps and newly available stages");
+        int count = player.UnlockedSkill.Count;
+        Main.gameMenu = true;
+        Check(!state.DebugMasterSkills(out _, out _) && player.UnlockedSkill.Count == count, "master rejects menu context");
+        Main.gameMenu = false; player.Player.active = false;
+        Check(!state.DebugMasterSkills(out _, out _), "master rejects inactive player");
+        Fixtures.Player();
+        Check(!state.DebugMasterSkills(out _, out _), "master rejects stale player");
+
+        var buttons = new[] { "edit", "points", "level", "max-level", "cap", "master-skills", "reset-skills" }
+            .Select(kind => ConstellationDrawing.ToolButton(kind, false)).ToArray();
+        Check(buttons.Zip(buttons.Skip(1)).All(pair => pair.First.Right < pair.Second.Left) && buttons[^1].Right < 1100,
+            "expanded debug controls have separate hit areas inside the notebook");
+    }
+#endif
 
     private static void MaxLevelChecks()
     {

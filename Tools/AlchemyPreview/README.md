@@ -66,8 +66,8 @@ Debug 页脚新增「等级 +1」，正式 SUI 与预览共用按钮边界和绘
 
 ## 页面弹性滚动（2026-10-20）
 
-`pwsh -File Tools/AlchemyPreview/run.ps1 -ScrollOnly -Configuration Release` 链接正式 `AlchemyScrollMotion`，检查 30/60/144 FPS 的拖动、物品按下禁止拖动、点击抖动、滚轮越界与回弹、连续滚动/反向、重新抓住越界页面、选中定位、内容缩短和取消拖动。输出 `output/zh-Hans/scroll-frames/checks.txt` 及顶部/底部、拖动/滚轮的多个时间点，覆盖 720p 默认缩放和 1600×1000 的 125% 缩放。
+`pwsh -File Tools/AlchemyPreview/run.ps1 -ScrollOnly -Configuration Release` 链接正式 `System/UI/ElasticScrollMotion`（与技能详情共用），检查 30/60/144 FPS 的拖动、物品按下禁止拖动、点击抖动、滚轮越界与回弹、连续滚动/反向、重新抓住越界页面、选中定位、内容缩短和取消拖动。输出 `output/zh-Hans/scroll-frames/checks.txt` 及顶部/底部、拖动/滚轮的多个时间点，覆盖 720p 默认缩放和 1600×1000 的 125% 缩放。
 
-正式目录和详情使用 `AlchemyPageScrollView` 保留 SUI 容器布局与裁剪，以设计坐标计算弹性偏移，越界上限 32 像素；原生竖向滚动条不参与输入或绘制。目录卡片、详情材料行与用途链接排除拖动，详情文字与卡片间隙可拖动，松手或移出页面后释放均回弹，失焦/关闭/缩放时取消拖动。底部横向材料栏沿用原有滚动条。
+正式目录和详情使用 `System/UI/ElasticPageScrollView` 保留 SUI 容器布局与裁剪，以设计坐标计算弹性偏移，越界上限 32 像素；原生竖向滚动条不参与输入或绘制。目录卡片、详情材料行与用途链接排除拖动，详情文字与卡片间隙可拖动，松手或移出页面后释放均回弹，失焦/关闭/缩放时取消拖动。底部横向材料栏沿用原有滚动条。
 
 离线帧使用正式绘制与运动代码，输入是确定性重放；并未模拟完整 SUI 事件树。物品点击、跨区域释放、失焦与游戏内 UI 缩放仍需在游戏中验收。

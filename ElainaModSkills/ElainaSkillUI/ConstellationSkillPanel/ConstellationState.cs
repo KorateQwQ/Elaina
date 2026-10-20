@@ -145,6 +145,61 @@ internal sealed class ConstellationState
         _player.OnSkillsUpdated();
         return true;
     }
+
+    internal bool DebugMasterSkills(out int learned, out int levels)
+    {
+        learned = levels = 0;
+        if (!IsCurrentPlayer) return false;
+        _player.Player.GetModPlayer<global::伊蕾娜.System.ElainaStatePlayer>().DebugMaxLevel();
+        Refresh();
+
+        // Repeat because a later node can satisfy an earlier node's prerequisite or level requirement.
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var node in Skills)
+            {
+                if (!IsLearned(node.id))
+                {
+                    if (!Discovered(node) || !node.prereqs.All(IsLearned)
+                        || !DebugMeetsRequirements(node.ModSkill.UnlockCondition, node.ModSkill)) continue;
+                    var skill = Skill.NewSkill(node.ModSkill.GetType(), node.Skill.Mod);
+                    skill.ModSkill.UnlockCondition = node.ModSkill.UnlockCondition;
+                    _player.UnlockSkill(skill);
+                    Refresh();
+                    if (!IsLearned(node.id)) continue;
+                    learned++;
+                    changed = true;
+                }
+
+                while (node.Skill.Level < node.Skill.MaxLevel
+                    && DebugMeetsRequirements(node.ModSkill.GetConstellationUpgradeCondition(node.Skill.Level + 1)
+                        ?? SkillUnlockCondition.None, node.ModSkill))
+                {
+                    int previous = node.Skill.Level;
+                    node.ModSkill.TryLevelUp();
+                    if (node.Skill.Level <= previous) break;
+                    levels += node.Skill.Level - previous;
+                    changed = true;
+                }
+            }
+        } while (changed);
+
+        Refresh();
+        Filter = "learned";
+        _player.OnSkillsUpdated();
+        return true;
+    }
+
+    // Debug waives resource costs only; stage, character level and custom prerequisites still apply.
+    private bool DebugMeetsRequirements(SkillUnlockCondition condition, ElainaSkill skill) => condition switch
+    {
+        null => false,
+        ItemSkillUnlockCondition or SkillPointUnlockCondition => true,
+        CompositeSkillUnlockCondition composite => composite.Conditions.All(c => DebugMeetsRequirements(c, skill)),
+        _ => condition.CanUnlock(_player, skill)
+    };
 #endif
 
     internal ConstellationNode Find(string id) => id != null ? _nodes.GetValueOrDefault(id) : null;

@@ -5,8 +5,8 @@ public static class IceCycleBalance
 {
     public const float BeamFreezeRefund = 0.5f;
     public const float BeamLockRefund = 0.30f;
-    public const float BallFreezeRefund = 4f;
-    public const float BallLockRefund = 3f;
+    public const float BallFreezeRefund = 10f;
+    public const float BallLockRefund = 8f;
     public const int LockBurstFrame = 110;
     public const float LockRadius = 200f;
     public const float LockImpactRadius = 80f;

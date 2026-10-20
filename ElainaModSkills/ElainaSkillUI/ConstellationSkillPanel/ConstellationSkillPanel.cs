@@ -13,6 +13,7 @@ using SilkyUIFramework.Layout;
 using Terraria;
 using Terraria.ModLoader;
 using 伊蕾娜.System;
+using 伊蕾娜.System.UI;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
@@ -26,7 +27,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private readonly List<(UIView View, Rectangle Area)> _regions = [];
     private readonly List<(UIView View, Func<bool> Visible)> _conditionalButtons = [];
     private UIElementGroup _viewport;
-    private SUIScrollView _detailScroll;
+    private ElasticPageScrollView _detailScroll;
     private ConstellationDetail _detail;
     private readonly List<(PaintView View, ConstellationDetailRow Row)> _detailRows = [];
     private bool _detailDirty = true, _resetDetailScroll = true;
@@ -431,7 +432,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _dragging = false;
         CancelSlotDrag();
         if (_detailScroll != null)
-            _detailScroll.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_detailScroll.ScrollBar, Main.MouseScreen));
+            _detailScroll.ResetPosition(_detailScroll.Motion.Position);
     }
     private void Close()
     {
@@ -462,7 +463,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         if (Editing || _state.EmptyFilter) return;
         _state.Refresh();
         var pills = ConstellationDetail.Pills(_state);
-        int index = ConstellationDetail.PillAt(pills.Length, Design(Main.MouseScreen));
+        int index = ConstellationDetail.PillAt(pills, Design(Main.MouseScreen));
         if (index < 0 || !pills[index].Enabled) return;
         string id = _state.Selected;
         switch (pills[index].Kind)
@@ -798,11 +799,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             return;
         }
         var pills = ConstellationDetail.Pills(_state);
-        int hovered = hover ? ConstellationDetail.PillAt(pills.Length, Design(Main.MouseScreen)) : -1;
+        int hovered = hover ? ConstellationDetail.PillAt(pills, Design(Main.MouseScreen)) : -1;
         for (int i = 0; i < pills.Length; i++)
         {
             var pill = pills[i];
-            var area = ConstellationDetail.PillArea(i, pills.Length);
+            var area = ConstellationDetail.PillArea(pill);
             _draw.ActionPill(pill.Kind, area.X, area.Y, area.Width, pill.Label, pill.Tail, pill.StudyCost, pill.Gold, pill.Enabled, i == hovered);
             if (i == hovered && pill.Tooltip != null) RequestTooltip(pill.Tooltip, area, pill.Kind + ":" + _state.Selected);
         }

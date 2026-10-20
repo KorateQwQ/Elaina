@@ -1,4 +1,5 @@
 using 伊蕾娜.ElainaModAlchemy.UI;
+using 伊蕾娜.System.UI;
 using P = 伊蕾娜.ElainaModAlchemy.UI.AlchemyNotebookPresentation;
 
 internal static class AlchemyScrollPreview
@@ -12,11 +13,11 @@ internal static class AlchemyScrollPreview
         foreach (bool bottom in new[] { false, true })
         foreach (bool wheel in new[] { false, true })
         {
-            var catalog = new AlchemyScrollMotion();
+            var catalog = new ElasticScrollMotion();
             catalog.SetRange(AlchemyCatalogLayout.HeightFor("all") - P.CatalogHeight);
             var state = new AlchemyNotebookState(new NotebookFixture("all"));
             var drawing = new AlchemyDrawing { Batch = batch, Scale = 1 };
-            var detail = new AlchemyScrollMotion();
+            var detail = new ElasticScrollMotion();
             detail.SetRange(P.DetailRows(drawing, state).Sum(r => r.Height) - P.DetailHeight);
             catalog.Reset(bottom ? catalog.Maximum : 0);
             detail.Reset(bottom ? detail.Maximum : 0);
@@ -55,7 +56,7 @@ internal static class AlchemyScrollPreview
         foreach (int fps in new[] { 30, 60, 144 })
         foreach (bool bottom in new[] { false, true })
         {
-            var m = new AlchemyScrollMotion(); m.SetRange(500);
+            var m = new ElasticScrollMotion(); m.SetRange(500);
             float edge = bottom ? 500 : 0;
             void Settle() { for (int i = 0; i < fps * 2; i++) m.Advance(1f / fps); }
             m.Reset(edge); m.BeginDrag(100, false); m.DragTo(-500);

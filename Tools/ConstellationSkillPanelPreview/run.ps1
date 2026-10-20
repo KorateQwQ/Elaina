@@ -13,6 +13,8 @@ param(
     [switch]$BookChecksOnly,
     [switch]$CameraOnly,
     [switch]$OrnamentsOnly,
+    [switch]$ScrollOnly,
+    [switch]$DebugToolsOnly,
     [switch]$SkipChecks,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
@@ -51,16 +53,21 @@ foreach ($name in @('UpdateButterfly','CenterOn','AdvanceCamera','MapPoint','Req
 }
 $scene += "`n}"
 [IO.File]::WriteAllText((Join-Path $out 'Scene.cs'), $scene)
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview')) {
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview')) {
     [IO.File]::WriteAllText((Join-Path $out "$name.cs"), [IO.File]::ReadAllText((Join-Path $PSScriptRoot "$name.cs.txt")))
 }
 # Exercise KL's actual default, upgrade guard and Skill accessor instead of duplicating their rules in a stub.
 $modSkillSource = [IO.File]::ReadAllText((Join-Path $repo '../KL/SkillSystem/ModSkill.cs'))
 $skillSource = [IO.File]::ReadAllText((Join-Path $repo '../KL/SkillSystem/Skill.cs'))
+$playerSource = [IO.File]::ReadAllText((Join-Path $repo '../KL/SkillSystem/KLSkillModPlayer.cs'))
+$stateSource = [IO.File]::ReadAllText((Join-Path $repo 'System/ElainaStatePlayer.cs'))
 $members = @{
     '// LIVE_MAX_LEVEL' = [regex]::Match($modSkillSource, '(?m)^    public virtual int MaxLevel =>[^\r\n]+').Value
     '// LIVE_TRY_LEVEL_UP' = [regex]::Match($modSkillSource, '(?s)    public virtual void TryLevelUp\(\)\s*\{.*?\n    \}').Value
     '// LIVE_SKILL_MAX_LEVEL' = [regex]::Match($skillSource, '(?m)^    public int MaxLevel =>[^\r\n]+').Value
+    '// LIVE_UNLOCK_SKILL' = [regex]::Match($playerSource, '(?s)    public virtual void UnlockSkill\(Skill skill\)\s*\{.*?\n    \}').Value
+    '// LIVE_NORMALIZE_LEVEL' = [regex]::Match($stateSource, '(?s)    private void NormalizeLevel\(\)\s*\{.*?\n    \}').Value
+    '// LIVE_DEBUG_MAX_LEVEL' = [regex]::Match($stateSource, '(?s)    public bool DebugMaxLevel\(\)\s*\{.*?\n    \}').Value
 }
 $stubs = [IO.File]::ReadAllText((Join-Path $out 'Stubs.cs'))
 foreach ($marker in $members.Keys) {
@@ -80,7 +87,8 @@ $null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
 $null = Add-Item 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
 $null = Add-Item 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
+$null = Add-Item 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
 foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
@@ -108,6 +116,8 @@ if ($BookOnly) { $previewArgs += '--book-only' }
 if ($BookChecksOnly) { $previewArgs += '--book-checks-only' }
 if ($CameraOnly) { $previewArgs += '--camera-only' }
 if ($OrnamentsOnly) { $previewArgs += '--ornaments-only' }
+if ($ScrollOnly) { $previewArgs += '--scroll-only' }
+if ($DebugToolsOnly) { $previewArgs += '--debug-tools-only' }
 if ($SkipChecks) { $previewArgs += '--skip-checks' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }

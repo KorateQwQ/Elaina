@@ -1,9 +1,9 @@
 using System;
 
-namespace 伊蕾娜.ElainaModAlchemy.UI;
+namespace 伊蕾娜.System.UI;
 
-// Positions and pointer coordinates are in notebook design units, independent of UI scale.
-internal sealed class AlchemyScrollMotion
+// Positions and pointer coordinates are in page design units, independent of UI scale.
+internal sealed class ElasticScrollMotion
 {
     internal const float ElasticLimit = 32;
     internal float Position { get; private set; }
