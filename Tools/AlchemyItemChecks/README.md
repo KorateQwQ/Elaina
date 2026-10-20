@@ -2,7 +2,7 @@
 
 运行 `& Tools/AlchemyItemChecks/run.ps1 -PotionsOnly` 验证本轮魔药；可用 `-Tml` 指定 tModLoader 安装目录。省略 `-PotionsOnly` 会额外检查所有非药剂的图像资产。
 
-链接真实 `AlchemyItem`、`AlchemyPotion`、21 个具体物品、6 个 Buff 及效果类型，直接使用本机 tModLoader 程序集，没有 Terraria 或 ModContent 桩。通过真实 `ILoadable.Load` / `ItemLoader` / `ContentInstance` 路径注册，再调用生产 `SetDefaults`，检查：
+链接真实 `AlchemyItem`、`AlchemyPotion`、`AlchemyFood`、20 个具体物品、6 个 Buff 及效果类型，直接使用本机 tModLoader 程序集，没有 Terraria 或 ModContent 桩。通过真实 `ILoadable.Load` / `ItemLoader` / `ContentInstance` 路径注册，再调用生产 `SetDefaults`，检查：
 
 - 未配置 Buff 的测试物品仍不可饮用；净土露滴保持普通物品且不可消耗。
 - 六种增益药剂沿用原版饮用、消耗与持续时间字段；止痛药 60 秒，其余沿用基类 5 分钟。
@@ -18,6 +18,10 @@
 2026-10-15：药剂范围检查通过 399 项注册/资源/本地化检查、61 项行为检查和 30 项完整程序集检查。全量资产检查在既有 `RevealingDust pixel asset has catalog resolution` 处失败；`-PotionsOnly` 只缩小图像资产检查范围，保留全部物品注册和本地化检查。
 
 此工具不启动游戏、不加载贴图、不创建世界或写入角色存档，不替代游戏内使用、多人端到端和完整内容加载验证。输出放在忽略目录 `.vissandbox/alchemy-item-checks` 与 `.vissandbox/alchemy-potion-integration`。
+
+2026-10-20：三种料理启用原版食用流程，Buff 均为 5 分钟。蜂蜜面包对伊蕾娜提供很满意并直接恢复 30 生命，对其他角色提供吃得好且不治疗；炖菜提供酒足饭饱，焦糖布蕾提供吃得好。面包的角色依赖由 `run-integration.ps1` 使用完整模组程序集验证；另外两种料理保留在独立注册检查中。图标沿用单帧资源，不启用需要三帧图集的食物盘绘制。
+
+本轮 `run.ps1 -PotionsOnly` 通过 396 项注册/本地化检查与 67 项药剂行为检查；完整程序集通过 52 项原有检查与 38 项食物检查。食物检查覆盖角色切换、30 点直接治疗、满血上限、死亡和远端隔离、真实消耗钩子、Buff 续时/替换与原版快捷增益选择；面包开启 `WorksInVoidBag` 以在开启的虚空袋中更新角色对应的 Buff。手动食用按原版规则替换已有饱食 Buff；快捷增益只选更高等级的食物。食用动画、实际按键使用、联机同步与食物完整加载仍需游戏内验收。
 
 2026-10-16：止痛药直接治疗更新后，行为检查增加至 75 项，覆盖 1.33 + 1.33 + 1.34 的余量补偿、长期精确累计、满血/过期/死亡/远端限制、每秒结算与生命恢复属性不变。
 

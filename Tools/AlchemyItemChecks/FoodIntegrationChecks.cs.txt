@@ -1,0 +1,126 @@
+using System.Reflection;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜;
+using 伊蕾娜.ElainaModAlchemy.item;
+using 伊蕾娜.ElainaModAlchemy.item.Foods;
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+internal static class FoodIntegrationChecks
+{
+    private static int passed;
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
+        passed++;
+    }
+
+    public static void Run(Player player, Player remote)
+    {
+        Main.netMode = NetmodeID.SinglePlayer;
+        Main.combatText = Enumerable.Range(0, 100).Select(_ => new CombatText { active = true }).ToArray();
+        var mod = new CheckMod();
+        var bread = new HoneyBread();
+        var stew = new BeefStew();
+        var brulee = new CaramelBrulee();
+        AlchemyFood[] foods = [bread, stew, brulee];
+        foreach (var food in foods)
+        {
+            ((ILoadable)food).Load(mod);
+            ContentInstance.Register(food);
+            food.SetDefaults();
+            food.Item.stack = 10;
+            var entry = AlchemyCatalog.GetRecipe(food.EntryId);
+            Check(food.Item.consumable && food.Item.useStyle == ItemUseStyleID.EatFood &&
+                food.Item.useTime == 17 && food.Item.useAnimation == 17 && food.Item.UseSound == SoundID.Item2,
+                food.Name + " uses the native eating and consumption path");
+            Check(food.Item.buffTime == 18000 && food.Item.width == entry.PixelWidth &&
+                food.Item.height == entry.PixelHeight && food.Item.rare == entry.Rarity,
+                food.Name + " preserves catalog presentation with a five-minute duration");
+            Check(food.Item.healLife == 0 && !food.Item.potion,
+                food.Name + " does not become a healing potion or require potion cooldown");
+        }
+        Array.Resize(ref ItemID.Sets.WorksInVoidBag, ItemLoader.ItemCount);
+        bread.SetStaticDefaults();
+        Check(ItemID.Sets.WorksInVoidBag[bread.Type], "Open void bag updates the bread's character-dependent Buff");
+        Check(stew.Item.buffType == BuffID.WellFed3 && brulee.Item.buffType == BuffID.WellFed,
+            "Stew grants Exquisitely Stuffed and brulee grants Well Fed");
+
+        void Reset(bool elaina = true, int life = 40)
+        {
+            Array.Clear(player.buffType); Array.Clear(player.buffTime);
+            player.GetModPlayer<ElainaModplayer>().Elaina = elaina;
+            player.statLifeMax2 = 100; player.statLife = life; player.dead = false;
+            for (int i = 0; i < player.inventory.Length; i++) player.inventory[i] = new Item();
+            foreach (var food in foods) food.Item.stack = 10;
+        }
+        void Eat(AlchemyFood food)
+        {
+            // Native hook order shared by manual eating and QuickBuff.
+            Check(food.CanUseItem(player), food.Name + " is usable by this character");
+            ItemLoader.UseItem(food.Item, player);
+            player.AddBuff(food.Item.buffType, food.Item.buffTime);
+            if (ItemLoader.ConsumeItem(food.Item, player)) food.Item.stack--;
+        }
+
+        Reset(); Eat(bread);
+        Check(player.statLife == 70 && player.HasBuff(BuffID.WellFed2) && !player.HasBuff(BuffID.WellFed),
+            "Elaina receives exactly 30 life and Plenty Satisfied");
+        Check(bread.Item.stack == 9 && player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] == 18000,
+            "One bread is consumed for five minutes of food Buff");
+        player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] = 120;
+        Eat(bread);
+        Check(player.statLife == 100 && player.buffType.Count(b => b == BuffID.WellFed2) == 1 &&
+            player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] == 18000,
+            "Eating again heals once and refreshes one Buff slot");
+        Reset(life: 95); Eat(bread);
+        Check(player.statLife == 100, "Bread cannot heal above maximum life");
+        Reset(life: 100); Eat(bread);
+        Check(player.statLife == 100 && player.HasBuff(BuffID.WellFed2), "Full health still allows eating for its Buff");
+        Reset(elaina: false); Eat(bread);
+        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed) && !player.HasBuff(BuffID.WellFed2),
+            "Other characters receive only Well Fed without healing, even after an Elaina held the same item");
+        Reset(); Eat(stew);
+        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed3), "Stew gives the strongest food Buff without healing");
+        Eat(bread);
+        Check(player.statLife == 70 && player.HasBuff(BuffID.WellFed2) && !player.HasBuff(BuffID.WellFed3),
+            "Manual eating heals and replaces the previous food Buff according to native rules");
+        Reset(elaina: false); Eat(brulee);
+        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed), "Brulee gives Well Fed without healing");
+        Eat(stew);
+        Check(player.HasBuff(BuffID.WellFed3) && !player.HasBuff(BuffID.WellFed),
+            "Stew upgrades and replaces a weaker food Buff");
+
+        var pickFood = typeof(Player).GetMethod("QuickBuff_PickBestFoodItem", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        Reset();
+        player.inventory[0] = brulee.Item; player.inventory[1] = bread.Item;
+        ItemLoader.UpdateInventory(bread.Item, player);
+        Check(bread.Item.buffType == BuffID.WellFed2 && ReferenceEquals(pickFood.Invoke(player, null), bread.Item),
+            "Native QuickBuff prefers Elaina's bread over brulee");
+        player.AddBuff(BuffID.WellFed, 300);
+        Check(ReferenceEquals(pickFood.Invoke(player, null), bread.Item), "QuickBuff can upgrade Elaina from Well Fed to bread");
+        player.AddBuff(BuffID.WellFed2, 300);
+        Check(pickFood.Invoke(player, null) == null, "QuickBuff does not consume another bread for an existing equal Buff");
+        player.inventory[2] = stew.Item;
+        Check(ReferenceEquals(pickFood.Invoke(player, null), stew.Item), "QuickBuff prefers stew over both weaker foods");
+        Reset(elaina: false);
+        player.inventory[0] = bread.Item;
+        ItemLoader.UpdateInventory(bread.Item, player);
+        player.AddBuff(BuffID.WellFed, 300);
+        Check(bread.Item.buffType == BuffID.WellFed && pickFood.Invoke(player, null) == null,
+            "Other characters do not waste bread while Well Fed is already active");
+        Reset(); player.dead = true;
+        Check(!bread.CanUseItem(player), "Dead characters cannot eat bread");
+        bread.OnConsumeItem(player);
+        Check(player.statLife == 40, "Bread does not heal dead characters");
+        remote.statLife = 40; remote.statLifeMax2 = 100;
+        remote.GetModPlayer<ElainaModplayer>().Elaina = true;
+        bread.OnConsumeItem(remote);
+        Check(remote.statLife == 40, "Remote copies cannot apply the healing again");
+        Reset();
+        Console.WriteLine($"Food integration: {passed} checks passed against the compiled mod and native food Buff/consumption/QuickBuff selection paths.");
+    }
+
+    private sealed class CheckMod : Mod { public override string Name => "FoodIntegrationChecks"; }
+}
