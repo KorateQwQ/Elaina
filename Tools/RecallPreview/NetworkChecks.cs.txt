@@ -1,0 +1,255 @@
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Terraria.ID;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+using TMain = Terraria.Main;
+
+// Separate player/projectile arrays for two clients and a dedicated server. Mod packets are serialized
+// by production code, then delivered through the production handler. SyncProjectile/KillProjectile
+// are engine doubles which preserve owner/identity and relay snapshots, never call NewProjectile.
+static class NetworkChecks
+{
+    sealed class Host
+    {
+        public int Local, Mode, NextCastId;
+        public Player[] Players = new Player[TMain.maxPlayers];
+        public Projectile[] Projectiles = new Projectile[TMain.maxProjectiles];
+        public RecallSkill Skill;
+    }
+    static Host server, a, b;
+    static readonly RecallPortalSystem system = new();
+    static Action<bool, string> check;
+    static readonly FieldInfo counter = typeof(RecallPortalSystem).GetField("nextId", BindingFlags.NonPublic | BindingFlags.Static);
+    static void Enter(Host host)
+    { TMain.netMode = host.Mode; TMain.myPlayer = host.Local; TMain.player = host.Players; TMain.projectile = host.Projectiles; }
+    static Host NewHost(int mode, int local)
+    {
+        var host = new Host { Mode = mode, Local = local };
+        for (int i = 0; i < host.Players.Length; i++) host.Players[i] = new Player
+        { whoAmI = i, active = i < 2, Bottom = new Vector2(800, 900), SpawnX = i == 1 ? 400 : -1, SpawnY = i == 1 ? 300 : -1 };
+        for (int i = 0; i < host.Projectiles.Length; i++) host.Projectiles[i] = new Projectile();
+        Enter(host);
+        if (mode == NetmodeID.MultiplayerClient)
+        {
+            host.Skill = new RecallSkill { Player = host.Players[local] }; host.Skill.Initialize();
+            var book = host.Players[local].GetModPlayer<ElainaSkillModPlayer>();
+            book.Owner = host.Skill; book.ActiveSkill.Add(host.Skill.Skill);
+        }
+        return host;
+    }
+    static void Setup()
+    {
+        system.OnWorldUnload(); Wire.Queue.Clear(); Wire.Spawns.Clear(); ModPacket.Sent.Clear();
+        TMain.Notices.Clear(); ElainaHealingWheel.Reset(); RemoteClient.SectionChecks = 0;
+        Collision.Solid = Collision.Lava = _ => false; Player.ValidBed = true;
+        server = NewHost(NetmodeID.Server, 255);
+        a = NewHost(NetmodeID.MultiplayerClient, 0); b = NewHost(NetmodeID.MultiplayerClient, 1);
+        Enter(a);
+    }
+    static ElainaAttributeModPlayer Mana(Host host) => host.Players[host.Local].GetModPlayer<ElainaAttributeModPlayer>();
+    static Projectile[] Portals(Host host, int owner) => host.Projectiles.Where(p => p.active && p.owner == owner).ToArray();
+    static RecallPortalProjectile Portal(Host host, int owner, int side) =>
+        Portals(host, owner).Select(p => (RecallPortalProjectile)p.ModProjectile).Single(p => p.Side == side);
+    static void Begin(Host host, int target)
+    {
+        Enter(host); ElainaHealingWheel.Reset();
+        // Each real client process has its own counter. Emulate that separation in this one-process harness.
+        counter.SetValue(null, host.NextCastId);
+        if (host.Skill.BeginWandUse()) host.Players[host.Local].GetModPlayer<ElainaSkillModPlayer>().UseSkill(0);
+        else ElainaHealingWheel.Confirm(target);
+        host.NextCastId = (int)counter.GetValue(null);
+    }
+    static void Receive(Host host, WireMessage message)
+    {
+        Enter(host);
+        if (message.Packet != null)
+        {
+            using var reader = new BinaryReader(new MemoryStream(message.Packet));
+            reader.ReadByte(); int who = reader.ReadInt32();
+            RecallPortalSystem.HandlePacket(reader, message.Sender, who);
+            return;
+        }
+        var state = message.Projectile;
+        int index = Array.FindIndex(host.Projectiles, p => p.active && p.owner == state.Owner && p.identity == state.Identity);
+        if (message.Kill) { if (index >= 0) host.Projectiles[index].active = false; return; }
+        if (index < 0)
+        {
+            index = Array.FindIndex(host.Projectiles, p => !p.active);
+            var p = new Projectile { active = true, owner = state.Owner, identity = state.Identity };
+            p.ModProjectile = new RecallPortalProjectile { Projectile = p }; p.ModProjectile.SetDefaults();
+            host.Projectiles[index] = p;
+        }
+        Projectile projectile = host.Projectiles[index];
+        projectile.Center = state.Position; projectile.ai = (float[])state.AI.Clone(); projectile.timeLeft = state.TimeLeft;
+    }
+    static void PumpOne()
+    {
+        WireMessage message = Wire.Queue.Dequeue();
+        if (message.Mode == NetmodeID.MultiplayerClient)
+        {
+            Receive(server, message);
+            if (message.Projectile != null)
+                foreach (Host peer in new[] { a, b }) if (peer.Local != message.Sender) Receive(peer, message);
+        }
+        else if (message.Mode == NetmodeID.Server)
+            foreach (Host peer in new[] { a, b })
+                if (message.Recipient < 0 || peer.Local == message.Recipient) Receive(peer, message);
+    }
+    static void Pump()
+    {
+        int guard = 0;
+        while (Wire.Queue.Count > 0)
+        { if (++guard > 1000) throw new Exception("Packet loop"); PumpOne(); }
+    }
+    static void Tick(int frames)
+    {
+        for (int frame = 0; frame < frames; frame++)
+        {
+            foreach (Host host in new[] { a, b, server })
+            {
+                Enter(host);
+                foreach (Player p in host.Players) if (p.active) p.GetModPlayer<RecallPortalPlayer>().PreUpdate();
+                system.PostUpdatePlayers();
+                foreach (Projectile p in TMain.ActiveProjectiles.ToArray())
+                { p.ModProjectile.AI(); if (--p.timeLeft <= 0) p.Kill(); }
+            }
+            Pump();
+        }
+    }
+    public static void Run(Action<bool, string> assertion)
+    {
+        check = assertion;
+        ReproduceOldOwnerBug(); SoloSelection(); CastAndTravel(); FailedRequests(); DelayedAcknowledgement(); RecastIsolation();
+    }
+    static void SoloSelection()
+    {
+        Setup();
+        foreach (Host host in new[] { a, b, server }) host.Players[1].active = false;
+        Begin(a, 0);
+        check(ElainaHealingWheel.Opens == 0 && Mana(a).Spent == 0 && a.Skill.Stack == 1,
+            "Multiplayer without any ally skips wheel but still waits for approval before payment");
+        Enter(a); a.Skill.BeginWandUse(); a.Skill.PreUseSkill();
+        check(Portals(a, 0).Length == 1, "Direct self-cast cannot repeat while awaiting server");
+        Pump(); Tick(90);
+        check(Mana(a).Spent == 200 && a.Skill.Stack == 0 && a.Players[0].Teleports == 1 &&
+            new[] { a, b, server }.All(h => Portals(h, 0).Length == 2),
+            "Direct self-cast retains owner authority, one payment and synchronized teleport");
+    }
+    static void ReproduceOldOwnerBug()
+    {
+        Setup(); Enter(server);
+        int index = Projectile.NewProjectile(null, new Vector2(800, 900), Vector2.Zero, 1, 0, 0, 0, 7, 90, 1);
+        check(TMain.projectile[index].ai.All(v => v == 0) && Wire.Queue.Count == 0,
+            "Actual owner guard reproduces old bug: server cannot initialize/sync client-owned NewProjectile");
+    }
+    static void CastAndTravel()
+    {
+        foreach (int target in new[] { 0, 1 })
+        {
+            Setup(); Begin(a, target);
+            int id = Portal(a, 0, 0).PairId;
+            check(id > 0 && Portals(server, 0).Length == 0 && Portals(a, 0)[0].ai[1] < 0,
+                "Origin is created only by client A and waits for acceptance");
+            check(Mana(a).Spent == 0 && a.Skill.Stack == 1, "No charge before server response");
+            Enter(a); a.Skill.BeginWandUse();
+            check(Portals(a, 0).Length == 1, "Holding while awaiting response cannot generate extra portals");
+            Pump();
+            check(Mana(a).Spent == 200 && a.Skill.Stack == 0, "Acceptance consumes mana and charge exactly once");
+            check(Portal(server, 0, 0).PairId == id && Portal(b, 0, 0).PairId == id,
+                "Owner's real AI parameters reach server and other client");
+            byte[] reply = ModPacket.Sent.First(p => p[5] == (byte)RecallPortalSystem.Operation.CastResult);
+            Receive(a, new WireMessage(NetmodeID.Server, 255, 0, reply, null, false)); Pump();
+            check(Mana(a).Spent == 200 && a.Skill.Stack == 0, "Duplicate acceptance cannot double-charge");
+            Tick(89); check(server.Players[0].Teleports == 0, "No teleport before charge delay");
+            Tick(1);
+            Vector2 expected = target == 0 ? new Vector2(1608, 3200) : new Vector2(6408, 4800);
+            check(server.Players[0].Bottom == expected && server.Players[1].Bottom == expected,
+                "Server teleports the group to selected player's spawn");
+            check(a.Players[0].Bottom == expected && b.Players[1].Bottom == expected,
+                "Both clients receive group teleport");
+            check(new[] { a, b, server }.All(h => Portals(h, 0).Length == 2), "Both endpoints sync to all three worlds");
+            check(Wire.Spawns.Count == 2 && Wire.Spawns.All(s => s.Mode == NetmodeID.MultiplayerClient && s.LocalPlayer == 0 && s.Owner == 0),
+                "Both endpoints are generated by client A using A's whoAmI; server and client B never spawn them");
+            check(RemoteClient.SectionChecks == 2, "Server loads map sections before group teleport");
+            Tick(45); Enter(a);
+            RecallPortalSystem.RequestTravel(a.Players[0], Portal(a, 0, 1)); Pump();
+            check(server.Players[0].Bottom == new Vector2(800, 900) && a.Players[0].Bottom == server.Players[0].Bottom,
+                "Right-click return is server-validated and synchronized");
+            check(Mana(a).Spent == 200 && a.Skill.Stack == 0, "Return costs no additional mana or charges");
+            Tick(45); Enter(b);
+            RecallPortalSystem.RequestTravel(b.Players[1], Portal(b, 0, 1)); Pump();
+            check(server.Players[1].Bottom == new Vector2(800, 900), "Client B can use client A's paired portal");
+        }
+    }
+    static void FailedRequests()
+    {
+        Setup(); Begin(a, 0); server.Players[0].HeldItem.ModItem = null; Pump();
+        check(Mana(a).Spent == 0 && a.Skill.Stack == 1 && new[] { a, b, server }.All(h => Portals(h, 0).Length == 0),
+            "Server rejection cleans pending projectile and costs nothing");
+        check(TMain.Notices.Contains("RecallCastFailed"), "Rejected cast reports a visible failure");
+        Setup(); Begin(a, 1); PumpOne(); PumpOne(); // Root SyncProjectile, then Cast -> acknowledgement queued.
+        Mana(a).Available = 0; Pump();
+        check(Mana(a).Spent == 0 && a.Skill.Stack == 1 && new[] { a, b, server }.All(h => Portals(h, 0).Length == 0),
+            "Mana lost before acknowledgement cancels instead of starting a free cast");
+        Tick(100); check(server.Players.All(p => p.Teleports == 0), "Unpaid cast cannot trigger group teleport");
+        Setup(); Begin(a, 0); PumpOne(); PumpOne();
+        byte[] delayed = Wire.Queue.Single().Packet; Wire.Queue.Clear();
+        for (int n = 0; n < 300; n++) { Enter(a); system.PostUpdatePlayers(); }
+        Pump();
+        Receive(a, new WireMessage(NetmodeID.Server, 255, 0, delayed, null, false)); Pump();
+        check(Mana(a).Spent == 0 && a.Skill.Stack == 1 && Portals(a, 0).Length == 0,
+            "Timeout and stale acknowledgement cannot charge mana or resurrect cancelled spell");
+        Setup(); Begin(a, 0);
+        // Replace only the authenticated Cast header: the actual source connection remains A.
+        PumpOne(); var cast = Wire.Queue.Dequeue(); byte[] forged = (byte[])cast.Packet.Clone(); BitConverter.GetBytes(1).CopyTo(forged, 1);
+        Receive(server, cast with { Packet = forged });
+        check(Wire.Queue.Count == 0 && Mana(a).Spent == 0, "Spoofed player header cannot authorize someone else's spell");
+    }
+    static void DelayedAcknowledgement()
+    {
+        Setup(); Begin(a, 0); PumpOne(); PumpOne();
+        WireMessage acknowledgement = Wire.Queue.Dequeue();
+        for (int frame = 0; frame < 120; frame++)
+            foreach (Host host in new[] { a, b, server })
+            {
+                Enter(host); system.PostUpdatePlayers();
+                foreach (Projectile p in TMain.ActiveProjectiles) { p.ModProjectile.AI(); p.timeLeft--; }
+            }
+        check(Mana(a).Spent == 0 && server.Players[0].Teleports == 0, "Delayed acknowledgement spends nothing and never starts teleport early");
+        Receive(a, acknowledgement); Pump(); Tick(90);
+        check(Mana(a).Spent == 200 && server.Players[0].Teleports == 1, "Delayed acceptance still starts one successful cast");
+        Tick(1799);
+        check(new[] { a, b, server }.All(h => Portals(h, 0).Length == 2), "Network wait does not shorten the 30-second portal lifetime");
+        Tick(1);
+        check(new[] { a, b, server }.All(h => Portals(h, 0).Length == 0), "Delayed cast still cleans both portals at expiration");
+    }
+    static void RecastIsolation()
+    {
+        Setup(); Begin(a, 0); Pump(); Tick(100);
+        Begin(b, 1); Pump(); Tick(100);
+        check(Portal(a, 0, 0).PairId == Portal(a, 1, 0).PairId,
+            "Independent clients can legitimately use the same numeric pair id");
+        var old = Portals(a, 0); var other = Portals(a, 1); int oldId = ((RecallPortalProjectile)old[0].ModProjectile).PairId;
+        a.Skill.Stack = 1; Enter(a); ElainaHealingWheel.Reset(); a.Skill.BeginWandUse(); ElainaHealingWheel.Cancel();
+        check(old.All(p => p.active) && other.All(p => p.active), "Cancelling selection preserves both players' pairs");
+        Begin(a, 0); Pump();
+        check(old.All(p => !p.active) && new[] { a, b, server }.All(h => Portals(h, 0).Length == 1 && Portals(h, 1).Length == 2),
+            "Owner-authoritative replacement removes only A's old endpoints on every peer");
+        check(other.All(p => p.active), "B's same-numbered pair survives A's recast");
+        int before = server.Players[0].Teleports;
+        Enter(a); var packet = RecallPortalSystem.Packet(RecallPortalSystem.Operation.Travel, 0);
+        packet.Write(0); packet.Write(oldId); packet.Write(1); packet.Send(); Pump();
+        check(server.Players[0].Teleports == before, "Delayed interaction with replaced pair is rejected");
+        Tick(90);
+        check(new[] { a, b, server }.All(h => Portals(h, 0).Length == 2 && Portals(h, 1).Length == 2),
+            "Each caster maintains exactly one independent pair");
+        check(Wire.Spawns.All(s => s.Mode == NetmodeID.MultiplayerClient && s.LocalPlayer == s.Owner),
+            "Every projectile, including recasts and exits, originates from its own authority");
+        Tick(1800);
+        check(new[] { a, b, server }.All(h => !h.Projectiles.Any(p => p.active)), "Owner expiry and cleanup remove all expired portals across peers");
+    }
+}

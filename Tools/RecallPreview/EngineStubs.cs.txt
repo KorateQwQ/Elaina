@@ -1,0 +1,204 @@
+global using System;
+global using System.Collections.Generic;
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using Terraria;
+global using Terraria.ModLoader;
+using System.IO;
+using System.Linq;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+
+// Only engine/UI/network services are doubles. All spell, pair, timing and interaction code is linked from production.
+namespace Terraria
+{
+    public sealed class Main
+    {
+        public const int maxPlayers = 12, maxProjectiles = 100;
+        public static int netMode, myPlayer, maxTilesX = 2000, maxTilesY = 800, spawnTileX = 100, spawnTileY = 200;
+        public static Player[] player = new Player[maxPlayers];
+        public static Projectile[] projectile = new Projectile[maxProjectiles];
+        public static IEnumerable<Projectile> ActiveProjectiles => projectile.Where(p => p.active);
+        public static bool mouseRight, mouseRightRelease, hasFocus = true, gameMenu, playerInventory, drawingPlayerChat,
+            ingameOptionsWindow, inFancyUI, editSign, editChest;
+        public static Main instance = new();
+        public static SpriteBatch spriteBatch;
+        public static Vector2 MouseWorld, screenPosition;
+        public void MouseText(string text) { }
+        public static List<string> Notices = [];
+        public static void NewText(string text) => Notices.Add(text);
+    }
+    public sealed class Player
+    {
+        public int whoAmI, team, SpawnX = -1, SpawnY = -1, width = 20, height = 42, fallStart, fallStart2, Teleports;
+        public bool active, dead, hostile, mouseInterface, controlUseItem = true, controlUseTile = true;
+        public Vector2 position, velocity;
+        public Vector2 Center { get => position + new Vector2(width / 2f, height / 2f); set => position = value - new Vector2(width / 2f, height / 2f); }
+        public Vector2 Bottom { get => position + new Vector2(width / 2f, height); set => position = value - new Vector2(width / 2f, height); }
+        public Item HeldItem = new();
+        public static bool ValidBed = true;
+        readonly Dictionary<Type, object> mods = new();
+        public T GetModPlayer<T>() where T : new()
+        {
+            if (!mods.TryGetValue(typeof(T), out var value))
+            {
+                mods[typeof(T)] = value = new T();
+                if (value is ModPlayer mp) mp.Player = this;
+            }
+            return (T)value;
+        }
+        public static bool CheckSpawn(int x, int y) => ValidBed;
+        public object GetSource_Misc(string context) => null;
+        public void Teleport(Vector2 pos, int style) { position = pos; Teleports++; }
+    }
+    public sealed class Item { public object ModItem = new 伊蕾娜.Items.ElainaWand(); }
+    public sealed class Projectile
+    {
+        public bool active, tileCollide, ignoreWater, netImportant, netUpdate;
+        public int width, height, penetrate, timeLeft, owner, identity;
+        public float[] ai = new float[3];
+        public Vector2 Center;
+        public ModProjectile ModProjectile;
+        public void Kill()
+        {
+            if (!active) return;
+            active = false;
+            if (Main.netMode != 0 && owner == Main.myPlayer) Wire.SendProjectile(this, kill: true);
+        }
+        public static int NewProjectile(object source, Vector2 pos, Vector2 velocity, int type, int damage, float knockback,
+            int owner, float ai0, float ai1, float ai2)
+        {
+            int index = Array.FindIndex(Main.projectile, p => !p.active);
+            if (index < 0) return Main.maxProjectiles;
+            // Match the actual tML NewProjectile owner guard, including dedicated-server myPlayer=255.
+            var p = new Projectile { active = true, Center = pos, owner = owner, identity = index,
+                ai = owner == Main.myPlayer ? [ai0, ai1, ai2] : new float[3] };
+            p.ModProjectile = new RecallPortalProjectile { Projectile = p };
+            p.ModProjectile.SetDefaults();
+            Main.projectile[index] = p;
+            Wire.Spawns.Add((Main.netMode, Main.myPlayer, owner));
+            if (Main.netMode != 0 && owner == Main.myPlayer) NetMessage.SendData(Terraria.ID.MessageID.SyncProjectile, number: index);
+            return index;
+        }
+    }
+    public static class NetMessage
+    {
+        public static void SendData(int type, int number)
+        {
+            if (type == Terraria.ID.MessageID.SyncProjectile) Wire.SendProjectile(Main.projectile[number], false);
+        }
+    }
+    public sealed record ProjectileSnapshot(int Owner, int Identity, Vector2 Position, float[] AI, int TimeLeft);
+    public sealed record WireMessage(int Mode, int Sender, int Recipient, byte[] Packet, ProjectileSnapshot Projectile, bool Kill);
+    public static class Wire
+    {
+        public static Queue<WireMessage> Queue = new();
+        public static List<(int Mode, int LocalPlayer, int Owner)> Spawns = [];
+        public static void SendProjectile(Projectile p, bool kill) => Queue.Enqueue(new(Main.netMode, Main.myPlayer, -1, null,
+            new(p.owner, p.identity, p.Center, (float[])p.ai.Clone(), p.timeLeft), kill));
+    }
+    public static class Collision
+    {
+        public static Func<Vector2, bool> Solid = _ => false, Lava = _ => false;
+        public static bool SolidCollision(Vector2 p, int w, int h) => Solid(p);
+        public static bool LavaCollision(Vector2 p, int w, int h) => Lava(p);
+    }
+    public static class RemoteClient { public static int SectionChecks; public static void CheckSection(int who, Vector2 position) => SectionChecks++; }
+    public static class Rotation { public static float ToRotation(this Vector2 v) => MathF.Atan2(v.Y, v.X); }
+}
+namespace Terraria.ModLoader
+{
+    public class ModSystem { public Mod Mod = new(); public virtual void PostUpdatePlayers() { } public virtual void OnWorldUnload() { } public virtual void Unload() { } }
+    public class ModPlayer { public Player Player; public virtual void OnEnterWorld() { } public virtual void PreUpdate() { } public virtual void SetControls() { } }
+    public class ModProjectile
+    {
+        public Projectile Projectile;
+        public virtual string Texture => "";
+        public virtual void SetDefaults() { }
+        public virtual bool? CanDamage() => null;
+        public virtual bool ShouldUpdatePosition() => true;
+        public virtual void AI() { }
+        public virtual bool PreDraw(ref Color color) => true;
+    }
+    public static class ModContent { public static T GetInstance<T>() where T : new() => new(); public static int ProjectileType<T>() => 1; }
+    public sealed class Mod { public ModPacket GetPacket() => new(); }
+    public sealed class ModPacket : BinaryWriter
+    {
+        public static List<byte[]> Sent = [];
+        public ModPacket() : base(new MemoryStream()) { }
+        public void Send(int toClient = -1)
+        {
+            byte[] data = ((MemoryStream)BaseStream).ToArray();
+            Sent.Add(data);
+            Wire.Queue.Enqueue(new(Main.netMode, Main.myPlayer, toClient, data, null, false));
+        }
+    }
+}
+namespace Terraria.ID
+{
+    public static class NetmodeID { public const int SinglePlayer = 0, MultiplayerClient = 1, Server = 2; }
+    public static class TeleportationStyleID { public const int RecallPotion = 3; }
+    public static class MessageID { public const int SyncProjectile = 27; }
+}
+namespace Terraria.DataStructures { public interface IEntitySource { } }
+namespace Terraria.GameContent
+{
+    public static class TextureAssets { public static FakeAsset MagicPixel = new(); }
+    public sealed class FakeAsset { public Texture2D Value; }
+}
+namespace 伊蕾娜 { public class 伊蕾娜 { public enum MessageType : byte { RecallPortal } } }
+namespace 伊蕾娜.Items { public sealed class ElainaWand { } }
+namespace KL.SkillSystem.SilkyUI { [AttributeUsage(AttributeTargets.Class)] public class SkillUIInfoAttribute : Attribute { public int State, Pixels; } }
+namespace KL.ActionsSystem
+{
+    public class ActionModPlayer { public int Calls; public void StartAction(object action, float rotation) => Calls++; }
+}
+namespace 伊蕾娜.ElainaActions { public class Action_SimpleShoot { } }
+namespace 伊蕾娜.Localization { public static class UIText { public static string LocalizeUI(string key) => key; } }
+namespace 伊蕾娜.ElainaAttribute
+{
+    public class ElainaAttributeModPlayer
+    {
+        public bool UniqueMagicEnabled = true;
+        public float Available = 1000, Spent;
+        public bool ConsumeMagicPoint(float cost, bool consume = true)
+        { if (Available < cost) return false; if (consume) { Available -= cost; Spent += cost; } return true; }
+    }
+}
+namespace 伊蕾娜.ElainaModSkills
+{
+    public sealed class SkillStub { public int SkillSlot; }
+    public class ElainaSkill
+    {
+        public Player Player;
+        public int Stack = 1;
+        public float MaxCD, MagicPointCost;
+        public SkillStub Skill = new();
+        public virtual void Initialize() { }
+        public virtual bool BeginWandUse() => true;
+        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+    }
+    public class ElainaSkillModPlayer
+    {
+        public List<SkillStub> ActiveSkill = [];
+        public RecallSkill Owner;
+        public void UseSkill(int slot) { if (Owner.PreUseSkill()) Owner.Stack--; }
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI
+{
+    public static class ElainaSkillWheel { public static bool IsShowing; }
+    public static class ElainaHealingWheel
+    {
+        public static bool OwnsPointer, Recall;
+        public static int Opens;
+        public static Func<int, bool> ValidTarget;
+        public static Func<bool> ValidSource;
+        public static Action<int> Confirmed;
+        public static Action Cancelled;
+        public static bool TryOpen(Func<int, bool> target, Func<bool> source, Action<int> confirmed, Action cancelled, bool recall = false)
+        { OwnsPointer = true; Recall = recall; Opens++; ValidTarget = target; ValidSource = source; Confirmed = confirmed; Cancelled = cancelled; return true; }
+        public static void Confirm(int target) { OwnsPointer = false; Confirmed(target); }
+        public static void Cancel() { OwnsPointer = false; Cancelled(); }
+        public static void Reset() { OwnsPointer = false; Opens = 0; ElainaSkillWheel.IsShowing = false; }
+    }
+}

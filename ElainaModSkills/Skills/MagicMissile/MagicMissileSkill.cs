@@ -64,6 +64,7 @@ public class MagicMissileSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source)
     {
+        using var measurement = RenderPerformanceDiagnostics.MeasureSkill("MagicMissile.Cast");
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 

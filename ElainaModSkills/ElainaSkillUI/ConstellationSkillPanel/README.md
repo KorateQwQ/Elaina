@@ -36,21 +36,21 @@
 
 ## 手动编辑布局
 
-Debug 构建中，底部点击 **编辑模式** 后，可以拖动任意技能图标；连线实时跟随，底部显示当前节点的 X / Y。编辑时全部节点正常显示，不受技能分类的淡化效果影响。Release 构建隐藏编辑入口，仍会读取保存好的布局。
+Debug 构建且存在本模组源码目录时，底部点击 **编辑模式** 后，可以拖动任意技能图标；连线实时跟随，底部显示当前节点的 X / Y。编辑时全部节点正常显示，不受技能分类的淡化效果影响。Release 构建隐藏编辑入口，只读取模组包内的布局。
 
 - 拖动空白处平移；滚轮缩放；按住 Shift 拖动图标，按 10 个设计像素对齐。
-- **保存**：写入 JSON 并退出编辑，下次进入世界仍会应用。保存失败保留编辑草稿。
+- **保存**：直接写入项目内的 `Layout.json` 并退出编辑，下次进入世界仍会应用。源码目录不可用或保存失败时保留编辑草稿，不回退保存到本机配置。
 - **取消** 或 Esc：恢复进入编辑前的位置。直接关闭面板、按 V、退出世界也会取消未保存的修改。
-- **恢复默认**：将草稿恢复为模组默认布局，仍需点击保存；也可以取消这次恢复。
+- **恢复默认**：将草稿恢复为当前模组包内的布局，仍需点击保存才写回项目；也可以取消这次恢复。
 - 编辑模式只调整位置，研习、进修、被动开关及清空槽位暂不可操作。
 
-保存路径使用 `Main.SavePath/ModConfigs/Elaina/ConstellationLayout.json`，本机通常为：
+保存路径由 tModLoader 的 `Mod.SourceFolder` 定位，指向项目中受 Git 跟踪的资源：
 
 ```text
-D:/Documents/My Games/Terraria/tModLoader/ModConfigs/Elaina/ConstellationLayout.json
+ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Layout.json
 ```
 
-它是本机共用的布局，不写入角色或世界存档。以技能类型全名作为键，坐标是星图坐标，不包含分辨率、UI 缩放、镜头平移与缩放。JSON 例如：
+它是随模组发布的统一布局，不写入角色或世界存档，也不读取旧的 `ModConfigs/Elaina/ConstellationLayout.json`。以技能类型全名作为键，坐标是星图坐标，不包含分辨率、UI 缩放、镜头平移与缩放。JSON 例如：
 
 ```json
 {
@@ -64,9 +64,9 @@ D:/Documents/My Games/Terraria/tModLoader/ModConfigs/Elaina/ConstellationLayout.
 }
 ```
 
-**定稿发布**：把保存的 JSON 复制到本目录的 `Layout.json`，随模组重新构建，即成为所有玩家的默认布局。优先级为：本地 JSON > 模组内 `Layout.json` > `ConstellationPosition` / `SkillUIInfo`。新增技能在 JSON 中没有记录时，沿用代码默认位置。
+**定稿发布**：编辑器保存已直接更新本目录的 `Layout.json`，无需手动复制。将该文件提交并推送即可同步远端；重新构建并发布模组后，玩家统一使用包内布局，旧本机配置不会覆盖新版。保存不会自动执行 Git 推送、重新打包或上传创意工坊。新增技能在 JSON 中没有记录时，沿用 `ConstellationPosition` / `SkillUIInfo` 的代码默认位置。
 
-本地文件损坏或版本不支持时，会提示并回退到模组默认布局，原文件不会因读取失败而被覆盖。手动修改外部 JSON 后重新进入世界即可重读。若要检查新发布的默认布局，可进入编辑模式点恢复默认，或移走本地覆盖文件后重新进入世界。
+Debug 开发环境重新进入世界时会读取源码 `Layout.json`，方便继续编辑尚未重新打包的布局；源码文件损坏或版本不支持时提示并回退到包内布局，原文件不会因读取失败而被覆盖。Release 始终只读包内资源；包内布局无效时提示并回退到代码位置。检查实际发布布局可使用 Release 构建，或在 Debug 中点击“恢复默认”查看当前包内布局。
 
 ## Debug 技能操作
 

@@ -1,0 +1,123 @@
+// Only the Terraria host is stubbed. Skill, AI, frame selection and FNA drawing are linked production files.
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using Terraria;
+global using Terraria.ModLoader;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using ReLogic.Content;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+
+namespace Terraria
+{
+    public static class Main
+    {
+        public const int maxPlayers = 4, maxProjectiles = 32;
+        public static int myPlayer, netMode;
+        public static Player[] player;
+        public static Projectile[] projectile;
+        public static Player LocalPlayer => player[myPlayer];
+        public static SpriteBatch spriteBatch;
+        public static Vector2 screenPosition;
+    }
+    public class Player
+    {
+        public bool active = true, dead;
+        public int whoAmI, direction = 1;
+        public float gravDir = 1f;
+        public Vector2 Center, velocity;
+        readonly ElainaAttributeModPlayer attributes = new();
+        public T GetModPlayer<T>() where T : class => attributes as T;
+        public DataStructures.IEntitySource GetSource_Misc(string context) => null;
+    }
+    public class Projectile
+    {
+        public Vector2 Center, velocity;
+        public int width, height, aiStyle, penetrate, timeLeft, owner, frame, frameCounter, direction, spriteDirection;
+        public bool active, friendly, hostile, tileCollide, ignoreWater, netImportant, netUpdate;
+        public float rotation, scale = 1f;
+        public float[] ai = new float[3];
+        public ModProjectile ModProjectile;
+        public void Kill() => active = false;
+        public Color GetAlpha(Color color) => color;
+        public static int NewProjectile(DataStructures.IEntitySource source, Vector2 center, Vector2 velocity,
+            int type, int damage, float knockback, int owner)
+        {
+            if (owner != Main.myPlayer || Main.netMode == 2) throw new Exception("Non-owner spawn");
+            int index = Array.FindIndex(Main.projectile, p => !p.active);
+            if (index < 0) throw new Exception("Projectile pool exhausted");
+            var mod = new KumaPetProjectile();
+            mod.SetDefaults();
+            var p = mod.Projectile;
+            p.Center = center; p.velocity = velocity; p.owner = owner; p.active = true;
+            Main.projectile[index] = p;
+            return index;
+        }
+    }
+}
+namespace Terraria.DataStructures { public interface IEntitySource { } }
+namespace Terraria.ID { public static class NetmodeID { public const int Server = 2; } }
+namespace Terraria.ModLoader.IO { public class TagCompound { } }
+namespace Terraria.ModLoader
+{
+    public class ModProjectile
+    {
+        public Projectile Projectile { get; } = new();
+        public int Type => 0;
+        public ModProjectile() { Projectile.ModProjectile = this; }
+        public virtual string Texture => "";
+        public virtual void SetDefaults() { }
+        public virtual bool? CanDamage() => null;
+        public virtual bool? CanCutTiles() => null;
+        public virtual void AI() { }
+        public virtual bool PreDraw(ref Color lightColor) => true;
+    }
+    public static class ModContent
+    {
+        public static Func<string, Texture2D> LoadTexture;
+        public static int ProjectileType<T>() => 0;
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) =>
+            new((T)(object)LoadTexture(path));
+    }
+}
+namespace ReLogic.Content
+{
+    public enum AssetRequestMode { ImmediateLoad }
+    public class Asset<T>(T value) { public T Value => value; }
+}
+namespace Terraria.GameContent
+{
+    public static class TextureAssets { public static Asset<Texture2D>[] Projectile = new Asset<Texture2D>[1]; }
+}
+namespace KL.SkillSystem.SilkyUI
+{
+    public class SkillUIInfoAttribute : Attribute { public int State { get; set; } public int Pixels { get; set; } }
+}
+namespace 伊蕾娜.ElainaAttribute
+{
+    public class ElainaAttributeModPlayer
+    {
+        public float MagicPoint = 100f;
+        public bool ConsumeMagicPoint(float cost, bool consume = true)
+        {
+            if (MagicPoint < cost) return false;
+            if (consume) MagicPoint -= cost;
+            return true;
+        }
+    }
+}
+namespace 伊蕾娜.ElainaModSkills
+{
+    public class ElainaSkill
+    {
+        public Player Player => Main.LocalPlayer;
+        public float MagicPointCost, MaxCD;
+        protected virtual bool UsesLiveBalance => true;
+        public virtual void Initialize() { }
+        public virtual void DeserializeData(Terraria.ModLoader.IO.TagCompound tag) { MaxCD = 60; }
+        public virtual bool CanUseSkill() => Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false);
+        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+    }
+}

@@ -304,6 +304,8 @@ namespace 伊蕾娜
             父子关系同步,
             小动物状态,
             妮可名单,
+            RecallPortal,
+            FrostVeil,
         }
 
 
@@ -313,6 +315,12 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
+                case MessageType.FrostVeil:
+                    ElainaModSkills.Skills.Ice.FrostVeilSystem.HandlePacket(reader, whoAmI, playernumber);
+                    break;
+                case MessageType.RecallPortal:
+                    ElainaModSkills.Skills.Recall.RecallPortalSystem.HandlePacket(reader, whoAmI, playernumber);
+                    break;
                 case MessageType.炼金状态:
 
                     bool 炼制中 = reader.ReadBoolean();

@@ -58,12 +58,17 @@ static class BehaviorChecks
         Check(Magic(s).Spent == 0 && Actions(s).Calls == 0, "Cancellation costs nothing");
         Check(!s.PreUseSkill() && ElainaHealingWheel.IsShowing, "Can reopen after cancelling");
 
-        foreach (string invalid in new[] { "far", "dead", "offline", "team", "target-pvp", "caster-pvp" })
+        s = Setup(true); Terraria.Main.player[1].Center = new Vector2(3000.01f, 0);
+        Check(!s.BeginWandUse() && ElainaHealingWheel.IsShowing, "Far ally still requires confirmation instead of automatic self-heal");
+        Check(ElainaHealingWheel.ValidTarget(0) && !ElainaHealingWheel.ValidTarget(1), "Far ally picker contains only self");
+        ElainaHealingWheel.CancelOpen();
+        Check(!s.PreUseSkill() && ElainaHealingWheel.IsShowing && Magic(s).Spent == 0, "Non-wand entry also asks for confirmation with far ally");
+
+        foreach (string invalid in new[] { "dead", "offline", "team", "target-pvp", "caster-pvp" })
         {
             s = Setup(true); Player ally = Terraria.Main.player[1];
             switch (invalid)
             {
-                case "far": ally.Center = new Vector2(1200.01f, 0); break;
                 case "dead": ally.dead = true; break;
                 case "offline": ally.active = false; break;
                 case "team": ally.team = 2; break;
@@ -72,7 +77,7 @@ static class BehaviorChecks
             }
             Check(s.PreUseSkill() && ElainaHealingWheel.Opens == 0 && Actions(s).LastTarget == 0, "Excluded ally -> direct self: " + invalid);
         }
-        s = Setup(true); Terraria.Main.player[1].Center = new Vector2(1200, 0);
+        s = Setup(true); Terraria.Main.player[1].Center = new Vector2(3000, 0);
         Check(!s.PreUseSkill() && ElainaHealingWheel.IsShowing, "Exact search boundary is selectable");
 
         foreach (string invalid in new[] { "dead", "far", "team", "offline" })
@@ -81,7 +86,7 @@ static class BehaviorChecks
             switch (invalid)
             {
                 case "dead": ally.dead = true; break;
-                case "far": ally.Center = new Vector2(1300, 0); break;
+                case "far": ally.Center = new Vector2(3100, 0); break;
                 case "team": ally.team = 3; break;
                 case "offline": ally.active = false; break;
             }

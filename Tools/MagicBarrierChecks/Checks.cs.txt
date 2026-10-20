@@ -13,6 +13,7 @@ using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
 using BarrierPlayer = 伊蕾娜.ElainaModSkills.Skills.MagicBarrier.MagicBarrierSkill.MagicBarrierModPlayer;
 using GameMain = Terraria.Main;
 
@@ -73,7 +74,7 @@ static class Checks
                 return slot;
             }));
         var player = new Player { active = true, whoAmI = 0, statManaMax2 = 200, statLifeMax2 = 400, statLife = 400 };
-        var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer() };
+        var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer(), new FrostVeilPlayer() };
         for (ushort i = 0; i < parts.Length; i++)
         {
             parts[i].GetType().GetProperty("Entity", All)!.SetValue(parts[i], player);
@@ -305,7 +306,68 @@ static class Checks
         player.dead = true; UpdateEffects();
         Check(!shield.BarrierEnabled, "Dead player does not activate passive"); RegenFloor(false);
         player.dead = false; UpdateEffects(); RegenFloor(true);
+
+        // The compiled hurt callback must run percentage absorption BEFORE Frost Veil's flat reduction.
+        var frost = player.GetModPlayer<FrostVeilPlayer>();
+        frost.Veil.Apply(20);
+        SetMagic(200);
+        var layeredHit = Hit(80);
+        Check(layeredHit.Damage == 30, "80 -> 50 from Magic Barrier -> 30 from one frost shield");
+        Near(attributes.MagicPoint, 170, "Frost does not discount Magic Barrier's original 30-magic payment");
+        Check(frost.Veil.Shields == 3, "Partial block waits for actual hurt, before consuming a shield");
+        frost.OnHurt(layeredHit);
+        Check(frost.Veil.Shields == 2, "One actual hurt consumes exactly one frost shield");
+        frost.OnHurt(layeredHit);
+        Check(frost.Veil.Shields == 2, "Repeated OnHurt cannot consume twice");
+        SetMagic(200);
+        Hit(80); // Simulated vanilla dodge: there is no OnHurt call.
+        Check(frost.Veil.Shields == 2, "Dodged partial hit consumes no frost shield");
+        Hit(80, cancelled: true);
+        frost.OnHurt(new Player.HurtInfo { Damage = 1 });
+        Check(frost.Veil.Shields == 2, "Cancelled follow-up clears pending partial hit");
+        SetMagic(200);
+        Check(Hit(1).Cancelled && frost.Veil.Shields == 2, "Fully blocked Magic Barrier hit saves frost layers");
+
+        barrier.IsEnabled = false; UpdateEffects(); SetMagic(200);
+        player.immune = false; player.immuneTime = 0;
+        Check(Hit(20).Cancelled && frost.Veil.Shields == 1, "Equal flat absorption cancels damage and consumes one layer");
+        Check(player.immune && player.immuneTime >= 20, "Full frost block grants normal hurt immunity");
+        Check(Hit(1).Cancelled && frost.Veil.Shields == 0, "Third frost layer can fully block a small hit");
+        Check(Hit(80).Damage == 80, "Exhausted veil grants no reduction");
+        for (int tick = 0; tick < 7200; tick++) frost.Veil.Tick(true);
+        Check(frost.Veil.Shields == 0 && frost.Veil.RemainingTicks == 0, "An exhausted veil never auto-revives");
+        Near(attributes.MagicPoint, 200, "Flat absorption and renewal spend no magic");
+
+        frost.Veil.Apply(20);
+        frost.Veil.Consume(); frost.Veil.Consume();
+        bool renewedEarly = false;
+        for (int tick = 0; tick < 3599; tick++) renewedEarly |= frost.Veil.Tick(true);
+        Check(!renewedEarly, "No early renewal");
+        Check(frost.Veil.Shields == 1 && frost.Veil.RemainingTicks == 1, "One layer survives through tick 3599");
+        Check(frost.Veil.Tick(true) && frost.Veil.Shields == 3 && frost.Veil.RemainingTicks == 3600,
+            "Tick 3600 refills surviving veil and resets full lifetime");
+        frost.Veil.Consume(); frost.Veil.Apply(15);
+        Check(frost.Veil.Shields == 3 && frost.Veil.Absorption == 15 && frost.Veil.RemainingTicks == 3600,
+            "Recast replaces strength and resets to three layers, never six");
+        for (int tick = 0; tick < 3601; tick++) frost.Veil.Tick(false);
+        Check(frost.Veil.Shields == 3 && frost.Veil.RemainingTicks == 0, "Remote timer waits for owner renewal");
+        player.GetModPlayer<ElainaModplayer>().Elaina = false; UpdateEffects();
+        frost.Veil.Apply(20);
+        layeredHit = Hit(80); frost.OnHurt(layeredHit);
+        Check(layeredHit.Damage == 60 && frost.Veil.Shields == 2, "Non-Elaina ally receives flat protection");
+        foreach (int mode in new[] { NetmodeID.MultiplayerClient, NetmodeID.Server })
+        {
+            GameMain.netMode = mode; GameMain.myPlayer = mode == NetmodeID.Server ? 255 : 1;
+            layeredHit = Hit(80); frost.OnHurt(layeredHit);
+            Check(layeredHit.Damage == 80 && frost.Veil.Shields == 2, "Remote endpoints never double-reduce or consume");
+        }
+        GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
+        player.dead = true; frost.UpdateDead(); player.dead = false;
+        Check(frost.Veil.Shields == 0, "Death removes veil");
+        frost.Veil.Apply(20); frost.OnEnterWorld();
+        Check(frost.Veil.Shields == 0, "World entry clears transient veil");
         Console.WriteLine($"Magic barrier integration: {passed} checks passed against compiled mod and tModLoader damage modifiers.");
+        FrostVeilChecks.Run(player);
     }
 
     sealed class UnconfiguredSkill : ElainaSkill { }

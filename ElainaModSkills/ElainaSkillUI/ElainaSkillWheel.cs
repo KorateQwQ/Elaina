@@ -39,6 +39,7 @@ public sealed class ElainaSkillWheel : BaseBody
     public ElainaSkillWheel() { Enabled = false; }
 
     public override bool IsInteractable => _open;
+    internal static bool IsShowing => TryGet(out var wheel) && wheel._open;
 
     private int Count => _skills.Count;
 
@@ -84,6 +85,7 @@ public sealed class ElainaSkillWheel : BaseBody
         && ElainaSkillManager.SelectionMode == SkillSelectionMode.Wheel && !ElainaHealingWheel.IsShowing;
 
     private static bool CanOpen => CanStayOpen && !Main.editSign && !Main.editChest && !Main.LocalPlayer.mouseInterface
+        && !(Main.mouseRight && Skills.Recall.RecallPortalPlayer.FindHovered(Main.LocalPlayer) != null)
         && !ConstellationSkillPanel.ConstellationSkillPanel.PanelShown;
 
     internal static void HandleInput(ModKeybind key)

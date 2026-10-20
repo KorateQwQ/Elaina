@@ -10,9 +10,11 @@ SkillName: {
 	FireLaserSkill: Flame Beam
 	IceShardLockSkill: Ice Shard Lock
 	IceConeSkill: Ice Cone Magic
+	FrostVeilSkill: Frost Veil
 	WaterBallSkill: Water Orb Magic
 	WaterLaserSKill: Water Stream Magic
 	HealSkill: Healing Magic
+	RecallSkill: Recall Magic
 	MagicMissileSkill: Magic Missile
 	MultiMissileSkill: Multi-Shot
 	AshenWitchSkill: Ashen Witch
@@ -24,6 +26,23 @@ SkillName: {
 }
 
 SkillDesc: {
+	FrostVeilSkill:
+		'''
+		Grants you and non-PvP allied players on the same team within {0} pixels 3 orbiting frost shields each.
+		Each hit consumes one shield to block damage equal to your maximum Magic Power at cast time / 20 (currently {1:0.##}), after Magic Barrier's percentage reduction.
+		Each cycle lasts 60 seconds. If any shields remain at expiry, freely refill to 3 and restart the 60 seconds. Once all shields are consumed, you must cast again. Recasting refills and refreshes without stacking.
+		'''
+	DollControlSkill:
+		'''
+		Consumes 20 Magic Power to summon a bear doll that floats alongside you and teleports back when too far away.
+		Each player can keep one bear doll. Casting again recalls it to your side. It currently has no attacks or other abilities.
+		'''
+	RecallSkill:
+		'''
+		Hold left-click to select yourself or an ally within 3000 pixels; release to summon a magic circle at their feet.
+		After 1.5 seconds, allies within 160 pixels of the circle travel to the selected ally's spawn, or world spawn if their bed is invalid.
+		Both circles remain for 30 seconds. Approach and right-click either circle to travel for free. Recasting closes your previous pair without affecting other players' circles.
+		'''
 	IceShardLockSkill:
 		'''
 		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} Ice damage in total.
@@ -77,6 +96,7 @@ SkillDesc: {
 }
 
 UnlockConditions: {
+	IceQueen: Defeat the Ice Queen during the Frost Moon
 	CharacterLevel: Reach character Lv.{0}
 	CharacterLevelCap: Reach a character level cap of Lv.{0}
 	SkillLevel: Reach Lv.{1} in {0}

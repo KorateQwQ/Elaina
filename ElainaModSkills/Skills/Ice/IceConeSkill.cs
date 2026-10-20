@@ -5,6 +5,7 @@ using KL.ActionsSystem;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
+using Terraria.ID;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
@@ -21,7 +22,8 @@ public class IceConeSkill : ElainaSkill
 
     // 默认蜂王后开放（角色等级上限 25）；具体门槛由 JSON 的 unlockStageCap 决定，不要求实际等级达到上限。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(IceConeSkill), 25));
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(IceConeSkill), 25),
+            SkillUnlockCondition.ByItems(new SkillUnlockItem(ItemID.FrostCore, 1)));
 
 
     public override void Initialize()

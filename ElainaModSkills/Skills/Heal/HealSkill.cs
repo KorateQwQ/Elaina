@@ -10,7 +10,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Heal;
 [SkillUIInfo(State = 3, Pixels = 0)]
 public class HealSkill : ElainaSkill
 {
-    private const float TargetSearchRadius = 1200f;
+    private const float TargetSearchRadius = 3000f;
     private const int InvalidTargetIndex = -1;
 
     private int pendingTargetIndex = InvalidTargetIndex;
@@ -24,14 +24,14 @@ public class HealSkill : ElainaSkill
     }
 
     /// <summary>
-    /// 有可选队友时只打开选择盘，不进入魔杖的原版使用：按住期间没有挥杖与使用音效，
-    /// 松开确认目标后才由 <see cref="CastAt"/> 的施法动作出手。单人时照常走魔杖使用直接施法。
+    /// 有队友时只打开选择盘，即使队友全在范围外也需确认自疗，避免误触。
+    /// 按住期间没有挥杖与使用音效，松开确认后才由 <see cref="CastAt"/> 出手；无队友时直接自疗。
     /// </summary>
     public override bool BeginWandUse()
     {
         // 选择盘打开或还在等这次松开时，长按自动重用不能重开选择盘，也不能挥杖。
         if (ElainaHealingWheel.OwnsPointer) return false;
-        if (!HasNearbyAlly()) return true;
+        if (!HasAlly()) return true;
         OpenPicker();
         return false;
     }
@@ -52,19 +52,19 @@ public class HealSkill : ElainaSkill
             return false;
         }
 
-        // Only eligible nearby allies justify opening a picker. Solo/out-of-range/PvP cases
-        // use the same validated cast path, consuming magic and the skill charge exactly once.
+        // 是否打开选择盘不受距离影响；盘内目标和实际施法仍需通过范围校验。
+        // 有队友但全在范围外时只显示自己，必须手动确认，不能直接自疗。
         // 魔杖平时已在 BeginWandUse 打开选择盘；这里保留给不经魔杖的调用方。
-        if (!HasNearbyAlly()) return CastAt(Player.whoAmI, source);
+        if (!HasAlly()) return CastAt(Player.whoAmI, source);
         OpenPicker();
         return false;
     }
 
-    private bool HasNearbyAlly()
+    private bool HasAlly()
     {
         for (int i = 0; i < Main.maxPlayers; i++)
         {
-            if (i != Player.whoAmI && TryGetValidTarget(i, out _)) return true;
+            if (i != Player.whoAmI && TryGetValidTarget(i, out _, requireInRange: false)) return true;
         }
         return false;
     }
@@ -129,7 +129,7 @@ public class HealSkill : ElainaSkill
         }
     }
 
-    private bool TryGetValidTarget(int targetIndex, out Player target)
+    private bool TryGetValidTarget(int targetIndex, out Player target, bool requireInRange = true)
     {
         target = null;
         if (targetIndex < 0 || targetIndex >= Main.maxPlayers ||
@@ -144,7 +144,7 @@ public class HealSkill : ElainaSkill
             return false;
         }
 
-        if (Vector2.DistanceSquared(Player.Center, candidate.Center) >
+        if (requireInRange && Vector2.DistanceSquared(Player.Center, candidate.Center) >
             TargetSearchRadius * TargetSearchRadius)
         {
             return false;

@@ -1,0 +1,122 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using SDL2;
+using ReLogic.Content;
+using Terraria.GameContent;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using World = Terraria.Main;
+
+sealed class Preview : Game
+{
+    readonly string repo, output;
+    readonly Dictionary<string, Texture2D> textures = new();
+    SpriteBatch batch;
+    Texture2D pixel;
+    bool done;
+    Preview(string repo, string output)
+    {
+        this.repo = repo; this.output = output;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 640, PreferredBackBufferHeight = 300,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice); World.spriteBatch = batch;
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        ModContent.LoadTexture = LoadTexture;
+        TextureAssets.Projectile[0] = new Asset<Texture2D>(LoadTexture(new KumaPetProjectile().Texture));
+    }
+    Texture2D LoadTexture(string path)
+    {
+        if (textures.TryGetValue(path, out var texture)) return texture;
+        string local = path[(path.IndexOf('/') + 1)..].Replace('/', Path.DirectorySeparatorChar) + ".png";
+        using var stream = File.OpenRead(Path.Combine(repo, local));
+        texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+        foreach (Color color in pixels)
+            if (color.A != 0 && color.A != 255) throw new Exception("Semi-transparent asset: recheck tML/FNA alpha conversion.");
+        textures.Add(path, texture);
+        return texture;
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        DrawSheet();
+        DrawFollow();
+        Console.WriteLine($"FNA preview: {textures.Count} production PNGs, real PreDraw, 120 trajectory frames.");
+        Exit();
+    }
+    void Begin(float scale = 1f) => batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+        SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+    void DrawSheet()
+    {
+        var doll = Checks.Reset();
+        World.screenPosition = Vector2.Zero;
+        using var target = new RenderTarget2D(GraphicsDevice, 800, 540);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(18, 23, 34));
+        Begin();
+        for (int row = 0; row < 3; row++)
+        for (int col = 0; col < 5; col++)
+        {
+            batch.Draw(pixel, new Rectangle(col * 160 + 2, row * 180 + 2, 156, 176), new Color(29, 35, 47));
+            doll.Projectile.spriteDirection = row == 0 ? -1 : 1;
+            World.player[0].gravDir = row == 2 ? -1f : 1f;
+            doll.Projectile.ai[1] = col == 0 ? 0f : 1f;
+            doll.Projectile.frame = Math.Max(0, col - 1);
+            doll.Projectile.Center = new Vector2(col * 160 + 80, row * 180 + 74);
+            doll.Projectile.scale = 3f;
+            Color light = Color.White; doll.PreDraw(ref light);
+            doll.Projectile.Center.Y = row * 180 + 150;
+            doll.Projectile.scale = 1f; doll.PreDraw(ref light);
+        }
+        batch.End(); Save(target, "kuma-frames.png");
+    }
+    void DrawFollow()
+    {
+        Directory.CreateDirectory(Path.Combine(output, "frames"));
+        var doll = Checks.Reset();
+        var owner = World.player[0];
+        using var target = new RenderTarget2D(GraphicsDevice, 640, 300);
+        for (int tick = 0; tick < 480; tick++)
+        {
+            if (tick == 60) owner.velocity = new Vector2(5f, 0f);
+            if (tick == 210 || tick == 420) owner.velocity = Vector2.Zero;
+            if (tick == 270) { owner.direction = -1; owner.velocity = new Vector2(-5f, 0f); }
+            Checks.Tick(doll);
+            if (tick % 4 != 0) continue;
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(23, 30, 43));
+            Begin(2f);
+            World.screenPosition = owner.Center - new Vector2(160f, 84f);
+            batch.Draw(pixel, new Rectangle(0, 107, 320, 43), new Color(38, 48, 46));
+            for (int x = -32; x < 352; x += 32)
+                batch.Draw(pixel, new Rectangle(x - (int)(owner.Center.X % 32), 108, 1, 42), new Color(48, 60, 53));
+            // Neutral player marker; the doll uses production AI, texture selection and PreDraw.
+            batch.Draw(pixel, new Rectangle(155, 65, 10, 10), new Color(194, 201, 215));
+            batch.Draw(pixel, new Rectangle(153, 76, 14, 22), new Color(105, 119, 151));
+            batch.Draw(pixel, new Rectangle(153, 98, 5, 9), new Color(82, 91, 113));
+            batch.Draw(pixel, new Rectangle(162, 98, 5, 9), new Color(82, 91, 113));
+            Color light = Color.White; doll.PreDraw(ref light);
+            batch.End(); Save(target, $"frames/{tick / 4:D3}.png");
+        }
+    }
+    void Save(RenderTarget2D target, string filename)
+    {
+        GraphicsDevice.SetRenderTarget(null);
+        using var stream = File.Create(Path.Combine(output, filename));
+        target.SaveAsPng(stream, target.Width, target.Height);
+    }
+    protected override void UnloadContent()
+    {
+        foreach (var texture in textures.Values) texture.Dispose();
+        pixel.Dispose(); batch.Dispose();
+    }
+    public static void Main(string[] args)
+    {
+        Checks.Run();
+        using var preview = new Preview(args[0], args[1]); preview.Run();
+    }
+}
