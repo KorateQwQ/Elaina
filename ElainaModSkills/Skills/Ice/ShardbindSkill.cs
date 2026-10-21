@@ -10,7 +10,7 @@ using 伊蕾娜.ElainaAttribute;
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
 [SkillUIInfo(State = 6, Pixels = 400)]
-public class IceShardLockSkill : ElainaSealedSkill
+public class ShardbindSkill : ElainaSealedSkill
 {
     public override Type[] PrerequisiteSkills => [typeof(IceConeSkill)];
 
@@ -43,7 +43,7 @@ public class IceShardLockSkill : ElainaSealedSkill
         if (target == null || !CanUseSkill() || !attributes.ConsumeMagicPoint(MagicPointCost, false))
             return false;
 
-        if (!ShootIceShardLock3D(Player, target)) return false;
+        if (!ShootShardbind3D(Player, target)) return false;
         if (!attributes.ConsumeMagicPoint(MagicPointCost))
         {
             Player.GetModPlayer<ActionModPlayer>().InterruptCurrentAction();
@@ -53,7 +53,7 @@ public class IceShardLockSkill : ElainaSealedSkill
         return base.PreUseSkill(source);
     }
     
-    public bool ShootIceShardLock3D(Player player, NPC target)
+    public bool ShootShardbind3D(Player player, NPC target)
     {
         Vector2 targetWorldPosition = target.Center;
         uint selectedSpawnSerial = target.GetGlobalNPC<IceboundNPC>().SpawnSerial;
@@ -63,7 +63,7 @@ public class IceShardLockSkill : ElainaSealedSkill
         AnimAction animAction = new Action_SimpleSlash()
             .AddNode(new ShootActionNode(
                 1,
-                ModContent.ProjectileType<IceShardLockProj>(),
+                ModContent.ProjectileType<ShardbindProj>(),
                 _ => target.active ? target.Center : targetWorldPosition,
                 GetConfiguredDamage(hitCount: 1),
                 2f,
@@ -71,7 +71,7 @@ public class IceShardLockSkill : ElainaSealedSkill
                 projectile =>
                 {
                     ConfigureFreezeBuildup(projectile, freezeBuildup);
-                    ((IceShardLockProj)projectile.ModProjectile).BindTarget(target, selectedSpawnSerial);
+                    ((ShardbindProj)projectile.ModProjectile).BindTarget(target, selectedSpawnSerial);
                 }));
 
         float startRotation = aimDirection.ToRotation() * player.gravDir;

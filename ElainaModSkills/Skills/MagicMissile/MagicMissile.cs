@@ -178,7 +178,7 @@ public class MagicMissile : KLProjectile
                 trail,
                 DrawManagedTrail,
                 layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-                LayerDrawRequestSystem.DrawTiming.Before,
+                LayerDrawRequestSystem.DrawTiming.After,
                 bloom: true);
         }
         LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissile", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,

@@ -87,7 +87,7 @@ public class IceConeTargetSystem : ModSystem
     {
         List<Skill> skills = ElainaSkillModPlayer.GetActiveSkill;
         int index = ElainaSkillModPlayer.CurrentSkillIndex;
-        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is IceConeSkill or IceShardLockSkill;
+        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is IceConeSkill or ShardbindSkill;
     }
 
     public override void OnWorldUnload() => ResetTracking();

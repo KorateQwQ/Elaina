@@ -38,9 +38,9 @@ static class Checks
             if (index == 0) ContentInstance.Register(parts[i]);
         }
         typeof(Player).GetField("modPlayers", All)!.SetValue(player, parts);
-        var modSkill = new IceShardLockSkill { CurrentCD = 60, MaxCD = 60, CooldownDuration = 60, MaxStack = 1, Stack = 0, BasicStatus = Skill.SKillBasicStatus.UnLock };
+        var modSkill = new ShardbindSkill { CurrentCD = 60, MaxCD = 60, CooldownDuration = 60, MaxStack = 1, Stack = 0, BasicStatus = Skill.SKillBasicStatus.UnLock };
         var skill = new Skill(); typeof(Skill).GetProperty("ModSkill", All)!.SetValue(skill, modSkill); modSkill.Skill = skill;
-        player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(IceShardLockSkill)] = skill;
+        player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)] = skill;
         GameMain.player[index] = player;
         return player;
     }
@@ -86,9 +86,20 @@ static class Checks
         typeof(BuffLoader).GetMethod("ResizeArrays", All)!.Invoke(null, null);
         var player = PlayerFixture(0); var otherPlayer = PlayerFixture(1);
         var cycle = player.GetModPlayer<IceCyclePlayer>();
-        var skill = player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(IceShardLockSkill)];
-        var otherSkill = otherPlayer.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(IceShardLockSkill)];
+        var skill = player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)];
+        var otherSkill = otherPlayer.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)];
         var target = NpcFixture(0); var part = NpcFixture(1, 0); var other = NpcFixture(2);
+
+        var renamedSkillTag = new Terraria.ModLoader.IO.TagCompound {
+            ["modSkillType"] = "伊蕾娜.ElainaModSkills.Skills.Ice.IceShardLockSkill",
+            ["modSkillData"] = new Terraria.ModLoader.IO.TagCompound { ["Level"] = 7, ["SkillSlot"] = 2 } };
+        var renamedSave = new Terraria.ModLoader.IO.TagCompound {
+            ["UnlockSkill"] = new List<Terraria.ModLoader.IO.TagCompound> { renamedSkillTag },
+            ["SkillForSave"] = new List<Terraria.ModLoader.IO.TagCompound> { renamedSkillTag } };
+        var renamedLoader = PlayerFixture(2).GetModPlayer<ElainaSkillModPlayer>();
+        renamedLoader.LoadData(renamedSave);
+        Check(renamedLoader.UnlockedSkill.Count == 0 && renamedLoader.ActiveSkill.All(s => s == null),
+            "Save with removed IceShardLockSkill type loads without error and drops it");
 
         FreezeCD(target, 600); FreezeCD(other, 600);
         var batch = new IceWaterHitBatch();
@@ -103,7 +114,7 @@ static class Checks
         FreezeCD(target, 0); batch.Reset(); batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 51.1, "Fresh phase target still refunds lock"); Near(target.GetFreezeCooldown(), 0, "No negative freeze CD");
         batch.Reset(); batch.OnHit(otherPlayer, target, 1, true); Near(otherSkill.CurrentCD, 60, "Remote player's client callbacks do not refund");
         cycle.ReduceLockCooldown(100); Check(skill.Stack == 1 && skill.CurrentCD == 0, "Refund completes a charge immediately");
-        Check(((IceShardLockSkill)skill.ModSkill).IsSealed, "Water completing cooldown cannot unseal");
+        Check(((ShardbindSkill)skill.ModSkill).IsSealed, "Water completing cooldown cannot unseal");
         skill.UpdateCD(1f / 60); Check(skill.Stack == 1, "Next framework tick does not add a second charge");
         cycle.ReduceLockCooldown(18); Check(skill.Stack == 1 && skill.CurrentCD == 0, "Ready skill banks nothing");
         skill.Stack = 0; skill.StartCooldown(60); Near(skill.CurrentCD, 60, "No stored refund on next cast");
@@ -114,8 +125,8 @@ static class Checks
         ElementBuildUpSystem.FreezeTriggered += (_, _) => freezeEvents++;
         Clock(100);
         var global = target.GetGlobalNPC<ElementalGlobalNPC>();
-        var sealedSkill = (IceShardLockSkill)skill.ModSkill;
-        var otherSealed = (IceShardLockSkill)otherSkill.ModSkill;
+        var sealedSkill = (ShardbindSkill)skill.ModSkill;
+        var otherSealed = (ShardbindSkill)otherSkill.ModSkill;
         Check(sealedSkill.IsSealed && otherSealed.IsSealed, "Skills start sealed even when cooldown can recover");
         for (int i = 0; i < 17; i++) global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f);
         Check(!target.HasBuff<ElementalAffliction_Freeze>() && sealedSkill.IsSealed, "17 hits do not freeze or unseal");
@@ -151,21 +162,21 @@ static class Checks
         player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill.Clear(); batch.Reset(); batch.OnHit(player, target, 1, true);
         Near(target.GetFreezeCooldown(), 0, "Water still reduces freeze CD without learning lock and clamps at zero");
 
-        var burst = Attach(new IceShardLockProj()); burst.Projectile.Center = Vector2.Zero;
+        var burst = Attach(new ShardbindProj()); burst.Projectile.Center = Vector2.Zero;
         Check(burst.CanDamage() == false, "Lock cannot damage during gathering");
-        typeof(IceShardLockProj).GetField("time", All)!.SetValue(burst, IceCycleBalance.LockBurstFrame);
+        typeof(ShardbindProj).GetField("time", All)!.SetValue(burst, IceCycleBalance.LockBurstFrame);
         Check(burst.CanDamage() == false, "Frame number alone cannot repeat a pulse");
-        typeof(IceShardLockProj).GetField("damagePulse", All)!.SetValue(burst, true);
-        typeof(IceShardLockProj).GetField("damageRadius", All)!.SetValue(burst, IceCycleBalance.LockRadius);
+        typeof(ShardbindProj).GetField("damagePulse", All)!.SetValue(burst, true);
+        typeof(ShardbindProj).GetField("damageRadius", All)!.SetValue(burst, IceCycleBalance.LockRadius);
         Check(burst.CanDamage() == true, "Lock damages only during an explicit pulse");
         Check(burst.Colliding(default, new Rectangle(190, -5, 20, 10)) == true, "Circular burst hits box intersecting radius");
         Check(burst.Colliding(default, new Rectangle(201, -5, 20, 10)) == false, "Outside radius misses");
         burst.OnHitNPC(target, default, 100); Check(burst.CanHitNPC(part) == false && burst.CanHitNPC(other) == null, "Burst shares blood-pool immunity, preserves independent targets");
-        typeof(IceShardLockProj).GetField("time", All)!.SetValue(burst, IceCycleBalance.LockBurstFrame + 1);
-        typeof(IceShardLockProj).GetField("damagePulse", All)!.SetValue(burst, false);
+        typeof(ShardbindProj).GetField("time", All)!.SetValue(burst, IceCycleBalance.LockBurstFrame + 1);
+        typeof(ShardbindProj).GetField("damagePulse", All)!.SetValue(burst, false);
         Check(burst.CanDamage() == false, "Lock cannot repeat damage after burst");
-        burst.Projectile.owner = 1; typeof(IceShardLockProj).GetField("time", All)!.SetValue(burst, IceCycleBalance.LockBurstFrame);
-        typeof(IceShardLockProj).GetField("damagePulse", All)!.SetValue(burst, true);
+        burst.Projectile.owner = 1; typeof(ShardbindProj).GetField("time", All)!.SetValue(burst, IceCycleBalance.LockBurstFrame);
+        typeof(ShardbindProj).GetField("damagePulse", All)!.SetValue(burst, true);
         Check(burst.CanDamage() == false, "Only projectile owner applies damage");
 
         CheckLockSequence(target, part, other, () => freezeEvents, skill);
@@ -175,8 +186,8 @@ static class Checks
 
         string root = args[0];
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)), out var config, out var error), error);
-        var entry = config.Skills[nameof(IceShardLockSkill)];
-        Near(entry.FreezeBuildup, 0, "Ice Shard Lock config chooses zero buildup per hit");
+        var entry = config.Skills[nameof(ShardbindSkill)];
+        Near(entry.FreezeBuildup, 0, "Shardbind config chooses zero buildup per hit");
         using var savedJson = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)));
         double savedIceBuildup = savedJson.RootElement.GetProperty("configuration").GetProperty("basicAttacks")
             .EnumerateArray().Single(row => row.GetProperty("id").GetString() == nameof(IceConeSkill)).GetProperty("freezeBuildup").GetDouble();
@@ -208,10 +219,10 @@ static class Checks
         var skills = player.GetModPlayer<ElainaSkillModPlayer>();
         var attributes = player.GetModPlayer<ElainaAttributeModPlayer>();
         var cone = Owned(new IceConeSkill { Stack = 0, CurrentCD = 10, MaxCD = 10, MagicPointCost = 9999 });
-        var shard = Owned(new IceShardLockSkill { Stack = 1, MaxStack = 1, MaxCD = 60, MagicPointCost = 100 });
+        var shard = Owned(new ShardbindSkill { Stack = 1, MaxStack = 1, MaxCD = 60, MagicPointCost = 100 });
         skills.UnlockedSkill.Clear();
         skills.UnlockedSkill[nameof(IceConeSkill)] = cone;
-        skills.UnlockedSkill[nameof(IceShardLockSkill)] = shard;
+        skills.UnlockedSkill[nameof(ShardbindSkill)] = shard;
         skills.UnlockedSkill[nameof(AshenWitchSkill)] = Owned(new AshenWitchSkill());
         skills.ActiveSkill = [cone, null];
         ElainaSkillModPlayer.CurrentSkillIndex = 0;
@@ -228,14 +239,14 @@ static class Checks
         Check(IceConeTargetSystem.ResolveTarget() == target, "Shared resolver selects cursor target");
         typeof(IceConeTargetSystem).GetField("targetIndex", All)!.SetValue(null, target.whoAmI);
         Check(IceConeTargetSystem.ResolveTarget() == IceConeTargetSystem.LockedTarget, "Both spells reuse the reticle target");
-        Check(shard.ModSkill.CanDragInSkillPanel(), "Learned Ice Shard Lock is equippable");
+        Check(shard.ModSkill.CanDragInSkillPanel(), "Learned Shardbind is equippable");
         KLSkillManager.EquipSkill(skills.ActiveSkill, shard, 1);
-        Check(skills.ActiveSkill[1] == shard && shard.SkillSlot == 1, "Ice Shard Lock occupies a normal skill slot");
+        Check(skills.ActiveSkill[1] == shard && shard.SkillSlot == 1, "Shardbind occupies a normal skill slot");
 
         int casts = 0;
         bool acceptAction = true;
-        using var castHook = new Hook(typeof(IceShardLockSkill).GetMethod(nameof(IceShardLockSkill.ShootIceShardLock3D))!,
-            (Func<IceShardLockSkill, Player, NPC, bool>)((_, caster, npc) => {
+        using var castHook = new Hook(typeof(ShardbindSkill).GetMethod(nameof(ShardbindSkill.ShootShardbind3D))!,
+            (Func<ShardbindSkill, Player, NPC, bool>)((_, caster, npc) => {
                 if (!acceptAction) return false;
                 Check(caster == player && npc == target, "Real cast forwards shared target and owner"); casts++; return true;
             })); // Only intercept animation/projectile creation; conditions, mana and cooldowns run unchanged.
@@ -244,15 +255,15 @@ static class Checks
         Check(!wand.AltFunctionUse(player), "Selecting Ice Cone does not enable a right click skill");
         Check(!wand.CanUseItem(player), "Ice Cone still checks its own cooldown");
         ElainaSkillModPlayer.CurrentSkillIndex = 1;
-        Check(!wand.AltFunctionUse(player), "Ice Shard Lock is a normal primary-use spell");
+        Check(!wand.AltFunctionUse(player), "Shardbind is a normal primary-use spell");
         Check((bool)typeof(IceConeTargetSystem).GetMethod("IceConeSelected", All)!.Invoke(null, null)!,
-            "Selecting independent Ice Shard Lock enables the shared reticle");
-        var sealedSkill = (IceShardLockSkill)shard.ModSkill;
+            "Selecting independent Shardbind enables the shared reticle");
+        var sealedSkill = (ShardbindSkill)shard.ModSkill;
         Check(!wand.CanUseItem(player), "Ready but sealed skill cannot cast");
         wand.UseItem(player); Check(casts == 0 && shard.Stack == 1, "Sealed attempt spends no charge");
         Near(attributes.MagicPoint, 150, "Sealed attempt spends no mana");
         sealedSkill.Unseal();
-        Check(wand.CanUseItem(player), "Unsealed selected Ice Shard Lock is usable independently of Ice Cone");
+        Check(wand.CanUseItem(player), "Unsealed selected Shardbind is usable independently of Ice Cone");
         Near(attributes.MagicPoint, 150, "Eligibility does not spend magic");
         acceptAction = false; wand.UseItem(player);
         Check(!sealedSkill.IsSealed && shard.Stack == 1 && shard.CurrentCD == 0 && casts == 0,
@@ -261,8 +272,8 @@ static class Checks
         acceptAction = true;
         wand.UseItem(player);
         Check(casts == 1 && shard.Stack == 0, "Left click uses the selected nonzero slot and spends one charge");
-        Near(attributes.MagicPoint, 50, "Ice Shard Lock pays its own cost");
-        Near(shard.CurrentCD, 60, "Ice Shard Lock starts its own cooldown");
+        Near(attributes.MagicPoint, 50, "Shardbind pays its own cost");
+        Near(shard.CurrentCD, 60, "Shardbind starts its own cooldown");
         Check(sealedSkill.IsSealed, "Successful cast reseals");
         sealedSkill.Unseal(); Check(!wand.CanUseItem(player), "Unsealing during cooldown cannot bypass it");
         Near(shard.CurrentCD, 60, "Unsealing preserves full cooldown");
@@ -277,7 +288,7 @@ static class Checks
         update.Invoke(skills, [1f]); Near(shard.CurrentCD, 58, "Switching away keeps equipped skill cooldown ticking");
         skills.ActiveSkill[0] = null;
         update.Invoke(skills, [58f]); Check(shard.Stack == 1 && shard.CurrentCD == 0, "Charge recovers without equipping Ice Cone");
-        Check(!wand.CanUseItem(player), "Empty selected slot cannot cast Ice Shard Lock");
+        Check(!wand.CanUseItem(player), "Empty selected slot cannot cast Shardbind");
         ElainaSkillModPlayer.CurrentSkillIndex = 1;
         sealedSkill.Seal();
         Check(!wand.CanUseItem(player), "Fully recovered cooldown still needs a new unseal");
@@ -287,9 +298,9 @@ static class Checks
         Check(casts == 1 && shard.Stack == 1 && shard.CurrentCD == 0, "Failed mana attempt preserves charge and cooldown");
         Check(!sealedSkill.IsSealed, "Insufficient mana preserves unseal");
         attributes.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 150);
-        target.dontTakeDamage = true; Check(!wand.CanUseItem(player), "Invulnerable target blocks Ice Shard Lock");
+        target.dontTakeDamage = true; Check(!wand.CanUseItem(player), "Invulnerable target blocks Shardbind");
         target.dontTakeDamage = false; target.chaseable = false;
-        Check(!wand.CanUseItem(player), "Unchaseable target blocks Ice Shard Lock");
+        Check(!wand.CanUseItem(player), "Unchaseable target blocks Shardbind");
         target.chaseable = true; target.active = false;
         wand.UseItem(player); Check(casts == 1 && shard.Stack == 1, "Missing target does not spend a charge");
         Near(attributes.MagicPoint, 150, "Missing target does not spend magic");
@@ -307,7 +318,7 @@ static class Checks
         Check(sealedSkill.IsSealed, "Deserializing a skill does not restore temporary unseal");
         Near(shard.CurrentCD, 12, "Loading preserves independent cooldown");
         KLSkillManager.UnEquipSkill(skills.ActiveSkill, 1);
-        Check(!wand.CanUseItem(player), "Unequipped Ice Shard Lock cannot cast");
+        Check(!wand.CanUseItem(player), "Unequipped Shardbind cannot cast");
         GameMain.netMode = NetmodeID.SinglePlayer;
         GameMain.dedServ = true;
     }
@@ -346,7 +357,7 @@ static class Checks
         Check(!state.IsHeld(target) && !partState.IsHeld(part) && target.velocity == new Vector2(12, -5), "Final release restores original motion for whole group");
         IceboundNPC.HoldGroup(target, source, 2); Clock(2002); Check(!state.IsHeld(target), "Unexpected missing source has bounded control duration");
 
-        var lockProj = Attach(new IceShardLockProj());
+        var lockProj = Attach(new ShardbindProj());
         uint serial = state.SpawnSerial; lockProj.BindTarget(target, serial);
         Check(lockProj.LockedTarget == target, "Projectile binds to selected enemy even during invulnerability");
         Check(!IceConeTargetSystem.IsValidTarget(target), "Shared targeting excludes invulnerable enemies");
@@ -370,7 +381,7 @@ static class Checks
         replay.OnSpawn(); replay.MoveWithTarget(new Vector2(3 * 109, -109)); replay.CatchUp(109);
         Check(Vector3.Distance(cone.Position3D, replay.Position3D) < .001f && replay.HasArrived && !replay.ArrivedThisUpdate,
             "Network catch-up reconstructs translated visuals without replaying impact events");
-        var spawnMethod = typeof(IceShardLockProj).GetMethod("BuildIceCone3DSpawnData", All)!;
+        var spawnMethod = typeof(ShardbindProj).GetMethod("BuildIceCone3DSpawnData", All)!;
         var spawns = (global::System.Collections.IEnumerable)spawnMethod.Invoke(null, [Vector2.Zero, 200f])!;
         int count = 0; int lastImpact = 0;
         foreach (object spawn in spawns) {
@@ -381,7 +392,7 @@ static class Checks
 
         // Execute the real controller AI and visual-unit updates; intercept only the engine's world damage scan.
         // This checks scheduling/pulse budgets without requiring a loaded Terraria world or graphics assets.
-        var sequence = Attach(new IceShardLockProj());
+        var sequence = Attach(new ShardbindProj());
         sequence.Projectile.damage = 12688; sequence.Projectile.timeLeft = 120;
         sequence.Projectile.identity = 101;
         sequence.BindTarget(target, state.SpawnSerial);
@@ -391,7 +402,7 @@ static class Checks
             if (projectile != sequence.Projectile) { orig(projectile); return; }
             Check(sequence.CanDamage() == true && projectile.friendly, "Real damage scan is confined to explicit pulse");
             pulses.Add(((int)projectile.ai[1], projectile.damage,
-                (float)typeof(IceShardLockProj).GetField("damageRadius", All)!.GetValue(sequence)!));
+                (float)typeof(ShardbindProj).GetField("damageRadius", All)!.GetValue(sequence)!));
         }
         On_Projectile.Damage += CaptureDamage;
         try {
@@ -417,7 +428,7 @@ static class Checks
         foreach (int deathFrame in new[] { 1, 45, 100 }) {
             var target = NpcFixture(20); var part = NpcFixture(21, 20);
             target.Center = new Vector2(600, 400);
-            var sequence = Attach(new IceShardLockProj());
+            var sequence = Attach(new ShardbindProj());
             sequence.Projectile.damage = 12688; sequence.Projectile.timeLeft = 120; sequence.Projectile.identity = 200 + deathFrame;
             sequence.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
             var pulses = new List<int>(); Vector2 deathPosition = target.Center;
@@ -446,7 +457,7 @@ static class Checks
             using var bytes = new MemoryStream();
             using (var writer = new BinaryWriter(bytes, global::System.Text.Encoding.UTF8, true)) sequence.SendExtraAI(writer);
             bytes.Position = 0;
-            var received = Attach(new IceShardLockProj()); received.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
+            var received = Attach(new ShardbindProj()); received.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
             using (var reader = new BinaryReader(bytes, global::System.Text.Encoding.UTF8, true)) received.ReceiveExtraAI(reader);
             Check(received.LockedTarget == null, "Detached state survives extra-AI serialization even with a live slot");
         }

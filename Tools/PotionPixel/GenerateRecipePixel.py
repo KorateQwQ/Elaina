@@ -2,9 +2,9 @@
 
 The sheet is shown at a slant, leaning to the right. Its top edge rolls a little backwards:
 the bend faces up into the light with a glint along it, and the roll's hollow end shows at
-the upper right. Its bottom edge rolls a little forwards: the paper's edge is a dark line
-across, the curl below it shaded as a tube, its hollow end hooked at the left, and past its
-right end the flat sheet shows. The sheet darkens towards its right edge and carries a few
+the upper right. Its bottom edge rolls a little forwards, in front of the sheet, so the sheet
+above it casts no shadow: a black line separates the sheet from the curl, which is shaded as
+a tube lit along its top, and past its right end the flat sheet shows. The sheet darkens towards its right edge and carries a few
 age spots and staggered words of ink. Light from the upper left, pure black outer
 silhouette, all pixels opaque, nothing floating free.
 
@@ -45,27 +45,27 @@ PIXELS = (
     ".........O4433333333322333322i0i1O",
     ".........O443333333333333321O2ii1O",
     "........O443333333333333221O.O11O.",
-    "........O44333tttu3ttttu22O...OO..",
+    "........O44333tttu3ttttu221O..OO..",
     "........O443333333333333221O......",
-    ".......O4433333333333333221O......",
-    ".......O4ttttu3ttttttu33221O......",
-    "......O4433333333333333221O.......",
-    "......O4433333333333333221O.......",
-    "......O443ttttu3tttu333221O.......",
-    "......O4333333333333333221O.......",
+    "........O443333333333333221O......",
+    ".......O4ttttu3ttttttu3221O.......",
+    ".......O443333333333333221O.......",
+    ".......O443333333333333221O.......",
+    ".......O443ttttu3tttu33221O.......",
+    "......O433333333333333221O........",
     "......O433332333333333221O........",
     "......O433333333333333221O........",
     "......O43333333tttu3ttu21O........",
     ".....O433333333333333221O.........",
     ".....O433333333333333221O.........",
     ".....O43ttttu3tttttttu21O.........",
-    "....O4333333333333333221O.........",
-    "....O4333333333333323221O.........",
-    ".O..O422222222222223221O..........",
-    "OiOOiiiiiiiiiiiiiiii221O..........",
-    "O00i4444444443333330221O..........",
-    "Oi0i2222222222222220211O..........",
-    ".OO1111111111111111O11O...........",
+    ".....O433333333333333221O.........",
+    "....O433333333333323221O..........",
+    "....O433333333333333221O..........",
+    "OOOOOOOOOOOOOOOOOOOOO21O..........",
+    "O4444444444443333332O21O..........",
+    "O0002222222222222221O11O..........",
+    ".OO111111111111111111OO...........",
     "...OOOOOOOOOOOOOOOOOOOO...........",
     "..................................",
     "..................................",
@@ -88,7 +88,7 @@ def apply(sprite, grid):
         "palette": dict(sorted(PALETTE.items())),
         "pixels": ["".join(row) for row in grid],
     }
-    (ASSETS / f"{NAME}.pixel.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    (OUT / f"{NAME}.pixel.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def main():

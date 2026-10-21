@@ -43,13 +43,21 @@
 
 暂定规则集中在 `Gameplay/AlchemyProgressionRules.cs`：上限 **20 级**；1→2 级需要 **100 XP**，之后每级增加 **50 XP**；每批制作获得 **10 + 5 × 稀有度**经验，按批数而非产物件数计算。只有成功制作才给经验，到达上限后停止累积。`RequiredLevel(id)` 集中配置各条目门槛；当前基础药液和蜂蜜面包为 1 级，后续造物分布在 2～12 级。
 
-所有现有条目暂按等级研究，不新建实体配方。每个 `AlchemyItem` 可以覆盖 `ResearchRequirement`，以后配置配方物品：
+嗜血、星力、集中、共鸣四种战斗药水需要 **炼金 Lv.10 + 对应实体配方 ×1**；轻羽药水需要 **炼金 Lv.2 + 轻羽药水配方 ×1**，在手记研究时消耗配方并永久解锁。旧存档已有的解锁保留，不追扣配方。其他条目沿用其等级条件；净土露滴的配方来源仍为设计提示，尚未绑定实体配方。
+
+`item/Recipes/AlchemyRecipeScroll.cs` 为配方物品基类，五张配方各有独立物品 ID，共用 `ExampleAssets/Recipe_Pixel.png`（来自 `Tools/PotionPixel/output/Recipe_Pixel_New.png`）及对应预制描边。独立本地化提供名称、描述，通用提示读取实际研究等级、消耗数量和角色已掌握状态。配方只在手记研究时消耗，不直接使用，也不是炼制材料。
+
+`Gameplay/AlchemyRecipeSources.cs` 集中配置获取方式：星力由巫师出售，集中由军火商夜晚出售，共鸣由巫医夜晚出售，基础买价均为 5 金（随原版商店价格调整）；嗜血由肉后血月的战斗敌人按基础 1% 概率掉落。友好 NPC、城镇 NPC、无战斗能力/无价值敌人、雕像生成物及共享生命的从属节段不掉落。商店与掉落不因个人已研究而隐藏，多余配方可以留给其他角色。
+
+`Gameplay/AlchemyRecipeChestLoot.cs` 在新世界的 `PostWorldGen` 中向地下至地狱上方的普通金宝箱（`Containers` 样式 1）独立以 10% 概率追加轻羽配方 ×1，仅占用空槽，保留原有奖励。满箱、空箱、地表箱、地牢锁金箱、特殊生物群落箱与死人宝箱不参与；不会在开箱时重复投放，也不回填旧世界。轻羽仍用月露 ×1、羽毛 ×1、太阳花 ×1 炼制，产出 ×3。
+
+未研究详情显示配方图标、名称、背包数量、等级条件、消耗说明和获取来源。每个 `AlchemyItem` 仍可以覆盖 `ResearchRequirement`：
 
 ```csharp
 // 仅等级：达到 5 级后，点击研究。
 public override AlchemyResearchRequirement ResearchRequirement => new(RequiredLevel: 5);
 
-// 配方物品：未来创建配方类后填入其 ModContent.ItemType。
+// 配方物品：填入对应配方类的 ModContent.ItemType。
 public override AlchemyResearchRequirement ResearchRequirement => new(
     RequiredLevel: 1,
     RequiresRecipe: true,

@@ -1,5 +1,11 @@
 # 炼金手记 FNA 离线预览
 
+## 实体配方检查（2026-10-21）
+
+运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene recipe-scrolls`，一次生成四种战斗药水与轻羽药水的缺配方、等级不足但持有配方、可研究、已研究四种状态，覆盖默认和 125% 缩放。战斗药水门槛为 Lv.10，轻羽为 Lv.2；不足场景分别为 Lv.9 和 Lv.1。英文使用 `-Culture en-US -Configuration Release`。单场景示例：`-Scene recipe-featherlight-ready`；文件名采用 `recipe-<bloodlust|starpower|focus|resonance|featherlight>-<missing|level-low|ready|learned>`。
+
+配方名称从正式物品本地化读取，等级来自正式 `AlchemyProgressionRules`，图标与描边使用正式通用卷轴资源。预览启动校验包含卷轴描边，`bake_redesign.py --check` 同时校验资源清单。这些场景只模拟背包及研究状态；真实消费、存档、商店和掉落条件由 `Tools/AlchemyItemChecks/run.ps1 -PotionsOnly` 验证，游戏内 UI 输入和联机仍需验收。
+
 ## 新版炼金手记（2026-10-19）
 
 当前渲染链接正式 `AlchemyNotebookPresentation`、`AlchemyNotebookRedesign`、`AlchemyNotebookSkin` 与 `AlchemyDrawing`，使用 KL 的游戏字体。页面、卡片、材料槽与动作区由正式方法绘制；宿主只重放控件位置与私有测试快照，不读取角色或存档。

@@ -7,7 +7,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 public sealed class WaterLaserVisuals : ModSystem
 {
     internal const string AssetPath = "伊蕾娜/ElainaModSkills/Skills/Water/";
-    internal const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.Dust;
+    internal const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
     private static Asset<Texture2D> splash, foam, glow, noise, flow, mask;
 
     public override void Unload()

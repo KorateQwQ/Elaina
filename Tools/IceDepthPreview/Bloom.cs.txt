@@ -27,6 +27,7 @@ sealed partial class Probe
         string source = """
             namespace KL.Drawing {
             public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
             public static class BloomReplay {
                 public static bool Enabled;
                 private static readonly DrawSystem renderer = new();
@@ -45,7 +46,7 @@ sealed partial class Probe
             "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
-        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}\n";
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
         source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
         source += """
             public partial class DrawHelper {
@@ -87,7 +88,7 @@ sealed partial class Probe
         var reversed = Render(109, true, RenderTargetUsage.DiscardContents, "bloom-group-reversed");
         if (!group.SequenceEqual(reversed)) throw new Exception("Bloom broke cone depth ordering.");
         var single = RenderSingle(20, false, DepthFormat.None, "bloom-single-on");
-        CheckHalo(plainGroup, group, "IceShardLock cones");
+        CheckHalo(plainGroup, group, "Shardbind cones");
         CheckHalo(plainSingle, single, "IceConeProj");
         RenderSingle(8, false, DepthFormat.None, "bloom-single-appear");
         Render(65, false, RenderTargetUsage.DiscardContents, "bloom-group-appear");
@@ -118,7 +119,7 @@ sealed partial class Probe
     void CheckBloomThreshold()
     {
         var queue = replay.GetType("KL.Drawing.LayerDrawRequestSystem");
-        var request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters().Last().ParameterType == typeof(Action));
+        var request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters()[3].ParameterType == typeof(Action));
         var layer = Enum.Parse(replay.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), "Projectiles");
         var timing = Enum.Parse(replay.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), "After");
         EnableBloom(true);
@@ -131,7 +132,7 @@ sealed partial class Probe
             GraphicsDevice.Clear(new Color(33, 48, 64));
             patch.SetData(Enumerable.Repeat(new Vector4(value, value, value, 1f), 16 * 16).ToArray());
             Action draw = () => batch.Draw(patch, new Rectangle(460, 300, 40, 40), Color.White);
-            request.Invoke(null, ["threshold-probe", layer, timing, draw]);
+            request.Invoke(null, ["threshold-probe", layer, timing, draw, 0]);
             replay.GetType("KL.Drawing.BloomReplay").GetMethod("Flush").Invoke(null, [layer]);
             var down = (RenderTarget2D[])replay.GetType("KL.Drawing.RenderHelper")
                 .GetField("BloomDownSample", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);

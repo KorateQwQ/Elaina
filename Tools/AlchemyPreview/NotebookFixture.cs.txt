@@ -9,8 +9,16 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
     public bool Request(AlchemyNotebookAction action, string id, int batches = 1) => false;
     public AlchemyNotebookSnapshot Capture()
     {
-        bool blank = scene is "new" or "locked" or "research-ready" or "recipe-missing" or "recipe-ready" or "curio-locked";
+        bool scrollScene = scene.StartsWith("recipe-");
+        bool learned = scrollScene && scene.EndsWith("-learned");
+        bool blank = scene is "new" or "locked" or "research-ready" or "curio-locked" || scrollScene && !learned;
         int level = scene is "level-max" or "curio-dust" or "curio-rain" or "vanilla-materials" or "starpower" or "focus" or "resonance" ? 20 : scene is "new" or "locked" ? 1 : scene is "header-reference" or "redesign-reference" ? 3 : 5;
+        if(scrollScene)
+        {
+            string[] parts = scene.Split('-');
+            int requiredLevel = AlchemyProgressionRules.RequiredLevel(parts.Length >= 3 ? parts[1] : "focus");
+            level = scene.EndsWith("-level-low") ? requiredLevel - 1 : requiredLevel;
+        }
         var materials = AlchemyCatalog.Materials.ToDictionary(m => m.Id, m => scene == "short" ? 0 : m.Initial);
         if(scene == "redesign-reference") { materials["moondew"]=2; materials["daybloom"]=10; materials["honey"]=6; materials["resin"]=0; }
         var products = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => r.Id == "mana" ? 3 : 0);
@@ -26,12 +34,15 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
         var research = new Dictionary<string, AlchemyResearchStatus>();
         foreach (var entry in AlchemyCatalog.Recipes)
         {
-            bool scroll = scene is "recipe-missing" or "recipe-ready";
-            int neededLevel = scroll ? 3 : AlchemyProgressionRules.RequiredLevel(entry.Id);
-            int owned = scene == "recipe-ready" ? 1 : 0;
-            bool ready = level >= neededLevel && (!scroll || owned > 0);
-            research[entry.Id] = new(neededLevel, scroll, true, LocalizeUI("RecipeRequired"), owned, 1, true, ready,
-                level < neededLevel ? LocalizeUI("NeedAlchemyLevel",neededLevel) : scroll && owned == 0 ? LocalizeUI("MissingRecipeInventory") : LocalizeUI("ResearchLevelMet"));
+            bool scroll = entry.Id is "bloodlust" or "starpower" or "focus" or "resonance" or "featherlight";
+            int neededLevel = AlchemyProgressionRules.RequiredLevel(entry.Id);
+            int owned = scroll && (scene.EndsWith("-ready") || scene.EndsWith("-level-low")) ? 1 : 0;
+            bool ready = !unlocked.Contains(entry.Id) && level >= neededLevel && (!scroll || owned > 0);
+            string name = scroll ? Terraria.Localization.Language.GetTextValue($"Mods.伊蕾娜.Alchemy.Items.{entry.Art}Recipe.DisplayName") : "";
+            research[entry.Id] = new(neededLevel, scroll, true, name, owned, 1, true, ready,
+                unlocked.Contains(entry.Id) ? LocalizeUI("Researched") : level < neededLevel ? LocalizeUI("NeedAlchemyLevel",neededLevel)
+                    : scroll && owned == 0 ? LocalizeUI("NeedRecipe",name,1) : scroll ? LocalizeUI("ResearchConsumesRecipe") : LocalizeUI("ResearchLevelMet"),
+                scroll ? AlchemyCatalog.RecipeScrollPixelPath : null);
         }
         return new AlchemyNotebookSnapshot
         {

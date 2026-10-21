@@ -30,7 +30,7 @@ static class FrostVeilChecks
         var skills = original.GetModPlayer<ElainaSkillModPlayer>();
         var ice = Wrap(new IceConeSkill());
         var frost = Wrap(new FrostVeilSkill());
-        var iceLock = Wrap(new IceShardLockSkill());
+        var iceLock = Wrap(new ShardbindSkill());
         skills.SkillPoint = 20;
         original.inventory[0] = new Item { type = ItemID.Wood, stack = 10 };
         Check(!frost.ModSkill.UnlockCondition.CanUnlock(skills, frost.ModSkill), "Veil requires learned Ice Cone");

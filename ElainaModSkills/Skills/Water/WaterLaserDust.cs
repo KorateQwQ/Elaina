@@ -4,7 +4,7 @@ using KL.Dusts;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
-/// <summary>水射线专用 KL 粒子：使用本模组的水花序列，与射线共用 Dust.After Bloom。</summary>
+/// <summary>水射线专用 KL 粒子：与射线共用 Projectiles.After Bloom，按 order 绘制在主体上方。</summary>
 public sealed class WaterLaserDust : KLBasicDust
 {
     public override string Texture => WaterLaserVisuals.AssetPath + "Eff_Splash_4001";
@@ -38,7 +38,7 @@ public sealed class WaterLaserDust : KLBasicDust
     {
         dust.noGravity = true;
         dust.noLight = true;
-        // 走统一 RequestBloom，不再加入 KL 的旧粒子 Bloom 列表重复绘制。
+        // 本类通过 SubmitBloomDrawRequest 提交自定义水花绘制。
         ShouldBloom = false;
         base.OnSpawn(dust);
     }
@@ -69,22 +69,23 @@ public sealed class WaterLaserDust : KLBasicDust
         return false;
     }
 
-    public override bool PreDraw(Dust dust)
+    public override void SubmitBloomDrawRequest(Dust dust)
     {
-        if (dust.customData is not DustInfo info) return false;
+        if (dust.customData is not DustInfo info) return;
         if (info.DustData is not ParticleState state)
             info.DustData = state = new ParticleState(false, info.AttachedEntity?.position ?? Vector2.Zero);
         state.Draw ??= context =>
         {
             // 同组所有水花只 Begin/End 一次；与射线同层，仅做一次后处理。
             if (context.IsFirst) WaterLaserVisuals.BeginSprites();
-            if (dust.active)
+            if (dust.active && ReferenceEquals(dust.customData, info))
                 WaterLaserVisuals.DrawParticle(dust.position, dust.rotation, info.scale,
                     info.LifeProgress, info.randFrame, state.Foam, dust.color);
             if (context.IsLast) EndBeginDraw();
         };
         LayerDrawRequestSystem.RequestBloom("Elaina:WaterLaser:Particles", WaterLaserVisuals.Layer,
-            LayerDrawRequestSystem.DrawTiming.After, state.Draw);
-        return false;
+            LayerDrawRequestSystem.DrawTiming.After, state.Draw, order: LayerDrawRequestSystem.DustOrder);
     }
+
+    public override bool PreDraw(Dust dust) => false;
 }

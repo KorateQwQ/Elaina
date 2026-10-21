@@ -75,7 +75,8 @@ public sealed class AlchemyProgressPlayer : ModPlayer
             : !configured ? LocalizeUI("RecipeNotConfigured") : !hasRecipe ? LocalizeUI("NeedRecipe", name, required) : requirement.RequiresRecipe
                 ? requirement.ConsumeRecipe ? LocalizeUI("ResearchConsumesRecipe") : LocalizeUI("ResearchKeepRecipe") : LocalizeUI("ResearchLevelMet");
         return new(requiredLevel, requirement.RequiresRecipe, configured, name, count, required,
-            requirement.ConsumeRecipe, can, hint);
+            requirement.ConsumeRecipe, can, hint, requirement.RecipeItemType > 0
+                ? ItemLoader.GetItem(requirement.RecipeItemType)?.Texture : null);
     }
 
     public bool TryResearch(string id, out string message)

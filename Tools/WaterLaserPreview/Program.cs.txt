@@ -45,16 +45,19 @@ internal static class Pipeline {
                 public static int screenWidth, screenHeight;
                 public static Vector2 screenPosition; public static Matrix Transform = Matrix.Identity;
                 public static bool dedServ; public static PreviewRandom rand = new(42);
+                public static int maxDust => Dust.All.Count;
+                public static List<Dust> dust => Dust.All;
                 public static void NewText(string text, Color color) => throw new Exception(text);
                 public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
                 public static ViewContext GameViewMatrix = new();
             }
             public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
             public static class PreviewOptions { public static bool PreserveBackbuffer = true; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
             public partial class DrawSystem {
                 public void Run(float strength, int iterations, bool bloomEnabled) {
                     SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
-                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.After);
+                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
                 }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
@@ -64,7 +67,7 @@ internal static class Pipeline {
             "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
-        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}\n";
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
         source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
         source += """
             public partial class DrawHelper {
@@ -100,7 +103,7 @@ internal static class Pipeline {
         var update = dust.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "Update");
         // Time-stop projectile attachment is irrelevant: these particles attach only to the owner.
         update = update.ReplaceNodes(update.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "dustInfo.AttachedEntity is Projectile projectile"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
-        source += update.ToFullString() + Methods(dust, "SpawnDust", "OnSpawn") + "}}";
+        source += update.ToFullString() + Methods(dust, "SpawnDust", "OnSpawn", "SubmitBloomDrawRequests", "SubmitBloomDrawRequest", "DrawBloom") + "}}";
         var laser = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaser.cs"))).GetCompilationUnitRoot();
         source += "namespace 伊蕾娜.ElainaModSkills.Skills.Water { public partial class LaserReplay : ModProjectile {" + Methods(laser, "SpawnWaterDust", "PreDraw", "DrawVisual") + "}}";
         source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>伊蕾娜 · 资源条样式预览</title>
+<style>
+:root{--bg:#090c15;--card:#0f111bdd;--line:#2a263b;--text:#e7dcef;--sub:#b7a8c7;--dim:#756c88;--gold:#e9cc99;--lav:#b39acb;--serif:Georgia,"SimSun",serif;--sans:"HarmonyOS Sans SC","Microsoft YaHei",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:13px/1.6 var(--sans)}
+#sky{position:fixed;inset:0;width:100%;height:100%;z-index:0;image-rendering:pixelated;pointer-events:none}
+main{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:34px 28px 64px}
+header{display:flex;align-items:flex-end;gap:18px;margin-bottom:20px}
+header h1{margin:0;font:400 26px var(--serif);letter-spacing:6px}
+header p{margin:0 0 4px;color:var(--dim);font:11px Georgia;letter-spacing:2px}
+header .crest{width:10px;height:10px;transform:rotate(45deg);border:1px solid var(--lav);margin:0 4px 12px 2px;box-shadow:0 0 10px #b39acb55}
+
+.controls{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;padding:12px 16px;margin-bottom:22px;background:#0d0f19ee;border:1px solid var(--line);backdrop-filter:blur(4px);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.group{display:flex;align-items:center;gap:8px}
+.group>label{color:var(--dim);font-size:11px;letter-spacing:1px;margin-right:2px}
+button{font:12px var(--sans);color:var(--text);background:#1b1a2a;border:1px solid #4a4262;padding:4px 10px;cursor:pointer;letter-spacing:1px}
+button:hover{border-color:#c9b8de;background:#2a2640}
+button.on{border-color:var(--gold);color:var(--gold);background:#2a2418}
+button kbd{font:10px Georgia;color:var(--dim);margin-left:5px}
+button.hp{border-color:#9a3478}button.mp{border-color:#3474c2}
+input[type=range]{width:110px;accent-color:#c9b8de}
+.val{font:11px Georgia;color:var(--sub);min-width:58px}
+
+.card{position:relative;margin-bottom:22px;background:var(--card);border:1px solid var(--line);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+.card-head{display:flex;align-items:baseline;gap:12px;padding:14px 20px 0}
+.card-head .no{font:11px Georgia;color:var(--dim);letter-spacing:2px}
+.card-head h2{margin:0;font:400 18px var(--serif);letter-spacing:4px}
+.card-head .en{font:11px Georgia;color:var(--dim);letter-spacing:1px}
+.card-head .tag{margin-left:auto;font-size:11px;color:var(--gold);border:1px solid #e9cc9966;padding:0 8px;letter-spacing:2px}
+.stage{margin:12px 20px;display:flex;justify-content:safe flex-end;align-items:flex-start;padding:22px 26px;min-height:120px;border:1px solid #ffffff10;image-rendering:pixelated;overflow-x:auto}
+.stage.night{background:#0a0d16 var(--stars)}
+.stage.day{background:linear-gradient(#5ea6e6,#a9d8ff 70%,#cfe9ff)}
+.stage.cave{background:#2a1d17 var(--bricks)}
+.stage.hallow{background:linear-gradient(#e6a8d8,#b8a6ef 60%,#8fd6f0)}
+canvas.hud{display:block;image-rendering:pixelated}
+.card-foot{display:grid;grid-template-columns:1fr auto;gap:18px;padding:0 20px 16px}
+.card-foot ul{margin:0;padding-left:16px;color:var(--sub);font-size:12px}
+.card-foot li::marker{content:"◆  ";color:#7d6a9a;font-size:8px}
+.swatches{display:flex;flex-wrap:wrap;gap:4px;max-width:330px;align-content:flex-start;justify-content:flex-end}
+.sw{display:flex;align-items:center;gap:5px;font:10px Georgia;color:var(--dim);padding:1px 6px 1px 1px;border:1px solid #ffffff12}
+.sw i{width:12px;height:12px;display:block}
+.note{color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:6px}
+.note b{color:var(--sub);font-weight:400}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<main>
+  <header>
+    <div class="crest"></div>
+    <div>
+      <h1>资源条 · 样式预览</h1>
+      <p>ELAINA HUD · PIXEL RESOURCE BARS</p>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="group">
+      <label>生命</label>
+      <button class="hp" data-act="hit">受伤<kbd>D</kbd></button>
+      <button class="hp" data-act="bighit">重击<kbd>F</kbd></button>
+      <button class="hp" data-act="heal">治疗<kbd>H</kbd></button>
+    </div>
+    <div class="group">
+      <label>魔力</label>
+      <button class="mp" data-act="cast">施法<kbd>C</kbd></button>
+      <button class="mp" data-act="potion">魔力药水<kbd>V</kbd></button>
+      <button id="regen" class="on">自然回复</button>
+    </div>
+    <div class="group">
+      <label>HP</label><input id="hpR" type="range" min="0" max="500" step="1"><span class="val" id="hpV"></span>
+      <label>MP</label><input id="mpR" type="range" min="0" max="200" step="1"><span class="val" id="mpV"></span>
+    </div>
+    <div class="group">
+      <label>缩放</label>
+      <button data-scale="1">1×</button><button data-scale="2">2×</button><button data-scale="3">3×</button>
+    </div>
+    <div class="group">
+      <label>背景</label>
+      <button data-bg="night">夜空</button><button data-bg="day">白昼</button><button data-bg="hallow">神圣</button><button data-bg="cave">地下</button>
+    </div>
+  </div>
+
+  <div id="cards"></div>
+
+  <p class="note">
+    <b>说明</b>　所有元素都按 1 个游戏像素 = 1 个画布像素绘制，缩放只做整数倍放大（与游戏内 UI 缩放一致），可以直接照着拆成贴图或沿用 <code>DrawBar</code> 逐行填充的写法。
+    受伤时立刻扣减并留下浅色残影，约 0.4 秒后以 0.45/秒衰减（对应现在代码里的 <code>ResourceDecaySpeed</code>）；回复时平滑增长并闪白。生命低于 25% 时边框和头像框会脉冲提示。
+  </p>
+</main>
+
+<script>
+'use strict';
+/* ---------- 基础绘制 ---------- */
+const R=(c,x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h)};
+function diamond(c,cx,cy,r,col){c.fillStyle=col;for(let d=-r;d<=r;d++){const hw=r-Math.abs(d);c.fillRect(cx-hw,cy+d,hw*2+1,1)}}
+function diamondRing(c,cx,cy,r,col){c.fillStyle=col;for(let d=-r;d<=r;d++){const hw=r-Math.abs(d);c.fillRect(cx-hw,cy+d,1,1);if(hw)c.fillRect(cx+hw,cy+d,1,1)}}
+function octInset(i,h,k){return Math.max(0,k-i,k-(h-1-i))}
+function oct(c,x,y,w,h,k,col){c.fillStyle=col;for(let i=0;i<h;i++){const n=octInset(i,h,k);c.fillRect(x+n,y+i,w-2*n,1)}}
+const lerpHex=(a,b,t)=>{const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16));const A=p(a),B=p(b);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('')};
+
+/* 3×5 像素字体 */
+const GLYPH={
+'0':['111','101','101','101','111'],'1':['010','110','010','010','111'],'2':['111','001','111','100','111'],
+'3':['111','001','011','001','111'],'4':['101','101','111','001','001'],'5':['111','100','111','001','111'],
+'6':['111','100','111','101','111'],'7':['111','001','010','010','010'],'8':['111','101','111','101','111'],
+'9':['111','101','111','001','111'],'/':['001','001','010','100','100'],'+':['000','010','111','010','000'],
+'-':['000','000','111','000','000'],'.':['0','0','0','0','1'],'%':['101','001','010','100','101'],' ':['0','0','0','0','0'],
+'H':['101','101','111','101','101'],'P':['110','101','110','100','100'],'M':['10001','11011','10101','10001','10001'],'S':['011','100','010','001','110']};
+const textW=s=>[...s].reduce((w,ch)=>w+(GLYPH[ch]||GLYPH[' '])[0].length+1,0)-1;
+function text(c,s,x,y,col,{align='left',outline='#0f0b16',shadow=null}={}){
+  let sx=align==='right'?x-textW(s)+1:align==='center'?x-Math.floor(textW(s)/2):x;
+  const px=[];for(const ch of s){const g=GLYPH[ch]||GLYPH[' '];g.forEach((row,j)=>[...row].forEach((b,i)=>{if(b==='1')px.push([sx+i,y+j])}));sx+=g[0].length+1}
+  if(outline){c.fillStyle=outline;px.forEach(([a,b])=>c.fillRect(a-1,b-1,3,3))}
+  if(shadow){c.fillStyle=shadow;px.forEach(([a,b])=>c.fillRect(a,b+1,1,1))}
+  c.fillStyle=col;px.forEach(([a,b])=>c.fillRect(a,b,1,1));
+}
+/* 精灵：字符 -> 颜色，自动加 1px 描边 */
+function sprite(c,rows,x,y,pal,outline){
+  if(outline){c.fillStyle=outline;rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!=='.')c.fillRect(x+i-1,y+j-1,3,3)}))}
+  rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!=='.'){c.fillStyle=pal[ch];c.fillRect(x+i,y+j,1,1)}}));
+}
+const HEART=['.hp.pp.','hpppppp','pppppdd','.pppdd.','..pdd..','...d...'];
+const STAR7=['...a...','...a...','..aba..','aabbbaa','..aba..','...a...','...a...'];
+const STAR5=['..a..','..b..','abbba','..b..','..a..'];
+
+/* ---------- 资源条 ---------- */
+function rowInset(end,i,h){const mid=(h-1)/2,d=Math.abs(i-mid);
+  if(end==='point')return Math.floor(d);
+  if(end==='chamfer')return(i===0||i===h-1)?1:0;
+  return 0}
+function shape(c,x,y,w,h,end,col){c.fillStyle=col;for(let i=0;i<h;i++){const k=rowInset(end,i,h);c.fillRect(x+k,y+i,w-2*k,1)}}
+function shade(i,h,p){if(i===0)return p.light;if(i===1)return p.hi;if(i===h-1)return p.deep;if(i===h-2)return p.dark;return p.base}
+
+function drawBar(c,x,y,w,h,o){
+  const {pal,a,end='point',outline,frame,frameLo,track,tick,t,warn=0}=o;
+  shape(c,x-2,y-2,w+4,h+4,end,outline);
+  shape(c,x-1,y-1,w+2,h+2,end,warn?lerpHex(frame,'#ff6a9a',warn):frame);
+  if(frameLo){const k=rowInset(end,h+1,h+2);R(c,x-1+k,y+h,w+2-2*k,1,frameLo)}
+  shape(c,x,y,w,h,end,track);
+  const fx=Math.round(w*a.shown),gx=Math.round(w*a.ghost);
+  // 刻度（未填充部分）
+  for(let s=1;s<10;s++){const tx=x+Math.round(w*s/10);if(tx>=x+fx)R(c,tx,y+2,1,h-4,tick)}
+  for(let i=0;i<h;i++){
+    const k=rowInset(end,i,h),rs=x+k,re=x+w-k;
+    // 受伤残影
+    if(gx>fx){const s=Math.max(rs,x+fx),e=Math.min(re,x+gx);if(e>s)R(c,s,y+i,e-s,1,i<2?'#ffffff':pal.ghost)}
+    const e=Math.min(re,x+fx);if(e>rs){
+      let col=shade(i,h,pal);if(warn)col=lerpHex(col,'#ffffff',warn*0.25);
+      R(c,rs,y+i,e-rs,1,col);
+      // 已填充部分的分段线
+      for(let s=1;s<10;s++){const tx=x+Math.round(w*s/10);if(tx<e-1&&tx>=rs&&i>1&&i<h-2)R(c,tx,y+i,1,1,pal.dark)}
+    }
+  }
+  if(fx<=0)return;
+  // 流光（斜向像素带）
+  const per=3.4,span=w+h*2,pos=((t%per)/per)*span*1.6-h;
+  c.globalAlpha=.55;
+  for(let i=0;i<h;i++){const k=rowInset(end,i,h),sx=Math.round(x+pos+(h-1-i));
+    const s=Math.max(sx,x+k),e=Math.min(sx+2,x+fx,x+w-k);if(e>s)R(c,s,y+i,e-s,1,pal.hi)}
+  c.globalAlpha=1;
+  // 前沿高光
+  if(fx<w)for(let i=1;i<h-1;i++){const k=rowInset(end,i,h);if(x+fx-1>=x+k)R(c,x+fx-1,y+i,1,1,pal.hi)}
+  // 回复闪白
+  if(a.flash>0){c.globalAlpha=a.flash*0.55;for(let i=0;i<h;i++){const k=rowInset(end,i,h),e=Math.min(x+w-k,x+fx);if(e>x+k)R(c,x+k,y+i,e-x-k,1,'#ffffff')}c.globalAlpha=1}
+}
+
+/* ---------- 头像 ---------- */
+const avatar=new Image();avatar.src='../touxiang.png';
+const avatarCache={};
+function avatarDiamond(r,ox,oy){
+  const key='d'+r+ox+oy;if(avatarCache[key])return avatarCache[key];
+  const cv=document.createElement('canvas');cv.width=cv.height=r*2+1;const c=cv.getContext('2d');
+  diamond(c,r,r,r,'#fff');c.globalCompositeOperation='source-in';
+  const g=c.createRadialGradient(r,r*0.8,2,r,r,r);g.addColorStop(0,'#5d4b76');g.addColorStop(1,'#211b30');
+  c.fillStyle=g;c.fillRect(0,0,cv.width,cv.height);c.globalCompositeOperation='source-atop';
+  if(avatar.complete&&avatar.naturalWidth){c.drawImage(avatar,r-50+ox,r-50+oy);avatarCache[key]=cv}
+  return cv}
+function avatarOct(w,k,ox,oy){
+  const key='o'+w+k+ox+oy;if(avatarCache[key])return avatarCache[key];
+  const cv=document.createElement('canvas');cv.width=cv.height=w;const c=cv.getContext('2d');
+  oct(c,0,0,w,w,k,'#fff');c.globalCompositeOperation='source-in';c.fillStyle='#2a2236';c.fillRect(0,0,w,w);
+  c.globalCompositeOperation='source-atop';
+  if(avatar.complete&&avatar.naturalWidth){c.drawImage(avatar,ox,oy);avatarCache[key]=cv}
+  return cv}
+
+/* ---------- 调色 ---------- */
+const HP={deep:'#5c1d48',dark:'#9a3478',base:'#d65aa8',light:'#ef86c6',hi:'#ffc4e6',ghost:'#ffe0f1'};
+const MP={deep:'#1d3b78',dark:'#3474c2',base:'#56b2ee',light:'#8bd8ff',hi:'#d9f6ff',ghost:'#e2f6ff'};
+const GOLD={l:'#ffe9a8',b:'#f0c862',d:'#b8822f',o:'#3b2610'};
+const HEART_PAL={h:HP.hi,p:HP.base,d:HP.dark};
+const STAR_PAL={a:'#9fdcff',b:'#ffffff'};
+
+/* ---------- 状态 ---------- */
+const S={hp:420,hpMax:500,mp:136,mpMax:200,regen:true,regenRate:8,scale:2,bg:'night'};
+const A={hp:{shown:S.hp/S.hpMax,ghost:S.hp/S.hpMax,delay:0,flash:0},mp:{shown:S.mp/S.mpMax,ghost:S.mp/S.mpMax,delay:0,flash:0}};
+let hitT=0;const pops=[];
+function setRes(k,v,silent){
+  const max=S[k+'Max'];v=Math.max(0,Math.min(max,v));const d=v-S[k];if(!d)return;S[k]=v;const a=A[k];
+  if(d<0){a.ghost=Math.max(a.ghost,a.shown);a.shown=v/max;a.delay=.4;if(k==='hp'&&!silent)hitT=.3}
+  else if(!silent)a.flash=1;
+  if(!silent)pops.push({k,s:(d>0?'+':'-')+Math.round(Math.abs(d)),up:d>0,t:0});
+}
+const lowWarn=t=>{const p=S.hp/S.hpMax;return p<.25?(Math.sin(t*7)+1)/2:0};
+const shakeX=()=>hitT>0?(Math.floor(hitT*40)%2?1:-1):0;
+function drawPops(c,k,x,y,w){
+  for(const p of pops){if(p.k!==k)continue;const fx=x+Math.round(w*A[k].shown);
+    c.globalAlpha=Math.max(0,1-p.t/0.9);
+    text(c,p.s,fx,Math.round(y-p.t*12),p.up?(k==='hp'?'#b9ffcf':'#d9f6ff'):'#ffd0e0',{align:'center'});
+    c.globalAlpha=1}
+}
+const fmt=k=>`${Math.round(S[k])}/${S[k+'Max']}`;
+
+/* ---------- 方案 ---------- */
+const VARIANTS=[
+{
+  id:'plate',no:'I',name:'手札铭牌',en:'Grimoire Plate',tag:'推荐',w:304,h:104,
+  notes:['沿用战斗栏 Rack 的暗紫底板与十字点缀，HUD 和技能栏成为一套','菱形头像保留现有识别度，加多层描边，底角挂金色吊坠','数值移到条上方，用像素字显示；右侧显示百分比 / 每秒回魔'],
+  sw:[['底板','#2d2840'],['描边','#c9b8de'],['生命','#d65aa8'],['魔力','#56b2ee'],['吊坠','#f0c862']],
+  draw(c,t){
+    const cx=54+shakeX(),cy=46,warn=lowWarn(t);
+    // 底板
+    const px=82,py=20,pw=218,ph=56;
+    c.globalAlpha=.6;R(c,px+2,py+3,pw,ph,'#05060b');c.globalAlpha=1;
+    R(c,px+1,py,pw-2,ph,'#120e1a');R(c,px,py+1,pw,ph-2,'#120e1a');
+    R(c,px+1,py+1,pw-2,ph-2,'#2d2840');R(c,px+1,py+1,pw-2,1,'#4a4262');R(c,px+1,py+ph-2,pw-2,1,'#211c2e');
+    R(c,px+3,py+3,pw-6,1,'#383150');R(c,px+3,py+ph-4,pw-6,1,'#383150');
+    for(let x=px+40;x<px+pw-8;x+=30){R(c,x,py+ph-7,1,3,'#4a4262');R(c,x-1,py+ph-6,3,1,'#4a4262')}
+    diamond(c,px+pw-5,py+5,1,'#9b84bd');diamond(c,px+pw-5,py+ph-6,1,'#9b84bd');
+    R(c,px+pw-1,py+24,1,8,'#120e1a');R(c,px+pw,py+26,1,4,'#120e1a');R(c,px+pw-1,py+26,1,4,'#9b84bd');
+    // 头像
+    diamond(c,cx,cy+2,47,'rgba(5,6,11,.55)');
+    diamond(c,cx,cy,47,'#120e1a');
+    diamond(c,cx,cy,46,warn?lerpHex('#efe7f8','#ff8db5',warn):'#efe7f8');
+    diamond(c,cx,cy,45,'#2a2238');diamond(c,cx,cy,44,'#9b84bd');
+    const av=avatarDiamond(43,-1,-4);c.drawImage(av,cx-43,cy-43);
+    diamondRing(c,cx,cy,43,'rgba(18,14,26,.55)');
+    // 左角饰与吊坠
+    R(c,cx-52,cy,4,1,'#efe7f8');diamond(c,cx-53,cy,1,'#efe7f8');
+    const by=cy+47;R(c,cx,by+1,1,1,GOLD.d);R(c,cx,by+3,1,1,GOLD.b);
+    diamond(c,cx,by+7,3,GOLD.o);diamond(c,cx,by+7,2,GOLD.b);R(c,cx,by+9,1,1,GOLD.d);R(c,cx+1,by+8,1,1,GOLD.d);R(c,cx-1,by+6,1,1,GOLD.l);
+    // 生命
+    const bx=104,bw=184;
+    sprite(c,HEART,bx-1,26,HEART_PAL,'#120e1a');
+    text(c,fmt('hp'),bx+11,27,'#f5eefb',{outline:null,shadow:'#120e1a'});
+    text(c,Math.round(S.hp/S.hpMax*100)+'%',bx+bw,27,'#b7a3cf',{outline:null,shadow:'#120e1a',align:'right'});
+    drawBar(c,bx,36,bw,9,{pal:HP,a:A.hp,outline:'#120e1a',frame:'#c9b8de',frameLo:'#7d6a9a',track:'#140f1e',tick:'#2a2238',t,warn});
+    // 魔力
+    const tw=(Math.sin(t*3)+1)/2;
+    sprite(c,STAR7,bx-1,48,{a:lerpHex('#6fa9d8','#bfe8ff',tw),b:'#ffffff'},'#120e1a');
+    text(c,fmt('mp'),bx+11,50,'#f5eefb',{outline:null,shadow:'#120e1a'});
+    text(c,S.regen?'+'+S.regenRate+'/S':'+0/S',bx+bw,50,'#8fc9ee',{outline:null,shadow:'#120e1a',align:'right'});
+    drawBar(c,bx,59,bw,7,{pal:MP,a:A.mp,outline:'#120e1a',frame:'#c9b8de',frameLo:'#7d6a9a',track:'#140f1e',tick:'#2a2238',t:t+1.2});
+    drawPops(c,'hp',bx,30,bw);drawPops(c,'mp',bx,53,bw);
+  }
+},
+{
+  id:'orbit',no:'II',name:'星轨轻装',en:'Starline',w:304,h:100,
+  notes:['在现有样式基础上精修，没有底板，遮挡最少','数值直接写在条内，条的两端改为尖角，像素对齐','菱形外圈加一道细线，中间一道星轨连到条尾，魔力条前保留现在的双十字星'],
+  sw:[['边框','#f2edf8'],['槽底','#1a1524'],['生命','#d65aa8'],['魔力','#56b2ee']],
+  draw(c,t){
+    const cx=50+shakeX(),cy=48,warn=lowWarn(t);
+    // 星轨
+    c.globalAlpha=.45;R(c,cx+50,cy,244-cx,1,'#f2edf8');c.globalAlpha=1;
+    diamond(c,298,cy,2,'#0d0a14');diamond(c,298,cy,1,'#f2edf8');
+    // 头像
+    diamond(c,cx,cy+2,49,'rgba(5,6,11,.5)');
+    diamond(c,cx,cy,49,'#0d0a14');diamondRing(c,cx,cy,48,warn?lerpHex('#f2edf8','#ff8db5',warn):'#f2edf8');
+    diamond(c,cx,cy,46,'#0d0a14');diamond(c,cx,cy,45,'#f2edf8');diamond(c,cx,cy,44,'#f2edf8');diamond(c,cx,cy,43,'#3f3650');
+    c.drawImage(avatarDiamond(42,-1,-4),cx-42,cy-42);
+    // 生命
+    const bx=110,bw=180;
+    diamond(c,bx-7,35,3,'#0d0a14');diamond(c,bx-7,35,2,'#f2edf8');diamond(c,bx-7,35,1,HP.base);
+    drawBar(c,bx,30,bw,11,{pal:HP,a:A.hp,outline:'#0d0a14',frame:'#f2edf8',track:'#1a1524',tick:'#2c2538',t,warn});
+    text(c,fmt('hp'),bx+bw/2,33,'#ffffff',{align:'center',outline:HP.deep});
+    // 魔力
+    const tw=t%2.4;
+    sprite(c,STAR7,bx-17,52,{a:tw<1.2?'#cfeaff':'#ffffff',b:'#ffffff'},'#0d0a14');
+    sprite(c,STAR5,bx-10,59,{a:tw>=1.2?'#cfeaff':'#ffffff',b:'#ffffff'},'#0d0a14');
+    drawBar(c,bx,56,bw,9,{pal:MP,a:A.mp,outline:'#0d0a14',frame:'#f2edf8',track:'#1a1524',tick:'#2c2538',t:t+1.2});
+    text(c,fmt('mp'),bx+bw/2,58,'#ffffff',{align:'center',outline:MP.deep});
+    drawPops(c,'hp',bx,24,bw);drawPops(c,'mp',bx,50,bw);
+  }
+},
+{
+  id:'gilt',no:'III',name:'鎏金书签',en:'Gilded Bookmark',w:316,h:100,
+  notes:['与下方金色技能框同一套金边语言，适合整体偏华丽的方向','八角头像框，金色上亮下暗两层描边，四角铆钉','条两端用金色菱形钉收口，名牌数值放在条上方'],
+  sw:[['金亮','#ffe9a8'],['金','#f0c862'],['金暗','#b8822f'],['槽底','#1b1410'],['生命','#d65aa8'],['魔力','#56b2ee']],
+  draw(c,t){
+    const ax=6+shakeX(),ay=6,warn=lowWarn(t);
+    // 头像框
+    c.globalAlpha=.55;oct(c,ax+1,ay+3,88,88,9,'#05060b');c.globalAlpha=1;
+    oct(c,ax,ay,88,88,9,'#1a1108');
+    oct(c,ax+1,ay+1,86,86,8,warn?lerpHex(GOLD.b,'#ff8db5',warn):GOLD.b);
+    for(let i=0;i<43;i++){const n=octInset(i,86,8);R(c,ax+1+n,ay+1+i,86-2*n,1,i<2?GOLD.l:GOLD.b)}
+    for(let i=43;i<86;i++){const n=octInset(i,86,8);R(c,ax+1+n,ay+1+i,86-2*n,1,i>83?GOLD.d:lerpHex(GOLD.b,GOLD.d,(i-43)/43))}
+    oct(c,ax+3,ay+3,82,82,7,'#3b2610');
+    c.drawImage(avatarOct(80,6,-10,-6),ax+4,ay+4);
+    [[ax+12,ay+3],[ax+75,ay+3],[ax+12,ay+84],[ax+75,ay+84]].forEach(([x,y])=>{diamond(c,x,y,1,GOLD.l)});
+    // 书签缎带
+    const rx=ax+70;R(c,rx,ay+86,7,8,'#1a1108');R(c,rx+1,ay+86,5,7,HP.base);R(c,rx+1,ay+86,1,7,HP.light);
+    R(c,rx+3,ay+92,1,1,'#1a1108');R(c,rx+2,ay+93,3,1,'#1a1108');
+    // 生命
+    const bx=112,bw=190;
+    sprite(c,HEART,bx,15,HEART_PAL,'#1a1108');
+    text(c,fmt('hp'),bx+bw,16,'#fff4dc',{align:'right',outline:'#1a1108'});
+    drawBar(c,bx,27,bw,11,{pal:HP,a:A.hp,end:'chamfer',outline:'#1a1108',frame:GOLD.b,frameLo:GOLD.d,track:'#1b1410',tick:'#33261a',t,warn});
+    [bx-4,bx+bw+3].forEach(x=>{diamond(c,x,32,4,'#1a1108');diamond(c,x,32,3,GOLD.b);R(c,x-1,30,1,1,GOLD.l);R(c,x,31,1,1,GOLD.l)});
+    // 魔力
+    sprite(c,STAR7,bx,49,STAR_PAL,'#1a1108');
+    text(c,fmt('mp'),bx+bw,51,'#fff4dc',{align:'right',outline:'#1a1108'});
+    drawBar(c,bx,61,bw,9,{pal:MP,a:A.mp,end:'chamfer',outline:'#1a1108',frame:GOLD.b,frameLo:GOLD.d,track:'#1b1410',tick:'#33261a',t:t+1.2});
+    [bx-4,bx+bw+3].forEach(x=>{diamond(c,x,65,3,'#1a1108');diamond(c,x,65,2,GOLD.b);R(c,x,64,1,1,GOLD.l)});
+    drawPops(c,'hp',bx,20,bw);drawPops(c,'mp',bx,55,bw);
+  }
+}];
+
+/* ---------- 页面 ---------- */
+const cardsEl=document.getElementById('cards');
+for(const v of VARIANTS){
+  const el=document.createElement('section');el.className='card';
+  el.innerHTML=`<div class="card-head"><span class="no">${v.no}</span><h2>${v.name}</h2><span class="en">${v.en}</span>${v.tag?`<span class="tag">${v.tag}</span>`:''}</div>
+  <div class="stage"><canvas class="hud" width="${v.w}" height="${v.h}"></canvas></div>
+  <div class="card-foot"><ul>${v.notes.map(n=>`<li>${n}</li>`).join('')}</ul>
+  <div class="swatches">${v.sw.map(([n,c])=>`<span class="sw"><i style="background:${c}"></i>${n} ${c}</span>`).join('')}</div></div>`;
+  cardsEl.appendChild(el);
+  v.canvas=el.querySelector('canvas');v.ctx=v.canvas.getContext('2d');v.ctx.imageSmoothingEnabled=false;v.stage=el.querySelector('.stage');
+}
+function applyView(){
+  for(const v of VARIANTS){v.canvas.style.width=v.w*S.scale+'px';v.canvas.style.height=v.h*S.scale+'px';v.stage.className='stage '+S.bg}
+  document.querySelectorAll('[data-scale]').forEach(b=>b.classList.toggle('on',+b.dataset.scale===S.scale));
+  document.querySelectorAll('[data-bg]').forEach(b=>b.classList.toggle('on',b.dataset.bg===S.bg));
+}
+const ACTS={
+  hit:()=>setRes('hp',S.hp-(18+Math.floor(Math.random()*30))),
+  bighit:()=>setRes('hp',S.hp-(110+Math.floor(Math.random()*60))),
+  heal:()=>setRes('hp',S.hp+100),
+  cast:()=>setRes('mp',S.mp-(22+Math.floor(Math.random()*16))),
+  potion:()=>setRes('mp',S.mp+80)};
+document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>ACTS[b.dataset.act]());
+document.querySelectorAll('[data-scale]').forEach(b=>b.onclick=()=>{S.scale=+b.dataset.scale;applyView()});
+document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{S.bg=b.dataset.bg;applyView()});
+const regenBtn=document.getElementById('regen');regenBtn.onclick=()=>{S.regen=!S.regen;regenBtn.classList.toggle('on',S.regen)};
+const hpR=document.getElementById('hpR'),mpR=document.getElementById('mpR');
+hpR.max=S.hpMax;mpR.max=S.mpMax;
+hpR.oninput=()=>setRes('hp',+hpR.value,true);mpR.oninput=()=>setRes('mp',+mpR.value,true);
+addEventListener('keydown',e=>{const m={d:'hit',f:'bighit',h:'heal',c:'cast',v:'potion'}[e.key.toLowerCase()];if(m&&!e.repeat)ACTS[m]()});
+
+/* 背景纹理 */
+function tile(w,h,fn){const cv=document.createElement('canvas');cv.width=w;cv.height=h;fn(cv.getContext('2d'));return`url(${cv.toDataURL()})`}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+document.documentElement.style.setProperty('--stars',tile(160,90,c=>{for(let i=0;i<26;i++){const x=rnd()*160|0,y=rnd()*90|0,b=rnd();R(c,x,y,1,1,b>.85?'#c9d6ff':b>.5?'#55607e':'#343a52');if(b>.93){R(c,x-1,y,3,1,'#8f9cc8');R(c,x,y-1,1,3,'#8f9cc8');R(c,x,y,1,1,'#fff')}}}));
+document.documentElement.style.setProperty('--bricks',tile(32,16,c=>{R(c,0,0,32,16,'#3a2a20');R(c,0,7,32,1,'#251a14');R(c,0,15,32,1,'#251a14');R(c,9,0,1,7,'#251a14');R(c,25,8,1,7,'#251a14');R(c,2,2,3,1,'#4a372a');R(c,15,10,4,1,'#4a372a')}));
+(function(){const cv=document.getElementById('sky'),c=cv.getContext('2d');const draw=()=>{cv.width=innerWidth/3|0;cv.height=innerHeight/3|0;seed=11;R(c,0,0,cv.width,cv.height,'#090c15');for(let i=0;i<cv.width*cv.height/260;i++){const x=rnd()*cv.width|0,y=rnd()*cv.height|0,b=rnd();R(c,x,y,1,1,b>.9?'#8d97bf':b>.6?'#3c4460':'#22283b')}};draw();addEventListener('resize',draw)})();
+
+/* ---------- 循环 ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000),t=now/1000;last=now;
+  if(S.regen&&S.mp<S.mpMax)setRes('mp',S.mp+S.regenRate*dt,true);
+  for(const k of['hp','mp']){const a=A[k],target=S[k]/S[k+'Max'];
+    if(target>a.shown)a.shown=Math.min(target,a.shown+(target-a.shown)*Math.min(1,dt*7)+dt*.02);else a.shown=target;
+    if(a.delay>0)a.delay-=dt;else a.ghost=Math.max(a.shown,a.ghost-dt*.45);
+    a.ghost=Math.max(a.ghost,a.shown);a.flash=Math.max(0,a.flash-dt*2.2)}
+  hitT=Math.max(0,hitT-dt);
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;if(pops[i].t>.9)pops.splice(i,1)}
+  hpR.value=S.hp;mpR.value=S.mp;
+  document.getElementById('hpV').textContent=fmt('hp');document.getElementById('mpV').textContent=fmt('mp');
+  for(const v of VARIANTS){v.ctx.clearRect(0,0,v.w,v.h);v.draw(v.ctx,t)}
+  requestAnimationFrame(frame);
+}
+avatar.onload=()=>{for(const k in avatarCache)delete avatarCache[k]};
+applyView();requestAnimationFrame(frame);
+</script>
+</body>
+</html>

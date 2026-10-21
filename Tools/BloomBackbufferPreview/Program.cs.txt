@@ -151,7 +151,7 @@ internal sealed class Probe : Game
         effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
         Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
         renderer = Activator.CreateInstance(draw); run = draw.GetMethod("Run");
-        request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters().Last().ParameterType == typeof(Action));
+        request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters()[3].ParameterType == typeof(Action));
     }
     void Enqueue(bool endsBatch = false, bool throws = false)
     {
@@ -162,7 +162,7 @@ internal sealed class Probe : Game
             if (throws) throw new InvalidOperationException("Expected probe exception");
         };
         request.Invoke(null, ["probe", Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), 3),
-            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback]);
+            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback, 0]);
     }
     void Background()
     {

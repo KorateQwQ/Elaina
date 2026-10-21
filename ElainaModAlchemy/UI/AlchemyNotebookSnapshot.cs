@@ -5,7 +5,8 @@ namespace 伊蕾娜.ElainaModAlchemy.UI;
 
 /// <summary>Read-only view of the real inventory and saved alchemy progression.</summary>
 public sealed record AlchemyResearchStatus(int RequiredLevel, bool RequiresRecipe, bool RecipeConfigured,
-    string RecipeName, int RecipeOwned, int RecipeRequired, bool ConsumeRecipe, bool CanResearch, string Hint);
+    string RecipeName, int RecipeOwned, int RecipeRequired, bool ConsumeRecipe, bool CanResearch, string Hint,
+    string RecipeTexture = null);
 
 public sealed record AlchemyNotebookSnapshot
 {

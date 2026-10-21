@@ -22,6 +22,10 @@ namespace KL.Drawing {
     }
     public class PreviewRandom(int seed) : Random(seed) {
         public float NextFloat(float min, float max) => min + (max - min) * (float)NextDouble();
+        public Vector2 NextVector2Circular(float x, float y) {
+            float angle = NextFloat(0, MathHelper.TwoPi), radius = MathF.Sqrt((float)NextDouble());
+            return new Vector2(MathF.Cos(angle) * x, MathF.Sin(angle) * y) * radius;
+        }
     }
     public class Entity { public Vector2 position, oldPosition; public bool active = true; }
     public class Projectile : Entity { public Vector2 Center, velocity; }
@@ -146,7 +150,23 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water {
         public static void Queue(bool beam, bool particles) {
             LayerDrawRequestSystem.ClearFrame();
             if (beam) { Color c = Color.White; laser.PreDraw(ref c); }
-            if (particles) foreach (Dust d in Dust.All) DustLoader.Instance.PreDraw(d);
+            // Same collection point as DrawSystem: after projectile PreDraw, before Projectiles.After flush.
+            if (particles) KLBasicDust.SubmitBloomDrawRequests();
+            if ((beam || particles && Dust.All.Any(d => d.active)) &&
+                !LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After))
+                throw new Exception("Beam/particles missed Projectiles.After");
+            foreach (var layer in Enum.GetValues<LayerDrawRequestSystem.DrawTargetLayer>())
+            foreach (var timing in Enum.GetValues<LayerDrawRequestSystem.DrawTiming>())
+                if ((layer != LayerDrawRequestSystem.DrawTargetLayer.Projectiles || timing != LayerDrawRequestSystem.DrawTiming.After) &&
+                    LayerDrawRequestSystem.HasBloomRequests(layer, timing))
+                    throw new Exception("Beam/particles created an extra bloom stage");
+        }
+        public static void CheckAfterDraw() {
+            // Vanilla DrawDust happens later: it must neither redraw nor queue another frame's bloom.
+            foreach (Dust d in Dust.All)
+                if (DustLoader.Instance.PreDraw(d)) throw new Exception("Bloom dust requested a second vanilla draw");
+            if (LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After))
+                throw new Exception("Dust.PreDraw requeued particles after the target had already flushed");
         }
     }
 }

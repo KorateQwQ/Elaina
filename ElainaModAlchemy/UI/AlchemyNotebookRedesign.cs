@@ -150,13 +150,23 @@ internal static partial class AlchemyNotebookPresentation
             var research=s.Research(r);
             Section(LocalizeUI("AlchemyClue"));
             Paragraph(LocalizeUI("AlchemyLevelRequirement",s.Level,research.RequiredLevel),12,s.Level>=research.RequiredLevel?Gold:Red,23,8);
-            // Retain real recipe requirements; the HTML only mocks these conditions.
             if(research.RequiresRecipe)
             {
-                Paragraph(research.RecipeConfigured?research.RecipeName:LocalizeUI("RecipeUnregistered"),12,Ink,22,4);
-                Paragraph(LocalizeUI("InventoryOwned",research.RecipeOwned,research.RecipeRequired),11,
-                    research.RecipeConfigured&&research.RecipeOwned>=research.RecipeRequired?Gold:Red,21,8);
+                float textX = research.RecipeTexture != null ? 46 : 0;
+                var nameLines = measure.WrapParagraph(research.RecipeConfigured ? research.RecipeName : LocalizeUI("RecipeUnregistered"),
+                    DetailContentWidth - textX, 12);
+                float nameHeight = nameLines.Length * 22;
+                rows.Add(new(Math.Max(42, nameHeight + 21) + 8, (d, _) =>
+                {
+                    if(research.RecipeTexture != null) d.MaterialIcon(research.RecipeTexture,0,3,34,34);
+                    for(int i=0;i<nameLines.Length;i++) Label(d,nameLines[i],textX,i*22,12,Ink);
+                    Label(d,LocalizeUI("InventoryOwned",research.RecipeOwned,research.RecipeRequired),textX,nameHeight,11,
+                        research.RecipeConfigured&&research.RecipeOwned>=research.RecipeRequired?Gold:Red);
+                }));
                 Paragraph(research.ConsumeRecipe?LocalizeUI("ConsumeRecipe"):LocalizeUI("KeepRecipe"),11,Muted,21);
+                RuleRow();
+                Section(LocalizeUI("Acquisition"));
+                Paragraph(r.Stage,12,Ink,22);
             }
             return rows;
         }

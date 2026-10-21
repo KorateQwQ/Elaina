@@ -136,7 +136,7 @@ public class IceCone3DUnit : VisualUnit
     private void RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer layer, int time,
         float depthClipSide, bool drawAuxiliary)
     {
-        LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Cones", layer,
+        LayerDrawRequestSystem.RequestBloom("Elaina:Shardbind:Cones", layer,
             LayerDrawRequestSystem.DrawTiming.After, ctx =>
         {
             Vector2 lightPosition = GetModelOriginScreenPosition();

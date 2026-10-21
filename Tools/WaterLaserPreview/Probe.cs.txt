@@ -96,6 +96,7 @@ sealed class LaserProbe : Game
         scene.GetMethod("Prepare").Invoke(null, [ticks, origin + camera, angle, length, bend, release, movement]);
         scene.GetMethod("Queue").Invoke(null, [beam, true]);
         render.Invoke(renderer, [1f, 5, bloom]);
+        scene.GetMethod("CheckAfterDraw").Invoke(null, null);
         var pixels = new Color[Width * Height];
         if (backbuffer) GraphicsDevice.GetBackBufferData(pixels); else target.GetData(pixels);
         GraphicsDevice.SetRenderTarget(null);

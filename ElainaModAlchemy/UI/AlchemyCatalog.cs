@@ -81,6 +81,7 @@ public sealed record AlchemyCatalogRecipe
 public static class AlchemyCatalog
 {
     public const string AssetRoot = "伊蕾娜/ElainaModAlchemy/item/ExampleAssets/";
+    public const string RecipeScrollPixelPath = AssetRoot + "Recipe_Pixel";
     public const string VanillaItemRoot = "Terraria/Images/Item_";
     // Derived exclusively from ExampleAssets. AlphaBlend needs premultiplied RGB;
     // retain the original straight-alpha PNGs for the HTML reference.
@@ -264,7 +265,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "featherlight", Name = "Catalog.FeatherlightPotion", EnglishName = "Featherlight Potion",
-            Category = "potion", Art = "FeatherlightPotion", Kind = "Catalog.PotionUtility", Stage = "Catalog.RequiresAlchemyLv2",
+            Category = "potion", Art = "FeatherlightPotion", Kind = "Catalog.PotionUtility", Stage = "Catalog.RecipeFoundInUndergroundGoldChests",
             Description = "Catalog.MakesYouLightAsAFeatherIncreasingMovementFlightAndBroomSpeed",
             Note = "Catalog.TheRibbonsAroundTheBottlesHelpMeTellThemApart", Rarity = 1, Yield = 3,
             PixelWidth = 19, PixelHeight = 38,

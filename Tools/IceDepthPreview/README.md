@@ -1,4 +1,4 @@
-# IceShardLock 冰锥深度预览
+# Shardbind 冰锥深度预览
 
 ## 冰锥发射瞬间拖尾
 
@@ -19,7 +19,7 @@
 输出位于 `.vissandbox/ice-depth-preview/out`。
 
 每次运行都重新提取实际 `IceCone3DUnit` 绘制、运动、溶解方法和
-`IceShardLockProj` 的生成配置，并加载实际 OBJ、贴图和已编译的 IceCone3D Shader。
+`ShardbindProj` 的生成配置，并加载实际 OBJ、贴图和已编译的 IceCone3D Shader。
 直接编译当前 `IceConeDepthRenderer`、KL 分层请求队列及投影代码。
 
 检查第 25、65、109 帧；第 109 帧反转冰锥提交顺序，要求图像完全一致。
@@ -50,7 +50,7 @@ backbuffer 的输出一致，并确认 backbuffer 的保存设置得到恢复。
 
 `bloom-group-on.png` 和 `bloom-single-on.png` 为带 bloom 的离线预览；
 `bloom-*-appear.png` 检查消融显现阶段。当前截图只覆盖模型本体，未模拟拖尾、
-IceShardLock 控制器中心星芒、粒子、游戏光照和真实角色。
+Shardbind 控制器中心星芒、粒子、游戏光照和真实角色。
 
 Bloom 模式还会在场景 RT 和 backbuffer 上分别绘制 RGB 为 0、0.5、1、1.01、2 的 HDR 测试块，
 检查降采样结果：小于等于 1 必须全黑，大于 1 必须产生高光。
