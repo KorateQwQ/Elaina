@@ -14,15 +14,14 @@ public static class AlchemyProgressionRules
         "painkiller" or "rain" => 1,
         "featherlight" or "trace" => 2,
         "dropper" or "mimic" => 3,
-        "bloodlust" or "focus" => 10,
-        "starpower" or "isolation" => 8,
-        "resonance" => 5,
+        "bloodlust" or "starpower" or "focus" or "resonance" => 10,
+        "isolation" => 8,
         "stew" or "brulee" => 3,
         "shimmer" or "beef" or "potato" => 2,
         _ => 1
     };
 }
 
-/// <summary>A level requirement, a recipe item, or both. No physical recipe items are assigned yet.</summary>
+/// <summary>A level requirement, a physical recipe scroll, or both.</summary>
 public sealed record AlchemyResearchRequirement(int RequiredLevel = 1, bool RequiresRecipe = false,
     int RecipeItemType = 0, int RecipeStack = 1, bool ConsumeRecipe = true);

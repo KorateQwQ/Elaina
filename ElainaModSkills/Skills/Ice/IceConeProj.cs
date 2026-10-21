@@ -210,7 +210,7 @@ public class IceConeProj : ElainaBasicProjectile
         float distance = delta.Length();
         TrailManager.CreateOrUpdateTrail(ref managedTrail, OldCenter, TrailLifetime,
             lastTrailState, DrawReleasedTrail,
-            layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles, bloom: true);
+            layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles, bloom: true);
 
         if (distance < 0.5f)
             return;
@@ -228,7 +228,7 @@ public class IceConeProj : ElainaBasicProjectile
         var connectionState = (lastTrailState.Texture, Vector2.Zero, lastTrailState.TimeOffset);
         TrailManager.CreateOrUpdateTrail(ref connectionHandle, connection, BreakFadeTime,
             connectionState, DrawBreakConnection,
-            layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+            layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
             bloom: true, shrinkPathOnExpire: false);
     }
 
@@ -331,7 +331,7 @@ public class IceConeProj : ElainaBasicProjectile
                 lifetime: TrailLifetime,
                 trailState,
                 DrawManagedTrail,
-                layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
                 bloom: true);
             lastTrailState = trailState;
         }

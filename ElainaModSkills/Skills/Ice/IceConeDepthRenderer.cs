@@ -1,6 +1,6 @@
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
-// Each world layer shares one depth buffer across all IceShardLock cones.
+// Each world layer shares one depth buffer across all Shardbind cones.
 // Terraria's screenTarget has no depth attachment of its own.
 public sealed class IceConeDepthRenderer : ModSystem
 {

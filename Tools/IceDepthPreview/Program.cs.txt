@@ -45,7 +45,7 @@ sealed partial class Probe : Game
         string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
             .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
         var unit = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceCone3DUnit.cs"));
-        var controller = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceShardLockProj.cs"));
+        var controller = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/ShardbindProj.cs"));
         var loader = Read(Path.Combine(kl, "Drawing/ThreeD/ObjLoader.cs"));
         string preamble = """
             global using System;

@@ -23,14 +23,14 @@ public sealed class IceCyclePlayer : KLModPlayer
 
     private void SealLock()
     {
-        if (Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<IceShardLockSkill>(out var skill))
+        if (Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<ShardbindSkill>(out var skill))
             skill.Seal();
     }
 
     public void ReduceLockCooldown(float seconds)
     {
         if (Player.whoAmI != Main.myPlayer || !Player.active || Player.dead || seconds <= 0
-            || !Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<IceShardLockSkill>(out var skill)
+            || !Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<ShardbindSkill>(out var skill)
             || skill.Stack >= skill.MaxStack || skill.CurrentCD <= 0)
             return;
 
@@ -75,7 +75,7 @@ public sealed class IceCyclePlayer : KLModPlayer
         if (sequence <= receivedFreezeSequence) return;
         receivedFreezeSequence = sequence;
         if (Player.whoAmI != Main.myPlayer || !Player.active || Player.dead) return;
-        if (Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<IceShardLockSkill>(out var skill)
+        if (Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill<ShardbindSkill>(out var skill)
             && skill.BasicStatus == KL.SkillSystem.Skill.SKillBasicStatus.UnLock)
             skill.Unseal();
     }

@@ -144,7 +144,8 @@ internal static class Checks
         }
 
         Console.WriteLine($"Alchemy items: {passed} registration, defaults, inheritance, and pixel asset checks passed; checking localization.");
-        string[] allNames = production.Select(i => i.Name).Concat(new[] { "MoonDewElixir", "AshenFacsimileDust", "HoneyBread" }).ToArray();
+        string[] allNames = production.Select(i => i.Name).Concat(new[] { "MoonDewElixir", "AshenFacsimileDust", "HoneyBread",
+            "BloodthirstPotionRecipe", "StarPowerPotionRecipe", "ConcentrationPotionRecipe", "ResonancePotionRecipe", "FeatherlightPotionRecipe" }).ToArray();
         foreach (string culture in new[] { "zh-Hans", "en-US" })
         {
             var texts = Localization(repo, culture);
@@ -160,6 +161,7 @@ internal static class Checks
         }
         Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 20 real item registrations, 6 real Buff registrations, both localization cultures checked.");
         PotionBehaviorChecks.Run(Mod);
+        RecipeScrollChecks.Run(Mod);
     }
 
     private static void Drinkable(AlchemyItem item, int buffType, int duration)

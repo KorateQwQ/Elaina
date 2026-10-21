@@ -177,7 +177,7 @@ internal sealed class PreviewGame : Game
         for (int i = 0; i < view.Count; i++)
         {
             int slot = view.Items[i].Slot;
-            view.Items[i].Icon = Texture("ElainaModSkills/Skills/" + (view.Items[i].Sealed ? "Ice/IceShardLockSkill" : Skills[slot].Icon));
+            view.Items[i].Icon = Texture("ElainaModSkills/Skills/" + (view.Items[i].Sealed ? "Ice/ShardbindSkill" : Skills[slot].Icon));
         }
 
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,

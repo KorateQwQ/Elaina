@@ -202,7 +202,7 @@ public class MagicMissleSpawner : KLProjectile
                 lifetime: 10,
                 trailState,
                 DrawManagedTrail,
-                layer: LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
                 bloom: true);
         }
     }

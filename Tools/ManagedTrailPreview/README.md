@@ -16,6 +16,8 @@ PreDraw 不重复采样、暂停/时停不采样、旧弹幕 PreDraw 行为，�
 
 另外检查：
 
+- 正式拖尾统一为 `Projectiles.After`，默认 `order = -100`；主体默认 `0`，Bloom 粒子为 `100`。
+- 故意打乱提交顺序，验证按 order 排序、同 order 的 ID 稳定顺序、同 ID 不同 order 的独立批次、`IsFirst/IsLast`、极端 order 和清帧；这些请求只触发一次 Bloom 流程。
 - 全部九个绘制层的 Before/After 顺序，普通和 Bloom 回调各执行一次；覆盖开关 Bloom 及有无活动 SpriteBatch。
 - 两种拖尾图层与 Before/After、开关 Bloom、场景 RT/backbuffer 的 16 种组合。
 - 当中间没有其他内容时，BehindProjectiles 的前后阶段与 Projectiles/Before 输出逐像素一致。

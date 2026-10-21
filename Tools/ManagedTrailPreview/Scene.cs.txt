@@ -2,12 +2,14 @@ global using System;
 global using System.Linq;
 global using System.Collections.Generic;
 global using System.Reflection;
+global using System.Diagnostics;
 global using Microsoft.Xna.Framework;
 global using Microsoft.Xna.Framework.Graphics;
 global using Terraria;
 global using Terraria.ModLoader;
 global using KL.Drawing;
 global using KL.Projectiles;
+global using KL.Dusts;
 global using Preview;
 global using static KL.Drawing.DrawHelper;
 
@@ -61,7 +63,16 @@ namespace KL.Projectiles {
         public virtual void OnSpawn_AllClient() {}
     }
 }
+namespace KL.Dusts {
+    // This scene has no live dust; WaterLaserPreview exercises the real collector and particle callbacks.
+    public static class KLBasicDust { public static void SubmitBloomDrawRequests() {} }
+}
 namespace KL.Drawing {
+    public static class RenderPerformanceDiagnostics {
+        public static int BloomCount;
+        public static void RecordAllocation(long start) {}
+        public static void RecordBloom(long start, LayerDrawRequestSystem.DrawTargetLayer layer, LayerDrawRequestSystem.DrawTiming timing) => BloomCount++;
+    }
     public static class TimeStopManager { public static bool IsRenderingPlayerTarget; }
     public static class AssetManager {
         public static Texture2D GetTexture(string path) => Checks.IceTexture;
@@ -114,7 +125,7 @@ namespace KL.Drawing {
 }
 namespace Preview {
     public static class Checks {
-        public static LayerDrawRequestSystem.DrawTargetLayer TrailLayer = LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles;
+        public static LayerDrawRequestSystem.DrawTargetLayer TrailLayer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
         public static LayerDrawRequestSystem.DrawTiming TrailTiming = LayerDrawRequestSystem.DrawTiming.After;
         public static Texture2D IceTexture;
         static Texture2D marker;
@@ -169,8 +180,7 @@ namespace Preview {
                 if (alive) {
                     Require(entry.Points[0] == p.Projectile.Center, name + " trail head is one frame behind");
                     Require(entry.Ratio == 1f && entry.Points.SequenceEqual(p.OldCenter), name + " live trail was shortened");
-                    if (TrailLayer != LayerDrawRequestSystem.DrawTargetLayer.Projectiles || TrailTiming == LayerDrawRequestSystem.DrawTiming.Before)
-                        Require(events.IndexOf(name + ":trail") < events.IndexOf(name + ":body"), name + " body rendered before trail");
+                    Require(events.IndexOf(name + ":trail") < events.IndexOf(name + ":body"), name + " body rendered before trail");
                     fullLengths[name] = Length(entry.Points);
                 } else {
                     float ratio = (22 - frame) / 10f;
@@ -205,6 +215,44 @@ namespace Preview {
                     layer + " missed/reordered a timing: " + string.Join(",", sequence));
             }
             Console.WriteLine("PASS all nine layers: Before/After, bloom on/off, active/inactive SpriteBatch; each callback once");
+        }
+        public static void CheckBloomOrder() {
+            var layer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
+            var timing = LayerDrawRequestSystem.DrawTiming.After;
+            foreach (bool bloom in new[] { false, true }) {
+                LayerDrawRequestSystem.ClearFrame();
+                DrawSystem.SetBloomInfo(1, 5, shouldBloom: bloom);
+                var sequence = new List<string>();
+                void Queue(string id, string label, int order, int index, int count) {
+                    LayerDrawRequestSystem.RequestBloom(id, layer, timing, ctx => {
+                        Require(ctx.Order == order && ctx.ActionIndex == index && ctx.ActionCount == count &&
+                            ctx.IsFirst == (index == 0) && ctx.IsLast == (index == count - 1), "Batch context broken: " + label);
+                        sequence.Add(label);
+                    }, order);
+                }
+                // Deliberately enqueue particles first and trails last. Reuse one ID across orders.
+                Queue("shared", "dust-1", 100, 0, 2);
+                Queue("body-a", "body-a-1", 0, 0, 2);
+                Queue("body-b", "body-b", 0, 0, 1);
+                Queue("shared", "trail-1", -100, 0, 2);
+                Queue("shared", "dust-2", 100, 1, 2);
+                Queue("body-a", "body-a-2", 0, 1, 2);
+                Queue("shared", "trail-2", -100, 1, 2);
+                Queue("last", "maximum", int.MaxValue, 0, 1);
+                Queue("first", "minimum", int.MinValue, 0, 1);
+                RenderPerformanceDiagnostics.BloomCount = 0;
+                renderer.RunLayer(layer, () => sequence.Add("original"));
+                Require(RenderPerformanceDiagnostics.BloomCount == 1, "Order created multiple bloom pipeline invocations");
+                Require(sequence.SequenceEqual(new[] { "original", "minimum", "trail-1", "trail-2", "body-a-1", "body-a-2", "body-b", "dust-1", "dust-2", "maximum" }),
+                    "Bloom order changed: " + string.Join(",", sequence));
+                Require(!LayerDrawRequestSystem.HasBloomRequests(layer, timing), "Sorted requests were not consumed in one flush");
+                renderer.RunLayer(layer, () => {});
+                Require(sequence.Count == 10, "Bloom callbacks replayed twice");
+                LayerDrawRequestSystem.RequestBloom("cleared", layer, timing, () => throw new Exception("Request survived ClearFrame"), -100);
+                LayerDrawRequestSystem.ClearFrame();
+                renderer.RunLayer(layer, () => {});
+            }
+            Console.WriteLine("PASS ordered bloom: trails < bodies < dust, stable equal-order IDs, same ID across orders, batch boundaries, extreme orders, one flush, on/off.");
         }
         public static void CheckSamplingGates() {
             foreach (var p in projectiles) {

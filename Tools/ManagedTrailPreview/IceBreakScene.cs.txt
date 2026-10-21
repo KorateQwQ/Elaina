@@ -25,7 +25,7 @@ namespace Preview {
         }
         public static void Start(float rotation, bool connect, bool degenerate) {
             manager.OnWorldUnload(); LayerDrawRequestSystem.ClearFrame(); Checks.ClearObservations();
-            Checks.TrailLayer = LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles;
+            Checks.TrailLayer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
             Checks.TrailTiming = LayerDrawRequestSystem.DrawTiming.After;
             DrawSystem.SetBloomInfo(1,5,shouldBloom:true);
             cone = new IceConeProj(Checks.IceTexture);

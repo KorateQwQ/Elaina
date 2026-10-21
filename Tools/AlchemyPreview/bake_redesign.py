@@ -44,7 +44,12 @@ for source in sources + vanilla:
         atlas.paste(Image.merge('RGBA', (ring, ring, ring, ring)), (0, frame * (h + 2)))
     save(atlas, OUT / source.name)
     manifest.append({'name': source.stem, 'width': w, 'height': h, 'frames': count})
-if not CHECK: (OUT / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+manifest_path = OUT / 'manifest.json'
+if CHECK:
+    if not manifest_path.exists() or json.loads(manifest_path.read_text(encoding='utf-8')) != manifest:
+        raise SystemExit(f'Stale or missing outline manifest: {manifest_path}')
+else:
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 # Reuse the skill atlas (Tools/ConstellationSkillPanelPreview/bake_stars.py, HTML crossStar
 # geometry), preserving premultiplied pixels. One 128x64 row per shape the notebook draws; the row

@@ -68,7 +68,7 @@ sealed partial class Probe : Game
             "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
-        source += "} public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender") + "}";
+        source += "} public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}";
         source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString() + "}";
 
         foreach (string name in new[] { "IceConeProj", "MagicMissile", "MagicMissleSpawner" })
@@ -79,6 +79,11 @@ sealed partial class Probe : Game
             var defaults = type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "SetDefaults");
             string settings = string.Join("\n", defaults.DescendantNodes().OfType<ExpressionStatementSyntax>()
                 .Where(e => e.Expression is AssignmentExpressionSyntax a && a.Left.ToString().StartsWith("Trail")));
+            // IceCone now enables distance sampling at launch in AI; this fixture starts in flight.
+            if (name == "IceConeProj")
+                settings += type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "AI")
+                    .DescendantNodes().OfType<ExpressionStatementSyntax>().Last(e => e.Expression is AssignmentExpressionSyntax a &&
+                        a.Left.ToString() == "TrailSampleCount").ToFullString();
             source += $"namespace Preview {{ public class {name} : KLProjectile {{";
             source += "private TrailManager.TrailHandle managedTrail; private int time = 35; private Texture2D trail; private int BackwardFlyTime => 25;";
             if (name == "IceConeProj") {
@@ -192,6 +197,7 @@ sealed partial class Probe : Game
         checks.GetMethod("CheckSamplingGates").Invoke(null, null);
         for (int age = 1; age <= 10; age++) Frame(12 + age, false, age is 3 or 8 or 10 ? $"expired-{age:00}" : null);
         checks.GetMethod("CheckAllLayerTimings").Invoke(null, null);
+        checks.GetMethod("CheckBloomOrder").Invoke(null, null);
         foreach (bool bloom in new[] { false, true })
         foreach (bool backbuffer in new[] { false, true }) {
             Color[] earlier = null;

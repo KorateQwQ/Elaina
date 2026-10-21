@@ -4,6 +4,8 @@
 
 脚本在 `.vissandbox/water-laser-preview/out` 输出 PNG。每次运行重新读取实际 `WaterLaserVisuals.cs`、`WaterLaserDust.cs`，提取 WaterLaser 的粒子生成、请求注册和绘制方法，以及 KL 的粒子生命周期、TrailEffect、分层队列、Bloom 捕获和合成代码。使用项目原始 PNG 和 KL 编译后的 XNB。没有另写一套模拟 Bloom。
 
+射线与水花现共用 `Projectiles.After`：主体 order 为 `0`，水花为 `100`。预览直接使用 KL 当前的粒子提交方法，复现弹幕绘制后、合成前的收集时机；断言粒子只申请这一组，并且随后 `Dust.PreDraw` 不重复提交。停止施法后的独立水花仍按帧收集，不依赖射线存活。
+
 验证状态：6/18/36/60 帧、白天/夜晚、左向/上向、弯曲、短距离、1.35 倍缩放、直接绘制到 backbuffer、关闭 Bloom、仅粒子 Bloom、停止后 8/30 帧。断言 Bloom 产生亮度增量，停止后粒子能全部消失。
 
 移动附着回归按玩家 → 弹幕生成粒子 → Dust 更新的顺序运行，覆盖生成当帧、同帧重复更新、水平/垂直/反向移动、oldPosition 重置、owner 失活后重新激活。直接使用射线生成方法，比较静止与 24px/tick 左右移动、18px/tick 上移、斜向飞行时的杖尖粒子局部坐标，输出 moving-right-up、moving-left-up、moving-diagonal 帧。修复前零速粒子在 owner 移动 24px 的生成当帧会错误多移 24px，之后同帧 Dust 更新还会重复加一次；修复后只消费粒子保存的附着位置差。

@@ -8,7 +8,7 @@ SkillName: {
 	FireTornadoSkill: Fire Tornado
 	FireBurstSkill: Flame Burst
 	FireLaserSkill: Flame Beam
-	IceShardLockSkill: Ice Shard Lock
+	ShardbindSkill: Shardbind
 	IceConeSkill: Ice Cone Magic
 	FrostVeilSkill: Frost Veil
 	WaterBallSkill: Water Orb Magic
@@ -43,29 +43,29 @@ SkillDesc: {
 		After 1.5 seconds, allies within 160 pixels of the circle travel to the selected ally's spawn, or world spawn if their bed is invalid.
 		Both circles remain for 30 seconds. Approach and right-click either circle to travel for free. Recasting closes your previous pair without affecting other players' circles.
 		'''
-	IceShardLockSkill:
+	ShardbindSkill:
 		'''
 		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} Ice damage in total.
-		Ice-seals the target for the duration, leaving it unable to act.
+		Binds the target in ice for the duration, leaving it unable to act.
 		Starts sealed. Triggering a freeze unseals one use, which cannot stack. Casting still requires the cooldown to finish and seals the spell again. Unsealing does not reduce its cooldown.
 		'''
 	IceConeSkill:
 		'''
 		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} freeze buildup.
 		Reaching 100 buildup freezes the enemy for 4 seconds. Thawing starts a 60-second freeze cooldown that prevents further buildup.
-		Boss parts share freeze buildup and cooldown. Triggering a freeze unseals one use of Ice Shard Lock, even during its cooldown; unused releases do not stack.
+		Boss parts share freeze buildup and cooldown. Triggering a freeze unseals one use of Shardbind, even during its cooldown; unused releases do not stack.
 		'''
 	WaterBallSkill:
 		'''
 		Hold to conjure a water orb, then release to launch it, dealing {0} damage.
 		After traveling a certain distance, the orb bursts in a wide splash behind the target along its flight direction. At close range, it bursts in a circular splash instead.
-		On hit, reduces the target's freeze cooldown by 10 seconds and Ice Shard Lock's cooldown by 8 seconds.
+		On hit, reduces the target's freeze cooldown by 10 seconds and Shardbind's cooldown by 8 seconds.
 		'''
 	WaterLaserSKill:
 		'''
 		Hold to channel a water beam. Every {0} seconds, consumes {3} Magic Power and deals {1} Water damage, splashing enemies near the end of the beam for {2}%.
 		Deals only {4:0.#}% damage to targets not on freeze cooldown.
-		On hit, reduces the target's freeze cooldown by 0.5 seconds and Ice Shard Lock's cooldown by 0.3 seconds.
+		On hit, reduces the target's freeze cooldown by 0.5 seconds and Shardbind's cooldown by 0.3 seconds.
 		'''
 	MagicMissileSkill:
 		'''
@@ -79,8 +79,9 @@ SkillDesc: {
 		'''
 	AshenWitchSkill:
 		'''
-		When enabled, Ashen Witch lets Elaina use [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]. Its base maximum equals vanilla maximum mana, and each point of maximum life removed by Ashen Witch grants 1 additional maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]. Her extra life gain is reduced by 50%. When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] is insufficient, each 1% of maximum life restores 1% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power].
-		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] regenerates at a fixed combat rate, refills in about two seconds outside combat, and pauses for three seconds after taking damage. Mana potions do not restore it.
+		Elaina uses [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] to cast skills. Each point of vanilla maximum mana gained increases her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] by 1. Her bonus life is reduced by 50%. Each point of maximum life lost to Ashen Witch increases her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] by 1.
+
+		When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] is insufficient, she can spend 1% of her maximum life to restore 1% of her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] for casting. This is unavailable while her current life is below 10% of her maximum life.
 		'''
 	MagicBarrierSkill:
 		'''

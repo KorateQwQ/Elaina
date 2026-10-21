@@ -104,7 +104,7 @@ internal sealed class PreviewGame : Game
             BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, effect, matrix);
         var position = new Vector2(32, 20);
         var stateArt = new SkillBarDrawing.StateArt(pixel, glow, diamond);
-        var icon = Texture("ElainaModSkills/Skills/Ice/IceShardLockSkill");
+        var icon = Texture("ElainaModSkills/Skills/Ice/ShardbindSkill");
         var atlas = Texture("ElainaModSkills/ElainaSkillUI/BattleBar/Ornaments");
         Begin(); SkillBarDrawing.DrawRack(batch, Texture("ElainaModSkills/ElainaSkillUI/BattleBar/Rack"), position);
         string[] labels = ["sealed", "sealed+CD", "denied", "0.06s", "0.25s", "0.50s", "open+CD", "ready"];

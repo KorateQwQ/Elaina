@@ -66,9 +66,9 @@ sealed partial class Probe
                         Main.spriteBatch.End();
                         if (IncludeTrail) {
                             var trailState = (previewTrail, Vector2.Normalize(Aim), -(float)frame % 1200 / 40);
-                            LayerDrawRequestSystem.RequestBloom("preview-trail", LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles,
-                                LayerDrawRequestSystem.DrawTiming.After, () => DrawManagedTrail(trailState, cone.OldCenter, 1f));
-                            BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles);
+                            LayerDrawRequestSystem.RequestBloom("preview-trail", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                                LayerDrawRequestSystem.DrawTiming.After, () => DrawManagedTrail(trailState, cone.OldCenter, 1f),
+                                order: LayerDrawRequestSystem.TrailOrder);
                         }
                         cone.QueueModel();
                         BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);

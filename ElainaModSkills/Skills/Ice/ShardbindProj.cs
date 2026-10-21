@@ -15,7 +15,7 @@ using Terraria.ID;
 
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
-public class IceShardLockProj : ElainaBasicProjectile
+public class ShardbindProj : ElainaBasicProjectile
 {
     private readonly List<VisualUnit> units = new();
 
@@ -211,7 +211,7 @@ public class IceShardLockProj : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
-        LayerDrawRequestSystem.RequestBloom("Elaina:IceShardLock:Glow", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+        LayerDrawRequestSystem.RequestBloom("Elaina:Shardbind:Glow", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
         return false;
     }

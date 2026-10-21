@@ -47,6 +47,7 @@ internal sealed class AlchemyPreviewGame : Game
         {
             var missing = AlchemyCatalog.Materials.Select(m => m.IconPath)
                 .Concat(AlchemyCatalog.Recipes.Select(r => r.PixelPath))
+                .Append(AlchemyCatalog.RecipeScrollPixelPath)
                 .Select(path => Path.Combine(Repo, "ElainaModAlchemy/UI/Assets/Outlines", path[(path.LastIndexOf('/') + 1)..] + ".png"))
                 .Distinct().Where(path => !File.Exists(path)).ToArray();
             if (missing.Length > 0)
@@ -104,8 +105,12 @@ internal sealed class AlchemyPreviewGame : Game
         }
         string[] scenes = ["new", "all", "potion", "bloodlust", "curio", "curio-locked", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "header-reference", "close-hover", "brew-050", "detail-bottom", "catalog-bottom", "catalog-middle", "redesign-reference", "starpower"];
         scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials", "focus", "resonance", "bread", "stew", "brulee" }).ToArray();
+        var scrollScenes = from id in new[] { "bloodlust", "starpower", "focus", "resonance", "featherlight" }
+            from status in new[] { "missing", "level-low", "ready", "learned" }
+            select $"recipe-{id}-{status}";
+        scenes = scenes.Concat(scrollScenes).ToArray();
         if (StarPowerOnly) scenes = ["starpower"];
-        if (FocusScene != null) scenes = [FocusScene];
+        if (FocusScene != null) scenes = FocusScene == "recipe-scrolls" ? scrollScenes.ToArray() : [FocusScene];
         foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
         foreach (string scene in scenes)
         {
@@ -140,11 +145,16 @@ internal sealed class AlchemyPreviewGame : Game
             case "acquire": state.Select("flour"); break;
             case "bloodlust": state.Select("bloodlust"); break;
             case "starpower": state.SetCategory("potion"); state.Select("starpower"); break;
-            case "focus": case "resonance": state.SetCategory("potion"); state.Select(scene); break;
+            case "focus": case "resonance": case "featherlight": state.SetCategory("potion"); state.Select(scene); break;
             case "detail-bottom": case "redesign-reference": state.Select("painkiller"); break;
             case "locked": state.Select("focus"); break;
             case "research-ready": state.Select("painkiller"); break;
             case "recipe-missing": case "recipe-ready": state.Select("focus"); break;
+        }
+        if (scene.StartsWith("recipe-") && scene.Split('-').Length >= 3)
+        {
+            state.SetCategory("potion");
+            state.Select(scene.Split('-')[1]);
         }
         if (selectedId != null) state.Select(selectedId);
         float fit = Math.Min(1, Math.Min((width / uiScale - 40) / P.DesignWidth, (height / uiScale - 40) / P.DesignHeight));
