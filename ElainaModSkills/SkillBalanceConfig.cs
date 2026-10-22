@@ -16,10 +16,11 @@ public enum SkillGrowthMode { Phase, Interval }
 /// <summary>所有技能共用的定价定义；BaseCooldown 对普攻表示完整攻击周期，HitCount 是整次预算的等额命中数。
 /// RatioCurve 为空时普攻固定使用 DpsRatio，否则按角色等级在节点间线性插值、超出两端取端点。
 /// GrowthMode 为 Interval 时，从 UnlockLevel 起每 LevelInterval 个角色等级新增一级，不使用阶段跨度或 LevelsPerPhase。
+/// MaxLevel 为 0 时不设固定等级上限；正整数限制两种成长方式产生的技能等级数。
 /// MaxCharges / InitialCharges 为主动技能的储存层数上限与新习得时的可用层数，普攻固定为 1。</summary>
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, double ManaCost,
     double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
-    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0);
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0);
 
 /// <summary>阶段推荐配装中的一个饰品；Id 与 Prefix 是网页键名（如 sorcerer / arcane），由 Loadout 映射到物品与前缀。</summary>
 public sealed record SkillLoadoutItem(string Id, string Prefix);
@@ -98,7 +99,7 @@ public sealed class SkillBalanceConfig
                 skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Number(row, "cost", 0, 10000),
                     Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
                     RatioCurve: ReadRatioCurve(row), GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0)));
+                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0)));
             }
             string reference = c.GetProperty("selectedBasicAttackId").GetString();
             if (reference == null || !ids.Contains(reference))
@@ -114,7 +115,7 @@ public sealed class SkillBalanceConfig
                     ConversionRate: Number(row, "k", 0, 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
                     MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
                     GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0)));
+                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0)));
             }
             config = new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
             return true;
@@ -286,12 +287,17 @@ public sealed class SkillBalanceConfig
     public IEnumerable<int> GetSkillLevelNodes(SkillBalanceEntry skill, int maxCharacterLevel = 1000)
     {
         if (maxCharacterLevel < skill.UnlockLevel) yield break;
+        int remaining = skill.MaxLevel > 0 ? skill.MaxLevel : int.MaxValue;
         int previous = skill.UnlockLevel;
         yield return previous;
+        if (--remaining == 0) yield break;
         if (skill.GrowthMode == SkillGrowthMode.Interval)
         {
             for (long node = (long)skill.UnlockLevel + skill.LevelInterval; node <= maxCharacterLevel; node += skill.LevelInterval)
+            {
                 yield return (int)node;
+                if (--remaining == 0) yield break;
+            }
             yield break;
         }
         int stageStart = skill.UnlockLevel, stageEnd = skill.UnlockStageCap;
@@ -305,6 +311,7 @@ public sealed class SkillBalanceConfig
                 if (node > previous && node <= maxCharacterLevel)
                 {
                     yield return node;
+                    if (--remaining == 0) yield break;
                     previous = node;
                 }
             }

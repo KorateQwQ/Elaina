@@ -26,6 +26,11 @@ SkillName: {
 }
 
 SkillDesc: {
+	AlchemySkill:
+		'''
+		伊蕾娜可以通过炼金术制作各种各样的物品，右键点击大锅即可查看配方并开始制作。
+		随着炼金术等级提升，可以解锁更多可制作的物品。
+		'''
 	FrostVeilSkill:
 		'''
 		为自己和{0}像素内的同队非PvP友方玩家各施加3层环绕的霜幕护盾。
@@ -88,7 +93,7 @@ SkillDesc: {
 		'''
 		需要开启灰之魔女技能才可使用。
 		在即将受伤时开启护盾，护盾会根据因灰之魔女损失的血量提供伤害减免，并消耗相当于护盾所抵消伤害的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
-		技能生效期间，生命恢复不会低于0；此效果不消耗[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]，耗尽时仍然生效。
+		当受到部分持续伤害效果时，也会持续展开护盾，并且完全免疫这些效果。
 		'''
 	WindSlashSkill:
 		'''
@@ -97,7 +102,10 @@ SkillDesc: {
 		'''
 }
 
+AlchemyLevelCap: 炼金等级上限
+
 UnlockConditions: {
+	ObtainedReturnPotion: 获得过返回药水
 	IceQueen: 在霜月事件中击败霜月女王
 	CharacterLevel: 角色等级达到 Lv.{0}
 	CharacterLevelCap: 角色等级上限达到 Lv.{0}

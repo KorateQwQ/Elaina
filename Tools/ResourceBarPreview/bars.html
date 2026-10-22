@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>伊蕾娜 · 资源条本体设计</title>
+<style>
+@font-face{font-family:"ElainaNum";src:url("../../.vissandbox/gelasio-source/Gelasio.ttf")}
+:root{color-scheme:dark;--ink:#eee9f5;--muted:#b2a8c3;--faint:#897d9c;--line:#ba9ed02b;
+ --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;--num:"ElainaNum",Georgia,serif;
+ --sans:"HarmonyOS Sans SC","Microsoft YaHei","PingFang SC",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:#11131e;color:var(--ink);font:13px/1.6 var(--sans)}
+main{max-width:1180px;margin:0 auto;padding:30px 28px 70px}
+header{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px}
+header h1{margin:0;font:400 25px var(--serif);letter-spacing:5px;color:#ede2d4}
+header p{margin:0 0 4px;color:var(--faint);font:11px Georgia;letter-spacing:2px}
+header .crest{width:11px;height:11px;transform:rotate(45deg);border:1px solid #c6b090;margin:0 4px 13px 2px;box-shadow:0 0 10px #d8bc8350}
+.lessons{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.lessons div{padding:10px 12px;border:1px solid #bda5c62e;border-radius:2px 4px 5px 2px;background:#1d1a28;font-size:12px;color:#c9bad6}
+.lessons b{display:block;font:400 13px var(--serif);color:#f0e4d2;letter-spacing:2px;margin-bottom:3px}
+.controls{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding:11px 16px;margin-bottom:22px;
+ background:linear-gradient(110deg,#292434f5,#221e2ff5);border:1px solid #bdaa8c55;border-radius:2px 5px 6px 2px;box-shadow:0 8px 24px #05060c80}
+.group{display:flex;align-items:center;gap:7px}
+.group>label{color:var(--faint);font-size:11px;letter-spacing:1px;margin-right:2px}
+button{font:12px var(--sans);color:#d9cce6;background:#1c1928;border:1px solid #bda5c63b;border-radius:2px;padding:3px 10px;cursor:pointer;letter-spacing:1px}
+button:hover{border-color:#d4bcdf99;color:#f1e2fa;background:#b99ac517}
+button.on{border-color:#d8be91a1;color:#f4e4cc;background:#79607d55}
+button kbd{font:10px Georgia;color:var(--faint);margin-left:5px}
+button.hp{border-left:2px solid #ff86c0}button.mp{border-left:2px solid #6cc4ff}
+input[type=range]{width:104px;accent-color:#c9b0dc}
+.val{font:11px var(--num);color:var(--muted);min-width:62px}
+.card{margin-bottom:26px;border:1px solid #bdaa8c40;border-radius:3px 8px 9px 3px;overflow-x:auto;
+ background:radial-gradient(ellipse at 24% 0%,#a580bd1c,transparent 60%),linear-gradient(110deg,#25212ff2,#1f1c2bf5);box-shadow:3px 4px 0 -1px #1a1822,3px 4px 0 0 #bca8ce1c}
+.card-head{display:flex;align-items:baseline;gap:12px;padding:15px 22px 0}
+.card-head .no{font:12px Georgia;color:#c5ae91;letter-spacing:2px}
+.card-head h2{margin:0;font:400 18px var(--serif);letter-spacing:4px;color:#ede2d4}
+.card-head .en{font:11px Georgia;color:var(--faint);letter-spacing:1px}
+.views{display:flex;flex-wrap:wrap;gap:14px;padding:12px 22px}
+.view{display:flex;flex-direction:column;gap:4px}
+.view span{font:10px var(--sans);color:var(--faint);letter-spacing:1px}
+canvas{display:block;border:1px solid #ffffff12;border-radius:2px}
+.card-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;padding:0 22px 18px}
+.card-foot h3{margin:0 0 2px;font:400 12px var(--serif);color:#e6d6c0;letter-spacing:2px}
+.card-foot ul{margin:0;padding-left:16px;color:#c3b3cf;font-size:12px}
+.card-foot li::marker{content:"✦  ";color:#c5ae91;font-size:9px}
+.note{color:var(--faint);font-size:12px;border-top:1px solid var(--line);padding-top:14px}
+.note code{color:#d8c6e4;font-size:11px}
+</style>
+</head>
+<body>
+<main>
+ <header><div class="crest"></div><div><h1>资源条 · 本体设计</h1><p>ELAINA HUD · BAR MATERIAL &amp; ORNAMENT STUDY</p></div></header>
+
+ <div class="lessons">
+  <div><b>材质</b>填充是一种有内容的材质（碎羽、雪夜），不是纯色渐变</div>
+  <div><b>框与芯</b>细轨夹住填充，轨道比填充长，框是独立的结构</div>
+  <div><b>端饰</b>生命花蔓在右，魔力花蔓在左，枝条上下错落呼应</div>
+  <div><b>留白</b>条身保持完整，花蔓集中在端部，让材质自然展开</div>
+  <div><b>活物</b>碎片脱落、飘散，光点浮动；空槽保留很淡的材质</div>
+ </div>
+
+ <div class="controls">
+  <div class="group"><label>生命</label><button class="hp" data-act="hit">受伤<kbd>D</kbd></button><button class="hp" data-act="bighit">重击<kbd>F</kbd></button><button class="hp" data-act="heal">治疗<kbd>H</kbd></button></div>
+  <div class="group"><label>魔力</label><button class="mp" data-act="cast">施法<kbd>C</kbd></button><button class="mp" data-act="potion">魔力药水<kbd>V</kbd></button><button id="regen" class="on">自然回复</button></div>
+  <div class="group"><label>HP</label><input id="hpR" type="range" min="0" step="1"><span class="val" id="hpV"></span>
+   <label>MP</label><input id="mpR" type="range" min="0" step="1"><span class="val" id="mpV"></span></div>
+  <div class="group"><label>配色</label><button data-pal="bright">提亮</button><button data-pal="canon">设定原色</button></div>
+  <div class="group"><label>特写背景</label><button data-bg="dark">暗</button><button data-bg="day">白昼</button></div>
+ </div>
+
+ <div id="cards"></div>
+ <p class="note">特写为 3 倍，游戏内视图为 1.5 倍 UI 缩放并按原版坐标摆放小地图。实现上：填充材质做成可横向循环的贴图（UV 平移），银轨与端饰做成独立小贴图，花瓣 / 星屑 / 羽毛走 KLBasicDust；当前值与衰减残影分别使用圆角裁剪。</p>
+</main>
+
+<script>
+'use strict';
+const TAU=Math.PI*2,L=262;
+const S={hp:420,hpMax:500,mp:136,mpMax:200,regen:true,regenRate:8,bg:'dark',pal:'bright'};
+const A={hp:{v:.84,g:.84,delay:0,flash:0},mp:{v:.68,g:.68,delay:0,flash:0}};
+const rng=seed=>()=>(seed=(seed*16807)%2147483647)/2147483647;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const minimap=new Image();minimap.src='MinimapFrame.png';
+
+/* ---------- 形状 ---------- */
+function star4(c,x,y,rx,ry,fill){c.beginPath();c.moveTo(x,y-ry);c.quadraticCurveTo(x+rx*.16,y-ry*.16,x+rx,y);c.quadraticCurveTo(x+rx*.16,y+ry*.16,x,y+ry);
+ c.quadraticCurveTo(x-rx*.16,y+ry*.16,x-rx,y);c.quadraticCurveTo(x-rx*.16,y-ry*.16,x,y-ry);c.fillStyle=fill;c.fill()}
+function petal(c,x,y,s,rot,fill){c.save();c.translate(x,y);c.rotate(rot);c.beginPath();c.moveTo(-s,0);
+ c.quadraticCurveTo(-s*.1,-s*.85,s,-s*.15);c.quadraticCurveTo(s*.55,s*.1,s*.75,s*.4);c.quadraticCurveTo(-s*.1,s*.7,-s,0);c.fillStyle=fill;c.fill();c.restore()}
+function feather(c,x,y,s,rot,fill,spine){c.save();c.translate(x,y);c.rotate(rot);c.beginPath();c.moveTo(-s,0);
+ c.bezierCurveTo(-s*.4,-s*.42,s*.4,-s*.36,s,-s*.02);c.bezierCurveTo(s*.3,s*.16,-s*.5,s*.3,-s,0);c.fillStyle=fill;c.fill();
+ if(spine){c.beginPath();c.moveTo(-s*1.15,s*.02);c.quadraticCurveTo(0,-s*.06,s*.9,-s*.04);c.strokeStyle=spine;c.lineWidth=Math.max(.35,s*.07);c.stroke()}
+ c.restore()}
+function clipRect(c,x0,x1,y0,y1,fn){if(x1<=x0)return;c.save();c.beginPath();c.rect(x0,y0,x1-x0,y1-y0);c.clip();fn();c.restore()}
+
+/* ---------- 材质 ---------- */
+function makeRose(){const r=rng(17),petals=[];for(let i=0;i<26;i++)petals.push({x:r()*(L+30),y:r(),s:1.4+r()*1.6,rot:r()*TAU,w:(r()-.5)*.6,a:.16+r()*.3});return{petals}}
+function makeStars(){const r=rng(29),stars=[],neb=[];for(let i=0;i<70;i++)stars.push({x:r()*(L+40),y:r(),s:.35+r()*r()*.9,p:r()*TAU,big:r()<.1});
+ for(let i=0;i<5;i++)neb.push({x:r()*(L+40),y:.2+r()*.6,r:10+r()*18,c:r()<.5?'190,150,255':'120,220,255'});
+ const lines=[];for(let i=0;i<6;i++){const a=stars[(r()*stars.length)|0];const b=stars.filter(s=>Math.abs(s.x-a.x)<22&&s!==a)[0];if(b)lines.push([a,b])}
+ return{stars,neb,lines}}
+function makeFacets(seed,pal){const r=rng(seed),tris=[],step=5.5;const cols=Math.ceil(L/step)+2;
+ const pts=[];for(let j=0;j<3;j++){pts[j]=[];for(let i=0;i<=cols;i++)pts[j][i]=[i*step+(j%2?step/2:0)+(r()-.5)*3.5,j/2+(j===1?(r()-.5)*.35:0)]}
+ for(let j=0;j<2;j++)for(let i=0;i<cols;i++){const a=pts[j][i],b=pts[j][i+1],c=pts[j+1][i],d=pts[j+1][i+1];
+  tris.push({p:[a,b,c],col:pal[(r()*pal.length)|0],sh:r()*TAU,k:r()<.18});tris.push({p:[b,d,c],col:pal[(r()*pal.length)|0],sh:r()*TAU,k:r()<.18})}
+ const plumes=[];for(let i=0;i<9;i++)plumes.push({x:r()*L,y:.25+r()*.5,s:4+r()*4,rot:(r()-.5)*.7});
+ return{tris,plumes}}
+
+const PALS={
+ bright:{hp:{st:['#85436c','#bd6599','#efa3ca'],silk:'255,220,237',pet:'255,230,243',top:'255,240,248',shade:'50,10,35',head:'255,240,248',ghost:'rgba(255,236,246,.9)',glow:'236,150,198',spark:'#ffe8f3',petal:'#f5c6dd'},
+         mp:{st:['#343779','#565bc0','#a6acf6'],neb:['186,156,255','140,162,255'],star:'240,241,255',top:'236,238,255',shade:'6,6,40',head:'238,240,255',ghost:'rgba(234,236,255,.9)',glow:'150,158,255',spark:'#eeefff'}},
+ canon:{hp:{st:['#5e3150','#a16687','#cb8eb1'],silk:'245,214,230',pet:'246,222,236',top:'250,232,242',shade:'40,10,30',head:'246,226,238',ghost:'rgba(246,228,238,.9)',glow:'203,142,177',spark:'#f6e2ee',petal:'#e2b2cb'},
+        mp:{st:['#24264f','#40427f','#6e73c4'],neb:['150,130,220','110,120,210'],star:'222,224,255',top:'214,218,255',shade:'6,6,30',head:'220,224,255',ghost:'rgba(220,224,255,.88)',glow:'110,116,210',spark:'#dfe2ff'}}};
+const P=k=>PALS[S.pal][k];
+const MAT={
+ rose:{tex:makeRose(),
+  draw(c,h,t,x1){const T=this.tex,p=P('hp');
+   const g=c.createLinearGradient(0,0,L,0);g.addColorStop(0,p.st[0]);g.addColorStop(.55,p.st[1]);g.addColorStop(1,p.st[2]);c.fillStyle=g;c.fillRect(0,0,x1,h);
+   c.lineWidth=.6;for(let i=0;i<3;i++){c.beginPath();c.strokeStyle=`rgba(${p.silk},${.16+.08*i})`;
+    for(let x=0;x<=x1;x+=2){const y=h*(.24+.26*i)+Math.sin(x*.05+t*(.7+.2*i)+i*2.1)*h*.16;x?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()}
+   const W=L+30;for(const q of T.petals){const px=((q.x-t*6)%W+W)%W-14;if(px>x1+4)continue;petal(c,px,q.y*h,q.s,q.rot+t*q.w,`rgba(${p.pet},${q.a})`)}
+   const vg=c.createLinearGradient(0,0,0,h);vg.addColorStop(0,`rgba(${p.top},.38)`);vg.addColorStop(.3,'rgba(255,255,255,0)');vg.addColorStop(1,`rgba(${p.shade},.35)`);c.fillStyle=vg;c.fillRect(0,0,x1,h);
+   const hg=c.createLinearGradient(x1-40,0,x1,0);hg.addColorStop(0,`rgba(${p.head},0)`);hg.addColorStop(1,`rgba(${p.head},.7)`);c.fillStyle=hg;c.fillRect(x1-40,0,40,h)},
+  get ghost(){return P('hp').ghost},get glow(){return P('hp').glow},get spark(){return P('hp').spark},get petal(){return P('hp').petal}},
+ star:{tex:makeStars(),
+  draw(c,h,t,x1){const T=this.tex,W=L+40,off=t*4,p=P('mp');
+   const g=c.createLinearGradient(0,0,L,0);g.addColorStop(0,p.st[0]);g.addColorStop(.55,p.st[1]);g.addColorStop(1,p.st[2]);c.fillStyle=g;c.fillRect(0,0,x1,h);
+   T.neb.forEach((n,i)=>{const nx=((n.x-off*.5)%W+W)%W-20,col=p.neb[i%2];const rg=c.createRadialGradient(nx,n.y*h,0,nx,n.y*h,n.r);rg.addColorStop(0,`rgba(${col},.3)`);rg.addColorStop(1,`rgba(${col},0)`);c.fillStyle=rg;c.fillRect(nx-n.r,0,n.r*2,h)});
+   const pos=s=>[((s.x-off)%W+W)%W-20,s.y*h];
+   c.strokeStyle=`rgba(${p.star},.22)`;c.lineWidth=.4;for(const[a,b]of T.lines){const[ax,ay]=pos(a),[bx,by]=pos(b);if(Math.abs(ax-bx)>30)continue;c.beginPath();c.moveTo(ax,ay);c.lineTo(bx,by);c.stroke()}
+   for(const s of T.stars){const[x,y]=pos(s);if(x>x1+2)continue;const a=.45+.55*Math.max(0,Math.sin(t*2+s.p));
+    if(s.big)star4(c,x,y,1.6,1.6,`rgba(255,255,255,${a})`);else{c.fillStyle=`rgba(${p.star},${a})`;c.beginPath();c.arc(x,y,s.s,0,TAU);c.fill()}}
+   const vg=c.createLinearGradient(0,0,0,h);vg.addColorStop(0,`rgba(${p.top},.3)`);vg.addColorStop(.3,'rgba(255,255,255,0)');vg.addColorStop(1,`rgba(${p.shade},.4)`);c.fillStyle=vg;c.fillRect(0,0,x1,h);
+   const hg=c.createLinearGradient(x1-40,0,x1,0);hg.addColorStop(0,`rgba(${p.head},0)`);hg.addColorStop(1,`rgba(${p.head},.7)`);c.fillStyle=hg;c.fillRect(x1-40,0,40,h)},
+  get ghost(){return P('mp').ghost},get glow(){return P('mp').glow},get spark(){return P('mp').spark}},
+ ashRose:{tex:makeFacets(41,['#fbf1f5','#efdde6','#e2cbd8','#d2b8c7','#fffafc','#c7aabb']),
+  draw(c,h,t,x1){drawFacets(c,this.tex,h,t,x1,'rgba(255,190,220,.18)')},ghost:'rgba(255,255,255,.55)',glow:'255,215,235',glowA:.35,spark:'#ffffff',featherCol:'#fbf3f7'},
+ ashSky:{tex:makeFacets(53,['#f2f8fd','#dde9f3','#cbdcea','#b7cbdd','#fbfdff','#a9bfd4']),
+  draw(c,h,t,x1){drawFacets(c,this.tex,h,t,x1,'rgba(170,215,255,.2)')},ghost:'rgba(255,255,255,.55)',glow:'205,232,255',glowA:.35,spark:'#ffffff',featherCol:'#f3f8fd'}
+};
+function drawFacets(c,T,h,t,x1,tint){
+ for(const tr of T.tris){const[a,b,d]=tr.p;if(Math.min(a[0],b[0],d[0])>x1)continue;c.beginPath();c.moveTo(a[0],a[1]*h);c.lineTo(b[0],b[1]*h);c.lineTo(d[0],d[1]*h);c.closePath();
+  c.fillStyle=tr.col;c.fill();if(tr.k){c.fillStyle=`rgba(255,255,255,${.35*Math.max(0,Math.sin(t*1.6+tr.sh))})`;c.fill()}}
+ for(const p of T.plumes)if(p.x<x1)feather(c,p.x,p.y*h,p.s,p.rot,'rgba(255,255,255,.55)','rgba(120,105,130,.35)');
+ c.fillStyle=tint;c.fillRect(0,0,x1,h);
+ const vg=c.createLinearGradient(0,0,0,h);vg.addColorStop(0,'rgba(255,255,255,.35)');vg.addColorStop(.35,'rgba(255,255,255,0)');vg.addColorStop(1,'rgba(60,45,70,.28)');c.fillStyle=vg;c.fillRect(0,0,x1,h)}
+
+/* ---------- 框 ---------- */
+const FRAME={
+ rail:{pad:[5,20],
+  under(c,h){c.fillStyle='rgba(14,10,22,.72)';c.fill(silverSlot(h))},
+  clip(c,h){c.clip(silverSlot(h,0))},
+  over(c,h,kind){silverFrame(c,h,kind)}},
+ capsule:{pad:[10,10],
+  under(c,h){rr(c,-1,-1,L+2,h+2,(h+2)/2);c.fillStyle='rgba(18,13,26,.85)';c.fill();c.strokeStyle='rgba(225,218,236,.6)';c.lineWidth=1;c.stroke()},
+  clip(c,h){rr(c,0,0,L,h,h/2);c.clip()},
+  over(c,h){rr(c,0,0,L,h,h/2);c.strokeStyle='rgba(255,255,255,.18)';c.lineWidth=.6;c.stroke()}}
+};
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arc(x+w-r,y+r,r,-Math.PI/2,Math.PI/2);c.lineTo(x+r,y+h);c.arc(x+r,y+r,r,Math.PI/2,Math.PI*1.5);c.closePath()}
+
+/* ---------- 银质花饰：手绘闭合轮廓，长曲线与留白 ---------- */
+// 花瓣用轮廓控制粗细；细线只用于回环。全部坐标沿用资源条逻辑像素。
+const ornamentPaths=new Map();
+function ornamentPath(d){if(!ornamentPaths.has(d))ornamentPaths.set(d,new Path2D(d));return ornamentPaths.get(d)}
+// 底槽、填充和外框使用同心圆角，右端保持干净的胶囊收口。
+function silverSlot(h,pad=2){const r=h/2+pad,left=h/2,right=L-h/2;
+ return ornamentPath(`M ${left} ${-pad} H ${right}
+ A ${r} ${r} 0 0 1 ${right} ${h+pad} H ${left}
+ A ${r} ${r} 0 0 1 ${left} ${-pad} Z`)}
+function silverRail(h){return silverSlot(h,2.5)}
+function silverShape(c,d){const p=ornamentPath(d);c.strokeStyle='rgba(20,13,32,.65)';c.lineWidth=.35;c.stroke(p);c.fill(p)}
+function silverWire(c,d,w=.45){const p=ornamentPath(d);c.strokeStyle='rgba(20,13,32,.6)';c.lineWidth=w+.45;c.stroke(p);c.strokeStyle=c.fillStyle;c.lineWidth=w;c.stroke(p)}
+// 卷草小花：匙形花瓣向外舒展，瓣根之间留空，不用厚重的金属折面。
+function scrollFlower(c,x,y,size,rotation){c.save();c.translate(x,y);c.rotate(rotation);c.scale(size,size);
+ const lengths=[1,.88,1.04,.82,.93,.86];
+ for(let i=0;i<6;i++){c.save();c.rotate(i*TAU/6);c.scale(1,lengths[i]);
+  silverShape(c,'M -.35 -1.3 C -.55 -2.8 -2.25 -3.8 -1.75 -5.3 C -1.25 -6.7 1.05 -6.4 1.25 -5 C 1.45 -3.6 .45 -2.3 .35 -1.3 Q 0 -1.75 -.35 -1.3 Z');
+  c.restore();
+ }
+ c.beginPath();c.arc(0,0,.55,0,TAU);c.fill();c.restore();
+}
+function floralTerminal(c){c.save();
+ const g=c.createLinearGradient(0,-14,0,13);g.addColorStop(0,'#f3ebfc');g.addColorStop(.5,'#d5c8e5');g.addColorStop(1,'#b5a5ca');c.fillStyle=g;
+ // 长弧顺着上轨展开，以细茎接到端部小花。曲线在分叉处保持方向连续。
+ silverShape(c,'M -74 -6 C -53 -4 -35 -15 -15 -10 C -5 -8 0 -3 7 -2 C -1 -2 -6 -7 -16 -8.8 C -36 -13 -53 -3 -74 -6 Z');
+ silverWire(c,'M -67 -5 C -47 -4 -34 -9 -18 -6 C -4 -3 -6 9 6 8 C 14 7 9 2 11 1',.42);
+ silverWire(c,'M -62 -6 C -44 -7 -36 -15 -24 -11',.35);
+ silverWire(c,'M -37 -7 C -25 -3 -17 -4 -15 -9',.38);
+ // 回卷收笔与少量叶片，保留枝间的负空间。
+ silverShape(c,'M -41 -8 C -35 -7 -31 -3 -28 -3 C -25 -3 -25 -5 -26 -6 C -22 -5 -24 -1 -28 -1.5 C -33 -2 -35 -6 -41 -8 Z');
+ silverShape(c,'M -11 -6 C -6 -11 -2 -11 -1 -9 C 0 -7 -3 -8 -4 -7 C -6 -6 -8 -5 -11 -6 Z');
+ silverWire(c,'M -34 6 C -23 5 -17 12 -7 11 C -3 10 -3 7 -6 7 C -8 7 -8 9 -7 9',.38);
+ silverWire(c,'M -16 8 C -15 5 -18 4 -20 4',.34);
+ scrollFlower(c,13,-1,1,-.15);
+ scrollFlower(c,-24,-11,.64,.25);
+ scrollFlower(c,-20,4,.48,-.35);
+ c.restore();
+}
+// 魔力花蔓向左生长：两朵较小的花，下垂长弧沿下轨回收，与生命花蔓错落。
+function manaFloralTerminal(c){c.save();
+ const g=c.createLinearGradient(0,-11,0,15);g.addColorStop(0,'#eeeafa');g.addColorStop(.5,'#d2cbe6');g.addColorStop(1,'#b2a7cc');c.fillStyle=g;
+ silverShape(c,'M 62 6 C 45 5 34 14 19 11 C 8 9 4 3 -6 2 C 3 2 9 8 19 9.8 C 34 12.5 46 4 62 6 Z');
+ silverWire(c,'M 55 6 C 40 5 28 10 17 7 C 6 4 7 -8 -3 -7 C -10 -6 -10 -1 -10 0',.38);
+ silverWire(c,'M 47 7 C 36 9 31 14 23 11',.32);
+ silverShape(c,'M 37 10 C 31 9 28 4 24 4 C 21 4 21 6 23 7 C 19 7 18 2 23 2.5 C 29 3 30 8 37 10 Z');
+ silverShape(c,'M 8 7 C 3 12 -2 12 -3 10 C -4 8 0 9 2 8 C 4 7 6 6 8 7 Z');
+ silverWire(c,'M 30 -5 C 19 -4 15 -10 7 -9 C 3 -8 4 -5 6 -5 C 8 -5 8 -7 7 -7',.34);
+ scrollFlower(c,-12,1,.84,.35);
+ scrollFlower(c,23,11,.57,-.3);
+ c.restore();
+}
+function silverFrame(c,h,kind){c.save();c.lineCap='round';c.lineJoin='round';
+ // 一条暗衬托住银线；高光留在上轨，避免细框在白昼背景消失。
+ const rail=silverRail(h);
+ c.strokeStyle='rgba(12,9,23,.75)';c.lineWidth=1.6;c.stroke(rail);
+ const g=c.createLinearGradient(0,-3,0,h+3);g.addColorStop(0,'#f1ebfa');g.addColorStop(.48,'#b3a8c5');g.addColorStop(1,'#c9c2d8');c.strokeStyle=g;c.lineWidth=.7;c.stroke(rail);
+ c.save();c.clip(silverSlot(h,1));c.strokeStyle='rgba(244,235,255,.22)';c.lineWidth=.45;c.beginPath();c.moveTo(13,-.5);c.lineTo(L-h/2,-.5);c.moveTo(13,h+.5);c.lineTo(L-h/2,h+.5);c.stroke();c.restore();
+ c.translate(kind==='mp'?0:L,h/2);
+ if(kind==='mp')manaFloralTerminal(c);else floralTerminal(c);
+ c.restore();
+}
+
+/* ---------- 概念 ---------- */
+const CONCEPTS=[
+ {id:'A',no:'A',name:'蔷薇 · 瑠璃',en:'Rose Silk & Lapis Night',frame:'rail',bars:{hp:{mat:'rose',h:8},mp:{mat:'star',h:7}},particle:{hp:'petal',mp:'stardust'},
+  notes:[['生命 · 蔷薇丝缎',['颜色取自伊蕾娜帽檐内衬 / 靴子的蔷薇色（设定原色 #a16687 → #cb8eb1），默认提亮一档避免发灰','填充是流动的丝缎褶线 + 缓慢漂移的花瓣，前沿最亮；受伤时花瓣从失去的那一段散落','花蔓银饰：右端匙形小花、舒展长弧与细卷须，花瓣之间留白，底槽保留圆角']],
+   ['魔力 · 瑠璃夜空',['颜色取自伊蕾娜瞳孔的瑠璃色（设定原色 #40427f → #4b4e94），提亮后是偏紫的蓝','填充是夜空：星点闪烁、淡星云、星座连线，整体缓慢流动','左端花蔓以两朵小花、下垂长弧呼应生命条；施法散出星屑，自然回复时升起细小星光']]]},
+ {id:'B',no:'B',name:'灰羽',en:'Ashen Plume',frame:'capsule',bars:{hp:{mat:'ashRose',h:9},mp:{mat:'ashSky',h:7}},particle:{hp:'feather',mp:'feather'},
+  notes:[['生命 · 灰羽（淡玫瑰）',['呼应「灰之魔女」：银白切面羽毛材质，只带一点玫瑰色调，几片完整羽毛嵌在里面','条身上插着几根羽毛，血量降过它的位置时，这根羽毛会脱落飘走；回血后重新出现','前沿持续有羽毛向右飘出条尾（示例 1 的做法）']],
+   ['魔力 · 灰羽（冰蓝）',['同一材质换冰蓝色调，两条一眼能分开但整体统一','空槽是近乎纯黑的胶囊，和亮白的填充形成强对比，读数非常清楚','没有端饰和纹章，靠材质和飘羽取胜，是两套里更「轻」的一套']]]}
+];
+const STUCK={hp:[.08,.33,.58,.81],mp:[.18,.47,.72]};
+
+/* ---------- 粒子 ---------- */
+class Bar{
+ constructor(concept,kind){this.c=concept;this.k=kind;const b=concept.bars[kind];this.mat=MAT[b.mat];this.h=b.h;this.parts=[];this.amb=0;
+  this.stuck=concept.frame==='capsule'?STUCK[kind].map((x,i)=>({x:x*L,on:1,top:i%2===0,rot:(i%2?.5:-.45)+(i*.13),s:5.5+(i%3)})):[]}
+ spawn(type,x,y,o={}){this.parts.push(Object.assign({type,x,y,vx:0,vy:0,g:0,rot:Math.random()*TAU,vr:(Math.random()-.5)*6,s:2,life:0,max:1,sw:Math.random()*TAU},o))}
+ lose(x0,x1){const n=Math.max(3,Math.min(26,Math.round((x1-x0)/5))),type=this.c.particle[this.k];
+  for(let i=0;i<n;i++){const x=lerp(x0,x1,Math.random()),y=Math.random()*this.h;
+   if(type==='petal')this.spawn('petal',x,y,{vx:8+Math.random()*26,vy:-22+Math.random()*16,g:34,s:1.6+Math.random()*1.8,max:.9+Math.random()*.8});
+   else if(type==='stardust')this.spawn('star',x,y,{vx:-8+Math.random()*24,vy:-30+Math.random()*18,g:6,s:.8+Math.random()*1.4,max:.6+Math.random()*.6});
+   else this.spawn('feather',x,y,{vx:6+Math.random()*22,vy:-16+Math.random()*12,g:-3,s:2.2+Math.random()*2.2,vr:(Math.random()-.5)*3,max:1+Math.random()*.9})}}
+ gain(x){for(let i=0;i<6;i++)this.spawn('star',x-Math.random()*20,Math.random()*this.h,{vx:-6+Math.random()*12,vy:-14-Math.random()*10,s:.8+Math.random(),max:.6+Math.random()*.4})}
+ update(dt,t,v){const x1=v*L,type=this.c.particle[this.k];this.amb-=dt;
+  if(x1>2&&this.amb<=0){
+   if(type==='petal'){this.amb=1.4+Math.random();this.spawn('petal',x1-2,this.h*Math.random(),{vx:10+Math.random()*10,vy:-4,g:9,s:1.6+Math.random(),max:1.8})}
+   else if(type==='stardust'){this.amb=S.regen&&S.mp<S.mpMax?.18:.6;this.spawn('star',Math.random()*x1,this.h*Math.random(),{vx:0,vy:-6-Math.random()*6,s:.5+Math.random()*.8,max:.9+Math.random()*.6})}
+   else{this.amb=.7+Math.random()*.7;this.spawn('feather',x1-1,this.h*(.2+Math.random()*.6),{vx:12+Math.random()*12,vy:-3+Math.random()*4,g:-2,s:2+Math.random()*2,vr:(Math.random()-.5)*2,max:1.6+Math.random()*.8})}}
+  for(const s of this.stuck){if(s.on>0&&x1<s.x){s.on=0;this.spawn('feather',s.x,s.top?-1:this.h+1,{vx:8+Math.random()*12,vy:-14,g:-2,s:s.s,rot:s.rot,vr:(Math.random()-.5)*3,max:1.6,big:1})}
+   else if(s.on<1&&x1>s.x+3)s.on=Math.min(1,s.on+dt*2)}
+  for(const p of this.parts){p.life+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt+Math.sin(t*3+p.sw)*dt*6;p.y+=p.vy*dt;p.rot+=p.vr*dt}
+  this.parts=this.parts.filter(p=>p.life<p.max)}
+}
+const state=CONCEPTS.map(c=>({c,hp:new Bar(c,'hp'),mp:new Bar(c,'mp')}));
+
+/* ---------- 绘制一条 ---------- */
+function clipResourceFill(c,width,h,draw){if(width<=0)return;c.save();c.beginPath();
+ c.roundRect(0,0,width,h,Math.min(h/2,width/2));c.clip();draw();c.restore()}
+function drawBar(c,bar,t,a){const h=bar.h,F=FRAME[bar.c.frame],x1=a.v*L,xg=a.g*L,mat=bar.mat;
+ F.under(c,h,bar.k,t);
+ c.save();if(F.clip)F.clip(c,h);
+ // 先铺完整空槽，再叠放两层独立圆角；残影缩短到不足条高时也不出现方角。
+ c.globalAlpha=.13;mat.draw(c,h,t,L);c.globalAlpha=1;
+ c.fillStyle='rgba(12,8,20,.35)';c.fillRect(0,0,L,h);
+ if(xg>x1)clipResourceFill(c,xg,h,()=>{c.fillStyle=mat.ghost;c.fillRect(0,0,xg,h)});
+ clipResourceFill(c,x1,h,()=>{mat.draw(c,h,t,x1);if(a.flash>0){c.fillStyle=`rgba(255,255,255,${a.flash*.5})`;c.fillRect(0,0,x1,h)}});
+ c.restore();
+ F.over&&F.over(c,h,bar.k,t);
+ // 插在条上的羽毛
+ for(const s of bar.stuck)if(s.on>0){c.globalAlpha=s.on;feather(c,s.x,s.top?-.5:h+.5,s.s,s.rot+(s.top?-.2:.2)+Math.sin(t*1.3+s.x)*.05,bar.mat.featherCol,'rgba(110,98,124,.7)');c.globalAlpha=1}
+ // 粒子
+ for(const p of bar.parts){const k=p.life/p.max,al=k<.15?k/.15:1-(k-.15)/.85;c.globalAlpha=Math.max(0,al);
+  if(p.type==='petal')petal(c,p.x,p.y,p.s,p.rot,mat.petal||'#ffd0e6');
+  else if(p.type==='star'){c.save();c.globalCompositeOperation='lighter';star4(c,p.x,p.y,p.s,p.s*1.4,mat.spark);c.restore()}
+  else feather(c,p.x,p.y,p.s,p.rot,bar.mat.featherCol||'#f6f2fa','rgba(110,98,124,.6)');
+  c.globalAlpha=1}
+}
+
+/* ---------- 视图 ---------- */
+const cardsEl=document.getElementById('cards');const views=[];
+const DPR=Math.min(2,devicePixelRatio||1);
+function mkCanvas(w,h,scale){const cv=document.createElement('canvas');cv.width=w*scale*DPR;cv.height=h*scale*DPR;cv.style.width=w*scale+'px';cv.style.height=h*scale+'px';return cv}
+for(const st of state){const c=st.c;
+ const el=document.createElement('section');el.className='card';
+ el.innerHTML=`<div class="card-head"><span class="no">${c.no}</span><h2>${c.name}</h2><span class="en">${c.en}</span></div><div class="views"></div>
+  <div class="card-foot">${c.notes.map(([h,li])=>`<div><h3>${h}</h3><ul>${li.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>`;
+ cardsEl.appendChild(el);const vw=el.querySelector('.views');
+ const big={w:L+60,h:76,scale:3,kind:'detail'};const game={w:520,h:120,scale:1.5,kind:'game'};
+ for(const v of[big,game]){const box=document.createElement('div');box.className='view';box.innerHTML=`<span>${v.kind==='detail'?'特写 ×3':'游戏内 · UI 150% · 右上角，含原版小地图'}</span>`;
+  const cv=mkCanvas(v.w,v.h,v.scale);box.appendChild(cv);vw.appendChild(box);views.push({st,v,cv,ctx:cv.getContext('2d')})}
+}
+
+function render(t){
+ for(const {st,v,ctx,cv} of views){
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);ctx.setTransform(v.scale*DPR,0,0,v.scale*DPR,0,0);
+  const day=v.kind==='game'||S.bg==='day';
+  if(day){const g=ctx.createLinearGradient(0,0,0,v.h);g.addColorStop(0,'#6a9cf4');g.addColorStop(1,'#86b0f7');ctx.fillStyle=g}else ctx.fillStyle='#14121d';
+  ctx.fillRect(0,0,v.w,v.h);
+  let ox,oy1,oy2;
+  if(v.kind==='detail'){ox=34;oy1=20;oy2=48}
+  else{if(minimap.complete&&minimap.naturalWidth){ctx.imageSmoothingEnabled=false;ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(v.w-294,88,244,40);ctx.fillStyle='#5f78f2';ctx.fillRect(v.w-288,94,232,30);ctx.drawImage(minimap,v.w-296,79);ctx.imageSmoothingEnabled=true}
+   ox=v.w-16-FRAME[st.c.frame].pad[1]-L;oy1=18;oy2=46}
+  ctx.save();ctx.translate(ox,oy1);drawBar(ctx,st.hp,t,A.hp);ctx.restore();
+  ctx.save();ctx.translate(ox,oy2);drawBar(ctx,st.mp,t+.7,A.mp);ctx.restore();
+ }
+}
+
+/* ---------- 状态 ---------- */
+function setRes(k,v,silent){const max=S[k+'Max'];v=Math.max(0,Math.min(max,v));const d=v-S[k];if(!d)return;const a=A[k],before=a.v;S[k]=v;
+ if(d<0){a.g=Math.max(a.g,a.v);a.v=v/max;a.delay=.4;if(!silent)state.forEach(st=>st[k].lose(a.v*L,before*L))}
+ else if(!silent){a.flash=1;state.forEach(st=>st[k].gain(Math.min(1,v/max)*L))}}
+const ACTS={hit:()=>setRes('hp',S.hp-(18+Math.random()*30|0)),bighit:()=>setRes('hp',S.hp-(110+Math.random()*60|0)),heal:()=>setRes('hp',S.hp+100),
+ cast:()=>setRes('mp',S.mp-(22+Math.random()*16|0)),potion:()=>setRes('mp',S.mp+80)};
+const $$=s=>[...document.querySelectorAll(s)];
+$$('[data-act]').forEach(b=>b.onclick=()=>ACTS[b.dataset.act]());
+$$('[data-bg]').forEach(b=>b.onclick=()=>{S.bg=b.dataset.bg;$$('[data-bg]').forEach(x=>x.classList.toggle('on',x.dataset.bg===S.bg))});
+$$('[data-bg]').forEach(x=>x.classList.toggle('on',x.dataset.bg===S.bg));
+const palBtns=()=>$$('[data-pal]').forEach(x=>x.classList.toggle('on',x.dataset.pal===S.pal));palBtns();
+$$('[data-pal]').forEach(b=>b.onclick=()=>{S.pal=b.dataset.pal;palBtns()});
+const regenBtn=document.getElementById('regen');regenBtn.onclick=()=>{S.regen=!S.regen;regenBtn.classList.toggle('on',S.regen)};
+const hpR=document.getElementById('hpR'),mpR=document.getElementById('mpR');hpR.max=S.hpMax;mpR.max=S.mpMax;
+hpR.oninput=()=>setRes('hp',+hpR.value,true);mpR.oninput=()=>setRes('mp',+mpR.value,true);
+addEventListener('keydown',e=>{const m={d:'hit',f:'bighit',h:'heal',c:'cast',v:'potion'}[e.key.toLowerCase()];if(m&&!e.repeat)ACTS[m]()});
+
+let last=performance.now();
+function frame(now){const dt=Math.min(.05,(now-last)/1000),t=now/1000;last=now;
+ if(S.regen&&S.mp<S.mpMax)setRes('mp',S.mp+S.regenRate*dt,true);
+ for(const k of['hp','mp']){const a=A[k],target=S[k]/S[k+'Max'];
+  if(target>a.v)a.v=Math.min(target,a.v+(target-a.v)*Math.min(1,dt*7)+dt*.02);else a.v=target;
+  if(a.delay>0)a.delay-=dt;else a.g=Math.max(a.v,a.g-dt*.45);a.g=Math.max(a.g,a.v);a.flash=Math.max(0,a.flash-dt*2.2);
+  state.forEach(st=>st[k].update(dt,t,a.v))}
+ render(t);
+ hpR.value=S.hp;mpR.value=S.mp;document.getElementById('hpV').textContent=`${Math.round(S.hp)}/${S.hpMax}`;document.getElementById('mpV').textContent=`${Math.floor(S.mp)}/${S.mpMax}`;
+ requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -29,18 +29,31 @@ public class FireTornado : ElainaBasicProjectile
         DisplaceNoiseBias = 0,
         DisplaceNoiseContrast = 1,
         DisplaceNoiseSpeed = new Vector2(-0.3f),
+        //消融时火焰层边缘烧出亮橙色
+        DissolveEdgeWidth = 0.04f,
+        DissolveEdgeColor = new Vector4(1.3f, 0.5f, 0.1f, 1),
     };
+    //火星生成的小数累计（仅客户端视觉，火星本身是 FireTornadoSparkDust，生命周期独立于弹幕）
+    private float sparkCarry;
+
+    //淡入淡出时序：火焰层消融速度倍率；暗色层（条带、石块、气流圈）在进度达到 DarkFadeDelay 后才开始消融，
+    //淡出时火焰先在暗色碎片的掩护下烧尽，淡入时则先出现焦黑碎片再燃起。
+    //淡入用较小的倍率让中心火柱更早出现
+    private const float FireFadeSpeed = 1.8f;
+    private const float FireFadeInSpeed = 1.2f;
+    private const float DarkFadeDelay = 0.35f;
+
     public override void SetDefaults()
     {
         totalFadeTime = 1;
-        Projectile.timeLeft = 150;
+        Projectile.timeLeft = 350;
         fadeNeedTime = 60;
         base.SetDefaults();
     }
 
     public override void AI()
     {
-        Projectile.velocity = new Vector2(0, 0);
+        Projectile.velocity = new Vector2(2, 0);
 
         tornadoScale = 1f;
         if(Main.mouseRight)Projectile.Kill();
@@ -52,6 +65,13 @@ public class FireTornado : ElainaBasicProjectile
         else if (time < fadeNeedTime)
         {
             totalFadeTime-=1/fadeNeedTime;
+        }
+        if (!Main.dedServ)
+        {
+            //生成量随火焰显现程度变化，淡出时停止生成，已有火星继续飞散
+            sparkCarry += FireTornadoSparks.SpawnPerFrame * (1 - FireFadeProgress());
+            for (; sparkCarry >= 1; sparkCarry--)
+                FireTornadoSparkDust.Emit(Projectile, tornadoScale);
         }
         base.AI();
     }
@@ -98,35 +118,39 @@ public class FireTornado : ElainaBasicProjectile
         float light = 1.0f;
         if (Projectile.timeLeft < 30) light = MathHelper.Lerp(1.0f, 1.0f, Projectile.timeLeft / 30f);
 
+        //KL 合成到场景时各通道超过 1 会被单独截断，高亮乘数过大时橙色会烧成淡黄白，调色可用 Tools/FireTornadoLookPreview 预览。
         //底层垫色（防止画面过曝）+ 旋风 + 高亮旋风，形状相同，合并为一次绘制。
         //高亮旋风原本是 Additive，与之后的高亮残片同为 Additive，顺序可交换。
         bodyShape.Time = rotTime;
         bodyShape.NoiseTexture = displaceNoi.Value;
         bodyShape.DissolveTexture = PerLinNoiseX;
-        bodyShape.DissolveThreshold = GetDissolveAmount();
-        Color fadedColor = new Color(255,100,50,255)*(1-totalFadeTime);
+        bodyShape.DissolveThreshold = GetFireDissolveAmount();
+        //火焰色带：按贴图亮度从烟熏暗棕过渡到深红、橙、黄，避免单一颜色的平涂色块
+        bodyShape.RampTexture = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/Skills/Fire/FireTornadoFireRamp",
+            AssetRequestMode.ImmediateLoad).Value;
+        //淡入淡出只靠消融，颜色不随 totalFadeTime 变淡，否则主体会变成半透明的灰橙色
         EndBeginDraw(0,1,ss:SamplerState.LinearWrap);
         DrawTornadoLayers(Projectile.Center, bodyShape, [
-            new TornadoLayer(waterNoi.Value, fadedColor, new Vector2(1.2f,2.3f)*2.0f) { UseRForAlpha = true, Tilt = 1.0f },
-            new TornadoLayer(wind1.Value, fadedColor, new Vector2(1.2f,2.3f)*2.0f) { Tilt = 1.0f },
-            new TornadoLayer(waterNoi.Value, new Color(255,70,20,255)*(1-totalFadeTime), new Vector2(1.3f,2.3f)*2.0f) { EffectColor = new Vector4(1.2f), Tilt = 2.0f },
-            new TornadoLayer(wind1.Value, new Color(255,100,30,255), new Vector2(1.3f,2.3f)*2.0f) { EffectColor = new Vector4(2.5f*light), Tilt = 1.0f, Additive = true },
+            new TornadoLayer(waterNoi.Value, new Color(255,90,35,255), new Vector2(1.2f,2.3f)*2.0f) { UseRForAlpha = true, Tilt = 1.0f, BurnEdge = true },
+            new TornadoLayer(wind1.Value, Color.White, new Vector2(1.2f,2.3f)*2.0f) { Tilt = 1.0f, RampGain = 0.7f, BurnEdge = true },
+            new TornadoLayer(waterNoi.Value, Color.White, new Vector2(1.3f,2.3f)*2.0f) { Tilt = 2.0f, RampGain = 0.8f, BurnEdge = true },
+            new TornadoLayer(wind1.Value, new Color(255,80,20,255), new Vector2(1.3f,2.3f)*2.0f) { EffectColor = new Vector4(1.2f*light), Tilt = 1.0f, Additive = true, BurnEdge = true },
         ]);
 
         //高亮残片
         EndBeginDraw(1,1,ss:SamplerState.LinearWrap);
-        TornadoEffect(new Vector4(4.5f*light),true, rotTime,2.5f,new Vector2(0.4f),-0.4f,new Vector2(1),1.5f,horizontalFadeRange:0.02f,verticalFadeRange:0.02f,
+        TornadoEffect(new Vector4(2.4f*light),true, rotTime,2.5f,new Vector2(0.4f),-0.4f,new Vector2(1),1.5f,horizontalFadeRange:0.02f,verticalFadeRange:0.02f,
             maxInset:0.25f,bezierP0:new Vector2(-5,0),bezierP1:new Vector2(1.85f,0.45f),bezierP2:new Vector2(1f,0.95f),bezierP3:new Vector2(-5,1),
-            dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(0.5f),dissolveThreshold:GetDissolveAmount(0.5f),dissolveEdgeWidth:0.00f,
+            dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(0.5f),dissolveThreshold:GetFireDissolveAmount(0.5f),dissolveEdgeWidth:0.00f,
             noiseTex:displaceNoi.Value,displaceNoiseScale:new Vector2(1.1f),displaceAmount:0.05f,displaceNoiseBias:0,displaceNoiseContrast:1,displaceNoiseSpeed:new Vector2(-0.3f));
         
-        DrawInWorld(cellnoise.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,100,30,255),new Vector2(0.4f,1.2f)*1.6f);
+        DrawInWorld(cellnoise.Value,Projectile.Center+new Vector2(-0,0),color: new Color(255,95,25,255),new Vector2(0.4f,1.2f)*1.6f);
 
-        //外圈黑色条带
+        //外圈黑色条带：消融边用高于 Bloom 阈值的窄亮边，表现被火风溶解的石块
         EndBeginDraw(2,1,ss:SamplerState.LinearWrap);
         TornadoEffect(new Vector4(1.0f),false,  rotTime,2.5f,new Vector2(0.4f),-0.5f,new Vector2(2.0f),1.4f,horizontalFadeRange:0.00f,verticalFadeRange:0.05f,
             maxInset:0.25f,bezierP0:new Vector2(-5,0),bezierP1:new Vector2(2.85f,0.45f),bezierP2:new Vector2(3f,0.95f),bezierP3:new Vector2(-10,1),
-            dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(1),dissolveThreshold:GetDissolveAmount(0.3f),dissolveEdgeColor:new Vector4(8*light,2*light,0,1),dissolveEdgeWidth:0.02f,
+            dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(1),dissolveThreshold:GetDarkDissolveAmount(0.3f),dissolveEdgeColor:new Vector4(7*light,2.4f*light,0.4f,1),dissolveEdgeWidth:0.018f,
             noiseTex:displaceNoi.Value,displaceNoiseScale:new Vector2(1.1f),displaceAmount:0.05f,displaceNoiseBias:0,displaceNoiseContrast:1,displaceNoiseSpeed:new Vector2(-0.3f));
         
         DrawInWorld(wind3.Value,Projectile.Center+new Vector2(-0,0),color: new Color(50,20,0,255),new Vector2(1.2f,2.3f)*0.6f);
@@ -135,7 +159,7 @@ public class FireTornado : ElainaBasicProjectile
         //黑色石头粒子
         TornadoEffect(new Vector4(1),false,  rotTime,2.5f,new Vector2(0.4f),-0.9f,new Vector2(1.2f),1.5f,horizontalFadeRange:0.00f,verticalFadeRange:0.05f,
             maxInset:0.25f,bezierP0:new Vector2(-2.5f,0),bezierP1:new Vector2(2.85f,0.45f),bezierP2:new Vector2(3f,0.95f),bezierP3:new Vector2(-10,1),
-            dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(1),dissolveThreshold:GetDissolveAmount(0.6f),dissolveEdgeColor:new Vector4(4*light,2*light,0,1),dissolveEdgeWidth:0.02f,
+            dissolveTex:PerLinNoiseX,dissolveTexTiling:new Vector2(1),dissolveThreshold:GetDarkDissolveAmount(0.6f),dissolveEdgeColor:new Vector4(5*light,1.7f*light,0.3f,1),dissolveEdgeWidth:0.018f,
             noiseTex:displaceNoi.Value,displaceNoiseScale:new Vector2(1.1f),displaceAmount:0.05f,displaceNoiseBias:0,displaceNoiseContrast:1,displaceNoiseSpeed:new Vector2(-0.3f));
         
         DrawInWorld(PerLinNoiseX,Projectile.Center+new Vector2(-0,0),color: new Color(20,10,0,255),new Vector2(2.0f,2.3f)*1.0f);
@@ -161,26 +185,39 @@ public class FireTornado : ElainaBasicProjectile
             //关闭 Bloom 时直接画在 8 位场景上，亮色层叠加后会被截断，合并后无法还原，仍逐层绘制
             EndBeginDraw(1,1,ss:SamplerState.LinearWrap);
             SphereEffect( worldRotation:new Vector3(0,0.2f,0),new Vector3(-slashRotation,0,0),clipImageY:true,sphereScale:new Vector2(0.4f,0.5f),sphereColor:new Vector4(2),
-                dissolveTex:PerLinNoiseX,dissolveAmount:GetDissolveAmount(slashFadeTime-slashWidth),drawInner:drawInner);
+                dissolveTex:PerLinNoiseX,dissolveAmount:GetDarkDissolveAmount(slashFadeTime-slashWidth),drawInner:drawInner);
             DrawInWorld(windSlash,position,color: new Color(255,50,11,255),scale);
             EndBeginDraw(2,1,ss:SamplerState.LinearWrap);
             SphereEffect( worldRotation:new Vector3(0,0.2f,0),new Vector3(-slashRotation,0,0),clipImageY:true,sphereScale:new Vector2(0.4f,0.5f),sphereColor:new Vector4(1),
-                dissolveTex:PerLinNoiseX,dissolveAmount:GetDissolveAmount(slashFadeTime),drawInner:drawInner);
+                dissolveTex:PerLinNoiseX,dissolveAmount:GetDarkDissolveAmount(slashFadeTime),drawInner:drawInner);
             DrawInWorld(windSlash,position,color: new Color(50,10,0,255),scale);
             return;
         }
 
         EndBeginDraw(0,1,ss:SamplerState.LinearWrap);
-        SphereDualLayerEffect(new Color(255,50,11,255).ToVector4()*2, GetDissolveAmount(slashFadeTime-slashWidth),
-            new Color(50,10,0,255).ToVector4(), GetDissolveAmount(slashFadeTime),
+        SphereDualLayerEffect(new Color(255,50,11,255).ToVector4()*2, GetDarkDissolveAmount(slashFadeTime-slashWidth),
+            new Color(50,10,0,255).ToVector4(), GetDarkDissolveAmount(slashFadeTime),
             worldRotation:new Vector3(0,0.2f,0), localRotation:new Vector3(-slashRotation,0,0), drawInner:drawInner,
             clipImageY:true, sphereScale:new Vector2(0.4f,0.5f), dissolveTex:PerLinNoiseX);
         DrawInWorld(windSlash,position,color: Color.White,scale);
     }
 
-    float GetDissolveAmount(float currentDissolve = 0)
+    float GetFireDissolveAmount(float currentDissolve = 0)
     {
-        return MathHelper.Lerp(currentDissolve, 1, totalFadeTime);
+        return MathHelper.Lerp(currentDissolve, 1, FireFadeProgress());
+    }
+
+    //火焰层的消融进度：0 为完全显现，1 为完全消融
+    float FireFadeProgress()
+    {
+        bool fadingIn = Projectile.timeLeft > fadeNeedTime;
+        return MathHelper.Clamp(totalFadeTime * (fadingIn ? FireFadeInSpeed : FireFadeSpeed), 0, 1);
+    }
+
+    float GetDarkDissolveAmount(float currentDissolve)
+    {
+        float progress = MathHelper.Clamp((totalFadeTime - DarkFadeDelay) / (1 - DarkFadeDelay), 0, 1);
+        return MathHelper.Lerp(currentDissolve, 1, progress);
     }
 
     public override void OnKill(int timeLeft)

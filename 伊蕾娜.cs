@@ -306,6 +306,7 @@ namespace 伊蕾娜
             妮可名单,
             RecallPortal,
             FrostVeil,
+            Experience,
         }
 
 
@@ -315,6 +316,9 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
+                case MessageType.Experience:
+                    System.Experience.ExperienceNetwork.HandlePacket(reader, playernumber);
+                    break;
                 case MessageType.FrostVeil:
                     ElainaModSkills.Skills.Ice.FrostVeilSystem.HandlePacket(reader, whoAmI, playernumber);
                     break;

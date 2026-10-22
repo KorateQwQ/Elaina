@@ -166,7 +166,7 @@ def authored_sprite(filename, function='build_sprite'):
 
 
 def rainbow_dropper():
-    return authored_sprite('GeneratePurificationDewUprightPixel.py')
+    return authored_sprite('GeneratePurificationDewPixel.py')
 
 
 def build_all():
@@ -207,7 +207,7 @@ def main():
         target = OUTPUT / f"{name}_Pixel.png"
         image.save(target)
         colors = {pixel for pixel in image.getdata() if pixel[3]}
-        expected_size = {"PurificationDew": (19, 34), "ConcentrationPotion": (19, 38),
+        expected_size = {"PurificationDew": (27, 28), "ConcentrationPotion": (19, 38),
                          "ResonancePotion": (31, 39), "FeatherlightPotion": (19, 38),
                          "StarPowerPotion": (31, 36), "MoonDewElixir": (33, 40),
                          "BloodthirstPotion": (30, 40)}.get(name, (20, 28))

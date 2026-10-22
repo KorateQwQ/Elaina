@@ -31,6 +31,8 @@ def skill_growth(row):
         raise ValueError("growthMode 必须是 phase 或 interval。")
     if "levelInterval" in row:
         number(row, "levelInterval", 1, 1000, True)
+    if "maxLevel" in row:
+        number(row, "maxLevel", 0, 1000, True)
 
 def ratio_curve(row):
     curve = row.get("ratioCurve")

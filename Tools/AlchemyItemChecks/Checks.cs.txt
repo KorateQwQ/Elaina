@@ -153,7 +153,7 @@ internal static class Checks
 
         Console.WriteLine($"Alchemy items: {passed} registration, defaults, inheritance, and pixel asset checks passed; checking localization.");
         string[] allNames = production.Select(i => i.Name).Concat(new[] { "MoonDewElixir", "AshenFacsimileDust", "HoneyBread",
-            "BloodthirstPotionRecipe", "StarPowerPotionRecipe", "ConcentrationPotionRecipe", "ResonancePotionRecipe", "FeatherlightPotionRecipe" }).ToArray();
+            "BloodthirstPotionRecipe", "StarPowerPotionRecipe", "ConcentrationPotionRecipe", "ResonancePotionRecipe", "FeatherlightPotionRecipe", "PurificationDewRecipe" }).ToArray();
         foreach (string culture in new[] { "zh-Hans", "en-US" })
         {
             var texts = Localization(repo, culture);

@@ -9,6 +9,7 @@ using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaModAlchemy.item;
 using 伊蕾娜.ElainaModAlchemy.UI;
+using 伊蕾娜.ElainaModSkills.Skills.Alchemy;
 
 namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
 
@@ -16,25 +17,28 @@ namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
 public sealed class AlchemyProgressPlayer : ModPlayer
 {
     private readonly HashSet<string> _unlocked = new(StringComparer.Ordinal);
-    public int Level { get; private set; } = 1;
-    public int Experience { get; private set; }
-    public int MaximumLevel => AlchemyProgressionRules.MaximumLevel;
-    public int ExperienceToNextLevel => AlchemyProgressionRules.ExperienceToNextLevel(Level);
+    // Keep earned progress independently of the skill cap, including while skills load or are reset.
+    private int _level = 1;
+    private int _experience;
+    public int Level => Math.Min(_level, MaximumLevel);
+    public int Experience => _level >= MaximumLevel ? 0 : _experience;
+    public int MaximumLevel => AlchemySkill.GetNotebookMaximumLevel(Player);
+    public int ExperienceToNextLevel => Level >= MaximumLevel ? 0 : AlchemyProgressionRules.ExperienceToNextLevel(Level);
     public IReadOnlySet<string> Unlocked => _unlocked;
     public bool IsReady => Player is { active: true, dead: false, ghost: false };
 
     public override void Initialize()
     {
-        Level = 1;
-        Experience = 0;
+        _level = 1;
+        _experience = 0;
         ResetInitialUnlocks();
     }
 
     public override void SaveData(TagCompound tag)
     {
         tag["Version"] = 1;
-        tag["Level"] = Level;
-        tag["Experience"] = Experience;
+        tag["Level"] = _level;
+        tag["Experience"] = _experience;
         tag["Unlocked"] = _unlocked.OrderBy(id => id, StringComparer.Ordinal).ToList();
     }
 
@@ -43,8 +47,9 @@ public sealed class AlchemyProgressPlayer : ModPlayer
 
     private void Apply(int level, int experience, IEnumerable<string> unlocked)
     {
-        Level = Math.Clamp(level, 1, MaximumLevel);
-        Experience = Level == MaximumLevel ? 0 : Math.Clamp(experience, 0, ExperienceToNextLevel - 1);
+        _level = Math.Clamp(level, 1, AlchemyProgressionRules.MaximumLevel);
+        _experience = _level == AlchemyProgressionRules.MaximumLevel ? 0
+            : Math.Clamp(experience, 0, AlchemyProgressionRules.ExperienceToNextLevel(_level) - 1);
         _unlocked.Clear();
         foreach (string id in unlocked.Take(AlchemyCatalog.Recipes.Count))
             if (id != null && AlchemyCatalog.Recipes.Any(r => r.Id == id)) _unlocked.Add(id);
@@ -108,11 +113,12 @@ public sealed class AlchemyProgressPlayer : ModPlayer
         int added = 0;
         while (remaining > 0 && Level < MaximumLevel)
         {
-            int take = (int)Math.Min(remaining, ExperienceToNextLevel - Experience);
-            Experience += take;
+            int needed = AlchemyProgressionRules.ExperienceToNextLevel(_level);
+            int take = (int)Math.Min(remaining, needed - _experience);
+            _experience += take;
             remaining -= take;
             added += take;
-            if (Experience >= ExperienceToNextLevel) { Level++; Experience = 0; }
+            if (_experience >= needed) { _level++; _experience = 0; }
         }
         return added;
     }
@@ -121,13 +127,29 @@ public sealed class AlchemyProgressPlayer : ModPlayer
     public bool DebugLevelUp()
     {
         if (Main.dedServ || Player != Main.LocalPlayer || !IsReady || Level >= MaximumLevel) return false;
-        Level++;
-        if (Level == MaximumLevel) Experience = 0;
+        _level++;
+        if (_level == MaximumLevel) _experience = 0;
         return true;
+    }
+
+    public bool DebugMaxLevel()
+    {
+        if (Main.dedServ || Player != Main.LocalPlayer || !IsReady || Level >= MaximumLevel) return false;
+        _level = MaximumLevel;
+        _experience = 0;
+        return true;
+    }
+
+    public bool DebugUnlockAll()
+    {
+        if (Main.dedServ || Player != Main.LocalPlayer || !IsReady) return false;
+        bool changed = false;
+        foreach (var entry in AlchemyCatalog.Recipes) changed |= _unlocked.Add(entry.Id);
+        return changed;
     }
 #endif
 
-    public void ResetProgress() { Level = 1; Experience = 0; ResetInitialUnlocks(); }
+    public void ResetProgress() { _level = 1; _experience = 0; ResetInitialUnlocks(); }
 
     private void ResetInitialUnlocks()
     {

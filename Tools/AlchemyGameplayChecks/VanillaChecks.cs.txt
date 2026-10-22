@@ -70,21 +70,21 @@ internal static class VanillaChecks
         var facsimile = new FacsimileCraftingSystem(); Register(facsimile); facsimile.PostSetupRecipes();
         Check(Recipe.numRecipes == 17, "All seventeen actual recipes are registered");
         Check(AlchemyVanillaRecipes.AllowFacsimileDust == false, "Dust remains off by default");
-        var initialIds = new[] { "mana" }.Concat(AlchemyCatalog.Recipes.Where(r => r.IsMaterial).Select(r => r.Id)).ToHashSet(StringComparer.Ordinal);
+        var initialIds = new[] { "mana", "bread", "stew", "brulee" }.Concat(AlchemyCatalog.Recipes.Where(r => r.IsMaterial).Select(r => r.Id)).ToHashSet(StringComparer.Ordinal);
         Check(Progress.Level == 1 && Progress.Experience == 0 && Progress.Unlocked.SetEquals(initialIds),
-            "New character starts at level one with mana and every material unlocked");
+            "New character starts at level one with mana, all three foods and every material unlocked");
         Check(new AlchemyCatalogRecipe { Category = "material", InitialUnlocked = false }.InitialUnlocked &&
             !new AlchemyCatalogRecipe { Category = "potion" }.InitialUnlocked,
             "Material category always starts unlocked without unlocking other categories");
         var initialNotebook = new AlchemyNotebookState(new AlchemyNotebookSource(Player));
-        foreach (var entry in AlchemyCatalog.Recipes.Where(r => r.IsMaterial))
+        foreach (var entry in AlchemyCatalog.Recipes.Where(r => r.IsMaterial || r.Category == "food"))
         {
             Check(entry.InitialUnlocked && Progress.IsUnlocked(entry.Id) &&
                 !Progress.ResearchStatus(entry.Id).CanResearch && !Progress.TryResearch(entry.Id, out _),
-                $"Material {entry.Id} is immediately known and cannot be researched");
+                $"Entry {entry.Id} is immediately known and cannot be researched");
             Check(initialNotebook.IsUnlocked(entry) && initialNotebook.DisplayName(entry) == entry.Name &&
                 initialNotebook.StateOf(entry) is not (AlchemyNotebookState.Locked or AlchemyNotebookState.Researchable),
-                $"Material {entry.Id} shows its real name and no research prompt");
+                $"Entry {entry.Id} shows its real name and no research prompt");
         }
         Progress.LoadData(new TagCompound
         {
@@ -92,9 +92,9 @@ internal static class VanillaChecks
             ["Unlocked"] = new List<string> { "mana", "moondew", "resin", "painkiller" }
         });
         Check(Progress.Unlocked.SetEquals(initialIds.Append("painkiller")),
-            "Legacy saves gain every material while retaining researched non-material entries");
+            "Legacy saves gain all foods and materials while retaining researched entries");
         Progress.ResetProgress();
-        Check(Progress.Unlocked.SetEquals(initialIds), "Reset keeps every material unlocked and clears research");
+        Check(Progress.Unlocked.SetEquals(initialIds), "Reset keeps all foods and materials unlocked and clears research");
 
         Player.inventory[0] = new Item(ItemID.BottledWater, 6); Player.inventory[1] = new Item(ItemID.Moonglow, 2);
         Check(Progress.IsUnlocked("moondew") && AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Initial recipe is immediately available");
@@ -196,6 +196,35 @@ internal static class VanillaChecks
             "Debug caps at 20, clears capped XP and rejects further levels");
         notebook.Refresh();
         Check(!notebook.DebugLevelUp(), "Max-level notebook refuses upgrade requests");
+        Progress.ResetProgress();
+        Progress.AddCraftExperience("moondew", 3);
+        伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill.NotebookMaximumLevel = 5;
+        notebook.Refresh();
+        Check(notebook.DebugMaxLevel() && notebook.Level == 5 && notebook.Experience == 0 && Progress.Unlocked.SetEquals(initialIds)
+            && Count(ItemID.BottledWater) == 30, "Max-level button reaches the current skill cap without changing research or items");
+        Check(!notebook.DebugMaxLevel() && !Progress.DebugMaxLevel(), "Max-level requests are rejected at the current cap");
+        伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill.NotebookMaximumLevel = 20;
+        notebook.Refresh();
+        Check(notebook.DebugMaxLevel() && notebook.Level == 20, "Max-level button becomes available when the skill cap increases");
+        Progress.ResetProgress();
+        Progress.AddCraftExperience("moondew", 3);
+        notebook.Refresh();
+        ids["painkiller"] = scroll.Type;
+        Check(notebook.DebugUnlockAll() && notebook.AllRecipesUnlocked && AlchemyCatalog.Recipes.All(r => Progress.IsUnlocked(r.Id))
+            && notebook.Level == 1 && notebook.Experience == 30 && Count(ItemID.BottledWater) == 30 && Count(ItemID.Wood) == 0,
+            "Unlock-all bypasses level and recipe-scroll requirements, refreshes the notebook and preserves XP and inventory");
+        Check(!notebook.DebugUnlockAll() && !AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugUnlockAll, "moondew", 1, 62).Success,
+            "Unlock-all rejects repeated requests");
+        Check(notebook.DebugMaxLevel(), "Max level can be combined with all recipes unlocked");
+        var debugTag = new TagCompound(); Progress.SaveData(debugTag); Progress.ResetProgress(); Progress.LoadData(debugTag);
+        Check(Progress.Level == 20 && Progress.Experience == 0 && AlchemyCatalog.Recipes.All(r => Progress.IsUnlocked(r.Id)),
+            "Max level and all recipe unlocks survive a character save roundtrip");
+        Check(notebook.DebugReset() && notebook.Level == 1 && notebook.Experience == 0 && !notebook.AllRecipesUnlocked
+            && Progress.Unlocked.SetEquals(initialIds), "Reset restores initial progression after both debug actions");
+        Player.dead = true;
+        Check(!Progress.DebugMaxLevel() && !Progress.DebugUnlockAll(), "Dead players cannot use the new debug progression actions");
+        Player.dead = false;
+        ids["painkiller"] = ItemID.ManaPotion;
 #else
         Check(!result.Success && Count(ItemID.BottledWater) == 0, "Release rejects debug item grants");
         Check(!AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugReset, "moondew", 1, 10).Success, "Release rejects debug reset");
@@ -204,6 +233,13 @@ internal static class VanillaChecks
             "Release rejects direct debug upgrade requests without changing progression");
         Check(typeof(AlchemyProgressPlayer).GetMethod("DebugLevelUp") == null && typeof(AlchemyNotebookState).GetMethod("DebugLevelUp") == null,
             "Release excludes debug upgrade entry points");
+        var previousUnlocks = Progress.Unlocked.ToHashSet();
+        Check(!AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugMaxLevel, "moondew", 1, 12).Success
+            && !AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugUnlockAll, "moondew", 1, 13).Success
+            && Progress.Level == previousLevel && Progress.Experience == previousExperience && Progress.Unlocked.SetEquals(previousUnlocks),
+            "Release rejects max-level and unlock-all actions without changing saved progression");
+        Check(new[] { "DebugMaxLevel", "DebugUnlockAll" }.All(name => typeof(AlchemyProgressPlayer).GetMethod(name) == null
+            && typeof(AlchemyNotebookState).GetMethod(name) == null), "Release excludes the new debug entry points");
 #endif
         Console.WriteLine($"Alchemy vanilla integration: {passed} checks passed.");
         facsimile.Unload(); bridge.Unload();

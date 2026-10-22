@@ -3,6 +3,7 @@ using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
 using 伊蕾娜;
+using 伊蕾娜.Buffs;
 using 伊蕾娜.ElainaModAlchemy.item;
 using 伊蕾娜.ElainaModAlchemy.item.Foods;
 using 伊蕾娜.ElainaModAlchemy.UI;
@@ -21,6 +22,16 @@ internal static class FoodIntegrationChecks
         Main.netMode = NetmodeID.SinglePlayer;
         Main.combatText = Enumerable.Range(0, 100).Select(_ => new CombatText { active = true }).ToArray();
         var mod = new CheckMod();
+        var happy = new 塔の西();
+        ((ILoadable)happy).Load(mod);
+        ContentInstance.Register(happy);
+        // Complete the loader array setup before using an added ModBuff on existing fixture players.
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(BuffID.Sets).TypeHandle);
+        SetFactory.ResizeArrays(false);
+        typeof(BuffLoader).GetMethod("ResizeArrays", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, null);
+        Array.Resize(ref player.buffImmune, BuffLoader.BuffCount);
+        Array.Resize(ref remote.buffImmune, BuffLoader.BuffCount);
+        happy.SetStaticDefaults();
         var bread = new HoneyBread();
         var stew = new BeefStew();
         var brulee = new CaramelBrulee();
@@ -65,27 +76,32 @@ internal static class FoodIntegrationChecks
         }
 
         Reset(); Eat(bread);
-        Check(player.statLife == 70 && player.HasBuff(BuffID.WellFed2) && !player.HasBuff(BuffID.WellFed),
-            "Elaina receives exactly 30 life and Plenty Satisfied");
+        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed2) && !player.HasBuff(BuffID.WellFed) && player.HasBuff(happy.Type),
+            "Elaina receives Plenty Satisfied and Happy without healing");
+        Check(player.buffTime[player.FindBuffIndex(happy.Type)] == 18000, "Bread grants five minutes of the existing Happy Buff");
         Check(bread.Item.stack == 9 && player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] == 18000,
             "One bread is consumed for five minutes of food Buff");
         player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] = 120;
+        player.buffTime[player.FindBuffIndex(happy.Type)] = 120;
         Eat(bread);
-        Check(player.statLife == 100 && player.buffType.Count(b => b == BuffID.WellFed2) == 1 &&
-            player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] == 18000,
-            "Eating again heals once and refreshes one Buff slot");
+        Check(player.statLife == 40 && player.buffType.Count(b => b == BuffID.WellFed2) == 1 &&
+            player.buffTime[player.FindBuffIndex(BuffID.WellFed2)] == 18000 &&
+            player.buffType.Count(b => b == happy.Type) == 1 && player.buffTime[player.FindBuffIndex(happy.Type)] == 18000,
+            "Eating again refreshes both Buffs without stacking or healing");
+        player.AddBuff(happy.Type, 600);
+        Check(player.buffTime[player.FindBuffIndex(happy.Type)] == 18000, "A shorter reapplication cannot shorten bread's Happy duration");
         Reset(life: 95); Eat(bread);
-        Check(player.statLife == 100, "Bread cannot heal above maximum life");
+        Check(player.statLife == 95 && player.HasBuff(happy.Type), "Bread does not heal even near maximum life");
         Reset(life: 100); Eat(bread);
-        Check(player.statLife == 100 && player.HasBuff(BuffID.WellFed2), "Full health still allows eating for its Buff");
+        Check(player.statLife == 100 && player.HasBuff(BuffID.WellFed2) && player.HasBuff(happy.Type), "Full health still allows both Buffs");
         Reset(elaina: false); Eat(bread);
-        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed) && !player.HasBuff(BuffID.WellFed2),
-            "Other characters receive only Well Fed without healing, even after an Elaina held the same item");
+        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed) && !player.HasBuff(BuffID.WellFed2) && !player.HasBuff(happy.Type),
+            "Other characters receive only Well Fed without healing or Happy, even after an Elaina held the same item");
         Reset(); Eat(stew);
         Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed3), "Stew gives the strongest food Buff without healing");
         Eat(bread);
-        Check(player.statLife == 70 && player.HasBuff(BuffID.WellFed2) && !player.HasBuff(BuffID.WellFed3),
-            "Manual eating heals and replaces the previous food Buff according to native rules");
+        Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed2) && !player.HasBuff(BuffID.WellFed3) && player.HasBuff(happy.Type),
+            "Manual eating grants Happy and replaces the previous food Buff without healing");
         Reset(elaina: false); Eat(brulee);
         Check(player.statLife == 40 && player.HasBuff(BuffID.WellFed), "Brulee gives Well Fed without healing");
         Eat(stew);
@@ -113,13 +129,83 @@ internal static class FoodIntegrationChecks
         Reset(); player.dead = true;
         Check(!bread.CanUseItem(player), "Dead characters cannot eat bread");
         bread.OnConsumeItem(player);
-        Check(player.statLife == 40, "Bread does not heal dead characters");
+        Check(player.statLife == 40 && !player.HasBuff(happy.Type), "Bread does not heal or grant Happy to dead characters");
+        Array.Clear(remote.buffType); Array.Clear(remote.buffTime);
         remote.statLife = 40; remote.statLifeMax2 = 100;
         remote.GetModPlayer<ElainaModplayer>().Elaina = true;
         bread.OnConsumeItem(remote);
-        Check(remote.statLife == 40, "Remote copies cannot apply the healing again");
+        Check(remote.statLife == 40 && !remote.HasBuff(happy.Type), "Remote copies cannot apply the extra Buff again");
         Reset();
+        CheckHappyEffects(player, remote, happy);
         Console.WriteLine($"Food integration: {passed} checks passed against the compiled mod and native food Buff/consumption/QuickBuff selection paths.");
+    }
+
+    private static void CheckHappyEffects(Player player, Player remote, 塔の西 happy)
+    {
+        void Near(float actual, float expected, string message) => Check(Math.Abs(actual - expected) < .0001f, message);
+        var effects = player.GetModPlayer<伊蕾娜.ElainaModAlchemy.Buffs.AlchemyBuffPlayer>();
+        var broom = player.GetModPlayer<伊蕾娜.Mounts.扫帚.扫帚ModPlayer>();
+        var otherBroom = remote.GetModPlayer<伊蕾娜.Mounts.扫帚.扫帚ModPlayer>();
+        var wings = new 伊蕾娜.ElainaModAlchemy.Buffs.FeatherlightWingEffects();
+        var jetpack = typeof(伊蕾娜.ElainaModAlchemy.Buffs.FeatherlightJetpackSystem)
+            .GetMethod("ModifyJetpackAscent", BindingFlags.NonPublic | BindingFlags.Static)!;
+        On_Player.orig_WingMovement original = p => p.WingMovement();
+        const BindingFlags hidden = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        foreach (bool featherlight in new[] { false, true })
+        {
+            effects.ResetEffects(); effects.FeatherlightActive = featherlight;
+            player.GetDamage(DamageClass.Magic) = StatModifier.Default;
+            player.GetDamage(DamageClass.Melee) = StatModifier.Default;
+            player.manaRegenDelay = 120; player.manaRegenBonus = 7;
+            int buffIndex = 0; happy.Update(player, ref buffIndex);
+            Near(player.GetDamage(DamageClass.Magic).ApplyTo(100), 103, "Happy adds three percent magic damage");
+            Near(player.GetDamage(DamageClass.Melee).ApplyTo(100), 100, "Happy does not boost unrelated damage classes");
+            Check(player.manaRegenDelay == 120 && player.manaRegenBonus == 7, "Happy no longer changes mana regeneration");
+            float multiplier = featherlight ? 1.25f : 1.05f;
+            Near(effects.TravelSpeedMultiplier, multiplier, "Happy and Featherlight travel bonuses add once");
+            typeof(Mount).GetField("_active", hidden)!.SetValue(player.mount, false);
+            player.maxRunSpeed = 3; player.accRunSpeed = 6; player.runAcceleration = .08f; player.runSlowdown = .2f;
+            var velocity = new Microsoft.Xna.Framework.Vector2(2, -3); player.velocity = velocity;
+            effects.PostUpdateRunSpeeds();
+            Near(player.maxRunSpeed, 3 * multiplier, "Happy boosts walking and horizontal wing cap");
+            Near(player.accRunSpeed, 6 * multiplier, "Happy boosts running boots cap");
+            Near(player.runAcceleration, .08f * multiplier, "Happy boosts travel acceleration");
+            Check(player.velocity == velocity, "Happy changes speed parameters without repeatedly scaling velocity");
+            float fall = .5f, rise = .1f, canAscend = .5f, maxAscend = 1.5f, constant = .1f;
+            wings.VerticalWingSpeeds(new Item(), player, ref fall, ref rise, ref canAscend, ref maxAscend, ref constant);
+            Near(fall, .5f * multiplier, "Wing falling ascent is scaled");
+            Near(rise, .1f * multiplier, "Wing rising ascent is scaled");
+            Near(canAscend, .5f * multiplier, "Wing ascent threshold is scaled");
+            Near(maxAscend, 1.5f * multiplier, "Wing ascent cap is scaled");
+            Near(constant, .1f * multiplier, "Wing constant ascent is scaled");
+            player.wingsLogic = 4; player.controlUp = true; Player.jumpSpeed = 5;
+            foreach (float gravity in new[] { 1f, -1f })
+            {
+                player.gravDir = gravity; player.velocity.Y = -100 * gravity; player.wingTime = 300;
+                jetpack.Invoke(null, new object[] { original, player });
+                Near(player.velocity.Y, -15 * multiplier * gravity, "Happy affects native jetpack cap in either gravity direction");
+                Near(Player.jumpSpeed, 5, "Jetpack restores its shared jump baseline");
+                Near(player.wingTime, 298, "Happy does not extend jetpack flight time");
+            }
+            Near(broom.最大速度(), 10 * multiplier, "Happy boosts normal broom speed");
+            Near(broom.最大冲刺速度(), 20 * multiplier, "Happy boosts broom sprint speed");
+            Near(broom.加速度(), multiplier, "Happy boosts broom acceleration");
+            Near(otherBroom.最大速度(), 10, "Happy does not alter another rider's broom");
+            broom.加速 = true; Near(broom.加速度(), 30 * multiplier, "Broom burst receives the bonus only once"); broom.加速 = false;
+            typeof(Mount).GetField("_active", hidden)!.SetValue(player.mount, true);
+            broom.PoweredFlight = true; broom.FlightSpeed = broom.最大速度(); broom.FlightAcceleration = broom.加速度();
+            player.maxRunSpeed = 3; player.accRunSpeed = 3;
+            effects.PostUpdateRunSpeeds(); broom.PostUpdateRunSpeeds();
+            Near(player.maxRunSpeed, 10 * multiplier, "Mounted movement does not apply Happy twice");
+            Near(player.runAcceleration, multiplier, "Mounted acceleration uses the same travel multiplier");
+        }
+        effects.UpdateDead();
+        Near(effects.TravelSpeedMultiplier, 1, "Happy and Featherlight clear on death");
+        Near(broom.最大速度(), 10, "Broom returns to normal after Happy ends");
+        broom.ResetEffects();
+        typeof(Mount).GetField("_active", hidden)!.SetValue(player.mount, false);
+        player.gravDir = 1; player.controlUp = false; player.wingsLogic = 0;
+        player.GetDamage(DamageClass.Magic) = StatModifier.Default;
     }
 
     private sealed class CheckMod : Mod { public override string Name => "FoodIntegrationChecks"; }

@@ -212,6 +212,8 @@ public sealed class RecallPortalSystem : ModSystem
 
     private static void ApplyTeleport(Player player, Vector2 position)
     {
+        if (Main.netMode != NetmodeID.Server && player.whoAmI == Main.myPlayer)
+            player.GetModPlayer<RecallPortalPlayer>().Transition.Begin(Vector2.Distance(player.position, position));
         player.Teleport(position, TeleportationStyleID.RecallPotion);
         player.velocity = Vector2.Zero;
         player.fallStart = player.fallStart2 = (int)(position.Y / 16);

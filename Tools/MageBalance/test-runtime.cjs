@@ -49,6 +49,12 @@ for(const interval of [1,7,10,1000]){
  Object.assign(s.skills[0],{growthMode:'interval',levelInterval:interval,unlockLevel:1});
  cases.push(fixture(s));
 }
+for(const growthMode of ['phase','interval'])for(const maxLevel of [0,1,8,1000]){
+ const s=B.defaults();
+ Object.assign(s.basicAttacks[0],{growthMode,maxLevel,unlockLevel:6,unlockStageCap:10});
+ Object.assign(s.skills[0],{growthMode,maxLevel});
+ cases.push(fixture(s));
+}
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(),'mage-balance-runtime-'));
 function xml(value) {return value.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');}
 try {
@@ -112,11 +118,23 @@ Test("Fixed intervals use unlock plus N times interval independently of phase se
     Check(!current.GetSkillLevelNodes(fixedSkill with {UnlockLevel=6},5).Any(), "Fixed skill unlocked early");
     Check(current.GetSkillCharacterLevel(fixedSkill with {UnlockLevel=1000},int.MaxValue)==1000, "Fixed terminal gate mismatch");
 });
+Test("Fixed caps stop upgrades and clamp damage mapping for old overleveled saves", () =>
+{
+    foreach (var mode in new[]{SkillGrowthMode.Phase,SkillGrowthMode.Interval})
+    {
+        var capped=missile with {GrowthMode=mode,MaxLevel=8};
+        var nodes=current.GetSkillLevelNodes(capped).ToArray();
+        Check(nodes.Length==8 && current.GetSkillLevelCap(capped,1000)==8,"Cap ignored");
+        Check(current.GetSkillCharacterLevel(capped,99)==nodes[7],"Overleveled save bypassed cap");
+        Check(current.GetSkillLevelNodes(capped with {MaxLevel=1}).Count()==1,"Lv1 cap ignored");
+        Check(current.GetSkillLevelCap(capped with {MaxLevel=0},1000)>8,"Unlimited growth truncated");
+    }
+});
 Test("Legacy growth fields default to phase and malformed fields do not replace valid config", () =>
 {
     foreach (string category in new[]{"basicAttacks","skills"})
     {
-        foreach (var (key,value) in new[]{("growthMode","\"bad\""),("growthMode","null"),("growthMode","1"),("levelInterval","0"),("levelInterval","1.5"),("levelInterval","1001"),("levelInterval","null"),("levelInterval","\"7\""),("levelInterval","true")})
+        foreach (var (key,value) in new[]{("growthMode","\"bad\""),("growthMode","null"),("growthMode","1"),("levelInterval","0"),("levelInterval","1.5"),("levelInterval","1001"),("levelInterval","null"),("levelInterval","\"7\""),("levelInterval","true"),("maxLevel","-1"),("maxLevel","1.5"),("maxLevel","1001"),("maxLevel","null"),("maxLevel","\"8\""),("maxLevel","true")})
         {
             var payload=JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
             payload["configuration"][category][0][key]=JsonNode.Parse(value);
@@ -128,10 +146,10 @@ Test("Legacy growth fields default to phase and malformed fields do not replace 
     foreach (string category in new[]{"basicAttacks","skills"})
         foreach (var row in legacy["configuration"][category].AsArray())
         {
-            row.AsObject().Remove("growthMode");row.AsObject().Remove("levelInterval");
+            row.AsObject().Remove("maxLevel");row.AsObject().Remove("growthMode");row.AsObject().Remove("levelInterval");
         }
     Check(store.Apply(legacy.ToJsonString()), "Legacy growth rejected");
-    Check(SkillBalanceSystem.Current.Skills.Values.All(x=>x.GrowthMode==SkillGrowthMode.Phase&&x.LevelInterval==5), "Legacy defaults mismatch");
+    Check(SkillBalanceSystem.Current.Skills.Values.All(x=>x.MaxLevel==0&&x.GrowthMode==SkillGrowthMode.Phase&&x.LevelInterval==5), "Legacy defaults mismatch");
     Check(SkillBalanceSystem.Current.GetSkillCharacterLevel(SkillBalanceSystem.Current.Skills[missile.Id],2)==3, "Legacy nodes changed");
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });

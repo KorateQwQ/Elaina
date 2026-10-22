@@ -48,22 +48,40 @@ internal sealed class ConstellationDetail
         Level = state.Level(node.id);
         Max = state.MaxLevel(node.id) ?? 1;
         Maxed = Owned && Level >= Max;
-        if (!state.Discovered(node)) { Paragraph(LocalizeUI("Hidden"), DetailText); return; }
+        if (!state.Discovered(node))
+        {
+            if (state.Status(node) == "locked")
+            {
+                Heading(LocalizeUI("RevealRequirements"));
+                Paragraph(node.ModSkill.ConstellationRevealHint, DetailText);
+            }
+            else Paragraph(LocalizeUI("Hidden"), DetailText);
+            return;
+        }
         if (!Maxed) Requirements = state.Requirements(node.id, Owned);
         FooterHeight = Maxed ? 12 : 13 + Requirements.Rows.Take((int)MaxFooterRows).Sum(r => FooterRowGap + FooterRowHeight
             + (r.Met || r.Custom ? 0 : FooterLack)) + (Requirements.Rows.Count == 0 ? FooterRowGap + FooterRowHeight : 0);
-        var growth = Owned && !Maxed ? node.ModSkill.GetConstellationUpgradePreview(Level + 1) ?? [] : [];
+        // At max level the preview's `Current` column (computed for nextLevel - 1) still lists this level's values.
+        var growth = Owned ? node.ModSkill.GetConstellationUpgradePreview(Level + 1) ?? [] : [];
 
+        var stats = new List<(string Label, string Value, string Unit)>();
         if (node.Active)
         {
-            string mana = node.ModSkill.MagicPointCost <= 0 ? null : node.ModSkill.MagicPointCost.ToString("0.##");
-            string cooldown = node.Skill.MaxCD <= 0 ? null : Number(node.Skill.MaxCD);
-            const float second = 159.5f;
+            stats.Add((LocalizeUI("MagicPower"), node.ModSkill.MagicPointCost <= 0 ? null : node.ModSkill.MagicPointCost.ToString("0.##"), "MP"));
+            stats.Add((LocalizeUI("Cooldown"), node.Skill.MaxCD <= 0 ? null : Number(node.Skill.MaxCD), LocalizeUI("Seconds")));
+        }
+        stats.AddRange(node.ModSkill.GetConstellationStats(Math.Max(1, Level)) ?? []);
+        // Two big-number columns per row, split by a dotted divider.
+        for (int i = 0; i < stats.Count; i += 2)
+        {
+            var left = stats[i];
+            var right = i + 1 < stats.Count ? stats[i + 1] : default((string Label, string Value, string Unit)?);
             Add(44, (d, _) =>
             {
-                Stat(d, 0, LocalizeUI("MagicPower"), mana, "MP");
+                Stat(d, 0, left.Label, left.Value, left.Unit);
+                if (right is not { } r) return;
                 d.Dots(138, 2, 138, 42, DotColor);
-                Stat(d, second, LocalizeUI("Cooldown"), cooldown, LocalizeUI("Seconds"));
+                Stat(d, 159.5f, r.Label, r.Value, r.Unit);
             });
             DotRule();
         }
@@ -74,12 +92,6 @@ internal sealed class ConstellationDetail
             var paragraph = new ConstellationRichText(description, Width, 13, 24, Ink * .86f);
             Add(paragraph.Height + 4, (d, _) => paragraph.Draw(d));
         }
-        foreach (var (label, value) in node.ModSkill.GetConstellationStats(Math.Max(1, Level)) ?? [])
-            Add(28, (d, _) =>
-            {
-                d.FittedText(label, 0, 7, 130, 12, new Color(214, 200, 224), spacing: 1.5f);
-                d.FittedText(value, Width, 6, 136, 13, Ink, 1);
-            });
 
         if (node.toggleable)
         {
@@ -100,6 +112,15 @@ internal sealed class ConstellationDetail
             DotRule();
             Add(22, (d, _) =>
             {
+                if (Maxed)
+                {
+                    HeadingText(d, LocalizeUI("CurrentLevel"));
+                    string level = Level.ToString();
+                    float right = Width - d.LatinWidth(level, 12);
+                    d.LatinText(level, right, 0, 12, Gold);
+                    d.LatinText("LV.", right - 3 - d.LatinWidth("LV.", 8, 1), 3.5f, 8, Muted, spacing: 1);
+                    return;
+                }
                 HeadingText(d, LocalizeUI("NextLevel"));
                 // "LV. n → LV. n+1", right-aligned; the new level is mint like the new values.
                 string from = Level.ToString(), to = (Level + 1).ToString();
@@ -121,6 +142,12 @@ internal sealed class ConstellationDetail
                 Add(28, (d, _) =>
                 {
                     if (!first) d.Line(new Vector2(0, .5f), new Vector2(Width, .5f), new Color(236, 229, 247) * .06f);
+                    if (Maxed)
+                    {
+                        float valueLeft = Width - Value(d, current ?? "--", unit, 20, Ink, Width, true);
+                        d.FittedText(label, 0, 7, Math.Max(40, valueLeft - 10), 12, new Color(214, 200, 224), spacing: 1.5f);
+                        return;
+                    }
                     float x = Width - Value(d, next ?? "--", unit, 20, Mint, Width, true);
                     x -= 6 + d.Measure("→", 12);
                     d.Text("→", x, 9, 12, Muted * .7f);
@@ -208,7 +235,7 @@ internal sealed class ConstellationDetail
 
     private static void Stat(ConstellationDrawing d, float x, string label, string value, string unit)
     {
-        d.Text(label, x, 0, 10, Muted2, spacing: 2);
+        d.FittedText(label, x, 0, 117, 10, Muted2, spacing: 2);
         if (value == null) { d.LatinText("—", x, 17, 24, Faint); return; }
         d.LatinText(value, x, 17, 24, Ink);
         float unitLeft = x + d.LatinWidth(value, 24) + 5;

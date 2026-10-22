@@ -25,7 +25,8 @@ static class Checks
     {
         var player = new Player { active = true, whoAmI = index, statManaMax2 = 200, statLifeMax2 = 100, statLife = 100 };
         var parts = new ModPlayer[] { new AlchemyBuffPlayer(), new 扫帚.扫帚ModPlayer(), new ElainaModplayer(),
-            new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new ElainaManaElixirPlayer(), new ElainaStarPowerPlayer() };
+            new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new ElainaManaElixirPlayer(), new ElainaStarPowerPlayer(),
+            new 伊蕾娜.System.ElainaStatePlayer(), new 伊蕾娜.ElainaModAlchemy.Gameplay.AlchemyProgressPlayer() };
         for (ushort i = 0; i < parts.Length; i++)
         {
             parts[i].GetType().GetProperty("Entity", All)!.SetValue(parts[i], player);
@@ -42,7 +43,7 @@ static class Checks
         return player;
     }
 
-    static void Main()
+    static void Main(string[] args)
     {
         Terraria.Program.SavePath = Path.GetTempPath(); GameMain.dedServ = true; GameMain.netMode = NetmodeID.Server;
         GameMain.myPlayer = 0;
@@ -74,6 +75,9 @@ static class Checks
         CheckStarPower(player);
         Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom, moon dew and star power).");
         FoodIntegrationChecks.Run(player, other);
+        AlchemySkillIntegrationChecks.Run(player, other, args[0]);
+        if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
+            ImproveGameIntegrationChecks.Run(player, other, args[1]);
     }
 
     static void CheckMoonDew(Player player, Player other)

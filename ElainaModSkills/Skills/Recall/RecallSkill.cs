@@ -8,7 +8,7 @@ using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 
 [SkillUIInfo(State = 5, Pixels = 200)]
-public class RecallSkill : ElainaSkill
+public partial class RecallSkill : ElainaSkill
 {
     private int pendingSlot = -1;
     private int pendingTarget = -1;

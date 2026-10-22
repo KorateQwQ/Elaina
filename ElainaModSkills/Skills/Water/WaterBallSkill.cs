@@ -1,3 +1,5 @@
+using System;
+using static 伊蕾娜.Localization.UIText;
 using KL.ActionsSystem;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
@@ -15,6 +17,13 @@ public class WaterBallSkill: ElainaSkill
         new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30));
 
     protected override object[] SkillDescriptionArgs => [GetConfiguredDamage()];
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
+    {
+        // 与技能描述一致，使用含装备增伤的单次伤害
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
+    }
     public override void Initialize()
     {
         base.Initialize();

@@ -71,6 +71,7 @@ C# 已自动接入这些节点：角色实际等级限制技能可升级上限�
 使用 `schema: elaina-mage-balance-v2`、`configuration.version: 2`。不再保留 `autoRatio`、`combat.autoCost`、`combat.autoInterval` 或 v1 兼容路径。
 
 - `basicAttacks`：每项包括 `id`、`name`、`ratio`、`cost`、`interval`、`shots`、`unlockStageCap`、`unlockLevel`、`levelsPerPhase`，可选 `ratioCurve`。
+- `maxLevel`：最高技能等级，0–1000 的整数；0 或省略表示不设固定上限。阶段成长与固定间隔成长都会在此等级停止，网页节点预览与游戏升级/伤害基准映射使用同一限制。配置页“技能等级成长区间”可直接编辑。炼金术正式配置为 8：角色等级 6、10、15、20、25、30、35、40 分别开放技能 Lv1–Lv8，困难模式角色达到 40 级后即可升满；后续进度不再开放 Lv9。伤害技能保持默认 0。
 - `growthMode` / `levelInterval`：普攻与主动技能均支持，`growthMode` 为 `phase`（按阶段成长）或 `interval`（固定等级间隔），缺省为 `phase`；`levelInterval` 为 1–1000 的整数，缺省 5。固定间隔模式的第 N 级门槛为 `unlockLevel + (N - 1) × levelInterval`；旧 v2 文件不含这些字段时保持原来的阶段成长，不需要手动迁移。
 - `ratioCurve`：普攻倍率随角色等级变化的曲线，格式 `[[等级, 倍率], ...]`，最多 16 点，等级为 1–1000 的严格递增整数，倍率 0–5。节点之间线性插值，低于首点取首点、高于末点取末点；缺省、`null` 或空数组时使用固定 `ratio`。魔法飞弹默认 `[[1,1],[10,0.9],[20,0.8],[35,0.7],[50,0.6]]`：前期约 1.0B，Lv50 起收到 0.6B。
 - `occupyRatio`：主动技能占手补偿倍率，缺省按 0 读取，范围 0–5。0 表示不补偿读条少打的普攻，伤害偏低的技能直接调高 `k`。单位是裸装基准 DPS B：1 表示每秒占手补 1 × B，不随所选参考普攻的倍率变化。
@@ -159,6 +160,7 @@ int damageNode = balance.CharacterLevel; // 当前技能等级对应的伤害基
 node test.cjs
 node test.cjs --browser
 node test-runtime.cjs
+node test-level-cap.cjs
 node test-unlocks.cjs
 ./run-loadout-checks.ps1
 python test_server.py
@@ -171,5 +173,7 @@ python test_server.py
 `run-loadout-checks.ps1` 编译当前模组，并在独立进程中使用真实 Terraria 物品、换装代码与 `GrantPrefixBenefits` 逐项对照网页导出的全部护甲／原版饰品的真实魔法伤害、暴击和魔力，并验证 19 阶段、完整幽灵套、奥秘收益、清空旧装备、背包不变、空槽、重复项和锁定／大师槽。`-SkipBuild` 仅用于明确要测试已有程序集时；不启动或操作游戏。
 
 `test-runtime.cjs` 需要 .NET 8 SDK 或更高版本。它在临时目录编译实际 C# 配置与定价代码，对照 HTML 节点和伤害结果，验证 Debug/Release 路径、热更新、等级映射、倍率曲线插值、`occupyRatio`、非法曲线拒绝、装备增伤和多发分摊；不启动游戏。
+
+`test-level-cap.cjs` 使用临时无头浏览器与内存文件服务，验证正式炼金术 Lv8 封顶、伤害技能不封顶、两种成长方式、保存重读及桌面/窄屏显示，不改写正式 JSON。`test.cjs` 可通过环境变量 `BALANCE_TEST_FILTER` 按测试名称的正则筛选专项检查。
 
 `test-unlocks.cjs` 在隔离临时项目中编译实际配置解析器，以及从技能源码提取的阶段条件声明与判断方法，用最小玩家／框架桩验证冰锥、风刃、水流术、火焰射线的门槛边界、实际等级无关、默认消耗保留、配置热更新与缺省门槛；不启动游戏，也不替代游戏内测试。

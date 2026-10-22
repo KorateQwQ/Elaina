@@ -6,11 +6,13 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 
 public sealed class RecallPortalPlayer : ModPlayer
 {
+    internal readonly RecallTransition Transition = new();
     internal int TravelCooldown;
     private int sentSpawnX = int.MinValue, sentSpawnY = int.MinValue;
 
     public override void OnEnterWorld()
     {
+        Transition.Clear();
         TravelCooldown = 0;
         sentSpawnX = sentSpawnY = int.MinValue;
     }

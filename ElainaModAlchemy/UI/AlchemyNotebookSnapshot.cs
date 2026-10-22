@@ -22,7 +22,7 @@ public sealed record AlchemyNotebookSnapshot
     public bool IsBusy { get; init; }
 }
 
-public enum AlchemyNotebookAction : byte { Craft, Research, DebugRestock, DebugReset, DebugLevelUp }
+public enum AlchemyNotebookAction : byte { Craft, Research, DebugRestock, DebugReset, DebugLevelUp, DebugMaxLevel, DebugUnlockAll }
 
 public sealed record AlchemyNotebookResult(int Sequence, AlchemyNotebookAction Action, string EntryId,
     bool Success, string Message, int OutputCount = 0, int ExperienceGained = 0);

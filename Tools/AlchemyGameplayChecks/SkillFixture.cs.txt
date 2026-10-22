@@ -1,0 +1,11 @@
+using Terraria;
+
+// These inventory/crafting harnesses isolate the skill owner. The real skill and
+// owner lookup are covered against the compiled mod by AlchemySkillIntegrationChecks.
+namespace 伊蕾娜.ElainaModSkills.Skills.Alchemy;
+
+internal static class AlchemySkill
+{
+    internal static int NotebookMaximumLevel = 20;
+    public static int GetNotebookMaximumLevel(Player player) => NotebookMaximumLevel;
+}

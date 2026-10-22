@@ -15,6 +15,7 @@ param(
     [switch]$OrnamentsOnly,
     [switch]$ScrollOnly,
     [switch]$DebugToolsOnly,
+    [switch]$RecallResearchOnly,
     [switch]$SkipChecks,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
@@ -92,6 +93,9 @@ $null = Add-Item 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
 foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallSkill.Research.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallDiscoveryPlayer.cs"
+$null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
 foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
 $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Helper/TextSnippetHelper.cs"
@@ -118,6 +122,7 @@ if ($CameraOnly) { $previewArgs += '--camera-only' }
 if ($OrnamentsOnly) { $previewArgs += '--ornaments-only' }
 if ($ScrollOnly) { $previewArgs += '--scroll-only' }
 if ($DebugToolsOnly) { $previewArgs += '--debug-tools-only' }
+if ($RecallResearchOnly) { $previewArgs += '--recall-research-only' }
 if ($SkipChecks) { $previewArgs += '--skip-checks' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }

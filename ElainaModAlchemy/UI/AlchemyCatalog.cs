@@ -285,10 +285,10 @@ public static class AlchemyCatalog
         new()
         {
             Id = "isolation", Name = "Catalog.PurificationDew", EnglishName = "Purification Dew",
-            Category = "potion", Art = "PurificationDew", Kind = "Catalog.PotionUtility", Stage = "Catalog.RecipeSoldByTheDryadInHardmode",
+            Category = "curio", Art = "PurificationDew", Kind = "Catalog.CurioUtility", Stage = "Catalog.RecipeSoldByTheDryadInHardmode",
             Description = "Catalog.ReleasesPurificationDewAtTheTargetLocationItFallsThroughBlocksAn",
-            Note = "Catalog.TheRibbonsAroundTheBottlesHelpMeTellThemApart", Rarity = 2, Yield = 1,
-            PixelWidth = 19, PixelHeight = 34,
+            Note = "Catalog.PerhapsAlchemyIsSimplyFindingNewPossibilitiesInOrdinaryThings", Rarity = 2, Yield = 1,
+            PixelWidth = 27, PixelHeight = 28,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "moondew"),
@@ -377,7 +377,8 @@ public static class AlchemyCatalog
         new()
         {
             Id = "bread", Name = "Catalog.HoneyBread", EnglishName = "Honey Bread",
-            Category = "food", Art = "HoneyBread", Kind = "Catalog.FoodSupport", Stage = "Catalog.BasicCooking",
+            Category = "food", Art = "HoneyBread", Kind = "Catalog.FoodSupport", Stage = "Catalog.InitiallyUnlocked",
+            InitialUnlocked = true,
             Description = "Catalog.HoneyDrizzledBreadOneOfElainaSFavoriteSweetProvisionsItsEffectsV",
             Note = "Catalog.IMGoodAtMakingStewButDessertsAlwaysTemptMeMore", Rarity = 1, Yield = 2,
             PixelWidth = 28, PixelHeight = 20,
@@ -389,15 +390,16 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.Elaina", "Catalog.PlentySatisfiedRestores30Life"),
-                new("Catalog.OtherCharacters", "Catalog.WellFedDoesNotRestoreLife"),
+                new("Catalog.Elaina", "Catalog.PlentySatisfiedAndHappy"),
+                new("Catalog.OtherCharacters", "Catalog.WellFed"),
                 new("Catalog.Duration", "Catalog.5Min"),
             },
         },
         new()
         {
             Id = "stew", Name = "Catalog.BeefStew", EnglishName = "Beef Stew",
-            Category = "food", Art = "BeefStew", Kind = "Catalog.FoodSupport", Stage = "Catalog.TravelingMerchantIngredients",
+            Category = "food", Art = "BeefStew", Kind = "Catalog.FoodSupport", Stage = "Catalog.InitiallyUnlocked",
+            InitialUnlocked = true,
             Description = "Catalog.AWarmingBeefAndPotatoStewThatElainaMakesWellThoughItIsNotHerFavo",
             Note = "Catalog.IMGoodAtMakingStewButDessertsAlwaysTemptMeMore", Rarity = 1, Yield = 1,
             PixelWidth = 30, PixelHeight = 27,
@@ -416,7 +418,8 @@ public static class AlchemyCatalog
         new()
         {
             Id = "brulee", Name = "Catalog.CaramelBrulee", EnglishName = "Caramel Brulee",
-            Category = "food", Art = "CaramelBrulee", Kind = "Catalog.FoodSupport", Stage = "Catalog.BasicCooking",
+            Category = "food", Art = "CaramelBrulee", Kind = "Catalog.FoodSupport", Stage = "Catalog.InitiallyUnlocked",
+            InitialUnlocked = true,
             Description = "Catalog.CrackTheDelicateCaramelCrustToRevealASilkyCustardBeneath",
             Note = "Catalog.IMGoodAtMakingStewButDessertsAlwaysTemptMeMore", Rarity = 1, Yield = 1,
             PixelWidth = 28, PixelHeight = 21,

@@ -1,0 +1,590 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using KL.Drawing;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
+
+// 火焰龙卷观感预览：用 KL 真实的 Bloom 管线（从源码编译）把完整的 FireTornado 绘制合成到 8 位场景上，
+// 对比不同配色/强度方案。场景、地面与树只是简单色块，用来观察过曝程度与背面气流圈的遮挡。
+internal static class Program
+{
+    static void Main(string[] args)
+    {
+        using var game = new LookPreview(args[0], args[1], args[2]);
+        game.Run();
+    }
+
+    // 与 Tools/BloomBackbufferPreview 相同：从 KL 源码中取出 Bloom 管线并编译，Run 可指定目标层
+    internal static Assembly CompilePipeline(string kl)
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            using System;
+            using System.Collections.Generic;
+            using System.Reflection;
+            using Microsoft.Xna.Framework;
+            using Microsoft.Xna.Framework.Graphics;
+            using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing {
+            public class ModSystem {}
+            public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+            public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+            public static class Main {
+                public static DeviceContext instance, graphics;
+                public static SpriteBatch spriteBatch;
+                public static int screenWidth, screenHeight;
+                public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                public static ViewContext GameViewMatrix = new();
+            }
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
+            public partial class DrawSystem {
+                public void Run(float strength, int iterations, bool bloomEnabled, int layer) {
+                    SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
+            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render,
+            "CreateRender", "EnsureRenderTargets", "SwitchRender", "TargetMatches", "DetachRenderTargets", "DisposeTargets",
+            "Main_OnResolutionChanged") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += "}}\n";
+        source += File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs"));
+        source = source.Replace("namespace KL.Drawing;", "namespace KL.Drawing {") + "\n}";
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("BloomPipelineLook", [CSharpSyntaxTree.ParseText(source)], references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+}
+
+/// <summary>一组可调的配色与强度，默认值（current）与 FireTornado 现在的数值相同。</summary>
+sealed record Look(string Name)
+{
+    // 底层垫色 / 旋风（NonPremultiplied）
+    public Color PadTint = new(255, 90, 35, 255);
+    public Color BodyTint = Color.White;
+    public Color BodyTint3 = Color.White;
+    public float BodyEffect3 = 1f;
+    // 高亮旋风（Additive，大面积）
+    public Color HighlightTint = new(255, 80, 20, 255);
+    public float HighlightEffect = 1.2f;
+    // 高亮残片（Additive，核心）
+    public Color CoreTint = new(255, 95, 25, 255);
+    public float CoreEffect = 2.4f;
+    public float CoreDissolve = 0.5f;
+    // 外圈黑色条带（NonPremultiplied）
+    public Color BandTint = new(50, 20, 0, 255);
+    public Vector4 BandEdge = new(7f, 2.4f, 0.4f, 1);
+    public float BandEffect = 1f;
+    public float BandDissolve = 0.3f;
+    public float BandEdgeWidth = 0.018f;
+    // 黑色石头粒子（NonPremultiplied）
+    public Color StoneTint = new(20, 10, 0, 255);
+    public Vector4 StoneEdge = new(5f, 1.7f, 0.3f, 1);
+    public float StoneEffect = 1f;
+    public float StoneDissolve = 0.6f;
+    public float StoneEdgeWidth = 0.018f;
+    // true 时主体三层顶点色随淡入淡出变淡（调色前的做法），false 时只靠消融
+    public bool ColorFade;
+    // 火焰色带倍率（0 为不用色带），依次为底层垫色、旋风、斜度 2 层、高亮旋风
+    public float PadRamp, BodyRamp = 0.7f, Body3Ramp = 0.8f, HighlightRamp;
+    public bool Body3UseR;
+    // 淡出时序：火焰层（主体合并层、高亮残片）消融速度倍率；
+    // 暗色层（条带、石块、气流圈）延后开始消融的进度，以及延后期间先变浓的比例
+    public float FireFadeSpeed = 1.8f;
+    public float DarkDelay = 0.35f;
+    public float DarkThicken;
+    // 火星粒子与其 HDR 倍率（ReColor，同 FireTornadoSparkDust.Hdr = 7）
+    public bool Sparks = true;
+    public float SparkHdr = 7f;
+    // 合并层的消融烧边
+    public bool BurnEdge = true;
+    public float EdgeWidth = 0.04f;
+    public Vector4 EdgeColor = new(1.3f, 0.5f, 0.1f, 1);
+    // 气流圈
+    public Vector4 SlashAdd = new Color(255, 50, 11, 255).ToVector4() * 2;
+    public Vector4 SlashOver = new Color(50, 10, 0, 255).ToVector4();
+}
+
+sealed class LookPreview : Game
+{
+    const int Width = 1000, Height = 1400;
+    static readonly Vector2 Center = new(500, 640);
+
+    [DllImport("kernel32.dll")]
+    static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+    readonly string kl, output, elaina;
+    readonly Assembly pipeline;
+    SpriteBatch batch;
+    Effect tornado, tornadoLayered, sphere, reColor;
+    Texture2D sparkDot;
+    readonly List<FireTornadoSpark> sparks = new();
+    Texture2D pixel, waterNoi, wind1, wind3, cellnoise, displaceNoi, perlinX, windSlash, fireRamp;
+    object renderer;
+    Type main, draw, queue;
+    MethodInfo run, request, forBloom;
+    bool done;
+    // 对应 FireTornado.totalFadeTime：0 为完全显现，1 为完全消融
+    float fade;
+
+    float FireDissolve(Look look, float current = 0) => MathHelper.Lerp(current, 1, Math.Clamp(fade * look.FireFadeSpeed, 0, 1));
+
+    float DarkDissolve(Look look, float current)
+    {
+        if (look.DarkDelay <= 0) return MathHelper.Lerp(current, 1, fade);
+        float thick = current * (1 - look.DarkThicken);
+        if (fade < look.DarkDelay) return MathHelper.Lerp(current, thick, fade / look.DarkDelay);
+        return MathHelper.Lerp(thick, 1, (fade - look.DarkDelay) / (1 - look.DarkDelay));
+    }
+
+    public LookPreview(string kl, string output, string elaina)
+    {
+        this.kl = kl;
+        this.output = output;
+        this.elaina = elaina;
+        pipeline = Program.CompilePipeline(kl);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        main = pipeline.GetType("KL.Drawing.Main");
+        draw = pipeline.GetType("KL.Drawing.DrawSystem");
+        queue = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem");
+        var helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context);
+        Set(main, "graphics", context);
+        Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", Width);
+        Set(main, "screenHeight", Height);
+        var effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        Set(helper, "bloom", effects.Load<Effect>("Bloom"));
+        Set(helper, "reColor", effects.Load<Effect>("ReColor"));
+        tornado = effects.Load<Effect>("Tornado");
+        tornadoLayered = effects.Load<Effect>("TornadoLayered");
+        sphere = effects.Load<Effect>("SphereEffect");
+        reColor = effects.Load<Effect>("ReColor");
+        renderer = Activator.CreateInstance(draw);
+        run = draw.GetMethod("Run");
+        forBloom = draw.GetMethod("GetBlendStateForBloom");
+        request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters()[3].ParameterType == typeof(Action));
+
+        waterNoi = Png("Effects/Tex/水波.png");
+        wind1 = Png("Effects/Tex/Wind/wind1.png");
+        wind3 = Png("Effects/Tex/Wind/Eff_Noise_705.png");
+        cellnoise = Png("Effects/Tex/cellnoise.png");
+        displaceNoi = Png("Effects/Tex/Noise/Eff_Noise_20.png");
+        perlinX = Png("Effects/Tex/PerlinX.png");
+        windSlash = Png("Effects/Tex/222545rguggggwbpjh1j9h.png");
+        fireRamp = Png("ElainaModSkills/Skills/Fire/FireTornadoFireRamp.png", elaina);
+        sparkDot = Png("ElainaModSkills/Skills/Fire/FireTornadoSparkDust.png", elaina);
+    }
+
+    // 与 tModLoader 加载 PNG 一致：预乘 alpha，无 mipmap；root 默认为 KL
+    Texture2D Png(string path, string root = null)
+    {
+        using var stream = File.OpenRead(Path.Combine(root ?? kl, path));
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++)
+            data[i] = Color.FromNonPremultiplied(data[i].ToVector4());
+        texture.SetData(data);
+        return texture;
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        int code = 1;
+        try
+        {
+            Execute();
+            code = 0;
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+        }
+        Console.Out.Flush();
+        Console.Error.Flush();
+        // FNA 的 D3D11 后端在进程退出清理时会卡住，写完结果后直接终止进程
+        TerminateProcess(Process.GetCurrentProcess().Handle, (uint)code);
+    }
+
+    static IEnumerable<Look> Looks()
+    {
+        // 当前游戏数值：火焰色带 + 烧边（R1）、火焰先消融（T1）、条带/石块窄亮边（E5）、火星粒子
+        yield return new Look("current");
+        yield return new Look("no-sparks") { Sparks = false };
+        yield return new Look("sparks-hdr10") { SparkHdr = 10f };
+        yield return new Look("sparks-hdr5") { SparkHdr = 5f };
+    }
+
+    void Execute()
+    {
+        int[] frames = [40, 75];
+        var looks = Looks().ToList();
+        foreach (bool night in new[] { false, true })
+        foreach (int frame in frames)
+        {
+            var images = new List<Color[]>();
+            foreach (Look look in looks)
+                images.Add(RenderFrame(look, frame, night));
+            string name = $"{(night ? "night" : "day")}-f{frame}.png";
+            SaveSheet(name, images);
+            Console.WriteLine($"{name}: {string.Join(" | ", looks.Select(l => l.Name))}");
+        }
+
+        // 全分辨率局部图，检查火星细节
+        Color[] nightFrame = RenderFrame(looks[0], 75, true);
+        SaveCrop("current-night-crop.png", nightFrame, new Rectangle(150, 80, 700, 1000));
+        // 龙卷右侧火星区域放大 4 倍，检查单颗火星主体是否清晰
+        SaveCrop("current-night-sparks-x4.png", nightFrame, new Rectangle(720, 300, 160, 160), 4);
+        SaveCrop("hdr10-night-sparks-x4.png", RenderFrame(looks[2], 75, true), new Rectangle(720, 300, 160, 160), 4);
+        SaveCrop("hdr5-night-sparks-x4.png", RenderFrame(looks[3], 75, true), new Rectangle(720, 300, 160, 160), 4);
+
+        // 淡出序列：每个方案一张，从左到右为不同进度
+        float[] steps = [0f, 0.15f, 0.3f, 0.45f, 0.6f, 0.75f, 0.9f];
+        foreach (Look look in looks)
+        {
+            var images = new List<Color[]>();
+            foreach (float value in steps)
+            {
+                fade = value;
+                images.Add(RenderFrame(look, 75, false));
+            }
+            string name = $"seq-{look.Name}.png";
+            SaveSheet(name, images);
+            Console.WriteLine($"{name}: {string.Join(" | ", steps)}");
+        }
+        fade = 0;
+    }
+
+    Color[] RenderFrame(Look look, int frame, bool night)
+    {
+        // 火星：固定种子，按当前淡出进度的火焰显现程度预热，与 FireTornado.AI 的生成方式相同
+        var random = new Random(1234);
+        sparks.Clear();
+        float intensity = 1 - Math.Clamp(fade * look.FireFadeSpeed, 0, 1);
+        float carry = 0;
+        for (int i = 0; i < frame + 40; i++)
+        {
+            carry += FireTornadoSparks.SpawnPerFrame * intensity;
+            for (; carry >= 1; carry--)
+                sparks.Add(FireTornadoSparks.Create(random));
+            for (int j = sparks.Count - 1; j >= 0; j--)
+            {
+                FireTornadoSpark spark = sparks[j];
+                if (FireTornadoSparks.Step(ref spark)) sparks[j] = spark;
+                else sparks.RemoveAt(j);
+            }
+        }
+        using var scene = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None,
+            0, RenderTargetUsage.PreserveContents);
+        Set(draw, "CanUseRender", true);
+        GraphicsDevice.SetRenderTarget(scene);
+        GraphicsDevice.Clear(Color.Black);
+        DrawSky(night);
+
+        // 背面气流圈：BehindNPCsAndTiles 层，随后画图块盖住
+        Enqueue(0, () => DrawBack(look, frame));
+        run.Invoke(renderer, [1f, 4, true, 0]);
+        DrawTiles(night);
+
+        Enqueue(3, () => DrawFront(look, frame));
+        run.Invoke(renderer, [1f, 4, true, 3]);
+
+        GraphicsDevice.SetRenderTarget(null);
+        var pixels = new Color[Width * Height];
+        scene.GetData(pixels);
+        return pixels;
+    }
+
+    void Enqueue(int layer, Action callback)
+    {
+        request.Invoke(null, ["Elaina:FireTornado", Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), layer),
+            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback, 0]);
+    }
+
+    void DrawSky(bool night)
+    {
+        batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        Color top = night ? new Color(14, 20, 38) : new Color(58, 150, 150);
+        Color bottom = night ? new Color(46, 60, 92) : new Color(70, 165, 150);
+        for (int y = 0; y < Height; y += 10)
+            batch.Draw(pixel, new Rectangle(0, y, Width, 10), Color.Lerp(top, bottom, y / (float)Height));
+        Color hills = night ? new Color(30, 44, 52) : new Color(48, 120, 96);
+        batch.Draw(pixel, new Rectangle(0, 1020, Width, 400), hills);
+        batch.End();
+    }
+
+    void DrawTiles(bool night)
+    {
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        Color grass = night ? new Color(30, 70, 40) : new Color(60, 170, 60);
+        Color dirt = night ? new Color(60, 44, 34) : new Color(140, 100, 70);
+        Color trunk = night ? new Color(56, 42, 30) : new Color(120, 84, 52);
+        Color leaves = night ? new Color(24, 72, 40) : new Color(44, 150, 70);
+        foreach (int x in new[] { 140, 760, 880 })
+        {
+            batch.Draw(pixel, new Rectangle(x, 900, 22, 260), trunk);
+            batch.Draw(pixel, new Rectangle(x - 60, 820, 142, 110), leaves);
+        }
+        batch.Draw(pixel, new Rectangle(0, 1150, Width, 26), grass);
+        batch.Draw(pixel, new Rectangle(0, 1176, Width, 230), dirt);
+        batch.End();
+    }
+
+    void Begin(int state)
+    {
+        batch.End();
+        BlendState blend = state switch { 1 => BlendState.Additive, 2 => BlendState.NonPremultiplied, _ => BlendState.AlphaBlend };
+        blend = (BlendState)forBloom.Invoke(null, [blend]);
+        batch.Begin(SpriteSortMode.Immediate, blend, SamplerState.LinearWrap, DepthStencilState.None, RasterizerState.CullNone, null, Matrix.Identity);
+    }
+
+    // FireTornado 的时间量（fade 已完全显现）
+    static float RotTime(int frame) => frame / 60f + 0.5f;
+    static float FrameTime(float min, float max, int duration, int frame)
+    {
+        float result = frame % duration;
+        if (result > duration / 2f) result = duration - result;
+        return MathHelper.Lerp(min, max, result / (duration / 2f));
+    }
+
+    void DrawBack(Look look, int frame) => DrawSlash(look, frame, true);
+
+    void DrawFront(Look look, int frame)
+    {
+        float rotTime = RotTime(frame);
+        var shape = new TornadoLayerShape
+        {
+            Time = rotTime,
+            CameraZ = 2.5f,
+            DrawScale = new Vector2(0.4f),
+            RotationSpeed = -1.4f,
+            HorizontalFadeRange = 0.02f,
+            VerticalFadeRange = 0.1f,
+            MaxInset = 0.25f,
+            BezierP0 = new Vector2(-5, 0),
+            BezierP1 = new Vector2(2.85f, 0.45f),
+            BezierP2 = new Vector2(3f, 0.95f),
+            BezierP3 = new Vector2(-8, 1),
+            DisplaceNoiseScale = new Vector2(1.1f),
+            DisplaceAmount = 0.05f,
+            DisplaceNoiseSpeed = new Vector2(-0.3f),
+            NoiseTexture = displaceNoi,
+            DissolveTexture = perlinX,
+            DissolveThreshold = FireDissolve(look),
+            DissolveEdgeWidth = look.BurnEdge ? look.EdgeWidth : 0,
+            DissolveEdgeColor = look.EdgeColor,
+            RampTexture = fireRamp,
+        };
+        float colorFade = look.ColorFade ? 1 - fade : 1;
+        DrawSparks(look, false);
+        Begin(0);
+        TornadoLayerRenderer.Draw(batch, tornadoLayered, Center, shape, [
+            new TornadoLayer(waterNoi, look.PadTint * colorFade, new Vector2(1.2f, 2.3f) * 2.0f) { UseRForAlpha = true, Tilt = 1.0f, RampGain = look.PadRamp, BurnEdge = look.BurnEdge },
+            new TornadoLayer(wind1, look.BodyTint * colorFade, new Vector2(1.2f, 2.3f) * 2.0f) { Tilt = 1.0f, RampGain = look.BodyRamp, BurnEdge = look.BurnEdge },
+            new TornadoLayer(waterNoi, look.BodyTint3 * colorFade, new Vector2(1.3f, 2.3f) * 2.0f) { EffectColor = new Vector4(look.BodyEffect3), Tilt = 2.0f, UseRForAlpha = look.Body3UseR, RampGain = look.Body3Ramp, BurnEdge = look.BurnEdge },
+            new TornadoLayer(wind1, look.HighlightTint, new Vector2(1.3f, 2.3f) * 2.0f) { EffectColor = new Vector4(look.HighlightEffect), Tilt = 1.0f, Additive = true, RampGain = look.HighlightRamp, BurnEdge = look.BurnEdge },
+        ]);
+
+        //高亮残片
+        Begin(1);
+        SetTornado(new Vector4(look.CoreEffect), true, rotTime, -0.4f, Vector2.One, 1.5f, 0.02f, 0.02f,
+            new Vector2(-5, 0), new Vector2(1.85f, 0.45f), new Vector2(1f, 0.95f), new Vector2(-5, 1),
+            new Vector2(0.5f), FireDissolve(look, look.CoreDissolve), 0f, Vector4.One);
+        DrawCentered(cellnoise, look.CoreTint, new Vector2(0.4f, 1.2f) * 1.6f);
+
+        //外圈黑色条带
+        Begin(2);
+        SetTornado(new Vector4(look.BandEffect), false, rotTime, -0.5f, new Vector2(2.0f), 1.4f, 0f, 0.05f,
+            new Vector2(-5, 0), new Vector2(2.85f, 0.45f), new Vector2(3f, 0.95f), new Vector2(-10, 1),
+            Vector2.One, DarkDissolve(look, look.BandDissolve), look.BandEdgeWidth, look.BandEdge);
+        DrawCentered(wind3, look.BandTint, new Vector2(1.2f, 2.3f) * 0.6f);
+
+        //黑色石头粒子
+        SetTornado(new Vector4(look.StoneEffect), false, rotTime, -0.9f, new Vector2(1.2f), 1.5f, 0f, 0.05f,
+            new Vector2(-2.5f, 0), new Vector2(2.85f, 0.45f), new Vector2(3f, 0.95f), new Vector2(-10, 1),
+            Vector2.One, DarkDissolve(look, look.StoneDissolve), look.StoneEdgeWidth, look.StoneEdge);
+        DrawCentered(perlinX, look.StoneTint, new Vector2(2.0f, 2.3f) * 1.0f);
+
+        DrawSlash(look, frame, false);
+        DrawSparks(look, true);
+        Begin(0);
+    }
+
+    void DrawSparks(Look look, bool front)
+    {
+        if (!look.Sparks) return;
+        Begin(1);
+        reColor.Parameters["newColor"].SetValue(new Vector4(look.SparkHdr, look.SparkHdr, look.SparkHdr, 1));
+        reColor.CurrentTechnique.Passes[0].Apply();
+        foreach (FireTornadoSpark spark in sparks)
+            if (FireTornadoSparks.IsFront(spark) == front)
+                FireTornadoSparks.Draw(batch, sparkDot, Center, spark);
+    }
+
+    void DrawSlash(Look look, int frame, bool inner)
+    {
+        float rotTime = RotTime(frame);
+        float slashFade = FrameTime(0.2f, 0.5f, 30, frame);
+        float slashHeight = FrameTime(0.8f, 1.8f, 30, frame);
+        Begin(0);
+        var p = sphere.Parameters;
+        p["RotWorldX"].SetValue(0f);
+        p["RotWorldY"].SetValue(0.2f);
+        p["RotWorldZ"].SetValue(0f);
+        p["RotLocalX"].SetValue(-rotTime * 7);
+        p["RotLocalY"].SetValue(0f);
+        p["RotLocalZ"].SetValue(0f);
+        p["clipImageX"].SetValue(false);
+        p["clipImageY"].SetValue(true);
+        p["SpecialYScale"].SetValue(Vector3.One);
+        p["ImageScale"].SetValue(new Vector2(0.4f, 0.5f));
+        p["TexScale"].SetValue(Vector2.One);
+        p["dissolveTexScale"].SetValue(Vector2.One);
+        p["DualAddColor"].SetValue(look.SlashAdd);
+        p["DualOverColor"].SetValue(look.SlashOver);
+        p["dualAddDissolve"].SetValue(DarkDissolve(look, slashFade - 0.04f));
+        p["dualOverDissolve"].SetValue(DarkDissolve(look, slashFade));
+        GraphicsDevice.Textures[1] = perlinX;
+        sphere.CurrentTechnique.Passes[inner ? 3 : 2].Apply();
+        DrawCentered(windSlash, Color.White, new Vector2(1.5f, slashHeight), new Vector2(0, 400) + new Vector2(0, -slashHeight * 150));
+    }
+
+    void DrawCentered(Texture2D texture, Color color, Vector2 scale, Vector2 offset = default)
+    {
+        batch.Draw(texture, Center + offset, null, color, 0, new Vector2(texture.Width, texture.Height) / 2, scale, SpriteEffects.None, 0);
+    }
+
+    // 与 DrawHelper.TornadoEffect 的参数设置相同
+    void SetTornado(Vector4 effectColor, bool useR, float iTime, float rotationSpeed, Vector2 texScale, float tilt, float hFade, float vFade,
+        Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 dissolveTiling, float dissolveThreshold, float edgeWidth, Vector4 edgeColor)
+    {
+        var p = tornado.Parameters;
+        p["EffectColor"].SetValue(effectColor);
+        p["useRForAlpha"].SetValue(useR);
+        p["CameraZ"].SetValue(2.5f);
+        p["DrawScale"].SetValue(new Vector2(0.4f));
+        p["RotationSpeed"].SetValue(rotationSpeed);
+        p["TexScale"].SetValue(texScale);
+        p["Tilt"].SetValue(tilt);
+        p["DissolveTexMultiplier"].SetValue(dissolveTiling);
+        p["DissolveThreshold"].SetValue(dissolveThreshold);
+        p["DissolveEdgeWidth"].SetValue(edgeWidth);
+        p["DissolveEdgeColor"].SetValue(edgeColor);
+        p["HorizontalFadeRange"].SetValue(hFade);
+        p["VerticalFadeRange"].SetValue(vFade);
+        p["DisplaceAmount"].SetValue(0.05f);
+        p["DisplaceNoiseScale"].SetValue(new Vector2(1.1f));
+        p["DisplaceNoiseSpeed"].SetValue(new Vector2(-0.3f));
+        p["DisplaceNoiseContrast"].SetValue(1f);
+        p["DisplaceNoiseBias"].SetValue(0f);
+        p["MaxInset"].SetValue(0.25f);
+        p["BezierP0"].SetValue(p0);
+        p["BezierP1"].SetValue(p1);
+        p["BezierP2"].SetValue(p2);
+        p["BezierP3"].SetValue(p3);
+        p["iTime"].SetValue(iTime);
+        GraphicsDevice.Textures[1] = perlinX;
+        GraphicsDevice.Textures[2] = displaceNoi;
+        tornado.CurrentTechnique.Passes[0].Apply();
+    }
+
+    // 截取局部，zoom 为最近邻放大倍数
+    void SaveCrop(string name, Color[] image, Rectangle area, int zoom = 1)
+    {
+        int w = area.Width * zoom, h = area.Height * zoom;
+        var crop = new Color[w * h];
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+            crop[y * w + x] = image[(area.Y + y / zoom) * Width + area.X + x / zoom];
+        using var texture = new Texture2D(GraphicsDevice, w, h);
+        texture.SetData(crop);
+        using var stream = File.Create(Path.Combine(output, name));
+        texture.SaveAsPng(stream, w, h);
+    }
+
+    // 横向拼接，每张缩到一半
+    void SaveSheet(string name, List<Color[]> images)
+    {
+        int w = Width / 2, h = Height / 2;
+        var sheet = new Color[w * images.Count * h];
+        for (int i = 0; i < images.Count; i++)
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            Vector4 sum = Vector4.Zero;
+            for (int dy = 0; dy < 2; dy++)
+            for (int dx = 0; dx < 2; dx++)
+                sum += images[i][(y * 2 + dy) * Width + x * 2 + dx].ToVector4();
+            sheet[y * w * images.Count + i * w + x] = new Color(sum / 4);
+        }
+        using var texture = new Texture2D(GraphicsDevice, w * images.Count, h);
+        texture.SetData(sheet);
+        using var stream = File.Create(Path.Combine(output, name));
+        texture.SaveAsPng(stream, w * images.Count, h);
+    }
+}

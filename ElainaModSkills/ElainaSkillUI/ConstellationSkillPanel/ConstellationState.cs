@@ -220,7 +220,7 @@ internal sealed class ConstellationState
             hash.Add(UpgradeCondition(Selected)?.GetDescription(_player, Current.ModSkill));
             foreach (var requirement in Requirements(Selected, IsLearned(Selected)).Rows) hash.Add(requirement);
             foreach (var stat in Current.ModSkill.GetConstellationStats(Math.Max(1, Level(Selected))) ?? []) hash.Add(stat);
-            if (Level(Selected) > 0 && Level(Selected) < MaxLevel(Selected))
+            if (Level(Selected) > 0)
                 foreach (var stat in Current.ModSkill.GetConstellationUpgradePreview(Level(Selected) + 1) ?? []) hash.Add(stat);
         }
         return hash.ToHashCode();
@@ -228,10 +228,12 @@ internal sealed class ConstellationState
     private Skill Resolve(string id) => _player.UnlockedSkill.Values.FirstOrDefault(s => s?.ModSkill?.GetType().FullName == id) ?? Find(id)?.Skill;
     private bool IsLearned(string id) => Resolve(id) is { } skill
         && _player.UnlockedSkill.TryGetValue(skill.ModSkill.GetType().Name, out var owned) && ReferenceEquals(skill, owned);
-    internal bool Discovered(ConstellationNode node) => node != null && (IsLearned(node.id) || node.Skill.BasicStatus != Skill.SKillBasicStatus.Hide);
+    internal bool Discovered(ConstellationNode node) => node != null && (IsLearned(node.id)
+        || node.Skill.BasicStatus != Skill.SKillBasicStatus.Hide && node.ModSkill.IsConstellationRevealed(_player.Player));
     internal string Status(ConstellationNode node) => node == null ? "hidden" : IsLearned(node.id) ? "learned"
-        : !Discovered(node) ? "hidden" : node.prereqs.All(IsLearned) ? "ready" : "locked";
-    internal string Name(ConstellationNode node) => Discovered(node) ? node.name : LocalizeUI("Hidden");
+        : node.Skill.BasicStatus == Skill.SKillBasicStatus.Hide ? "hidden"
+        : !Discovered(node) ? "locked" : node.prereqs.All(IsLearned) ? "ready" : "locked";
+    internal string Name(ConstellationNode node) => Discovered(node) ? node.name : Status(node) == "locked" ? "???" : LocalizeUI("Hidden");
     internal bool CanUnlock => IsCurrentPlayer && !EmptyFilter && Status(Current) == "ready"
         && Requirements(Selected, false).Satisfied;
     internal string UnlockDescription => Current?.ModSkill.UnlockCondition == null ? LocalizeUI("MissingUnlockCondition")

@@ -16,7 +16,7 @@ const combatCode=html.match(/<script id="combat-engine">([\s\S]*?)<\/script>/)[1
 new vm.Script(combatCode);vm.runInNewContext(combatCode,ctx);const C=ctx.module.exports;
 let count = 0;
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-7, `${a} != ${b}`);
-function test(name, fn) { fn(); count++; console.log('PASS', name); }
+function test(name, fn) { if(process.env.BALANCE_TEST_FILTER&&!new RegExp(process.env.BALANCE_TEST_FILTER,'i').test(name))return; fn(); count++; console.log('PASS', name); }
 function naked() {
  const s = B.defaults(); s.baseDps=1000; s.basicAttacks[0].ratio=1;s.basicAttacks[0].ratioCurve=[];s.ashenWitch=false; // isolate legacy balance arithmetic from the level curve and Ashen Witch
  for(const side of ['v','e']) { s[side].armor='none'; s[side].items.forEach(x=>{x.id='empty';x.prefix='none';}); }
@@ -275,6 +275,23 @@ test('New growth fields validate strictly while old v2 entries retain phase prog
  for(const levelInterval of [0,-1,1.5,1001,'7',null,true,Infinity])assert.equal(B.validGrowth({...old,levelInterval}),false);
  for(const levelInterval of [1,7,10,1000])assert.equal(B.validGrowth({...old,levelInterval}),true);
 });
+test('Fixed level caps stop both growth modes; zero and legacy omission preserve growth',()=>{
+ for(const growthMode of ['phase','interval'])for(const maxLevel of [1,8,1000]){
+  const row={...B.newBasic(),growthMode,maxLevel,unlockLevel:6,unlockStageCap:10,levelsPerPhase:1,levelInterval:5};
+  const unlimited={...row,maxLevel:0},nodes=Array.from(B.progressionNodes(unlimited));
+  assert.deepEqual(Array.from(B.progressionNodes(row)),nodes.slice(0,maxLevel));
+  assert.equal(B.skillLevelAt(row,5),0);
+  assert.equal(B.skillLevelAt(row,1000),Math.min(nodes.length,maxLevel));
+  delete unlimited.maxLevel;assert.deepEqual(Array.from(B.progressionNodes(unlimited)),nodes);
+ }
+ for(const maxLevel of [-1,1.5,1001,'8',null,true,Infinity])assert.equal(B.validGrowth({...B.newBasic(),maxLevel}),false);
+ for(const maxLevel of [0,1,8,1000])assert.equal(B.validGrowth({...B.newBasic(),maxLevel}),true);
+ const config=JSON.parse(fs.readFileSync(path.join(__dirname,'../../ElainaModSkills/Data/SkillBalance.json'),'utf8').replace(/^\uFEFF/,''));
+ const alchemy=config.configuration.skills.find(x=>x.id==='AlchemySkill');
+ assert.equal(alchemy.maxLevel,8);
+ assert.deepEqual(Array.from(B.progressionNodes(alchemy)),[6,10,15,20,25,30,35,40]);
+ for(const level of [40,45,95,1000])assert.equal(B.skillLevelAt(alchemy,level),8);
+});
 test('Progression preview does not alter current pricing or runtime simulation',()=>{const s=B.defaults(),before=B.basicBudget(s).dps;B.progressionBudget(s,s.basicAttacks[0],1);near(B.basicBudget(s).dps,before);});
 function ladderBase(regen){
  const s=combatBase();setCombat(s,{duration:100,startPercent:0,regen});
@@ -386,6 +403,17 @@ async function browserTests(){
   const missileProgression=await page.locator('#progressionRows tr').filter({hasText:'魔法飞弹'}).innerText();
   assert.match(missileProgression,/Lv1→1、Lv2→3、Lv3→5/);
   assert.match(missileProgression,/Lv5（角色 10）/);
+  const maxInput=page.getByRole('spinbutton',{name:'魔法飞弹最高技能等级（0为不封顶）',exact:true});
+  assert.equal(await maxInput.inputValue(),'0');
+  await maxInput.fill('2');
+  assert.match(await page.locator('#progressionRows tr').filter({hasText:'魔法飞弹'}).innerText(),/Lv2（角色 10）/);
+  await page.locator('#progressionDetailSkill').selectOption('MagicMissileSkill');
+  assert.equal(await page.locator('#progressionDetailRows tr').count(),2);
+  assert.match(await page.locator('#progressionNotice').innerText(),/最高技能等级 Lv2/);
+  await page.reload();
+  assert.equal(await maxInput.inputValue(),'2','Fixed level cap survives local storage round trip');
+  await maxInput.fill('0');
+  assert.equal(await page.locator('#progressionDetailRows tr').count(),20);
   // Unlock period shortcut writes cap/first level; switching preset enables only unlocked skills.
   assert.equal(await page.getByRole('combobox',{name:'冰锥普攻解锁时期',exact:true}).inputValue(),'2');
   await page.getByRole('combobox',{name:'水球魔法解锁时期',exact:true}).selectOption('8');

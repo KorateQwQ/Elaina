@@ -1,16 +1,32 @@
-"""Compatibility entry point for the approved upright Purification Dew.
+"""Extract the approved lower-left Purification Dew without resampling.
 
-The former diagonal design has been replaced by the user-approved upright
-handheld sprite. Both this command and the batch generators use its source.
+Retain both disconnected components of the blue dropper. Rebuild the notebook
+mystery icon and outlines afterwards (see PurificationDew.md).
 """
-import importlib.util
 from pathlib import Path
+from PIL import Image
 
-_spec = importlib.util.spec_from_file_location(
-    'purification_dew_upright', Path(__file__).with_name('GeneratePurificationDewUprightPixel.py'))
-_module = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_module)
-build_sprite = _module.build_sprite
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = ROOT / 'ElainaModAlchemy/item/Untitled 10152026 050309.png'
+TARGET = ROOT / 'ElainaModAlchemy/item/ExampleAssets/PurificationDew_Pixel.png'
+
+
+def build_sprite():
+    with Image.open(SOURCE) as original:
+        region = original.convert('RGBA').crop((0, 32, 36, 64))
+        sprite = region.crop(region.getchannel('A').getbbox())
+    if sprite.size != (27, 28):
+        raise ValueError('The approved lower-left dropper must be 27x28')
+    return sprite
+
+
+def main():
+    sprite = build_sprite()
+    sprite.save(TARGET)
+    preview = ROOT / 'Tools/PotionPixel/preview/PurificationDew_Pixel_x8.png'
+    sprite.resize((216, 224), Image.Resampling.NEAREST).save(preview)
+    print('Promoted lower-left Purification Dew (27x28), without resampling.')
+
 
 if __name__ == '__main__':
-    _module.main()
+    main()

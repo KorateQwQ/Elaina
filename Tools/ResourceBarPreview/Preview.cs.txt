@@ -1,0 +1,138 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaAttribute;
+
+internal sealed class ResourcePreview : Game
+{
+    private readonly string root, output;
+    private readonly Dictionary<string, Texture2D> textures = new();
+    private ResourceBarDrawing drawing;
+    private bool done;
+    private ResourcePreview(string root, string output)
+    {
+        this.root = root; this.output = output;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 400, PreferredBackBufferHeight = 200,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        Content.RootDirectory = root;
+        drawing = new ResourceBarDrawing(Texture, Content.Load<Effect>("Effects/Content/ResourceBarClip"));
+        // Compare with the installed FNA's real SpriteEffect instead of assuming a half-pixel convention.
+        using var probe = new SpriteBatch(GraphicsDevice);
+        int matched = 0;
+        foreach (float scale in new[] { 1f, 1.5f, 2.25f, 3f })
+        {
+            var ui = Matrix.CreateScale(scale);
+            probe.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, ui);
+            probe.Draw(Texture("Pixel"), Vector2.Zero, Color.White); probe.End();
+            foreach (var field in typeof(SpriteBatch).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic))
+                if (field.GetValue(probe) is Effect effect)
+                    foreach (EffectParameter parameter in effect.Parameters)
+                        if (parameter.Name == "MatrixTransform")
+                        {
+                            var viewport = GraphicsDevice.Viewport;
+                            Check(parameter.GetValueMatrix() == ResourceBarDrawing.ClipTransform(ui, viewport.Width, viewport.Height),
+                                $"Fill/frame transform mismatch at UI scale {scale}");
+                            matched++;
+                        }
+        }
+        Check(matched == 4, "FNA SpriteEffect transform checks did not execute");
+        Console.WriteLine("PASS: fill/frame projection matches installed FNA at four UI scales.");
+    }
+    private Texture2D Texture(string name)
+    {
+        if (textures.TryGetValue(name, out var texture)) return texture;
+        using var stream = File.OpenRead(Path.Combine(root, "ElainaAttribute/ResourceBarAssets", name + ".png"));
+        texture = Texture2D.FromStream(GraphicsDevice, stream);
+        // Same premultiplied bytes as tML's rawimg loader (only zero-alpha pixels are zeroed).
+        var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+        for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+        texture.SetData(pixels); textures[name] = texture; return texture;
+    }
+    protected override void Update(GameTime gameTime)
+    {
+        if (done) return; done = true; SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output); Checks();
+        using var batch = new SpriteBatch(GraphicsDevice);
+        foreach (float scale in new[] { 1f, 1.5f, 3f }) foreach (bool day in new[] { false, true })
+            foreach (var entry in new[] { ("normal",.84f,.84f,4f), ("damage",.18f,.84f,4f), ("empty",0f,0f,4f),
+                ("full",1f,1f,4f), ("tiny",.003f,.012f,4f), ("motion",.84f,.84f,6f) })
+                Render(batch, scale, day, entry.Item1, entry.Item2, entry.Item3, entry.Item4);
+        RenderGame(batch);
+        for (int i = 0; i <= 5; i++) RenderAnimation(batch, i * .2f);
+        Console.WriteLine("PASS: state checks, 36 shared-renderer comparisons, layout and six damage animation frames.");
+        Exit();
+    }
+    private void Save(RenderTarget2D target, string name)
+    {
+        GraphicsDevice.SetRenderTarget(null);
+        using var stream = File.Create(Path.Combine(output, name + ".png"));
+        target.SaveAsPng(stream, target.Width, target.Height);
+    }
+    private static ResourceBarState State(bool mana, float value, float ghost)
+    {
+        var state = new ResourceBarState(mana);
+        state.Reset(ghost * 1000, 1000); state.Update(value * 1000, 1000, 0, 0, false);
+        return state;
+    }
+    private void Render(SpriteBatch batch, float scale, bool day, string name, float value, float ghost, float time)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, (int)(322 * scale), (int)(76 * scale));
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(day ? new Color(120,167,245) : new Color(20,18,29));
+        var matrix = Matrix.CreateScale(scale);
+        drawing.Draw(batch, matrix, new Vector2(34,20), false, time, State(false,value,ghost));
+        drawing.Draw(batch, matrix, new Vector2(34,48), true, time+.7f, State(true,value==.84f?.68f:value,ghost==.84f?.68f:ghost));
+        Save(target,$"{name}-{(day?"day":"dark")}-{scale:0.0}");
+    }
+    private void RenderGame(SpriteBatch batch)
+    {
+        const float scale=1.5f;
+        using var target=new RenderTarget2D(GraphicsDevice,780,180);
+        GraphicsDevice.SetRenderTarget(target);GraphicsDevice.Clear(new Color(120,167,245));
+        var matrix=Matrix.CreateScale(scale);
+        using var stream=File.OpenRead(Path.Combine(root,"Tools/ResourceBarPreview/MinimapFrame.png"));
+        using var map=Texture2D.FromStream(GraphicsDevice,stream);
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.PointClamp,DepthStencilState.None,RasterizerState.CullNone,null,matrix);
+        batch.Draw(map,new Vector2(224,79),Color.White);batch.End();
+        drawing.Draw(batch,matrix,ResourceBarDrawing.LifePosition(520),false,4,State(false,.84f,.84f));
+        drawing.Draw(batch,matrix,ResourceBarDrawing.ManaPosition(520),true,4.7f,State(true,.68f,.68f));
+        Save(target,"game-layout-1.5");
+    }
+    private void RenderAnimation(SpriteBatch batch,float elapsed)
+    {
+        var hp=State(false,.84f,.84f);var mp=State(true,.68f,.68f);
+        hp.Update(90,1000,0,4);mp.Update(200,1000,0,4.7f);
+        for(int i=0;i<(int)MathF.Round(elapsed*60);i++){hp.Update(90,1000,1f/60,4+i/60f);mp.Update(200,1000,1f/60,4.7f+i/60f);}
+        using var target=new RenderTarget2D(GraphicsDevice,966,228);
+        GraphicsDevice.SetRenderTarget(target);GraphicsDevice.Clear(new Color(20,18,29));
+        drawing.Draw(batch,Matrix.CreateScale(3),new Vector2(34,20),false,4+elapsed,hp);
+        drawing.Draw(batch,Matrix.CreateScale(3),new Vector2(34,48),true,4.7f+elapsed,mp);
+        Save(target,$"animation-{elapsed:0.0}");
+    }
+    private static void Check(bool pass,string label){if(!pass)throw new Exception(label);}
+    private static void Checks()
+    {
+        var s=new ResourceBarState(false);s.Reset(420,500);s.Update(90,500,0,0,false);
+        Check(Math.Abs(s.Value-.18f)<.00001f&&Math.Abs(s.Ghost-.84f)<.00001f,"damage must keep previous ghost");
+        for(int i=0;i<12;i++)s.Update(90,500,1f/60,i/60f,false);
+        Check(Math.Abs(s.Ghost-.84f)<.00001f,"ghost must wait 0.4 seconds");
+        for(int i=0;i<240;i++)s.Update(90,500,1f/60,i/60f,false);
+        Check(Math.Abs(s.Ghost-s.Value)<.00001f,"ghost must converge");
+        s.Update(190,500,1f/60,5,false);Check(s.Flash>0&&s.Value>.18f&&s.Value<.38f,"healing easing and flash");
+        s.Update(190,1000,1f/60,5,false);Check(s.Value==s.Ghost&&s.Particles.Count==0,"max value change resets visual state");
+        s.Reset(200,200);s.Update(0,200,1f/60,6);Check(s.Particles.Count>0,"loss particles");
+        for(int i=0;i<300;i++)s.Update(0,200,1f/60,6+i/60f);Check(s.Particles.Count==0,"particles expire at zero");
+        Check(ResourceBarState.Fraction(1,0)==0&&ResourceBarState.Fraction(float.NaN,200)==0,"invalid resource denominators");
+        Check(ResourceBarDrawing.ManaPosition(520).Y-ResourceBarDrawing.LifePosition(520).Y==28,"shared HUD spacing");
+    }
+    protected override void UnloadContent(){foreach(var texture in textures.Values)texture.Dispose();base.UnloadContent();}
+    public static void Main(string[] args){using var game=new ResourcePreview(args[0],args[1]);game.Run();}
+}

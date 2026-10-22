@@ -26,6 +26,11 @@ SkillName: {
 }
 
 SkillDesc: {
+	AlchemySkill:
+		'''
+		Elaina can craft all kinds of items through alchemy. Right-click a cauldron to browse recipes and start crafting.
+		Raising your alchemy level unlocks more items to craft.
+		'''
 	FrostVeilSkill:
 		'''
 		Grants you and non-PvP allied players on the same team within {0} pixels 3 orbiting frost shields each.
@@ -88,7 +93,7 @@ SkillDesc: {
 		'''
 		Requires the Ashen Witch skill to be enabled.
 		Activate the barrier just before taking damage. It reduces damage based on the life lost to Ashen Witch and consumes [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] equal to the damage blocked by the barrier.
-		While active, life regeneration cannot fall below 0. This effect costs no [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and works even with an empty reserve.
+		When affected by certain damage-over-time effects, the barrier also stays deployed, granting complete immunity to those effects.
 		'''
 	WindSlashSkill:
 		'''
@@ -97,7 +102,10 @@ SkillDesc: {
 		'''
 }
 
+AlchemyLevelCap: Alchemy level cap
+
 UnlockConditions: {
+	ObtainedReturnPotion: Obtain a Potion of Return at least once
 	IceQueen: Defeat the Ice Queen during the Frost Moon
 	CharacterLevel: Reach character Lv.{0}
 	CharacterLevelCap: Reach a character level cap of Lv.{0}

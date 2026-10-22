@@ -13,6 +13,21 @@ using ReLogic.Content;
 namespace ReLogic.Content { public sealed class Asset<T>(T value) { public T Value => value; } }
 namespace Terraria.ModLoader
 {
+    public class ModPlayer
+    {
+        public Player Player;
+        public virtual void Initialize() { }
+        public virtual void SaveData(IO.TagCompound tag) { }
+        public virtual void LoadData(IO.TagCompound tag) { }
+        public virtual void OnEnterWorld() { }
+        public virtual void PostUpdate() { }
+    }
+    public class GlobalItem
+    {
+        public virtual bool AppliesToEntity(Item item, bool lateInstantiation) => true;
+        public virtual bool OnPickup(Item item, Player player) => true;
+        public virtual void OnConsumeItem(Item item, Player player) { }
+    }
     public class Mod { public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(PanelGame.Repo, path)); }
     public static class ModContent
     {
@@ -35,21 +50,27 @@ namespace Terraria
         public static bool gameMenu;
         public static bool mouseLeft;
         public static Player LocalPlayer;
+        public static int myPlayer;
+        public static Item mouseItem = new();
         public static Vector2 MouseScreen => new(-100);
     }
     public sealed class Player
     {
         public bool active = true;
+        public int whoAmI;
+        public Chest bank = new(), bank2 = new(), bank3 = new(), bank4 = new();
         public Item[] inventory = Enumerable.Range(0, 58).Select(_ => new Item()).ToArray();
         private readonly Dictionary<Type, object> _modPlayers = [];
         public T GetModPlayer<T>() where T : new()
         {
             if (!_modPlayers.TryGetValue(typeof(T), out var value)) _modPlayers[typeof(T)] = value = new T();
+            if (value is Terraria.ModLoader.ModPlayer modPlayer) modPlayer.Player = this;
             return (T)value;
         }
     }
+    public sealed class Chest { public Item[] item = Enumerable.Range(0, 40).Select(_ => new Item()).ToArray(); }
     public sealed class Item { public int type, stack; public bool IsAir => stack <= 0; public void TurnToAir() { type = stack = 0; } }
-    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
+    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 4870 => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.ObtainedReturnPotion").Contains("返回药水") ? "返回药水" : "Potion of Return", 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
 }
 namespace 伊蕾娜.System
 {
@@ -65,7 +86,19 @@ namespace 伊蕾娜.System
 #endif
     }
 }
-namespace Terraria.ID { public static class ItemID { public const int Wood = 9; } }
+namespace Terraria.ID { public static class ItemID { public const int Wood = 9, RecallPotion = 2350, PotionOfReturn = 4870; } }
+namespace Terraria.ModLoader.IO
+{
+    public sealed class TagCompound : Dictionary<string, object>
+    {
+        public bool GetBool(string key) => TryGetValue(key, out var value) && value is true;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Recall
+{
+    // The research partial and discovery player below are linked from production.
+    [SkillUIInfo(State = 5, Pixels = 200)] public partial class RecallSkill : ElainaSkill { }
+}
 namespace Terraria.GameContent
 {
     public static class TextureAssets { public static Asset<Texture2D> MagicPixel; }
@@ -285,6 +318,12 @@ namespace 伊蕾娜.ElainaModSkills
 {
     public override bool IsPassiveSkill => true;
     public override bool IsToggleable => true;
+    // Visual-only fixture shaped like AlchemySkill's level / EXP stats. Never used by the mod.
+    public static bool StatsPreview;
+    public override string GetConstellationDescription() => !StatsPreview ? base.GetConstellationDescription()
+        : Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillDesc.AlchemySkill");
+    public override (string Label, string Value, string Unit)[] GetConstellationStats(int level)
+        => !StatsPreview ? [] : [(Language.GetTextValue("Mods.伊蕾娜.UI.AlchemyLevelTitle"), "7", "/ 10"), (Language.GetTextValue("Mods.伊蕾娜.UI.AlchemyExpLabel"), "1240", "/ 3000")];
 }
 [SkillUIInfo(State = 0, Pixels = 200)] public class MagicMissileSkill : 伊蕾娜.ElainaModSkills.ElainaSkill
 {

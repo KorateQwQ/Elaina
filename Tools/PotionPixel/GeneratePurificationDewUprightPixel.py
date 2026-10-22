@@ -80,13 +80,12 @@ def main():
     im = build_sprite()
     im.save(OUTPUT / 'PurificationDew_Upright.png')
     im.save(OUTPUT / 'PurificationDew.png')
-    im.save(ROOT / 'ElainaModAlchemy/item/ExampleAssets/PurificationDew_Pixel.png')
+    # Historical design only; the active sprite is extracted by GeneratePurificationDewPixel.py.
     im.resize((SIZE[0]*8, SIZE[1]*8), Image.Resampling.NEAREST).save(PREVIEW / 'PurificationDew_Upright_x8.png')
-    im.resize((SIZE[0]*8, SIZE[1]*8), Image.Resampling.NEAREST).save(PREVIEW / 'PurificationDew_Pixel_x8.png')
     lookup = {tuple(bytes.fromhex(value[1:])) + (255,): key for key, value in PALETTE.items()}
     draft = {
         'name': 'Purification Dew - upright held pipette, symmetric liquid, no falling drop',
-        'source_note': 'Approved upright adaptation of PurificationDew_Iridescent.svg for handheld use, with balanced mirrored liquid bands. Rebuild with Tools/PotionPixel/GeneratePurificationDewUprightPixel.py, which updates the runtime item.',
+        'source_note': 'Historical upright adaptation of PurificationDew_Iridescent.svg. This generator no longer updates the runtime item; use GeneratePurificationDewPixel.py for the active sprite.',
         'size': list(SIZE), 'palette': {'.': '#00000000', **PALETTE},
         'pixels': [''.join(lookup.get(im.getpixel((x,y)), '.') for x in range(SIZE[0])) for y in range(SIZE[1])],
     }

@@ -11,8 +11,8 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
     {
         bool scrollScene = scene.StartsWith("recipe-");
         bool learned = scrollScene && scene.EndsWith("-learned");
-        bool blank = scene is "new" or "locked" or "research-ready" or "curio-locked" or "material-initial" || scrollScene && !learned;
-        int level = scene is "level-max" or "curio-dust" or "curio-rain" or "vanilla-materials" or "starpower" or "focus" or "resonance" ? 20 : scene is "new" or "locked" or "material-initial" ? 1 : scene is "header-reference" or "redesign-reference" ? 3 : 5;
+        bool blank = scene is "new" or "locked" or "research-ready" or "curio-locked" or "material-initial" or "food-initial" || scrollScene && !learned;
+        int level = scene is "level-max" or "curio-dust" or "curio-rain" or "vanilla-materials" or "starpower" or "focus" or "resonance" ? 20 : scene is "new" or "locked" or "material-initial" or "food-initial" ? 1 : scene is "header-reference" or "redesign-reference" ? 3 : 5;
         if(scrollScene)
         {
             string[] parts = scene.Split('-');
@@ -35,7 +35,7 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
         var research = new Dictionary<string, AlchemyResearchStatus>();
         foreach (var entry in AlchemyCatalog.Recipes)
         {
-            bool scroll = entry.Id is "bloodlust" or "starpower" or "focus" or "resonance" or "featherlight" or "painkiller";
+            bool scroll = entry.Id is "bloodlust" or "starpower" or "focus" or "resonance" or "featherlight" or "painkiller" or "isolation";
             int neededLevel = AlchemyProgressionRules.RequiredLevel(entry.Id);
             int owned = scroll && (scene.EndsWith("-ready") || scene.EndsWith("-level-low")) ? 1 : 0;
             bool ready = !unlocked.Contains(entry.Id) && level >= neededLevel && (!scroll || owned > 0);
@@ -48,9 +48,9 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
         return new AlchemyNotebookSnapshot
         {
             Materials = materials, Products = products, Unlocked = unlocked, Research = research,
-            MaximumBatches = maximum, Level = level, MaximumLevel = 20,
-            Experience = scene == "redesign-reference" ? 40 : scene == "header-reference" ? 35 : level == 20 || scene is "new" or "material-initial" ? 0 : 45,
-            ExperienceToNextLevel = scene == "header-reference" ? 40 : AlchemyProgressionRules.ExperienceToNextLevel(level)
+            MaximumBatches = maximum, Level = level, MaximumLevel = scrollScene ? Math.Max(8, level) : 20,
+            Experience = scene == "redesign-reference" ? 40 : scene == "header-reference" ? 35 : level == 20 || scene is "new" or "material-initial" or "food-initial" ? 0 : 45,
+            ExperienceToNextLevel = scrollScene && level >= 8 ? 0 : scene == "header-reference" ? 40 : AlchemyProgressionRules.ExperienceToNextLevel(level)
         };
     }
 }

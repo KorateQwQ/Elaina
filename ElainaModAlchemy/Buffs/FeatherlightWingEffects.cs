@@ -8,9 +8,8 @@ public sealed class FeatherlightWingEffects : GlobalItem
     public override void VerticalWingSpeeds(Item item, Player player, ref float ascentWhenFalling,
         ref float ascentWhenRising, ref float maxCanAscendMultiplier, ref float maxAscentMultiplier, ref float constantAscend)
     {
-        if (!player.GetModPlayer<AlchemyBuffPlayer>().FeatherlightActive) return;
-
-        float multiplier = AlchemyBuffPlayer.FeatherlightSpeedMultiplier;
+        float multiplier = player.GetModPlayer<AlchemyBuffPlayer>().TravelSpeedMultiplier;
+        if (multiplier == 1f) return;
         ascentWhenFalling *= multiplier;
         ascentWhenRising *= multiplier;
         maxCanAscendMultiplier *= multiplier;
@@ -27,8 +26,8 @@ public sealed class FeatherlightJetpackSystem : ModSystem
 
     private static void ModifyJetpackAscent(On_Player.orig_WingMovement orig, Player player)
     {
-        if (player.wingsLogic != 4 || !player.TryingToHoverUp
-            || !player.GetModPlayer<AlchemyBuffPlayer>().FeatherlightActive)
+        float multiplier = player.GetModPlayer<AlchemyBuffPlayer>().TravelSpeedMultiplier;
+        if (player.wingsLogic != 4 || !player.TryingToHoverUp || multiplier == 1f)
         {
             orig(player);
             return;
@@ -38,7 +37,7 @@ public sealed class FeatherlightJetpackSystem : ModSystem
         float jumpSpeed = Player.jumpSpeed;
         try
         {
-            Player.jumpSpeed *= AlchemyBuffPlayer.FeatherlightSpeedMultiplier;
+            Player.jumpSpeed *= multiplier;
             orig(player);
         }
         finally

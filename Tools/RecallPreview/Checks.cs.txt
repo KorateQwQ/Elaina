@@ -46,9 +46,53 @@ static class Checks
     }
     static void Main()
     {
-        Selection(); TimingAndTravel(); Lifecycle(); Input(); NetworkChecks.Run(Check);
+        Selection(); TimingAndTravel(); Lifecycle(); Input(); TransitionChecks(); NetworkChecks.Run(Check);
         Console.WriteLine($"PASS: {passed} recall behavior assertions (production source, engine/network doubles).");
     }
+    static void TransitionChecks()
+    {
+        var fade = new RecallTransition();
+        fade.Begin(200);
+        Check(fade.Opacity == 0, "Nearby travel does not black out");
+        fade.Begin(1120);
+        Check(Math.Abs(fade.Opacity - .5f) < .001f, "Medium travel uses a softer veil");
+        fade.Clear(); fade.Begin(4000);
+        Check(fade.Opacity == 1, "Long travel hides the scene cut on arrival");
+        fade.Advance(.03f);
+        Check(fade.Opacity == 1, "Black veil holds briefly across the first destination frame");
+        foreach (int fps in new[] { 30, 60, 144 })
+        {
+            fade.Clear(); fade.Begin(4000);
+            float previous = fade.Opacity;
+            for (int frame = 0; frame < fps / 2; frame++)
+            {
+                fade.Advance(1f / fps);
+                Check(fade.Opacity >= 0 && fade.Opacity <= previous, "Fade restores brightness monotonically at " + fps + " FPS");
+                previous = fade.Opacity;
+            }
+            Check(fade.Opacity == 0, "Transition finishes within half a second at " + fps + " FPS");
+        }
+        fade.Begin(4000); fade.Advance(.2f); float alpha = fade.Opacity; fade.Begin(1120);
+        Check(fade.Opacity >= alpha, "Rapid travel cannot flash brighter before a new fade");
+        fade.Advance(10);
+        Check(fade.Opacity == 0, "Long frame cannot leave a stuck black overlay");
+        fade.Begin(float.NaN); fade.Begin(float.PositiveInfinity);
+        Check(fade.Opacity == 0, "Invalid distance cannot corrupt opacity");
+        Setup(); P(1).active = true; RecallPortalSystem.Cast(P(0), 0); Tick(90);
+        Check(P(0).GetModPlayer<RecallPortalPlayer>().Transition.Opacity == 1, "Initial group arrival starts the local transition");
+        Check(P(1).Teleports == 1 && P(1).GetModPlayer<RecallPortalPlayer>().Transition.Opacity == 0, "Other players teleport without darkening this client's screen");
+        P(0).GetModPlayer<RecallPortalPlayer>().Transition.Advance(1); Tick(45);
+        RecallPortalSystem.RequestTravel(P(0), Portal(1));
+        Check(P(0).GetModPlayer<RecallPortalPlayer>().Transition.Opacity == 1, "Right-click return also starts the transition");
+        P(0).GetModPlayer<RecallPortalPlayer>().OnEnterWorld();
+        Check(P(0).GetModPlayer<RecallPortalPlayer>().Transition.Opacity == 0, "Entering a world clears the previous transition");
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Collision.Solid = _ => true; Tick(90);
+        Check(P(0).GetModPlayer<RecallPortalPlayer>().Transition.Opacity == 0, "Failed landing never darkens the screen");
+        Setup(NetmodeID.Server);
+        Packet(RecallPortalSystem.Operation.Teleport, 0, 0);
+        Check(P(0).GetModPlayer<RecallPortalPlayer>().Transition.Opacity == 0, "Server rejects client teleport and produces no overlay");
+    }
+
     static void Selection()
     {
         var s = Setup();

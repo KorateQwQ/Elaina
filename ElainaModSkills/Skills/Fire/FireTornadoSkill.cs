@@ -33,6 +33,7 @@ public class FireTornadoSkill : ElainaSkill
         Player localPlayer = Main.LocalPlayer;
         localPlayer.GetModPlayer<ActionModPlayer>().StartAction(animAction);
 
+        CurrentCD = 1;
         return base.PreUseSkill(source);
     }
 }

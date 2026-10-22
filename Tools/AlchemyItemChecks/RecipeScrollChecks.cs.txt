@@ -21,7 +21,7 @@ internal static class RecipeScrollChecks
     public static void Run(Mod mod)
     {
         var scrolls = new AlchemyRecipeScroll[] { new BloodthirstPotionRecipe(), new StarPowerPotionRecipe(),
-            new ConcentrationPotionRecipe(), new ResonancePotionRecipe(), new FeatherlightPotionRecipe(), new PainkillerRecipe() };
+            new ConcentrationPotionRecipe(), new ResonancePotionRecipe(), new FeatherlightPotionRecipe(), new PainkillerRecipe(), new PurificationDewRecipe() };
         foreach (var scroll in scrolls)
         {
             ((ILoadable)scroll).Load(mod); ContentInstance.Register(scroll); scroll.SetDefaults();
@@ -37,7 +37,7 @@ internal static class RecipeScrollChecks
         var progress = player.GetModPlayer<AlchemyProgressPlayer>();
         var oldResolver = AlchemyCatalog.ItemTypeResolver;
         var potions = new AlchemyItem[] { ModContent.GetInstance<BloodthirstPotion>(), ModContent.GetInstance<StarPowerPotion>(),
-            ModContent.GetInstance<ConcentrationPotion>(), ModContent.GetInstance<ResonancePotion>(), ModContent.GetInstance<FeatherlightPotion>(), ModContent.GetInstance<Painkiller>() };
+            ModContent.GetInstance<ConcentrationPotion>(), ModContent.GetInstance<ResonancePotion>(), ModContent.GetInstance<FeatherlightPotion>(), ModContent.GetInstance<Painkiller>(), ModContent.GetInstance<PurificationDew>() };
         AlchemyCatalog.ItemTypeResolver = id => potions.FirstOrDefault(p => p.EntryId == id)?.Type ?? 0;
         void Inventory()
         {
@@ -51,7 +51,7 @@ internal static class RecipeScrollChecks
         foreach (var scroll in scrolls)
         {
             string id = scroll.EntryId;
-            int requiredLevel = id switch { "painkiller" => 1, "featherlight" => 2, _ => 10 };
+            int requiredLevel = id switch { "painkiller" => 1, "featherlight" => 2, _ => 8 };
             var requirement = AlchemyProgressPlayer.RequirementFor(id);
             Check(requirement.RequiredLevel == requiredLevel && requirement.RequiresRecipe && requirement.RecipeItemType == scroll.Type &&
                 requirement.RecipeStack == 1 && requirement.ConsumeRecipe, id + " requires its own scroll and configured level");
@@ -99,6 +99,16 @@ internal static class RecipeScrollChecks
             Check(shop.Entries[0].Conditions.All(c => c.IsMet()) == !night, scroll.Name + " daytime availability");
             Main.dayTime = false;
             Check(shop.Entries[0].Conditions.All(c => c.IsMet()), scroll.Name + " nighttime availability");
+        }
+        var dryadShop = new NPCShop(NPCID.Dryad); sources.ModifyShop(dryadShop);
+        Check(dryadShop.Entries.Count == 1 && dryadShop.Entries[0].Item.type == scrolls[6].Type &&
+            dryadShop.Entries[0].Item.value == Item.buyPrice(gold: 5), "Dryad sells the purification formula at the shared base price");
+        foreach (bool hardmode in new[] { false, true })
+        foreach (bool daytime in new[] { false, true })
+        {
+            Main.hardMode = hardmode; Main.dayTime = daytime;
+            Check(dryadShop.Entries[0].Conditions.All(c => c.IsMet()) == hardmode,
+                $"Purification formula availability: hardmode={hardmode}, daytime={daytime}");
         }
         var otherShop = new NPCShop(NPCID.Merchant); sources.ModifyShop(otherShop);
         Check(otherShop.Entries.Count == 0, "Unrelated shops receive no scrolls");

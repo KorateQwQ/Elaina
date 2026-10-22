@@ -148,7 +148,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .sourcesbox>summary::-webkit-details-marker{display:none}
 .sourcesbox>summary::before{content:"▸";color:var(--purple);transition:transform .15s}
 .sourcesbox[open]>summary::before{transform:rotate(90deg)}
-#progressionTable{min-width:1560px}
+#progressionTable{min-width:1700px}
 #progressionTable td:first-child{white-space:nowrap}
 #progressionTable [data-progression-mode]{min-width:140px}
 #progressionTable input:disabled{opacity:.4;cursor:not-allowed}
@@ -353,7 +353,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  </div>
  <p class="note">“解锁阶段上限”区分初始 1–5 级阶段与史莱姆王后 6–10 级阶段，不是必须练到阶段上限才解锁。“首级角色等级”定义技能 Lv1 的角色门槛和伤害基准。飞弹默认 5 / 1，冰锥示例默认 10 / 6；如果想让冰锥必须角色 10 级才开放，可把首级改为 10。每阶段 2 次升级不含解锁自带的 Lv1。“解锁时期”是快捷选项：第 k 个时期（击败对应 Boss 后）写入上限 5k、首级 5k−4；手填非 5 的倍数时显示为自定义。切换参考配装会把预览角色等级设为该时期上限，并只启用此时已解锁的主动技能。</p>
  <p class="note">成长方式可逐技能选择：“按阶段成长”沿用公共阶段跨度；“固定等级间隔”从首级角色等级起，每隔指定角色等级新增 1 个技能等级，与公共阶段跨度及每阶段新增数量无关。例如角色 1 级解锁、间隔 10：Lv1→1、Lv2→11、Lv3→21；间隔 7：Lv1→1、Lv2→8、Lv3→15。解锁时期仍用于设置首级门槛与阶段标记。</p>
- <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>成长方式</th><th>每阶段新增技能等级</th><th>每级角色等级间隔</th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
+ <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>成长方式</th><th>每阶段新增技能等级</th><th>每级角色等级间隔</th><th>最高技能等级<br><small>0 = 不封顶</small></th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
  <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
  <p id="progressionNotice" class="note"></p>
  <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>普攻倍率</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
@@ -427,9 +427,9 @@ const legacyPresetsV1={
  spectre:{stage:18,name:'18 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
  nebula:{stage:19,name:'19 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']}};
 const clone=x=>JSON.parse(JSON.stringify(x));
-const newSkill=(id,name)=>({id,name,growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
+const newSkill=(id,name)=>({id,name,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
-function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1};}
+function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1};}
 function basicRows(s){return s.basicAttacks;}
 function selectedBasic(s){const rows=basicRows(s);return rows.find(row=>row.id===s.selectedBasicAttackId)||rows[0];}
 // Same rule as SkillBalanceConfig.GetDpsRatio: linear between points, endpoints clamp, empty curve = fixed ratio.
@@ -473,7 +473,8 @@ function basicBudget(s,row=selectedBasic(s)){
 // New growth fields are optional for old v2 files; explicit invalid values are rejected.
 function validGrowth(row){
  return (row.growthMode===undefined||['phase','interval'].includes(row.growthMode))&&
-  (row.levelInterval===undefined||(Number.isInteger(row.levelInterval)&&row.levelInterval>=1&&row.levelInterval<=1000));
+  (row.levelInterval===undefined||(Number.isInteger(row.levelInterval)&&row.levelInterval>=1&&row.levelInterval<=1000))&&
+  (row.maxLevel===undefined||(Number.isInteger(row.maxLevel)&&row.maxLevel>=0&&row.maxLevel<=1000));
 }
 function validBasics(s){
  const rows=s.basicAttacks;
@@ -571,15 +572,17 @@ function dpsLevel(dps){
  return 5*(stageDps.length-1);
 }
 function progressionNodes(row,phaseSize=5,limit=1000){
+ if(row.unlockLevel>limit)return [];
+ const maxLevel=row.maxLevel>0?row.maxLevel:Infinity;
  if(row.growthMode==='interval'){
   const nodes=[],interval=row.levelInterval??5;
-  for(let level=row.unlockLevel;level<=limit;level+=interval)nodes.push(level);
+  for(let level=row.unlockLevel;level<=limit&&nodes.length<maxLevel;level+=interval)nodes.push(level);
   return nodes;
  }
  const nodes=[row.unlockLevel];let start=row.unlockLevel,end=row.unlockStageCap;
  if(end<=start)end+=Math.ceil((start-end+1)/phaseSize)*phaseSize;
- while(start<limit){
-  for(let i=1;i<=row.levelsPerPhase;i++){
+ while(start<limit&&nodes.length<maxLevel){
+  for(let i=1;i<=row.levelsPerPhase&&nodes.length<maxLevel;i++){
    const node=start+Math.ceil((end-start)*i/row.levelsPerPhase);
    if(node<=limit&&node>nodes[nodes.length-1])nodes.push(node);
   }
@@ -612,13 +615,13 @@ function defaults(stage=13){
  const loadouts=loadoutDefaults(),l=loadouts[stage-1];
  const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map(item=>({id:sideItem(item.id,side),prefix:side==='e'?item.prefix:item.vPrefix}))});
  return {version:2,loadoutRevision:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'ShardbindSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,cd:25,cdRatio:1,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,cd:25,cdRatio:1,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,cd:75,cdRatio:1,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
- {growthMode:'phase',levelInterval:5,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,cd:90,cdRatio:1,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}],loadouts};
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'ShardbindSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,cd:25,cdRatio:1,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,cd:25,cdRatio:1,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,cd:75,cdRatio:1,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
+ {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,cd:90,cdRatio:1,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}],loadouts};
 }
 function gear(s,side){
  const g=s[side],a=armors[g.armor]||armors.none;
@@ -893,6 +896,7 @@ function normalizeProgression(value){
   if(!row||typeof row!=='object')continue;
   if(!Object.hasOwn(row,'growthMode'))row.growthMode='phase';
   if(!Object.hasOwn(row,'levelInterval'))row.levelInterval=5;
+  if(!Object.hasOwn(row,'maxLevel'))row.maxLevel=0;
   if(!Object.hasOwn(row,'freezeBuildup'))row.freezeBuildup=0;
  }
  return value;
@@ -1133,8 +1137,8 @@ function progressionRows(){
  const periodOptions=`<option value="0" disabled>自定义（见右侧数值）</option>`+Balance.periods.map(p=>`<option value="${p.stage}">${p.label} · ${p.level}–${p.cap} 级</option>`).join('');
  $('progressionRows').innerHTML=rows.map(({row,index,kind})=>{
   const attrs=`data-progression-kind="${kind==='普攻'?'basic':'active'}" data-progression-index="${index}"`;
-  const numberField=(key,label,max)=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="1" max="${max}" step="1" value="${row[key]}" ${attrs} data-progression-field="${key}"></td>`;
-  return `<tr><td>${kind}</td><td>${escapeHtml(row.name)}<small class="mutedid">${escapeHtml(row.id)}</small></td><td><select aria-label="${escapeHtml(row.name)}解锁时期" ${attrs} data-progression-period>${periodOptions}</select></td>${numberField('unlockStageCap','解锁阶段上限',1000)}${numberField('unlockLevel','首级角色等级',1000)}<td><select aria-label="${escapeHtml(row.name)}成长方式" ${attrs} data-progression-mode><option value="phase">按阶段成长</option><option value="interval">固定等级间隔</option></select></td>${numberField('levelsPerPhase','每阶段新增技能等级',10)}${numberField('levelInterval','每级角色等级间隔',1000)}<td data-progression-nodes></td><td data-progression-cap></td></tr>`;
+  const numberField=(key,label,max,min=1)=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="${min}" max="${max}" step="1" value="${row[key]}" ${attrs} data-progression-field="${key}"></td>`;
+  return `<tr><td>${kind}</td><td>${escapeHtml(row.name)}<small class="mutedid">${escapeHtml(row.id)}</small></td><td><select aria-label="${escapeHtml(row.name)}解锁时期" ${attrs} data-progression-period>${periodOptions}</select></td>${numberField('unlockStageCap','解锁阶段上限',1000)}${numberField('unlockLevel','首级角色等级',1000)}<td><select aria-label="${escapeHtml(row.name)}成长方式" ${attrs} data-progression-mode><option value="phase">按阶段成长</option><option value="interval">固定等级间隔</option></select></td>${numberField('levelsPerPhase','每阶段新增技能等级',10)}${numberField('levelInterval','每级角色等级间隔',1000)}${numberField('maxLevel','最高技能等级（0为不封顶）',1000,0)}<td data-progression-nodes></td><td data-progression-cap></td></tr>`;
  }).join('');
  updateProgression();
 }
@@ -1154,7 +1158,7 @@ function updateProgression(){
  $('progressionDetailRows').innerHTML=nodes.slice(0,20).map((level,i)=>{const r=Balance.progressionBudget(s,row,level),change=previous&&previous.total>0?(r.total/previous.total-1)*100:null,flat=previous&&r.integerHit===previous.integerHit;previous=r;
   return `<tr><td>Lv${i+1}${i+1<=cap?' · 可达':''}</td><td>${level}</td><td>${fmt(r.baseline,2)}</td><td>${r.ratio===null?'—':fmt(r.ratio,3)}</td><td>${fmt(r.dps,2)}</td><td>${fmt(r.total,2)}</td><td>${fmt(r.perShot,2)}</td><td>${r.integerHit}${flat?' · 未增长':''}</td><td>${change===null?'—':'+'+fmt(change,1)+'%'}</td></tr>`;
  }).join('');
- $('progressionNotice').textContent=`${row.name}：解锁阶段角色上限 ${row.unlockStageCap}，首级对应角色 ${row.unlockLevel}；${row.growthMode==='interval'?`固定等级间隔：从首级起每 ${row.levelInterval} 个角色等级新增 1 级`:`按阶段成长：每阶段最多新增 ${row.levelsPerPhase} 级`}（不含解锁所得 Lv1）。相同角色门槛不重复计级。展示前 20 级；基准取本地 KL 等级曲线，95 级后曲线封顶。保存配置后，游戏按技能实际等级映射对应角色等级读取 B，角色实际等级仅限制可升级上限；解锁阶段标记不能代替 Boss 解锁条件。此预览不改变实验室当前 B。`;
+ $('progressionNotice').textContent=`${row.name}：解锁阶段角色上限 ${row.unlockStageCap}，首级对应角色 ${row.unlockLevel}；${row.growthMode==='interval'?`固定等级间隔：从首级起每 ${row.levelInterval} 个角色等级新增 1 级`:`按阶段成长：每阶段最多新增 ${row.levelsPerPhase} 级`}（不含解锁所得 Lv1）。${row.maxLevel>0?`最高技能等级 Lv${row.maxLevel}，达到后停止升级。`:'不设固定技能等级上限，随角色等级继续成长。'}相同角色门槛不重复计级。展示前 20 级；基准取本地 KL 等级曲线，95 级后曲线封顶。保存配置后，游戏按技能实际等级映射对应角色等级读取 B，角色实际等级仅限制可升级上限；解锁阶段标记不能代替 Boss 解锁条件。此预览不改变实验室当前 B。`;
 }
 $('progressionDetailSkill').addEventListener('change',updateProgression);
 $('progressionPhaseSize').addEventListener('input',()=>{if($('progressionPhaseSize').value==='')return;s.progression.phaseSize=Math.floor(Balance.clamp($('progressionPhaseSize').value,1,20));update();});

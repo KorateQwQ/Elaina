@@ -1,0 +1,128 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.System.Experience;
+
+using var game = new OrbPreview(args[0], args[1]);
+game.Run();
+
+// Shared production motion/drawing. Player silhouettes and terrain are illustrative fixtures.
+sealed class OrbPreview : Game
+{
+    readonly string output;
+    SpriteBatch batch;
+    Texture2D pixel;
+    bool done;
+    public OrbPreview(string output, string contentRoot)
+    {
+        this.output = output;
+        Content.RootDirectory = contentRoot;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 640, PreferredBackBufferHeight = 360,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = Content.Load<Texture2D>("Images/MagicPixel");
+        var firstPixel = new Color[1]; pixel.GetData(0, new Rectangle(0, 0, 1, 1), firstPixel, 0, 1);
+        Console.WriteLine($"Actual MagicPixel.xnb: {pixel.Width}x{pixel.Height}; first texel: {firstPixel[0]}");
+        if (firstPixel[0] != Color.White) throw new Exception("MagicPixel source texel must be opaque white.");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        Directory.CreateDirectory(output);
+        VerifyTextureFootprint();
+        using var sheet = new RenderTarget2D(GraphicsDevice, 1280, 720, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        GraphicsDevice.SetRenderTarget(sheet); GraphicsDevice.Clear(Color.Black); GraphicsDevice.SetRenderTarget(null);
+        var positions = new[] { new Vector2(320, 270), new Vector2(320, 270) };
+        var velocities = new[] { new Vector2(-1.1f, -2.4f), new Vector2(1.1f, -2.4f) };
+        var targets = new[] { new Vector2(130, 245), new Vector2(510, 245) };
+        var alive = new[] { true, true }; var absorbedAt = new[] { -1, -1 };
+        int[] frames = [8, 29, 45, 70]; int panel = 0;
+        for (int age = 1; age <= frames[^1]; age++)
+        {
+            for (int i = 0; i < 2; i++) if (alive[i])
+            {
+                velocities[i] = ExperienceRules.NextVelocity(positions[i], velocities[i], targets[i], age);
+                if (age >= ExperienceRules.FloatTicks && Vector2.DistanceSquared(positions[i], targets[i]) <= ExperienceRules.PickupRadius * ExperienceRules.PickupRadius)
+                { alive[i] = false; absorbedAt[i] = age; }
+                else positions[i] += velocities[i];
+            }
+            if (!frames.Contains(age)) continue;
+            using var frame = new RenderTarget2D(GraphicsDevice, 640, 360);
+            GraphicsDevice.SetRenderTarget(frame); GraphicsDevice.Clear(new Color(29, 32, 52));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            Fill(0, 286, 640, 74, new Color(64, 52, 68)); Fill(0, 284, 640, 5, new Color(75, 109, 91));
+            Fill(302, 277, 36, 7, new Color(130, 76, 94));
+            // An intervening wall makes the intended through-terrain movement visible.
+            Fill(405, 214, 14, 70, new Color(87, 80, 104));
+            for (int i = 0; i < 2; i++)
+            {
+                int x = (int)targets[i].X;
+                Fill(x - 10, 232, 20, 40, new Color(173, 156, 200));
+                Fill(x - 7, 218, 14, 15, new Color(229, 208, 212));
+                Fill(x - 18, 213, 36, 5, new Color(191, 174, 218));
+                Fill(x - 9, 202, 18, 12, new Color(172, 151, 205));
+                if (alive[i]) ExperienceOrbDrawing.Draw(batch, pixel, positions[i], velocities[i], age);
+                Fill(x - 24, 300, 48, 4, new Color(55, 44, 74));
+                if (!alive[i]) Fill(x - 24, 300, 5, 4, new Color(208, 174, 255));
+            }
+            // Timeline marker: 8/29/45/70 ticks; text is documented in README.
+            Fill(20, 20, age * 4, 3, new Color(189, 153, 242));
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            using (var stream = File.Create(Path.Combine(output, $"frame-{age:00}.png"))) frame.SaveAsPng(stream, 640, 360);
+            GraphicsDevice.SetRenderTarget(sheet); batch.Begin();
+            batch.Draw(frame, new Vector2(panel % 2 * 640, panel / 2 * 360), Color.White);
+            batch.End(); GraphicsDevice.SetRenderTarget(null); panel++;
+        }
+        using (var stream = File.Create(Path.Combine(output, "experience-sequence.png"))) sheet.SaveAsPng(stream, 1280, 720);
+        // Both bright and black backgrounds at 1x and 3x, using the same blend mode as production.
+        using var detail = new RenderTarget2D(GraphicsDevice, 640, 180);
+        GraphicsDevice.SetRenderTarget(detail); GraphicsDevice.Clear(Color.Black);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        Fill(320, 0, 320, 180, new Color(160, 190, 200));
+        ExperienceOrbDrawing.Draw(batch, pixel, new Vector2(80, 90), new Vector2(12, -2), 45);
+        ExperienceOrbDrawing.Draw(batch, pixel, new Vector2(400, 90), new Vector2(12, -2), 45);
+        batch.End();
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(3));
+        ExperienceOrbDrawing.Draw(batch, pixel, new Vector2(75, 30), new Vector2(12, -2), 45);
+        ExperienceOrbDrawing.Draw(batch, pixel, new Vector2(180, 30), new Vector2(12, -2), 45);
+        batch.End(); GraphicsDevice.SetRenderTarget(null);
+        using (var stream = File.Create(Path.Combine(output, "experience-detail.png"))) detail.SaveAsPng(stream, 640, 180);
+        Console.WriteLine($"FNA frames: {output}; absorption ticks: {string.Join(", ", absorbedAt)}"); Exit();
+    }
+    void VerifyTextureFootprint()
+    {
+        // Regression for the actual 1x1000 asset: it must render exactly like a single white texel.
+        // The 1x1 texture is only the comparison reference; all exported previews use the real XNB.
+        using var reference = new Texture2D(GraphicsDevice, 1, 1);
+        reference.SetData(new[] { Color.White });
+        using var target = new RenderTarget2D(GraphicsDevice, 256, 256);
+        Color[] Render(Texture2D texture, float age, float scale, SamplerState sampler)
+        {
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(Color.Black);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, sampler, DepthStencilState.None,
+                RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+            ExperienceOrbDrawing.Draw(batch, texture, new Vector2(128 / scale), new Vector2(12, -2), age);
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            var data = new Color[256 * 256]; target.GetData(data); return data;
+        }
+        int checks = 0;
+        foreach (float age in new[] { 8f, 29f, 45f })
+        foreach (float scale in new[] { 1f, 1.25f, 3f })
+        foreach (SamplerState sampler in new[] { SamplerState.PointClamp, SamplerState.LinearClamp })
+        {
+            Color[] actual = Render(pixel, age, scale, sampler);
+            Color[] expected = Render(reference, age, scale, sampler);
+            if (!actual.SequenceEqual(expected))
+                throw new Exception($"Texture footprint mismatch at age={age}, scale={scale}, filter={sampler.Filter}");
+            checks++;
+        }
+        Console.WriteLine($"PASS {checks} real-asset footprint checks (float/chase, 1x/1.25x/3x, point/linear).");
+    }
+    void Fill(int x, int y, int w, int h, Color color) => batch.Draw(pixel, new Rectangle(x, y, w, h), new Rectangle(0, 0, 1, 1), color);
+    protected override void UnloadContent() { batch.Dispose(); base.UnloadContent(); }
+}

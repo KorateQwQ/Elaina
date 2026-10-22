@@ -1,8 +1,12 @@
 # 炼金手记 FNA 离线预览
 
+## 炼金术技能上限与 Lv.8 配方（2026-10-22）
+
+运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene recipe-scrolls -Configuration Release`，使用正式绘制、本地化和研究等级规则生成配方各状态。已打开检查嗜血可研究、星力等级不足、集中可研究及共鸣已研究页面，覆盖默认与 125% 缩放：上限显示 8，等级条件为 7/8 或 8/8，满级显示 MAX，材料行与底栏正常。正式目录的轮廓和清单检查通过；本次未新增材料或图标。角色技能升级、手记点击及多人游戏仍需游戏内验收。
+
 ## 实体配方检查（2026-10-21）
 
-运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene recipe-scrolls`，一次生成四种战斗药水与轻羽药水的缺配方、等级不足但持有配方、可研究、已研究四种状态，覆盖默认和 125% 缩放。战斗药水门槛为 Lv.10，轻羽为 Lv.2；不足场景分别为 Lv.9 和 Lv.1。英文使用 `-Culture en-US -Configuration Release`。单场景示例：`-Scene recipe-featherlight-ready`；文件名采用 `recipe-<bloodlust|starpower|focus|resonance|featherlight>-<missing|level-low|ready|learned>`。
+运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene recipe-scrolls`，一次生成四种战斗药水与轻羽药水的缺配方、等级不足但持有配方、可研究、已研究四种状态，覆盖默认和 125% 缩放。战斗药水门槛为 Lv.8，轻羽为 Lv.2；不足场景分别为 Lv.7 和 Lv.1。配方场景以已学 Lv.8 炼金术的手记上限展示，生产上限来自角色实际技能。英文使用 `-Culture en-US -Configuration Release`。单场景示例：`-Scene recipe-featherlight-ready`；文件名采用 `recipe-<bloodlust|starpower|focus|resonance|featherlight>-<missing|level-low|ready|learned>`。
 
 配方名称从正式物品本地化读取，等级来自正式 `AlchemyProgressionRules`，图标与描边使用正式通用卷轴资源。预览启动校验包含卷轴描边，`bake_redesign.py --check` 同时校验资源清单。这些场景只模拟背包及研究状态；真实消费、存档、商店和掉落条件由 `Tools/AlchemyItemChecks/run.ps1 -PotionsOnly` 验证，游戏内 UI 输入和联机仍需验收。
 
@@ -52,7 +56,9 @@ pwsh -File Tools/AlchemyPreview/run.ps1 -Culture en-US -Configuration Release
 
 工具源码使用 `.cs.txt`，生成项目在 `.vissandbox`；`build.txt` 已排除 Tools 与 .vissandbox，工具不进入正式模组打包。
 
-Debug 页脚新增「等级 +1」，正式 SUI 与预览共用按钮边界和绘制方法；`new` 检查可用状态，`level-max` 检查「已满级」禁用状态，`brew-050` 检查制作中禁用。Release 不绘制或创建此按钮。实际升级、经验保留、20 级上限和 Release 拒绝升级由 `Tools/AlchemyGameplayChecks/run.ps1` 验证。
+Debug 页脚包含「等级 +1」「升满级」「解锁所有配方」「补充素材」「重置手记」，正式 SUI 与预览共用按钮边界和绘制方法；`new` 检查可用状态，`level-max` 检查满级与全部解锁禁用状态，`brew-050` 检查制作中禁用。Release 不绘制或创建调试按钮。实际升级、当前技能等级上限、跳过研究条件解锁、存档往返、重置及 Release 拒绝调试操作由 `Tools/AlchemyGameplayChecks/run.ps1` 验证。
+
+2026-10-22 调试按钮验证：`run.ps1 -Scene new -Configuration Debug`、`-Scene level-max`、`-Scene brew-050`，另以 `-Culture en-US -Scene new` 检查英文，以及 `-Scene debug-release -Configuration Release` 检查隐藏调试栏。正式资源完整性检查通过；已打开本次 FNA 离线截图，检查默认、125% 缩放及 720p 制作中状态。游戏逻辑检查 Release 73 项、Debug 99 项通过。正式源码使用 `dotnet msbuild 伊蕾娜.csproj /t:Compile /p:Configuration=Debug /p:BuildProjectReferences=false` 编译通过；打包被运行中的 tModLoader 阻止，未进行游戏内点击或多人验证。
 
 `& Tools/AlchemyPreview/run.ps1 -BookOnly` 直接链接正式 `AlchemyBookArt`、`ConstellationBookMotion`、`ConstellationBookRenderer` 与 `ConstellationUIClock`。先捕获共享的完整炼金页面与无文字 PNG 加运行时字体封面，再以真实 32 条带书页网格重放展开、收回及两次快速反向。默认技能栏锚点按正式 `ConstellationBookLayout` 计算，收起坐标位于技能按钮左侧 104 UI 像素、尺寸 96×30；该坐标仅用于动画，不绘制按钮。
 
@@ -100,3 +106,9 @@ Debug 页脚新增「等级 +1」，正式 SUI 与预览共用按钮边界和绘
 ## 素材初始解锁（2026-10-21）
 
 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene material-initial -Configuration Release` 使用 Lv.1、0 XP 快照，素材按正式 `InitiallyUnlockedIds` 全部解锁；其他非初始条目保持未研究。覆盖默认与 125% UI 缩放，检查全部 8 种素材显示真实图标和名称，无问号或可研究提示。已打开检查两种缩放；正式资源完整性检查通过，无新增图标或材料。真实新角色、旧存档补全、重置、重复研究拒绝及存档往返由 `Tools/AlchemyGameplayChecks/run.ps1` 检查（Release 65 项、Debug 84 项通过）。离线宿主不替代游戏内输入与多人验证。
+
+## 料理初始解锁与面包开心（2026-10-22）
+
+`pwsh -File Tools/AlchemyPreview/run.ps1 -Scene food-initial` 用 Lv.1、0 XP 的初始快照显示三个已解锁料理；蜂蜜面包效果为伊蕾娜「很满意 · 开心」、其他角色「吃得好」，持续 5 分钟。已打开检查本次 100% 和 125% FNA 离线截图，三个条目显示真实图标与名称，无需研究，面包材料行和底栏完整。正式资源检查通过（65 张描边），未新增贴图或材料。旧章节中的 30 点治疗记录已被本次行为取代。
+
+净土露滴分类调整（2026-10-22）：正式目录改为 `curio`，详情类型同步为「奇物 · 功能」，现为魔药 7 项、奇物 5 项。`vanilla-materials` 和 `recipe-isolation-ready` 场景按正式目录选分类；已查看本次 100%／125% FNA 预览中的奇物列表、净土露滴材料与底栏，以及 125% 研究页面。65 张正式描边检查和模组编译通过，游戏内分类切换尚未人工验证。
