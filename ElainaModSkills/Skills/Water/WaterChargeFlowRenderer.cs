@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
-// Moving Bezier strips, inspired by CoVFX's SakuraKiriChargeFlow. No CoVFX runtime dependency.
+// Continuous incoming ribbons that wrap around the sphere before being absorbed.
 // Pure FNA rendering so the preview and the projectile use exactly the same geometry.
 internal sealed class WaterChargeFlowRenderer : IDisposable
 {
@@ -65,6 +65,10 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
         float finishSeconds = .8f; // 最晚48帧全部收进球里（球50帧长满、60帧完成显现）
         float headTaperLength = .28f; // 前端收尖占条带长度的比例，越大头部越细长
         float headTaperPower = 1.35f; // 前端收细程度，越大越尖
+        float wrapTurns = 1.12f; // 接触后沿倾斜球面缠绕的圈数，同一条水流连续进入
+        float surfaceRadiusScale = 256f / 255f * .35f; // 对齐 DrawBall 的 512px 贴图实际半径
+        float absorptionStart = .72f; // 绕行后段才逐渐融入球体，之前保留水纹
+        float approachCurl = .55f; // 从远处开始盘旋，逐渐增加角速度；不在接触点突然转向
 
         bool trailUsesAlpha = true; // 彩色透明底图=true；黑底灰度图（如 Eff_Trail_1679）=false
         float materialColorStrength = 0f; // 去掉原贴图青绿偏色，水体颜色统一由 mainColor 控制
@@ -125,7 +129,6 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
                 // Alternate distant, middle and near streams in time, not one ring of equal ribbons.
                 float depth = (stream % 5) switch { 0 => .18f, 1 => .9f, 2 => .4f, 3 => 1f, _ => .55f };
                 bool inFront = depth > .7f;
-                if (inFront != foreground) continue;
                 float spawnTime = .02f + stream * Math.Max(.025f, spawnInterval);
                 if (spawnTime >= stopEmissionSeconds || spawnTime >= finishSeconds) continue;
                 float age = seconds - spawnTime;
@@ -146,28 +149,44 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
                     float angle = stream * 2.399963f + Hash(seed + 3) * MathHelper.TwoPi;
                     Vector2 radial = new(MathF.Cos(angle), MathF.Sin(angle));
                     Vector2 side = new(-radial.Y, radial.X);
-                    float bend = (stream % 2 == 0 ? 1 : -1) * (.28f + Hash(key + 9) * .35f);
                     float length = reach * (.6f + depth * .45f + Hash(key + 3) * .18f);
-                    Vector2 a = center + radial * length;
-                    Vector2 b = center + radial * length * .7f + side * length * bend;
-                    Vector2 c = center + radial * length * .18f - side * length * bend * .16f;
-                    Vector2 d = center + side * waterRadius * (inFront ? .07f : -.04f);
+                    float surfaceRadius = waterRadius * surfaceRadiusScale;
+                    float sweep = MathHelper.TwoPi * wrapTurns;
+                    float tilt = .62f + Hash(key + 9) * .2f;
+                    float lift = MathF.Sqrt(1 - tilt * tilt) * (inFront ? 1 : -1);
+                    const float join = .48f;
+                    float curl = MathHelper.Clamp(approachCurl, 0, 1);
+                    float contactAngleFraction = (1 - curl) * join + curl * join * join * join;
+                    float totalAngle = sweep / (1 - contactAngleFraction);
+                    Vector3 Path(float t)
+                    {
+                        // One inward spiral from the source: both angular motion and radial
+                        // contraction already begin far away. Radius settles with zero slope
+                        // and curvature, so the surface never acts like a deflecting obstacle.
+                        float theta = totalAngle * ((1 - curl) * t + curl * t * t * t - contactAngleFraction);
+                        float wrap = MathHelper.Clamp((t - join) / (1 - join), 0, 1);
+                        float approach = MathF.Pow(Math.Max(0, 1 - t / join), 2.2f);
+                        float radius = surfaceRadius * 1.025f + (length - surfaceRadius * 1.025f) * approach
+                            - surfaceRadius * (.08f * Smooth(wrap)
+                                + .14f * Smooth((wrap - absorptionStart) / (1 - absorptionStart)));
+                        return new Vector3(radial * MathF.Cos(theta) + side * (MathF.Sin(theta) * tilt),
+                            MathF.Sin(theta) * lift) * radius;
+                    }
+                    float FrontWeight(Vector3 point) => Smooth((point.Z / Math.Max(1, surfaceRadius) + .09f) / .18f);
                     float strength = Smooth(age / .045f) * (.7f + charge * .3f) * opacity
                         * MathHelper.Clamp(brightness, 0, 3f) * (.45f + depth * .55f);
                     float width = ribbonWidth * (.36f + depth * .72f) * (.85f + Hash(key + 5) * .3f)
                         * MathHelper.Clamp(widthMultiplier, .1f, 4f);
 
                     // Arc-length lookup: pulse motion, vertex spacing and material UV all use
-                    // distance along the curve, rather than the nonuniform Bezier parameter.
+                    // distance along the spiral, rather than its nonuniform parameter.
                     Span<float> distances = stackalloc float[segments + 1];
-                    Vector2 previous = a;
+                    Vector3 previous = Path(0);
                     distances[0] = 0;
                     for (int j = 1; j <= segments; j++)
                     {
-                        float u = j / (float)segments, v = 1 - u;
-                        Vector2 point = a * (v * v * v) + 3 * b * (v * v * u)
-                            + 3 * c * (v * u * u) + d * (u * u * u);
-                        distances[j] = distances[j - 1] + Vector2.Distance(previous, point);
+                        Vector3 point = Path(j / (float)segments);
+                        distances[j] = distances[j - 1] + Vector3.Distance(previous, point);
                         previous = point;
                     }
                     float totalLength = distances[segments];
@@ -182,10 +201,10 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
                             float fraction = (distance - distances[lookup])
                                 / Math.Max(.001f, distances[lookup + 1] - distances[lookup]);
                             float t = (lookup + fraction) / segments;
-                            float s = 1 - t;
-                            Vector2 pos = a * (s * s * s) + 3 * b * (s * s * t)
-                                + 3 * c * (s * t * t) + d * (t * t * t);
-                            Vector2 tangent = 3 * (b - a) * s * s + 6 * (c - b) * s * t + 3 * (d - c) * t * t;
+                            Vector3 point = Path(t);
+                            Vector2 pos = center + new Vector2(point.X, point.Y);
+                            Vector3 direction = Path(Math.Min(1, t + .001f)) - Path(Math.Max(0, t - .001f));
+                            Vector2 tangent = new(direction.X, direction.Y);
                             Vector2 normal = tangent.LengthSquared() > .001f
                                 ? Vector2.Normalize(new Vector2(-tangent.Y, tangent.X)) : side;
                             float phase = MathHelper.Clamp((along - tail) / pulseLength, 0, 1);
@@ -195,12 +214,17 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
                                 MathHelper.Clamp(headTaperPower, .5f, 3f));
                             float tips = Smooth(phase / .14f) * headTaper;
                             float outerFade = Smooth(along / .055f);
-                            float intoBall = 1 - Smooth((along - .72f) / .24f);
+                            float wrap = MathHelper.Clamp((t - join) / (1 - join), 0, 1);
+                            float intoBall = 1 - Smooth((wrap - absorptionStart) / (1 - absorptionStart));
+                            float surfaceBlend = Smooth(wrap / .16f);
+                            float frontWeight = FrontWeight(point);
+                            float depthWeight = foreground ? frontWeight : 1 - frontWeight;
                             // Near streams shrink into depth; far streams grow slightly before absorption.
                             float perspective = MathHelper.Lerp(1f, inFront ? .5f : 1.15f, Smooth(along));
                             float halfWidth = width * .5f * tips * outerFade * perspective
-                                * MathHelper.Lerp(1f, .6f, Smooth((along - .68f) / .32f));
-                            float alpha = strength * Smooth(phase / .4f) * Smooth((1 - phase) / .12f) * outerFade * intoBall * (foreground ? 1f : .92f);
+                                * MathHelper.Lerp(1f, .82f, surfaceBlend) * MathHelper.Lerp(.3f, 1f, intoBall);
+                            float alpha = strength * Smooth(phase / .4f) * Smooth((1 - phase) / .12f)
+                                * outerFade * intoBall * depthWeight * MathHelper.Lerp(1f, .8f, surfaceBlend);
                             Color color;
                             if (layer == 0)
                             {
@@ -213,7 +237,7 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
                             {
                                 // Real white coverage on the water, not additive blue-tinted glints.
                                 // Same geometry and UV as the body keeps the foam on its crests.
-                                color = foamColor * MathHelper.Clamp(alpha * foamStrength, 0, 1);
+                                color = foamColor * MathHelper.Clamp(alpha * foamStrength * MathHelper.Lerp(1f, .7f, surfaceBlend), 0, 1);
                             }
                             float uv = distance / Math.Max(32f, textureLength) + Hash(key + 13);
                             vertices[i * 2] = new(new Vector3(pos - normal * halfWidth, 0), color, new Vector2(uv, 0));
@@ -241,24 +265,30 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
                     {
                         float phase = .38f + crest * .29f;
                         float along = tail + phase * pulseLength;
-                        if (along < .08f || along > .84f || splashStrength <= 0) continue;
+                        if (along < .08f || along >= 1f || splashStrength <= 0) continue;
                         float distance = along * totalLength;
                         int lookup = 0;
                         while (lookup < segments - 1 && distances[lookup + 1] < distance) lookup++;
                         float t = (lookup + (distance - distances[lookup])
                             / Math.Max(.001f, distances[lookup + 1] - distances[lookup])) / segments;
-                        float s = 1 - t;
-                        Vector2 pos = a * (s * s * s) + 3 * b * (s * s * t)
-                            + 3 * c * (s * t * t) + d * (t * t * t);
-                        Vector2 tangent = 3 * (b - a) * s * s + 6 * (c - b) * s * t + 3 * (d - c) * t * t;
+                        Vector3 point = Path(t);
+                        Vector2 pos = center + new Vector2(point.X, point.Y);
+                        Vector3 direction = Path(Math.Min(1, t + .001f)) - Path(Math.Max(0, t - .001f));
+                        Vector2 tangent = new(direction.X, direction.Y);
                         if (tangent.LengthSquared() < .001f) continue;
                         tangent.Normalize();
                         Vector2 normal = new(-tangent.Y, tangent.X);
                         float sign = Hash(key + crest * 9 + 7) > .5f ? 1f : -1f;
-                        float crestFade = Smooth((along - .08f) / .12f) * (1 - Smooth((along - .62f) / .22f));
-                        float alpha = MathHelper.Clamp(strength * crestFade * splashStrength, 0, 1);
+                        float wrap = MathHelper.Clamp((t - join) / (1 - join), 0, 1);
+                        float surfaceBlend = Smooth(wrap / .16f);
+                        float crestFade = Smooth((along - .08f) / .12f)
+                            * (1 - Smooth((wrap - absorptionStart) / (1 - absorptionStart)));
+                        float frontWeight = FrontWeight(point);
+                        float alpha = MathHelper.Clamp(strength * crestFade * splashStrength
+                            * (foreground ? frontWeight : 1 - frontWeight) * MathHelper.Lerp(1f, .5f, surfaceBlend), 0, 1);
                         // A little of the crest overlaps the water, the rest breaks its edge.
-                        float splashWidth = width * MathHelper.Lerp(1f, inFront ? .5f : 1.15f, Smooth(along));
+                        float splashWidth = width * MathHelper.Lerp(1f, inFront ? .5f : 1.15f, Smooth(along))
+                            * MathHelper.Lerp(1f, .7f, surfaceBlend);
                         pos += normal * sign * splashWidth * .28f;
                         float halfLength = splashWidth * .9f * splashSize;
                         float halfHeight = splashWidth * .25f * splashSize;

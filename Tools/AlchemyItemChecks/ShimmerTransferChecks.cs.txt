@@ -1,0 +1,218 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.item.Curios;
+using 伊蕾娜.ElainaModAlchemy.item.Materials;
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+// Real Tilemap, WorldGen, ItemLoader and item-spawn hooks; no world/character save or network connection.
+internal static class ShimmerTransferChecks
+{
+    private static int passed;
+    private static void Check(bool condition, string message)
+    { if (!condition) throw new Exception(message); passed++; }
+
+    public static void Run()
+    {
+        Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        Main.maxTilesX = Main.maxTilesY = 200;
+        Main.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)200, (ushort)200 }, null)!;
+        Main.item = Enumerable.Range(0, 401).Select(_ => new Item()).ToArray();
+        Main.liquid = Enumerable.Range(0, 100).Select(_ => new Liquid()).ToArray();
+        Liquid.numLiquid = 0; Liquid.curMaxLiquid = Main.liquid.Length;
+        WorldGen.gen = false;
+        var player = new Player { active = true, whoAmI = 0, position = new Vector2(50 * 16, 50 * 16) };
+        var remote = new Player { active = true, whoAmI = 1, position = player.position };
+        Main.player[0] = player; Main.player[1] = remote;
+        Player.tileTargetX = 51; Player.tileTargetY = 51;
+        Tile tile = Main.tile[51, 51];
+        var dropperItem = new Item(ModContent.ItemType<AetherDropper>());
+        var bottleItem = new Item(ModContent.ItemType<BottledShimmer>(), 3);
+        var dropper = (AetherDropper)dropperItem.ModItem;
+        var bottle = (BottledShimmer)bottleItem.ModItem;
+        int Bottles() => Main.item.Where(i => i.active && i.type == bottle.Type).Sum(i => i.stack);
+        void Target(int type, byte amount)
+        {
+            for (int x = 50; x <= 52; x++)
+                for (int y = 50; y <= 52; y++)
+                {
+                    Tile cell = Main.tile[x, y]; cell.ClearEverything();
+                }
+            tile.LiquidType = type; tile.LiquidAmount = amount;
+            player.itemTime = 0; dropper.UseAnimation(player); bottle.UseAnimation(player);
+        }
+        void Consume(Item item)
+        { if (ItemLoader.ConsumeItem(item, player)) item.stack--; }
+
+        Check(dropperItem.width == 27 && dropperItem.height == 28 && bottleItem.width == 18 && bottleItem.height == 22,
+            "Runtime items use the exact extracted/new sprite dimensions");
+        Check(!dropper.ConsumeItem(player) && !bottle.ConsumeItem(player), "Neither item consumes before a successful use");
+        Target(LiquidID.Shimmer, 255);
+        Check(dropper.CanUseItem(player) && dropper.UseItem(player) == true, "Dropper extracts a full Shimmer tile");
+        Check(tile.LiquidAmount == 0 && Bottles() == 1, "Extraction removes 255 liquid and spawns exactly one bottle");
+        Check(dropper.UseItem(player) == false && Bottles() == 1, "Repeated use hook cannot duplicate the bottle");
+        Consume(dropperItem);
+        Check(dropperItem.stack == 0 && !dropper.ConsumeItem(player), "Successful extraction consumes the dropper exactly once");
+
+        Check(bottle.CanUseItem(player) && bottle.UseItem(player) == true, "Bottle releases into an empty tile");
+        Check(tile.LiquidType == LiquidID.Shimmer && tile.LiquidAmount == 255, "Release places exactly one full Shimmer tile");
+        Check(bottle.UseItem(player) == false, "Repeated use hook cannot release twice");
+        Consume(bottleItem);
+        Check(bottleItem.stack == 2 && !bottle.ConsumeItem(player), "Release consumes exactly one bottle, without an empty container");
+        Check(Liquid.numLiquid > 0, "Released Shimmer is queued for normal liquid simulation");
+
+        foreach (int liquid in new[] { (int)LiquidID.Water, LiquidID.Lava, LiquidID.Honey })
+        {
+            Target(liquid, 255);
+            Check(!dropper.CanUseItem(player) && dropper.UseItem(player) == false &&
+                !dropper.ConsumeItem(player) && tile.LiquidAmount == 255, "Dropper rejects non-Shimmer without consumption");
+            Check(!bottle.CanUseItem(player) && bottle.UseItem(player) == false &&
+                !bottle.ConsumeItem(player) && tile.LiquidType == liquid, "Bottle does not overwrite other liquids");
+        }
+        Target(LiquidID.Shimmer, 254);
+        Check(dropper.CanUseItem(player) && !bottle.CanUseItem(player), "Partially filled Shimmer can be collected, but not overwritten by a bottle");
+        Target(LiquidID.Shimmer, 0);
+        Check(!dropper.CanUseItem(player) && !dropper.ConsumeItem(player), "Empty target does not spend a dropper");
+        Target(LiquidID.Shimmer, 255); dropperItem.stack = 1;
+        Check(dropper.CanUseItem(player), "A valid target can begin the use animation");
+        tile.LiquidAmount = 0;
+        Check(dropper.UseItem(player) == false && !dropper.ConsumeItem(player), "Target is revalidated after animation starts");
+        Target(LiquidID.Water, 0); tile.HasTile = true; tile.TileType = TileID.Stone; Main.tileSolid[TileID.Stone] = true;
+        Check(!bottle.CanUseItem(player), "Release rejects solid tiles");
+        tile.LiquidType = LiquidID.Shimmer; tile.LiquidAmount = 255;
+        Check(!dropper.CanUseItem(player), "Extraction rejects solid tiles");
+        Target(LiquidID.Shimmer, 255); player.noBuilding = true;
+        Check(!dropper.CanUseItem(player) && !bottle.CanUseItem(player), "Building restrictions block both tools");
+        player.noBuilding = false; player.dead = true;
+        Check(!dropper.CanUseItem(player), "Dead players cannot extract"); player.dead = false;
+        Player.tileTargetX = -1;
+        Check(!dropper.CanUseItem(player) && !bottle.CanUseItem(player), "Out-of-world targets fail safely");
+        Player.tileTargetX = 150;
+        Check(!dropper.CanUseItem(player) && !bottle.CanUseItem(player), "Targets beyond normal bucket reach fail");
+        Player.tileTargetX = 51;
+        Check(dropper.UseItem(remote) == false && tile.LiquidAmount == 255 && Bottles() == 1,
+            "Remote player hooks cannot extract or duplicate a bottle");
+        Target(LiquidID.Water, 0);
+        Check(bottle.UseItem(remote) == false && tile.LiquidAmount == 0, "Remote player hooks cannot release liquid");
+        player.itemTime = 10;
+        Check(bottle.UseItem(player) == false && !bottle.ConsumeItem(player), "Cooldown hooks do not repeat a transfer");
+        player.itemTime = 0; bottleItem.stack = 0;
+        Check(bottle.UseItem(player) == false && tile.LiquidAmount == 0, "Empty item stacks cannot release liquid");
+
+        var oldResolver = AlchemyCatalog.ItemTypeResolver;
+        try
+        {
+            AlchemyCatalog.ItemTypeResolver = id => id switch
+            { "shimmer" => bottle.Type, "obsidian" => ItemID.Obsidian, "mimic" => ItemID.DirtBlock, _ => 0 };
+            var recipe = AlchemyCraftingService.RecipeFor("mimic");
+            Check(recipe != null && recipe.HasIngredients(new[] { new Item(bottle.Type), new Item(ItemID.Obsidian) }),
+                "Ashen Facsimile Dust accepts the real Bottled Shimmer item as its ingredient");
+            Check(!recipe.HasIngredients(new[] { new Item(ItemID.BottledWater), new Item(ItemID.Obsidian) }),
+                "Ordinary bottles are not accepted instead of Bottled Shimmer");
+            Check(AlchemyCatalog.GetRecipe("shimmer").Art == "BottledShimmer" &&
+                AlchemyCatalog.Materials.Single(m => m.Id == "shimmer").Art == "BottledShimmer",
+                "Notebook entry and ingredient row both use the new bottle sprite");
+            // Terraria recipe consumption is independent of the successful-use gate on ConsumeItem.
+            var nativeRecipe = (Recipe)Activator.CreateInstance(typeof(Recipe), BindingFlags.Instance | BindingFlags.NonPublic,
+                null, new object[] { null }, null)!;
+            var ingredient = new Item(bottle.Type, 2);
+            var required = new Item(bottle.Type);
+            object[] consumeArgs = { ingredient, required, 1 };
+            bool consumed = (bool)typeof(Recipe).GetMethod("ConsumeForCraft", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(nativeRecipe, consumeArgs)!;
+            Check(consumed && ingredient.stack == 1 && (int)consumeArgs[2] == 0,
+                "Native crafting consumes one bottle even when it has not released liquid");
+            Check(tile.LiquidAmount == 0 && Bottles() == 1,
+                "Using a bottle as an ingredient neither releases liquid nor spawns another bottle");
+            Check(typeof(BottledShimmer).GetCustomAttributes<LegacyNameAttribute>().Any(),
+                "Old ShimmerDroplet items have a legacy-name migration");
+        }
+        finally { AlchemyCatalog.ItemTypeResolver = oldResolver; }
+        // Regression: shallow liquid is spread horizontally and no individual tile is full.
+        void Cell(int x, int y, int type, byte amount)
+        { Tile cell = Main.tile[x, y]; cell.ClearEverything(); cell.LiquidType = type; cell.LiquidAmount = amount; }
+        int NearbyShimmer() => Enumerable.Range(50, 3).Sum(x => Enumerable.Range(50, 3).Sum(y =>
+            Main.tile[x, y].LiquidType == LiquidID.Shimmer ? Main.tile[x, y].LiquidAmount : 0));
+        void ResetPool(byte center)
+        { Target(LiquidID.Shimmer, center); dropperItem.stack = 1; }
+
+        ResetPool(85); Cell(50, 51, LiquidID.Shimmer, 85); Cell(52, 51, LiquidID.Shimmer, 85);
+        int beforeBottles = Bottles();
+        Check(dropper.CanUseItem(player) && NearbyShimmer() == 255,
+            "Three shallow tiles with no full tile qualify for extraction");
+        Check(dropper.UseItem(player) == true && NearbyShimmer() == 0 && Bottles() == beforeBottles + 1,
+            "Shallow pool is drained across cells and yields one bottle");
+        Consume(dropperItem);
+        Check(dropperItem.stack == 0 && !dropper.ConsumeItem(player),
+            "Shallow pool consumes the dropper once, not once per liquid cell");
+
+        ResetPool(90); Cell(50, 51, LiquidID.Shimmer, 200); Cell(52, 51, LiquidID.Shimmer, 200);
+        Check(AlchemyShimmerTransfer.TryCollect(player, 51, 51) && NearbyShimmer() == 235 &&
+            tile.LiquidAmount == 0 && Main.tile[50, 51].LiquidAmount == 35 && Main.tile[52, 51].LiquidAmount == 200,
+            "Large shallow pool removes at most 255 units, target first, preserving the remainder");
+
+        ResetPool(1); Cell(50, 51, LiquidID.Shimmer, 99);
+        beforeBottles = Bottles();
+        Check(!dropper.CanUseItem(player) && dropper.UseItem(player) == false &&
+            NearbyShimmer() == 100 && !dropper.ConsumeItem(player) && Bottles() == beforeBottles,
+            "Vanilla bucket threshold: 100 total units fail without changing the pool or inventory");
+        Cell(50, 51, LiquidID.Shimmer, 100);
+        Check(dropper.CanUseItem(player) && AlchemyShimmerTransfer.TryCollect(player, 51, 51) && NearbyShimmer() == 0,
+            "Vanilla bucket threshold: 101 total units qualify even without a full tile");
+
+        ResetPool(50); Cell(50, 51, LiquidID.Water, 255); Cell(52, 51, LiquidID.Lava, 255);
+        Check(!dropper.CanUseItem(player), "Other liquid types do not contribute to the collection threshold");
+        Cell(50, 50, LiquidID.Shimmer, 80);
+        Check(AlchemyShimmerTransfer.TryCollect(player, 51, 51) && NearbyShimmer() == 0 &&
+            Main.tile[50, 51].LiquidAmount == 255 && Main.tile[50, 51].LiquidType == LiquidID.Water &&
+            Main.tile[52, 51].LiquidAmount == 255 && Main.tile[52, 51].LiquidType == LiquidID.Lava,
+            "Extraction draws only Shimmer, including diagonal cells, without changing other liquids");
+
+        ResetPool(0); Cell(50, 51, LiquidID.Shimmer, 255);
+        Check(!dropper.CanUseItem(player) && !AlchemyShimmerTransfer.TryCollect(player, 51, 51) && NearbyShimmer() == 255,
+            "Cursor must point at liquid, not a dry tile beside the pool, matching buckets");
+        ResetPool(40); Cell(49, 51, LiquidID.Shimmer, 255);
+        Check(!dropper.CanUseItem(player), "Liquid outside the bucket's 3x3 footprint is not counted");
+        Cell(49, 51, LiquidID.Water, 0);
+        ResetPool(50); Cell(50, 51, LiquidID.Shimmer, 150);
+        Check(dropper.CanUseItem(player), "Shallow neighbouring liquid can start the use animation");
+        Cell(50, 51, LiquidID.Shimmer, 0);
+        Check(dropper.UseItem(player) == false && tile.LiquidAmount == 50 && !dropper.ConsumeItem(player),
+            "Pool is revalidated before drawing from multiple cells; depletion never spends the dropper");
+
+        // Compare draining order/threshold with a small model of the local vanilla bucket source.
+        var random = new Random(20261021);
+        for (int sample = 0; sample < 64; sample++)
+        {
+            ResetPool(0);
+            var expected = new int[3, 3];
+            for (int x = 0; x < 3; x++)
+                for (int y = 0; y < 3; y++)
+                {
+                    expected[x, y] = random.Next(0, 256);
+                    Cell(x + 50, y + 50, LiquidID.Shimmer, (byte)expected[x, y]);
+                }
+            if (sample % 8 == 0) { expected[1, 1] = 0; Cell(51, 51, LiquidID.Shimmer, 0); }
+            bool success = expected[1, 1] > 0 && expected.Cast<int>().Sum() > 100;
+            if (success)
+            {
+                int removed = expected[1, 1]; expected[1, 1] = 0;
+                for (int x = 0; x < 3; x++)
+                    for (int y = 0; y < 3; y++)
+                    {
+                        int take = Math.Min(expected[x, y], 255 - removed);
+                        expected[x, y] -= take; removed += take;
+                    }
+            }
+            bool actual = AlchemyShimmerTransfer.TryCollect(player, 51, 51);
+            Check(actual == success && Enumerable.Range(0, 3).All(x => Enumerable.Range(0, 3).All(y =>
+                Main.tile[x + 50, y + 50].LiquidAmount == expected[x, y])),
+                "Collection agrees with vanilla bucket threshold and per-cell drain order, sample " + sample);
+        }
+        Console.WriteLine($"Shimmer transfer: {passed} real item/world/consumption/recipe checks passed.");
+    }
+}

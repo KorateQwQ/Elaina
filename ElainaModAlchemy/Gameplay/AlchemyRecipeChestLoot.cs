@@ -10,20 +10,45 @@ namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
 public sealed class AlchemyRecipeChestLoot : ModSystem
 {
     public const int FeatherlightChanceDenominator = 10;
+    public const int PainkillerChanceDenominator = 10;
 
     public override void PostWorldGen()
     {
-        int scrollType = ModContent.ItemType<FeatherlightPotionRecipe>();
         foreach (Chest chest in Main.chest)
         {
-            if (!IsUndergroundGoldChest(chest)) continue;
+            int scrollType;
+            int chanceDenominator;
+            if (IsUndergroundGoldChest(chest))
+            {
+                scrollType = ModContent.ItemType<FeatherlightPotionRecipe>();
+                chanceDenominator = FeatherlightChanceDenominator;
+            }
+            else if (IsJungleChest(chest))
+            {
+                scrollType = ModContent.ItemType<PainkillerRecipe>();
+                chanceDenominator = PainkillerChanceDenominator;
+            }
+            else continue;
+
             int slot = Array.FindIndex(chest.item, item => item.IsAir);
-            if (slot < 0 || !WorldGen.genRand.NextBool(FeatherlightChanceDenominator)) continue;
+            if (slot < 0 || !WorldGen.genRand.NextBool(chanceDenominator)) continue;
 
             // This is extra treasure; never replace the primary reward or other supplies.
             chest.item[slot].SetDefaults(scrollType);
             chest.item[slot].stack = 1;
         }
+    }
+
+    internal static bool IsJungleChest(Chest chest)
+    {
+        if (chest == null || chest.x < 0 || chest.x >= Main.maxTilesX ||
+            chest.y < 0 || chest.y >= Main.maxTilesY || chest.item[0].IsAir)
+            return false;
+
+        Tile tile = Main.tile[chest.x, chest.y];
+        // WorldGen's jungle shrines and living mahogany trees use Ivy Chest
+        // style 10. Style 24 is the locked Dungeon biome chest, not this pool.
+        return tile.HasTile && tile.TileType == TileID.Containers && tile.TileFrameX == 10 * 36;
     }
 
     internal static bool IsUndergroundGoldChest(Chest chest)

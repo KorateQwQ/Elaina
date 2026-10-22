@@ -70,9 +70,31 @@ internal static class VanillaChecks
         var facsimile = new FacsimileCraftingSystem(); Register(facsimile); facsimile.PostSetupRecipes();
         Check(Recipe.numRecipes == 17, "All seventeen actual recipes are registered");
         Check(AlchemyVanillaRecipes.AllowFacsimileDust == false, "Dust remains off by default");
-        Check(Progress.Level == 1 && Progress.Experience == 0 &&
-            Progress.Unlocked.SetEquals(new[] { "mana", "moondew", "resin" }),
-            "New character starts at level one with the three initial entries unlocked");
+        var initialIds = new[] { "mana" }.Concat(AlchemyCatalog.Recipes.Where(r => r.IsMaterial).Select(r => r.Id)).ToHashSet(StringComparer.Ordinal);
+        Check(Progress.Level == 1 && Progress.Experience == 0 && Progress.Unlocked.SetEquals(initialIds),
+            "New character starts at level one with mana and every material unlocked");
+        Check(new AlchemyCatalogRecipe { Category = "material", InitialUnlocked = false }.InitialUnlocked &&
+            !new AlchemyCatalogRecipe { Category = "potion" }.InitialUnlocked,
+            "Material category always starts unlocked without unlocking other categories");
+        var initialNotebook = new AlchemyNotebookState(new AlchemyNotebookSource(Player));
+        foreach (var entry in AlchemyCatalog.Recipes.Where(r => r.IsMaterial))
+        {
+            Check(entry.InitialUnlocked && Progress.IsUnlocked(entry.Id) &&
+                !Progress.ResearchStatus(entry.Id).CanResearch && !Progress.TryResearch(entry.Id, out _),
+                $"Material {entry.Id} is immediately known and cannot be researched");
+            Check(initialNotebook.IsUnlocked(entry) && initialNotebook.DisplayName(entry) == entry.Name &&
+                initialNotebook.StateOf(entry) is not (AlchemyNotebookState.Locked or AlchemyNotebookState.Researchable),
+                $"Material {entry.Id} shows its real name and no research prompt");
+        }
+        Progress.LoadData(new TagCompound
+        {
+            ["Level"] = 1, ["Experience"] = 0,
+            ["Unlocked"] = new List<string> { "mana", "moondew", "resin", "painkiller" }
+        });
+        Check(Progress.Unlocked.SetEquals(initialIds.Append("painkiller")),
+            "Legacy saves gain every material while retaining researched non-material entries");
+        Progress.ResetProgress();
+        Check(Progress.Unlocked.SetEquals(initialIds), "Reset keeps every material unlocked and clears research");
 
         Player.inventory[0] = new Item(ItemID.BottledWater, 6); Player.inventory[1] = new Item(ItemID.Moonglow, 2);
         Check(Progress.IsUnlocked("moondew") && AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Initial recipe is immediately available");
@@ -139,7 +161,8 @@ internal static class VanillaChecks
         Progress.AddCraftExperience("moondew", int.MaxValue);
         Check(Progress.Level == 20 && Progress.Experience == 0 && Progress.AddCraftExperience("moondew", 1) == 0, "Cap and large XP input are bounded");
         Progress.TryResearch("focus", out _); var tag = new TagCompound(); Progress.SaveData(tag); Progress.ResetProgress(); Progress.LoadData(tag);
-        Check(Progress.Level == 20 && Progress.IsUnlocked("focus"), "Character save roundtrip preserves level and research");
+        Check(Progress.Level == 20 && Progress.IsUnlocked("focus") && initialIds.All(Progress.IsUnlocked),
+            "Character save roundtrip preserves level, research and initially unlocked materials");
         Clear(); Progress.TryResearch("bloodlust", out _);
         var blood = AlchemyVanillaRecipes.Get("bloodlust");
         int inventorySlot = 0;
@@ -161,7 +184,7 @@ internal static class VanillaChecks
         Check(result.Success && AlchemyInventory.Count(Player, ItemID.BottledWater) == 30 && AlchemyInventory.Count(Player, ItemID.Moonglow) == 10, "Debug gives ten base batches, independent of quantity selector");
         result = AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugReset, "moondew", 1, 10);
         Check(result.Success && Progress.Level == 1 && Progress.Experience == 0 &&
-            Progress.Unlocked.SetEquals(new[] { "mana", "moondew", "resin" }) && Count(ItemID.BottledWater) == 30,
+            Progress.Unlocked.SetEquals(initialIds) && Count(ItemID.BottledWater) == 30,
             "Debug reset restores initial entries while retaining materials");
         Progress.AddCraftExperience("moondew", 3);
         var notebook = new AlchemyNotebookState(new AlchemyNotebookSource(Player));

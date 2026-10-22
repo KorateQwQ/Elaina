@@ -1,0 +1,142 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using SDL2;
+using Terraria;
+using Terraria.ModLoader;
+using Terraria.Localization;
+using 伊蕾娜.ElainaModAlchemy.Crafting;
+
+// Production ModifyTooltips and material rules, with isolated inventory/UI fixtures.
+internal sealed class TooltipPreview : Game
+{
+    private readonly string repo, tml, culture;
+    private DynamicSpriteFont font;
+    private Texture2D pixel;
+    private bool done;
+    private TooltipPreview(string[] args)
+    {
+        (repo, tml, culture) = (args[0], args[1], args[2]);
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        SDL.SDL_HideWindow(Window.Handle);
+        IsFixedTimeStep = false;
+    }
+    protected override void LoadContent()
+    {
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(tml, "../Terraria/Content"));
+        font = Content.Load<DynamicSpriteFont>("Fonts/Mouse_Text");
+        pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        Language.Load(repo, culture);
+    }
+    protected override void Update(GameTime time)
+    {
+        if (done) return;
+        done = true;
+        foreach (float scale in new[] { 1f, 1.25f }) Render(scale);
+        Exit();
+    }
+    private void Render(float scale)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, (int)(1280 * scale), (int)(880 * scale));
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(32, 52, 61));
+        using var batch = new SpriteBatch(GraphicsDevice);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        void Text(string text, float x, float y, Color color)
+        {
+            foreach (char c in text.Where(c => !char.IsWhiteSpace(c)))
+                if (!font.IsCharacterSupported(c)) throw new Exception($"Missing game font glyph: {c}");
+            batch.DrawString(font, text, new Vector2(x + 1, y + 1), Color.Black);
+            batch.DrawString(font, text, new Vector2(x, y), color);
+        }
+        Text("FNA offline preview / production tooltip + vanilla Mouse_Text", 24, 18, Color.White);
+        for (int scene = 0; scene < 4; scene++)
+        {
+            bool priority = scene == 1 || scene == 3;
+            // Wooden Chair: four wood. Three wood + dust, full wood, and insufficient dust.
+            int wood = scene >= 2 ? 4 : 3;
+            int dust = scene == 3 ? 1 : 20;
+            Terraria.Main.LocalPlayer.Preference.PreferDust = priority;
+            var rule = new[] { new FacsimileMaterialRule.Requirement(4, new[] { 9 }) };
+            bool valid = FacsimileMaterialRule.TryQuote(rule, new Dictionary<int, int> { [9] = wood, [5000] = dust },
+                5000, priority ? FacsimilePriority.Dust : FacsimilePriority.Materials, out var quote);
+            PreviewState.Valid = valid;
+            PreviewState.Quote = quote;
+            var lines = new List<TooltipLine> {
+                new(null, "ItemName", culture == "zh-Hans" ? "木椅" : "Wooden Chair"),
+                new(null, "Placeable", culture == "zh-Hans" ? "可放置" : "Can be placed")
+            };
+            new FacsimileCraftingTooltip().ModifyTooltips(new Item(), lines);
+            int expected = scene < 2 ? 4 : 2;
+            if (lines.Count != expected) throw new Exception("Unexpected tooltip line count in scene " + scene);
+            float y = 72 + scene * 200;
+            Text(new[] { "Missing materials: dust substitutes", "Dust priority: keep one wood",
+                "Full materials: no dust hint", "Insufficient dust: vanilla fallback, no hint" }[scene], 24, y, new Color(180, 205, 215));
+            float width = lines.Max(l => font.MeasureString(l.Text).X) + 32;
+            if (width > 1220) throw new Exception("Tooltip exceeds preview width");
+            batch.Draw(pixel, new Rectangle(24, (int)y + 32, (int)width, lines.Count * 28 + 24), new Color(24, 29, 81));
+            for (int i = 0; i < lines.Count; i++) Text(lines[i].Text, 40, y + 44 + i * 28, lines[i].OverrideColor ?? Color.White);
+        }
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        string path = Path.Combine(repo, ".vissandbox/ashen-tooltip-preview", $"tooltip-{culture}-{scale:0.00}.png");
+        using var stream = File.Create(path);
+        target.SaveAsPng(stream, target.Width, target.Height);
+        Console.WriteLine(path);
+    }
+    [STAThread] private static void Main(string[] args) { using var game = new TooltipPreview(args); game.Run(); }
+}
+
+// Only adapt the game state consumed by the production GlobalItem hook.
+namespace Terraria
+{
+    public sealed class Item { }
+    public sealed class Recipe { }
+    public sealed class Player
+    {
+        internal FacsimileCraftingPlayer Preference = new();
+        public T GetModPlayer<T>() where T : class => Preference as T;
+    }
+    public static class Main { public static Player LocalPlayer = new(); }
+}
+namespace Terraria.ModLoader
+{
+    public class Mod { }
+    public class GlobalItem
+    {
+        public Mod Mod => null;
+        public virtual void ModifyTooltips(Item item, List<TooltipLine> lines) { }
+    }
+    public sealed class TooltipLine(Mod mod, string name, string text)
+    {
+        public readonly Mod Mod = mod;
+        public readonly string Name = name;
+        public string Text = text;
+        public Color? OverrideColor;
+    }
+    public static class ModContent
+    {
+        public static T GetInstance<T>() where T : new() => new();
+    }
+}
+namespace 伊蕾娜.ElainaModAlchemy.Crafting
+{
+    public sealed class FacsimileCraftingPlayer { public bool PreferDust; }
+    public sealed class FacsimileCraftingSystem
+    {
+        internal bool TryGetQuote(Recipe recipe, out FacsimileMaterialRule.Quote quote)
+        { quote = PreviewState.Quote; return PreviewState.Valid; }
+    }
+    internal static class PreviewState
+    {
+        internal static bool Valid;
+        internal static FacsimileMaterialRule.Quote Quote;
+    }
+    internal static class FacsimileCraftingHoverSystem
+    {
+        internal static bool TryGetHoveredRecipe(Item item, out Recipe recipe) { recipe = new(); return true; }
+    }
+}

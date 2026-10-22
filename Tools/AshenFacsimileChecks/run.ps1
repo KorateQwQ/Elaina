@@ -15,7 +15,8 @@ $null = Add-Item 'Reference' "$Tml/tModLoader.dll"
 $reference = Add-Item 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/Crafting/*.cs"
-foreach ($path in @('AlchemyRecipe.cs','AlchemyIngredient.cs','UI/AlchemyCatalog.cs','UI/AlchemyNotebookSnapshot.cs','Gameplay/*.cs','item/AlchemyItem.cs','item/Curios/AshenFacsimileDust.cs')) {
+$null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
+foreach ($path in @('AlchemyRecipe.cs','AlchemyIngredient.cs','UI/AlchemyCatalog.cs','UI/AlchemyNotebookSnapshot.cs','Gameplay/*.cs','item/AlchemyItem.cs','item/Curios/AshenFacsimileDust.cs','item/Recipes/*.cs')) {
     $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/$path"
 }
 $checks = Add-Item 'Compile' "$PSScriptRoot/Checks.cs.txt"

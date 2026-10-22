@@ -25,12 +25,22 @@ namespace Terraria
     public class Player
     {
         public bool active = true, dead;
-        public int whoAmI, direction = 1;
+        public int whoAmI, direction = 1, itemAnimation;
         public float gravDir = 1f;
+        public Item HeldItem = new();
         public Vector2 Center, velocity;
         readonly ElainaAttributeModPlayer attributes = new();
-        public T GetModPlayer<T>() where T : class => attributes as T;
+        readonly DollCommandPlayer commands = new();
+        public T GetModPlayer<T>() where T : class => attributes as T ?? commands as T;
         public DataStructures.IEntitySource GetSource_Misc(string context) => null;
+    }
+    public class Item { public int pick; }
+    public static class Utils
+    {
+        public static Vector2 ToWorldCoordinates(this Point point, float autoAddX = 8f, float autoAddY = 8f) =>
+            new(point.X * 16f + autoAddX, point.Y * 16f + autoAddY);
+        public static Vector2 SafeNormalize(this Vector2 vector, Vector2 defaultValue) =>
+            vector == Vector2.Zero || float.IsNaN(vector.X) || float.IsNaN(vector.Y) ? defaultValue : Vector2.Normalize(vector);
     }
     public class Projectile
     {
@@ -42,6 +52,7 @@ namespace Terraria
         public ModProjectile ModProjectile;
         public void Kill() => active = false;
         public Color GetAlpha(Color color) => color;
+        public DataStructures.IEntitySource GetSource_FromThis() => null;
         public static int NewProjectile(DataStructures.IEntitySource source, Vector2 center, Vector2 velocity,
             int type, int damage, float knockback, int owner)
         {
@@ -72,6 +83,8 @@ namespace Terraria.ModLoader
         public virtual bool? CanDamage() => null;
         public virtual bool? CanCutTiles() => null;
         public virtual void AI() { }
+        public virtual void SendExtraAI(System.IO.BinaryWriter writer) { }
+        public virtual void ReceiveExtraAI(System.IO.BinaryReader reader) { }
         public virtual bool PreDraw(ref Color lightColor) => true;
     }
     public static class ModContent
@@ -119,5 +132,42 @@ namespace 伊蕾娜.ElainaModSkills
         public virtual void DeserializeData(Terraria.ModLoader.IO.TagCompound tag) { MaxCD = 60; }
         public virtual bool CanUseSkill() => Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false);
         public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+        public virtual bool BeginWandUse() => true;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
+{
+    /// <summary>
+    /// 指令/标记/收集物宿主的替身：正式版依赖 WorldGen 与网络，这里只按队列给出目标格，
+    /// 每格敲 <see cref="HitsPerTile"/> 下算挖掉并记一件收集物，用来检查玩偶 AI 如何使用这些接口。
+    /// </summary>
+    public class DollCommandPlayer
+    {
+        public readonly List<Point> Targets = [];
+        public bool TargetsWalls;
+        public int HitsPerTile = 3, Interval = 6, Hits, Loot, Delivered;
+        public Vector2 DeliveredAt;
+        public bool HasTask => Targets.Count > 0;
+        public bool HasLoot => Loot > 0;
+        internal bool TrySelectTarget(Vector2 from, Point current, bool currentWall, out Point target, out bool wall)
+        {
+            wall = TargetsWalls;
+            target = Targets.Count > 0 ? Targets[0] : new Point(-1, -1);
+            return Targets.Count > 0;
+        }
+        internal int HitInterval(bool walls) => Interval;
+        internal void Hit(Point point, bool walls)
+        {
+            if (++Hits % HitsPerTile != 0) return;
+            Targets.Remove(point);
+            Loot++;
+        }
+        public void DeliverLoot(Vector2 from, Terraria.DataStructures.IEntitySource source)
+        {
+            if (Loot == 0) return;
+            Delivered += Loot;
+            Loot = 0;
+            DeliveredAt = from;
+        }
     }
 }

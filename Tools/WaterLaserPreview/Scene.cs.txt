@@ -3,13 +3,20 @@ namespace KL.Drawing {
     public class Asset<T>(T value) { public T Value = value; }
     public static class ModContent {
         public static string Root;
+        public static bool UseOriginalParticles;
         public static Microsoft.Xna.Framework.Content.ContentManager Content;
+        public static Microsoft.Xna.Framework.Content.ContentManager ModEffects;
         public static readonly Dictionary<string, Texture2D> Textures = new();
         public static Asset<T> Request<T>(string path, AssetRequestMode mode = AssetRequestMode.ImmediateLoad) {
-            if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)Content.Load<Effect>(System.IO.Path.GetFileName(path)));
+            if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)
+                (path.StartsWith("KL/") ? Content : ModEffects).Load<Effect>(System.IO.Path.GetFileName(path)));
             if (!Textures.TryGetValue(path, out var texture)) {
                 string file = path.StartsWith("KL/") ? System.IO.Path.Combine(Root, "..", path + ".png")
                     : System.IO.Path.Combine(Root, path[(path.IndexOf('/') + 1)..] + ".png");
+                // Default follows production paths; only the old-texture comparison overrides them.
+                if (UseOriginalParticles && (path == "伊蕾娜/ElainaModSkills/Skills/Water/Eff_Splash_4001_Clear"
+                    || path == "伊蕾娜/ElainaModSkills/Skills/Water/Eff_Splash_4002_Clear"))
+                    file = file[..^10] + ".png";
                 using var stream = System.IO.File.OpenRead(file);
                 texture = Texture2D.FromStream(Main.graphics.GraphicsDevice, stream);
                 var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
@@ -54,6 +61,8 @@ namespace KL.Drawing {
     }
     public static class Lighting { public static void AddLight(Vector2 p, Vector3 color) {} }
     public static class PreviewExtensions {
+        public static Vector2 Floor(this Vector2 v) => new(MathF.Floor(v.X), MathF.Floor(v.Y));
+        public static Vector2 Origin(this Texture2D t) => new(t.Width * .5f, t.Height * .5f);
         public static Vector2 RotatedBy(this Vector2 v, double r) => Vector2.Transform(v, Matrix.CreateRotationZ((float)r));
         public static float ToRotation(this Vector2 v) => MathF.Atan2(v.Y, v.X);
         public static Vector2 SafeNormalize(this Vector2 v, Vector2 fallback) => v.LengthSquared() > .00001f ? Vector2.Normalize(v) : fallback;

@@ -28,6 +28,8 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/PotionBehaviorChecks.cs.txt"
 $check.SetAttribute('Link', 'PotionBehaviorChecks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/RecipeScrollChecks.cs.txt"
 $check.SetAttribute('Link', 'RecipeScrollChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/ShimmerTransferChecks.cs.txt"
+$check.SetAttribute('Link', 'ShimmerTransferChecks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
 $checkArguments = @($repo)

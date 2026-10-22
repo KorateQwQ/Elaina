@@ -9,6 +9,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/WaterChargePreview/run
 `-TmlPath` 可指定 tModLoader 安装目录；脚本自动用 Python/Pillow 合成 GIF。
 输出：`.vissandbox/water-charge-preview/out/water-charge.gif`、`contact-sheet.png` 和逐帧 PNG。
 
+此工具使用 .NET 10 SDK；本机 PATH 中 SDK 较旧时，追加
+`-Dotnet C:/Users/PC/.dotnet/dotnet.exe`。
+
+## 水球材质预览
+
+修改 `Effects/Content/WaterBallEffect.fx` 后先运行
+`powershell -NoProfile -ExecutionPolicy Bypass -File Tools/WaterChargePreview/compile-ball-shader.ps1`，
+再运行上面的 `run.ps1`。编译脚本在隔离目录生成并核对新的 XNB，复制到正式资源目录。
+
+材质保留原来的三档蓝色、水纹、光圈高光和不透明度，额外叠加随掠射角增强的青白边缘。
+菲涅尔项使用适合小尺寸的风格化幂次曲线，并限制在球体外侧，中心不提亮、不减淡。
+没有额外的中心光斑或背景透射，原有水体配色不受反射参数影响。
+球体扰动预留 5% 绘制边界，缩放补偿保持水球尺寸，轮廓按屏幕像素宽度抗锯齿。
+光圈按球体 UV 采样，补偿留白后保持原来的位置和尺寸。
+`WaterBall.DrawBall` 内的 `FresnelStrength` 控制边缘增亮强度，`FresnelPower` 越小亮带越宽。
+
+额外输出 `sphere-material-sheet.png`，覆盖满蓄力球体的暗底、亮底、棋盘透明度、
+左向、上向和拉伸形状；`water-sphere.gif` 展示持有阶段连续水纹。
+若 `.vissandbox/water-charge-preview/before/ball-only.png` 存在，还生成同尺寸的
+`sphere-before-after.png`。这些都是当前实际绘制方法与 XNB 的 FNA 离线预览。
+边缘反射是风格化效果，未接入环境贴图、游戏动态光照或背景折射；飞行场景仅检查球体拉伸，
+不重放飞行拖尾与碰撞。更新 Shader 后需要重新加载游戏里的效果资源才能看到变化。
+
+## 预览实现
+
 每次运行刷新实际 `WaterChargeFlowRenderer.cs`，通过 Roslyn 提取当前 `WaterBall.DrawBall`，
 使用项目 WaterBallEffect.xnb 和本模组/KL 原贴图，按水流后层 → 水球 → 水流前层顺序绘制。
 仅移除水球方法的飞行拖尾分支；绘制助手适配 SpriteBatch 和本地资源加载。
@@ -82,13 +107,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/WaterChargePreview/com
 
 `Draw` 开头可以直接修改 `streamCount`、`spawnInterval`、`spawnReach`、`stopEmissionSeconds`、`finishSeconds`、
 `flowSpeedMultiplier`。当前速度倍率 3.2，纹理滚动速度 2.1；保留浅蓝底色和白沫。
-每股具有不同的深度、长度、粗细和亮度，近景前置、远景被球体遮挡；近景入球时收小，
-远景入球时略放大。外侧起点距离基准 `spawnReach = 430f`，较上一版 310 再扩大约四成；仍叠加各股远近差异。
+每股具有不同的初始深度、长度、粗细和亮度，沿连续路径的深度逐点分到球体前后两层。
+外侧起点距离基准 `spawnReach = 430f`，仍叠加各股远近差异。
 起点不随球长大而外移，长距离汇聚保持在原有时间内完成。
 
 预览帧条重点覆盖 0.2～0.87 秒，并保留 3 秒完整动画。
 额外像素检查覆盖四个种子：0.2 秒有水流，0.8/0.84/1/1.6/3/10 秒无水流残留。
 这些检查针对蓄力视觉，不改变实际从水域吸水的 WaterTrail 判定、伤害和发射逻辑。
+
+## 球面缠绕与融入
+
+汇入路径从远处就是一条向内盘旋的空间螺线，旋转方向从起点已经确定。
+半径逐渐缩小并平滑趋于球面半径，角度在整个过程中连续变化，没有碰到球面才转弯的接入段。
+同一个移动脉冲沿整条路径前进，水体、白沫和边缘浪花共用路径及弧长采样，
+不会在接触点结束后再生成另一圈特效。路径的三维深度决定每段绘制在球体前方或后方，
+穿过侧缘时平滑交接；后方部分由实际水球材质遮挡。
+
+`wrapTurns = 1.12f` 控制接触后的绕行圈数，`absorptionStart = .72f` 控制绕行后段开始融入的位置。
+`approachCurl = .55f` 控制远处到球面的角速度渐变，外侧径向收缩在球面处的一阶、二阶导数均趋于零。
+绕行时半径继续缓缓收缩，融入后段进一步下沉、条带收窄、白沫减弱，最终淡出；
+仍在 0.8 秒前结束，不增加持有阶段的循环水流。
+`surfaceRadiusScale` 与 `DrawBall` 的 512px 水纹贴图和绘制缩放对应，球长大时轨道随表面成长。
+若调整球体贴图尺寸或绘制缩放，需同步核对该比例。
+
+额外生成 `water-wrap-sheet.png`（接触、绕行、融入及亮背景/其他种子）和
+`water-wrap-slow.gif`（逐游戏帧采样，以三倍慢放展示）。它们来自当前正式绘制代码的
+FNA 离线预览，固定球心，未模拟玩家移动瞄准和松手发射。
 
 
 ## 游戏入口计时回归

@@ -62,7 +62,9 @@ public sealed record AlchemyCatalogRecipe
     public string Live { get => CatalogText(_Live); init => _Live = value; }
     public int PixelWidth { get; init; }
     public int PixelHeight { get; init; }
-    public bool InitialUnlocked { get; init; }
+    private bool _InitialUnlocked;
+    // Ingredients are always known; only non-material entries can require research.
+    public bool InitialUnlocked { get => IsMaterial || _InitialUnlocked; init => _InitialUnlocked = value; }
     public IReadOnlyList<AlchemyCatalogIngredient> Ingredients { get; init; } = Array.Empty<AlchemyCatalogIngredient>();
     public IReadOnlyList<AlchemyCatalogEffect> Effects { get; init; } = Array.Empty<AlchemyCatalogEffect>();
     public string IconPath => PixelPath;
@@ -144,7 +146,7 @@ public static class AlchemyCatalog
         new("egg", "Catalog.Egg", "Egg", "Catalog.SoldByTheMerchant", 5, "Egg", "egg"),
         new("beef", "Catalog.Beef", "Beef", "Catalog.TravelingMerchantAlwaysStocked", 2, "Beef", "beef"),
         new("potato", "Catalog.Potato", "Potato", "Catalog.TravelingMerchantAlwaysStocked", 6, "Potato", "potato"),
-        new("shimmer", "Catalog.ShimmerDroplet", "Shimmer Droplet", "Catalog.AetherDropperCollectFromShimmer", 2, "ShimmerDroplet", "shimmer"),
+        new("shimmer", "Catalog.BottledShimmer", "Bottled Shimmer", "Catalog.AetherDropperCollectFromShimmer", 2, "BottledShimmer", "shimmer"),
     };
     private static AlchemyCatalogRecipe[] CreateRecipes() => new AlchemyCatalogRecipe[]
     {
@@ -171,7 +173,7 @@ public static class AlchemyCatalog
         new()
         {
             Id = "painkiller", Name = "Catalog.Painkiller", EnglishName = "Painkiller",
-            Category = "potion", Art = "Painkiller", Kind = "Catalog.PotionRecovery", Stage = "Catalog.RequiresAlchemyLv1",
+            Category = "potion", Art = "Painkiller", Kind = "Catalog.PotionRecovery", Stage = "Catalog.RecipeFoundInJungleChests",
             Description = "Catalog.ProvidesContinuousLifeRegeneration",
             Note = "Catalog.TheRibbonsAroundTheBottlesHelpMeTellThemApart", Rarity = 1, Yield = 3,
             PixelWidth = 24, PixelHeight = 34,
@@ -303,9 +305,9 @@ public static class AlchemyCatalog
         {
             Id = "dropper", Name = "Catalog.AetherDropper", EnglishName = "Aether Dropper",
             Category = "curio", Art = "AetherDropper", Kind = "Catalog.CurioUtility", Stage = "Catalog.RequiresAlchemyLv3",
-            Description = "Catalog.CollectsAndReleasesShimmer",
+            Description = "Catalog.CollectsShimmerIntoBottle",
             Note = "Catalog.PerhapsAlchemyIsSimplyFindingNewPossibilitiesInOrdinaryThings", Rarity = 2, Yield = 1,
-            PixelWidth = 19, PixelHeight = 34,
+            PixelWidth = 27, PixelHeight = 28,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(10, "glass"),
@@ -314,6 +316,7 @@ public static class AlchemyCatalog
             Effects = new AlchemyCatalogEffect[]
             {
                 new("Catalog.Capacity", "Catalog.1TileOfShimmer"),
+                new("Catalog.Use", "Catalog.ConsumedAfterExtraction"),
             },
         },
         new()
@@ -537,16 +540,17 @@ public static class AlchemyCatalog
         },
         new()
         {
-            Id = "shimmer", Name = "Catalog.ShimmerDroplet", EnglishName = "Shimmer Droplet",
-            Category = "material", Art = "ShimmerDroplet", Kind = "Catalog.INGREDIENTS", Stage = "Catalog.AetherDropper",
-            Description = "Catalog.AStrangeDropletCollectedFromShimmerCarryingATraceOfItsTransmutin",
+            Id = "shimmer", Name = "Catalog.BottledShimmer", EnglishName = "Bottled Shimmer",
+            Category = "material", Art = "BottledShimmer", Kind = "Catalog.INGREDIENTS", Stage = "Catalog.AetherDropper",
+            Description = "Catalog.BottledShimmerDescription",
             Note = "Catalog.KeepTrackOfWhereEachIngredientComesFromAndSpareYourselfTheNextRu", Rarity = 2, Yield = 1,
-            PixelWidth = 20, PixelHeight = 28,
+            PixelWidth = 18, PixelHeight = 22,
             Material = "shimmer",
             Acquisition = "Catalog.CollectFromShimmerWithAnAetherDropper",
             Effects = new AlchemyCatalogEffect[]
             {
                 new("Catalog.UsedIn", "Catalog.AshenFacsimileDust"),
+                new("Catalog.Use", "Catalog.ReleasesOneTileAndIsConsumed"),
             },
         },
     };

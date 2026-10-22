@@ -202,6 +202,52 @@ internal static class Checks
                 .Invoke(system, new object[] { il });
             Assert(dynamic.Generate() != null, "actual IL patch produces a valid method on installed tML");
         }
+        foreach (string methodName in new[] { "DrawInventory", "HoverOverCraftingItemButton" })
+        {
+            MethodInfo method = typeof(Terraria.Main).GetMethod(methodName,
+                BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            using var dynamic = new MonoMod.Utils.DynamicMethodDefinition(method);
+            using var il = new MonoMod.Cil.ILContext(dynamic.Definition);
+            typeof(FacsimileCraftingHoverSystem).GetMethod("PatchCraftingHover", HiddenStatic)
+                .Invoke(null, new object[] { il });
+            Assert(dynamic.Generate() != null, "crafting hover patch generates valid IL: " + methodName);
+        }
+
+        Terraria.Program.SavePath = Path.Combine(args[1], ".vissandbox/ashen-checks");
+        Terraria.Main.playerInventory = true;
+        Terraria.Main.craftingHide = true;
+        Terraria.Main.guideItem = new Item();
+        var hovered = Recipe((1, 10));
+        var sameOutput = Recipe((2, 10));
+        Item hover = Item(100, 1);
+        hover.tooltipContext = Terraria.UI.ItemSlot.Context.CraftingMaterial;
+        Terraria.Main.HoverItem = hover;
+        FacsimileCraftingHoverSystem.CaptureHover(hovered);
+        Assert(FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out var actual) && ReferenceEquals(actual, hovered),
+            "hover resolves exact recipe without depending on focusRecipe (expanded/unselected slots)");
+        FacsimileCraftingHoverSystem.CaptureHover(sameOutput);
+        Assert(FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out actual) && ReferenceEquals(actual, sameOutput),
+            "same output type does not conflate different recipes");
+        Item otherHover = Item(100, 1);
+        otherHover.tooltipContext = Terraria.UI.ItemSlot.Context.CraftingMaterial;
+        Terraria.Main.HoverItem = otherHover;
+        Assert(!FacsimileCraftingHoverSystem.TryGetHoveredRecipe(otherHover, out _), "stale hover reference cannot leak to another item");
+        Terraria.Main.HoverItem = hover;
+        hover.tooltipContext = Terraria.UI.ItemSlot.Context.InventoryItem;
+        Assert(!FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out _), "inventory tooltip is excluded");
+        hover.tooltipContext = Terraria.UI.ItemSlot.Context.CraftingMaterial;
+        Terraria.Main.guideItem = Item(1, 1);
+        Assert(!FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out _), "guide recipe lookup is excluded");
+        Terraria.Main.guideItem = new Item();
+        Terraria.Main.playerInventory = false;
+        Assert(!FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out _), "closed inventory is excluded");
+        Terraria.Main.playerInventory = true;
+        Terraria.Main.craftingHide = false;
+        Assert(!FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out _), "non-crafting hover is excluded");
+        new FacsimileCraftingHoverSystem().Unload();
+        Terraria.Main.craftingHide = true;
+        Assert(!FacsimileCraftingHoverSystem.TryGetHoveredRecipe(hover, out _), "unload clears hover state");
+
         Assert(typeof(Recipe).GetField("_ownedItems", HiddenStatic)?.GetValue(null) is Dictionary<int, int>, "installed tML material cache matches");
         Assert(typeof(RecipeLoader).GetField("ConsumedItems", HiddenStatic)?.GetValue(null) is List<Item>, "installed tML consumed-item list matches");
         foreach (string name in new[] { "PlayerMeetsTileRequirements", "PlayerMeetsEnvironmentConditions" })
@@ -218,8 +264,11 @@ internal static class Checks
         {
             var localization = Hjson.HjsonValue.Load(Path.Combine(args[1], $"Localization/{language}_Mods.伊蕾娜.Alchemy.hjson"));
             string tooltip = localization["Crafting"]["FacsimileCost"];
-            Assert(!string.IsNullOrWhiteSpace((string)localization["Items"]["AshenFacsimileDust"]["DisplayName"]) &&
-                string.Format(tooltip, 15, 50.0).Contains("15"), "localization parses and formats " + language);
+            var itemLocalization = Hjson.HjsonValue.Load(Path.Combine(args[1], $"Localization/{language}_Mods.伊蕾娜.Alchemy.Items.hjson"));
+            Assert(!string.IsNullOrWhiteSpace((string)itemLocalization["AshenFacsimileDust"]["DisplayName"]) &&
+                string.Format(tooltip, 15).Contains("15") &&
+                !string.IsNullOrWhiteSpace((string)localization["Crafting"]["FacsimileSubstitution"]) &&
+                !string.IsNullOrWhiteSpace((string)localization["Crafting"]["FacsimileSubstitutionPriority"]), "localization parses and formats " + language);
         }
 
         var benchOwned = Owned((1, 20), (2, 1), (3, 4), (Dust, 15));

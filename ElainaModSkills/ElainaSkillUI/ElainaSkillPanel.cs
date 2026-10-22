@@ -69,7 +69,7 @@ public class ElainaSkillPanel : SkillPanelUI
         BorderColor = Color.White*0;
         BackgroundColor = Color.White*0;
 
-        background ??= ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/ElainaSkillPanel_BackGround4", AssetRequestMode.ImmediateLoad).Value;
+        //background ??= ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/ElainaSkillPanel_BackGround4", AssetRequestMode.ImmediateLoad).Value;
         base.OnInitialize();
         ElainaSkillModPlayer.ElainaSkillPanel = this;
         
@@ -94,7 +94,7 @@ public class ElainaSkillPanel : SkillPanelUI
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        background = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/ElainaSkillPanel_BackGround4", AssetRequestMode.ImmediateLoad).Value;
+        //background = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/ElainaSkillPanel_BackGround4", AssetRequestMode.ImmediateLoad).Value;
 
         Vector2 size = Bounds.Size;
 

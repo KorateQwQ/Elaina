@@ -71,7 +71,7 @@ public sealed class AlchemyCatalogItemTypes : ModSystem
         "egg" => ModContent.ItemType<Egg>(),
         "beef" => ModContent.ItemType<Beef>(),
         "potato" => ModContent.ItemType<Potato>(),
-        "shimmer" => ModContent.ItemType<ShimmerDroplet>(),
+        "shimmer" => ModContent.ItemType<BottledShimmer>(),
         _ => ItemID.None,
     };
 }
