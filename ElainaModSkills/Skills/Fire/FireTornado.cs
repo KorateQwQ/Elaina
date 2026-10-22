@@ -56,12 +56,9 @@ public class FireTornado : ElainaBasicProjectile
         base.AI();
     }
 
+    //绘制请求在 DrawBehind 中提交
     public override bool PreDraw(ref Color lightColor)
     {
-        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
-        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
         return false;
     }
 
@@ -194,7 +191,12 @@ public class FireTornado : ElainaBasicProjectile
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
-        //behindNPCsAndTiles.Add(index);
+        //KL 每帧在 CacheProjDraws 开始时清空请求，随后才绘制 BehindNPCsAndTiles 层；
+        //DrawBehind 在这两者之间调用，在这里提交才能让背面气流圈画到图块后面。
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
 }
