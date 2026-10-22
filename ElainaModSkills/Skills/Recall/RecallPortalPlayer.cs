@@ -6,26 +6,28 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 
 public sealed class RecallPortalPlayer : ModPlayer
 {
-    internal int TravelCooldown, CastRequestCooldown;
+    internal int TravelCooldown;
     private int sentSpawnX = int.MinValue, sentSpawnY = int.MinValue;
 
     public override void OnEnterWorld()
     {
-        TravelCooldown = CastRequestCooldown = 0;
+        TravelCooldown = 0;
         sentSpawnX = sentSpawnY = int.MinValue;
     }
 
     public override void PreUpdate()
     {
         if (TravelCooldown > 0) TravelCooldown--;
-        if (CastRequestCooldown > 0) CastRequestCooldown--;
-        // 原版换床不总会立即发 PlayerSpawn；让服务器掌握所选友军的当前出生点。
+        // 原版换床不总会立即发 PlayerSpawn；换床后经服务器广播，施法者才能在自己这端打开友军家里的出口。
         if (Main.netMode != NetmodeID.MultiplayerClient || Player.whoAmI != Main.myPlayer ||
             sentSpawnX == Player.SpawnX && sentSpawnY == Player.SpawnY) return;
         sentSpawnX = Player.SpawnX; sentSpawnY = Player.SpawnY;
-        var packet = RecallPortalSystem.Packet(RecallPortalSystem.Operation.SpawnPoint, Player.whoAmI);
-        packet.Write(sentSpawnX); packet.Write(sentSpawnY); packet.Send();
+        RecallPortalSystem.SendSpawnPoint(Player);
     }
+
+    // 玩家加入时：客户端把自己的出生点发给服务器（再转发给其他人），服务器把已有玩家的出生点发给新玩家。
+    public override void SyncPlayer(int toWho, int fromWho, bool newPlayer) =>
+        RecallPortalSystem.SendSpawnPoint(Player, toWho, fromWho);
 
     public override void SetControls()
     {

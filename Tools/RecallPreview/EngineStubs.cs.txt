@@ -26,6 +26,7 @@ namespace Terraria
         public void MouseText(string text) { }
         public static List<string> Notices = [];
         public static void NewText(string text) => Notices.Add(text);
+        public static void QueueMainThreadAction(Action action) => action();
     }
     public sealed class Player
     {
@@ -35,7 +36,6 @@ namespace Terraria
         public Vector2 Center { get => position + new Vector2(width / 2f, height / 2f); set => position = value - new Vector2(width / 2f, height / 2f); }
         public Vector2 Bottom { get => position + new Vector2(width / 2f, height); set => position = value - new Vector2(width / 2f, height); }
         public Item HeldItem = new();
-        public static bool ValidBed = true;
         readonly Dictionary<Type, object> mods = new();
         public T GetModPlayer<T>() where T : new()
         {
@@ -46,7 +46,6 @@ namespace Terraria
             }
             return (T)value;
         }
-        public static bool CheckSpawn(int x, int y) => ValidBed;
         public object GetSource_Misc(string context) => null;
         public void Teleport(Vector2 pos, int style) { position = pos; Teleports++; }
     }
@@ -55,7 +54,7 @@ namespace Terraria
     {
         public bool active, tileCollide, ignoreWater, netImportant, netUpdate;
         public int width, height, penetrate, timeLeft, owner, identity;
-        public float[] ai = new float[3];
+        public float[] ai = new float[3], localAI = new float[3];
         public Vector2 Center;
         public ModProjectile ModProjectile;
         public void Kill()
@@ -88,7 +87,7 @@ namespace Terraria
         }
     }
     public sealed record ProjectileSnapshot(int Owner, int Identity, Vector2 Position, float[] AI, int TimeLeft);
-    public sealed record WireMessage(int Mode, int Sender, int Recipient, byte[] Packet, ProjectileSnapshot Projectile, bool Kill);
+    public sealed record WireMessage(int Mode, int Sender, int Recipient, byte[] Packet, ProjectileSnapshot Projectile, bool Kill, int Ignore = -1);
     public static class Wire
     {
         public static Queue<WireMessage> Queue = new();
@@ -108,7 +107,7 @@ namespace Terraria
 namespace Terraria.ModLoader
 {
     public class ModSystem { public Mod Mod = new(); public virtual void PostUpdatePlayers() { } public virtual void OnWorldUnload() { } public virtual void Unload() { } }
-    public class ModPlayer { public Player Player; public virtual void OnEnterWorld() { } public virtual void PreUpdate() { } public virtual void SetControls() { } }
+    public class ModPlayer { public Player Player; public virtual void OnEnterWorld() { } public virtual void PreUpdate() { } public virtual void SetControls() { } public virtual void SyncPlayer(int toWho, int fromWho, bool newPlayer) { } }
     public class ModProjectile
     {
         public Projectile Projectile;
@@ -125,11 +124,11 @@ namespace Terraria.ModLoader
     {
         public static List<byte[]> Sent = [];
         public ModPacket() : base(new MemoryStream()) { }
-        public void Send(int toClient = -1)
+        public void Send(int toClient = -1, int ignoreClient = -1)
         {
             byte[] data = ((MemoryStream)BaseStream).ToArray();
             Sent.Add(data);
-            Wire.Queue.Enqueue(new(Main.netMode, Main.myPlayer, toClient, data, null, false));
+            Wire.Queue.Enqueue(new(Main.netMode, Main.myPlayer, toClient, data, null, false, ignoreClient));
         }
     }
 }
@@ -140,10 +139,13 @@ namespace Terraria.ID
     public static class MessageID { public const int SyncProjectile = 27; }
 }
 namespace Terraria.DataStructures { public interface IEntitySource { } }
-namespace Terraria.GameContent
+// 行为检查不渲染：bloom 请求与顶点绘制由 Preview 回放真实 KL 管线验证。
+namespace 伊蕾娜.ElainaModSkills.Skills.Recall
 {
-    public static class TextureAssets { public static FakeAsset MagicPixel = new(); }
-    public sealed class FakeAsset { public Texture2D Value; }
+    internal static class RecallPortalVisual
+    {
+        public static void Request(Vector2 screenCenter, float radius, float age, int delay, int lifetime, bool destination, bool hovered, float burstStart) { }
+    }
 }
 namespace 伊蕾娜 { public class 伊蕾娜 { public enum MessageType : byte { RecallPortal } } }
 namespace 伊蕾娜.Items { public sealed class ElainaWand { } }

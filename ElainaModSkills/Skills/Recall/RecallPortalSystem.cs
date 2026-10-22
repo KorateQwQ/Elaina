@@ -1,12 +1,13 @@
-using System;
 using System.IO;
 using Terraria.ID;
-using 伊蕾娜.Items;
 using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 
-/// <summary>施法客户端以自己的 whoAmI 生成和管理两端弹幕；服务器只登记配对、校验并结算玩家传送。</summary>
+/// <summary>
+/// 施法客户端以自己的 whoAmI 同时生成两端法阵，原版 SyncProjectile 负责同步；
+/// 法阵画完（年龄到 DelayTicks）时由服务器结算群体传送，右键往返也由服务器校验。服务器不登记任何配对状态。
+/// </summary>
 public sealed class RecallPortalSystem : ModSystem
 {
     public const float SelectionRadius = 3000f;
@@ -15,22 +16,7 @@ public sealed class RecallPortalSystem : ModSystem
     public const int ResidueTicks = 30 * 60;
     public const int TravelCooldownTicks = 45;
 
-    internal enum Operation : byte { Cast, Travel, SpawnPoint, Teleport, CastResult, Commit, OpenDestination, DestinationReady, Close }
-    private const int RequestTimeout = 300;
-    private sealed class Pair
-    {
-        public int Id, Caster, Target, Age, OriginIndex, DestinationIndex = -1;
-        public Vector2 Origin, Destination;
-        public bool Committed, DestinationRequested, Activated;
-        public int WaitingTicks;
-    }
-    private sealed class ClientRequest
-    {
-        public int Caster, Id, Age;
-        public Func<bool> Pay;
-    }
-    private static readonly List<Pair> pairs = [];
-    private static readonly List<ClientRequest> requests = [];
+    internal enum Operation : byte { Travel, SpawnPoint, Teleport, Flash }
     private static int nextId;
 
     public static bool IsAlly(Player caster, Player candidate) => caster.active &&
@@ -53,25 +39,45 @@ public sealed class RecallPortalSystem : ModSystem
         return packet;
     }
 
-    internal static bool HasPendingCast(Player caster) => requests.Exists(r => r.Caster == caster.whoAmI);
-
-    internal static void RequestCast(Player caster, int target, Func<bool> pay = null)
+    /// <summary>
+    /// 在目标脚下和目标的“家”（床，无床时为世界出生点）同时打开一对法阵；只在施法客户端或单人模式调用。
+    /// 出口位置在施法时就确定，之后的传送都落到出口法阵处，不再追踪床的变化。
+    /// </summary>
+    internal static bool Cast(Player caster, int target)
     {
-        if (Main.netMode == NetmodeID.Server || caster.whoAmI != Main.myPlayer || HasPendingCast(caster) ||
-            !IsSelectable(caster, target)) return;
+        if (Main.netMode == NetmodeID.Server || caster.whoAmI != Main.myPlayer || !IsSelectable(caster, target)) return false;
         if (++nextId >= 16_000_000) nextId = 1;
         int id = nextId;
-        // NewProjectile 必须由 owner 所在客户端调用，原版才会初始化 ai 并发送 SyncProjectile。
-        // -1 表示等待服务器确认，尚不播放法阵，也不开始蓄力或扣费。
-        int index = SpawnOwnedPortal(caster.whoAmI, id, Main.player[target].Bottom, 0, -1);
-        if (index >= Main.maxProjectiles) { Main.NewText(LocalizeUI("RecallCastFailed")); return; }
-        requests.Add(new ClientRequest { Caster = caster.whoAmI, Id = id, Pay = pay });
-        if (Main.netMode == NetmodeID.SinglePlayer) { RegisterCast(caster.whoAmI, target, id); return; }
-        ModPacket packet = Packet(Operation.Cast, caster.whoAmI);
-        packet.Write(target);
-        packet.Write(id);
-        packet.Send();
+        Player anchor = Main.player[target];
+        int origin = Spawn(caster.whoAmI, id, anchor.Bottom, 0);
+        int exit = origin < Main.maxProjectiles ? Spawn(caster.whoAmI, id, HomeFoot(anchor), 1) : Main.maxProjectiles;
+        if (exit >= Main.maxProjectiles)
+        {
+            if (origin < Main.maxProjectiles) Main.projectile[origin].Kill();
+            Main.NewText(LocalizeUI("RecallCastFailed"));
+            return false;
+        }
+        // 每名施法者只保留一对门：新法阵建立后关闭自己的旧门（包括尚在描绘的），KillProjectile 由原版同步。
+        foreach (Projectile projectile in Main.ActiveProjectiles)
+            if (projectile.owner == caster.whoAmI && projectile.ModProjectile is RecallPortalProjectile portal && portal.PairId != id)
+                projectile.Kill();
+        return true;
     }
+
+    /// <summary>床脚下的坐标；出生点无效时为世界出生点。客户端可能没有加载床所在区域，因此不检查床是否还在。</summary>
+    internal static Vector2 HomeFoot(Player player)
+    {
+        int x = player.SpawnX, y = player.SpawnY;
+        bool bed = ValidSpawn(x, y);
+        return new Vector2((bed ? x : Main.spawnTileX) * 16 + 8, (bed ? y : Main.spawnTileY) * 16);
+    }
+
+    private static bool ValidSpawn(int x, int y) => x >= 10 && x < Main.maxTilesX - 10 && y >= 10 && y < Main.maxTilesY - 10;
+
+    private static int Spawn(int caster, int id, Vector2 foot, int side) =>
+        // NewProjectile 必须由 owner 所在客户端调用，原版才会初始化 ai 并发送 SyncProjectile。
+        Projectile.NewProjectile(Main.player[caster].GetSource_Misc("RecallPortal"), foot, Vector2.Zero,
+            ModContent.ProjectileType<RecallPortalProjectile>(), 0, 0, caster, id, 0, side);
 
     internal static void RequestTravel(Player player, RecallPortalProjectile portal)
     {
@@ -83,6 +89,14 @@ public sealed class RecallPortalSystem : ModSystem
         packet.Send();
     }
 
+    internal static void SendSpawnPoint(Player player, int toClient = -1, int ignoreClient = -1)
+    {
+        ModPacket packet = Packet(Operation.SpawnPoint, player.whoAmI);
+        packet.Write(player.SpawnX);
+        packet.Write(player.SpawnY);
+        packet.Send(toClient, ignoreClient);
+    }
+
     internal static void HandlePacket(BinaryReader reader, int sender, int playerIndex)
     {
         Operation operation = (Operation)reader.ReadByte();
@@ -92,39 +106,38 @@ public sealed class RecallPortalSystem : ModSystem
             if (sender < 0 || sender >= Main.maxPlayers || playerIndex != sender || !Main.player[sender].active) return;
             switch (operation)
             {
-                case Operation.Cast: RegisterCast(sender, reader.ReadInt32(), reader.ReadInt32()); break;
-                case Operation.Commit: CommitCast(sender, reader.ReadInt32(), reader.ReadBoolean()); break;
-                case Operation.DestinationReady: ActivatePair(sender, reader.ReadInt32()); break;
                 case Operation.Travel: Travel(sender, reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()); break;
                 case Operation.SpawnPoint:
-                    int x = reader.ReadInt32(), y = reader.ReadInt32();
-                    bool valid = x >= 10 && x < Main.maxTilesX - 10 && y >= 10 && y < Main.maxTilesY - 10;
-                    Main.player[sender].SpawnX = valid ? x : -1;
-                    Main.player[sender].SpawnY = valid ? y : -1;
+                    ApplySpawnPoint(Main.player[sender], reader.ReadInt32(), reader.ReadInt32());
+                    // 转发给其他客户端：施法者需要知道所选友军的家在哪里才能打开出口。
+                    SendSpawnPoint(Main.player[sender], ignoreClient: sender);
                     break;
             }
         }
         else if (Main.netMode == NetmodeID.MultiplayerClient && playerIndex >= 0 && playerIndex < Main.maxPlayers)
         {
-            if (operation == Operation.Teleport)
+            switch (operation)
             {
-                Vector2 position = new(reader.ReadSingle(), reader.ReadSingle());
-                if (float.IsFinite(position.X) && float.IsFinite(position.Y)) ApplyTeleport(Main.player[playerIndex], position);
-            }
-            else if (playerIndex == Main.myPlayer)
-            {
-                switch (operation)
-                {
-                    case Operation.CastResult: CompleteRequest(reader.ReadInt32(), reader.ReadBoolean()); break;
-                    case Operation.OpenDestination:
-                        OpenOwnedDestination(reader.ReadInt32(), new Vector2(reader.ReadSingle(), reader.ReadSingle())); break;
-                    case Operation.Close: CloseOwnedPair(playerIndex, reader.ReadInt32()); break;
-                }
+                case Operation.Teleport:
+                    Vector2 position = new(reader.ReadSingle(), reader.ReadSingle());
+                    if (float.IsFinite(position.X) && float.IsFinite(position.Y)) ApplyTeleport(Main.player[playerIndex], position);
+                    break;
+                case Operation.SpawnPoint:
+                    if (playerIndex != Main.myPlayer) ApplySpawnPoint(Main.player[playerIndex], reader.ReadInt32(), reader.ReadInt32());
+                    break;
+                case Operation.Flash: FlashPair(playerIndex, reader.ReadInt32()); break;
             }
         }
     }
 
-    private static int FindPortal(int caster, int id, int side)
+    private static void ApplySpawnPoint(Player player, int x, int y)
+    {
+        bool valid = ValidSpawn(x, y);
+        player.SpawnX = valid ? x : -1;
+        player.SpawnY = valid ? y : -1;
+    }
+
+    internal static int FindPortal(int caster, int id, int side)
     {
         for (int i = 0; i < Main.maxProjectiles; i++)
             if (Main.projectile[i] is { active: true, ModProjectile: RecallPortalProjectile portal } p &&
@@ -132,202 +145,46 @@ public sealed class RecallPortalSystem : ModSystem
         return -1;
     }
 
-    private static int SpawnOwnedPortal(int caster, int id, Vector2 foot, int side, int age)
+    /// <summary>起点法阵画完的那一帧：把阵内存活的同队友军一起传送到出口法阵。只在服务器或单人模式结算。</summary>
+    internal static void Arrive(RecallPortalProjectile origin)
     {
-        if (Main.netMode == NetmodeID.Server || caster != Main.myPlayer) return Main.maxProjectiles;
-        return Projectile.NewProjectile(Main.player[caster].GetSource_Misc("RecallPortal"), foot, Vector2.Zero,
-            ModContent.ProjectileType<RecallPortalProjectile>(), 0, 0, caster, id, age, side);
-    }
-
-    private static void RegisterCast(int caster, int target, int id)
-    {
-        int index = FindPortal(caster, id, 0);
-        bool accepted = id > 0 && IsSelectable(Main.player[caster], target) &&
-            Main.player[caster].HeldItem.ModItem is ElainaWand && index >= 0 &&
-            Vector2.DistanceSquared(Main.projectile[index].Center, Main.player[target].Bottom) <= AreaRadius * AreaRadius &&
-            Main.player[caster].GetModPlayer<RecallPortalPlayer>().CastRequestCooldown == 0 &&
-            !pairs.Exists(p => p.Caster == caster && p.Id == id);
-        if (accepted)
-            pairs.Add(new Pair { Id = id, Caster = caster, Target = target, OriginIndex = index, Origin = Main.projectile[index].Center });
-        if (Main.netMode == NetmodeID.SinglePlayer) CompleteRequest(id, accepted);
-        else
-        {
-            ModPacket result = Packet(Operation.CastResult, caster);
-            result.Write(id); result.Write(accepted); result.Send(caster);
-        }
-    }
-
-    private static void CompleteRequest(int id, bool accepted)
-    {
-        ClientRequest request = requests.Find(r => r.Caster == Main.myPlayer && r.Id == id);
-        if (request == null) return; // 超时或重复回包不再扣费。
-        requests.Remove(request);
-        int source = FindPortal(request.Caster, id, 0);
-        bool paid = accepted && source >= 0 && (request.Pay?.Invoke() ?? true);
-        if (paid)
-        {
-            // 新施法获准后，只有生成端关闭自己的旧门并广播 KillProjectile。
-            foreach (Projectile projectile in Main.ActiveProjectiles)
-                if (projectile.owner == request.Caster && projectile.ModProjectile is RecallPortalProjectile portal && portal.PairId != id)
-                    projectile.Kill();
-            Main.projectile[source].ai[1] = 0;
-            SyncOwnedPortal(source);
-        }
-        else
-        {
-            CloseOwnedPair(request.Caster, id);
-            Main.NewText(LocalizeUI("RecallCastFailed"));
-        }
-        if (Main.netMode == NetmodeID.SinglePlayer) CommitCast(request.Caster, id, paid);
-        else
-        {
-            ModPacket packet = Packet(Operation.Commit, request.Caster);
-            packet.Write(id); packet.Write(paid); packet.Send();
-        }
-    }
-
-    private static void CommitCast(int caster, int id, bool paid)
-    {
-        Pair pair = pairs.Find(p => p.Caster == caster && p.Id == id);
-        if (pair == null || pair.Committed) return;
-        if (!paid || !HasPortal(pair, pair.OriginIndex)) { RemovePair(pairs.IndexOf(pair)); return; }
-        for (int i = pairs.Count - 1; i >= 0; i--)
-            if (pairs[i].Caster == caster && pairs[i] != pair) RemovePair(i);
-        pair.Committed = true;
-        pair.WaitingTicks = 0;
-        Main.player[caster].GetModPlayer<RecallPortalPlayer>().CastRequestCooldown = 60;
-    }
-
-    private static void SyncOwnedPortal(int index)
-    {
-        // 回包处理不在 AI 内，不能只设 netUpdate（原版更新开头会清零它）。
-        if (Main.netMode == NetmodeID.MultiplayerClient && Main.projectile[index].owner == Main.myPlayer)
-            NetMessage.SendData(MessageID.SyncProjectile, number: index);
-    }
-
-    private static void OpenOwnedDestination(int id, Vector2 foot)
-    {
-        int caster = Main.myPlayer, source = FindPortal(caster, id, 0);
-        if (source < 0 || FindPortal(caster, id, 1) >= 0 || !float.IsFinite(foot.X) || !float.IsFinite(foot.Y)) return;
-        int destination = SpawnOwnedPortal(caster, id, foot, 1, DelayTicks - 1);
-        if (destination >= Main.maxProjectiles) { CloseOwnedPair(caster, id); return; }
-        Main.projectile[source].ai[1] = DelayTicks - 1;
-        SyncOwnedPortal(source);
-        if (Main.netMode == NetmodeID.SinglePlayer) ActivatePair(caster, id);
-        else
-        {
-            ModPacket packet = Packet(Operation.DestinationReady, caster);
-            packet.Write(id); packet.Send();
-        }
-    }
-
-    private static void ActivatePair(int caster, int id)
-    {
-        Pair pair = pairs.Find(p => p.Caster == caster && p.Id == id);
-        if (pair == null || !pair.Committed || !pair.DestinationRequested || pair.Activated) return;
-        if (!HasPortal(pair, pair.OriginIndex) || !IsAlly(Main.player[caster], Main.player[pair.Target]))
-        { RemovePair(pairs.IndexOf(pair)); return; }
-        int index = FindPortal(caster, id, 1);
-        if (index < 0 || Vector2.DistanceSquared(Main.projectile[index].Center, pair.Destination) > 4) return;
-        pair.DestinationIndex = index;
-        pair.Activated = true;
-        pair.Age = DelayTicks;
+        if (Main.netMode == NetmodeID.MultiplayerClient) return;
+        Projectile projectile = origin.Projectile;
+        int exit = FindPortal(projectile.owner, origin.PairId, 1);
+        if (exit < 0) return;
+        Player caster = Main.player[projectile.owner];
         for (int p = 0; p < Main.maxPlayers; p++)
-            if (IsAlly(Main.player[caster], Main.player[p]) && InArea(Main.player[p], pair.Origin))
-                TeleportPlayer(Main.player[p], pair.Destination);
-    }
-
-    public override void PostUpdatePlayers()
-    {
-        if (Main.netMode == NetmodeID.MultiplayerClient)
-        {
-            for (int i = requests.Count - 1; i >= 0; i--)
-                if (requests[i].Caster == Main.myPlayer && ++requests[i].Age >= RequestTimeout)
-                    CompleteRequest(requests[i].Id, false);
-            return;
-        }
-        for (int i = pairs.Count - 1; i >= 0; i--)
-        {
-            Pair pair = pairs[i];
-            if (!Main.player[pair.Caster].active || !HasPortal(pair, pair.OriginIndex) ||
-                pair.Activated && !HasPortal(pair, pair.DestinationIndex))
-            { RemovePair(i); continue; }
-            if (!pair.Committed || pair.DestinationRequested && !pair.Activated)
-            {
-                if (++pair.WaitingTicks >= RequestTimeout) RemovePair(i);
-                continue;
-            }
-            if (++pair.Age >= DelayTicks + ResidueTicks) { RemovePair(i); continue; }
-            if (pair.DestinationRequested || pair.Age < DelayTicks) continue;
-            Player target = Main.player[pair.Target];
-            // 锚定的友军死亡、离线或换队时取消，不能误用同一玩家槽位的新状态。
-            if (!IsAlly(Main.player[pair.Caster], target) || !TryGetSpawnFoot(target, out pair.Destination))
-            { RemovePair(i); continue; }
-            pair.DestinationRequested = true;
-            pair.WaitingTicks = 0;
-            if (Main.netMode == NetmodeID.SinglePlayer) OpenOwnedDestination(pair.Id, pair.Destination);
-            else
-            {
-                ModPacket packet = Packet(Operation.OpenDestination, pair.Caster);
-                packet.Write(pair.Id); packet.Write(pair.Destination.X); packet.Write(pair.Destination.Y);
-                packet.Send(pair.Caster);
-            }
-        }
-    }
-
-    private static bool HasPortal(Pair pair, int index) => index >= 0 && index < Main.maxProjectiles &&
-        Main.projectile[index] is { active: true, ModProjectile: RecallPortalProjectile portal } p &&
-        p.owner == pair.Caster && portal.PairId == pair.Id;
-
-    private static void RemovePair(int index)
-    {
-        Pair pair = pairs[index];
-        pairs.RemoveAt(index);
-        if (Main.netMode == NetmodeID.SinglePlayer) CloseOwnedPair(pair.Caster, pair.Id);
-        else
-        {
-            ModPacket packet = Packet(Operation.Close, pair.Caster);
-            packet.Write(pair.Id); packet.Send(pair.Caster);
-        }
-    }
-
-    private static void CloseOwnedPair(int caster, int id)
-    {
-        if (Main.netMode == NetmodeID.Server || caster != Main.myPlayer) return;
-        foreach (Projectile projectile in Main.ActiveProjectiles)
-            if (projectile.owner == caster && projectile.ModProjectile is RecallPortalProjectile portal && portal.PairId == id)
-                projectile.Kill();
+            if (IsAlly(caster, Main.player[p]) && InArea(Main.player[p], projectile.Center))
+                TeleportPlayer(Main.player[p], Main.projectile[exit].Center);
     }
 
     private static void Travel(int playerIndex, int caster, int pairId, int side)
     {
-        if (side != 0 && side != 1) return;
-        Pair pair = pairs.Find(p => p.Caster == caster && p.Id == pairId);
+        if (side != 0 && side != 1 || caster < 0 || caster >= Main.maxPlayers) return;
+        int from = FindPortal(caster, pairId, side), to = FindPortal(caster, pairId, 1 - side);
         Player player = Main.player[playerIndex];
-        if (pair == null || !pair.Activated || pair.Age >= DelayTicks + ResidueTicks ||
-            !HasPortal(pair, pair.OriginIndex) || !HasPortal(pair, pair.DestinationIndex) ||
-            !IsAlly(Main.player[pair.Caster], player) || player.GetModPlayer<RecallPortalPlayer>().TravelCooldown > 0 ||
-            !InArea(player, side == 0 ? pair.Origin : pair.Destination)) return;
-        TeleportPlayer(player, side == 0 ? pair.Destination : pair.Origin);
+        if (from < 0 || to < 0 || !((RecallPortalProjectile)Main.projectile[from].ModProjectile).Ready ||
+            !((RecallPortalProjectile)Main.projectile[to].ModProjectile).Ready ||
+            !IsAlly(Main.player[caster], player) || player.GetModPlayer<RecallPortalPlayer>().TravelCooldown > 0 ||
+            !InArea(player, Main.projectile[from].Center)) return;
+        if (!TeleportPlayer(player, Main.projectile[to].Center)) return;
+        // 传送特效：两端各重放一次画完时的向上爆发。
+        FlashPair(caster, pairId);
+        if (Main.netMode != NetmodeID.Server) return;
+        ModPacket packet = Packet(Operation.Flash, caster);
+        packet.Write(pairId); packet.Send();
     }
 
-    private static bool TryGetSpawnFoot(Player target, out Vector2 foot)
+    private static void FlashPair(int caster, int pairId)
     {
-        int x = target.SpawnX, y = target.SpawnY;
-        bool bed = x >= 10 && x < Main.maxTilesX - 10 && y >= 10 && y < Main.maxTilesY - 10 && Player.CheckSpawn(x, y);
-        foot = new Vector2((bed ? x : Main.spawnTileX) * 16 + 8, (bed ? y : Main.spawnTileY) * 16);
-        if (TryFindLanding(target, foot, out Vector2 landing))
-        { foot = landing + new Vector2(target.width / 2f, target.height); return true; }
-        if (!bed) return false;
-        foot = new Vector2(Main.spawnTileX * 16 + 8, Main.spawnTileY * 16);
-        if (!TryFindLanding(target, foot, out landing)) return false;
-        foot = landing + new Vector2(target.width / 2f, target.height);
-        return true;
+        foreach (Projectile projectile in Main.ActiveProjectiles)
+            if (projectile.owner == caster && projectile.ModProjectile is RecallPortalProjectile portal && portal.PairId == pairId)
+                portal.Flash();
     }
 
     private static bool TryFindLanding(Player player, Vector2 foot, out Vector2 position)
     {
-        // 端点被方块封住时只寻找附近安全空位，不破坏方块，也不把玩家塞进墙或岩浆。
+        // 落点被方块封住时只寻找附近安全空位，不破坏方块，也不把玩家塞进墙或岩浆；找不到就不传送。
         for (int up = 0; up <= 12; up++)
         for (int offset = 0; offset <= 12; offset++)
         {
@@ -342,14 +199,15 @@ public sealed class RecallPortalSystem : ModSystem
         return false;
     }
 
-    private static void TeleportPlayer(Player player, Vector2 foot)
+    private static bool TeleportPlayer(Player player, Vector2 foot)
     {
-        if (!TryFindLanding(player, foot, out Vector2 position)) return;
+        if (!TryFindLanding(player, foot, out Vector2 position)) return false;
         if (Main.netMode == NetmodeID.Server) RemoteClient.CheckSection(player.whoAmI, position);
         ApplyTeleport(player, position);
-        if (Main.netMode != NetmodeID.Server) return;
+        if (Main.netMode != NetmodeID.Server) return true;
         ModPacket packet = Packet(Operation.Teleport, player.whoAmI);
         packet.Write(position.X); packet.Write(position.Y); packet.Send();
+        return true;
     }
 
     private static void ApplyTeleport(Player player, Vector2 position)
@@ -360,6 +218,10 @@ public sealed class RecallPortalSystem : ModSystem
         player.GetModPlayer<RecallPortalPlayer>().TravelCooldown = TravelCooldownTicks;
     }
 
-    public override void OnWorldUnload() { pairs.Clear(); requests.Clear(); nextId = 0; }
-    public override void Unload() { pairs.Clear(); requests.Clear(); nextId = 0; }
+    public override void OnWorldUnload() => nextId = 0;
+    public override void Unload()
+    {
+        nextId = 0;
+        Main.QueueMainThreadAction(RecallPortalDrawing.Unload);
+    }
 }

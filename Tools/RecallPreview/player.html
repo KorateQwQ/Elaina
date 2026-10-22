@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>回城法阵动画预览</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 20px; background: #10141d; color: #d8dde8; font: 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  button { background: #222a38; color: inherit; border: 1px solid #344055; border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: #5b6b88; }
+  button.on { background: #3b4a66; border-color: #7f93b8; }
+  .group { display: inline-flex; flex-wrap: wrap; gap: 4px; padding-right: 8px; margin-right: 4px; border-right: 1px solid #2a3345; }
+  .group:last-child { border-right: 0; }
+  #stage { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #2a3345; background: #1b222e; }
+  #scrub { width: 100%; max-width: 1140px; margin: 10px 0 4px; }
+  #info { font-variant-numeric: tabular-nums; color: #9aa6bb; }
+  #info b { color: #e6ebf5; font-weight: 600; }
+  .hint { color: #6d7890; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>回城法阵动画预览 <span style="color:#6d7890;font-weight:400">（FNA 逐帧回放正式绘制与 KL bloom 合成，60 帧/秒）</span></h1>
+<div class="bar">
+  <span class="group" id="scenes"></span>
+  <span class="group">
+    <button id="play">暂停</button>
+    <button id="prev">◀ 上一帧</button>
+    <button id="next">下一帧 ▶</button>
+  </span>
+  <span class="group" id="speeds"></span>
+  <span class="group" id="zooms"></span>
+</div>
+<canvas id="stage"></canvas>
+<input id="scrub" type="range" min="0" value="0">
+<div id="info"></div>
+<div class="hint">快捷键：空格 播放/暂停，← → 逐帧，1 2 3 切换场景。像素按整数倍放大，1× 即游戏默认缩放下的实际像素；窗口较窄时画面会自动缩小以适应宽度。</div>
+<script>
+const scenes = /*SCENES*/[];
+const DELAY = 90, LIFETIME = 1800;
+const canvas = document.getElementById('stage'), ctx = canvas.getContext('2d');
+const scrub = document.getElementById('scrub'), info = document.getElementById('info');
+let scene = 0, frame = 0, playing = true, speed = 1, zoom = 3, clock = 0, last = 0;
+
+if (!scenes.length) {
+  document.body.innerHTML = '<h1>这是播放器模板，没有动画帧</h1><p>请双击 <code>Tools/RecallPreview/preview.cmd</code>（或运行 run.ps1），' +
+    '然后打开生成的 <code>.vissandbox/recall-preview/recall-player.html</code>。</p>';
+  throw new Error('No frames: open the generated recall-player.html instead of the template.');
+}
+const images = scenes.map(s => s.frames.map(data => { const img = new Image(); img.src = 'data:image/png;base64,' + data; return img; }));
+
+function buttons(host, items, current, pick) {
+  host.innerHTML = '';
+  items.forEach(([label, value]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.className = value === current() ? 'on' : '';
+    b.onclick = () => { pick(value); buttons(host, items, current, pick); };
+    host.appendChild(b);
+  });
+}
+function refreshButtons() {
+  buttons(document.getElementById('scenes'), scenes.map((s, i) => [s.label, i]), () => scene, v => { scene = v; frame = 0; clock = 0; refreshButtons(); render(); });
+  buttons(document.getElementById('speeds'), [['0.1×', .1], ['0.25×', .25], ['0.5×', .5], ['1×', 1]], () => speed, v => speed = v);
+  buttons(document.getElementById('zooms'), [['1×', 1], ['2×', 2], ['3×', 3]], () => zoom, v => { zoom = v; render(); });
+}
+
+function render() {
+  const s = scenes[scene], img = images[scene][frame];
+  if (!img.complete) { img.onload = render; return; }
+  canvas.width = img.width * zoom; canvas.height = img.height * zoom;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  scrub.max = s.frames.length - 1; scrub.value = frame;
+  const age = s.from + frame;
+  const build = Math.max(0, age) / DELAY;
+  const phase = age >= DELAY + LIFETIME - 30 ? '淡出' : build < 1 ? '蓄力描绘中' : '激活';
+  info.innerHTML = `年龄 <b>${age}</b> 帧（${(age / 60).toFixed(2)} 秒）　描绘进度 <b>${Math.min(100, build * 100).toFixed(0)}%</b>　阶段 <b>${phase}</b>　场景内第 ${frame + 1} / ${s.frames.length} 帧`;
+}
+
+function tick(now) {
+  if (playing && last) {
+    clock += (now - last) / 1000 * 60 * speed;
+    const steps = Math.floor(clock);
+    if (steps > 0) { clock -= steps; frame = (frame + steps) % scenes[scene].frames.length; render(); }
+  }
+  last = now;
+  requestAnimationFrame(tick);
+}
+
+function setPlaying(value) { playing = value; document.getElementById('play').textContent = playing ? '暂停' : '播放'; }
+function step(delta) { setPlaying(false); const n = scenes[scene].frames.length; frame = (frame + delta + n) % n; render(); }
+document.getElementById('play').onclick = () => setPlaying(!playing);
+document.getElementById('prev').onclick = () => step(-1);
+document.getElementById('next').onclick = () => step(1);
+scrub.oninput = () => { setPlaying(false); frame = +scrub.value; render(); };
+addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === 'ArrowLeft') step(-1);
+  else if (e.key === 'ArrowRight') step(1);
+  else if (scenes[e.key - 1]) { scene = e.key - 1; frame = 0; refreshButtons(); render(); }
+});
+refreshButtons();
+render();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
