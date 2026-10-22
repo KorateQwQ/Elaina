@@ -1,0 +1,441 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using KL.Drawing;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+// 对比火焰龙卷合并前后的绘制结果：原本逐层 TornadoEffect/SphereEffect 绘制 vs TornadoLayered/SphereEffect 双层 pass。
+// 使用 KL 编译好的 XNB shader 和真实贴图，在 Bloom 捕获用的 Vector4 目标与 8 位目标上分别比较。
+static class Program
+{
+    static void Main(string[] args)
+    {
+        using var preview = new Preview(args[0], args[1]);
+        preview.Run();
+        Environment.Exit(preview.ExitCode);
+    }
+}
+
+sealed class Preview : Game
+{
+    const int Width = 900, Height = 1500;
+    static readonly Vector2 Center = new(450, 700);
+
+    // 与 KL DrawSystem 捕获 Bloom 时使用的混合状态相同
+    static readonly BlendState BloomAdditive = new()
+    {
+        ColorSourceBlend = Blend.SourceAlpha, ColorDestinationBlend = Blend.One,
+        AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One
+    };
+    static readonly BlendState BloomStraight = new()
+    {
+        ColorSourceBlend = Blend.SourceAlpha, ColorDestinationBlend = Blend.InverseSourceAlpha,
+        AlphaSourceBlend = Blend.One, AlphaDestinationBlend = Blend.InverseSourceAlpha
+    };
+
+    [DllImport("kernel32.dll")]
+    static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+    readonly string kl, output;
+    public int ExitCode = 1;
+    SpriteBatch batch;
+    Effect tornado, tornadoLayered, sphere;
+    Texture2D waterNoi, wind1, cellnoise, displaceNoi, perlinX, windSlash, background;
+    bool done;
+
+    public Preview(string kl, string output)
+    {
+        this.kl = kl;
+        this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 200,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    protected override void LoadContent()
+    {
+        Directory.CreateDirectory(output);
+        batch = new SpriteBatch(GraphicsDevice);
+        var effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        tornado = effects.Load<Effect>("Tornado");
+        tornadoLayered = effects.Load<Effect>("TornadoLayered");
+        sphere = effects.Load<Effect>("SphereEffect");
+        waterNoi = Png("Effects/Tex/水波.png");
+        wind1 = Png("Effects/Tex/Wind/wind1.png");
+        cellnoise = Png("Effects/Tex/cellnoise.png");
+        displaceNoi = Png("Effects/Tex/Noise/Eff_Noise_20.png");
+        perlinX = Png("Effects/Tex/PerlinX.png");
+        windSlash = Png("Effects/Tex/222545rguggggwbpjh1j9h.png");
+
+        // 有透明区域的彩色背景，用来检验与目标颜色的混合
+        background = new Texture2D(GraphicsDevice, 32, 32, false, SurfaceFormat.Vector4);
+        var bg = new Vector4[32 * 32];
+        for (int y = 0; y < 32; y++)
+        for (int x = 0; x < 32; x++)
+        {
+            float a = x < 6 ? 0f : 0.35f + 0.65f * y / 31f;
+            bg[y * 32 + x] = new Vector4(0.15f + 0.5f * x / 31f, 0.3f, 0.6f - 0.4f * y / 31f, 1f) * a;
+        }
+        background.SetData(bg);
+    }
+
+    // 与 tModLoader 加载 PNG 一致：预乘 alpha，无 mipmap
+    Texture2D Png(string path)
+    {
+        using var stream = File.OpenRead(Path.Combine(kl, path));
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++)
+            data[i] = Color.FromNonPremultiplied(data[i].ToVector4());
+        texture.SetData(data);
+        return texture;
+    }
+
+    record Scenario(string Name, float RotTime, float TotalFade, float Light, float SlashFade, float SlashHeight);
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        try
+        {
+            Execute();
+            ExitCode = 0;
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+        }
+        // FNA 的 D3D11 后端在进程退出清理时会卡住，写完结果后直接终止进程
+        Console.Out.Flush();
+        Console.Error.Flush();
+        TerminateProcess(Process.GetCurrentProcess().Handle, (uint)ExitCode);
+    }
+
+    void Execute()
+    {
+        Scenario[] scenarios =
+        [
+            new("start", 0.5f, 1f, 1f, 0.2f, 0.8f),
+            new("fade-in", 0.9f, 0.6f, 1f, 0.3f, 1.1f),
+            new("full", 1.7f, 0f, 1f, 0.45f, 1.6f),
+            new("full-late", 2.9f, 0f, 1f, 0.5f, 1.8f),
+            new("fade-out", 3.2f, 0.35f, 1f, 0.5f, 1.8f),
+        ];
+
+        var lines = new List<string>();
+        bool failed = false;
+        foreach (Scenario s in scenarios)
+        {
+            foreach (bool hdr in new[] { true, false })
+            {
+                SurfaceFormat format = hdr ? SurfaceFormat.Vector4 : SurfaceFormat.Color;
+                Vector4[] body0 = Render(format, () => DrawBodyOld(s, hdr));
+                Vector4[] body1 = Render(format, () => DrawBodyNew(s, hdr));
+                Vector4[] slashFront0 = Render(format, () => DrawSlashOld(s, hdr, false));
+                Vector4[] slashFront1 = Render(format, () => DrawSlashNew(s, hdr, false));
+                Vector4[] slashBack0 = Render(format, () => DrawSlashOld(s, hdr, true));
+                Vector4[] slashBack1 = Render(format, () => DrawSlashNew(s, hdr, true));
+
+                string target = hdr ? "Vector4(Bloom)" : "Color(无 Bloom)";
+                float limit = hdr ? 2e-3f : 2.5f / 255f;
+                foreach (var (part, a, b) in new[] { ("主体", body0, body1), ("气流圈正面", slashFront0, slashFront1), ("气流圈内壁", slashBack0, slashBack1) })
+                {
+                    // 8 位目标是场景本身，只显示 RGB；XNA 混合写入的 alpha 公式与预乘不同，不参与比较
+                    // HDR 值可达 10 以上，允许 0.5% 的相对误差；消融/轮廓的硬阈值上会有少量像素因舍入翻转
+                    var (max, over, worst) = Compare(a, b, limit, rgbOnly: !hdr);
+                    bool ok = over <= MaxFlippedPixels;
+                    failed |= !ok;
+                    lines.Add($"{s.Name,-10} {target,-15} {part,-6} 最大差 {max:0.000000}  超出容差的像素 {over,6}  {(ok ? "OK" : "FAIL")}");
+                    foreach (int i in worst)
+                        lines.Add($"    ({i % Width},{i / Width}) 合并前 {a[i]} 合并后 {b[i]}");
+                }
+
+                if (hdr && s.Name is "full" or "fade-out")
+                {
+                    SaveComparison($"{s.Name}-body.png", body0, body1);
+                    SaveComparison($"{s.Name}-slash.png", slashFront0, slashFront1);
+                }
+            }
+        }
+
+        string report = string.Join(Environment.NewLine, lines);
+        File.WriteAllText(Path.Combine(output, "report.txt"), report);
+        Console.WriteLine(report);
+        if (failed) throw new Exception("合并前后结果不一致。");
+    }
+
+    Vector4[] Render(SurfaceFormat format, Action draw)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, format, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(Color.Transparent);
+        batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        batch.Draw(background, new Rectangle(0, 0, Width, Height), Color.White);
+        batch.End();
+        draw();
+        GraphicsDevice.SetRenderTarget(null);
+
+        var result = new Vector4[Width * Height];
+        if (format == SurfaceFormat.Vector4)
+        {
+            target.GetData(result);
+        }
+        else
+        {
+            var colors = new Color[Width * Height];
+            target.GetData(colors);
+            for (int i = 0; i < colors.Length; i++) result[i] = colors[i].ToVector4();
+        }
+        return result;
+    }
+
+    void Begin(BlendState blend)
+    {
+        batch.Begin(SpriteSortMode.Immediate, blend, SamplerState.LinearWrap, DepthStencilState.None, RasterizerState.CullNone);
+    }
+
+    BlendState Straight(bool hdr) => hdr ? BloomStraight : BlendState.NonPremultiplied;
+    BlendState Add(bool hdr) => hdr ? BloomAdditive : BlendState.Additive;
+
+    static float Dissolve(Scenario s, float current = 0) => MathHelper.Lerp(current, 1, s.TotalFade);
+
+    void DrawCentered(Texture2D texture, Color color, Vector2 scale, Vector2 offset = default)
+    {
+        batch.Draw(texture, Center + offset, null, color, 0, new Vector2(texture.Width, texture.Height) / 2, scale, SpriteEffects.None, 0);
+    }
+
+    // ===== 合并前：与 FireTornado 原本的绘制相同 =====
+    void DrawBodyOld(Scenario s, bool hdr)
+    {
+        Begin(Straight(hdr));
+        OldTornado(new Vector4(1.0f), true, s.RotTime, 1.0f, Dissolve(s));
+        DrawCentered(waterNoi, new Color(255, 100, 50, 255) * (1 - s.TotalFade), new Vector2(1.2f, 2.3f) * 2.0f);
+        OldTornado(new Vector4(1.0f), false, s.RotTime, 1.0f, Dissolve(s));
+        DrawCentered(wind1, new Color(255, 100, 50, 255) * (1 - s.TotalFade), new Vector2(1.2f, 2.3f) * 2.0f);
+        OldTornado(new Vector4(1.2f), false, s.RotTime, 2.0f, Dissolve(s));
+        DrawCentered(waterNoi, new Color(255, 70, 20, 255) * (1 - s.TotalFade), new Vector2(1.3f, 2.3f) * 2.0f);
+        batch.End();
+
+        Begin(Add(hdr));
+        DrawCore(s);
+        OldTornado(new Vector4(2.5f * s.Light), false, s.RotTime, 1.0f, Dissolve(s, 0.0f));
+        DrawCentered(wind1, new Color(255, 100, 30, 255), new Vector2(1.3f, 2.3f) * 2.0f);
+        batch.End();
+    }
+
+    void DrawSlashOld(Scenario s, bool hdr, bool inner)
+    {
+        Begin(Add(hdr));
+        OldSphere(new Vector4(2), Dissolve(s, s.SlashFade - 0.04f), s.RotTime * 7, inner);
+        DrawSlashQuad(s, new Color(255, 50, 11, 255));
+        batch.End();
+        Begin(Straight(hdr));
+        OldSphere(new Vector4(1), Dissolve(s, s.SlashFade), s.RotTime * 7, inner);
+        DrawSlashQuad(s, new Color(50, 10, 0, 255));
+        batch.End();
+    }
+
+    // ===== 合并后：与 FireTornado 现在的绘制相同 =====
+    readonly TornadoLayerShape bodyShape = new()
+    {
+        CameraZ = 2.5f,
+        DrawScale = new Vector2(0.4f),
+        RotationSpeed = -1.4f,
+        HorizontalFadeRange = 0.02f,
+        VerticalFadeRange = 0.1f,
+        MaxInset = 0.25f,
+        BezierP0 = new Vector2(-5, 0),
+        BezierP1 = new Vector2(2.85f, 0.45f),
+        BezierP2 = new Vector2(3f, 0.95f),
+        BezierP3 = new Vector2(-8, 1),
+        DisplaceNoiseScale = new Vector2(1.1f),
+        DisplaceAmount = 0.05f,
+        DisplaceNoiseBias = 0,
+        DisplaceNoiseContrast = 1,
+        DisplaceNoiseSpeed = new Vector2(-0.3f),
+    };
+
+    void DrawBodyNew(Scenario s, bool hdr)
+    {
+        bodyShape.Time = s.RotTime;
+        bodyShape.NoiseTexture = displaceNoi;
+        bodyShape.DissolveTexture = perlinX;
+        bodyShape.DissolveThreshold = Dissolve(s);
+        Color fadedColor = new Color(255, 100, 50, 255) * (1 - s.TotalFade);
+        Begin(BlendState.AlphaBlend);
+        TornadoLayerRenderer.Draw(batch, tornadoLayered, Center, bodyShape, [
+            new TornadoLayer(waterNoi, fadedColor, new Vector2(1.2f, 2.3f) * 2.0f) { UseRForAlpha = true, Tilt = 1.0f },
+            new TornadoLayer(wind1, fadedColor, new Vector2(1.2f, 2.3f) * 2.0f) { Tilt = 1.0f },
+            new TornadoLayer(waterNoi, new Color(255, 70, 20, 255) * (1 - s.TotalFade), new Vector2(1.3f, 2.3f) * 2.0f) { EffectColor = new Vector4(1.2f), Tilt = 2.0f },
+            new TornadoLayer(wind1, new Color(255, 100, 30, 255), new Vector2(1.3f, 2.3f) * 2.0f) { EffectColor = new Vector4(2.5f * s.Light), Tilt = 1.0f, Additive = true },
+        ]);
+        batch.End();
+
+        Begin(Add(hdr));
+        DrawCore(s);
+        batch.End();
+    }
+
+    void DrawSlashNew(Scenario s, bool hdr, bool inner)
+    {
+        Begin(BlendState.AlphaBlend);
+        bool clamped = TornadoLayerRenderer.TargetClampsOutput(GraphicsDevice);
+        batch.End();
+        if (clamped != !hdr) throw new Exception("目标格式判断错误。");
+        if (clamped)
+        {
+            // FireTornado 在 8 位目标上退回逐层绘制
+            DrawSlashOld(s, hdr, inner);
+            return;
+        }
+        Begin(BlendState.AlphaBlend);
+        SetSphereCommon(s.RotTime * 7);
+        sphere.Parameters["DualAddColor"].SetValue(new Color(255, 50, 11, 255).ToVector4() * 2);
+        sphere.Parameters["DualOverColor"].SetValue(new Color(50, 10, 0, 255).ToVector4());
+        sphere.Parameters["dualAddDissolve"].SetValue(Dissolve(s, s.SlashFade - 0.04f));
+        sphere.Parameters["dualOverDissolve"].SetValue(Dissolve(s, s.SlashFade));
+        GraphicsDevice.Textures[1] = perlinX;
+        sphere.CurrentTechnique.Passes[inner ? 3 : 2].Apply();
+        DrawSlashQuad(s, Color.White);
+        batch.End();
+    }
+
+    // 高亮残片：合并前后都单独绘制
+    void DrawCore(Scenario s)
+    {
+        SetTornado(new Vector4(4.5f * s.Light), true, s.RotTime, -0.4f, 1.5f, 0.02f, 0.02f,
+            new Vector2(-5, 0), new Vector2(1.85f, 0.45f), new Vector2(1f, 0.95f), new Vector2(-5, 1), new Vector2(0.5f), Dissolve(s, 0.5f));
+        DrawCentered(cellnoise, new Color(255, 100, 30, 255), new Vector2(0.4f, 1.2f) * 1.6f);
+    }
+
+    void DrawSlashQuad(Scenario s, Color color)
+    {
+        DrawCentered(windSlash, color, new Vector2(1.5f, s.SlashHeight), new Vector2(0, 400) + new Vector2(0, -s.SlashHeight * 150));
+    }
+
+    void OldTornado(Vector4 effectColor, bool useR, float rotTime, float tilt, float dissolve)
+    {
+        SetTornado(effectColor, useR, rotTime, -1.4f, tilt, 0.02f, 0.1f,
+            new Vector2(-5, 0), new Vector2(2.85f, 0.45f), new Vector2(3f, 0.95f), new Vector2(-8, 1), Vector2.One, dissolve);
+    }
+
+    // 与 DrawHelper.TornadoEffect 的参数设置相同
+    void SetTornado(Vector4 effectColor, bool useR, float iTime, float rotationSpeed, float tilt, float hFade, float vFade,
+        Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 dissolveTiling, float dissolveThreshold)
+    {
+        var p = tornado.Parameters;
+        p["EffectColor"].SetValue(effectColor);
+        p["useRForAlpha"].SetValue(useR);
+        p["CameraZ"].SetValue(2.5f);
+        p["DrawScale"].SetValue(new Vector2(0.4f));
+        p["RotationSpeed"].SetValue(rotationSpeed);
+        p["TexScale"].SetValue(Vector2.One);
+        p["Tilt"].SetValue(tilt);
+        p["DissolveTexMultiplier"].SetValue(dissolveTiling);
+        p["DissolveThreshold"].SetValue(dissolveThreshold);
+        p["DissolveEdgeWidth"].SetValue(0f);
+        p["DissolveEdgeColor"].SetValue(new Vector4(1.0f, 0.6f, 0.2f, 1.0f));
+        p["HorizontalFadeRange"].SetValue(hFade);
+        p["VerticalFadeRange"].SetValue(vFade);
+        p["DisplaceAmount"].SetValue(0.05f);
+        p["DisplaceNoiseScale"].SetValue(new Vector2(1.1f));
+        p["DisplaceNoiseSpeed"].SetValue(new Vector2(-0.3f));
+        p["DisplaceNoiseContrast"].SetValue(1f);
+        p["DisplaceNoiseBias"].SetValue(0f);
+        p["MaxInset"].SetValue(0.25f);
+        p["BezierP0"].SetValue(p0);
+        p["BezierP1"].SetValue(p1);
+        p["BezierP2"].SetValue(p2);
+        p["BezierP3"].SetValue(p3);
+        p["iTime"].SetValue(iTime);
+        GraphicsDevice.Textures[1] = perlinX;
+        GraphicsDevice.Textures[2] = displaceNoi;
+        tornado.CurrentTechnique.Passes[0].Apply();
+    }
+
+    void SetSphereCommon(float slashRotation)
+    {
+        var p = sphere.Parameters;
+        p["RotWorldX"].SetValue(0f);
+        p["RotWorldY"].SetValue(0.2f);
+        p["RotWorldZ"].SetValue(0f);
+        p["RotLocalX"].SetValue(-slashRotation);
+        p["RotLocalY"].SetValue(0f);
+        p["RotLocalZ"].SetValue(0f);
+        p["clipImageX"].SetValue(false);
+        p["clipImageY"].SetValue(true);
+        p["SpecialYScale"].SetValue(Vector3.One);
+        p["ImageScale"].SetValue(new Vector2(0.4f, 0.5f));
+        p["TexScale"].SetValue(Vector2.One);
+        p["dissolveTexScale"].SetValue(Vector2.One);
+    }
+
+    // 与 DrawHelper.SphereEffect 的参数设置相同
+    void OldSphere(Vector4 sphereColor, float dissolveAmount, float slashRotation, bool inner)
+    {
+        SetSphereCommon(slashRotation);
+        sphere.Parameters["SphereColor"].SetValue(sphereColor);
+        sphere.Parameters["dissolveAmount"].SetValue(dissolveAmount);
+        GraphicsDevice.Textures[1] = perlinX;
+        sphere.CurrentTechnique.Passes[inner ? 1 : 0].Apply();
+    }
+
+    const int MaxFlippedPixels = 64;
+
+    static (float max, int over, int[] worst) Compare(Vector4[] a, Vector4[] b, float limit, bool rgbOnly)
+    {
+        float max = 0;
+        int over = 0;
+        var diffs = new float[a.Length];
+        for (int i = 0; i < a.Length; i++)
+        {
+            Vector4 d = a[i] - b[i];
+            float m = Math.Max(Math.Max(Math.Abs(d.X), Math.Abs(d.Y)), Math.Abs(d.Z));
+            if (!rgbOnly) m = Math.Max(m, Math.Abs(d.W));
+            if (float.IsNaN(m)) m = float.PositiveInfinity;
+            float scale = Math.Max(Math.Max(Math.Abs(a[i].X), Math.Abs(a[i].Y)), Math.Abs(a[i].Z));
+            m = Math.Max(0, m - scale * 0.005f);
+            diffs[i] = m;
+            max = Math.Max(max, m);
+            if (m > limit) over++;
+        }
+        int[] worst = Enumerable.Range(0, a.Length).Where(i => diffs[i] > limit)
+            .OrderByDescending(i => diffs[i]).Take(4).ToArray();
+        return (max, over, worst);
+    }
+
+    // 左：合并前，中：合并后，右：差异 x50（按 1/(1+x) 压缩 HDR）
+    void SaveComparison(string name, Vector4[] a, Vector4[] b)
+    {
+        var colors = new Color[Width * 3 * Height];
+        for (int y = 0; y < Height; y++)
+        for (int x = 0; x < Width; x++)
+        {
+            int i = y * Width + x;
+            colors[y * Width * 3 + x] = Tone(a[i]);
+            colors[y * Width * 3 + Width + x] = Tone(b[i]);
+            Vector4 d = (a[i] - b[i]) * 50;
+            colors[y * Width * 3 + Width * 2 + x] = new Color(new Vector4(Math.Abs(d.X), Math.Abs(d.Y), Math.Abs(d.Z), 1));
+        }
+        using var texture = new Texture2D(GraphicsDevice, Width * 3, Height);
+        texture.SetData(colors);
+        using var stream = File.Create(Path.Combine(output, name));
+        texture.SaveAsPng(stream, Width * 3, Height);
+    }
+
+    static Color Tone(Vector4 v)
+    {
+        Vector3 rgb = new Vector3(v.X, v.Y, v.Z);
+        rgb = rgb / (Vector3.One + rgb) * 1.6f;
+        return new Color(new Vector4(rgb, 1));
+    }
+}
