@@ -12,8 +12,6 @@ public class RecallSkill : ElainaSkill
 {
     private int pendingSlot = -1;
     private int pendingTarget = -1;
-    private int approvedTarget = -1;
-    private bool castPaid;
 
     public override void Initialize()
     {
@@ -25,7 +23,7 @@ public class RecallSkill : ElainaSkill
     // 与治疗一致：无其他友军时直接以自己施法；有友军时必须选择，距离只影响盘内候选。
     public override bool BeginWandUse()
     {
-        if (RecallPortalSystem.HasPendingCast(Player) || ElainaHealingWheel.OwnsPointer) return false;
+        if (ElainaHealingWheel.OwnsPointer) return false;
         if (!HasAlly()) return true;
         OpenPicker();
         return false;
@@ -33,19 +31,6 @@ public class RecallSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
-        // 只有建立法阵的请求已获确认，才进入技能框架的扣费/扣层数路径。
-        if (approvedTarget >= 0)
-        {
-            int approved = approvedTarget;
-            approvedTarget = -1;
-            if (!RecallPortalSystem.IsSelectable(Player, approved) || Stack <= 0 ||
-                !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost)) return false;
-            castPaid = true;
-            Player.GetModPlayer<ActionModPlayer>().StartAction(new Action_SimpleShoot(),
-                rotation: (Main.player[approved].Center - Player.Center).ToRotation());
-            return base.PreUseSkill(source);
-        }
-        if (RecallPortalSystem.HasPendingCast(Player)) return false;
         if (pendingTarget < 0)
         {
             if (ElainaHealingWheel.OwnsPointer) return false;
@@ -59,11 +44,15 @@ public class RecallSkill : ElainaSkill
 
         int target = pendingTarget;
         ClearSelection();
+        var attribute = Player.GetModPlayer<ElainaAttributeModPlayer>();
+        // 先确认能付得起，法阵成功打开后才真正扣魔力并进入技能框架的扣层数路径。
         if (!RecallPortalSystem.IsSelectable(Player, target) || Stack <= 0 ||
-            !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, consume: false)) return false;
-        int slot = Skill.SkillSlot;
-        RecallPortalSystem.RequestCast(Player, target, () => CommitApprovedCast(slot, target));
-        return false;
+            !attribute.ConsumeMagicPoint(MagicPointCost, consume: false) ||
+            !RecallPortalSystem.Cast(Player, target)) return false;
+        attribute.ConsumeMagicPoint(MagicPointCost);
+        Player.GetModPlayer<ActionModPlayer>().StartAction(new Action_SimpleShoot(),
+            rotation: (Main.player[target].Center - Player.Center).ToRotation());
+        return base.PreUseSkill(source);
     }
 
     private bool HasAlly()
@@ -71,18 +60,6 @@ public class RecallSkill : ElainaSkill
         for (int i = 0; i < Main.maxPlayers; i++)
             if (i != Player.whoAmI && RecallPortalSystem.IsAlly(Player, Main.player[i])) return true;
         return false;
-    }
-
-    private bool CommitApprovedCast(int slot, int target)
-    {
-        var skills = Player.GetModPlayer<ElainaSkillModPlayer>();
-        if (slot < 0 || slot >= skills.ActiveSkill.Count || !ReferenceEquals(skills.ActiveSkill[slot], Skill) ||
-            Player.HeldItem.ModItem is not Items.ElainaWand ||
-            !Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled) return false;
-        approvedTarget = target;
-        castPaid = false;
-        try { skills.UseSkill(slot); return castPaid; }
-        finally { approvedTarget = -1; }
     }
 
     private void OpenPicker()

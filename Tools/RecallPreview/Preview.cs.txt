@@ -1,100 +1,401 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
-using 伊蕾娜.ElainaModSkills.Skills.Recall;
 
+try { using var game = new Preview(args[0], args[1], args[2]); game.Run(); }
+catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
+
+/// <summary>
+/// 回城法阵离线预览。运行时用 Roslyn 编译正式的 RecallPortalDrawing/Script/Pattern/Visual，
+/// 连同 KL 的 LayerDrawRequestSystem 与从 DrawSystem/RenderHelper/DrawHelper 提取的完整 RequestBloom 合成流程，
+/// 加载 KL 已编译的 VertexDraw、Bloom、ReColor Shader，按游戏的 Projectiles.After bloom 层回放。
+/// </summary>
 sealed class Preview : Game
 {
-    readonly string output;
+    // 阵心上方留出完成爆发光束的高度。
+    const int Width = 400, Height = 360;
+    static readonly Vector2 Center = new(200, 280);
+    static readonly Color Sky = new(27, 34, 46), Ground = new(37, 43, 43);
+    readonly string root, output, toolDirectory;
+    Assembly replay;
+    Type scene;
     SpriteBatch batch;
     Texture2D pixel;
-    Texture2D magicPixel;
+    RenderTarget2D frame;
     bool done;
-    Preview(string output, string terrariaContent)
+
+    public Preview(string root, string output, string toolDirectory)
     {
+        this.root = root;
         this.output = output;
-        Content.RootDirectory = terrariaContent;
-        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 360, PreferredBackBufferHeight = 220,
+        this.toolDirectory = toolDirectory;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
     }
+
+    string BloomSource()
+    {
+        // 与 Tools/IceDepthPreview 相同的提取方式：只替换 Terraria 设备、相机与少量无关诊断。
+        // 方法按 ToString 提取，不带前导 #region 等指令。
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            namespace KL.Drawing {
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
+            public static class BloomReplay {
+                public static bool Enabled = true;
+                private static readonly DrawSystem renderer = new();
+                public static void Flush(LayerDrawRequestSystem.DrawTargetLayer layer) => renderer.Run(layer, Enabled);
+            }
+            public partial class DrawSystem {
+                public void Run(LayerDrawRequestSystem.DrawTargetLayer layer, bool bloomEnabled) {
+                    // 与 KL BloomConfig 默认值一致：强度 1、迭代 4。
+                    SetBloomInfo(1f, 4, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom(layer, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
+            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
+        source += Methods(drawing, "BeginDraw", "GetBlendState");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        return source + "}}";
+    }
+
+    Assembly Compile()
+    {
+        string preamble = """
+            global using System;
+            global using System.Collections.Generic;
+            global using System.Linq;
+            global using System.Reflection;
+            global using Microsoft.Xna.Framework;
+            global using Microsoft.Xna.Framework.Graphics;
+            global using ReLogic.Content;
+            global using Terraria;
+            global using Terraria.ModLoader;
+            global using static KL.Drawing.DrawHelper;
+            namespace ReLogic.Content {
+                public enum AssetRequestMode { DoNotLoad, AsyncLoad, ImmediateLoad }
+                public sealed class Asset<T> where T : class { public T Value; }
+            }
+            namespace Terraria.ModLoader {
+                public class ModSystem { public virtual void Load() {} public virtual void Unload() {} }
+                public static class ModContent {
+                    public static readonly Dictionary<string, object> Assets = new();
+                    public static Asset<T> Request<T>(string path, AssetRequestMode mode = AssetRequestMode.AsyncLoad) where T : class =>
+                        new() { Value = (T)Assets[path] };
+                }
+            }
+            namespace Terraria {
+                public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+                public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+                public static class Main {
+                    public static DeviceContext instance, graphics;
+                    public static SpriteBatch spriteBatch;
+                    public static int screenWidth, screenHeight;
+                    public static Vector2 screenPosition;
+                    public static Matrix Transform = Matrix.Identity;
+                    public static bool gamePaused, dedServ;
+                    public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                    public static ViewContext GameViewMatrix = new();
+                    public static void QueueMainThreadAction(Action a) => a();
+                    public static void NewText(object text, Color color = default) {}
+                }
+            }
+            """;
+        string sceneSource = """
+            using KL.Drawing;
+            using 伊蕾娜.ElainaModSkills.Skills.Recall;
+            public static class RecallPreviewScene {
+                public static void Setup(GraphicsDevice gd, SpriteBatch sb, Effect vertexDraw, Effect bloom, Effect reColor) {
+                    Main.instance = Main.graphics = new DeviceContext { GraphicsDevice = gd };
+                    Main.spriteBatch = sb;
+                    Main.screenWidth = gd.PresentationParameters.BackBufferWidth;
+                    Main.screenHeight = gd.PresentationParameters.BackBufferHeight;
+                    DrawHelper.bloom = bloom;
+                    DrawHelper.reColor = reColor;
+                    ModContent.Assets["KL/Effects/Content/VertexDraw"] = vertexDraw;
+                }
+                // 与游戏一致：弹幕在 Projectiles 层提交 bloom 请求，KL 在该层 After 时机统一合成。
+                public static void Draw(float age, bool destination, bool hovered, bool bloom, Vector2 center, float zoom, float burstStart) {
+                    Vector3 half = new(Main.screenWidth / 2f, Main.screenHeight / 2f, 0);
+                    Main.GameViewMatrix.TransformationMatrix = Matrix.CreateTranslation(-half) * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(half);
+                    Main.Transform = Main.GameViewMatrix.TransformationMatrix;
+                    BloomReplay.Enabled = bloom;
+                    LayerDrawRequestSystem.ClearFrame();
+                    RecallPortalVisual.Request(center, 160, age, 90, 1800, destination, hovered, burstStart);
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                }
+            }
+            """;
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        string recall = Path.Combine(root, "ElainaModSkills/Skills/Recall");
+        var sources = new[] { preamble, sceneSource, BloomSource(),
+            File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs")),
+            File.ReadAllText(Path.Combine(recall, "RecallPortalDrawing.cs")),
+            File.ReadAllText(Path.Combine(recall, "RecallPortalScript.cs")),
+            File.ReadAllText(Path.Combine(recall, "RecallPortalPattern.cs")),
+            File.ReadAllText(Path.Combine(recall, "RecallPortalVisual.cs")) };
+        var trees = sources.Select(s => CSharpSyntaxTree.ParseText(s, new CSharpParseOptions(LanguageVersion.Latest)));
+        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("RecallReplay", trees, refs,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+
     protected override void LoadContent()
     {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        replay = Compile();
+        scene = replay.GetType("RecallPreviewScene");
         batch = new SpriteBatch(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
-        magicPixel = Content.Load<Texture2D>("Images/MagicPixel");
-        Console.WriteLine($"Real Terraria MagicPixel: {magicPixel.Width} x {magicPixel.Height}");
+        frame = new RenderTarget2D(GraphicsDevice, Width, Height);
+        var effects = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
+        scene.GetMethod("Setup").Invoke(null, [GraphicsDevice, batch,
+            effects.Load<Effect>("VertexDraw"), effects.Load<Effect>("Bloom"), effects.Load<Effect>("ReColor")]);
     }
+
+    /// <summary>在场景目标上画背景与人物参考，再按游戏流程提交并合成法阵。</summary>
+    Color[] Render(float age, bool destination, bool hovered, bool bloom = true, float zoom = 1, Vector2? center = null, float burstStart = 90)
+    {
+        GraphicsDevice.SetRenderTarget(frame);
+        GraphicsDevice.Clear(Sky);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        int ground = (int)Center.Y + 1;
+        batch.Draw(pixel, new Rectangle(0, ground, Width, Height - ground), Ground);
+        // 灰色人物只作定位参考；游戏中玩家绘制在 Projectiles 层之后，会盖住法阵。
+        batch.Draw(pixel, new Rectangle(194, ground - 42, 12, 12), new Color(197, 201, 210));
+        batch.Draw(pixel, new Rectangle(192, ground - 29, 16, 28), new Color(98, 109, 130));
+        batch.End();
+        scene.GetMethod("Draw").Invoke(null, [age, destination, hovered, bloom, center ?? Center, zoom, burstStart]);
+        GraphicsDevice.SetRenderTarget(null);
+        var data = new Color[Width * Height];
+        frame.GetData(data);
+        return data;
+    }
+
+    void Save(Color[] data, int width, int height, string name)
+    {
+        using var texture = new Texture2D(GraphicsDevice, width, height);
+        texture.SetData(data);
+        using var stream = File.Create(Path.Combine(output, name));
+        texture.SaveAsPng(stream, width, height);
+    }
+
+    static int Brightness(Color c) => c.R * 30 + c.G * 59 + c.B * 11;
+
     protected override void Draw(GameTime time)
     {
         if (done) return;
         done = true;
-        VerifyBounds();
-        using var target = new RenderTarget2D(GraphicsDevice, 1080, 440);
-        GraphicsDevice.SetRenderTarget(target);
-        GraphicsDevice.Clear(new Color(18, 23, 34));
-        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
-            DepthStencilState.None, RasterizerState.CullNone);
-        int[] ages = [15, 60, 90, 210, 1800, 1880];
-        for (int i = 0; i < ages.Length; i++)
-        {
-            int x = i % 3 * 360, y = i / 3 * 220;
-            Vector2 center = new(x + 180, y + 140);
-            batch.Draw(pixel, new Rectangle(x + 2, y + 2, 356, 216), new Color(27, 34, 46));
-            batch.Draw(pixel, new Rectangle(x + 2, y + 141, 356, 77), new Color(37, 43, 43));
-            // A neutral stand-in for a player; the ring below is the production drawing method.
-            batch.Draw(pixel, new Rectangle(x + 174, y + 99, 12, 12), new Color(197, 201, 210));
-            batch.Draw(pixel, new Rectangle(x + 172, y + 112, 16, 28), new Color(98, 109, 130));
-            RecallPortalDrawing.Draw(batch, magicPixel, center, 160, ages[i], 90, 1800, i >= 3, i == 3);
-        }
-        batch.End();
-        GraphicsDevice.SetRenderTarget(null);
-        string path = Path.Combine(output, "recall-frames.png");
-        using (var stream = File.Create(path)) target.SaveAsPng(stream, target.Width, target.Height);
-        Console.WriteLine(path);
+        Verify();
+        RenderSheet();
+        RenderAnimation();
         Exit();
     }
-    void VerifyBounds()
+
+    void Verify()
     {
-        // Exercise the real 1x1000 game asset with the production line drawing, not a 1x1 substitute.
-        int checks = 0;
-        foreach (float scale in new[] { 1f, 1.5f })
-        foreach (SamplerState sampler in new[] { SamplerState.PointClamp, SamplerState.LinearClamp })
-        foreach (int age in new[] { 15, 60, 90, 210, 1800, 1880 })
+        var reference = Render(0, false, false, false);
+        // 1. 关闭 bloom 时不应有超出线条的光晕；开启后有光晕且只增亮。
+        var plain = Render(45, false, false, false);
+        var glowing = Render(45, false, false, true);
+        int halo = 0, darker = 0;
+        for (int i = 0; i < plain.Length; i++)
         {
-            using var target = new RenderTarget2D(GraphicsDevice, 720, 400);
-            GraphicsDevice.SetRenderTarget(target);
-            GraphicsDevice.Clear(Color.Transparent);
-            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, sampler,
-                DepthStencilState.None, RasterizerState.CullNone, null,
-                Matrix.CreateTranslation(-360, -200, 0) * Matrix.CreateScale(scale) * Matrix.CreateTranslation(360, 200, 0));
-            RecallPortalDrawing.Draw(batch, magicPixel, new Vector2(360, 200), 160, age, 90, 1800, age >= 210, true);
-            batch.End();
-            GraphicsDevice.SetRenderTarget(null);
-            var colors = new Color[target.Width * target.Height];
-            target.GetData(colors);
-            int visible = 0, outside = 0;
-            for (int y = 0; y < target.Height; y++)
-            for (int x = 0; x < target.Width; x++)
+            if (plain[i] == reference[i] && glowing[i] != reference[i]) halo++;
+            if (Brightness(glowing[i]) + 300 < Brightness(plain[i])) darker++;
+        }
+        if (halo < 200) throw new Exception($"Bloom produced no halo beyond the lines ({halo} pixels).");
+        if (darker > 0) throw new Exception($"Bloom darkened {darker} pixels.");
+        Console.WriteLine($"PASS bloom: {halo} halo pixels beyond the unprocessed lines, none darkened.");
+
+        // 2. 光晕局部化：描绘中的笔尖要有强光；写完静止时只有少量像素被明显提亮，不能糊成一片雾。
+        (int Strong, int Lit) Gain(float age, bool destination)
+        {
+            var off = Render(age, destination, false, false);
+            var on = Render(age, destination, false, true);
+            if (Environment.GetEnvironmentVariable("RECALL_GAIN_MAP") != null)
+                Save(off.Zip(on).Select(p => { int g = Math.Clamp((Brightness(p.Second) - Brightness(p.First)) / 25, 0, 255); return new Color(g, g, g); }).ToArray(),
+                    Width, Height, $"gain-{age}-{destination}.png");
+            int strong = 0, lit = 0;
+            for (int i = 0; i < off.Length; i++)
             {
-                if (colors[y * target.Width + x].A == 0) continue;
+                int gain = Brightness(on[i]) - Brightness(off[i]);
+                if (gain >= 60 * 100) strong++;
+                if (gain >= 12 * 100) lit++;
+            }
+            return (strong, lit);
+        }
+        var drawing = Gain(45, false);
+        foreach (var (age, destination, name) in new[] { (1200f, false, "start"), (1200f, true, "exit") })
+        {
+            var idle = Gain(age, destination);
+            float share = idle.Lit / (float)(Width * Height);
+            Console.WriteLine($"Idle {name}: {idle.Lit} pixels brightened by >=12/255 ({share:P1}), {idle.Strong} by >=60/255.");
+            if (share > .12f) throw new Exception($"Idle {name} bloom spreads over {share:P1} of the frame; overall glow should stay subtle.");
+        }
+        Console.WriteLine($"Drawing: {drawing.Lit} pixels brightened by >=12/255, {drawing.Strong} by >=60/255.");
+        if (drawing.Strong < 50) throw new Exception($"Pen tips lack strong local bloom ({drawing.Strong} pixels >= 60/255).");
+        Console.WriteLine("PASS localized bloom: strong glow at pen tips, subtle when idle (set RECALL_GAIN_MAP=1 to save gain-*.png maps).");
+
+        // 3. 范围：可见改动都在法阵附近，防止顶点或矩阵错误把线条拉出屏幕。
+        foreach (float age in new[] { 15f, 45, 75, 90, 130, 210, 1800, 1880 })
+        foreach (bool bloom in new[] { false, true })
+        {
+            bool destination = age == 45 || age == 210;
+            var data = Render(age, destination, age == 210, bloom);
+            int outside = 0, visible = 0;
+            float margin = bloom ? 48 : 3;
+            // 激活后 50 帧内是向上的完成爆发，允许向上延伸到 1.1 倍半径。
+            float above = age >= 90 && age < 140 ? 160 * 1.1f : 50;
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                int i = y * Width + x;
+                if (Math.Abs(Brightness(data[i]) - Brightness(reference[i])) < 800) continue;
                 visible++;
-                if (Math.Abs(x - 360) > 164 * scale || Math.Abs(y - 200) > 52 * scale) outside++;
+                if (Math.Abs(x - Center.X) > 162 + margin || y - Center.Y > 50 + margin || Center.Y - y > above + margin) outside++;
             }
             if (outside > 0 || visible == 0)
             {
-                string failed = Path.Combine(output, "recall-bounds-failure.png");
-                using (var stream = File.Create(failed)) target.SaveAsPng(stream, target.Width, target.Height);
-                throw new Exception($"Portal exceeded its local bounds or disappeared: {outside} outside pixels, {visible} visible; {failed}");
+                Save(data, Width, Height, "recall-bounds-failure.png");
+                throw new Exception($"Age {age} bloom={bloom}: {outside} pixels outside, {visible} visible.");
             }
-            checks++;
         }
-        Console.WriteLine($"PASS: {checks} real-asset render bounds checks (six ages, two zooms, point/linear sampling).");
+        Console.WriteLine("PASS bounds: 8 ages with bloom on/off stay around the circle.");
+
+        // 4. 完成爆发：激活后法阵上方出现明显光束，结束后上方恢复干净。
+        int Above(float age, float burstStart = 90)
+        {
+            var data = Render(age, false, false, burstStart: burstStart);
+            int lit = 0;
+            for (int y = 0; y < Center.Y - 70; y++)
+            for (int x = 0; x < Width; x++)
+                if (Brightness(data[y * Width + x]) - Brightness(reference[y * Width + x]) >= 40 * 100) lit++;
+            return lit;
+        }
+        int peak = Above(96), after = Above(150), before = Above(80);
+        Console.WriteLine($"Burst: {before} pixels lit above the circle at 80, {peak} at 96, {after} at 150.");
+        if (peak < 1500 || after > 0 || before > 0) throw new Exception("Completion burst should only light the area above the circle right after activation.");
+        int travel = Above(1206, 1200), still = Above(1206);
+        Console.WriteLine($"Travel burst: {travel} pixels lit above the circle 6 frames after a travel, {still} without.");
+        if (travel < 1500 || still > 0) throw new Exception("Travel should replay the upward burst on the circle.");
+        Console.WriteLine("PASS burst: upward rays right after activation and again after each travel.");
+
+        // 5. 游戏缩放：顶点矩阵与 GameViewMatrix 叠加后，法阵按缩放倍数放大。
+        var screenCenter = new Vector2(Width / 2f, Height / 2f);
+        var empty = Render(0, false, false, false, 1.2f, screenCenter);
+        var zoomed = Render(1200, false, false, false, 1.2f, screenCenter);
+        int left = Width, right = 0;
+        for (int i = 0; i < zoomed.Length; i++)
+            if (Math.Abs(Brightness(zoomed[i]) - Brightness(empty[i])) >= 800) { left = Math.Min(left, i % Width); right = Math.Max(right, i % Width); }
+        float halfWidth = (right - left + 1) / 2f;
+        if (Math.Abs(halfWidth - 160 * 1.2f) > 6) throw new Exception($"Zoom 1.2: half width {halfWidth}, expected {160 * 1.2f}.");
+        Console.WriteLine($"PASS zoom: half width {halfWidth} at 1.2x (expected {160 * 1.2f}).");
     }
-    protected override void UnloadContent() { pixel.Dispose(); batch.Dispose(); }
-    static void Main(string[] args) { using var game = new Preview(args[0], args[1]); game.Run(); }
+
+    void RenderSheet()
+    {
+        // 从左到右、从上到下：起点 15/45/75 帧描绘过程、96 帧完成爆发；
+        // 出口 45 帧（与起点同步描绘、悬停）/96 帧完成爆发/210 帧/到期前 1880 帧。
+        (float Age, bool Destination, bool Hovered)[] cells =
+            [(15, false, false), (45, false, false), (75, false, false), (96, false, false),
+             (45, true, true), (96, true, false), (210, true, false), (1880, true, false)];
+        var sheet = new Color[Width * 4 * Height * 2];
+        for (int n = 0; n < cells.Length; n++)
+        {
+            var data = Render(cells[n].Age, cells[n].Destination, cells[n].Hovered);
+            int ox = n % 4 * Width, oy = n / 4 * Height;
+            for (int y = 0; y < Height; y++) Array.Copy(data, y * Width, sheet, (oy + y) * Width * 4 + ox, Width);
+        }
+        Save(sheet, Width * 4, Height * 2, "recall-frames.png");
+        Console.WriteLine(Path.Combine(output, "recall-frames.png"));
+    }
+
+    /// <summary>
+    /// 按游戏帧（60 FPS）逐帧回放，生成带播放控制的单文件 HTML。
+    /// 各场景按年龄顺序连续渲染，以后加入有状态的粒子时也能在这里逐帧推进。
+    /// </summary>
+    void RenderAnimation()
+    {
+        // BurstStart：最近一次向上爆发的起始年龄，画完时为 90，往返传送场景在第 1200 帧有人传送。
+        (string Label, int From, int To, bool Destination, float BurstStart)[] scenes =
+        [
+            ("起点：施法蓄力", 0, 150, false, 90),
+            ("出生地出口（与起点同步）", 0, 150, true, 90),
+            ("往返传送光效", 1190, 1260, true, 1200),
+            ("到期淡出", 1830, 1895, false, 90),
+        ];
+        var json = new StringBuilder("[");
+        int frames = 0;
+        foreach (var item in scenes)
+        {
+            json.Append($"{{\"label\":\"{item.Label}\",\"from\":{item.From},\"destination\":{(item.Destination ? "true" : "false")},\"frames\":[");
+            for (int age = item.From; age <= item.To; age++)
+            {
+                Render(age, item.Destination, false, burstStart: item.BurstStart);
+                using var stream = new MemoryStream();
+                frame.SaveAsPng(stream, Width, Height);
+                if (age > item.From) json.Append(',');
+                json.Append('"').Append(Convert.ToBase64String(stream.ToArray())).Append('"');
+                frames++;
+            }
+            json.Append("]},");
+        }
+        json.Length--;
+        json.Append(']');
+        string html = File.ReadAllText(Path.Combine(toolDirectory, "player.html")).Replace("/*SCENES*/[]", json.ToString());
+        string path = Path.Combine(output, "recall-player.html");
+        File.WriteAllText(path, html, new UTF8Encoding(false));
+        Console.WriteLine($"{frames} animation frames: {path}");
+    }
+
+    protected override void UnloadContent() { frame?.Dispose(); pixel?.Dispose(); batch?.Dispose(); }
 }

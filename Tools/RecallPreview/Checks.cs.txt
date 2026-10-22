@@ -22,7 +22,7 @@ static class Checks
         for (int i = 0; i < TMain.maxPlayers; i++) TMain.player[i] = new Player { whoAmI = i, Bottom = new Vector2(800, 900) };
         for (int i = 0; i < TMain.maxProjectiles; i++) TMain.projectile[i] = new Projectile();
         P(0).active = true;
-        Player.ValidBed = true; Collision.Solid = Collision.Lava = _ => false;
+        Collision.Solid = Collision.Lava = _ => false;
         ModPacket.Sent.Clear(); RemoteClient.SectionChecks = 0; ElainaHealingWheel.Reset();
         TMain.mouseRight = false; TMain.mouseRightRelease = true;
         var skill = new RecallSkill { Player = P(0) }; skill.Initialize();
@@ -54,10 +54,10 @@ static class Checks
         var s = Setup();
         Check(s.BeginWandUse() && ElainaHealingWheel.Opens == 0, "No allies: wand enters direct self-cast without a wheel");
         P(0).GetModPlayer<ElainaSkillModPlayer>().UseSkill(0);
-        Check(ElainaHealingWheel.Opens == 0 && TMain.ActiveProjectiles.Count() == 1 && Mana.Spent == s.MagicPointCost && s.Stack == 0,
-            "Solo direct cast uses the approved payment path exactly once");
+        Check(ElainaHealingWheel.Opens == 0 && TMain.ActiveProjectiles.Count() == 2 && Mana.Spent == s.MagicPointCost && s.Stack == 0,
+            "Solo direct cast pays exactly once and opens one pair");
         s = Setup(); s.PreUseSkill();
-        Check(ElainaHealingWheel.Opens == 0 && TMain.ActiveProjectiles.Count() == 1 && Mana.Spent == s.MagicPointCost,
+        Check(ElainaHealingWheel.Opens == 0 && TMain.ActiveProjectiles.Count() == 2 && Mana.Spent == s.MagicPointCost,
             "Solo non-wand entry also casts directly on self");
         foreach (string excluded in new[] { "dead", "offline", "team", "target-pvp", "caster-pvp" })
         {
@@ -79,9 +79,9 @@ static class Checks
         ElainaHealingWheel.Cancel();
         Check(Mana.Spent == 0 && s.Stack == 1, "Cancel consumes nothing");
         s.BeginWandUse(); ElainaHealingWheel.Confirm(0);
-        Check(Mana.Spent == s.MagicPointCost && s.Stack == 0 && TMain.ActiveProjectiles.Count() == 1, "Confirmation consumes once and creates charging circle");
+        Check(Mana.Spent == s.MagicPointCost && s.Stack == 0 && TMain.ActiveProjectiles.Count() == 2, "Confirmation consumes once and creates both charging circles");
         ElainaHealingWheel.Confirmed(0);
-        Check(TMain.ActiveProjectiles.Count() == 1 && Mana.Spent == s.MagicPointCost, "Stale callback cannot duplicate a cast");
+        Check(TMain.ActiveProjectiles.Count() == 2 && Mana.Spent == s.MagicPointCost, "Stale callback cannot duplicate a cast");
         s = Setup(); P(1).active = true; P(1).Center = P(0).Center + new Vector2(3001, 0); s.BeginWandUse();
         Check(ElainaHealingWheel.ValidTarget(0) && !ElainaHealingWheel.ValidTarget(1), "Far ally yields a self-only wheel");
         P(1).Center = P(0).Center + new Vector2(3000, 0);
@@ -117,16 +117,23 @@ static class Checks
         s.BeginWandUse(); ElainaHealingWheel.Confirm(1);
         P(1).Bottom += new Vector2(25, 0);
         Check(Portal().Projectile.Center == origin, "Circle stays where target stood on cast");
-        Tick(89); Check(P(0).Teleports == 0 && TMain.ActiveProjectiles.Count() == 1, "No teleport before delay");
+        Check(TMain.ActiveProjectiles.Count() == 2 && Portal(1).Projectile.ai[1] == 0 && Portal().Projectile.ai[1] == 0,
+            "Destination opens together with origin and starts charging in sync");
+        Tick(89);
+        Check(P(0).Teleports == 0 && Portal().Projectile.ai[1] == 89 && Portal(1).Projectile.ai[1] == 89 && !Portal(1).Ready,
+            "No teleport before delay; both endpoints charge frame by frame together");
         Tick(1);
         Check(P(0).Teleports == 1 && P(1).Teleports == 1 && P(2).Teleports == 0 && P(3).Teleports == 0, "Initial pulse affects only allies inside the area");
         Check(P(0).Bottom == new Vector2(6408, 4800) && P(1).Bottom == P(0).Bottom, "Group uses selected ally's bed, not each individual's spawn");
-        Check(TMain.ActiveProjectiles.Count() == 2 && Portal(1).Ready, "Destination appears at activation");
+        Check(TMain.ActiveProjectiles.Count() == 2 && Portal().Ready && Portal(1).Ready &&
+            Portal().Projectile.ai[1] == Portal(1).Projectile.ai[1], "Both endpoints finish drawing on the same frame");
         RecallPortalSystem.RequestTravel(P(0), Portal(1));
         Check(P(0).Teleports == 1, "Immediate repeat blocked by travel cooldown");
         Tick(45); P(0).velocity = new Vector2(12, 80);
         RecallPortalSystem.RequestTravel(P(0), Portal(1));
         Check(P(0).Bottom == origin && P(0).Teleports == 2 && P(0).velocity == Vector2.Zero, "Free return resets motion and lands at original circle");
+        Check(Portal().BurstStart == Portal().Projectile.ai[1] && Portal(1).BurstStart == Portal(1).Projectile.ai[1] && Portal().BurstStart > RecallPortalSystem.DelayTicks,
+            "Travel replays the upward burst on both circles");
         Check(Mana.Spent == s.MagicPointCost && s.Stack == 0, "Travel does not spend mana or charges");
         Tick(45); RecallPortalSystem.RequestTravel(P(0), Portal());
         Check(P(0).Bottom == P(1).Bottom && P(0).Teleports == 3, "Origin can send player back to destination");
@@ -135,38 +142,39 @@ static class Checks
     }
     static void Lifecycle()
     {
-        Setup(); Player.ValidBed = false; P(0).SpawnX = 400; P(0).SpawnY = 300;
-        RecallPortalSystem.RequestCast(P(0), 0); Tick(90);
-        Check(P(0).Bottom == new Vector2(1608, 3200), "Broken bed falls back to world spawn");
-        foreach (string reason in new[] { "dead", "offline", "team" })
-        {
-            Setup(); P(1).active = true; RecallPortalSystem.RequestCast(P(0), 1);
-            if (reason == "dead") P(1).dead = true;
-            if (reason == "offline") P(1).active = false;
-            if (reason == "team") P(1).team = 2;
-            Tick(90); Check(!TMain.ActiveProjectiles.Any() && P(0).Teleports == 0, "Invalid anchor cancels initial pulse: " + reason);
-        }
-        Setup(); RecallPortalSystem.RequestCast(P(0), 0);
+        Setup(); RecallPortalSystem.Cast(P(0), 0);
+        Check(Portal(1).Projectile.Center == new Vector2(1608, 3200), "Without a bed the exit opens at world spawn");
+        Tick(90); Check(P(0).Bottom == new Vector2(1608, 3200), "Group lands at the exit circle");
+        Setup(); P(0).SpawnX = 400; P(0).SpawnY = 300; RecallPortalSystem.Cast(P(0), 0);
+        P(0).SpawnX = 500; Tick(90);
+        Check(P(0).Bottom == new Vector2(6408, 4800), "Exit position is fixed when the circles open");
+        Setup(); P(1).active = true; RecallPortalSystem.Cast(P(0), 1); P(1).dead = true; Tick(90);
+        Check(P(0).Teleports == 1 && P(1).Teleports == 0, "Drawing completes and teleports the group even if the selected ally dies");
+        Setup(); RecallPortalSystem.Cast(P(0), 0);
         Collision.Solid = _ => true; Tick(90);
-        Check(!TMain.ActiveProjectiles.Any() && P(0).Teleports == 0, "Completely blocked destination cancels safely");
-        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90); Tick(45);
+        Check(TMain.ActiveProjectiles.Count() == 2 && P(0).Teleports == 0, "Completely blocked exit never places player inside blocks");
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Tick(90); Tick(45);
         Collision.Lava = _ => true; RecallPortalSystem.RequestTravel(P(0), Portal(1));
-        Check(P(0).Teleports == 1, "Blocked return never places player in lava");
-        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90);
+        Check(P(0).Teleports == 1 && Portal().BurstStart == RecallPortalSystem.DelayTicks, "Blocked return never places player in lava and plays no travel burst");
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Tick(90);
         Portal(1).Projectile.Kill(); Tick(1);
         Check(!TMain.ActiveProjectiles.Any(), "Losing one endpoint cleans up the other");
-        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90); P(0).active = false; Tick(1);
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Tick(90); P(0).active = false; Tick(1);
         Check(!TMain.ActiveProjectiles.Any(), "Caster disconnect cleans up both endpoints");
-        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(90); System.OnWorldUnload();
-        int before = P(0).Teleports; RecallPortalSystem.RequestTravel(P(0), Portal(1));
-        Check(P(0).Teleports == before, "World unload clears authoritative registry");
-        var late = new RecallPortalProjectile { Projectile = new Projectile { ai = [8, 1800, 1] } };
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Tick(30); int oldId = Portal().PairId;
+        RecallPortalSystem.Cast(P(0), 0);
+        Check(TMain.ActiveProjectiles.Count() == 2 && Portal().PairId != oldId && Portal().Projectile.ai[1] == 0,
+            "Recasting closes the caster's previous pair, even while it is still drawing");
+        Setup(); TMain.netMode = NetmodeID.Server; TMain.myPlayer = 255;
+        Check(!RecallPortalSystem.Cast(P(0), 0) && !TMain.ActiveProjectiles.Any(), "Server never spawns client-owned circles");
+        Setup();
+        var late = new RecallPortalProjectile { Projectile = new Projectile { active = true, owner = 0, ai = [8, 1800, 1] } };
         late.SetDefaults(); late.AI();
         Check(late.Projectile.timeLeft <= 90 && late.CanDamage() == false && !late.ShouldUpdatePosition(), "Late projectile sync retains remaining lifetime and cannot damage/move");
     }
     static void Input()
     {
-        Setup(); RecallPortalSystem.RequestCast(P(0), 0); Tick(135);
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Tick(135);
         var state = P(0).GetModPlayer<RecallPortalPlayer>();
         TMain.MouseWorld = Portal(1).Projectile.Center; TMain.mouseRight = TMain.mouseRightRelease = true;
         state.SetControls();
