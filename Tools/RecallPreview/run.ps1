@@ -1,10 +1,10 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$Checks)
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$Checks, [switch]$TransitionOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/recall-preview'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 
-if (!$Checks) {
+if (!$Checks -and !$TransitionOnly) {
     # Keep this file ASCII (PowerShell 5.1 reads it as ANSI). The host compiles production code and the KL bloom pipeline with Roslyn.
     $hostDir = Join-Path $output 'host'
     New-Item -ItemType Directory -Force -Path $hostDir | Out-Null
@@ -16,8 +16,12 @@ if (!$Checks) {
 }
 
 $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
-$sources = @('RecallPortalDrawing', 'RecallPortalScript', 'RecallPortalPattern', 'RecallSkill', 'RecallPortalSystem', 'RecallPortalPlayer', 'RecallPortalProjectile')
+$sources = @('RecallPortalDrawing', 'RecallPortalScript', 'RecallPortalPattern', 'RecallSkill', 'RecallPortalSystem', 'RecallPortalPlayer', 'RecallPortalProjectile', 'RecallTransition')
 $harness = @('Checks.cs.txt', 'NetworkChecks.cs.txt', 'EngineStubs.cs.txt')
+if ($TransitionOnly) {
+    $sources = @('RecallTransition')
+    $harness = @('TransitionPreview.cs.txt')
+}
 $entries = ,@('Reference', (Join-Path $Tml 'Libraries/FNA/1.0.0/FNA.dll'))
 foreach ($source in $sources) { $entries += ,@('Compile', (Join-Path $repo "ElainaModSkills/Skills/Recall/$source.cs")) }
 foreach ($source in $harness) { $entries += ,@('Compile', (Join-Path $PSScriptRoot $source)) }
@@ -31,7 +35,7 @@ foreach ($entry in $entries) {
     }
     [void]$project.Project.SelectSingleNode('ItemGroup').AppendChild($node)
 }
-$projectPath = Join-Path $output 'Checks.csproj'
+$projectPath = Join-Path $output $(if ($TransitionOnly) { 'Transition.csproj' } else { 'Checks.csproj' })
 $project.Save($projectPath)
 dotnet run --project $projectPath --verbosity quiet -- $output
-if ($LASTEXITCODE -ne 0) { throw 'Recall Checks failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Recall checks or transition preview failed.' }

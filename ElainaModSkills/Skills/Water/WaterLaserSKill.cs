@@ -1,3 +1,4 @@
+using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
 using KL.SkillSystem;
@@ -33,6 +34,14 @@ public class WaterLaserSKill : ElainaSkill
         return Player.GetModPlayer<ActionModPlayer>().StartAction(
             new Action_WaterLaser(balance.DamagePerHit, (float)balance.Entry.ManaCost, intervalFrames),
             interruptCurrentAction: false, rotation: rotation);
+    }
+
+    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
+    {
+        // 与技能描述一致，使用含装备增伤的单次伤害
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
+        return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
     protected override object[] SkillDescriptionArgs =>

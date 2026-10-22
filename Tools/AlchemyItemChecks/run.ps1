@@ -15,6 +15,7 @@ $null = Add-CheckItem 'Reference' "$Tml/tModLoader.dll"
 $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $null = Add-CheckItem 'Compile' "$repo/Localization/UIText.cs"
+$null = Add-CheckItem 'Compile' "$repo/Tools/AlchemyGameplayChecks/SkillFixture.cs.txt"
 foreach ($path in @('AlchemyRecipe.cs', 'AlchemyIngredient.cs', 'UI/AlchemyCatalog.cs', 'UI/AlchemyNotebookSnapshot.cs', 'Gameplay/*.cs', 'Crafting/*.cs', 'Buffs/*.cs')) {
     $source = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/$path"
     if ($path -eq 'Buffs/*.cs') { $source.SetAttribute('Exclude', "$repo/ElainaModAlchemy/Buffs/MoonDewElixirBuff.cs") }

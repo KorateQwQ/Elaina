@@ -43,6 +43,18 @@ public static class AlchemyCraftingService
             return new(sequence, action, id, unlocked, message);
         }
 #if DEBUG
+        if (action == AlchemyNotebookAction.DebugMaxLevel)
+        {
+            if (!progress.DebugMaxLevel()) return Fail(LocalizeUI("MaxLevelReached"));
+            Recipe.FindRecipes();
+            return new(sequence, action, id, true, LocalizeUI("AlchemyDebugMaxLevelSuccess", progress.Level));
+        }
+        if (action == AlchemyNotebookAction.DebugUnlockAll)
+        {
+            if (!progress.DebugUnlockAll()) return Fail(LocalizeUI("AlchemyDebugAllUnlocked"));
+            Recipe.FindRecipes();
+            return new(sequence, action, id, true, LocalizeUI("AlchemyDebugUnlockAllSuccess"));
+        }
         if (action == AlchemyNotebookAction.DebugLevelUp)
         {
             if (!progress.DebugLevelUp()) return Fail("炼金等级已满");

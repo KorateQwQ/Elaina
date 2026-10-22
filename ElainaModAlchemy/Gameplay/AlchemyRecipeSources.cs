@@ -17,6 +17,9 @@ public sealed class AlchemyRecipeSources : GlobalNPC
     {
         switch (shop.NpcType)
         {
+            case NPCID.Dryad:
+                shop.Add<PurificationDewRecipe>(Condition.Hardmode);
+                break;
             case NPCID.Wizard:
                 shop.Add<StarPowerPotionRecipe>();
                 break;

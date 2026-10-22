@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [string]$ImproveGameTmod = '')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $modName = Split-Path $repo -Leaf
@@ -23,7 +23,11 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/PotionIntegrationChecks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/FoodIntegrationChecks.cs.txt"
 $check.SetAttribute('Link', 'FoodIntegrationChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/AlchemySkillIntegrationChecks.cs.txt"
+$check.SetAttribute('Link', 'AlchemySkillIntegrationChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/ImproveGameIntegrationChecks.cs.txt"
+$check.SetAttribute('Link', 'ImproveGameIntegrationChecks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
-dotnet run --project $projectPath --configuration Release --verbosity quiet
+dotnet run --project $projectPath --configuration Release --verbosity quiet -- $repo $ImproveGameTmod
 if ($LASTEXITCODE -ne 0) { throw 'Potion integration checks failed.' }

@@ -32,16 +32,27 @@ internal static partial class AlchemyNotebookPresentation
         new[] { new AlchemyCatalogCategory("all", "Catalog.All", "All", "", "", "") }.Concat(AlchemyCatalog.Categories).ToArray();
 #if DEBUG
     internal static readonly Rectangle DebugLevelUpBounds = new(536, 754, 66, 26);
+    internal static readonly Rectangle DebugMaxLevelBounds = new(608, 754, 66, 26);
+    internal static readonly Rectangle DebugUnlockAllBounds = new(680, 754, 88, 26);
+    internal static readonly Rectangle DebugRestockBounds = new(774, 754, 66, 26);
+    internal static readonly Rectangle DebugResetBounds = new(846, 754, 66, 26);
 
-    internal static void DebugButton(AlchemyDrawing d, string label, bool hover, bool enabled = true)
+    internal static void DebugButton(AlchemyDrawing d, string label, bool hover, bool enabled = true, int width = 66)
     {
         hover &= enabled;
-        d.RoundRect(0, 2, 64, 22, 11, Ink * (hover ? .05f : 0), Ink * (enabled ? .18f : .08f), 1);
-        d.FittedText(label, 32, 7, 56, 9.5f, enabled ? Muted : Muted * .45f, .5f);
+        d.RoundRect(0, 2, width - 2, 22, 11, Ink * (hover ? .05f : 0), Ink * (enabled ? .18f : .08f), 1);
+        d.FittedText(label, (width - 2) / 2f, 7, width - 10, 9.5f, enabled ? Muted : Muted * .45f, .5f);
     }
 
     internal static void DebugLevelUpButton(AlchemyDrawing d, AlchemyNotebookState s, bool hover, bool enabled = true)
         => DebugButton(d, s.Level < s.MaximumLevel ? LocalizeUI("AlchemyDebugLevel") : LocalizeUI("MaxLevelReached"), hover, enabled && s.Level < s.MaximumLevel);
+
+    internal static void DebugMaxLevelButton(AlchemyDrawing d, AlchemyNotebookState s, bool hover, bool enabled = true)
+        => DebugButton(d, LocalizeUI("AlchemyDebugMaxLevel"), hover, enabled && s.Level < s.MaximumLevel);
+
+    internal static void DebugUnlockAllButton(AlchemyDrawing d, AlchemyNotebookState s, bool hover, bool enabled = true)
+        => DebugButton(d, LocalizeUI(s.AllRecipesUnlocked ? "AlchemyDebugAllUnlocked" : "AlchemyDebugUnlockAll"), hover,
+            enabled && !s.AllRecipesUnlocked, DebugUnlockAllBounds.Width);
 #endif
     internal const string AssetRoot = "伊蕾娜/ElainaModAlchemy/UI/Assets/";
     internal static int Number(AlchemyCatalogRecipe recipe) => AlchemyCatalog.Recipes.ToList().IndexOf(recipe) + 1;

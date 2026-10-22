@@ -14,9 +14,8 @@ public static class AlchemyProgressionRules
         "painkiller" or "rain" => 1,
         "featherlight" or "trace" => 2,
         "dropper" or "mimic" => 3,
-        "bloodlust" or "starpower" or "focus" or "resonance" => 10,
+        "bloodlust" or "starpower" or "focus" or "resonance" => 8,
         "isolation" => 8,
-        "stew" or "brulee" => 3,
         "shimmer" or "beef" or "potato" => 2,
         _ => 1
     };

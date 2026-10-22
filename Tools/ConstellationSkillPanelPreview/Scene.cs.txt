@@ -106,6 +106,24 @@ internal sealed class PanelScene
             _state.Select(nameof(MagicBarrierSkill)); _state.Unlock(); _state.Toggle(nameof(AshenWitchSkill));
         }
         if (scenario == "empty") _state.SelectFilter("hidden");
+        AshenWitchSkill.StatsPreview = scenario == "passive-stats";
+        if (scenario == "passive-stats") _state.Select(nameof(AshenWitchSkill));
+        if (scenario.StartsWith("recall-"))
+        {
+            var player = Fixtures.Player(typeof(伊蕾娜.ElainaModSkills.Skills.Recall.RecallSkill));
+            _state = new(player);
+            player.SkillPoint = 50;
+            if (scenario != "recall-sealed")
+            {
+                player.Player.inventory[0] = new Item { type = Terraria.ID.ItemID.PotionOfReturn, stack = 1 };
+                player.Player.GetModPlayer<伊蕾娜.ElainaModSkills.Skills.Recall.RecallDiscoveryPlayer>().PostUpdate();
+                if (scenario == "recall-revealed-missing") player.Player.inventory[0].TurnToAir();
+            }
+            _state.Select(typeof(伊蕾娜.ElainaModSkills.Skills.Recall.RecallSkill).FullName);
+            if (scenario == "recall-learned") _state.Unlock();
+            _state.Current.ModSkill.MagicPointCost = 200;
+            _state.Current.Skill.MaxCD = 10;
+        }
         if (scenario.StartsWith("requirements"))
         {
             _state.Select(nameof(MagicMissileSkill));
@@ -126,6 +144,7 @@ internal sealed class PanelScene
             _state.Refresh(); _state.Select(nameof(MagicMissileSkill));
             _state.Current.ModSkill.MagicPointCost = 18;
             _state.Current.Skill.MaxCD = 8;
+            if (scenario == "growth-maxed") for (int i = 0; i < 10; i++) _state.Current.ModSkill.TryLevelUp();
         }
         _layoutEditor = new(_state, new(), new());
         if (scenario.StartsWith("editor"))

@@ -20,6 +20,13 @@ public class AshenWitchSkill : ElainaSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         SkillUnlockCondition.None;
 
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel)
+    {
+        return new NoSkillUnlockCondition();
+    }
+
+    public override int MaxLevel => 1;
+
     public override void Initialize()
     {
         MaxCD = -1;

@@ -81,7 +81,10 @@ public sealed class AlchemyNotebookState
     public bool DebugRestock() => !IsBusy && Current.Craftable && Request(AlchemyNotebookAction.DebugRestock, 1);
     public bool DebugReset() => !IsBusy && Request(AlchemyNotebookAction.DebugReset, 1);
 #if DEBUG
+    public bool AllRecipesUnlocked => AlchemyCatalog.Recipes.All(IsUnlocked);
     public bool DebugLevelUp() => !IsBusy && Level < MaximumLevel && Request(AlchemyNotebookAction.DebugLevelUp, 1);
+    public bool DebugMaxLevel() => !IsBusy && Level < MaximumLevel && Request(AlchemyNotebookAction.DebugMaxLevel, 1);
+    public bool DebugUnlockAll() => !IsBusy && !AllRecipesUnlocked && Request(AlchemyNotebookAction.DebugUnlockAll, 1);
 #endif
     private bool Request(AlchemyNotebookAction action, int batches)
     {

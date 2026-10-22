@@ -1,0 +1,159 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria.ModLoader;
+using 伊蕾娜.System.Experience;
+
+// Deterministic engine boundary only. Production death hook, AI, packet handler and player progression are linked unchanged.
+namespace Terraria
+{
+    public static class Main
+    {
+        public const int maxPlayers = 255, maxProjectiles = 1000;
+        public static int netMode, myPlayer;
+        public static bool dedServ => netMode == 2;
+        public static Player[] player = [];
+        public static Projectile[] projectile = [];
+        public static Player LocalPlayer => player[myPlayer];
+        public static IEnumerable<Player> ActivePlayers => player.Where(p => p.active);
+        public static SpriteBatch spriteBatch;
+        public static Vector2 screenPosition;
+    }
+    public sealed class Player
+    {
+        public int whoAmI;
+        public bool active, dead, ghost;
+        public Vector2 Center;
+        readonly Dictionary<Type, ModPlayer> components = new();
+        public T GetModPlayer<T>() where T : ModPlayer, new()
+        {
+            if (!components.TryGetValue(typeof(T), out var value))
+                components[typeof(T)] = value = new T { Player = this };
+            return (T)value;
+        }
+    }
+    public sealed class NPC
+    {
+        public int type = 1, whoAmI = 10, lifeMax = 100, realLife = -1;
+        public bool friendly, townNPC, SpawnedFromStatue;
+        public Vector2 Center;
+        public string FullName => "Test enemy";
+        public object GetSource_Loot() => this;
+    }
+    public sealed class Projectile
+    {
+        public int owner, width, height, aiStyle, penetrate, timeLeft;
+        public bool active, friendly, hostile, tileCollide, ignoreWater, netImportant, netUpdate;
+        public float[] ai = new float[3];
+        public Vector2 Center, velocity;
+        public ModProjectile ModProjectile;
+        public void Kill() => active = false;
+        public static int NewProjectile(object source, Vector2 position, Vector2 velocity, int type, int damage,
+            float knockback, int owner, float ai0, float ai1)
+        {
+            int index = Array.FindIndex(Main.projectile, p => !p.active);
+            if (index < 0) return Main.maxProjectiles;
+            var p = new Projectile { active = true, owner = owner, Center = position, velocity = velocity };
+            p.ModProjectile = new ExperienceOrb { Projectile = p }; p.ModProjectile.SetDefaults();
+            // Actual engine's owner guard: creating client-owned projectiles on the server loses initial AI.
+            if (owner == Main.myPlayer) { p.ai[0] = ai0; p.ai[1] = ai1; }
+            Main.projectile[index] = p;
+            return index;
+        }
+    }
+    public static class Lighting { public static void AddLight(Vector2 p, float r, float g, float b) {} }
+    public sealed class Dust
+    {
+        public bool noGravity;
+        public static Dust NewDustPerfect(Vector2 p, int type, Vector2 velocity, int alpha, Color color, float scale) => new();
+    }
+    public static class VectorExtensions
+    {
+        public static Vector2 RotatedBy(this Vector2 p, double angle) => new(
+            p.X * (float)Math.Cos(angle) - p.Y * (float)Math.Sin(angle),
+            p.X * (float)Math.Sin(angle) + p.Y * (float)Math.Cos(angle));
+    }
+}
+namespace Terraria.ID
+{
+    public static class NetmodeID { public const int SinglePlayer = 0, MultiplayerClient = 1, Server = 2; }
+    public static class NPCID
+    {
+        public const int TargetDummy = 488;
+        public static class Sets { public static bool[] CountsAsCritter = new bool[1000], ProjectileNPC = new bool[1000]; }
+    }
+    public static class DustID { public const int Enchanted_Pink = 1; }
+    public static class SoundID { public static Terraria.Audio.SoundStyle Grab => new(); }
+}
+namespace Terraria.Audio
+{
+    public record struct SoundStyle { public float Volume, Pitch; public int MaxInstances; }
+    public static class SoundEngine { public static void PlaySound(SoundStyle style, Vector2 position) {} }
+}
+namespace Terraria.GameContent
+{
+    public sealed class Asset<T> { public T Value; }
+    public static class TextureAssets { public static Asset<Texture2D> MagicPixel = new(); }
+}
+namespace Terraria.ModLoader
+{
+    public class Mod { public ModPacket GetPacket() => new(); }
+    public sealed class ModPacket : BinaryWriter
+    {
+        public static List<(int Target, byte[] Data)> Sent = new();
+        public ModPacket() : base(new MemoryStream()) {}
+        public void Send(int toWho) { Flush(); Sent.Add((toWho, ((MemoryStream)BaseStream).ToArray())); }
+    }
+    public class ModPlayer
+    {
+        public Terraria.Player Player;
+        public virtual void Load() {}
+        public virtual void SaveData(IO.TagCompound tag) {}
+        public virtual void LoadData(IO.TagCompound tag) {}
+        public virtual void FrameEffects() {}
+    }
+    public class GlobalNPC { public Mod Mod = new(); public virtual void OnKill(Terraria.NPC npc) {} }
+    public class ModProjectile
+    {
+        public Terraria.Projectile Projectile;
+        public virtual string Texture => "";
+        public virtual void SetDefaults() {}
+        public virtual bool? CanDamage() => null;
+        public virtual bool? CanCutTiles() => null;
+        public virtual void AI() {}
+        public virtual bool PreDraw(ref Color color) => true;
+    }
+    public static class ModContent
+    {
+        public static int ProjectileType<T>() => 1;
+        public static T GetInstance<T>() where T : new() => new();
+    }
+}
+namespace Terraria.ModLoader.IO
+{
+    public class TagCompound : Dictionary<string, object>
+    {
+        public bool TryGet<T>(string key, out T value)
+        { bool found = TryGetValue(key, out object result); value = found ? (T)result : default; return found; }
+    }
+}
+namespace KL.Utils.Net { public class KLModPlayer : ModPlayer {} }
+namespace KL.Utils
+{
+    public static class KLGameStateManager
+    {
+        public static float GetBossState(Terraria.NPC npc) => 1;
+        public static int GetLevelCap(float progress) => progress >= 1 ? 20 : 10;
+    }
+}
+namespace 伊蕾娜
+{
+    public class 伊蕾娜 { public enum MessageType : byte { Experience = 99 } }
+}
+namespace 伊蕾娜.System
+{
+    public class ElainaModplayer : ModPlayer { public bool Elaina; }
+}
+namespace 伊蕾娜.System.EssenceSystemFolder
+{
+    public static class EssenceItemSystem { public static void MakeNewEssences(Terraria.NPC npc) {} }
+}

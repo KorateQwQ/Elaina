@@ -4,6 +4,7 @@ using KL.Utils.Net;
 using Terraria;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.System.EssenceSystemFolder;
+using 伊蕾娜.System.Experience;
 
 namespace 伊蕾娜.System;
 
@@ -15,8 +16,8 @@ public class ElainaStatePlayer : KLModPlayer
     //当前角色等级。最大等级由 GetMaxLevel() 根据 boss 进度决定。
     public int CurrentLevel = 1;
 
-    //经验系统尚未接入，先保留一个稳定的展示区间供 UI 使用。
-    public const int ExperiencePerLevel = 100;
+    // 暂用固定升级经验，正式数值统一从 ExperienceRules 调整。
+    public const int ExperiencePerLevel = ExperienceRules.ExperiencePerLevel;
     public int Experience;
     
     //已经获取的进度
@@ -75,6 +76,7 @@ public class ElainaStatePlayer : KLModPlayer
     {
         Progress = bossProgress;
         NormalizeLevel();
+        ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
         //PrintText("Elaina: Progress Updated: " + bossProgress);
     }
 
@@ -107,6 +109,14 @@ public class ElainaStatePlayer : KLModPlayer
     public int GetExperience() => Math.Clamp(Experience, 0, ExperiencePerLevel);
 
     public int GetExperienceToNextLevel() => ExperiencePerLevel;
+
+    /// <summary>经验由角色拥有端保存；联机光球奖励只能通过服务器确认包进入这里。</summary>
+    public int AddExperience(int amount)
+    {
+        if (Main.netMode == Terraria.ID.NetmodeID.Server || Player.whoAmI != Main.myPlayer || amount <= 0)
+            return 0;
+        return ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), amount);
+    }
 
     private void NormalizeLevel()
     {

@@ -1,0 +1,200 @@
+#nullable enable
+using System.Reflection;
+using System.Runtime.Loader;
+using System.Collections.Concurrent;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ModLoader.Core;
+using 伊蕾娜;
+using 伊蕾娜.Buffs;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.item.Foods;
+
+// 使用安装的 ImproveGame 原始程序集，不复制其增益算法，也不加载游戏或读写存档。
+internal static class ImproveGameIntegrationChecks
+{
+    private const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    private static int passed;
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
+        passed++;
+    }
+
+    public static void Run(Player player, Player other, string path)
+    {
+        var package = (TmodFile)Activator.CreateInstance(typeof(TmodFile), All, null, [path, null, null], null)!;
+        using var opened = package.Open();
+        var libraries = package.GetFileNames().Where(n => n.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(n => Path.GetFileNameWithoutExtension(n), package.GetBytes);
+        Assembly? Resolve(AssemblyLoadContext context, AssemblyName name) =>
+            libraries.TryGetValue(name.Name!, out var bytes) ? context.LoadFromStream(new MemoryStream(bytes)) : null;
+        var context = new AssemblyLoadContext("InstalledImproveGameChecks", isCollectible: true);
+        context.Resolving += Resolve;
+        try
+        {
+            var assembly = context.LoadFromStream(new MemoryStream(package.GetModAssembly()));
+            using var pe = new PEReader(new MemoryStream(package.GetModAssembly()));
+            var metadata = pe.GetMetadataReader();
+            Check(AssemblyLoadContext.GetLoadContext(assembly) == context &&
+                assembly.ManifestModule.ModuleVersionId == metadata.GetGuid(metadata.GetModuleDefinition().Mvid),
+                "Test assembly must match the supplied tmod, not a transitive dependency with the same assembly name");
+            Type T(string name) => assembly.GetType("ImproveGame." + name, throwOnError: true)!;
+            var config = Activator.CreateInstance(T("Common.Configs.ImproveConfigs"))!;
+            ContentInstance.Register(config);
+            var configInstance = config.GetType().GetProperty("Instance", All);
+            if (configInstance?.SetMethod != null) configInstance.SetValue(null, config);
+            else if (configInstance == null)
+            {
+                var utils = assembly.GetType("ImproveGame.Helpers.MyUtils") ?? T("MyUtils");
+                utils.GetProperty("Config", All)!.SetValue(null, config);
+            }
+            void SetConfig(string name, object value) => config.GetType().GetField(name, All)!.SetValue(config, value);
+            SetConfig("NoConsume_Potion", true);
+            SetConfig("NoConsume_PotionRequirement", 30);
+            SetConfig("NoPlace_BUFFTile", false);
+            var provider = T("Common.GlobalItems.ApplyBuffItem");
+            var getBuffs = provider.GetMethod("GetItemBuffTypes", All) ?? provider.GetMethod("GetItemBuffType", All)!;
+            Console.WriteLine($"Installed ImproveGame buff API: {getBuffs.Name}; module={assembly.ManifestModule.ModuleVersionId}");
+            List<int> Buffs(Item item) => (List<int>)getBuffs.Invoke(null, [item])!;
+            var bread = ModContent.GetInstance<HoneyBread>();
+            var happy = ModContent.BuffType<塔の西>();
+            bread.Item.stack = 30;
+            player.GetModPlayer<ElainaModplayer>().Elaina = false;
+            bread.UpdateInventory(player);
+            Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed]), "Original ImproveGame caches ordinary bread as Well Fed");
+            player.GetModPlayer<ElainaModplayer>().Elaina = true;
+            bread.UpdateInventory(player);
+            Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed]), "Reproduce stale food tier and missing Happy after switching character");
+
+            var detour = typeof(ImproveGameFoodCompatibility).GetMethod("ResolveFoodBuffs", All)!;
+            var compatibility = new ImproveGameFoodCompatibility();
+            var fixtureMod = new FixtureMod(package.Version);
+            typeof(Mod).GetProperty("Code", All)!.SetValue(fixtureMod, assembly);
+            typeof(Mod).GetProperty("Logger", All)!.SetValue(fixtureMod, log4net.LogManager.GetLogger("ImproveGameIntegrationChecks"));
+            typeof(ModType).GetProperty("Mod", All)!.SetValue(compatibility, fixtureMod);
+            var mods = (IDictionary<string, Mod>)typeof(ModLoader).GetField("modsByName", All)!.GetValue(null)!;
+            bool dedicated = Main.dedServ;
+            try
+            {
+                Main.dedServ = false;
+                compatibility.PostSetupContent();
+                Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed]), "Absent ImproveGame leaves behavior unchanged");
+                mods.Add("ImproveGame", fixtureMod);
+                Main.dedServ = true;
+                compatibility.PostSetupContent();
+                Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed]), "Dedicated server skips the client hook");
+                Main.dedServ = false;
+                compatibility.PostSetupContent();
+            }
+            finally { Main.dedServ = dedicated; mods.Remove("ImproveGame"); }
+            var hookCache = (ConcurrentDictionary<(MethodBase, Delegate), IDisposable>)typeof(MonoModHooks)
+                .GetField("_hookCache", All)!.GetValue(null)!;
+            var hookKey = ((MethodBase)getBuffs, (Delegate)detour.CreateDelegate<Func<Func<Item, List<int>>, Item, List<int>>>());
+            Check(hookCache.TryRemove(hookKey, out var installedHook), "Production PostSetupContent discovers and installs the actual API");
+            using var hook = installedHook!;
+            Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed2, happy]), "Hook repairs already populated cache for Elaina");
+            player.GetModPlayer<ElainaModplayer>().Elaina = false;
+            Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed]), "Same item immediately supplies ordinary character only Well Fed");
+            player.GetModPlayer<ElainaModplayer>().Elaina = true;
+            bread.Item.buffType = BuffID.WellFed;
+            Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed2, happy]), "Storage or teammate bread uses recipient identity without inventory update");
+            Check(bread.Item.buffType == BuffID.WellFed, "Compatibility leaves stored/shared item fields unchanged");
+            bread.Item.stack = 29;
+            Check(Buffs(bread.Item).Count == 0, "29 bread cannot grant infinite buffs");
+            bread.Item.stack = 30;
+            SetConfig("NoConsume_Potion", false);
+            Check(Buffs(bread.Item).Count == 0, "Disabled infinite-potion feature grants no buffs");
+            SetConfig("NoConsume_Potion", true);
+            SetConfig("NoConsume_PotionRequirement", 40);
+            Check(Buffs(bread.Item).Count == 0, "Custom stack requirement is respected");
+            bread.Item.stack = 40;
+            Check(Buffs(bread.Item).Count == 2, "Custom stack threshold activates both buffs");
+            var integration = T("Common.ModSystems.ModIntegrationsSystem");
+            var ignored = (HashSet<int>)integration.GetField("ModdedInfBuffsIgnore", All)!.GetValue(null)!;
+            ignored.Add(bread.Type);
+            Check(Buffs(bread.Item).Count == 0, "ImproveGame ignored-item list takes precedence");
+            ignored.Remove(bread.Type);
+            var stew = ModContent.GetInstance<BeefStew>().Item;
+            stew.stack = 40;
+            Check(Buffs(stew).SequenceEqual([BuffID.WellFed3]), "Unrelated food keeps its original mapping");
+
+            ModPlayer AddPlayerPart(Type type)
+            {
+                var parts = (ModPlayer[])typeof(Player).GetField("modPlayers", All)!.GetValue(player)!;
+                var part = (ModPlayer)Activator.CreateInstance(type)!;
+                type.GetProperty("Entity", All)!.SetValue(part, player);
+                typeof(ModPlayer).GetProperty("Index", All)!.SetValue(part, (ushort)parts.Length);
+                ContentInstance.Register(part);
+                typeof(Player).GetField("modPlayers", All)!.SetValue(player, parts.Append(part).ToArray());
+                return part;
+            }
+            var infType = assembly.GetType("ImproveGame.Modules.InfiniteBuff.InfiniteBuffModPlayer")
+                ?? T("Common.ModPlayers.InfBuffPlayer");
+            var infPlayer = AddPlayerPart(infType);
+            if (infType.GetMethod("SetupActivationFlags", All) is { } setupFlags)
+            {
+                setupFlags.Invoke(infPlayer, [new Item[] { bread.Item }]);
+                var flags = (bool[])infType.GetProperty("ActivationFlags", All)!.GetValue(infPlayer)!;
+                Check(flags[BuffID.WellFed2] && flags[happy] && !flags[BuffID.WellFed],
+                    "New controller activation flags expose both correct Elaina buffs");
+            }
+            HashSet<int> disabledVanilla;
+            HashSet<string> disabledMod;
+            if (infType.GetProperty("Blacklist", All)?.GetValue(infPlayer) is { } blacklist)
+            {
+                disabledVanilla = (HashSet<int>)blacklist.GetType().GetProperty("Ids", All)!.GetValue(blacklist)!;
+                disabledMod = (HashSet<string>)blacklist.GetType().GetProperty("FullNames", All)!.GetValue(blacklist)!;
+            }
+            else
+            {
+                var data = AddPlayerPart(T("Common.ModPlayers.DataPlayer"));
+                disabledVanilla = (HashSet<int>)data.GetType().GetField("InfBuffDisabledVanilla", All)!.GetValue(data)!;
+                disabledMod = (HashSet<string>)data.GetType().GetField("InfBuffDisabledMod", All)!.GetValue(data)!;
+            }
+            var apply = infType.GetMethod("ApplyAvailableBuffs", All)!;
+            void Clear() { Array.Clear(player.buffType); Array.Clear(player.buffTime); }
+            void Apply(params Item[] items) => apply.Invoke(null, [items]);
+            Clear(); Apply(bread.Item);
+            Check(player.HasBuff(BuffID.WellFed2) && player.HasBuff(happy), "Real ImproveGame application grants both buffs without eating");
+            Check(player.buffTime[player.FindBuffIndex(happy)] == 30 && bread.Item.stack == 40,
+                "Real infinite buff uses a short renewable duration without consuming bread");
+            player.buffTime[player.FindBuffIndex(happy)] = 1;
+            Apply(bread.Item);
+            Check(player.buffTime[player.FindBuffIndex(happy)] == 30, "Infinite Happy refreshes on subsequent updates");
+            Clear(); Apply(bread.Item, stew);
+            Check(player.HasBuff(BuffID.WellFed3) && !player.HasBuff(BuffID.WellFed2) && player.HasBuff(happy),
+                "Stronger food suppresses Plenty Satisfied while preserving Happy");
+            disabledMod.Add(ModContent.GetInstance<塔の西>().FullName);
+            Clear(); Apply(bread.Item);
+            Check(player.HasBuff(BuffID.WellFed2) && !player.HasBuff(happy), "User can disable Happy independently");
+            disabledMod.Clear(); disabledVanilla.Add(BuffID.WellFed2);
+            Clear(); Apply(bread.Item);
+            Check(!player.HasBuff(BuffID.WellFed2) && player.HasBuff(happy), "User can disable the food buff independently");
+            disabledVanilla.Clear();
+            player.GetModPlayer<ElainaModplayer>().Elaina = false;
+            Clear(); Apply(bread.Item);
+            Check(player.HasBuff(BuffID.WellFed) && !player.HasBuff(happy), "Real application restricts Elaina bonuses to the recipient");
+            player.GetModPlayer<ElainaModplayer>().Elaina = true;
+            Array.Clear(other.buffType); Array.Clear(other.buffTime);
+            Clear(); Apply(bread.Item);
+            Check(!other.HasBuff(happy), "Applying local infinite buffs does not mutate remote player buffs");
+            Clear(); bread.Item.stack = 39; Apply(bread.Item);
+            Check(!player.HasBuff(happy) && !player.HasBuff(BuffID.WellFed2), "Removing enough bread stops renewal");
+            hook.Dispose();
+            bread.Item.stack = 40;
+            Check(Buffs(bread.Item).SequenceEqual([BuffID.WellFed]), "Removing the hook restores the unmodified ImproveGame cache");
+            Console.WriteLine($"ImproveGame {package.Version} integration: {passed} checks passed against installed assembly.");
+        }
+        finally { context.Resolving -= Resolve; context.Unload(); }
+    }
+
+    private sealed class FixtureMod(Version version) : Mod
+    {
+        public override string Name => "ImproveGame";
+        public override Version Version => version;
+    }
+}

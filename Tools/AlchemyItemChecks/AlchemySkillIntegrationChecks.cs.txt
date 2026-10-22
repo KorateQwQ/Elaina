@@ -1,0 +1,102 @@
+using System.Reflection;
+using KL.SkillSystem;
+using KL.Utils;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.UI;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.Alchemy;
+using 伊蕾娜.System;
+
+internal static class AlchemySkillIntegrationChecks
+{
+    private const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    private static int passed;
+    private static void Check(bool condition, string message)
+    { if (!condition) throw new InvalidOperationException(message); passed++; }
+
+    public static void Run(Player player, Player other, string repo)
+    {
+        Main.gameMenu = false; Main.dedServ = false; Main.myPlayer = player.whoAmI;
+        string json = File.ReadAllText(Path.Combine(repo, SkillBalanceConfig.ResourcePath));
+        var store = (SkillBalanceFileStore)typeof(SkillBalanceSystem).GetField("store", All)!.GetValue(null)!;
+        Check(store.Apply(json), "Load actual skill balance JSON");
+        var config = SkillBalanceSystem.Current;
+        Check(config.Skills.TryGetValue(nameof(AlchemySkill), out var entry), "Alchemy JSON ID matches the real skill");
+        int hardmodeCap = KLGameStateManager.GetLevelCap(KLGameStateManager.WallOfFlesh);
+        Check(hardmodeCap == 40 && config.GetSkillLevelCap(entry!, hardmodeCap) == 8,
+            "Wall of Flesh character cap grants exactly eight alchemy skill levels");
+        Check(config.GetSkillLevelNodes(entry!, hardmodeCap).SequenceEqual(new[] { 6, 10, 15, 20, 25, 30, 35, 40 }),
+            "Configured unlock and growth nodes stay unchanged");
+
+        var state = player.GetModPlayer<ElainaStatePlayer>();
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>();
+        var progress = player.GetModPlayer<AlchemyProgressPlayer>();
+        progress.Initialize();
+        Check(progress.MaximumLevel == 1 && progress.Level == 1 && progress.ExperienceToNextLevel == 0
+            && progress.AddCraftExperience("moondew", 20) == 0, "Unlearned skill keeps notebook at its base cap");
+        var alchemy = new AlchemySkill();
+        alchemy.Initialize();
+        Check(alchemy.IsPassiveSkill && !alchemy.CanUseSkill() && !alchemy.CanDragInSkillPanel()
+            && !alchemy.PreUpdateCD() && alchemy.MaxCD < 0 && alchemy.MagicPointCost < 0,
+            "Alchemy is a non-casting passive without a skill bar slot or cooldown");
+        skills.SkillPoint = 100; player.inventory[0] = new Item(ItemID.Wood, 10);
+        state.Progress = 0; state.CurrentLevel = 5;
+        Check(!alchemy.UnlockCondition.CanUnlock(skills, alchemy), "Initial progression cannot learn alchemy");
+        state.Progress = 1; state.CurrentLevel = 5;
+        Check(!alchemy.UnlockCondition.CanUnlock(skills, alchemy), "Unlock stage alone does not bypass character level six");
+        state.CurrentLevel = 6;
+        Check(alchemy.UnlockCondition.CanUnlock(skills, alchemy) && alchemy.MaxLevel == 1, "Configured stage and level unlock alchemy");
+        var skill = new Skill(); typeof(Skill).GetProperty("ModSkill", All)!.SetValue(skill, alchemy);
+        alchemy.Skill = skill; alchemy.Level = 1; alchemy.BasicStatus = Skill.SKillBasicStatus.UnLock;
+        skills.UnlockedSkill[nameof(AlchemySkill)] = skill;
+        state.Progress = KLGameStateManager.WallOfFlesh; state.CurrentLevel = 39;
+        Check(alchemy.MaxLevel == 7, "Level 39 cannot buy the eighth skill level");
+        state.CurrentLevel = hardmodeCap;
+        for (int i = 0; i < 20; i++) alchemy.TryLevelUp();
+        Check(alchemy.Level == 8 && alchemy.MaxLevel == 8 && progress.MaximumLevel == 8 && progress.Level == 1,
+            "Skill upgrades cap at eight and raise the notebook cap without granting crafting levels");
+        Check(other.GetModPlayer<AlchemyProgressPlayer>().MaximumLevel == 1, "Notebook cap belongs to its owner, not Main.LocalPlayer");
+        alchemy.DeserializeData(new TagCompound { ["Level"] = 8, ["MaxCD"] = 60f, ["CurrentCD"] = 10f });
+        Check(alchemy.MaxCD < 0 && alchemy.CurrentCD == 0 && alchemy.Level == 8, "Old skill save cannot restore an active cooldown");
+
+        int gained = progress.AddCraftExperience("moondew", int.MaxValue);
+        Check(gained == 1750 && progress.Level == 8 && progress.Experience == 0 && progress.ExperienceToNextLevel == 0
+            && progress.AddCraftExperience("moondew", 1) == 0, "Crafting stops exactly at the owned skill cap without banking excess XP");
+        Check(new[] { "bloodlust", "starpower", "focus", "resonance" }.All(id => AlchemyProgressionRules.RequiredLevel(id) == 8),
+            "All four combat recipes require level eight");
+        foreach (int characterLevel in new[] { 45, 95, 1000 })
+        {
+            state.Progress = 18; state.CurrentLevel = characterLevel; alchemy.TryLevelUp();
+            Check(alchemy.Level == 8 && alchemy.MaxLevel == 8 && progress.MaximumLevel == 8
+                && progress.ExperienceToNextLevel == 0, "Later progression cannot raise alchemy above eight");
+            Check(progress.AddCraftExperience("moondew", 1) == 0 && progress.Experience == 0,
+                "Crafting stays capped after later bosses");
+        }
+
+        progress.LoadData(new TagCompound { ["Level"] = 12, ["Experience"] = 35, ["Unlocked"] = new List<string> { "bloodlust" } });
+        skills.UnlockedSkill.Remove(nameof(AlchemySkill));
+        Check(progress.Level == 1 && progress.Experience == 0 && progress.IsUnlocked("bloodlust"),
+            "Skill reset caps effective progress while keeping research");
+        var saved = new TagCompound(); progress.SaveData(saved);
+        Check(saved.GetInt("Level") == 12 && saved.GetInt("Experience") == 35, "Saving before skills load preserves earned progress");
+        progress.Initialize(); progress.LoadData(saved);
+        skills.UnlockedSkill[nameof(AlchemySkill)] = skill; alchemy.Level = 13;
+        Check(progress.Level == 8 && progress.MaximumLevel == 8 && progress.Experience == 0 && progress.IsUnlocked("bloodlust"),
+            "Old overleveled skill saves cannot bypass the fixed cap, while research survives");
+        var raised = global::System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        var row = raised["configuration"]!["skills"]!.AsArray().First(x => x!["id"]!.GetValue<string>() == nameof(AlchemySkill))!;
+        row["maxLevel"] = 13; Check(store.Apply(raised.ToJsonString()), "Reload edited maximum level");
+        Check(progress.Level == 12 && progress.Experience == 35 && progress.MaximumLevel == 13,
+            "Raising the configured cap restores preserved old progress");
+        Check(store.Apply(json) && progress.Level == 8 && progress.Experience == 0, "Restoring config reapplies cap immediately");
+        alchemy.Level = 8;
+        Check(!progress.DebugLevelUp() && progress.Level == 8, "Debug level button respects the skill cap");
+        progress.ResetProgress();
+        Check(progress.Level == 1 && progress.Experience == 0 && !progress.IsUnlocked("bloodlust") && progress.MaximumLevel == 8,
+            "Notebook reset clears earned progress and keeps the owned skill cap");
+        Console.WriteLine($"Alchemy skill integration: {passed} checks passed against the compiled mod.");
+    }
+}

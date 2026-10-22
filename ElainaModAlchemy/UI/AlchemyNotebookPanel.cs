@@ -113,13 +113,23 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             if (Brewing || _state.IsBusy) return;
             _state.DebugLevelUp(); ProcessResult();
         }, (d, h) => DebugLevelUpButton(d, _state, h, !Brewing && !_state.IsBusy));
-        Button(new(608, 754, 66, 26), () => { if (Brewing || _state.IsBusy) return; _state.DebugRestock(); ProcessResult(); },
-            (d, h) => DebugButton(d, LocalizeUI("AlchemyDebugRestock"), h));
-        Button(new(680, 754, 66, 26), () =>
+        Button(DebugMaxLevelBounds, () =>
+        {
+            if (Brewing || _state.IsBusy) return;
+            _state.DebugMaxLevel(); ProcessResult();
+        }, (d, h) => DebugMaxLevelButton(d, _state, h, !Brewing && !_state.IsBusy));
+        Button(DebugUnlockAllBounds, () =>
+        {
+            if (Brewing || _state.IsBusy) return;
+            _state.DebugUnlockAll(); ProcessResult();
+        }, (d, h) => DebugUnlockAllButton(d, _state, h, !Brewing && !_state.IsBusy));
+        Button(DebugRestockBounds, () => { if (Brewing || _state.IsBusy) return; _state.DebugRestock(); ProcessResult(); },
+            (d, h) => DebugButton(d, LocalizeUI("AlchemyDebugRestock"), h, !Brewing && !_state.IsBusy));
+        Button(DebugResetBounds, () =>
         {
             if (Brewing || _state.IsBusy) return;
             _state.DebugReset(); ProcessResult(); Dirty(false);
-        }, (d, h) => DebugButton(d, LocalizeUI("AlchemyDebugReset"), h));
+        }, (d, h) => DebugButton(d, LocalizeUI("AlchemyDebugReset"), h, !Brewing && !_state.IsBusy));
 #endif
         _bagScroll = Scroll(BagBounds, false, Direction.Horizontal);
         _bagScroll.Container.FlexWrap = false;

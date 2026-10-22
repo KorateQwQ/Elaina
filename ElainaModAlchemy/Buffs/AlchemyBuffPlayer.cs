@@ -14,9 +14,13 @@ public sealed class AlchemyBuffPlayer : ModPlayer
     public bool ConcentrationActive;
     public bool ResonanceActive;
     public bool FeatherlightActive;
+    public bool HappyActive;
 
     public const float FeatherlightSpeedMultiplier = 1.2f;
-    public float TravelSpeedMultiplier => FeatherlightActive ? FeatherlightSpeedMultiplier : 1f;
+    public const float HappySpeedBonus = 0.05f;
+    // 同类旅行速度加成相加，所有移动入口共用同一倍率，避免水平飞行和坐骑重复加成。
+    public float TravelSpeedMultiplier => 1f + (FeatherlightActive ? FeatherlightSpeedMultiplier - 1f : 0f)
+        + (HappyActive ? HappySpeedBonus : 0f);
 
     private int painkillerTicks;
     private int painkillerHealingHundredths;
@@ -30,6 +34,7 @@ public sealed class AlchemyBuffPlayer : ModPlayer
         ConcentrationActive = false;
         ResonanceActive = false;
         FeatherlightActive = false;
+        HappyActive = false;
     }
 
     public override void UpdateDead()
@@ -86,12 +91,13 @@ public sealed class AlchemyBuffPlayer : ModPlayer
         // 原版先计算跑鞋、翅膀/悬停和地形修正，然后才调用此钩子。
         // 同时提高步行与跑鞋上限，水平飞行也经过这里，不能再在翅膀钩子中重复叠加。
         // 坐骑使用独立速度；本模组扫帚在自己的控制器中读取 TravelSpeedMultiplier。
-        if (!FeatherlightActive || Player.mount.Active) return;
+        float multiplier = TravelSpeedMultiplier;
+        if (multiplier == 1f || Player.mount.Active) return;
 
-        Player.maxRunSpeed *= FeatherlightSpeedMultiplier;
-        Player.accRunSpeed *= FeatherlightSpeedMultiplier;
-        Player.runAcceleration *= FeatherlightSpeedMultiplier;
-        Player.runSlowdown *= FeatherlightSpeedMultiplier;
+        Player.maxRunSpeed *= multiplier;
+        Player.accRunSpeed *= multiplier;
+        Player.runAcceleration *= multiplier;
+        Player.runSlowdown *= multiplier;
     }
 
     public override void ModifyHitNPCWithProj(Projectile proj, NPC target, ref NPC.HitModifiers modifiers)

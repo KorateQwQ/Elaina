@@ -691,7 +691,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     {
         var d = _draw;
         string status = Editing ? "ready" : _state.Status(s);
-        bool hidden = status == "hidden", selected = s.id == _state.Selected, hover = s.id == _hoverNode;
+        bool hidden = !Editing && !_state.Discovered(s), selected = s.id == _state.Selected, hover = s.id == _hoverNode;
         bool insight = !hidden && !s.Active, owned = _state.Learned.Contains(s.id);
         bool off = !Editing && owned && !_state.Availability(s.id).Ok;
         // Unlearned nodes stay dormant even when their filter tab is active; only learned art is lit.
@@ -707,7 +707,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.Dot(p, r, NodePlate * (.95f * alpha));
         if (hidden)
         {
-            d.CrossStar(p, new Vector2(14 * _zoom), Muted * (.35f * alpha), .2f);
+            if (status == "locked") d.Text("?", p.X, p.Y - 16 * _zoom, 30 * _zoom, Lavender * alpha, .5f);
+            else d.CrossStar(p, new Vector2(14 * _zoom), Muted * (.35f * alpha), .2f);
             d.Ring(p, r, r, (hover ? Ink * .5f : Muted * .4f) * alpha, 1, true);
         }
         else
@@ -732,7 +733,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             (selected ? Gold : off ? new Color(179, 160, 186) : owned ? Ink : Muted) * alpha, .5f, serif: !hidden, spacing: .5f * _zoom);
         if (hover)
         {
-            string tooltip = hidden ? LocalizeUI("Hidden") : $"{s.name} · {(insight ? LocalizeUI("Insight") : LocalizeUI("Spell"))} · {ConstellationState.StatusName(status)}"
+            string tooltip = hidden ? status == "locked" ? LocalizeUI("Locked") + " · " + s.ModSkill.ConstellationRevealHint : LocalizeUI("Hidden") : $"{s.name} · {(insight ? LocalizeUI("Insight") : LocalizeUI("Spell"))} · {ConstellationState.StatusName(status)}"
             + (owned ? $" · Lv. {_state.Level(s.id)}" + (_state.MaxLevel(s.id) is int max ? $" / {max}" : "") : "")
             + (off ? " · " + _state.Availability(s.id).Reason : "");
             if (Editing) tooltip = $"{s.name} · 拖动移动 · ({s.x:0.##}, {s.y:0.##})";
@@ -753,7 +754,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         bool maxed = owned && level >= max;
         // Kind row: a spark and the kind on the left, the status (gold when actionable or maxed) on the right.
         d.Spark(new Vector2(780, 167), 8, Lavender);
-        d.Text(hidden ? LocalizeUI("Hidden") : insight ? LocalizeUI("Insight") : LocalizeUI("Spell"), 790, 160, 11, Heading, spacing: 2);
+        d.Text(hidden ? ConstellationState.StatusName(_state.Status(s)) : insight ? LocalizeUI("Insight") : LocalizeUI("Spell"), 790, 160, 11, Heading, spacing: 2);
         string status = _state.Status(s);
         bool off = owned && !_state.Availability(s.id).Ok, golden = !off && (maxed || status == "ready");
         string statusText = off ? s.toggleable && _state.Disabled.Contains(s.id) ? LocalizeUI("Disabled") : LocalizeUI("Inactive")
@@ -764,7 +765,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
 
         var center = new Vector2(815, 229);
         d.Image("Glow", center.X - 45, center.Y - 45, 90, 90, Lavender * (owned ? .2f : .08f));
-        if (hidden) d.SkillIcon(s, center, 50, Lavender, true);
+        if (hidden && status == "locked") d.Text("?", center.X, center.Y - 23, 40, Lavender, .5f);
+        else if (hidden) d.SkillIcon(s, center, 50, Lavender, true);
         else d.SkillIcon(s, center, 56, Color.White * (owned ? 1 : .45f), uncolored: !owned);
         d.DetailIconFrame(center, maxed, !owned);
         d.FittedText(_state.Name(s), 872, 197, 180, 25, new Color(240, 231, 244), serif: true, spacing: 3);

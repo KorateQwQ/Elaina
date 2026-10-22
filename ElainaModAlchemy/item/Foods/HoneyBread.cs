@@ -1,9 +1,11 @@
 using Terraria;
 using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.Buffs;
 
 namespace 伊蕾娜.ElainaModAlchemy.item.Foods;
 
-/// <summary>蜂蜜面包：伊蕾娜获得很满意并恢复 30 生命，其他角色获得吃得好。</summary>
+/// <summary>蜂蜜面包：伊蕾娜获得很满意和开心，其他角色获得吃得好。</summary>
 public sealed class HoneyBread : AlchemyFood
 {
     public override string EntryId => "bread";
@@ -25,9 +27,9 @@ public sealed class HoneyBread : AlchemyFood
 
     public override void OnConsumeItem(Player player)
     {
-        // 消耗钩子兼容手动食用和快捷增益，只由食用者结算一次额外治疗。
+        // 消耗钩子兼容手动食用和快捷增益，只由食用者添加额外增益。
         if (player.whoAmI == Main.myPlayer && !player.dead &&
-            player.GetModPlayer<ElainaModplayer>().Elaina && player.statLife < player.statLifeMax2)
-            player.Heal(30);
+            player.GetModPlayer<ElainaModplayer>().Elaina)
+            player.AddBuff(ModContent.BuffType<塔の西>(), DurationTicks);
     }
 }

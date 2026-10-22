@@ -22,6 +22,13 @@ public class MagicBarrierSkill : ElainaSkill
     public override bool IsPassiveSkill => true;
     public override bool IsToggleable => true;
     public override Type[] PrerequisiteSkills => new[] { typeof(AshenWitchSkill) };
+    
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel)
+    {
+        return new NoSkillUnlockCondition();
+    }
+
+    public override int MaxLevel => 1;
 
     // 需要角色当前等级达到 5 级（不是等级上限）
     public override SkillUnlockCondition UnlockCondition { get; set; } =

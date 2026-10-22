@@ -7,6 +7,12 @@ namespace 伊蕾娜.ElainaModSkills;
 
 public abstract partial class ElainaSkill
 {
+    /// <summary>是否已启封信息；使用面板所属玩家，避免共享模板串用角色进度。</summary>
+    public virtual bool IsConstellationRevealed(Player player) => true;
+
+    /// <summary>待启封时显示的探索提示。</summary>
+    public virtual string ConstellationRevealHint => string.Empty;
+
     /// <summary>技能图标旁显示的可选无色图案，不包含文件扩展名。</summary>
     public virtual string ConstellationUncoloredIconPath => SkillTexturePath + "_Gray";
 
@@ -16,8 +22,8 @@ public abstract partial class ElainaSkill
     /// <summary>各等级的解锁要求。None 或 null 表示没有额外消耗，但仍会应用 MaxLevel。</summary>
     public virtual SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.ByItemsAndSkillPoint(20);//SkillUnlockCondition.ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);
 
-    /// <summary>可选的战斗数值，在指定等级下计算。不自动推导伤害。</summary>
-    public virtual (string Label, string Value)[] GetConstellationStats(int level) => [];
+    /// <summary>可选的数值，在指定等级下计算，与魔力/冷却同样以大号数字两列显示。不自动推导伤害。</summary>
+    public virtual (string Label, string Value, string Unit)[] GetConstellationStats(int level) => [];
 
     /// <summary>用于升级比较的实际当前值和下一等级值。在定义成长效果前保持为空。</summary>
     public virtual (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel) => [];

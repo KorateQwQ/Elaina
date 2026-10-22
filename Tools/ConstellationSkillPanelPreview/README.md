@@ -1,5 +1,7 @@
 # 正式技能面板离线验证
 
+`pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、50 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。
+
 运行 `& Tools/ConstellationSkillPanelPreview/run.ps1`。可通过 `-Tml` 指定安装目录，`-Sources` 指定本地 Terraria 源码目录。
 
 `-DebugToolsOnly` 运行调试栏专项状态检查，并以正式 `DrawLayoutButton` / `DrawDebugButton` / `ToolButton` 导出普通、升满级悬停、精通技能悬停和布局编辑状态，覆盖 86% / 100% / 125% / 200% 缩放。输出 `output/zh-Hans/debug-tools-*.png`。状态检查链接正式 `ConstellationState`，每次抽取实际 `DebugMaxLevel`、等级规范化及 KL 解锁/升级方法；角色和技能定义为隔离夹具。覆盖当前上限、倒序前置链、阶段/等级/自定义限制、免费学习进修、模板不变、装配/冷却保留、重复调用及提升上限后补齐。此模式始终执行专项断言，不依赖通用检查；`-DebugToolsOnly -Configuration Release` 验证调试方法被排除，不输出调试栏图片。真实 Boss 上限和内存存档往返由 `Tools/CharacterProgressChecks/run.ps1` 验证；完整游戏输入与联机需另验。

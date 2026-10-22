@@ -1,0 +1,114 @@
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.System;
+using 伊蕾娜.System.Experience;
+using TMain = Terraria.Main;
+
+int passed = 0;
+void Check(bool value, string description)
+{ if (!value) throw new Exception(description); Console.WriteLine("PASS " + description); passed++; }
+void Reset(int mode = NetmodeID.Server)
+{
+    TMain.netMode = mode; TMain.myPlayer = mode == NetmodeID.Server ? 255 : 0;
+    TMain.player = Enumerable.Range(0, TMain.maxPlayers).Select(i => new Player { whoAmI = i }).ToArray();
+    TMain.projectile = Enumerable.Range(0, TMain.maxProjectiles).Select(_ => new Projectile()).ToArray();
+    ModPacket.Sent.Clear();
+}
+Player Activate(int index, Vector2 center, bool elaina = true)
+{
+    Player p = TMain.player[index]; p.active = true; p.Center = center;
+    p.GetModPlayer<ElainaModplayer>().Elaina = elaina; return p;
+}
+Projectile[] Orbs() => TMain.projectile.Where(p => p.active).ToArray();
+void Tick(int count)
+{
+    for (int i = 0; i < count; i++) foreach (Projectile p in Orbs())
+    {
+        p.ModProjectile.AI();
+        if (!p.active) continue;
+        p.Center += p.velocity;
+        if (--p.timeLeft <= 0) p.Kill();
+    }
+}
+void Receive((int Target, byte[] Data) packet)
+{
+    using var reader = new BinaryReader(new MemoryStream(packet.Data)); reader.ReadByte();
+    ExperienceNetwork.HandlePacket(reader, reader.ReadInt32());
+}
+var hook = new ExperienceDropNPC();
+Reset();
+Activate(0, new Vector2(-120, 0)); Activate(1, new Vector2(360, 0));
+Activate(2, Vector2.Zero, false); Activate(3, new Vector2(1201, 0));
+Activate(4, Vector2.Zero).dead = true; Activate(5, Vector2.Zero).ghost = true;
+hook.OnKill(new NPC());
+Check(Orbs().Length == 2 && Orbs().Select(p => (int)p.ai[0]).SequenceEqual(new[] { 0, 1 }), "One separate orb for each nearby living Elaina; no kill-credit requirement");
+Check(Orbs().All(p => p.owner == 255 && p.ai[1] == 10), "Server owns both projectiles and initializes recipient/amount correctly");
+Check(Orbs().All(p => p.ModProjectile.CanDamage() == false && p.ModProjectile.CanCutTiles() == false && !p.tileCollide), "Orbs are harmless and pass through terrain");
+var references = Orbs(); Tick(29);
+Check(ModPacket.Sent.Count == 0 && Orbs().All(p => p.Center.Y < -20), "Visible upward float precedes attraction and settlement");
+Tick(160);
+Check(Orbs().Length == 0 && ModPacket.Sent.Count == 2 && ModPacket.Sent.Select(p => p.Target).Distinct().Count() == 2, "Both recipients receive exactly one independent server award");
+foreach (var orb in references) orb.ModProjectile.AI();
+Check(ModPacket.Sent.Count == 2, "Settled orb cannot pay twice even if AI is called again");
+Check(TMain.player.Take(2).All(p => p.GetModPlayer<ElainaStatePlayer>().Experience == 0), "Server does not overwrite client-owned character saves");
+var grants = ModPacket.Sent.ToArray();
+Receive(grants[0]);
+Check(TMain.player[0].GetModPlayer<ElainaStatePlayer>().Experience == 0, "Server rejects client-sent award packet");
+TMain.netMode = NetmodeID.MultiplayerClient; TMain.myPlayer = 0;
+Receive(grants.Single(p => p.Target == 1));
+Check(TMain.LocalPlayer.GetModPlayer<ElainaStatePlayer>().Experience == 0, "Other player's award cannot credit local character");
+Receive(grants.Single(p => p.Target == 0));
+TMain.myPlayer = 1; Receive(grants.Single(p => p.Target == 1));
+Check(TMain.player.Take(2).All(p => p.GetModPlayer<ElainaStatePlayer>().Experience == 10), "Each owning client receives the full reward, without splitting");
+hook.OnKill(new NPC()); Check(Orbs().Length == 0, "Client death hook cannot create duplicate orbs");
+ExperienceNetwork.Award(TMain.LocalPlayer, 10); Check(ModPacket.Sent.Count == 2, "Client cannot originate an award");
+
+foreach (string invalidation in new[] { "death", "disconnect", "replacement", "character-change" })
+{
+    Reset(); Player target = Activate(0, new Vector2(300, 0)); hook.OnKill(new NPC());
+    if (invalidation == "death") target.dead = true;
+    if (invalidation == "disconnect") target.active = false;
+    if (invalidation == "replacement") { TMain.player[0] = new Player { whoAmI = 0 }; Activate(0, Vector2.Zero); }
+    if (invalidation == "character-change") target.GetModPlayer<ElainaModplayer>().Elaina = false;
+    Tick(1);
+    Check(Orbs().Length == 0 && ModPacket.Sent.Count == 0, invalidation + " clears only the assigned orb without a reward");
+}
+Reset(); Activate(0, new Vector2(300, 0)); hook.OnKill(new NPC());
+Orbs()[0].timeLeft = 1; Tick(1);
+Check(ModPacket.Sent.Count == 0 && Orbs().Length == 0, "Expiry never grants experience");
+Reset(); Activate(0, new Vector2(1200, 0)); hook.OnKill(new NPC());
+Check(Orbs().Length == 1, "Distribution includes the exact radius boundary");
+for (int i = 0; i < 160; i++) { TMain.player[0].Center += new Vector2(5, 0); Tick(1); }
+Check(ModPacket.Sent.Count == 1, "Assigned orb keeps chasing after its player leaves the original radius");
+Reset(); Activate(0, Vector2.Zero); hook.OnKill(new NPC { lifeMax = 1 });
+Check(Orbs().Length == 1, "Low-health hostile enemies are still eligible");
+
+foreach (var npc in new[] { new NPC { friendly = true }, new NPC { townNPC = true }, new NPC { SpawnedFromStatue = true },
+    new NPC { type = NPCID.TargetDummy }, new NPC { realLife = 11 }, new NPC { type = 2 }, new NPC { type = 3 } })
+{
+    NPCID.Sets.CountsAsCritter[2] = true; NPCID.Sets.ProjectileNPC[3] = true;
+    Reset(); Activate(0, Vector2.Zero); hook.OnKill(npc);
+    Check(Orbs().Length == 0, "Excluded NPC does not produce experience: " + npc.type + "/" + npc.realLife);
+}
+
+Reset(NetmodeID.SinglePlayer); Player solo = Activate(0, new Vector2(100, 0));
+hook.OnKill(new NPC()); Tick(160);
+var state = solo.GetModPlayer<ElainaStatePlayer>();
+Check(state.Experience == 10 && ModPacket.Sent.Count == 0, "Single player absorption credits experience directly");
+state.AddExperience(245);
+Check(state.CurrentLevel == 3 && state.Experience == 55, "A large award handles multiple level-ups and preserves the remainder");
+state.AddExperience(int.MaxValue);
+Check(state.CurrentLevel == 10 && state.Experience == 100, "Boss level cap safely banks at most one bar without integer overflow");
+state.OnKillBoss(new NPC());
+Check(state.CurrentLevel == 11 && state.Experience == 0, "Unlocking a higher Boss cap consumes the banked bar");
+var saved = new TagCompound(); state.SaveData(saved);
+var restored = new ElainaStatePlayer { Player = solo }; restored.LoadData(saved);
+Check(restored.CurrentLevel == 11 && restored.Experience == 0 && restored.Progress == 1, "Progress, level and experience round-trip through character saves");
+int before = state.CurrentLevel; state.AddExperience(-100);
+Check(state.CurrentLevel == before && state.Experience == 0, "Negative experience is ignored");
+TMain.netMode = NetmodeID.Server; state.AddExperience(100);
+Check(state.CurrentLevel == before, "Server cannot mutate the client-owned saved progression");
+Console.WriteLine($"{passed} checks passed.");

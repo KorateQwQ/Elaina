@@ -1,0 +1,83 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+
+using var game = new TransitionPreview(args[0]);
+game.Run();
+
+// Illustrative terrain and HUD; the overlay and timing are linked directly from production.
+sealed class TransitionPreview : Game
+{
+    readonly string output;
+    SpriteBatch batch;
+    Texture2D pixel;
+    bool done;
+    public TransitionPreview(string root)
+    {
+        output = Path.Combine(root, "transition"); Directory.CreateDirectory(output);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 640, PreferredBackBufferHeight = 360,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) { Exit(); return; } done = true;
+        foreach (var (name, distance) in new[] { ("near", 400f), ("medium", 1120f), ("far", 4000f) })
+        {
+            var fade = new RecallTransition();
+            for (int frame = 0; frame <= 36; frame++)
+            {
+                if (frame == 6) fade.Begin(distance);
+                else if (frame > 6) fade.Advance(1f / 60);
+                using var target = new RenderTarget2D(GraphicsDevice, 640, 360);
+                GraphicsDevice.SetRenderTarget(target);
+                GraphicsDevice.Clear(frame < 6 ? new Color(40, 58, 86) : new Color(125, 182, 207));
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                    DepthStencilState.None, RasterizerState.CullNone);
+                // Two visibly different destinations make the covered scene cut easy to inspect.
+                if (frame < 6)
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        Fill(i * 94 - 10, 98 + i % 3 * 19, 18, 200, new Color(55, 45, 57));
+                        Fill(i * 94 - 40, 64 + i % 3 * 19, 80, 95, new Color(30, 66, 68));
+                    }
+                }
+                else
+                {
+                    Fill(390, 120, 150, 150, new Color(155, 107, 79));
+                    Fill(377, 105, 176, 22, new Color(85, 66, 93));
+                    Fill(418, 150, 35, 40, new Color(240, 212, 137));
+                    Fill(485, 200, 24, 70, new Color(70, 58, 76));
+                }
+                Fill(0, 270, 640, 90, new Color(94, 75, 67));
+                Fill(0, 268, 640, 8, new Color(66, 112, 77));
+                Fill(308, 226, 24, 42, new Color(180, 161, 204));
+                Fill(313, 214, 15, 16, new Color(226, 204, 196));
+                fade.Draw(batch, pixel, new Rectangle(0, 0, 640, 360));
+                // HUD is deliberately drawn after the production fade, as in the game layer.
+                for (int i = 0; i < 8; i++)
+                {
+                    Fill(16 + i * 32, 16, 27, 27, new Color(51, 43, 70));
+                    Fill(20 + i * 32, 20, 19, 19, new Color(165, 142, 191));
+                }
+                Fill(495, 19, 126, 8, new Color(203, 91, 114));
+                batch.End(); GraphicsDevice.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(output, $"{name}-{frame:00}.png"));
+                target.SaveAsPng(stream, 640, 360);
+            }
+        }
+        Console.WriteLine(output); Exit();
+    }
+    void Fill(int x, int y, int w, int h, Color color) => batch.Draw(pixel, new Rectangle(x, y, w, h), color);
+    protected override void UnloadContent() { batch.Dispose(); pixel.Dispose(); base.UnloadContent(); }
+}

@@ -1,0 +1,68 @@
+using KL.SkillSystem;
+using Terraria.ID;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+
+internal static class RecallResearchChecks
+{
+    internal static void Run()
+    {
+        int count = 0;
+        void Check(bool ok, string name) { if (!ok) throw new Exception(name); count++; }
+        Item Potion(int type = ItemID.PotionOfReturn) => new() { type = type, stack = 1 };
+        var player = Fixtures.Player(typeof(RecallSkill));
+        var discovery = player.Player.GetModPlayer<RecallDiscoveryPlayer>();
+        var state = new ConstellationState(player);
+        string id = typeof(RecallSkill).FullName;
+        state.Select(id);
+        var template = state.Current.Skill;
+        player.SkillPoint = 50;
+        Check(state.Status(state.Current) == "locked" && !state.Discovered(state.Current) && state.Name(state.Current) == "???", "new player sees sealed question mark");
+        Check(!state.Unlock() && player.SkillPoint == 50, "sealed skill rejects research without charging");
+        template.BasicStatus = Skill.SKillBasicStatus.Hide;
+        Check(state.Status(state.Current) == "hidden", "unavailable stage remains hidden rather than sealed");
+        template.BasicStatus = Skill.SKillBasicStatus.Lock;
+        state.Select(id);
+        discovery.Observe(Potion(ItemID.RecallPotion));
+        Check(!discovery.HasObtainedReturnPotion, "Recall Potion is not Potion of Return");
+        player.Player.inventory[0] = Potion();
+        Check(!template.ModSkill.TryUnlockSkill(player), "direct research cannot bypass discovery");
+        discovery.PostUpdate();
+        state.Select(id);
+        Check(state.Status(state.Current) == "ready" && state.Discovered(state.Current), "inventory acquisition reveals research");
+        var cost = state.Requirements(id, false);
+        Check(cost.PointCost == 50 && cost.Rows.Any(r => !r.Points && !r.Custom && r.Needed == 1), "research requires 50 points and one item");
+        player.Player.inventory[0].TurnToAir();
+        discovery.PostUpdate();
+        Check(state.Status(state.Current) == "ready" && !state.Unlock() && player.SkillPoint == 50, "discarded potion keeps discovery but cannot pay");
+        var saved = new TagCompound(); discovery.SaveData(saved);
+        discovery.Initialize(); discovery.LoadData(saved);
+        Check(discovery.HasObtainedReturnPotion, "discovery persists through save load");
+        player.Player.inventory[0] = Potion(); player.SkillPoint = 49;
+        Check(!state.Unlock() && player.SkillPoint == 49 && player.Player.inventory[0].stack == 1, "insufficient points consume nothing");
+        player.SkillPoint = 50;
+        Check(state.Unlock() && player.SkillPoint == 0 && player.Player.inventory[0].IsAir, "research consumes exactly 50 points and one Potion of Return");
+        Check(state.Status(state.Current) == "learned" && !state.Unlock() && discovery.HasObtainedReturnPotion, "learned state and one-time payment");
+        Check(template.BasicStatus == Skill.SKillBasicStatus.Lock, "shared template is unchanged");
+        discovery.Initialize();
+        Check(state.Discovered(state.Current) && state.Status(state.Current) == "learned", "existing learned saves remain learned without discovery tag");
+        var other = new Player(); var otherDiscovery = other.GetModPlayer<RecallDiscoveryPlayer>();
+        otherDiscovery.LoadData(new TagCompound());
+        Check(!otherDiscovery.HasObtainedReturnPotion, "new and old empty saves stay sealed independently");
+        Main.LocalPlayer = other;
+        var otherState = new ConstellationState(new 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer { Player = other });
+        otherState.Select(id);
+        Check(otherState.Status(otherState.Current) == "locked" && !otherState.Discovered(otherState.Current), "another character does not inherit discovery from shared templates");
+        other.bank4.item[0] = Potion(); otherDiscovery.OnEnterWorld();
+        Check(otherDiscovery.HasObtainedReturnPotion, "existing personal storage counts on entry");
+        otherDiscovery.Initialize(); other.bank4.item[0].TurnToAir();
+        Main.mouseItem = Potion(); otherDiscovery.PostUpdate(); Main.mouseItem.TurnToAir();
+        Check(otherDiscovery.HasObtainedReturnPotion, "crafted or transferred cursor item counts");
+        otherDiscovery.Initialize(); new RecallDiscoveryItem().OnPickup(Potion(), other);
+        Check(otherDiscovery.HasObtainedReturnPotion, "pickup records before subsequent inventory changes");
+        otherDiscovery.Initialize(); new RecallDiscoveryItem().OnConsumeItem(Potion(), other);
+        Check(otherDiscovery.HasObtainedReturnPotion, "same-tick consumption records discovery");
+        Console.WriteLine($"PASS: {count} recall research checks (production research/discovery/state; isolated engine and inventory)");
+    }
+}

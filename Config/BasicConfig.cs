@@ -32,17 +32,17 @@ namespace 伊蕾娜.Config
         public float LongPress = 0.2f;
 
         //显示具体CD
-        [DefaultValue(false)]
+        [DefaultValue(true)]
         public bool ShowCD;
 
-        [DefaultValue(SkillSelectionMode.Slide)]
+        [DefaultValue(SkillSelectionMode.Wheel)]
         public SkillSelectionMode SkillSelection;
 
-        [DefaultValue(0.5f)]
+        [DefaultValue(0.75f)]
         [Range(0.3f, 1.5f)]
         [Increment(0.05f)]
         [Slider]
-        public float SkillWheelScale = 0.5f;
+        public float SkillWheelScale = 0.75f;
 
 
         [Header("Damage")]

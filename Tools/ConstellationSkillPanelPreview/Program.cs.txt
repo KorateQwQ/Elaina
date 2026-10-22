@@ -21,6 +21,7 @@ internal sealed class PanelGame : Game
     private static bool OrnamentsOnly;
     private static bool ScrollOnly;
     private static bool DebugToolsOnly;
+    private static bool RecallResearchOnly;
     private PanelGame()
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
@@ -79,14 +80,15 @@ internal sealed class PanelGame : Game
             }
             Console.WriteLine(output); Exit(); return;
         }
-        if (!LocalizationOnly && !SkipChecks) IconChecks.Run(batch);
+        if (!LocalizationOnly && !SkipChecks && !RecallResearchOnly) IconChecks.Run(batch);
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
-        string[] scenes = OrnamentsOnly ? ["camera-350", "empty", "editor"]
+        string[] scenes = RecallResearchOnly ? ["recall-sealed", "recall-revealed-missing", "recall-ready", "recall-learned"]
+            : OrnamentsOnly ? ["camera-350", "empty", "editor"]
             : CameraOnly ? ["camera-0", "camera-100", "camera-200", "camera-350", "camera-retarget"]
             : RequirementsOnly || PolishOnly ? ["requirements-learn", "requirements-upgrade", "requirements-ready", "requirements-tooltip", "requirements-long"]
-            : ["new", "passive", "active", "equipped", "missing", "off", "empty", "bottom", "editor", "editor-moved", "maxed", "growth", "growth-poor", "growth-long"];
+            : ["new", "passive", "passive-stats", "active", "equipped", "missing", "off", "empty", "bottom", "editor", "editor-moved", "maxed", "growth", "growth-poor", "growth-long", "growth-maxed"];
         foreach (var (w, h, scale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
         foreach (string scene in scenes)
         {
@@ -128,10 +130,12 @@ internal sealed class PanelGame : Game
         OrnamentsOnly = args.Contains("--ornaments-only");
         ScrollOnly = args.Contains("--scroll-only");
         DebugToolsOnly = args.Contains("--debug-tools-only");
+        RecallResearchOnly = args.Contains("--recall-research-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
         Fixtures.Text();
-        if (DebugToolsOnly) PanelChecks.RunDebugTools();
+        if (RecallResearchOnly) RecallResearchChecks.Run();
+        else if (DebugToolsOnly) PanelChecks.RunDebugTools();
         else if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
         Terraria.Localization.Language.Text.Clear();
         Terraria.Localization.Language.Load(Repo, args[2]);

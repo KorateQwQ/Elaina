@@ -65,7 +65,7 @@ def potion(kind):
         with Image.open(HERE.parent / 'PotionBottleDesigns/output/round1/pixel/BloodthirstPotion.png') as image:
             return image.convert('RGBA')
     if kind == 'isolation':
-        return load('purification_dew', HERE.parent / 'PotionPixel/GeneratePurificationDewUprightPixel.py').build_sprite()
+        return load('purification_dew', HERE.parent / 'PotionPixel/GeneratePurificationDewPixel.py').build_sprite()
     if kind == 'focus':
         return load('concentration_potion', HERE.parent / 'PotionPixel/GenerateConcentrationPotionPixel.py').build_sprite()
     if kind in ('resonance', 'featherlight'):
