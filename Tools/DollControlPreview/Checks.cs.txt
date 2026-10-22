@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.Skills.DollControl;
@@ -37,8 +38,57 @@ static class Checks
         Check(doll.Projectile.owner == 0 && doll.CanDamage() == false && doll.CanCutTiles() == false,
             "Doll must be owned, harmless and unable to cut grass");
         Check(doll.Projectile.netImportant && !doll.Projectile.tileCollide, "Doll must sync on join and pass through terrain");
-        for (int i = 0; i < 600; i++) Tick(doll);
-        Check(!doll.IsMoving && doll.Projectile.frame == 0 && doll.Projectile.active, "Idle bob must not start move animation or expire");
+        var idleFrames = new System.Collections.Generic.HashSet<int>();
+        for (int i = 0; i < 600; i++) { Tick(doll); idleFrames.Add(doll.Projectile.frame); }
+        Check(!doll.IsMoving && !doll.IsMining && doll.Projectile.active, "Idle bob must not start move animation or expire");
+        Check(idleFrames.SetEquals(new[] { 0, 1, 2 }), "Idle must loop three frames");
+        owner.HeldItem.pick = 35; owner.itemAnimation = 20;
+        for (int i = 0; i < 60; i++) Tick(doll);
+        Check(!doll.IsMining, "Owner's own pickaxe swing no longer triggers mining");
+        owner.HeldItem.pick = 0; owner.itemAnimation = 0;
+
+        // 挖掘标记：飞到目标格朝向主人的一侧，面向格子循环四帧挖矿；主人端按间隔敲击，挖完回到身边交还收集物。
+        var commands = owner.GetModPlayer<DollCommandPlayer>();
+        Point first = new((int)(owner.Center.X / 16f) + 14, (int)(owner.Center.Y / 16f) + 3);
+        Point second = new(first.X + 1, first.Y + 2);
+        commands.Interval = 10;
+        commands.Targets.AddRange(new[] { first, second });
+        var mineFrames = new System.Collections.Generic.HashSet<int>();
+        bool placed = false;
+        for (int i = 0; i < 900 && commands.HasTask; i++)
+        {
+            Tick(doll);
+            if (!doll.IsMining) continue;
+            mineFrames.Add(doll.Projectile.frame);
+            Vector2 tileCenter = (commands.HasTask ? commands.Targets[0] : second).ToWorldCoordinates();
+            placed |= Vector2.Distance(doll.Projectile.Center, tileCenter) < 40f && doll.Projectile.Center.X < tileCenter.X
+                && doll.Projectile.spriteDirection == 1;
+        }
+        Check(!commands.HasTask && commands.Hits == 6 && commands.Loot == 2, "Doll must dig every marked tile at the hit interval");
+        Check(mineFrames.SetEquals(new[] { 0, 1, 2, 3 }), "Digging must loop four mining frames");
+        Check(placed, "Doll must hover beside the target on the owner's side and face it");
+        for (int i = 0; i < 300 && commands.Delivered == 0; i++) Tick(doll);
+        Check(commands.Delivered == 2 && commands.Loot == 0 && Vector2.Distance(commands.DeliveredAt, owner.Center) < 120f,
+            "Collected items are handed over once the doll is back beside its owner");
+        for (int i = 0; i < 180; i++) Tick(doll);
+        Check(!doll.IsMining && !doll.IsMoving, "Finished tasks restore idle follow");
+
+        // 其他端只收到同步的目标格：同样飞过去播放挖矿动画，但不敲击。
+        commands.Targets.Add(first); commands.Hits = 0;
+        doll.Projectile.netUpdate = false; Tick(doll);
+        Check(doll.HasWork && doll.Projectile.netUpdate, "New target must be synced");
+        var stream = new MemoryStream();
+        doll.SendExtraAI(new BinaryWriter(stream));
+        var remote = new KumaPetProjectile(); remote.SetDefaults();
+        remote.Projectile.owner = 0; remote.Projectile.active = true; remote.Projectile.Center = doll.Projectile.Center;
+        stream.Position = 0; remote.ReceiveExtraAI(new BinaryReader(stream));
+        World.myPlayer = 1;
+        for (int i = 0; i < 240; i++) Tick(remote);
+        World.myPlayer = 0;
+        Check(remote.IsMining && commands.Hits == 0 && commands.HasTask, "Remote copies animate at the synced target without hitting");
+        commands.Targets.Clear();
+        for (int i = 0; i < 300; i++) Tick(doll);
+        Check(!doll.HasWork && !doll.IsMining, "Cleared tasks send the doll back to following");
         foreach (float speed in new[] { 3f, 12f, 30f })
         {
             owner.velocity = new Vector2(speed, 0f);
@@ -54,7 +104,7 @@ static class Checks
             Check(max - min > 5f && max - min < 15f, $"Flight must gently bob at speed {speed}: {max - min}");
             owner.velocity = Vector2.Zero;
             for (int i = 0; i < 180; i++) Tick(doll);
-            Check(!doll.IsMoving && doll.Projectile.frame == 0, "Stopping must restore idle");
+            Check(!doll.IsMoving && !doll.IsMining, "Stopping must restore idle");
         }
         owner.direction = -1; owner.velocity = new Vector2(-5f, 0f);
         for (int i = 0; i < 180; i++) Tick(doll);
@@ -64,10 +114,11 @@ static class Checks
         Check(Vector2.Distance(doll.Projectile.Center, owner.Center) < 100f && doll.Projectile.velocity == Vector2.Zero && doll.Projectile.netUpdate,
             "Owner teleport must recall and sync immediately");
         doll.Projectile.Center += new Vector2(300f, 0f);
-        Check(skill.PreUseSkill() && mana.MagicPoint == 60f && World.projectile.Count(p => p.active) == 1,
-            "Recast costs 20 and recalls without duplicates");
-        mana.MagicPoint = 19f;
         Vector2 before = doll.Projectile.Center;
+        Check(!skill.BeginWandUse() && !skill.PreUseSkill() && mana.MagicPoint == 80f
+            && World.projectile.Count(p => p.active) == 1 && before == doll.Projectile.Center,
+            "While the doll is out, left-click belongs to commands: no swing, cost, duplicate or recall");
+        mana.MagicPoint = 19f;
         Check(!skill.PreUseSkill() && mana.MagicPoint == 19f && before == doll.Projectile.Center, "Insufficient mana must have no effect");
         World.myPlayer = 1; skill.Initialize();
         Check(skill.PreUseSkill() && World.projectile.Count(p => p.active) == 2 && doll.Projectile.owner == 0,
@@ -81,6 +132,12 @@ static class Checks
         doll.Projectile.netUpdate = false; doll.AI();
         Check(doll.Projectile.Center == before && !doll.Projectile.netUpdate, "Server must not originate teleport");
         World.myPlayer = 0; World.netMode = 0;
+        commands.Loot = 3; doll.Dismiss();
+        Check(!doll.Projectile.active && commands.Delivered == 5, "Dismiss hands over collected items and removes the doll");
+        commands.Loot = 4; mana.MagicPoint = 100f; owner.gravDir = 1f;
+        Check(skill.BeginWandUse() && skill.PreUseSkill() && commands.Delivered == 9 && mana.MagicPoint == 80f,
+            "Summoning again hands over items left by a doll that vanished early");
+        doll = (KumaPetProjectile)DollPetProjectile.FindOwned(owner);
         owner.dead = true; doll.AI();
         Check(!doll.Projectile.active, "Death must remove doll");
         doll = Reset(); World.player[0].active = false; doll.AI();

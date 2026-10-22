@@ -76,7 +76,15 @@ internal static class Checks
                     item.Name + " is an edible five-minute food");
                 continue;
             }
-            Assert(item.Item.maxStack == (item.Name == "AetherDropper" ? 1 : Item.CommonMaxStack) &&
+            if (item.Name is "AetherDropper" or "BottledShimmer")
+            {
+                Assert(item.Item.consumable && item.Item.useStyle == ItemUseStyleID.Swing &&
+                    item.Item.useTime == 20 && item.Item.useAnimation == 20 &&
+                    item.Item.maxStack == Item.CommonMaxStack,
+                    item.Name + " is a single-use liquid transfer item");
+                continue;
+            }
+            Assert(item.Item.maxStack == Item.CommonMaxStack &&
                 item.Item.value == 0 && !item.Item.consumable && item.Item.useStyle == ItemUseStyleID.None,
                 item.Name + " presentation defaults do not consume items");
             Assert(item.GetType().BaseType == typeof(AlchemyItem), item.Name + " is a non-potion creation");
@@ -162,6 +170,7 @@ internal static class Checks
         Console.WriteLine($"Alchemy items: {passed} checks passed against {typeof(ModItem).Assembly.GetName().Name}; 20 real item registrations, 6 real Buff registrations, both localization cultures checked.");
         PotionBehaviorChecks.Run(Mod);
         RecipeScrollChecks.Run(Mod);
+        ShimmerTransferChecks.Run();
     }
 
     private static void Drinkable(AlchemyItem item, int buffType, int duration)

@@ -402,7 +402,9 @@ public class WaterBall : ElainaBasicProjectile
         effect.SetTexture(4,cellnoise.Value);//消融噪声
         
         //整体绘制大小
-        effect.SetValue("TotalDrawSize", new Vector2(1f));
+        // 留出轮廓扰动空间，绘制缩放补偿后保持原有球体尺寸。
+        const float sphereDrawSize = 0.95f;
+        effect.SetValue("TotalDrawSize", new Vector2(sphereDrawSize));
         //内部扰动参数
         effect.SetValue("DistortStrength", 0.05f);
         effect.SetValue("DistortTiling", new Vector2(0.5f));
@@ -432,6 +434,9 @@ public class WaterBall : ElainaBasicProjectile
         effect.SetValue("ColorA", new Vector4(0.8f, 0.9f, 1.0f, 1.0f)*colorAlpha);
         effect.SetValue("ColorB", new Vector4(0.4f, 0.7f, 1.0f, 1.0f)*colorAlpha);
         effect.SetValue("ColorC", new Vector4(0.2f, 0.2f, 1.0f, 1.0f)*colorAlpha);
+        // 只增强外缘反射；Power 越小，边缘亮带越宽。
+        effect.SetValue("FresnelStrength", 1.35f);
+        effect.SetValue("FresnelPower", 5.0f);
         
         //水球内部纹理采样参数
         effect.SetValue("ColorThreshold", new Vector2(0.35f, 0.05f));
@@ -445,7 +450,7 @@ public class WaterBall : ElainaBasicProjectile
         effect.SetValue("FadeTiling", new Vector2(1f));
         
         effect.Apply();
-        DrawInWorld(waterNoise.Value,Projectile.Center,color:Color.White*0.9f,scale:new Vector2(drawWidth,drawHeight)*radius*0.35f,rotation:Projectile.rotation);
+        DrawInWorld(waterNoise.Value,Projectile.Center,color:Color.White*0.9f,scale:new Vector2(drawWidth,drawHeight)*radius*0.35f/sphereDrawSize,rotation:Projectile.rotation);
 
 
         if (state == State.Fly)

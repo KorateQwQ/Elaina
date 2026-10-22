@@ -116,7 +116,7 @@ internal static class HealingWheelDrawing
 
     private static Color Dim(Color color, float amount) => Color.Lerp(color, new Color(120, 112, 136), .6f * amount);
 
-    private static void Text(SpriteBatch batch, DynamicSpriteFont font, string text, Vector2 position,
+    internal static void Text(SpriteBatch batch, DynamicSpriteFont font, string text, Vector2 position,
         float size, float width, Color color)
     {
         // Clamp long player names instead of shrinking them into unreadable text; use the same font to measure and draw.

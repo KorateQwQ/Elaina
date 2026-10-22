@@ -10,7 +10,7 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 
-try { using var game = new LaserProbe(args[0], args[1]); game.Run(); }
+try { using var game = new LaserProbe(args[0], args[1], args.Length > 2 ? args[2] : "Clear"); game.Run(); }
 catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
 
 internal static class Pipeline {
@@ -30,6 +30,8 @@ internal static class Pipeline {
             global using System.Linq;
             global using KL.Drawing;
             global using KL.Dusts;
+            global using KL.Utils;
+            global using Terraria.DataStructures;
             global using System.Collections.Generic;
             global using System.Reflection;
             global using Microsoft.Xna.Framework;
@@ -43,8 +45,10 @@ internal static class Pipeline {
                 public static DeviceContext instance, graphics;
                 public static SpriteBatch spriteBatch;
                 public static int screenWidth, screenHeight;
+                public static double timeForVisualEffects;
                 public static Vector2 screenPosition; public static Matrix Transform = Matrix.Identity;
                 public static bool dedServ; public static PreviewRandom rand = new(42);
+                public static void QueueMainThreadAction(Action action) => action();
                 public static int maxDust => Dust.All.Count;
                 public static List<Dust> dust => Dust.All;
                 public static void NewText(string text, Color color) => throw new Exception(text);
@@ -69,6 +73,7 @@ internal static class Pipeline {
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
         source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += drawing.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "PingPongWaveType").ToFullString();
         source += """
             public partial class DrawHelper {
                 public static Effect bloom, reColor, vertexDraw;
@@ -80,8 +85,11 @@ internal static class Pipeline {
                 }
             """;
         source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
+        source += Methods(drawing, "PingPongWave");
         source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString();
         source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "BeginDraw"
             && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
         source += "}}\n";
         source += File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs"));
@@ -95,8 +103,19 @@ internal static class Pipeline {
         var trail = vertex.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" && m.ParameterList.Parameters[2].Type.ToString() == "Vector4");
         trail = trail.ReplaceNodes(trail.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
         source += "namespace KL.Drawing { public partial class DrawHelper {" + trail.ToFullString();
+        source += vertex.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect"
+            && m.ParameterList.Parameters[2].Type.ToString() == "Color").ToFullString();
         source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString() + "}}";
         source += File.ReadAllText(Path.Combine(root, "Tools/WaterLaserPreview/Scene.cs.txt"));
+        source += "namespace KL.Utils { public static class KLMathF {" + Methods(Read("Utils/KLMathF.cs"), "ClampLerp") + "}}";
+        CompilationUnitSyntax ReadAction(string name) => CSharpSyntaxTree.ParseText(
+            File.ReadAllText(Path.Combine(root, "ElainaActions", name + ".cs"))).GetCompilationUnitRoot();
+        source += "namespace 伊蕾娜.ElainaActions {" + ReadAction("ElainaTrailVisualStyle").DescendantNodes()
+            .OfType<ClassDeclarationSyntax>().Single().ToFullString();
+        source += "public partial class WandReplayBase {" + Methods(ReadAction("ElainaAction"), "DrawStar", "DrawAutoWandTrail", "DrawWandTrailVisual") + "}";
+        source += "public class WaterWandReplay : WandReplayBase {" + Fields(ReadAction("Action_WaterLaser"), n => n == "WaterWandColor")
+            + Methods(ReadAction("Action_WaterLaser"), "DrawStar", "DrawWandTrailVisual") + "}}";
+        source += File.ReadAllText(Path.Combine(root, "Tools/WaterLaserPreview/WandScene.cs.txt"));
         var dust = Read("Dusts/KLBasicDust.cs");
         source += "namespace KL.Dusts { public abstract partial class KLBasicDust : ModDust {";
         source += dust.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "DustInfo").ToFullString();
@@ -108,7 +127,9 @@ internal static class Pipeline {
         source += "namespace 伊蕾娜.ElainaModSkills.Skills.Water { public partial class LaserReplay : ModProjectile {" + Methods(laser, "SpawnWaterDust", "PreDraw", "DrawVisual") + "}}";
         source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");
         File.WriteAllText(Path.Combine(output, "replay.cs.txt"), source);
-        string[] inputs = [source, File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserVisuals.cs")), File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserDust.cs"))];
+        string[] inputs = [source, File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserVisuals.cs")),
+            File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserDust.cs")),
+            File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserFlowRenderer.cs"))];
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
             .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
         var compilation = CSharpCompilation.Create("BloomPipelineProbe", inputs.Select(s => CSharpSyntaxTree.ParseText(s)), references,

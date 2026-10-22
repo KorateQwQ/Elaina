@@ -168,7 +168,12 @@ public abstract class ElainaAction :AnimAction
         Vector2[] trailPositions = new Vector2[wandTrailPointCount];
         Array.Copy(wandTrailPositions, trailPositions, wandTrailPointCount);
 
-        ElainaTrailVisualStyle.DrawWandTrail(trailPositions, actionProgress);
+        DrawWandTrailVisual(trailPositions, actionProgress);
+    }
+
+    protected virtual void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    {
+        ElainaTrailVisualStyle.DrawWandTrail(points, actionProgress);
     }
 
     protected void SyncItemRotationToArmRotation()

@@ -79,3 +79,24 @@ Debug 页脚新增「等级 +1」，正式 SUI 与预览共用按钮边界和绘
 正式目录和详情使用 `System/UI/ElasticPageScrollView` 保留 SUI 容器布局与裁剪，以设计坐标计算弹性偏移，越界上限 32 像素；原生竖向滚动条不参与输入或绘制。目录卡片、详情材料行与用途链接排除拖动，详情文字与卡片间隙可拖动，松手或移出页面后释放均回弹，失焦/关闭/缩放时取消拖动。底部横向材料栏沿用原有滚动条。
 
 离线帧使用正式绘制与运动代码，输入是确定性重放；并未模拟完整 SUI 事件树。物品点击、跨区域释放、失焦与游戏内 UI 缩放仍需在游戏中验收。
+
+
+## 止痛药配方预览（2026-10-21）
+
+`pwsh -File Tools/AlchemyPreview/run.ps1 -Scene recipe-painkiller-missing`、`recipe-painkiller-ready`、`recipe-painkiller-learned` 分别覆盖缺少配方、Lv.1 持有配方可研究、已研究材料详情。每个场景输出 1600×1000 / 1280×720 默认缩放与 1600×1000 的 125% 缩放；本轮已打开检查默认缺失状态及 125% 可研究/已研究状态，卷轴名称、数量、丛林宝箱来源、原有三项材料与底栏正常。止痛药最低研究等级为 1，没有可达的低等级状态，批量 `recipe-scrolls` 不生成该无效场景。沿用正式 `Recipe_Pixel.png` 与现有预制描边，无新增材料或独立图标；正式资源检查通过。
+
+## 以太滴管与瓶中微光（2026-10-21）
+
+正式以太滴管为 `Untitled 10152026 050309.png` 左上紫色变体，包含其分离的上部组件，透明裁边后为 27×28；瓶中微光使用已确认的 `BottledShimmer_Pixel_New.png`（18×22）。使用 `python Tools/PotionPixel/PrepareShimmerItems.py` 可无损重新提取/复制，随后运行 `prepare_mystery_pixels.py`、`run.ps1 -ExportMaterials`、`bake_redesign.py` 和 `bake_redesign.py --check`。正式 PNG、剪影与轮廓均在可打包目录。
+
+`run.ps1 -Scene curio-dropper` 检查滴管条目；`-Scene bottled-shimmer` 检查瓶中微光素材条目；`-Scene curio-dust` 检查灰赝尘所需的瓶中微光材料行及底栏。三个场景均覆盖默认与 125% 缩放；英文增加 `-Culture en-US -Configuration Release`。保留内部 `shimmer` 目录 ID 兼容已有研究记录，实际物品映射为 `BottledShimmer`，旧物品类型由 `LegacyName("ShimmerDroplet")` 迁移。
+
+取液已对齐本机原版水桶：鼠标目标有微光，且目标周围 3×3 同类液体总量大于 100 时可提取；先抽取目标格，再依序抽取相邻格，总共最多 255 液体单位。不再要求目标格装满。成功后消耗以太滴管并生成一个瓶中微光；瓶中微光只能向无液体的可用格释放完整一格微光并消耗，也可用于灰赝尘。失败目标不消耗；原版水桶的 101～254 单位取液阈值同样沿用。离线真实 Tilemap/WorldGen 行为检查见 `Tools/AlchemyItemChecks/ShimmerTransferChecks.cs.txt`；完整多人同步和游戏内操作仍须验收。
+
+### 浅池取液修正（2026-10-21）
+
+修复单格 `LiquidAmount == 255` 导致浅层微光无法提取的问题。生产 `AlchemyShimmerTransfer.TryCollect` 直接依据本机 `Player.ItemCheck_UseBuckets` 的 3×3 计数、`>100` 阈值、目标优先及最多 255 单位取液顺序实现，对每个修改格执行液体更新/同步。不更改瓶子的放液条件。中文 `curio-dropper` 与 `bottled-shimmer` 场景重新检查默认与 125% 缩放，说明不再要求单个目标格装满。
+
+## 素材初始解锁（2026-10-21）
+
+`pwsh -File Tools/AlchemyPreview/run.ps1 -Scene material-initial -Configuration Release` 使用 Lv.1、0 XP 快照，素材按正式 `InitiallyUnlockedIds` 全部解锁；其他非初始条目保持未研究。覆盖默认与 125% UI 缩放，检查全部 8 种素材显示真实图标和名称，无问号或可研究提示。已打开检查两种缩放；正式资源完整性检查通过，无新增图标或材料。真实新角色、旧存档补全、重置、重复研究拒绝及存档往返由 `Tools/AlchemyGameplayChecks/run.ps1` 检查（Release 65 项、Debug 84 项通过）。离线宿主不替代游戏内输入与多人验证。

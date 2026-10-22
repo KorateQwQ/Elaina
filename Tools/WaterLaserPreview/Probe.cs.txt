@@ -10,17 +10,17 @@ using SDL2;
 sealed class LaserProbe : Game
 {
     const int Width = 1200, Height = 700;
-    readonly string root, output;
+    readonly string root, output, particleVariant;
     Assembly pipeline;
     SpriteBatch batch;
-    ContentManager effects;
+    ContentManager effects, modEffects;
     Texture2D pixel;
     Type main, scene, draw;
     object renderer;
     MethodInfo render;
     bool done;
-    public LaserProbe(string root, string output) {
-        this.root = root; this.output = output;
+    public LaserProbe(string root, string output, string particleVariant) {
+        this.root = root; this.output = output; this.particleVariant = particleVariant;
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
@@ -42,13 +42,21 @@ sealed class LaserProbe : Game
         Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
         Set(helper, "vertexDraw", effects.Load<Effect>("VertexDraw"));
         var assets = pipeline.GetType("KL.Drawing.ModContent"); Set(assets, "Root", root); Set(assets, "Content", effects);
+        Set(assets, "UseOriginalParticles", particleVariant == "Original");
+        modEffects = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        Set(assets, "ModEffects", modEffects);
         renderer = Activator.CreateInstance(draw); render = draw.GetMethod("Run");
     }
     protected override void Draw(GameTime time) {
         if (done) { Exit(); return; } done = true;
         scene.GetMethod("CheckAttachment").Invoke(null, null);
+        pipeline.GetType("伊蕾娜.ElainaActions.WandScene").GetMethod("Check").Invoke(null, null);
         foreach (int tick in new[] { 6, 18, 36, 60 }) Render($"day-{tick}", tick);
         Render("night", 60, night: true);
+        Render("night-90", 90, night: true);
+        Render("night-120", 120, night: true);
+        // Consecutive 60 Hz frames expose the fast material flow without sparse-frame aliasing.
+        for (int tick = 60; tick < 66; tick++) Render($"flow-{tick}", tick, night: true, angle: 0);
         Render("zoom", 60, zoom: 1.35f);
         Render("left", 60, angle: 2.85f);
         Render("up", 60, angle: -1.4f, length: 510);
@@ -61,29 +69,40 @@ sealed class LaserProbe : Game
         var off = Render("bloom-off", 60, bloom: false);
         var on = Render("bloom-on", 60);
         int lit = off.Zip(on).Count(p => p.Second.R > p.First.R + 2 || p.Second.G > p.First.G + 2 || p.Second.B > p.First.B + 2);
-        if (lit < 200) throw new Exception("Bloom did not illuminate the beam and particle neighborhood: " + lit);
+        // The absorption material uses covered blue water and white foam, not HDR light.
+        if (lit > 2000) throw new Exception("Water material unexpectedly blooms into a luminous beam: " + lit);
         var particlesOff = Render("particles-off", 60, bloom: false, beam: false);
         var particlesOn = Render("particles-bloom", 60, beam: false);
         int particleGlow = particlesOff.Zip(particlesOn).Count(p => p.Second.G > p.First.G + 2);
-        if (particleGlow < 50) throw new Exception("Isolated particles did not produce bloom: " + particleGlow);
+        if (particleGlow > 50) throw new Exception("Water splashes unexpectedly produce glowing nodes: " + particleGlow);
         Render("release-8", 60, beam: false, release: 8);
         Render("release-30", 60, beam: false, release: 30);
         int count = (int)scene.GetProperty("DustCount").GetValue(null);
         if (count != 0) throw new Exception("Particles survived their lifetime: " + count);
-        Console.WriteLine($"PASS: shared Bloom lit {lit} pixels; isolated particle bloom lit {particleGlow}; particles cleared after release.");
+        Render("wand-hold", 60, night: true, wand: true);
+        Render("wand-turn", 75, night: true, wand: true, wandMoving: true, angle: -.35f);
+        Render("wand-left", 75, night: true, wand: true, wandMoving: true, angle: 2.85f);
+        Render("wand-zoom", 75, night: true, wand: true, wandMoving: true, zoom: 1.35f);
+        Render("wand-release-1", 60, night: true, beam: false, release: 1, wand: true, wandMoving: true);
+        Render("wand-release-10", 60, night: true, beam: false, release: 10, wand: true, wandMoving: true);
+        Render("wand-release-20", 60, night: true, beam: false, release: 20, wand: true, wandMoving: true);
+        Render("wand-default-purple", 60, night: true, beam: false, release: 30, wand: true, wandMoving: true, waterWand: false);
+        Console.WriteLine($"PASS: restrained Bloom changed {lit} pixels; isolated particle bloom changed {particleGlow}; particles cleared after release.");
         Console.WriteLine("Rendered actual beam/muzzle/particle drawing and KL Bloom on day/night, left/up, bend, zoom, short beam and backbuffer.");
         Exit();
     }
     Color[] Render(string name, int ticks, bool night = false, float zoom = 1, float angle = .28f,
         float length = 880, float bend = 0, bool bloom = true, bool beam = true, int release = 0, bool backbuffer = false,
-        Vector2 movement = default) {
+        Vector2 movement = default, bool wand = false, bool wandMoving = false, bool waterWand = true) {
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
         GraphicsDevice.SetRenderTarget(backbuffer ? null : target);
         GraphicsDevice.Clear(night ? new Color(12, 23, 34) : new Color(67, 134, 141));
         // Nonzero world camera origin catches missed world-to-screen conversions.
         Vector2 camera = new(2000, 1200); Set(main, "screenPosition", camera);
         Vector2 origin = angle > 2 ? new Vector2(1040, 220) : angle < -1 ? new Vector2(490, 580) : new Vector2(160, 210);
-        Matrix transform = Matrix.CreateTranslation(-600, -350, 0) * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(600, 350, 0);
+        Vector2 zoomCenter = wand ? origin : new Vector2(600, 350);
+        Matrix transform = Matrix.CreateTranslation(-zoomCenter.X, -zoomCenter.Y, 0) * Matrix.CreateScale(zoom, zoom, 1)
+            * Matrix.CreateTranslation(zoomCenter.X, zoomCenter.Y, 0);
         Set(main, "Transform", transform);
         object view = main.GetField("GameViewMatrix").GetValue(null);
         view.GetType().GetField("TransformationMatrix").SetValue(view, transform);
@@ -97,6 +116,9 @@ sealed class LaserProbe : Game
         scene.GetMethod("Queue").Invoke(null, [beam, true]);
         render.Invoke(renderer, [1f, 5, bloom]);
         scene.GetMethod("CheckAfterDraw").Invoke(null, null);
+        // Main draws ordinary projectiles (including KL Projectiles.After), then DrawPlayers_AfterProjectiles.
+        if (wand) pipeline.GetType("伊蕾娜.ElainaActions.WandScene").GetMethod("Draw").Invoke(null,
+            [origin + camera, angle, waterWand ? Math.Clamp(release / 20f, 0, 1) : .5f, ticks + release, wandMoving, waterWand]);
         var pixels = new Color[Width * Height];
         if (backbuffer) GraphicsDevice.GetBackBufferData(pixels); else target.GetData(pixels);
         GraphicsDevice.SetRenderTarget(null);
@@ -104,5 +126,11 @@ sealed class LaserProbe : Game
         using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
         return pixels;
     }
-    protected override void UnloadContent() { batch?.Dispose(); pixel?.Dispose(); effects?.Dispose(); }
+    protected override void UnloadContent() {
+        if (pipeline != null) {
+            var visuals = pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.Water.WaterLaserVisuals");
+            visuals.GetMethod("Unload").Invoke(Activator.CreateInstance(visuals), null);
+        }
+        batch?.Dispose(); pixel?.Dispose(); effects?.Dispose(); modEffects?.Dispose();
+    }
 }

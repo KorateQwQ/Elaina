@@ -7,7 +7,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 /// <summary>水射线专用 KL 粒子：与射线共用 Projectiles.After Bloom，按 order 绘制在主体上方。</summary>
 public sealed class WaterLaserDust : KLBasicDust
 {
-    public override string Texture => WaterLaserVisuals.AssetPath + "Eff_Splash_4001";
+    public override string Texture => WaterLaserVisuals.SplashTexturePath;
 
     private sealed class ParticleState(bool foam, Vector2 attachmentPosition = default)
     {

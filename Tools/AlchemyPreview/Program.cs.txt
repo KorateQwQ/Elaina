@@ -103,10 +103,11 @@ internal sealed class AlchemyPreviewGame : Game
             Exit();
             return;
         }
-        string[] scenes = ["new", "all", "potion", "bloodlust", "curio", "curio-locked", "food", "material", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "header-reference", "close-hover", "brew-050", "detail-bottom", "catalog-bottom", "catalog-middle", "redesign-reference", "starpower"];
-        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "vanilla-materials", "focus", "resonance", "bread", "stew", "brulee" }).ToArray();
-        var scrollScenes = from id in new[] { "bloodlust", "starpower", "focus", "resonance", "featherlight" }
+        string[] scenes = ["new", "all", "potion", "bloodlust", "curio", "curio-locked", "food", "material", "material-initial", "acquire", "short", "locked", "research-ready", "recipe-missing", "recipe-ready", "level-max", "header-reference", "close-hover", "brew-050", "detail-bottom", "catalog-bottom", "catalog-middle", "redesign-reference", "starpower"];
+        scenes = scenes.Concat(new[] { "curio-dust", "curio-rain", "curio-dropper", "bottled-shimmer", "vanilla-materials", "focus", "resonance", "bread", "stew", "brulee" }).ToArray();
+        var scrollScenes = from id in new[] { "bloodlust", "starpower", "focus", "resonance", "featherlight", "painkiller" }
             from status in new[] { "missing", "level-low", "ready", "learned" }
+            where status != "level-low" || 伊蕾娜.ElainaModAlchemy.Gameplay.AlchemyProgressionRules.RequiredLevel(id) > 1
             select $"recipe-{id}-{status}";
         scenes = scenes.Concat(scrollScenes).ToArray();
         if (StarPowerOnly) scenes = ["starpower"];
@@ -135,10 +136,13 @@ internal sealed class AlchemyPreviewGame : Game
         {
             case "curio": case "curio-locked": state.SetCategory("curio"); break;
             case "curio-dust": state.SetCategory("curio"); state.Select("mimic"); break;
+            case "curio-dropper": state.SetCategory("curio"); state.Select("dropper"); break;
+            case "bottled-shimmer": state.SetCategory("material"); state.Select("shimmer"); break;
             case "curio-rain": state.SetCategory("curio"); state.Select("rain"); break;
             case "food": state.SetCategory("food"); break;
             case "bread": case "stew": case "brulee": state.SetCategory("food"); state.Select(scene); break;
-            case "material": state.SetCategory("material"); break;
+            case "material":
+            case "material-initial": state.SetCategory("material"); break;
             case "potion": state.SetCategory("potion"); break;
             case "vanilla-materials": state.SetCategory("potion"); state.Select("isolation"); break;
             case "catalog-bottom": state.Select(AlchemyCatalog.Recipes.Last().Id); break;

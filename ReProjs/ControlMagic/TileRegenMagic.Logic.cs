@@ -167,6 +167,8 @@ public partial class TileRegenMagic
             int itemIndex = orig.Invoke(source, x, y, width, height, itemToClone, type, stack, noBroadcast, pfix,
                 noGrabDelay, reverseLookup);
             Item item = Main.item[itemIndex];
+            // 玩偶挖掘时掉落物已被直接收走（变为空气），不参与物块复原的保护。
+            if (global::伊蕾娜.ElainaModSkills.Skills.DollControl.DollLootCapture.Capturing || item.IsAir) return itemIndex;
             item.whoAmI = itemIndex;
             
             x /= 16;

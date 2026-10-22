@@ -1,5 +1,6 @@
 using System;
 using KL.ActionsSystem;
+using Terraria.DataStructures;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
@@ -21,6 +22,22 @@ public sealed class Action_WaterLaser : ElainaAction
 
     public bool IsChanneling { get; private set; }
     public Vector2 BeamOrigin => WandCenter;
+
+    private static readonly Color WaterWandColor = new(100, 180, 255, 0);
+
+    protected override void DrawStar(ref PlayerDrawSet drawInfo, float actionProgress)
+    {
+        // 引导保持第 0 帧：立即显示；松手后进度走完 20 帧收势，光晕随之淡出。
+        ElainaTrailVisualStyle.DrawStar(ref drawInfo, StarCenter.Floor(), actionProgress,
+            WaterWandColor, fadeInEnd: 0f, fadeOutStart: 0f);
+    }
+
+    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    {
+        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+            WaterWandColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
+            ElainaTrailVisualStyle.DefaultTrailEndWidth, fadeInEnd: 0f, fadeOutStart: 0f);
+    }
 
     // 动作注册器与远端重建需要真正的无参构造函数。
     public Action_WaterLaser() : this(0, 0f, 12) { }

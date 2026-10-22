@@ -44,6 +44,10 @@ float FadeThreshold;
 //消融贴图大小
 float2 FadeTiling = float2(1.0f, 1.0f);
 
+// 风格化边缘反射：强度和衰减独立调节，不改变原水体配色与不透明度。
+float FresnelStrength;
+float FresnelPower;
+
 float4 MainPS(float2 texCoord : TEXCOORD0) : COLOR0
 {
     //RotWorldX = iTime*2.0f;
@@ -54,16 +58,19 @@ float4 MainPS(float2 texCoord : TEXCOORD0) : COLOR0
     float2 shapeNoise = tex2D(iChannel3, frac(shapeNoiseUV)).rg * 2.0 - 1.0;
     float2 shapeUV = uv + shapeNoise * ShapeDistortStrength;
     float r2 = dot(shapeUV, shapeUV);
+    float edgeWidth = max(fwidth(r2), 0.0005);
     if (r2 > 1.0)
     {
         return float4(0.0, 0.0, 0.0, 0.0);
     }
 
-    float z = sqrt(1.0 - r2);
+    float z = sqrt(saturate(1.0 - r2));
     float3 posFront = float3(uv.x, uv.y, z);
 
     float2 noiseUVFront = posFront.xy * DistortTiling + DistortUTime;
     float2 noiseFront = tex2D(iChannel2, frac(noiseUVFront)).rg * 2.0 - 1.0;
+    // 反射与轮廓共用球面，只加少量水波起伏，不随内部贴图旋转。
+    float3 surfaceNormal = normalize(float3(shapeUV + noiseFront * 0.018, z));
     posFront.xy += noiseFront * DistortStrength;
     posFront = normalize(posFront);
 
@@ -116,12 +123,17 @@ float4 MainPS(float2 texCoord : TEXCOORD0) : COLOR0
     finalColor = lerp(finalColor, ColorA, t2);
 
     float2 scale2 = max(MaskScale, float2(0.0001, 0.0001));
-    float2 scaledUV2 = (float2(texCoord.x, texCoord.y) - 0.5) / scale2 + 0.5;
+    // 使用球体 UV，补偿绘制留白后仍保持原光圈的尺寸与位置。
+    float2 scaledUV2 = uv * 0.5 / scale2 + 0.5;
+    float4 originalColor = min(finalColor + tex2D(iChannel1, scaledUV2), float4(1.2, 1.2, 1.2, 1.0));
 
-    //额外绘制一个遮罩贴在球面上当高光
-    if (frontColor.a>0.0f)
-        return min(finalColor+tex2D(iChannel1, scaledUV2), float4(1.2, 1.2, 1.2, 1.0));
-    return float4(0.0, 0.0, 0.0, 0.0);
+    // 原颜色上额外叠加青白边缘反射。限制在外侧，中心不提亮、不减淡。
+    float fresnel = pow(1.0 - saturate(surfaceNormal.z), FresnelPower);
+    float rim = fresnel * FresnelStrength * smoothstep(0.45, 0.72, r2);
+    float3 waterColor = originalColor.rgb + float3(0.48, 0.85, 1.0) * rim;
+    float coverage = 1.0 - smoothstep(1.0 - edgeWidth, 1.0, r2);
+    return float4(min(waterColor, float3(1.2, 1.2, 1.2)),
+        frontColor.a > 0.0 ? originalColor.a * coverage : 0.0);
 }
 
 technique Technique1
