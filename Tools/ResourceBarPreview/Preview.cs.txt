@@ -2,7 +2,9 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
 using SDL2;
 using 伊蕾娜.ElainaAttribute;
 
@@ -11,7 +13,13 @@ internal sealed class ResourcePreview : Game
     private readonly string root, output;
     private readonly Dictionary<string, Texture2D> textures = new();
     private ResourceBarDrawing drawing;
+    private PortraitHudDrawing portrait;
+    private ContentManager fonts;
     private bool done;
+    // Same as PORTRAIT_STATES in bake.cjs: level, experience, cap, displayed life, flash/pulse, time.
+    private static readonly (string Name, int Level, int Experience, int Cap, float Life, float Burst, float Time)[] PortraitStates =
+    [("normal",24,65,30,.84f,0,4), ("low",24,12,30,.84f,0,4), ("capped",30,100,30,.84f,0,4),
+     ("levelup",25,5,30,.84f,.6f,4), ("lowhp",7,40,30,.2f,0,.26f), ("wide",120,50,120,.84f,0,4)];
     private ResourcePreview(string root, string output)
     {
         this.root = root; this.output = output;
@@ -24,6 +32,11 @@ internal sealed class ResourcePreview : Game
     {
         Content.RootDirectory = root;
         drawing = new ResourceBarDrawing(Texture, Content.Load<Effect>("Effects/Content/ResourceBarClip"));
+        // The real KL Gelasio XNB, as loaded by FontManager in game.
+        fonts = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Fonts")));
+        var gelasio = fonts.Load<DynamicSpriteFont>("Gelasio");
+        foreach (char c in "0123456789") Check(gelasio.IsCharacterSupported(c), $"Missing Gelasio digit {c}");
+        portrait = new PortraitHudDrawing(Texture, gelasio);
         // Compare with the installed FNA's real SpriteEffect instead of assuming a half-pixel convention.
         using var probe = new SpriteBatch(GraphicsDevice);
         int matched = 0;
@@ -66,9 +79,12 @@ internal sealed class ResourcePreview : Game
             foreach (var entry in new[] { ("normal",.84f,.84f,4f), ("damage",.18f,.84f,4f), ("empty",0f,0f,4f),
                 ("full",1f,1f,4f), ("tiny",.003f,.012f,4f), ("motion",.84f,.84f,6f) })
                 Render(batch, scale, day, entry.Item1, entry.Item2, entry.Item3, entry.Item4);
+        foreach (float scale in new[] { 1f, 1.5f, 3f }) foreach (bool day in new[] { false, true })
+            foreach (var entry in PortraitStates) RenderPortrait(batch, scale, day, entry);
         RenderGame(batch);
         for (int i = 0; i <= 5; i++) RenderAnimation(batch, i * .2f);
-        Console.WriteLine("PASS: state checks, 36 shared-renderer comparisons, layout and six damage animation frames.");
+        RenderLevelUp(batch);
+        Console.WriteLine("PASS: state checks, 72 shared-renderer comparisons, layout, six damage frames and a level-up strip.");
         Exit();
     }
     private void Save(RenderTarget2D target, string name)
@@ -92,6 +108,35 @@ internal sealed class ResourcePreview : Game
         drawing.Draw(batch, matrix, new Vector2(34,48), true, time+.7f, State(true,value==.84f?.68f:value,ghost==.84f?.68f:ghost));
         Save(target,$"{name}-{(day?"day":"dark")}-{scale:0.0}");
     }
+    private static PortraitHudState Portrait(int level, int experience, int cap, float burst)
+    {
+        var state = new PortraitHudState(); state.Reset(level, experience, 100, cap); state.ShowBurst(burst);
+        return state;
+    }
+    private void RenderPortrait(SpriteBatch batch, float scale, bool day,
+        (string Name, int Level, int Experience, int Cap, float Life, float Burst, float Time) entry)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, (int)(90 * scale), (int)(100 * scale));
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(day ? new Color(120,167,245) : new Color(20,18,29));
+        portrait.Draw(batch, Matrix.CreateScale(scale), new Vector2(45, 40),
+            Portrait(entry.Level, entry.Experience, entry.Cap, entry.Burst), entry.Life, entry.Time);
+        Save(target, $"portrait-{entry.Name}-{(day?"day":"dark")}-{scale:0.0}");
+    }
+    private void RenderLevelUp(SpriteBatch batch)
+    {
+        // Level 24 at 95/100 gains 15 experience: the band reaches the apex, levels up, then restarts at 10.
+        var state = Portrait(24, 95, 30, 0);
+        float[] moments = [0, .1f, .2f, .35f, .6f];
+        using var target = new RenderTarget2D(GraphicsDevice, moments.Length * 270, 300);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(20,18,29));
+        int frame = 0;
+        for (int i = 0; i < moments.Length; i++)
+        {
+            while (frame < MathF.Round(moments[i] * 60)) { state.Update(25, 10, 100, 30, 1f / 60); frame++; }
+            portrait.Draw(batch, Matrix.CreateScale(3) * Matrix.CreateTranslation(i * 270, 0, 0), new Vector2(45, 40), state, .84f, 4 + moments[i]);
+        }
+        Save(target, "portrait-levelup-strip");
+    }
     private void RenderGame(SpriteBatch batch)
     {
         const float scale=1.5f;
@@ -104,6 +149,7 @@ internal sealed class ResourcePreview : Game
         batch.Draw(map,new Vector2(224,79),Color.White);batch.End();
         drawing.Draw(batch,matrix,ResourceBarDrawing.LifePosition(520),false,4,State(false,.84f,.84f));
         drawing.Draw(batch,matrix,ResourceBarDrawing.ManaPosition(520),true,4.7f,State(true,.68f,.68f));
+        portrait.Draw(batch,matrix,PortraitHudDrawing.Position(520),Portrait(24,65,30,0),.84f,4);
         Save(target,"game-layout-1.5");
     }
     private void RenderAnimation(SpriteBatch batch,float elapsed)
@@ -132,7 +178,17 @@ internal sealed class ResourcePreview : Game
         for(int i=0;i<300;i++)s.Update(0,200,1f/60,6+i/60f);Check(s.Particles.Count==0,"particles expire at zero");
         Check(ResourceBarState.Fraction(1,0)==0&&ResourceBarState.Fraction(float.NaN,200)==0,"invalid resource denominators");
         Check(ResourceBarDrawing.ManaPosition(520).Y-ResourceBarDrawing.LifePosition(520).Y==28,"shared HUD spacing");
+        var p=new PortraitHudState();p.Reset(1,0,100,30);int ups=0,shown=1;
+        for(int i=0;i<600;i++){p.Update(4,50,100,30,1f/60);if(p.Shown>shown){ups++;shown=p.Shown;}}
+        Check(ups==3&&p.Shown==4&&Math.Abs(p.Fraction-.5f)<.001f,"multi-level gain levels up once per level and keeps the remainder");
+        Check(p.Sparks.Count==0,"level-up sparks expire");
+        p.Update(3,0,100,30,1f/60);Check(p.Shown==3&&p.Fraction==0,"lost progress snaps without a level-up");
+        p.Reset(30,100,100,30);Check(p.Capped&&p.Fraction==1,"cap stores one full level");
+        p.Reset(5,40,0,30);Check(float.IsFinite(p.Fraction)&&p.Fraction==0,"zero experience requirement");
+        p.Reset(1,0,100,90);for(int i=0;i<20;i++)p.Update(90,0,100,90,1f/60);Check(p.Sparks.Count<=66,"sparks stay bounded");
+        var centre=PortraitHudDrawing.Position(520);
+        Check(PortraitHudDrawing.Contains(centre,centre+new Vector2(31,0))&&!PortraitHudDrawing.Contains(centre,centre+new Vector2(20,20)),"diamond hover test");
     }
-    protected override void UnloadContent(){foreach(var texture in textures.Values)texture.Dispose();base.UnloadContent();}
+    protected override void UnloadContent(){foreach(var texture in textures.Values)texture.Dispose();fonts?.Dispose();base.UnloadContent();}
     public static void Main(string[] args){using var game=new ResourcePreview(args[0],args[1]);game.Run();}
 }

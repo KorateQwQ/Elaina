@@ -26,7 +26,7 @@ button{font:12px var(--sans);color:#d9cce6;background:#1c1928;border:1px solid #
 button:hover{border-color:#d4bcdf99;color:#f1e2fa;background:#b99ac517}
 button.on{border-color:#d8be91a1;color:#f4e4cc;background:#79607d55}
 button kbd{font:10px Georgia;color:var(--faint);margin-left:5px}
-button.hp{border-left:2px solid #ff86c0}button.mp{border-left:2px solid #6cc4ff}
+button.hp{border-left:2px solid #ff86c0}button.mp{border-left:2px solid #6cc4ff}button.xp{border-left:2px solid #e3c68f}
 input[type=range]{width:104px;accent-color:#c9b0dc}
 .val{font:11px var(--num);color:var(--muted);min-width:62px}
 .card{margin-bottom:26px;border:1px solid #bdaa8c40;border-radius:3px 8px 9px 3px;overflow-x:auto;
@@ -64,6 +64,9 @@ canvas{display:block;border:1px solid #ffffff12;border-radius:2px}
   <div class="group"><label>魔力</label><button class="mp" data-act="cast">施法<kbd>C</kbd></button><button class="mp" data-act="potion">魔力药水<kbd>V</kbd></button><button id="regen" class="on">自然回复</button></div>
   <div class="group"><label>HP</label><input id="hpR" type="range" min="0" step="1"><span class="val" id="hpV"></span>
    <label>MP</label><input id="mpR" type="range" min="0" step="1"><span class="val" id="mpV"></span></div>
+  <div class="group"><label>经验</label><button class="xp" data-xp="10">光球 +10<kbd>X</kbd></button><button class="xp" data-xp="60">+60<kbd>G</kbd></button><button class="xp" data-xp="250">跨级 +250</button><button id="capBtn">触及上限</button><span class="val" id="xpV"></span></div>
+  <div class="group"><label>等级样式</label><button data-lv="pill">银胶囊</button><button data-lv="floral">花饰</button><button data-lv="star">星芒</button><button data-lv="badge">星徽</button></div>
+  <div class="group"><label>星徽质感</label><button data-bfx="flat">旧版平涂</button><button data-bfx="gem">切面宝石</button></div>
   <div class="group"><label>配色</label><button data-pal="bright">提亮</button><button data-pal="canon">设定原色</button></div>
   <div class="group"><label>特写背景</label><button data-bg="dark">暗</button><button data-bg="day">白昼</button></div>
  </div>
@@ -75,7 +78,7 @@ canvas{display:block;border:1px solid #ffffff12;border-radius:2px}
 <script>
 'use strict';
 const TAU=Math.PI*2,L=262;
-const S={hp:420,hpMax:500,mp:136,mpMax:200,regen:true,regenRate:8,bg:'dark',pal:'bright'};
+const S={hp:420,hpMax:500,mp:136,mpMax:200,regen:true,regenRate:8,bg:'dark',pal:'bright',lvStyle:'floral',badgeFx:'gem'};
 const A={hp:{v:.84,g:.84,delay:0,flash:0},mp:{v:.68,g:.68,delay:0,flash:0}};
 const rng=seed=>()=>(seed=(seed*16807)%2147483647)/2147483647;
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -276,6 +279,170 @@ function drawBar(c,bar,t,a){const h=bar.h,F=FRAME[bar.c.frame],x1=a.v*L,xg=a.g*L
   c.globalAlpha=1}
 }
 
+/* ---------- 头像 · 等级 · 经验 ---------- */
+// 头像菱形居于两条左侧，与资源条之间留白。坐标相对生命条左端 / 屏幕顶部；PH 为头像局部尺寸。
+// 静态层（底座 / 外缘）、经验带与花饰都由 bake.cjs 直接调用下列函数烘焙，游戏按同一顺序叠放。
+const XPL=100,PR={x:-45,y:37},NUM='"ElainaNum",Georgia,serif';
+const PH={r:25,band:27.6,bw:1.3,outer:31.6};
+const portrait=new Image();portrait.src='../../ElainaModSkills/ElainaSkillUI/touxiang.png';
+const X={lv:24,xp:65,cap:30};
+const XA={disp:23.65,shown:24,flash:0,pulse:0,parts:[]};
+// 与 ExperienceRules.Add 相同：上限处最多暂存一条经验，可一次跨多级并保留余数。
+function addXp(n){const prev=(X.lv-1)*XPL+X.xp,total=Math.min(X.cap*XPL,prev+Math.max(0,n));
+ X.lv=Math.min(X.cap,Math.floor(total/XPL)+1);X.xp=total-(X.lv-1)*XPL}
+function diamond(c,r){c.beginPath();c.moveTo(0,-r);c.lineTo(r,0);c.lineTo(0,r);c.lineTo(-r,0);c.closePath()}
+// side=1 走右侧，-1 走左侧：底点 → 侧顶点 → 顶点。
+function armPoint(r,f,side){const u=f*2;return u<=1?[side*r*u,r*(1-u)]:[side*r*(2-u),-r*(u-1)]}
+function arm(c,r,f,side){c.moveTo(0,r);if(f>.5)c.lineTo(side*r,0);c.lineTo(...armPoint(r,f,side))}
+function levelUp(){XA.flash=1;XA.pulse=1;const G=PH.band;
+ for(let i=0;i<22;i++){const f=i/22,s=i%2?1:-1,[x,y]=armPoint(G,f,s),d=Math.hypot(x,y)||1;
+  XA.parts.push({x,y,vx:x/d*(14+Math.random()*16),vy:y/d*(14+Math.random()*16)-6,s:.8+Math.random()*1.1,life:0,max:.7+Math.random()*.5})}}
+function updateHud(dt){const target=(X.lv-1)+X.xp/XPL;
+ if(target<XA.disp)XA.disp=target;else XA.disp=Math.min(target,XA.disp+Math.max(dt*.3,(target-XA.disp)*dt*4));
+ const shown=Math.min(X.lv,Math.floor(XA.disp)+1);if(shown>XA.shown)levelUp();XA.shown=shown;
+ XA.flash=Math.max(0,XA.flash-dt*2.4);XA.pulse=Math.max(0,XA.pulse-dt*2);
+ for(const p of XA.parts){p.life+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=1-dt*2;p.vy*=1-dt*2}
+ XA.parts=XA.parts.filter(p=>p.life<p.max)}
+// 等级两种写法，原点为经验环底点。字色取手札 Ink / Muted，不用金色。
+// 银胶囊：与资源条同一套圆角银框，像第三条很短的轨道。
+function levelPill(c,txt,capped){
+ c.font=`8px ${NUM}`;const wn=c.measureText(txt).width;c.font=`5px ${NUM}`;const wl=c.measureText('Lv').width;
+ const w=Math.max(19,wl+1.4+wn+9),h=9,y=-2;rr(c,-w/2,y,w,h,h/2);c.fillStyle='rgba(18,13,28,.92)';c.fill();
+ c.strokeStyle='rgba(12,9,23,.75)';c.lineWidth=1.6;c.stroke();
+ const g=c.createLinearGradient(0,y,0,y+h);g.addColorStop(0,'#f1ebfa');g.addColorStop(.48,'#b3a8c5');g.addColorStop(1,'#c9c2d8');c.strokeStyle=g;c.lineWidth=.7;c.stroke();
+ const x0=-(wl+1.4+wn)/2;c.textBaseline='middle';c.textAlign='left';
+ c.fillStyle='rgb(178,168,195)';c.fillText('Lv',x0,y+h/2+.5);
+ c.font=`8px ${NUM}`;c.fillStyle=capped?'#cfc8da':'rgb(238,233,245)';c.fillText(txt,x0+wl+1.4,y+h/2+.3)}
+// 花饰：无框衬线数字，两侧各一枝与端部花蔓同款的银卷须和小花。
+// 右侧卷须以 (数字半宽 + 1.8, 7.5) 为原点，左侧水平镜像；游戏中烘焙为 LevelFlourish。
+const FLORAL={cy:7.5,size:9,gap:1.8};
+function levelFlourish(c){
+ const g=c.createLinearGradient(0,-FLORAL.cy,0,5);g.addColorStop(0,'#f3ebfc');g.addColorStop(.5,'#d5c8e5');g.addColorStop(1,'#b5a5ca');c.fillStyle=g;
+ silverWire(c,'M 0 2 C 3 3.5 6 2 7 -1 C 7.5 -3 5.5 -3.5 5 -2',.38);
+ scrollFlower(c,8.4,1.6,.3,.4)}
+function levelFloral(c,txt,capped){
+ c.font=`${FLORAL.size}px ${NUM}`;const wn=c.measureText(txt).width,cy=FLORAL.cy,e=wn/2+FLORAL.gap;
+ for(const s of[1,-1]){c.save();c.scale(s,1);c.translate(e,cy);levelFlourish(c);c.restore()}
+ // 只用暗紫描边托住数字，与银线的暗衬同色，白昼背景下不出现黑晕。
+ c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.strokeStyle='rgba(12,9,23,.9)';c.lineWidth=1.5;c.strokeText(txt,0,cy+.4);
+ c.fillStyle=capped?'#cfc8da':'rgb(238,233,245)';c.fillText(txt,0,cy+.4)}
+// 星芒：白色数字（项目数字字体）下排三颗柔光四芒星（中大侧小），无框，靠柔光与淡暗影立在任意背景上。
+function sparkle(c,x,y,rx,ry){c.beginPath();c.moveTo(x,y-ry);c.quadraticCurveTo(x+rx*.1,y-ry*.1,x+rx,y);c.quadraticCurveTo(x+rx*.1,y+ry*.1,x,y+ry);
+ c.quadraticCurveTo(x-rx*.1,y+ry*.1,x-rx,y);c.quadraticCurveTo(x-rx*.1,y-ry*.1,x,y-ry);c.closePath();c.fill()}
+function levelStar(c,txt,capped,t){
+ const m=c.getTransform(),px=Math.hypot(m.a,m.b),ink=capped?'#dcd7e6':'#ffffff';
+ const glow=(blur,color)=>{c.shadowBlur=blur*px;c.shadowColor=color};
+ c.save();c.textAlign='center';c.textBaseline='middle';
+ c.font=`10px ${NUM}`;const size=Math.min(10,10*16/c.measureText(txt).width);c.font=`${size}px ${NUM}`;
+ // 先压一层淡暗影保证白昼可读，再叠白色柔光。
+ glow(2.2,'rgba(12,9,23,.75)');c.fillStyle=ink;c.fillText(txt,0,7.2);
+ glow(3,capped?'rgba(220,214,235,.35)':'rgba(255,255,255,.7)');c.fillText(txt,0,7.2);
+ const tw=[1,1,1];
+ for(const[x,r,k]of[[-8.6,2.9,0],[0,4.6,1],[8.6,2.9,2]]){
+  glow(1.6,'rgba(12,9,23,.55)');c.fillStyle=ink;sparkle(c,x,17,r*tw[k],r*tw[k]*1.1);
+  glow(2.6,capped?'rgba(220,214,235,.3)':'rgba(255,255,255,.8)');sparkle(c,x,17,r*tw[k],r*tw[k]*1.1)}
+ c.restore()}
+// 星徽：白边凹四芒星压在外框底点，深色芯里放数字，左右各一颗小星，横排成小大小。
+function badgePath(c,r,k){c.beginPath();c.moveTo(0,-r);c.quadraticCurveTo(r*k,-r*k,r,0);c.quadraticCurveTo(r*k,r*k,0,r);
+ c.quadraticCurveTo(-r*k,r*k,-r,0);c.quadraticCurveTo(-r*k,-r*k,0,-r);c.closePath()}
+// 切面：四道芒各沿中线分亮暗两面，统一按左上方来光，像琉璃切面宝石。
+const BADGE_LIGHT=[-.6,-.8];
+function facetStar(c,r,k,light,dark){
+ c.save();badgePath(c,r,k);c.clip();
+ for(let i=0;i<4;i++)for(const side of[-1,1]){
+  const a=i*Math.PI/2-Math.PI/2,b=a+side*Math.PI/4,mid=a+side*Math.PI/8;
+  const shade=Math.max(0,Math.min(1,.5+.5*(Math.cos(mid)*BADGE_LIGHT[0]+Math.sin(mid)*BADGE_LIGHT[1])));
+  c.beginPath();c.moveTo(0,0);c.lineTo(Math.cos(a)*r*1.3,Math.sin(a)*r*1.3);c.lineTo(Math.cos(b)*r*1.3,Math.sin(b)*r*1.3);c.closePath();
+  c.fillStyle=mixHex(dark,light,shade);c.fill()}
+ c.restore()}
+function mixHex(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),x=p(a),y=p(b);
+ return `rgb(${x.map((v,i)=>Math.round(v+(y[i]-v)*t)).join(',')})`}
+function levelBadge(c,txt,capped){
+ const m=c.getTransform(),px=Math.hypot(m.a,m.b),ink=capped?'#dcd7e6':'#ffffff',gem=S.badgeFx==='gem';
+ c.save();c.translate(0,1.5);
+ if(!gem){
+  for(const x of[-17.5,17.5]){c.shadowBlur=2.6*px;c.shadowColor=capped?'rgba(220,214,235,.35)':'rgba(255,255,255,.85)';c.fillStyle=ink;sparkle(c,x,0,4.4,5.2)}
+  c.shadowBlur=3*px;c.shadowColor=capped?'rgba(220,214,235,.3)':'rgba(230,220,255,.7)';
+  badgePath(c,11,.3);c.fillStyle=ink;c.fill();c.shadowBlur=0;
+  badgePath(c,9.5,.3);c.fillStyle='#100d1a';c.fill();
+  badgePath(c,7.9,.3);c.fillStyle=capped?'#9c97ad':'#9d8fdf';c.fill();
+  c.font=`8px ${NUM}`;const size=Math.min(7.2,8*7.8/c.measureText(txt).width);c.font=`${size}px ${NUM}`;
+  c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.strokeStyle='rgba(16,13,26,.85)';c.lineWidth=1.1;c.strokeText(txt,0,.45);
+  c.fillStyle=ink;c.fillText(txt,0,.45);c.restore();return}
+ // 两侧小星：同样切面，收紧光晕，芒更细。
+ for(const x of[-17.5,17.5]){c.save();c.translate(x,0);
+  c.shadowBlur=1.4*px;c.shadowColor=capped?'rgba(220,214,235,.3)':'rgba(220,210,255,.65)';
+  c.fillStyle='#fff';sparkle(c,0,0,4,4.9);c.shadowBlur=0;
+  c.save();c.beginPath();c.rect(0,-6,6,12);c.clip();c.fillStyle=capped?'rgba(150,145,170,.35)':'rgba(150,135,215,.35)';sparkle(c,0,0,4,4.9);c.restore();
+  c.restore()}
+ // 外圈：细金属白边，上亮下略灰，柔光收到很淡。
+ c.shadowBlur=1.6*px;c.shadowColor=capped?'rgba(220,214,235,.25)':'rgba(214,200,255,.55)';
+ const rim=c.createLinearGradient(0,-11,0,11);rim.addColorStop(0,'#ffffff');rim.addColorStop(.55,'#ece8f8');rim.addColorStop(1,'#bdb3dc');
+ badgePath(c,10.8,.3);c.fillStyle=rim;c.fill();c.shadowBlur=0;
+ badgePath(c,9.8,.3);c.fillStyle='#0f0c19';c.fill();
+ // 芯：八面切面 + 左上高光线。
+ capped?facetStar(c,8.4,.3,'#dcd8e6','#6c6780'):facetStar(c,8.4,.3,'#c4b7fa','#5243a6');
+ c.save();badgePath(c,8.4,.3);c.clip();c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=.35;
+ c.beginPath();c.moveTo(-8.4,0);c.quadraticCurveTo(-2.5,-2.5,0,-8.4);c.stroke();c.restore();
+ c.font=`8px ${NUM}`;const size=Math.min(7,8*7.4/c.measureText(txt).width);c.font=`${size}px ${NUM}`;
+ c.textAlign='center';c.textBaseline='middle';
+ c.shadowBlur=1.2*px;c.shadowOffsetY=.35*px;c.shadowColor='rgba(18,12,40,.9)';c.fillStyle=ink;c.fillText(txt,0,.5);
+ c.restore()}
+const LEVEL_STYLES={pill:levelPill,floral:levelFloral,star:levelStar,badge:levelBadge};
+// 底座：深色菱形底、裁进菱形的头像、深色内线与经验槽。
+function portraitBase(c){const{r:R,band,bw,outer}=PH;c.save();c.lineCap='round';c.lineJoin='round';
+ diamond(c,outer);c.fillStyle='rgba(12,9,20,.94)';c.fill();
+ c.save();diamond(c,R);c.clip();
+ const bg=c.createRadialGradient(0,-4,2,0,0,R);bg.addColorStop(0,'#5d4b76');bg.addColorStop(1,'#211b30');c.fillStyle=bg;c.fillRect(-R,-R,R*2,R*2);
+ if(portrait.complete&&portrait.naturalWidth)c.drawImage(portrait,-R*1.24,-R*1.19,R*2.48,R*2.48);
+ const vg=c.createRadialGradient(0,0,R*.5,0,0,R*1.05);vg.addColorStop(0,'rgba(20,12,32,0)');vg.addColorStop(1,'rgba(20,12,32,.5)');c.fillStyle=vg;c.fillRect(-R,-R,R*2,R*2);
+ c.restore();
+ diamond(c,R+.6);c.strokeStyle='#1a1630';c.lineWidth=1.2;c.stroke();
+ diamond(c,band);c.strokeStyle='rgba(22,18,42,.92)';c.lineWidth=bw;c.stroke();c.restore()}
+// 外缘：经验带两侧极细高光（让暗槽在白昼也有轮廓）、白色细外线与顶点小星。
+function portraitRim(c){const{band,bw,outer}=PH,bo=bw/2*Math.SQRT2;c.save();c.lineJoin='round';
+ for(const q of[band-bo,band+bo]){diamond(c,q);c.strokeStyle='rgba(236,230,255,.5)';c.lineWidth=.28;c.stroke()}
+ diamond(c,outer);c.strokeStyle='rgba(240,236,250,.92)';c.lineWidth=.55;c.stroke();
+ c.shadowBlur=2.5*Math.hypot(c.getTransform().a,c.getTransform().b);c.shadowColor='rgba(255,255,255,.8)';c.fillStyle='#fff';sparkle(c,0,-outer,1.5,2.6);c.restore()}
+// 完整经验带：fill 薰衣草渐入淡粉，capped 灰银，glow 为叠加柔光，mask 为纯白（升级闪白）。
+function portraitBand(c,kind){const{band,bw}=PH;c.save();c.lineJoin='round';diamond(c,band);
+ if(kind==='glow'){c.strokeStyle='rgba(170,150,255,.22)';c.lineWidth=bw+1.6}
+ else if(kind==='mask'){c.strokeStyle='#fff';c.lineWidth=bw}
+ else{const g=c.createLinearGradient(0,band,0,-band);
+  if(kind==='capped'){g.addColorStop(0,'#8c879c');g.addColorStop(1,'#e2dfe9')}else{g.addColorStop(0,'#8b86e6');g.addColorStop(.55,'#c3b4f4');g.addColorStop(1,'#f6d6ee')}
+  c.strokeStyle=g;c.lineWidth=bw}
+ c.stroke();c.restore()}
+// 低血量脉冲的纯白底形，运行时着蔷薇色。
+const lowLifePulse=t=>.28+.24*Math.sin(t*6);
+function portraitPulse(c,color='#fff'){c.save();c.lineJoin='round';diamond(c,PH.band);c.strokeStyle=color;c.lineWidth=4.5;c.stroke();c.restore()}
+function portraitGlint(c){const g=c.createRadialGradient(0,0,0,0,0,2.6);
+ g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(.35,'rgba(226,214,255,.55)');g.addColorStop(1,'rgba(200,180,255,0)');c.fillStyle=g;c.fillRect(-2.6,-2.6,5.2,5.2)}
+// 经验两侧同高上升，所以按进度水平裁出经验带下半部分即可得到两条臂。
+function xpCut(frac){return frac>=1?-PH.outer*2:PH.band*(1-2*frac)}
+function drawPortraitHud(c,ox,t){
+ const{band,outer}=PH,G=outer,capped=X.lv>=X.cap,shown=XA.shown,frac=Math.max(0,Math.min(1,XA.disp-(shown-1)));
+ c.save();c.translate(ox+PR.x,PR.y);
+ portraitBase(c);
+ // 低血量：经验槽上泛起蔷薇色脉冲（游戏中为白色底形着色）。
+ if(A.hp.v<.25){c.save();c.globalAlpha=lowLifePulse(t);portraitPulse(c,'rgb(255,122,172)');c.restore()}
+ if(frac>0){c.save();c.beginPath();c.rect(-outer*2,xpCut(frac),outer*4,outer*4);c.clip();
+  if(!capped){c.save();c.globalCompositeOperation='lighter';portraitBand(c,'glow');c.restore()}
+  portraitBand(c,capped?'capped':'fill');c.restore();
+  if(!capped&&frac<1)for(const s of[1,-1]){const[x,y]=armPoint(band,frac,s);c.save();c.translate(x,y);portraitGlint(c);c.restore()}}
+ if(XA.flash>0){c.globalAlpha=XA.flash*.85;portraitBand(c,'mask');c.globalAlpha=1}
+ portraitRim(c);
+ // 等级：压在外线底点，升级时整体轻微放大。
+ c.save();c.translate(0,G);const k=1+XA.pulse*.18;c.scale(k,k);
+ if(XA.pulse>0){const rg=c.createRadialGradient(0,3,0,0,3,16);rg.addColorStop(0,`rgba(214,196,255,${.5*XA.pulse})`);rg.addColorStop(1,'rgba(214,196,255,0)');c.fillStyle=rg;c.fillRect(-16,-13,32,32)}
+ LEVEL_STYLES[S.lvStyle](c,String(shown),capped,t);
+ c.restore();
+ // 升级星屑
+ c.save();c.globalCompositeOperation='lighter';
+ for(const p of XA.parts){const q=p.life/p.max,a=q<.15?q/.15:1-(q-.15)/.85;star4(c,p.x,p.y,p.s,p.s*1.4,`rgba(238,230,255,${Math.max(0,a)})`)}
+ c.restore();
+ c.restore();
+}
+
 /* ---------- 视图 ---------- */
 const cardsEl=document.getElementById('cards');const views=[];
 const DPR=Math.min(2,devicePixelRatio||1);
@@ -289,6 +456,16 @@ for(const st of state){const c=st.c;
  for(const v of[big,game]){const box=document.createElement('div');box.className='view';box.innerHTML=`<span>${v.kind==='detail'?'特写 ×3':'游戏内 · UI 150% · 右上角，含原版小地图'}</span>`;
   const cv=mkCanvas(v.w,v.h,v.scale);box.appendChild(cv);vw.appendChild(box);views.push({st,v,cv,ctx:cv.getContext('2d')})}
 }
+// 头像与等级只叠加在 A 款上，资源条本体及其烘焙来源保持不变。
+{const el=document.createElement('section');el.className='card';
+ const notes=[['头像',['沿用 touxiang.png，裁进菱形；由内到外为深色内线、发光经验带、留白、白色细外线，外线顶点缀一颗小星','头像在两条左侧，与资源条之间留白；魔力花蔓正好落在菱形与魔力条之间','生命低于 25% 时经验带泛起蔷薇色脉冲，不额外占位']],
+  ['等级 · 经验',['星徽：白边凹四芒星压在外线底点，黑底内缩一圈铺薰衣草芯、露出一道黑边，芯上放数字，左右各一颗小星横排成小大小；花饰（默认）为无框数字配两枝端部同款卷须小花；另保留银胶囊 / 星芒以便对比','经验带从底点沿两侧同时上升，薰衣草渐入淡粉并带柔光，前端一粒光点，顶点汇合即升级：经验带闪白、星屑散开','到达 Boss 进度上限时经验带褪成灰银、光点熄灭，表示经验暂存（最多一条，与 ExperienceRules 一致）']]];
+ el.innerHTML=`<div class="card-head"><span class="no">A+</span><h2>头像 · 等级</h2><span class="en">Portrait, Level &amp; Experience</span></div><div class="views"></div>
+  <div class="card-foot">${notes.map(([h,li])=>`<div><h3>${h}</h3><ul>${li.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>`;
+ cardsEl.insertBefore(el,cardsEl.children[1]);const vw=el.querySelector('.views');
+ for(const v of[{w:L+130,h:96,scale:3,kind:'detail',hud:true},{w:520,h:120,scale:1.5,kind:'game',hud:true}]){
+  const box=document.createElement('div');box.className='view';box.innerHTML=`<span>${v.kind==='detail'?'特写 ×3':'游戏内 · UI 150% · 右上角，含原版小地图'}</span>`;
+  const cv=mkCanvas(v.w,v.h,v.scale);box.appendChild(cv);vw.appendChild(box);views.push({st:state[0],v,cv,ctx:cv.getContext('2d')})}}
 
 function render(t){
  for(const {st,v,ctx,cv} of views){
@@ -297,11 +474,12 @@ function render(t){
   if(day){const g=ctx.createLinearGradient(0,0,0,v.h);g.addColorStop(0,'#6a9cf4');g.addColorStop(1,'#86b0f7');ctx.fillStyle=g}else ctx.fillStyle='#14121d';
   ctx.fillRect(0,0,v.w,v.h);
   let ox,oy1,oy2;
-  if(v.kind==='detail'){ox=34;oy1=20;oy2=48}
+  if(v.kind==='detail'){if(v.hud){ox=96;oy1=18;oy2=46}else{ox=34;oy1=20;oy2=48}}
   else{if(minimap.complete&&minimap.naturalWidth){ctx.imageSmoothingEnabled=false;ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(v.w-294,88,244,40);ctx.fillStyle='#5f78f2';ctx.fillRect(v.w-288,94,232,30);ctx.drawImage(minimap,v.w-296,79);ctx.imageSmoothingEnabled=true}
    ox=v.w-16-FRAME[st.c.frame].pad[1]-L;oy1=18;oy2=46}
   ctx.save();ctx.translate(ox,oy1);drawBar(ctx,st.hp,t,A.hp);ctx.restore();
   ctx.save();ctx.translate(ox,oy2);drawBar(ctx,st.mp,t+.7,A.mp);ctx.restore();
+  if(v.hud)drawPortraitHud(ctx,ox,t);
  }
 }
 
@@ -320,7 +498,15 @@ $$('[data-pal]').forEach(b=>b.onclick=()=>{S.pal=b.dataset.pal;palBtns()});
 const regenBtn=document.getElementById('regen');regenBtn.onclick=()=>{S.regen=!S.regen;regenBtn.classList.toggle('on',S.regen)};
 const hpR=document.getElementById('hpR'),mpR=document.getElementById('mpR');hpR.max=S.hpMax;mpR.max=S.mpMax;
 hpR.oninput=()=>setRes('hp',+hpR.value,true);mpR.oninput=()=>setRes('mp',+mpR.value,true);
-addEventListener('keydown',e=>{const m={d:'hit',f:'bighit',h:'heal',c:'cast',v:'potion'}[e.key.toLowerCase()];if(m&&!e.repeat)ACTS[m]()});
+addEventListener('keydown',e=>{const m={d:'hit',f:'bighit',h:'heal',c:'cast',v:'potion'}[e.key.toLowerCase()];if(m&&!e.repeat)ACTS[m]();
+ const xp={x:10,g:60}[e.key.toLowerCase()];if(xp&&!e.repeat)addXp(xp)});
+$$('[data-xp]').forEach(b=>b.onclick=()=>addXp(+b.dataset.xp));
+const lvBtns=()=>$$('[data-lv]').forEach(x=>x.classList.toggle('on',x.dataset.lv===S.lvStyle));lvBtns();
+$$('[data-lv]').forEach(b=>b.onclick=()=>{S.lvStyle=b.dataset.lv;lvBtns()});
+const bfxBtns=()=>$$('[data-bfx]').forEach(x=>x.classList.toggle('on',x.dataset.bfx===S.badgeFx));bfxBtns();
+$$('[data-bfx]').forEach(b=>b.onclick=()=>{S.badgeFx=b.dataset.bfx;bfxBtns()});
+const capBtn=document.getElementById('capBtn');
+capBtn.onclick=()=>{X.cap=X.lv>=X.cap?X.lv+6:X.lv;addXp(0);capBtn.classList.toggle('on',X.lv>=X.cap)};
 
 let last=performance.now();
 function frame(now){const dt=Math.min(.05,(now-last)/1000),t=now/1000;last=now;
@@ -329,7 +515,9 @@ function frame(now){const dt=Math.min(.05,(now-last)/1000),t=now/1000;last=now;
   if(target>a.v)a.v=Math.min(target,a.v+(target-a.v)*Math.min(1,dt*7)+dt*.02);else a.v=target;
   if(a.delay>0)a.delay-=dt;else a.g=Math.max(a.v,a.g-dt*.45);a.g=Math.max(a.g,a.v);a.flash=Math.max(0,a.flash-dt*2.2);
   state.forEach(st=>st[k].update(dt,t,a.v))}
+ updateHud(dt);capBtn.classList.toggle('on',X.lv>=X.cap);
  render(t);
+ document.getElementById('xpV').textContent=`Lv ${X.lv} · ${X.xp}/${XPL} · 上限 ${X.cap}`;
  hpR.value=S.hp;mpR.value=S.mp;document.getElementById('hpV').textContent=`${Math.round(S.hp)}/${S.hpMax}`;document.getElementById('mpV').textContent=`${Math.floor(S.mp)}/${S.mpMax}`;
  requestAnimationFrame(frame)}
 requestAnimationFrame(frame);

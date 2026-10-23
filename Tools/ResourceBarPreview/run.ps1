@@ -7,8 +7,11 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Preview.cs.txt') -Destination (
 $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion></PropertyGroup><ItemGroup/></Project>'
 foreach ($entry in @(
     @('Reference', (Join-Path $Tml 'Libraries/FNA/1.0.0/FNA.dll')),
+    @('Reference', (Join-Path $Tml 'Libraries/ReLogic/1.0.0/ReLogic.dll')),
     @('Compile', (Join-Path $repo 'ElainaAttribute/ResourceBarDrawing.cs')),
     @('Compile', (Join-Path $repo 'ElainaAttribute/ResourceBarState.cs')),
+    @('Compile', (Join-Path $repo 'ElainaAttribute/PortraitHudDrawing.cs')),
+    @('Compile', (Join-Path $repo 'ElainaAttribute/PortraitHudState.cs')),
     @('None', (Join-Path $Tml 'Libraries/Native/Windows/*.dll')))) {
     $node = $project.CreateElement($entry[0]); $node.SetAttribute('Include', $entry[1])
     if ($entry[0] -eq 'None') {
