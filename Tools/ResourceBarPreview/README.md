@@ -3,7 +3,21 @@
 `bars.html` 是用户确认的视觉来源。正式入口是 `ElainaAttribute/ElainaPlayerResourceDisplaySet.cs`，
 共享绘制与状态分别在 `ResourceBarDrawing.cs`、`ResourceBarState.cs`。
 采用 A 款：生命条 262×8、魔力条 262×7，顶部 y=18/46，右侧预留 36 UI 像素。
-生命花蔓在右，魔力花蔓在左；无头像、无前沿大星光。保留普通魔力 / 独立魔力读取及悬停读数。
+生命花蔓在右，魔力花蔓在左；无前沿大星光。保留普通魔力 / 独立魔力读取及悬停读数。
+
+## 头像 · 等级 · 经验
+
+`bars.html` 的“A+ 头像 · 等级”卡片是确认稿，默认等级样式为花饰（银胶囊 / 星芒 / 星徽仅作对比，未接入游戏）。
+正式绘制为 `ElainaAttribute/PortraitHudDrawing.cs`，等级动画与升级星屑为 `PortraitHudState.cs`，同样被 FNA 预览直接链接。
+
+- 头像中心位于生命条原点 (-45, 19)，菱形外线半径 31.6；由内到外为头像、深色内线、经验带、留白、白色外线与顶点小星。
+- 静态层 `PortraitBase` / `PortraitRim`、完整经验带 `PortraitXp`（含 `Glow` / `Capped` / `Mask`）、低血量 `PortraitPulse`、
+  前端 `PortraitGlint` 与花饰 `LevelFlourish` 都由 `bake.cjs` 调用 HTML 中同名函数烘焙；局部尺寸记录在 manifest 的 `box`。
+- 经验两侧同高上升，运行时按进度水平裁切经验带纹理的源矩形即可得到两条臂，不需要额外 Shader；HTML 采用同一裁切。
+- 等级数字使用 KL 的 Gelasio XNB（9px，暗紫 8 向描边），HTML 加载 `.vissandbox/gelasio-source/Gelasio.ttf`，
+  其来源与 SHA-256 见 `KL/Fonts/Gelasio.source.json`。数据来自 `ElainaStatePlayer`（等级、经验、升级所需、Boss 进度上限）。
+- 获得经验时进度缓动，可连续跨级；每次升级经验带闪白、等级放大并散出 22 颗星屑（上限 66）。
+  到达上限后经验带转灰银并熄灭光点。生命显示值低于 25% 时经验槽泛蔷薇色脉冲。悬停菱形显示 `Lv 当前/上限  EXP 当前/所需`。
 
 ## 资源与动态绘制
 
@@ -22,8 +36,9 @@
 
 ## 重建
 
-需要 Node.js 的 `playwright`、`sharp`，Chromium（`CHROME_PATH` 可覆盖路径），Python Pillow、.NET 8 和实际 tModLoader。
-本机可在当前终端设置 `NODE_PATH=C:/Users/PC/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules`。
+需要 Node.js 的 `playwright`、`sharp`，Chromium（`CHROME_PATH` 可覆盖路径），Python Pillow、.NET 8、实际 tModLoader，
+以及 `.vissandbox/gelasio-source/Gelasio.ttf`（缺失时 bake 会报错）。bake 通过本机回环 HTTP 加载页面，避免头像 PNG 污染 file:// 画布。
+本机可在当前终端设置 `NODE_PATH=<用户目录>/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules`。
 
 ```powershell
 node Tools/ResourceBarPreview/bake.cjs
@@ -41,10 +56,12 @@ dotnet msbuild 伊蕾娜.csproj -t:Compile -p:BuildProjectReferences=false -v:q
 
 `run.ps1` 每次链接上述真实 C# 绘制与状态源码，读取正式贴图和 Shader；没有第二套模拟绘制。
 覆盖 1× / 1.5× / 3×、暗 / 日间背景、常态 / 受伤 / 空值 / 满值 / 极低值 / 不同时间，
-另有小地图布局以及 6 个动态受伤帧。状态断言验证延迟、收敛、治疗、上限变化、粒子回收、无效最大值。
+头像另有常态 / 低经验 / 上限 / 升级闪光 / 低血量 / 三位数等级 6 种状态（从 KL/Fonts 加载真实 Gelasio），
+以及含头像的小地图布局、6 个动态受伤帧和升级过程帧条 `portrait-levelup-strip.png`。
+状态断言验证延迟、收敛、治疗、上限变化、粒子回收、无效最大值，以及连续跨级、经验回退、上限暂存、星屑上限与菱形悬停判定。
 
 输出在 `.vissandbox/resource-bars/output`，HTML 同状态参考在 `reference`。
-`verify.py` 校验源哈希、贴图尺寸、预乘 Alpha，并对 36 对图做差异检查。
+`verify.py` 校验源哈希、贴图尺寸、预乘 Alpha，并对 72 对图（资源条 36、头像 36）做差异检查。
 Canvas/FNA 的抗锯齿和纹理采样有细微差异，不将该对照称为逐像素完全相同。
 `native-preview.png` 是本次真实 C# 的 FNA 离线图，不是正在运行的游戏截图。
 

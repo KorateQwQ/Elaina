@@ -65,7 +65,7 @@ def main():
         assert a.size == b.size
         mae = sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3
         comparisons.append({'name': reference.name, 'mean_rgb_error_255': round(mae, 4)})
-    assert len(comparisons) == 36, 'Missing preview states'
+    assert len(comparisons) == 72, 'Missing preview states'
     # Antialiasing differs between Canvas and FNA; catch material/palette/layout regressions, not exact pixels.
     assert max(c['mean_rgb_error_255'] for c in comparisons) < 8, 'Unexpected visual divergence; inspect native output'
     report = {'asset_count': len(manifest['assets']), 'rgba_bytes': memory, 'package_checked': packaged is not None,
@@ -79,7 +79,7 @@ def main():
         draw.text((24, y), label, font=font, fill='#e7deef')
         sheet.paste(Image.open(WORK / 'output' / (name + '.png')), (24, y+33))
     sheet.save(ROOT / 'Tools/ResourceBarPreview/native-preview.png')
-    print(f'PASS: {len(manifest["assets"])} premultiplied assets ({memory / 1048576:.2f} MiB), 36 FNA comparisons, package={packaged is not None}')
+    print(f'PASS: {len(manifest["assets"])} premultiplied assets ({memory / 1048576:.2f} MiB), 72 FNA comparisons, package={packaged is not None}')
 
 
 if __name__ == '__main__':
