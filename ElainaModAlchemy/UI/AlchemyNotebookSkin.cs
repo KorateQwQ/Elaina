@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using 伊蕾娜.System.UI;
 
 namespace 伊蕾娜.ElainaModAlchemy.UI;
 
@@ -89,6 +90,15 @@ internal sealed partial class AlchemyDrawing
         Stretch(AlchemyNotebookPresentation.AssetRoot + "CatalogFadeBottom", x, y+h-26, w, 27, Color.White);
     }
     internal void DetailFade() => Stretch(AlchemyNotebookPresentation.AssetRoot + "DetailFadeBottom", 790, 571, 270, 23, Color.White);
+    // Chevrons at the detail page's edges while lines stay hidden there; the lower one sits on the fade.
+    internal void DetailScrollHints(float position, float content, float seconds)
+    {
+        const float x = AlchemyNotebookPresentation.DetailX + AlchemyNotebookPresentation.DetailContentWidth / 2f;
+        const float top = AlchemyNotebookPresentation.DetailY, bottom = top + AlchemyNotebookPresentation.DetailHeight;
+        ScrollHint.Draw(Line, new Vector2(x, top - 7), -1, seconds, Lavender, ScrollHint.Amount(position));
+        ScrollHint.Draw(Line, new Vector2(x, bottom - 7), 1, seconds, Lavender,
+            ScrollHint.Amount(content - AlchemyNotebookPresentation.DetailHeight - position));
+    }
     private void Strips(float x, float y, float width, float height, float leftRadius, float rightRadius, Func<float, Color> color)
     {
         int count = Math.Max(1, (int)MathF.Ceiling(width));

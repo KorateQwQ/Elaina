@@ -1,0 +1,81 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using System.Text.Json;
+using 伊蕾娜.Mounts;
+using var game = new Preview(args[0],args[1]);game.Run();
+sealed class Preview : Game
+{
+    readonly string output;readonly float dashSpeed,cruiseSpeed,handling;readonly int dashTicks,recoveryTicks;SpriteBatch batch;Texture2D wind,broom,pixel;BroomDashWindRenderer renderer;bool done;
+    public Preview(string output,string repo)
+    {
+        this.output=output;
+        using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(repo,"ElainaModSkills/Data/SkillBalance.json")));
+        var f=doc.RootElement.GetProperty("configuration").GetProperty("skills").EnumerateArray().First(x=>x.GetProperty("id").GetString()=="FlightSkill").GetProperty("flight");
+        cruiseSpeed=f.GetProperty("baseSpeed").GetSingle()*(1+f.GetProperty("learnedSpeedBonus").GetSingle()+8*f.GetProperty("speedBonusPerLevel").GetSingle());
+        dashSpeed=cruiseSpeed*f.GetProperty("dashMultiplier").GetSingle();handling=f.GetProperty("handlingPercent").GetSingle()/100f;
+        dashTicks=(int)Math.Round(f.GetProperty("dashSeconds").GetDouble()*60);recoveryTicks=(int)Math.Round(f.GetProperty("dashRecoverySeconds").GetDouble()*60);
+        _=new GraphicsDeviceManager(this){PreferredBackBufferWidth=1200,PreferredBackBufferHeight=360,GraphicsProfile=GraphicsProfile.HiDef,SynchronizeWithVerticalRetrace=false};
+        IsFixedTimeStep=false;SDL.SDL_HideWindow(Window.Handle);
+    }
+    Texture2D LoadRaw(string name)
+    {
+        using var reader=new BinaryReader(File.OpenRead(Path.Combine(output,name+".rgba")));
+        int width=reader.ReadInt32(),height=reader.ReadInt32();var texture=new Texture2D(GraphicsDevice,width,height);
+        texture.SetData(reader.ReadBytes(width*height*4));return texture;
+    }
+    protected override void LoadContent()
+    {
+        batch=new SpriteBatch(GraphicsDevice);renderer=new BroomDashWindRenderer(GraphicsDevice);
+        wind=LoadRaw("wind");broom=LoadRaw("broom");pixel=new Texture2D(GraphicsDevice,1,1);pixel.SetData(new[]{Color.White});
+    }
+    void Background(bool bright)
+    {
+        GraphicsDevice.Clear(bright?new Color(125,172,195):new Color(23,31,46));
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.PointClamp,DepthStencilState.None,RasterizerState.CullNone);
+        for(int x=0;x<1200;x+=40)batch.Draw(pixel,new Rectangle(x,0,1,360),new Color(15,15,15,15));
+        for(int y=0;y<360;y+=40)batch.Draw(pixel,new Rectangle(0,y,1200,1),new Color(15,15,15,15));
+        batch.End();
+    }
+    void Rider(Vector2 at,Vector2 dir)
+    {
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.PointClamp,DepthStencilState.None,RasterizerState.CullNone);
+        // Neutral rider fixture plus the real packed broom sprite; does not imitate a game screenshot.
+        batch.Draw(pixel,new Rectangle((int)at.X-7,(int)at.Y-25,14,25),new Color(159,142,190));
+        batch.Draw(pixel,new Rectangle((int)at.X-6,(int)at.Y-36,12,12),new Color(240,219,204));
+        batch.Draw(pixel,new Rectangle((int)at.X-15,(int)at.Y-39,30,4),new Color(83,69,109));
+        batch.Draw(pixel,new Rectangle((int)at.X-7,(int)at.Y-48,14,10),new Color(83,69,109));
+        batch.Draw(broom,at+new Vector2(0,-2),null,Color.White,dir.Y*.15f,new Vector2(broom.Width,broom.Height)*.5f,1,
+            dir.X<0?SpriteEffects.FlipHorizontally:SpriteEffects.None,0);
+        batch.End();
+    }
+    void Capture(string name,float age,Vector2 origin,Vector2 direction,Vector2 rider,bool bright,float scale=1)
+    {
+        using var target=new RenderTarget2D(GraphicsDevice,1200,360);
+        GraphicsDevice.SetRenderTarget(target);Background(bright);
+        renderer.DrawWake(GraphicsDevice,wind,origin,direction,age,dashSpeed,Matrix.CreateScale(scale));
+        Rider(rider,direction);
+        GraphicsDevice.SetRenderTarget(null);
+        using var file=File.Create(Path.Combine(output,name+".png"));target.SaveAsPng(file,1200,360);
+    }
+    protected override void Draw(GameTime time)
+    {
+        if(done)return;done=true;
+        float distance=0,speed=dashSpeed;
+        for(int tick=0;tick<75;tick++)
+        {
+            if(tick<dashTicks)speed=dashSpeed;
+            else { float cap=MathHelper.Lerp(dashSpeed,cruiseSpeed,MathHelper.Clamp((tick-dashTicks)/(float)recoveryTicks,0,1));speed=Math.Min(speed,cap)*(1-handling);if(speed<cruiseSpeed*.01f)speed=0; }
+            distance+=speed;
+            // Actual trajectory at Lv9, neutral scene fixture; 24 cruise-speed dash ticks then no directional input.
+            Capture($"frame-{tick:000}",tick,new Vector2(290,190),Vector2.UnitX,new Vector2(290+distance,190),false);
+        }
+        foreach(var (name,dir) in new (string,Vector2)[]{("right",Vector2.UnitX),("left",-Vector2.UnitX),("up",new Vector2(.7071f,-.7071f)),("down",new Vector2(-.7071f,.7071f))})
+            Capture("direction-"+name,6,new Vector2(580,190),dir,new Vector2(580,190)+dir*100,false);
+        Capture("bright",6,new Vector2(580,190),Vector2.UnitX,new Vector2(730,190),true);
+        Capture("zoom125",6,new Vector2(440,145),Vector2.UnitX,new Vector2(700,181),false,1.25f);
+        Console.WriteLine("FNA: production double wind-ring renderer, 75 timeline frames, four directions, bright and 125% views.");Exit();
+    }
+    protected override void UnloadContent(){renderer?.Dispose();wind?.Dispose();broom?.Dispose();pixel?.Dispose();batch?.Dispose();}
+}
+

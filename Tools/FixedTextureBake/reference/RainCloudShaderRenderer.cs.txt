@@ -1,0 +1,185 @@
+﻿using System;
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace 伊蕾娜.ElainaModAlchemy.Rain;
+
+/// <summary>游戏与预览共享的体积云绘制；一份 Effect、白像素和噪声供所有雨云复用。</summary>
+internal sealed class RainCloudShaderRenderer : IDisposable
+{
+    private readonly Effect effect;
+    private readonly Texture2D white;
+    private readonly Texture2D noise;
+    private readonly EffectParameter time, opacity, reveal, revealGlow;
+    private readonly float[] revealThresholds;
+    private bool disposed;
+
+    public RainCloudShaderRenderer(GraphicsDevice device, Effect material)
+    {
+        // 先验证材质与 FNA 状态字段；不修改或释放 ModContent 所拥有的原 Effect。
+        foreach (string name in new[] { "Time", "Opacity", "Density", "FlowSpeed", "Reveal", "RevealGlow" })
+            if (material.Parameters[name] == null) throw new InvalidOperationException("Missing cloud uniform: " + name);
+        BatchState.Validate();
+        try
+        {
+            effect = material.Clone();
+            effect.CurrentTechnique = effect.Techniques["CloudVolume"];
+            time = effect.Parameters["Time"];
+            opacity = effect.Parameters["Opacity"];
+            reveal = effect.Parameters["Reveal"];
+            revealGlow = effect.Parameters["RevealGlow"];
+            effect.Parameters["Density"].SetValue(1.2f);
+            effect.Parameters["FlowSpeed"].SetValue(.28f);
+            white = new Texture2D(device, 1, 1);
+            white.SetData(new[] { Color.White });
+            noise = new Texture2D(device, 256, 256);
+            var random = new Random(19781024);
+            var pixels = new Color[256 * 256];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                byte value = (byte)random.Next(256);
+                pixels[i] = new Color(value, value, value, (byte)255);
+            }
+            // 消融场只在初始化时烘入同一纹理的 G 通道；不增加纹理槽或逐帧 CPU 噪声计算。
+            float SmoothNoise(int x, int y, int cellSize)
+            {
+                int gx = x / cellSize, gy = y / cellSize;
+                float fx = x % cellSize / (float)cellSize, fy = y % cellSize / (float)cellSize;
+                fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+                float Value(int a, int b) => pixels[((b + cellSize * 3) & 255) * 256 + ((a + cellSize * 7) & 255)].R / 255f;
+                return MathHelper.Lerp(MathHelper.Lerp(Value(gx, gy), Value(gx + 1, gy), fx),
+                    MathHelper.Lerp(Value(gx, gy + 1), Value(gx + 1, gy + 1), fx), fy);
+            }
+            for (int y = 0; y < 256; y++)
+            for (int x = 0; x < 256; x++)
+                pixels[y * 256 + x].G = (byte)((SmoothNoise(x, y, 32) * .65f
+                    + SmoothNoise(x, y, 16) * .25f + SmoothNoise(x, y, 8) * .10f) * 255);
+            revealThresholds = BuildRevealThresholds(pixels);
+            noise.SetData(pixels);
+        }
+        catch { Dispose(); throw; }
+    }
+
+    // center 已减去相机坐标。变换沿用调用者，包含游戏缩放、屏幕翻转和捕获视口。
+    public void Draw(SpriteBatch batch, Vector2 center, float age)
+    {
+        if (disposed) throw new ObjectDisposedException(nameof(RainCloudShaderRenderer));
+        float appear = MathHelper.Clamp(age / 132, 0, 1);
+        float fade = MathHelper.SmoothStep(0, 1, MathHelper.Clamp(age / 42, 0, 1))
+            * MathHelper.Clamp((RainCloudDrawing.Duration - age) / 60, 0, 1);
+        if (fade <= 0 || appear <= 0) return;
+        BatchState state = BatchState.Capture(batch);
+        Vector2 size = new(360, 140);
+        Vector2 origin = center + new Vector2(0, -12) - size * .5f;
+        GraphicsDevice device = batch.GraphicsDevice;
+        if (!Visible(origin, size, state.Transform, device.Viewport)) return;
+
+        // 先提交雨丝等已排队内容，然后借用当前批次；finally 恢复其他弹幕需要的状态。
+        batch.End();
+        Texture oldTexture0 = device.Textures[0], oldTexture1 = device.Textures[1];
+        SamplerState oldSampler0 = device.SamplerStates[0], oldSampler1 = device.SamplerStates[1];
+        BlendState oldBlend = device.BlendState;
+        DepthStencilState oldDepth = device.DepthStencilState;
+        RasterizerState oldRasterizer = device.RasterizerState;
+        Rectangle oldScissor = device.ScissorRectangle;
+        bool begun = false;
+        try
+        {
+            time.SetValue(age / 60f);
+            opacity.SetValue(fade);
+            float revealProgress = appear * appear * (3 - 2 * appear);
+            // 按噪声实际分布推进可见面积，避免阈值穿过密集灰阶时整片云突然出现。
+            float thresholdIndex = revealProgress * (revealThresholds.Length - 1);
+            int lower = Math.Min((int)thresholdIndex, revealThresholds.Length - 2);
+            reveal.SetValue(MathHelper.Lerp(revealThresholds[lower], revealThresholds[lower + 1], thresholdIndex - lower));
+            revealGlow.SetValue(.75f * MathHelper.SmoothStep(0, 1, MathHelper.Clamp(age / 42, 0, 1))
+                * (1 - MathHelper.SmoothStep(0, 1, MathHelper.Clamp((revealProgress - .78f) / .22f, 0, 1))));
+            batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, state.Rasterizer, effect, state.Transform);
+            begun = true;
+            device.Textures[1] = noise;
+            device.SamplerStates[1] = SamplerState.LinearWrap;
+            batch.Draw(white, origin, null, Color.White, 0, Vector2.Zero, size, SpriteEffects.None, 0);
+        }
+        finally
+        {
+            if (begun) batch.End();
+            state.Begin(batch);
+            device.Textures[0] = oldTexture0;
+            device.Textures[1] = oldTexture1;
+            device.SamplerStates[0] = oldSampler0;
+            device.SamplerStates[1] = oldSampler1;
+            device.BlendState = oldBlend;
+            device.DepthStencilState = oldDepth;
+            device.RasterizerState = oldRasterizer;
+            device.ScissorRectangle = oldScissor;
+        }
+    }
+
+    private static float[] BuildRevealThresholds(Color[] pixels)
+    {
+        // 只在创建噪声时统计一次。采样云体覆盖区的 G 通道，匹配 Shader 的 LinearWrap 与中心偏置。
+        var values = new global::System.Collections.Generic.List<float>(128 * 64);
+        for (int y = 0; y < 64; y++)
+        for (int x = 0; x < 128; x++)
+        {
+            float u = .06f + (x + .5f) / 128 * .88f;
+            float v = .12f + (y + .5f) / 64 * .66f;
+            float ellipseX = (u - .5f) / .46f, ellipseY = (v - .45f) / .33f;
+            if (ellipseX * ellipseX + ellipseY * ellipseY > 1) continue;
+            float sx = u * 256 - .5f, sy = v * .45f * 256 - .5f;
+            int ix = (int)MathF.Floor(sx), iy = (int)MathF.Floor(sy);
+            float Pixel(int px, int py) => pixels[(py & 255) * 256 + (px & 255)].G / 255f;
+            float sampled = MathHelper.Lerp(MathHelper.Lerp(Pixel(ix, iy), Pixel(ix + 1, iy), sx - ix),
+                MathHelper.Lerp(Pixel(ix, iy + 1), Pixel(ix + 1, iy + 1), sx - ix), sy - iy);
+            values.Add(sampled * .82f + MathF.Abs((u - .5f) * 6.6f) * .058f);
+        }
+        values.Sort();
+        var thresholds = new float[129];
+        thresholds[0] = -.12f;
+        thresholds[^1] = 1.12f;
+        for (int i = 1; i < thresholds.Length - 1; i++)
+            thresholds[i] = values[(int)(i / 128f * (values.Count - 1))];
+        return thresholds;
+    }
+
+    private static bool Visible(Vector2 origin, Vector2 size, Matrix transform, Viewport viewport)
+    {
+        Vector2 a = Vector2.Transform(origin, transform);
+        Vector2 b = Vector2.Transform(origin + new Vector2(size.X, 0), transform);
+        Vector2 c = Vector2.Transform(origin + new Vector2(0, size.Y), transform);
+        Vector2 d = Vector2.Transform(origin + size, transform);
+        Vector2 min = Vector2.Min(Vector2.Min(a, b), Vector2.Min(c, d));
+        Vector2 max = Vector2.Max(Vector2.Max(a, b), Vector2.Max(c, d));
+        return max.X > 0 && max.Y > 0 && min.X < viewport.Width && min.Y < viewport.Height;
+    }
+
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        effect?.Dispose(); white?.Dispose(); noise?.Dispose();
+    }
+
+    // 与安装版本 FNA 的 SpriteBatch 字段一致；缓存反射元数据，不强制恢复成假定的原版矩阵。
+    private readonly record struct BatchState(SpriteSortMode Sort, BlendState Blend, SamplerState Sampler,
+        DepthStencilState Depth, RasterizerState Rasterizer, Effect Effect, Matrix Transform)
+    {
+        private static FieldInfo Field(string name) => typeof(SpriteBatch).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new MissingFieldException(typeof(SpriteBatch).FullName, name);
+        private static readonly FieldInfo Started = Field("beginCalled"), SortField = Field("sortMode"),
+            BlendField = Field("blendState"), SamplerField = Field("samplerState"), DepthField = Field("depthStencilState"),
+            RasterizerField = Field("rasterizerState"), EffectField = Field("customEffect"), TransformField = Field("transformMatrix");
+        public static void Validate() { _ = Started; }
+        public static BatchState Capture(SpriteBatch batch)
+        {
+            if (!(bool)Started.GetValue(batch)) throw new InvalidOperationException("Cloud draw requires an active SpriteBatch.");
+            return new((SpriteSortMode)SortField.GetValue(batch), (BlendState)BlendField.GetValue(batch),
+                (SamplerState)SamplerField.GetValue(batch), (DepthStencilState)DepthField.GetValue(batch),
+                (RasterizerState)RasterizerField.GetValue(batch), (Effect)EffectField.GetValue(batch),
+                (Matrix)TransformField.GetValue(batch));
+        }
+        public void Begin(SpriteBatch batch) => batch.Begin(Sort, Blend, Sampler, Depth, Rasterizer, Effect, Transform);
+    }
+}

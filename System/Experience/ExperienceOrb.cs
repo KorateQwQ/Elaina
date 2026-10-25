@@ -10,6 +10,7 @@ public sealed class ExperienceOrb : ModProjectile
 {
     private Player recipient;
     private bool settled;
+    private ExperienceOrbTrail trail;
     public override string Texture => "Terraria/Images/Projectile_0";
 
     internal void BindRecipient(Player player) => recipient = player;
@@ -51,7 +52,10 @@ public sealed class ExperienceOrb : ModProjectile
         float age = ++Projectile.ai[2];
         Projectile.velocity = ExperienceRules.NextVelocity(Projectile.Center, Projectile.velocity, target.Center, age);
         if (!Main.dedServ)
+        {
+            (trail ??= new ExperienceOrbTrail()).Record(Projectile.Center);
             Lighting.AddLight(Projectile.Center, .18f, .10f, .28f);
+        }
 
         if (authority && !settled && age >= ExperienceRules.FloatTicks
             && Vector2.DistanceSquared(Projectile.Center, target.Center) <= ExperienceRules.PickupRadius * ExperienceRules.PickupRadius)
@@ -69,7 +73,7 @@ public sealed class ExperienceOrb : ModProjectile
     public override bool PreDraw(ref Color lightColor)
     {
         ExperienceOrbDrawing.Draw(Main.spriteBatch, TextureAssets.MagicPixel.Value,
-            Projectile.Center - Main.screenPosition, Projectile.velocity, Projectile.ai[2]);
+            Projectile.Center, Projectile.ai[2], trail, Main.screenPosition);
         return false;
     }
 }

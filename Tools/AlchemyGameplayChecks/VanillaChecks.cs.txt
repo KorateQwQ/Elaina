@@ -12,7 +12,7 @@ using 伊蕾娜.ElainaModAlchemy.item.Curios;
 using 伊蕾娜.ElainaModAlchemy.Crafting;
 using GameMain = Terraria.Main;
 
-internal static class VanillaChecks
+internal static partial class VanillaChecks
 {
     const BindingFlags Hidden = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
     static int passed;
@@ -35,7 +35,8 @@ internal static class VanillaChecks
     static void Main(string[] args)
     {
         Terraria.Program.SavePath = Path.GetTempPath();
-        Register(new AlchemyProgressPlayer()); Register(new SupplyPlayer()); Register(new FacsimileCraftingPlayer());
+        Register(new AlchemyProgressPlayer()); Register(new SupplyPlayer());
+        Register(new AlchemyBrewingPlayer()); Register(new global::伊蕾娜.ElainaModplayer());
         var dust = new AshenFacsimileDust(); Register(dust); dust.SetDefaults();
         var scroll = new ScrollItem(); Register(scroll); scroll.SetDefaults();
         Invoke(typeof(PlayerLoader), "ResizeArrays");
@@ -53,7 +54,7 @@ internal static class VanillaChecks
         foreach (Match match in Regex.Matches(mappings, "\"([^\"]+)\" => ItemID\\.(\\w+)"))
             ids[match.Groups[1].Value] = Convert.ToInt32(typeof(ItemID).GetField(match.Groups[2].Value)!.GetRawConstantValue());
         foreach (var material in AlchemyCatalog.Materials.Where(m => m.Art != null)) ids[material.Id] = ItemID.ClayBlock + ids.Count;
-        ids["moondew"] = ItemID.LesserManaPotion; ids["resin"] = ItemID.Silk;
+        ids["moondew"] = ItemID.LesserManaPotion;
         foreach (var entry in AlchemyCatalog.Recipes) ids.TryAdd(entry.Id, ItemID.ManaPotion);
         ids["mimic"] = dust.Type;
         AlchemyCatalog.ItemTypeResolver = id => ids.GetValueOrDefault(id);
@@ -68,7 +69,7 @@ internal static class VanillaChecks
         typeof(RecipeLoader).GetField("setupRecipes", Hidden)!.SetValue(null, false);
         Invoke(typeof(Recipe), "CreateRequiredItemQuickLookups");
         var facsimile = new FacsimileCraftingSystem(); Register(facsimile); facsimile.PostSetupRecipes();
-        Check(Recipe.numRecipes == 17, "All seventeen actual recipes are registered");
+        Check(Recipe.numRecipes == 16, "All sixteen actual recipes are registered");
         Check(AlchemyVanillaRecipes.AllowFacsimileDust == false, "Dust remains off by default");
         var initialIds = new[] { "mana", "bread", "stew", "brulee" }.Concat(AlchemyCatalog.Recipes.Where(r => r.IsMaterial).Select(r => r.Id)).ToHashSet(StringComparer.Ordinal);
         Check(Progress.Level == 1 && Progress.Experience == 0 && Progress.Unlocked.SetEquals(initialIds),
@@ -93,6 +94,14 @@ internal static class VanillaChecks
         });
         Check(Progress.Unlocked.SetEquals(initialIds.Append("painkiller")),
             "Legacy saves gain all foods and materials while retaining researched entries");
+        var allKnownIds = AlchemyCatalog.Recipes.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        Progress.LoadData(new TagCompound
+        {
+            ["Level"] = 20, ["Experience"] = 0,
+            ["Unlocked"] = new[] { "resin" }.Concat(allKnownIds.OrderBy(id => id, StringComparer.Ordinal)).ToList()
+        });
+        Check(Progress.Unlocked.SetEquals(allKnownIds) && !Progress.IsUnlocked("resin"),
+            "Removing retired resin from a full legacy save preserves every remaining research entry");
         Progress.ResetProgress();
         Check(Progress.Unlocked.SetEquals(initialIds), "Reset keeps all foods and materials unlocked and clears research");
 
@@ -105,55 +114,59 @@ internal static class VanillaChecks
         Check(AlchemyVanillaRecipes.MaxBatches(Player, "moondew") == 2, "Vanilla inventory stock yields exact maximum batches");
         int consumptionCalls = 0, craftCalls = 0;
         AlchemyVanillaRecipes.Get("moondew").AddConsumeIngredientCallback((Recipe r, int type, ref int amount, bool decraft) => consumptionCalls++);
-        AlchemyVanillaRecipes.Get("moondew").AddOnCraftCallback((r, item, consumed, destination) => { craftCalls++; Check(consumed.Sum(i => i.stack) == 4, "OnCraft receives actual consumed stacks"); });
+        AlchemyVanillaRecipes.Get("moondew").AddOnCraftCallback((r, item, consumed, destination) => { craftCalls++; Check(consumed.Sum(i => i.stack) == 2, "OnCraft receives one water and one moonglow per batch"); });
         var cursor = new Item(ItemID.Wood, 11); GameMain.mouseItem = cursor;
-        var result = AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 2, 2);
-        Check(result.Success && result.OutputCount == 6 && Count(ItemID.BottledWater) == 0 && Count(ItemID.Moonglow) == 0, "Native CraftItem spends exact quantities and produces actual items");
+        var result = AlchemyCraftingService.CompleteCraft(Player, "moondew", 2, 2);
+        Check(result.Success && result.OutputCount == 6 && Count(ItemID.BottledWater) == 4 && Count(ItemID.Moonglow) == 0, "Native CraftItem spends exact quantities and produces actual items");
         Check(AlchemyInventory.Count(Player, ItemID.LesserManaPotion) == 6 && Progress.Experience == 20, "Output enters inventory, XP is per batch");
         Check(consumptionCalls == 4 && craftCalls == 2 && ReferenceEquals(cursor, GameMain.mouseItem), "Native callbacks fire once and held cursor item is preserved");
-        Check(!AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 3).Success && Progress.Experience == 20, "Shortage gives no free item or XP");
+        Check(!AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 3).Success && Progress.Experience == 20, "Shortage gives no free item or XP");
 
         Clear();
         for (int i = 0; i < 58; i++) Player.inventory[i] = new Item(ItemID.DirtBlock, 9999);
         Player.inventory[0] = new Item(ItemID.BottledWater, 4); Player.inventory[1] = new Item(ItemID.Moonglow, 2);
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 30).Success &&
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 30).Success &&
             GameMain.item.Any(item => item.active && item.type == ItemID.LesserManaPotion && item.stack == 3),
             "Full inventory delivers overflow through vanilla Item.NewItem");
 
         Clear(); Player.chest = 0;
-        Player.inventory[0] = new Item(ItemID.BottledWater, 1);
-        GameMain.chest[0].item[0] = new Item(ItemID.BottledWater, 2); GameMain.chest[0].item[1] = new Item(ItemID.Moonglow);
-        Check(Count(ItemID.BottledWater) == 3 && AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Opened chest joins vanilla material counts");
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 4).Success &&
+        GameMain.chest[0].item[0] = new Item(ItemID.BottledWater, 1); GameMain.chest[0].item[1] = new Item(ItemID.Moonglow);
+        Check(Count(ItemID.BottledWater) == 1 && AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "One bottled water in the opened chest is enough for a batch");
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 4).Success &&
             GameMain.chest[0].item[0].IsAir && GameMain.chest[0].item[1].IsAir, "Original Recipe.Create consumes chest slots");
         Clear(); Player.inventory[0] = new Item(ItemID.VoidLens);
-        Player.bank4.item[0] = new Item(ItemID.BottledWater, 3); Player.bank4.item[1] = new Item(ItemID.Moonglow);
-        Check(Count(ItemID.BottledWater) == 3, "Active void bag material collection");
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 5).Success && Player.bank4.item[0].IsAir, "Original Recipe.Create consumes void materials");
+        Player.bank4.item[0] = new Item(ItemID.BottledWater, 1); Player.bank4.item[1] = new Item(ItemID.Moonglow);
+        Check(Count(ItemID.BottledWater) == 1, "Active void bag material collection");
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 5).Success && Player.bank4.item[0].IsAir, "Original Recipe.Create consumes void materials");
         Clear(); Player.chest = -2;
         Player.bank.item[0] = new Item(ItemID.BottledWater, 3); Player.bank.item[1] = new Item(ItemID.Moonglow);
-        Check(Count(ItemID.BottledWater) == 3 && AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 6).Success, "Opened personal container uses vanilla path");
+        Check(Count(ItemID.BottledWater) == 3 && AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 6).Success, "Opened personal container uses vanilla path");
         Clear(); SupplyPlayer.Materials.Add(new Item(ItemID.BottledWater, 3)); SupplyPlayer.Materials.Add(new Item(ItemID.Moonglow));
         Check(Count(ItemID.BottledWater) == 3, "Mod-provided materials join original collection");
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 7).Success && SupplyPlayer.Consumed == 2, "Mod material consumption callbacks fire through Recipe.Create");
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 7).Success && SupplyPlayer.Consumed == 2, "Mod material consumption callbacks fire through Recipe.Create");
         Clear(); Player.inventory[58] = new Item(ItemID.BottledWater, 50); GameMain.chest[0].item[0] = new Item(ItemID.BottledWater, 50);
         Check(Count(ItemID.BottledWater) == 0, "Trash and closed chests stay excluded");
 
         Clear(); Player.inventory[0] = new Item(ItemID.BottledWater, 1); Player.inventory[1] = new Item(ItemID.Moonglow); Player.inventory[2] = new Item(dust.Type, 50);
-        Check(!AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Dust cannot bypass alchemy shortage by default");
+        Check(AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "One water and one moonglow satisfy the reduced recipe without dust");
         AlchemyVanillaRecipes.AllowFacsimileDust = true;
         Check(AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Future dust switch enables the same existing substitute rule");
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 8).Success && AlchemyInventory.Count(Player, dust.Type) == 48, "Future dust switch also changes actual consumption");
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 8).Success && AlchemyInventory.Count(Player, dust.Type) == 50, "The reduced recipe consumes no dust even when substitution is enabled");
         AlchemyVanillaRecipes.AllowFacsimileDust = false;
 
         Clear(); Player.inventory[0] = new Item(ItemID.BottledWater, 3); Player.inventory[1] = new Item(ItemID.Moonglow); Player.inventory[2] = new Item(dust.Type, 50);
-        Player.GetModPlayer<FacsimileCraftingPlayer>().TogglePriority();
         AlchemyVanillaRecipes.AllowFacsimileDust = true;
-        Check(AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Prepare a dust-first quote before disabling opt-in");
+        Check(AlchemyVanillaRecipes.CanCraft(Player, "moondew"), "Check opt-in with full materials before disabling it");
         AlchemyVanillaRecipes.AllowFacsimileDust = false;
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "moondew", 1, 32).Success && AlchemyInventory.Count(Player, dust.Type) == 50,
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 32).Success && AlchemyInventory.Count(Player, dust.Type) == 50,
             "Disabling dust opt-in discards any stale quote and spends original materials");
-        Player.GetModPlayer<FacsimileCraftingPlayer>().TogglePriority();
+        Clear(); Player.inventory[0] = new Item(ItemID.BottledWater, 3); Player.inventory[1] = new Item(ItemID.Moonglow); Player.inventory[2] = new Item(dust.Type, 50);
+        AlchemyVanillaRecipes.AllowFacsimileDust = true;
+        GameMain.mouseRight = true; GameMain.mouseLeft = false;
+        Check(AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 33).Success && AlchemyInventory.Count(Player, dust.Type) == 50,
+            "Opted-in notebook ignores the right-click dust route when originals are complete");
+        GameMain.mouseRight = false;
+        AlchemyVanillaRecipes.AllowFacsimileDust = false;
 
         Progress.ResetProgress(); Check(!Progress.TryResearch("focus", out _), "Level gate prevents premature research");
         int awarded = Progress.AddCraftExperience("moondew", 10);
@@ -171,7 +184,7 @@ internal static class VanillaChecks
             Player.inventory[inventorySlot++] = ingredient.Clone();
         }
         Check(AlchemyVanillaRecipes.CanCraft(Player, "bloodlust"), "Updated bloodthirst recipe uses its two direct materials");
-        Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.Craft, "bloodlust", 1, 31).Success &&
+        Check(AlchemyCraftingService.CompleteCraft(Player, "bloodlust", 1, 31).Success &&
             Count(ItemID.Deathweed) == 0, "Native consumption spends bloodthirst materials exactly");
         Progress.ResetProgress(); ids["painkiller"] = scroll.Type;
         Check(!Progress.TryResearch("painkiller", out _), "Unassigned required recipe item cannot unlock");
@@ -181,14 +194,14 @@ internal static class VanillaChecks
         ids["painkiller"] = ItemID.ManaPotion;
         Clear(); result = AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugRestock, "moondew", 99, 9);
 #if DEBUG
-        Check(result.Success && AlchemyInventory.Count(Player, ItemID.BottledWater) == 30 && AlchemyInventory.Count(Player, ItemID.Moonglow) == 10, "Debug gives ten base batches, independent of quantity selector");
+        Check(result.Success && AlchemyInventory.Count(Player, ItemID.BottledWater) == 10 && AlchemyInventory.Count(Player, ItemID.Moonglow) == 10, "Debug gives ten base batches, independent of quantity selector");
         result = AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugReset, "moondew", 1, 10);
         Check(result.Success && Progress.Level == 1 && Progress.Experience == 0 &&
-            Progress.Unlocked.SetEquals(initialIds) && Count(ItemID.BottledWater) == 30,
+            Progress.Unlocked.SetEquals(initialIds) && Count(ItemID.BottledWater) == 10,
             "Debug reset restores initial entries while retaining materials");
         Progress.AddCraftExperience("moondew", 3);
         var notebook = new AlchemyNotebookState(new AlchemyNotebookSource(Player));
-        Check(notebook.DebugLevelUp() && notebook.Level == 2 && notebook.Experience == 30 && Progress.IsUnlocked("moondew") && Count(ItemID.BottledWater) == 30,
+        Check(notebook.DebugLevelUp() && notebook.Level == 2 && notebook.Experience == 30 && Progress.IsUnlocked("moondew") && Count(ItemID.BottledWater) == 10,
             "Debug level button refreshes snapshot, advances one level and retains XP, research and items");
         for (int i = 2; i < 20; i++)
             Check(AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugLevelUp, "moondew", 1, 40 + i).Success, "Debug advances toward cap");
@@ -201,7 +214,7 @@ internal static class VanillaChecks
         伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill.NotebookMaximumLevel = 5;
         notebook.Refresh();
         Check(notebook.DebugMaxLevel() && notebook.Level == 5 && notebook.Experience == 0 && Progress.Unlocked.SetEquals(initialIds)
-            && Count(ItemID.BottledWater) == 30, "Max-level button reaches the current skill cap without changing research or items");
+            && Count(ItemID.BottledWater) == 10, "Max-level button reaches the current skill cap without changing research or items");
         Check(!notebook.DebugMaxLevel() && !Progress.DebugMaxLevel(), "Max-level requests are rejected at the current cap");
         伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill.NotebookMaximumLevel = 20;
         notebook.Refresh();
@@ -211,7 +224,7 @@ internal static class VanillaChecks
         notebook.Refresh();
         ids["painkiller"] = scroll.Type;
         Check(notebook.DebugUnlockAll() && notebook.AllRecipesUnlocked && AlchemyCatalog.Recipes.All(r => Progress.IsUnlocked(r.Id))
-            && notebook.Level == 1 && notebook.Experience == 30 && Count(ItemID.BottledWater) == 30 && Count(ItemID.Wood) == 0,
+            && notebook.Level == 1 && notebook.Experience == 30 && Count(ItemID.BottledWater) == 10 && Count(ItemID.Wood) == 0,
             "Unlock-all bypasses level and recipe-scroll requirements, refreshes the notebook and preserves XP and inventory");
         Check(!notebook.DebugUnlockAll() && !AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugUnlockAll, "moondew", 1, 62).Success,
             "Unlock-all rejects repeated requests");
@@ -241,6 +254,7 @@ internal static class VanillaChecks
         Check(new[] { "DebugMaxLevel", "DebugUnlockAll" }.All(name => typeof(AlchemyProgressPlayer).GetMethod(name) == null
             && typeof(AlchemyNotebookState).GetMethod(name) == null), "Release excludes the new debug entry points");
 #endif
+        CheckBrewing();
         Console.WriteLine($"Alchemy vanilla integration: {passed} checks passed.");
         facsimile.Unload(); bridge.Unload();
     }

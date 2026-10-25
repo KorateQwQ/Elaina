@@ -1,8 +1,10 @@
 using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using KL.Drawing;
+using KL.Drawing.Snippets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
@@ -666,6 +668,53 @@ internal sealed class ConstellationDrawing
         var p = ConstellationTooltipPlacement.Place(new Vector2(width, height), pointer, bounds, anchor);
         RoundRect(p.X, p.Y, width, height, 6, new Color(26, 22, 35) * .96f, new Color(236, 229, 247) * .18f, 1);
         for (int i = 0; i < lines.Length; i++) Text(lines[i], p.X + 10, p.Y + 7 + i * 18, 11, Ink);
+    }
+
+    // Term card ("notebook slip"): the page's dotted inner frame with star corners, the term's icon
+    // and serif name, its rich-text explanation, then optional fixed values as detail-style stat columns.
+    internal void TermTooltip(KLTerm term, Vector2 pointer, Vector2 bounds, Rectangle? anchor = null)
+    {
+        const float width = 272, pad = 18, rule = pad + 30, bodyTop = rule + 12;
+        var stats = term.Stats?.Invoke() ?? [];
+        var body = new ConstellationRichText(term.Description(), width - pad * 2, 12, 21, DetailText);
+        float statTop = bodyTop + body.Height + 10;
+        float height = (stats.Length > 0 ? statTop + 29 + 44 : bodyTop + body.Height) + pad - 2;
+        var p = ConstellationTooltipPlacement.Place(new Vector2(width, height), pointer, bounds, anchor);
+        var origin = Origin;
+        Origin = At(p.X, p.Y);
+        Shadow(0, 8, width, height, 4, Color.Black * .55f, 16);
+        RoundRect(0, 0, width, height, 3, new Color(26, 22, 36) * .98f, Lavender * .3f, 1);
+        float l = 6.5f, r = width - 6.5f, t = 6.5f, b = height - 6.5f;
+        Dots(l + 9, t, r - 9, t, DotColor * .8f); Dots(l + 9, b, r - 9, b, DotColor * .8f);
+        Dots(l, t + 9, l, b - 9, DotColor * .8f); Dots(r, t + 9, r, b - 9, DotColor * .8f);
+        foreach (var corner in new[] { new Vector2(l, t), new Vector2(r, t), new Vector2(r, b), new Vector2(l, b) })
+            CrossStar(corner, new Vector2(7 * .976f, 7), Lavender * .8f, .28f);
+        var icon = ModContent.Request<Texture2D>(term.IconPath, AssetRequestMode.ImmediateLoad).Value;
+        Batch.Draw(icon, At(pad, pad + 2), null, Color.White, 0, Vector2.Zero, 18f / Math.Max(icon.Width, icon.Height) * Scale, SpriteEffects.None, 0);
+        Text(term.Name(), pad + 25, pad - 1, 17, term.Color, spacing: 1, serif: true);
+        Text(LocalizeUI("TermTag"), width - pad, pad + 5, 9, Muted2, 1, 2);
+        Dots(pad, rule, width - pad, rule, DotColor);
+        var bodyOrigin = Origin;
+        Origin = At(pad, bodyTop);
+        body.Draw(this);
+        Origin = bodyOrigin;
+        if (stats.Length > 0)
+        {
+            Dots(pad, statTop + 14.5f, width - pad, statTop + 14.5f, DotColor);
+            float y = statTop + 29, column = (width - pad * 2) / 2;
+            for (int i = 0; i < Math.Min(2, stats.Length); i++)
+            {
+                var (label, value, unit) = stats[i];
+                float x = pad + i * (column + 18);
+                if (i > 0) Dots(pad + column, y + 2, pad + column, y + 40, DotColor);
+                Text(label, x, y, 10, Muted2, spacing: 2);
+                LatinText(value, x, y + 16, 22, Ink);
+                float unitLeft = x + LatinWidth(value, 22) + 4;
+                if (unit.All(c => c is >= ' ' and <= '~')) LatinText(unit, unitLeft, y + 26.5f, 11, Muted, spacing: .5f);
+                else Text(unit, unitLeft, y + 26, 10, Muted, spacing: 1);
+            }
+        }
+        Origin = origin;
     }
 
     // Offline KL DrawCrossStar output; all shapes and prefiltered sizes share one texture.

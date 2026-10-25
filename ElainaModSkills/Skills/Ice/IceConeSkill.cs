@@ -17,7 +17,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 [SkillUIInfo(State = 7, Pixels = 500)]
 public class IceConeSkill : ElainaSkill
 {
-    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 3), GetConfiguredFreezeBuildup()];
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 3), GetConfiguredFreezeBuildup(), ShardbindSkill.NameFor(Player)];
     public override bool IsPassiveSkill => false;
 
     // 默认蜂王后开放（角色等级上限 25）；具体门槛由 JSON 的 unlockStageCap 决定，不要求实际等级达到上限。

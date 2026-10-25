@@ -1,5 +1,7 @@
 // Player-facing UI. Debug controls intentionally remain in Chinese.
 HealingTarget: Healing target
+HealingTotal: Total Healing
+HealingPerSecond: Healing per Second
 HealingSelf: Me
 HealingCritical: Critical health
 HealingFull: Full health
@@ -9,7 +11,18 @@ HealingCancel: Release to cancel
 RecallTarget: Recall circle anchor
 RecallDestination: Destination: this ally's spawn
 RecallControls: Hold to aim · Release to summon · Center to cancel
-RecallInteract: Right-click to travel · No Magic Power cost
+RecallInteract: "[klicon/16,0:伊蕾娜/Snippets/RightClickIcon] Travel"
+RecallPortalOwner: Caster: {0}
+RecallPortalDestination: To: {0} ({1}, {2})
+RecallDepthSky: Space
+RecallDepthSurface: Surface
+RecallDepthUnderground: Underground
+RecallDepthCaverns: Caverns
+RecallDepthUnderworld: Underworld
+RecallLinkPending: Connecting to the other end…
+RecallCharging: The circle is forming…
+RecallAlliesOnly: Only the caster and teammates can travel
+RecallMoveCloser: Move closer to the circle to travel
 RecallCastFailed: Could not establish the recall circle. No Magic Power was consumed.
 DollCommandMine: Mine Blocks
 DollCommandMineChain: Chain Mine
@@ -17,14 +30,43 @@ DollCommandBreakWall: Break Walls
 DollCommandBreakWallChain: Chain Break Walls
 DollCommandAttack: Attack
 DollCommandCancel: Cancel Tasks
-DollCommandDismiss: Dismiss Doll
+DollCommandDismiss: Dismiss Dolls
 DollCommandUnavailable: Not available yet
 DollCommandControls: Hold to aim · Release to command · Center to cancel
 DollCommandCancelled: Tasks cancelled
 DollNoPickaxe: No pickaxe in inventory
 DollNoHammer: No hammer in inventory
-DollMarkHintRect: Drag to mark · Drag again to erase · Right-click to stop
-DollMarkHintChain: Click to mark connected matches · Click again to clear · Right-click to stop
+DollMarkHintRect: Drag to select · Drag again to deselect
+DollMarkHintChain: Click to select connected · Click again to deselect
+DollSelectionStart: Start Mining
+DollSelectionStartWalls: Start Breaking
+DollSelectionExit: Exit
+DollBringBackItems: Bring back items
+DollChainMining: Chain mining
+DollChainWalls: Chain walls
+DollToggleOn: ON
+DollToggleOff: OFF
+DollPickPowerInsufficient: Pickaxe power too low for some selected blocks
+DollWallRequiresSkeletron: Selected dungeon walls require defeating Skeletron
+DollWallRequiresGolem: Selected temple walls require defeating Golem
+DollSelectionTiles: "{0} blocks selected"
+DollSelectionWalls: "{0} walls selected"
+DollSelectionEmptyTiles: No mineable blocks selected
+DollSelectionEmptyWalls: No breakable walls selected
+DollCommandPlacePlanters: Place Planters
+DollSelectionPlanters: "{0} planter sets selected"
+DollSelectionEmptyPlanters: Select empty space; 2 tiles per set
+DollSelectionStartPlanters: Start Placing
+DollPlanterHint: Growth space above · Planter box below; select again to remove
+DollPlanterLabel: Planter
+DollMaterialNone: None in inventory
+DollMaterialOption: "{0} · {1} × {2} / Need {3}"
+DollMaterialHint: Click to open the material list; the task ends early if supplies run out
+DollChoosePlanter: Choose a Planter
+DollMaterialListOption: "{0} × {1}"
+DollNoPlanter: The selected planter is missing from your inventory
+DollPlanterExhausted: Planters ran out; placement task ended early
+DollPlanterLimit: You can queue up to 10000 planter sets
 AccessorySlots: Accessories · {0} recommended slots ({1} available)
 Acquirable: Obtainable
 Acquisition: Source
@@ -75,17 +117,17 @@ Catalog: {
 	3S: 3 s
 	1OfMaximumMagicPower: 1% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]
 	60S: 60 s
-	ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy: A base mixture made from Bottled Water and Moonglow, ready for alchemy.
+	ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy: A base mixture made from Bottled Water and Moonglow, suitable for a variety of potions.
 	ABasicIngredientForCookingAndBaking: A basic ingredient for cooking and baking.
+	HowToUse: How to use
 	MoonDewElixirDescription: A potion infused with moonlight and stardust.
-	ASmoothWarmResinBrewedFromWoodAndGel: A smooth, warm resin brewed from Wood and Gel.
 	BottledShimmerDescription: Shimmer collected with an Aether Dropper. Can pour out a small amount of Shimmer.
 	AWarmingBeefAndPotatoStewThatElainaMakesWellThoughItIsNotHerFavo: I still look forward to dessert more than stew.
 	AetherBlock: Aether Block
 	AetherDropper: Aether Dropper
 	AetherDropperCollectFromShimmer: Aether Dropper · Collect from Shimmer
 	All: All
-	AllNearbyTiles: All nearby tiles
+	AllNearbyTiles: Three-tile-wide vertical strip
 	AlwaysStockedByTheTravelingMerchantWhenHeVisits: Always stocked by the Traveling Merchant when he visits.
 	AreaOfEffect: Area of effect
 	AshenFacsimileDust: Ashen Facsimile Dust
@@ -104,7 +146,7 @@ Catalog: {
 	BottledHoney: Bottled Honey
 	BottledRain: Bottled Rain
 	BottledWater: Bottled Water
-	BottledWater3Moonglow1MoonDew3: Bottled Water ×3 + Moonglow ×1 → Moon Dew ×3
+	BottledWater1Moonglow1MoonDew3: "{$ItemName.BottledWater} ×1 + {$ItemName.Moonglow} ×1 → Moon Dew ×3"
 	BrewBasicMixturesInTheCauldronAndBuyEverydayIngredientsFromMerch: Brew basic mixtures in the cauldron and buy everyday ingredients from merchants.
 	CUISINE: Cuisine
 	CURIOS: Curios
@@ -134,11 +176,11 @@ Catalog: {
 	Elaina: Elaina
 	Exotic: Exotic
 	PlentySatisfiedAndHappy: Plenty Satisfied · Happy
+	4Min: 4 minutes
 	5Min: 5 minutes
 	FallenStar: Fallen Star
 	FallsFromTheNightSky: Falls from the night sky
 	FallsThroughBlocks: Falls through blocks
-	FavoriteToPrioritizeReplacingOriginalMaterials: Favorite to prioritize replacing original materials
 	Feather: Feather
 	FeatherlightPotion: Featherlight Potion
 	Fine: Fine
@@ -147,7 +189,6 @@ Catalog: {
 	Flour: Flour
 	FoodEffect: Food effect
 	FoodSupport: Food · Support
-	FulfillAtLeast50OfTheTotalMaterialRequirement: Fulfill at least 50% of the total material requirement
 	FurnaceSand: Furnace · Sand
 	Gel: Gel
 	Glass: Glass
@@ -174,6 +215,7 @@ Catalog: {
 	RegenerationPotion: Regeneration Potion
 	MagicPowerPotion: Magic Power Potion
 	ArcheryPotion: Archery Potion
+	RightClickSelectedRecipeToCraftWithDust: Right-click a selected recipe to craft
 	SummoningPotion: Summoning Potion
 	VanillaPotionCrafting: Craft using the vanilla potion recipe
 	MakesYouLightAsAFeatherIncreasingMovementFlightAndBroomSpeed: Makes you light as a feather, increasing movement, flight, and broom speed.
@@ -202,13 +244,11 @@ Catalog: {
 	PotionRecovery: Potion · Recovery
 	PotionUtility: Potion · Utility
 	PotionsForTheRoad: Potions for the Road
-	Priority: Priority
 	Properties: Properties
 	ProvidesContinuousLifeRegeneration: Provides continuous life regeneration.
 	PurchaseFromTheMerchant: Purchase from the Merchant.
 	PurificationDew: Purification Dew
 	PurificationPowder: Purification Powder
-	QuantityRequirement: Quantity requirement
 	Rare: Rare
 	RecipeSoldByTheArmsDealerAtNight: Recipe sold by the Arms Dealer at night
 	RecipeSoldByTheDryadInHardmode: Recipe sold by the Dryad in Hardmode
@@ -218,8 +258,8 @@ Catalog: {
 	RecipeFoundInUndergroundGoldChests: Recipe sometimes found in underground Gold Chests
 	RecoveryPerSecond: Recovery per second
 	ElainaOnly: For Elaina only
-	ReleasesAPortableRainCloudThatSpeedsUpNearbyPlantGrowthAndMakesW: Releases a portable rain cloud that speeds up nearby plant growth and makes Waterleaf bloom.
-	ReleasesPurificationDewAtTheTargetLocationItFallsThroughBlocksAn: Releases Purification Dew at the target location. It falls through blocks and purifies nearby tiles.
+	ReleasesAPortableRainCloudThatSpeedsUpNearbyPlantGrowthAndMakesW: Releases a portable rain cloud that speeds up nearby plant growth and makes {$ItemName.Waterleaf} bloom.
+	ReleasesPurificationDewAtTheTargetLocationItFallsThroughBlocksAn: Falling light leaves a permanent three-tile-wide barrier to Corruption, Crimson, Hallow and their plants.
 	ReplenishYourMagicForTheJourneyAndBrewALittleCourageForBattle: Replenish your magic for the journey and brew a little courage for battle.
 	RequiredManaLifeDifference: Required mana-life difference
 	RequiresAlchemyLv1: Requires Alchemy Lv.1
@@ -228,7 +268,7 @@ Catalog: {
 	ResonancePotion: Resonance Potion
 	RevealRadius: Reveal radius
 	RevealingDust: Revealing Dust
-	RevealsAllEnemiesAndTraps: Reveals all enemies and traps.
+	RevealsAllEnemiesAndTraps: Scatter golden dust to leave a fixed revealing area. Detects hazards and enemies immediately, then each second. Enemies stay revealed for 5 minutes after leaving.
 	BottledShimmer: Bottled Shimmer
 	SkyHarpies: Sky · Harpies
 	SoldByTheDryad: Sold by the Dryad
@@ -237,7 +277,6 @@ Catalog: {
 	StarPowerPotion: Star Power Potion
 	Stinger: Stinger
 	Sugar: Sugar
-	SupplementForPotions: Supplement for potions
 	SurfaceForestDaytime: Surface forest · Daytime
 	SweetensDoughAndFormsACaramelCrustWhenCooked: Sweetens dough and forms a caramel crust when cooked.
 	TheCorruptionOrCrimson: The Corruption or Crimson
@@ -253,15 +292,13 @@ Catalog: {
 	Use: Use
 	UsedIn: Used in
 	UsesShimmerSTransmutingPowerToReplaceSomeMissingCraftingMaterial: Uses Shimmer's transmuting power to replace some missing crafting materials.
-	WarmResin: Warm Resin
 	WarmSoupAndSweetsGiveEvenTheLongestJourneyAMealToLookForwardTo: Warm soup and sweets give even the longest journey a meal to look forward to.
 	WaterTouchingLava: Water touching lava
-	Waterleaf: Waterleaf
+	Waterleaf: "{$ItemName.Waterleaf}"
 	WellFed: Well Fed
 	WellFedDoesNotRestoreLife: Well Fed · Does not restore life
 	WhipHitsMarkEnemiesWithResonanceYourMinionsDealIncreasedDamageTo: Whip hits mark enemies with Resonance. Your minions deal increased damage to marked enemies.
 	Wood: Wood
-	Wood20Gel2WarmResin2: Wood ×20 + Gel ×2 → Warm Resin ×2
 	YourRangedAttacksDealMoreDamageTheCloserYouAimToTheTargetSCenter: Your ranged attacks deal more damage the closer you aim to the target's center.
 }
 
@@ -285,6 +322,10 @@ DefaultLayoutFailed: Could not load the default layout. Using skill positions.
 Disable: Disable
 Disabled: Disabled
 DisabledSuffix: " · Disabled"
+DiscoveryAppeared: New Star Revealed
+DiscoveryMany: "{0} and {1} in total"
+DiscoveryOpen: "{0} to view"
+DiscoveryUnsealed: Star Unsealed
 DroppedEquipment: Inventory full. Replaced gear was dropped at your feet.
 DropperSource: Use an Aether Dropper
 ElainaLoadout: Only Elaina can use Quick Loadout.
@@ -380,6 +421,7 @@ MissingSuffix: " · Missing {0}"
 MissingTooltipSuffix: ": Need {0} more"
 MissingUnlockCondition: Unlock requirements unavailable.
 MoreRequirements: …See details for other requirements
+TermTag: TERM
 NeedAlchemyLevel: Requires Alchemy Lv.{0}
 NeedObsidian: Not enough Obsidian.
 NeedRecipe: Requires {0} × {1}
@@ -392,7 +434,6 @@ NoRecipeNeeded: No recipe item needed. Reach the required level, then select Res
 NoStageLoadout: No loadout is configured for this stage.
 NotLearned: Not learned
 NotLearnedShort: Not learned
-NotebookDock: Journal
 NotebookTitle: Witch's Journal
 OtherSkill: Other skill
 Output: Yield ×{0}
@@ -482,3 +523,5 @@ AlchemyMissingList: Missing {0}
 AlchemyListSeparator: ", "
 AlchemyCraftCapacity: Up to {0} batches
 AlchemyBatchCount: Batch
+AlchemyNeedCauldron: Right-click a cauldron to begin brewing.
+AlchemyInterrupted: Brewing interrupted. No ingredients were consumed for this brew.

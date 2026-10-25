@@ -1,0 +1,75 @@
+using System.Text.Json.Nodes;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.Mounts;
+
+internal static class FlightStateChecks
+{
+    public static void Run(string repo)
+    {
+        int passed = 0;
+        void Check(bool ok, string name) { if (!ok) throw new Exception(name); passed++; }
+        void Near(float a, float b, string name) => Check(Math.Abs(a-b)<.001f, name);
+        string json = File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Data/SkillBalance.json"));
+        Check(SkillBalanceConfig.TryParse(json, out var config, out var error), error);
+        var entry = config.Skills["FlightSkill"];
+        var b = entry.Flight;
+        Near(b.Speed(0), 8, "Unlearned flight is speed 8");
+        Near(b.Speed(1), 8.8f, "Learning grants 10 percent");
+        for (int level = 2; level <= 9; level++) Near(b.Speed(level)-b.Speed(level-1), .4f, "Each learned level grants 5 percent of base");
+        Near(b.Speed(9), 12, "Lv9 cruise speed is 12");
+        Near(b.Speed(9)*b.BoostMultiplier, 18, "Lv9 boost speed is 18");
+        Check(config.GetSkillLevelCap(entry,90)==8 && config.GetSkillLevelCap(entry,91)==9 && config.GetSkillLevelCap(entry,95)==9, "New progression reaches Lv9 only post Moon Lord");
+        Check(config.GetSkillLevelCap(entry,1000)==9, "Configured skill level cap remains 9");
+        foreach (var (field, value) in new (string, double)[] { ("dashCooldownSeconds",0), ("dashSeconds",-1), ("holdSeconds",0), ("boostManaPerSecond",-12), ("dashManaCost",-1), ("baseSpeed",0), ("dashCooldownSeconds",.1), ("handlingPercent",0), ("handlingPercent",101), ("dashRecoverySeconds",0), ("dashRecoverySeconds",.6) })
+        {
+            var doc = JsonNode.Parse(json)!;
+            var row = doc["configuration"]!["skills"]!.AsArray().First(n=>n!["id"]!.GetValue<string>()=="FlightSkill")!;
+            row["flight"]![field]=value;
+            Check(!SkillBalanceConfig.TryParse(doc.ToJsonString(),out _,out _), "Reject invalid flight field "+field);
+        }
+        float spent=0; int payments=0;
+        bool Pay(float cost) { spent+=cost; payments++;return true; }
+        var s = new BroomFlightState();
+        s.Tick(0,true,true,true,false,b,Pay);
+        s.Tick(1,true,false,false,true,b,Pay);
+        Check(s.DashStarted && s.Dashing && !s.Boosting,"Tap starts a single dash");
+        Near(spent,25,"Tap costs 25 once");
+        s.Tick(1,true,false,false,true,b,Pay);
+        Check(payments==1,"Duplicate same-tick callback cannot pay twice");
+        for(ulong tick=2;tick<25;tick++) { s.Tick(tick,true,false,false,true,b,Pay); Check(s.Dashing && !s.DashStarted,"Stale release does not restart dash"); }
+        s.Tick(25,true,false,false,true,b,Pay);
+        Check(!s.Dashing && payments==1,"Dash ends after exactly 24 ticks");
+        for(ulong tick=26;tick<60;tick+=2) { s.Tick(tick,true,true,true,false,b,Pay);s.Tick(tick+1,true,false,false,true,b,Pay); }
+        Check(payments==1,"Rapid taps during cooldown do not dash or charge");
+        s.Tick(60,true,true,true,false,b,Pay);s.Tick(61,true,false,false,true,b,Pay);
+        Check(s.DashStarted && payments==2,"Fresh tap at cooldown boundary works");
+        s.Cancel();s.Tick(62,true,true,true,false,b,Pay);s.Tick(63,true,false,false,true,b,Pay);
+        Check(payments==2 && !s.Dashing,"Cancel/remount does not reset cooldown");
+        s=new(); spent=0; payments=0;
+        for(ulong tick=0;tick<74;tick++) s.Tick(tick,true,true,tick==0,false,b,Pay);
+        Check(s.Boosting && !s.Dashing,"Hold enters boost");Near(spent,12,"Exactly 60 boosted ticks cost 12");
+        s.Tick(74,true,false,false,true,b,Pay);
+        Check(!s.Boosting && !s.Dashing && payments==60,"Long hold release never becomes dash");
+        s=new();int failed=0;
+        bool Empty(float _) { failed++;return false; }
+        for(ulong tick=0;tick<300;tick++) s.Tick(tick,true,true,tick==0,false,b,Empty);
+        Check(!s.Boosting && failed==1,"Empty mana latches until release instead of retrying each frame");
+        s.Tick(300,true,false,false,true,b,Pay);Check(!s.Dashing,"Mana failure cannot turn hold into tap");
+        foreach(bool paused in new[]{false,true})
+        {
+            s=new();payments=0;s.Tick(0,true,true,true,false,b,Pay);
+            if(paused) s.Cancel();else s.Tick(1,false,true,false,false,b,Pay);
+            s.Tick(2,true,true,true,false,b,Pay);s.Tick(3,true,false,false,true,b,Pay);
+            Check(!s.Dashing && payments==0,"Interrupted press must release before rearming");
+            s.Tick(4,true,true,true,false,b,Pay);s.Tick(5,true,false,false,true,b,Pay);
+            Check(s.DashStarted && payments==1,"Fresh press after interruption works");
+        }
+        s=new();payments=0;
+        for(ulong tick=0;tick<120;tick++) s.Tick(tick,true,true,false,false,b,Pay);
+        s.Tick(120,true,false,false,true,b,Pay);
+        Check(payments==0,"Mounting with a held key cannot arm boost or dash");
+        s=new();failed=0;s.Tick(0,true,true,true,false,b,Empty);s.Tick(1,true,false,false,true,b,Empty);
+        Check(!s.Dashing && failed==1,"Insufficient mana prevents dash");
+        Console.WriteLine($"PASS: {passed} flight configuration and input-state checks.");
+    }
+}

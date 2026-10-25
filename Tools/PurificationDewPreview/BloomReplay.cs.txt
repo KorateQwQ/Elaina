@@ -1,0 +1,63 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+// Executes current KL RequestBloom, HDR extraction, down/up sampling and composition.
+// Only the Terraria window/device context is adapted; bloom math and queue code are read from KL.
+internal sealed class DewBloomReplay : IDisposable
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+    readonly Assembly pipeline;
+    readonly Type main, targets;
+    readonly object engine, layer, timing;
+    readonly MethodInfo run, request, endBegin;
+    readonly ContentManager content;
+    readonly GraphicsDevice device;
+    public DewBloomReplay(GraphicsDevice device, SpriteBatch batch, IServiceProvider services, string kl)
+    {
+        this.device = device;
+        pipeline = DewBloomCompiler.CompilePipeline(kl);
+        main = pipeline.GetType("KL.Drawing.Main");
+        targets = pipeline.GetType("KL.Drawing.RenderHelper");
+        Type draw = pipeline.GetType("KL.Drawing.DrawSystem"), helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, device);
+        Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
+        content = new ContentManager(services, Path.Combine(kl, "Effects/Content"));
+        Set(helper, "bloom", content.Load<Effect>("Bloom")); Set(helper, "reColor", content.Load<Effect>("ReColor"));
+        engine = Activator.CreateInstance(draw); run = draw.GetMethod("Run");
+        endBegin = helper.GetMethod("EndBeginDraw");
+        Type queue = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem");
+        request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters()[3].ParameterType == typeof(Action));
+        layer = Enum.Parse(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), "Projectiles");
+        timing = Enum.Parse(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), "After");
+    }
+    static void Set(Type type, string name, object value) => type.GetField(name, All).SetValue(null, value);
+    public void Draw(RenderTarget2D target, Matrix transform, Action action, bool enabled = true)
+    {
+        Set(main, "screenWidth", target.Width); Set(main, "screenHeight", target.Height);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view, transform);
+        var presentation = device.PresentationParameters;
+        int oldWidth = presentation.BackBufferWidth, oldHeight = presentation.BackBufferHeight;
+        presentation.BackBufferWidth = target.Width; presentation.BackBufferHeight = target.Height;
+        try
+        {
+            // 与正式弹幕回调相同：绘制后使用当前 KL 的 EndBeginDraw() 恢复批次。
+            Action draw = () => {
+                action();
+                endBegin.Invoke(null, new object[] { 0, 0, true, null, null });
+            };
+            request.Invoke(null, new object[] { "Elaina:PurificationDew", layer, timing, draw, 0 });
+            run.Invoke(engine, new object[] { 1f, 4, enabled });
+        }
+        finally { presentation.BackBufferWidth = oldWidth; presentation.BackBufferHeight = oldHeight; }
+    }
+    public void Dispose()
+    {
+        var owned = targets.GetMethod("DetachRenderTargets", All).Invoke(null, null);
+        targets.GetMethod("DisposeTargets", All).Invoke(null, new[] { owned });
+        content.Dispose();
+    }
+}

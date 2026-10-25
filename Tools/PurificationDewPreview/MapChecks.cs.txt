@@ -1,0 +1,145 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.ID;
+using Terraria.Localization;
+using Terraria.Map;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModAlchemy.Purification;
+
+internal static class DewMapChecks
+{
+    public static void Run(string repo)
+    {
+        var flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var reveal = typeof(PurificationDewMapSystem).GetMethod("RevealStrip", flags)!.CreateDelegate<Action<int, int, int, int>>();
+        var receive = typeof(PurificationDewMapSystem).GetMethod("HandlePacket", flags)!.CreateDelegate<Action<BinaryReader, int>>();
+        var system = ModContent.GetInstance<PurificationDewMapSystem>();
+        int passed = 0;
+        void Check(bool ok, string name) { if (!ok) throw new Exception(name); passed++; Console.WriteLine("PASS Dew map: " + name); }
+        Main.dedServ = false; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        Main.gameMenu = false; Main.mapEnabled = true; Main.loadMap = false;
+        Main.Map = new WorldMap(Main.maxTilesX, Main.maxTilesY);
+        MapHelper.Initialize();
+        Main.screenPosition = Vector2.Zero; Main.screenWidth = Main.screenHeight = 320;
+        Main.player[0].active = true;
+        for (int x = 40; x < 200; x++) for (int y = 40; y < 200; y++)
+        { var tile = Main.tile[x, y]; tile.ClearEverything(); tile.HasTile = true; tile.TileType = TileID.Stone; }
+        void Reset()
+        { system.ClearWorld(); Main.Map.Clear(); MapHelper.numUpdateTile = 0; Main.updateMap = Main.refreshMap = false; }
+        Reset();
+        reveal(0, 100, 150, 1); system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 255 && Main.Map[100, 150].Type == MapHelper.tileLookup[TileID.Stone],
+            "Off-screen terrain is revealed with the real stone map type");
+        Check(Main.Map[96, 150].Light == 120 && Main.Map[104, 150].Light == 120 && Main.Map[102, 150].Light == 210,
+            "Nine-column strip has bright center and dimmer edges");
+        Check(Main.Map[95, 150].Light == 0 && Main.Map[105, 150].Light == 0 && Main.Map[100, 151].Light == 0,
+            "Exploration does not escape the passed row or strip width");
+        Check(MapHelper.numUpdateTile == 9 && Main.updateMap && !Main.refreshMap,
+            "Off-screen changes use nine native dirty-tile entries without a full map refresh");
+        int count = MapHelper.numUpdateTile;
+        reveal(0, 100, 150, 1); system.PostUpdateEverything();
+        Check(MapHelper.numUpdateTile == count, "Overlapping exploration does not enqueue unchanged map tiles");
+        Main.Map.UpdateLighting(96, 150, 250); reveal(0, 100, 150, 1); system.PostUpdateEverything();
+        Check(Main.Map[96, 150].Light == 250, "Previously brighter exploration is preserved");
+        Reset(); reveal(0, 40, 38, 8); system.PostUpdateEverything();
+        Check(Main.Map[40, 40].Light > 0 && Main.Map[39, 40].Light == 0 && Main.Map[40, 39].Light == 0,
+            "World black borders remain unexplored");
+        Reset(); MapHelper.numUpdateTile = MapHelper.maxUpdateTile - 4;
+        reveal(0, 100, 150, 1); system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0 && !Main.refreshMap, "Full native queue defers work without forcing a redraw");
+        MapHelper.numUpdateTile = 0; system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 255 && MapHelper.numUpdateTile == 9, "Deferred row is retried after queue space is available");
+        Reset(); for (int i = 0; i < 5; i++) reveal(0, 100, 60 + i * 8, 8);
+        system.PostUpdateEverything();
+        Check(MapHelper.numUpdateTile == 288 && Main.Map[100, 91].Light > 0 && Main.Map[100, 92].Light == 0,
+            "Many dews share a fixed budget of at most 32 rows / 288 cells per tick");
+        MapHelper.numUpdateTile = 0; system.PostUpdateEverything();
+        Check(Main.Map[100, 99].Light > 0, "Remaining rows complete on the next tick");
+        Reset(); reveal(0, 100, 150, 1); system.ClearWorld(); system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0, "Changing worlds clears pending exploration");
+        Reset(); Main.loadMap = true; reveal(0, 100, 150, 1); system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0, "Map loading defers incremental updates");
+        Main.loadMap = false; system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light > 0, "Deferred exploration resumes after map loading");
+        Reset(); Main.mapEnabled = false; reveal(0, 100, 150, 1); Main.mapEnabled = true; system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0, "Disabled single-player map does not accumulate exploration");
+
+        var terrain = new List<(int To, int X, int Y, int W, int H)>();
+        var packets = new List<(int To, byte[] Bytes)>();
+        var order = new List<string>();
+        using var send = new Hook(typeof(NetMessage).GetMethod(nameof(NetMessage.SendData))!,
+            (Action<int, int, int, NetworkText, int, float, float, float, int, int, int>)
+            ((id, to, ignore, text, x, y, w, h, n5, n6, n7) => {
+                if (id == MessageID.TileSquare) { terrain.Add((to, x, (int)y, (int)w, (int)h)); order.Add("tiles"); }
+            }));
+        using var sendMod = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!,
+            (Action<ModPacket, int, int>)((packet, to, ignore) => {
+                byte[] bytes = ((MemoryStream)packet.BaseStream).ToArray();
+                byte mapMessage = Convert.ToByte(Enum.Parse(typeof(global::伊蕾娜.伊蕾娜).GetNestedType("MessageType", BindingFlags.NonPublic)!, "PurificationDewMap"));
+                if (bytes[4] == mapMessage) { packets.Add((to, bytes)); order.Add("map"); }
+            }));
+        Reset(); Main.netMode = NetmodeID.Server; Main.dedServ = true; Main.myPlayer = 255;
+        var projectile = new Projectile(); projectile.SetDefaults(ModContent.ProjectileType<PurificationDewDrop>());
+        projectile.active = true; projectile.owner = 255; projectile.Center = new Vector2(1608, 1608);
+        projectile.ai[0] = 100; projectile.ai[2] = 0;
+        for (int i = 0; i < 13; i++) projectile.ModProjectile.AI();
+        Check(packets.Count == 0, "Server batches passed rows instead of sending per-tick map packets");
+        projectile.ModProjectile.AI();
+        Check(packets.Count == 1 && terrain.Single() == (0, 96, 100, 9, 8) && order.SequenceEqual(new[] { "tiles", "map" }),
+            "One eight-row batch sends only the user's nine-wide terrain strip before the reveal message");
+        system.PostUpdateEverything();
+        Check(Main.Map[100, 100].Light == 0, "Dedicated server does not allocate or mutate player map entries");
+        projectile.ModProjectile.AI(); projectile.ModProjectile.AI(); projectile.ModProjectile.OnKill(0);
+        Check(packets.Count == 2 && terrain[^1] == (0, 96, 108, 9, 1), "Projectile end flushes its partial final batch");
+
+        Main.dedServ = false; Main.netMode = NetmodeID.MultiplayerClient; Main.myPlayer = 0;
+        Main.sectionManager = new WorldSections(2, 2); // No entire terrain section is loaded.
+        using (var reader = new BinaryReader(new MemoryStream(packets[0].Bytes)))
+        {
+            reader.ReadUInt16(); reader.ReadByte(); reader.ReadByte(); reader.ReadByte();
+            int target = reader.ReadInt32(); receive(reader, target);
+            Check(reader.BaseStream.Position == reader.BaseStream.Length, "Client consumes the exact serialized reveal payload");
+        }
+        system.PostUpdateEverything();
+        Check(Main.Map[100, 107].Light == 255 && !Main.sectionManager.SectionLoaded(0, 0),
+            "Targeted terrain strip can be mapped without downloading or marking an entire section loaded");
+        Reset(); reveal(0, 100, 150, 1); system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0, "Client projectile prediction cannot originate exploration");
+        void Receive(int player, int x, int y, byte rows)
+        { using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream);
+          writer.Write((short)x); writer.Write((short)y); writer.Write(rows); stream.Position = 0;
+          receive(new BinaryReader(stream), player); }
+        Receive(1, 100, 150, 1); Receive(0, 100, 150, 255); Receive(0, -100, 150, 1); system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0, "Other recipients and invalid strip bounds are ignored");
+        Main.netMode = NetmodeID.Server; Receive(0, 100, 150, 1);
+        Main.netMode = NetmodeID.SinglePlayer; system.PostUpdateEverything();
+        Check(Main.Map[100, 150].Light == 0, "Server ignores client-supplied exploration messages");
+
+        // Actual WorldMap/MapHelper CPU path. No GPU rendering or sockets are measured.
+        var samples = new List<object>();
+        foreach (int dews in new[] { 1, 8, 32, 64 })
+        {
+            var ms = new List<double>();
+            for (int repeat = 0; repeat < 400; repeat++)
+            {
+                Reset(); for (int i = 0; i < dews; i++) reveal(0, 100, 60 + i, 1);
+                long start = Stopwatch.GetTimestamp();
+                for (int tick = 0; tick < (dews + 31) / 32; tick++) system.PostUpdateEverything();
+                double elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                if (repeat >= 100) ms.Add(elapsed);
+                if (MapHelper.numUpdateTile != dews * 9) throw new Exception("Benchmark skipped map work.");
+            }
+            ms.Sort(); samples.Add(new { Dews = dews, Cells = dews * 9, Ticks = (dews + 31) / 32,
+                MedianMs = ms[ms.Count / 2], P95Ms = ms[(int)(ms.Count * .95)] });
+        }
+        string json = JsonSerializer.Serialize(new { Method = "Real installed WorldMap.UpdateLighting and native dirty queue; one new row per dew. Reset and enqueue outside timer. No GPU rendering, terrain sync or network transport.", Samples = samples }, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(repo, ".vissandbox/purification-dew/benchmark-map.json"), json);
+        Console.WriteLine(json);
+        Reset(); Main.dedServ = true;
+        Console.WriteLine($"Purification Dew map: {passed} real-engine and captured-transport checks passed.");
+    }
+}

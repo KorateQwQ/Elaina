@@ -20,7 +20,7 @@ internal sealed class NotebookFixture(string scene) : IAlchemyNotebookSource
             level = scene.EndsWith("-level-low") ? Math.Max(1, requiredLevel - 1) : requiredLevel;
         }
         var materials = AlchemyCatalog.Materials.ToDictionary(m => m.Id, m => scene == "short" ? 0 : m.Initial);
-        if(scene == "redesign-reference") { materials["moondew"]=2; materials["daybloom"]=10; materials["honey"]=6; materials["resin"]=0; }
+        if(scene == "redesign-reference") { materials["moondew"]=2; materials["daybloom"]=10; materials["honey"]=6; }
         var products = AlchemyCatalog.Recipes.ToDictionary(r => r.Id, r => r.Id == "mana" ? 3 : 0);
         var unlocked = AlchemyCatalog.Recipes.Where(r => !blank && (AlchemyProgressionRules.RequiredLevel(r.Id) <= level || r.Id == "bloodlust"))
             .Select(r => r.Id).ToHashSet();

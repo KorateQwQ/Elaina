@@ -8,7 +8,7 @@ public abstract class AlchemyPotion : AlchemyItem
 {
     /// <summary>0 表示效果尚未实现。配置有效 Buff 后，自动启用饮用与消耗。</summary>
     protected virtual int PotionBuffType => 0;
-    protected virtual int DurationTicks => 5 * 60 * 60;
+    protected virtual int DurationTicks => 4 * 60 * 60;
 
     public override void SetDefaults()
     {

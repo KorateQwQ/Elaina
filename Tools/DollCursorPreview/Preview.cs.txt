@@ -1,0 +1,94 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Content;
+using ReLogic.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+
+internal sealed class Preview : Game
+{
+    private readonly string root, output, items;
+    private readonly List<Texture2D> textures = [];
+    private DynamicSpriteFont font;
+    private ContentManager fonts;
+    private Texture2D bear;
+    private bool rendered;
+    private Preview(string root, string output, string items)
+    {
+        this.root = root; this.output = output; this.items = items;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        fonts = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Fonts")));
+        font = fonts.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC");
+        bear = Load(Path.Combine(root, "ElainaModSkills/Skills/DollControl/Assets/ChestCursorBear.png"));
+    }
+    private Texture2D Load(string file)
+    {
+        using var stream = File.OpenRead(file);
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.FromNonPremultiplied(pixels[i].ToVector4());
+        texture.SetData(pixels); textures.Add(texture); return texture;
+    }
+    protected override void Update(GameTime time)
+    {
+        if (rendered) return; rendered = true;
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        using var batch = new SpriteBatch(GraphicsDevice);
+        var samples = new[] { (48, "Wooden chest"), (306, "Gold chest"), (327, "Golden key"), (329, "Shadow key") };
+        var icons = samples.Select(s => Load(Path.Combine(items, $"Item_{s.Item1}.png"))).ToArray();
+        using var sheet = new RenderTarget2D(GraphicsDevice, 840, 400);
+        GraphicsDevice.SetRenderTarget(sheet); GraphicsDevice.Clear(new Color(28, 25, 36));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Matrix.Identity);
+        Text("宝箱鼠标提示 · 熊头像角标", new(24, 15), 20);
+        for (int column = 0; column < 4; column++)
+        {
+            float x = 48 + column * 202;
+            Text(samples[column].Item2, new(x, 55), 15);
+            for (int row = 0; row < 3; row++)
+            {
+                float scale = new[] { 1f, 1.5f, 2f }[row];
+                float y = 94 + row * 96;
+                Text($"{scale:0.0}x", new(x, y + 3), 12);
+                Vector2 position = new(x + 47, y);
+                Texture2D icon = icons[column];
+                batch.Draw(icon, position, null, Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                DollChestCursorDrawing.Draw(batch, bear, position, new(icon.Width, icon.Height), scale);
+            }
+        }
+        batch.End(); GraphicsDevice.SetRenderTarget(null);
+        using (var stream = File.Create(Path.Combine(output, "chest-cursor-badges.png"))) sheet.SaveAsPng(stream, sheet.Width, sheet.Height);
+        // Same UI transform as the in-game interface layer, including fractional cursor scale and a pushed hint.
+        foreach (float ui in new[] { 1f, 1.5f })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, 640, 220);
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(36, 32, 41));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(ui));
+            Text($"UI {ui:0.0}x / cursor 1.2x / push 8", new(16, 12), 14);
+            for (int i = 0; i < 4; i++)
+            {
+                Vector2 mouse = new(22 + i * 95, 64);
+                Vector2 position = mouse + new Vector2(18);
+                batch.Draw(icons[i], position, null, Color.White, 0, Vector2.Zero, 1.2f, SpriteEffects.None, 0);
+                DollChestCursorDrawing.Draw(batch, bear, position, new(icons[i].Width, icons[i].Height), 1.2f);
+            }
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(output, $"cursor-ui-{ui:0.0}.png"));
+            target.SaveAsPng(stream, target.Width, target.Height);
+        }
+        Console.WriteLine(Path.Combine(output, "chest-cursor-badges.png"));
+        Exit();
+        void Text(string text, Vector2 p, float size) => batch.DrawString(font, text, p, new Color(228, 218, 239),
+            0, Vector2.Zero, size / font.MeasureString("国").X, SpriteEffects.None, 0);
+    }
+    protected override void UnloadContent()
+    { foreach (var texture in textures) texture.Dispose(); fonts?.Dispose(); }
+    public static void Main(string[] args) { using var preview = new Preview(args[0], args[1], args[2]); preview.Run(); }
+}

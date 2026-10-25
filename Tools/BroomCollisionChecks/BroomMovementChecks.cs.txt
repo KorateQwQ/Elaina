@@ -1,0 +1,165 @@
+using System.Reflection;
+using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.GameInput;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.Config;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModAlchemy.Buffs;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.Flight;
+using 伊蕾娜.Mounts;
+
+internal static class BroomMovementChecks
+{
+    public static void Run(Player player, Player remote, string repo)
+    {
+        const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+        int count=0;
+        void Check(bool ok,string name) { if(!ok)throw new Exception(name);count++; }
+        void Near(float a,float b,string name)=>Check(Math.Abs(a-b)<.002f,name);
+        var store=(SkillBalanceFileStore)typeof(SkillBalanceSystem).GetField("store",all)!.GetValue(null)!;
+        var originalConfig=store.Current;
+        Check(store.Apply(File.ReadAllText(Path.Combine(repo,SkillBalanceConfig.ResourcePath))),"Load real JSON");
+        var mount=ModContent.GetInstance<扫帚>();
+        var broom=player.GetModPlayer<扫帚.扫帚ModPlayer>();
+        var mana=player.GetModPlayer<ElainaAttributeModPlayer>();
+        var skills=player.GetModPlayer<ElainaSkillModPlayer>();
+        var skill=new Skill();var flight=new FlightSkill { Level=9, BasicStatus=Skill.SKillBasicStatus.UnLock };
+        typeof(Skill).GetProperty("ModSkill",all)!.SetValue(skill,flight);flight.Skill=skill;
+        skills.UnlockedSkill[nameof(FlightSkill)]=skill;
+        Near(broom.CruiseSpeed,12,"Owned Lv9 changes actual mount speed");
+        Near(remote.GetModPlayer<扫帚.扫帚ModPlayer>().CruiseSpeed,8,"Other player does not inherit skill level");
+        player.GetModPlayer<AlchemyBuffPlayer>().FeatherlightActive=true;
+        Near(broom.CruiseSpeed,14.4f,"Potion multiplies skill speed once");
+        player.GetModPlayer<AlchemyBuffPlayer>().ResetEffects();
+        Main.dedServ=false;Main.netMode=NetmodeID.SinglePlayer;Main.gameMenu=false;Main.gamePaused=false;Main.hasFocus=true;
+        Main.blockInput=Main.drawingPlayerChat=Main.editSign=Main.editChest=false;
+        Main.myPlayer=player.whoAmI;
+        player.mount._data=new Mount.MountData();player.mount._active=true;player.mount._type=mount.Type;
+        var key=(ModKeybind)Activator.CreateInstance(typeof(ModKeybind),all,null,new object[]{new FixtureMod(),"BroomAcceleration","Space"},null)!;
+        typeof(KeyBind).GetProperty(nameof(KeyBind.BroomAcceleration))!.SetValue(null,key);
+        const string keyName="BroomMovementChecks/BroomAcceleration";
+        uint tick=1000;bool old=false;
+        void Step(bool down)
+        {
+            typeof(Main).GetField("_gameUpdateCount",all)!.SetValue(null,tick++);
+            PlayerInput.Triggers.Current.KeyStatus[keyName]=down;
+            PlayerInput.Triggers.JustPressed.KeyStatus[keyName]=down&&!old;
+            PlayerInput.Triggers.JustReleased.KeyStatus[keyName]=!down&&old;old=down;
+            broom.ResetEffects();mount.UpdateEffects(player);broom.PostUpdateRunSpeeds();player.HorizontalMovement();broom.PreUpdateMovement();
+        }
+        broom.Initialize();mana.Attributes.SetBase(ElainaMagicAttributes.MagicPoint,100);
+        player.controlRight=true;player.controlLeft=player.controlUp=false;
+        // Missing entry, stale locked entry, and level zero must all retain only basic flight.
+        for(int unlearned=0;unlearned<3;unlearned++)
+        {
+            if(unlearned==0) skills.UnlockedSkill.Remove(nameof(FlightSkill));
+            else skills.UnlockedSkill[nameof(FlightSkill)]=skill;
+            flight.BasicStatus=unlearned==1 ? Skill.SKillBasicStatus.Lock : Skill.SKillBasicStatus.UnLock;
+            flight.Level=unlearned==2 ? 0 : 9;
+            Step(false);Step(true);Step(false);
+            Check(!broom.FlightState.Dashing,"Unlearned tap cannot dash");
+            for(int i=0;i<74;i++)Step(true);
+            Check(!broom.FlightState.Boosting && !broom.FlightState.Dashing,"Unlearned hold cannot boost or dash");
+            Near(player.velocity.Length(),8,"Unlearned rider retains controllable speed-8 flight");
+            Near(mana.MagicPoint,100,"Unlearned inputs never spend mana");
+            Step(false);
+        }
+        flight.Level=1;flight.BasicStatus=Skill.SKillBasicStatus.UnLock;
+        Step(true);Step(false);
+        Check(broom.FlightState.Dashing,"Learning Lv1 enables a fresh tap");
+        Near(mana.MagicPoint,75,"Learned tap spends dash mana");
+        skills.UnlockedSkill.Remove(nameof(FlightSkill));Step(false);
+        Check(!broom.FlightState.Dashing && player.velocity.Length()<=8.001f,"Unlearning immediately cancels active dash");
+        skills.UnlockedSkill[nameof(FlightSkill)]=skill;
+        for(int i=0;i<20;i++)Step(true);
+        Check(broom.FlightState.Boosting,"Learned hold enables boost");
+        skills.UnlockedSkill.Remove(nameof(FlightSkill));float canceledMana=mana.MagicPoint;Step(true);
+        Check(!broom.FlightState.Boosting,"Unlearning cancels active boost");
+        Near(mana.MagicPoint,canceledMana,"Canceled boost stops spending mana immediately");
+        skills.UnlockedSkill[nameof(FlightSkill)]=skill;
+        for(int i=0;i<70;i++)Step(true);
+        Check(!broom.FlightState.Boosting,"Relearning while held cannot resume an old gesture");
+        Step(false);Check(!broom.FlightState.Dashing,"Release after relearning cannot trigger a stale dash");
+        Near(mana.MagicPoint,canceledMana,"Relearning held input spends no mana");
+        Step(true);Step(false);
+        Check(broom.FlightState.Dashing,"Fresh press after relearning works");
+        for(int i=0;i<65;i++)Step(false);
+        mana.Attributes.SetBase(ElainaMagicAttributes.MagicPoint,0);
+        foreach (int level in new[] { 1, 9 })
+        foreach (bool potion in new[] { false, true })
+        {
+            flight.Level=level;
+            player.GetModPlayer<AlchemyBuffPlayer>().FeatherlightActive=potion;
+            float speed=broom.CruiseSpeed;
+            Near(broom.HandlingPercent,25,"Handling percentage is independent of learned level and travel bonuses");
+            player.velocity=Vector2.Zero;player.controlRight=true;player.controlLeft=player.controlUp=false;
+            Step(false);Near(player.velocity.X/speed,.25f,"First frame closes 25 percent of target velocity gap");
+            for(int i=1;i<17;i++)Step(false);
+            Near(player.velocity.X,speed,"All speeds reach cruise in 17 frames");
+            player.controlRight=false;player.controlLeft=true;
+            for(int i=0;i<3;i++)Step(false);
+            Check(player.velocity.X<0,"Full reversal changes direction within three frames");
+            for(int i=3;i<19;i++)Step(false);
+            Near(player.velocity.X,-speed,"Full reversal settles within 19 frames at all speeds");
+            player.controlLeft=false;
+            for(int i=0;i<17;i++)Step(false);
+            Check(player.velocity==Vector2.Zero,"Release settles to exact hover in 17 frames at all speeds");
+            player.velocity=new Vector2(speed,0);player.controlUp=true;
+            for(int i=0;i<18;i++)Step(false);
+            Check(player.velocity==new Vector2(0,-speed),"Right-angle turn settles without lateral drift");
+        }
+        flight.Level=9;player.GetModPlayer<AlchemyBuffPlayer>().ResetEffects();
+        player.velocity=Vector2.Zero;player.controlRight=true;player.controlUp=true;
+        for(int i=0;i<60;i++)Step(false);
+        Near(player.velocity.Length(),12,"Native horizontal movement plus controller respects diagonal speed cap");
+        Near(mana.MagicPoint,0,"Zero mana still permits normal flight");
+        Check(broom.PoweredFlight && player.gravity==0,"Zero mana retains hover");
+        player.controlRight=player.controlUp=false;
+        for(int i=0;i<30;i++)Step(false);
+        Check(player.velocity==Vector2.Zero,"No input brakes to exact hover");
+        mana.Attributes.SetBase(ElainaMagicAttributes.MagicPoint,100);float before=mana.MagicPoint;player.controlRight=true;
+        for(int i=0;i<74;i++)Step(true);
+        Near(player.velocity.Length(),18,"Native long hold reaches 1.5x cruise speed");
+        Near(before-mana.MagicPoint,12,"Actual unique mana adapter pays 12 per boosted second");
+        Step(false);Check(!broom.FlightState.Dashing,"Native long-hold release cannot dash");
+        Near(player.velocity.Length(),12,"Releasing boost removes boosted cap");
+        before=mana.MagicPoint;Step(true);Step(false);
+        Check(broom.FlightState.Dashing,"Native key tap enters dash");
+        Near(player.velocity.Length(),30,"Native dash speed is 2.5x");
+        Near(before-mana.MagicPoint,25,"Native tap charges unique mana once");
+        float dashDistance=player.velocity.Length();
+        for(int i=1;i<24;i++) { Step(false); Check(broom.FlightState.Dashing,"Dash retains full speed for all 24 frames"); dashDistance+=player.velocity.Length(); }
+        Near(dashDistance,720,"Lv9 dash travels 720 pixels before collision, twice the old distance");
+        Step(false);
+        Check(!broom.FlightState.Dashing && player.velocity.Length()>12,"Dash expiry keeps excess velocity for a smooth tail");
+        for(int i=0;i<9;i++)Step(false);
+        Near(player.velocity.Length(),12,"Recovery returns to cruise without permanent overspeed");
+        Near(before-mana.MagicPoint,25,"Extended dash and recovery still cost once");
+        bool skip=false;mount.Dismount(player,ref skip);player.mount._active=false;Step(false);
+        player.mount._active=true;Step(true);Step(false);
+        Check(!broom.FlightState.Dashing,"Native remount cannot reset dash cooldown");
+        Near(before-mana.MagicPoint,25,"Rejected cooldown tap does not charge");
+        for(int i=0;i<65;i++)Step(false);
+        mana.Attributes.SetBase(ElainaMagicAttributes.MagicPoint,0);Step(true);Step(false);
+        Check(!broom.FlightState.Dashing && broom.PoweredFlight,"Empty-mana tap retains free flight");
+        mana.Attributes.SetBase(ElainaMagicAttributes.MagicPoint,100);Step(true);Main.hasFocus=false;
+        new BroomInputSystem().UpdateUI(new GameTime());Main.hasFocus=true;Step(false);
+        Check(!broom.FlightState.Dashing,"UI update cancels release after paused/focus-lost input");
+        Near(mana.MagicPoint,100,"Canceled tap does not spend mana");
+        // The remote branch must not read the locally held boost key or debit resources.
+        Main.myPlayer=remote.whoAmI;player.velocity=new Vector2(30,0);before=mana.MagicPoint;Step(true);
+        Near(mana.MagicPoint,before,"Remote simulation never charges local mana");
+        Near(player.velocity.X,30,"Remote dash packet velocity survives native movement");
+        skills.UnlockedSkill.Remove(nameof(FlightSkill));player.mount._active=false;player.controlRight=false;
+        broom.CancelFlight();Main.myPlayer=player.whoAmI;Main.netMode=NetmodeID.Server;Main.dedServ=true;
+        typeof(KeyBind).GetProperty(nameof(KeyBind.BroomAcceleration))!.SetValue(null,null);
+        typeof(SkillBalanceSystem).GetField("store",all)!.SetValue(null,new SkillBalanceFileStore(originalConfig));
+        Console.WriteLine($"PASS: {count} native broom movement/input/mana integration checks.");
+    }
+    private sealed class FixtureMod : Mod { public override string Name=>"BroomMovementChecks"; }
+}
+

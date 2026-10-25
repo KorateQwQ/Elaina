@@ -17,11 +17,7 @@ public class AlchemySkill : ElainaSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         new CompositeSkillUnlockCondition(DefaultUnlockCost,
             RequireConfiguredCharacterLevelCap(nameof(AlchemySkill), 10),
-            SkillUnlockCondition.Custom(
-                (player, _) => player?.Player.GetModPlayer<ElainaStatePlayer>().GetLevel() >= UnlockLevel,
-                description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevel", UnlockLevel)));
-
-    private static int UnlockLevel => SkillBalanceSystem.TryGetSkill(nameof(AlchemySkill), out var entry) ? entry.UnlockLevel : 6;
+            RequireConfiguredCharacterLevel(nameof(AlchemySkill), 6));
 
     public override int MaxLevel => Player != null && !Main.gameMenu
         && SkillBalanceSystem.TryGetSkill(nameof(AlchemySkill), out var entry)

@@ -119,10 +119,8 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
         {
             battleTicksRemaining--;
         }
-        else
-        {
-            InBattle = false;
-        }
+        // 地图上仍有存活的 Boss 时始终视为战斗中，不进入脱战快速回满。
+        InBattle = battleTicksRemaining > 0 || AnyBossAlive();
 
         if (recoveryPauseTicks > 0)
         {
@@ -268,6 +266,16 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
         return Math.Max(0f, ElainaMagicAttributes.CombatRecoveryPerSecond)
             + MaxMagicPoint * Math.Max(0f,
                 ElainaMagicAttributes.CombatMaxMagicPointRecoveryPercentPerSecond);
+    }
+
+    private static bool AnyBossAlive()
+    {
+        foreach (NPC npc in Main.ActiveNPCs)
+        {
+            if (!npc.friendly && (npc.boss || NPCID.Sets.ShouldBeCountedAsBoss[npc.type]))
+                return true;
+        }
+        return false;
     }
 
     public void PauseMagicRecovery()

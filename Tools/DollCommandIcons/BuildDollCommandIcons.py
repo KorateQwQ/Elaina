@@ -2,7 +2,9 @@
 
 用法：
     python Tools/DollCommandIcons/BuildDollCommandIcons.py          # 只输出 svg/ 与 output/ 预览
-    python Tools/DollCommandIcons/BuildDollCommandIcons.py --apply  # 确认后写入正式目录
+    python Tools/DollCommandIcons/BuildDollCommandIcons.py --apply  # 确认后写入正式目录（只写解除玩偶）
+
+除解除玩偶外的指令图标已改用像素版（BuildPixelDollCommandIcons.py），这里 --apply 不再覆盖它们。
 
 画法参考泰拉瑞亚工具贴图：深色描边 + 分面明暗；外层再加一圈指令色的柔光，
 保证在轮盘深色底上也能看清轮廓。
@@ -11,10 +13,10 @@ tML 的 rawimg 管线不做预乘，游戏内用 AlphaBlend 绘制，因此写�
 output/ 里的预览图保留直通 alpha，方便直接查看与 PIL 合成。
 """
 import base64
+import argparse
 import io
 import math
 import os
-import sys
 
 import resvg_py
 from PIL import Image
@@ -313,6 +315,24 @@ def icon_dismiss():
     return doc(body, "#ff6070")
 
 
+def icon_place_planters():
+    # 宽盆沿、收窄的陶土盆与两片嫩叶，在 40px 下保持清楚的种植轮廓。
+    body = f'''<path d="M9 23 L12 35 L27 35 L30 23 Z" fill="#bb6947" stroke="{OL}" stroke-width="2"/>
+<path d="M11 24 L13.5 33 L17 33 L15.5 24 Z" fill="#e69a68"/>
+<path d="M25 24 L23.5 33 L13.5 33 L14 35 L27 35 L30 23 Z" fill="#874633"/>
+<rect x="7" y="19" width="25" height="7" rx="1.4" fill="#d88456" stroke="{OL}" stroke-width="2"/>
+<path d="M9 20.5 H30" stroke="#f3b880" stroke-width="1.4"/>
+<path d="M9 24.5 H30" stroke="#a9553b" stroke-width="1.3"/>
+<path d="M11 19.5 Q19.5 16.5 28 19.5" fill="#51352d" stroke="{OL}" stroke-width="1.4"/>
+<path d="M19.5 20 L19.5 11" stroke="{OL}" stroke-width="4"/>
+<path d="M19.5 20 L19.5 11" stroke="#7eaa59" stroke-width="2"/>
+<path d="M19.5 14 C13 15 8 11 9 6 C15 5 20 8 19.5 14 Z" fill="#72a957" stroke="{OL}" stroke-width="2"/>
+<path d="M19.5 11 C19 6 23 3 30 4 C30 10 25 13 19.5 11 Z" fill="#91be65" stroke="{OL}" stroke-width="2"/>
+<path d="M11 7.5 Q15 8 17.5 11.5 M22 8.5 L27 5.5" fill="none" stroke="#c3df8c" stroke-width="1.3"/>
+'''
+    return doc(body, "#a8c879")
+
+
 ICONS = {
     "DollCommand_Attack": icon_attack,
     "DollCommand_Mine": icon_mine,
@@ -321,7 +341,12 @@ ICONS = {
     "DollCommand_BreakWallChain": icon_wall_chain,
     "DollCommand_Cancel": icon_cancel,
     "DollCommand_Dismiss": icon_dismiss,
+    "DollCommand_PlacePlanters": icon_place_planters,
 }
+
+
+# 这些图标的正式贴图由 BuildPixelDollCommandIcons.py 生成，SVG 版只保留预览
+PIXEL_ICONS = set(ICONS) - {"DollCommand_Dismiss"}
 
 
 def render(svg):
@@ -352,21 +377,28 @@ def preview(images):
 
 
 def main():
-    apply = "--apply" in sys.argv
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--only", choices=ICONS, help="只重新生成指定图标")
+    args = parser.parse_args()
+    apply = args.apply
     os.makedirs(SVG_DIR, exist_ok=True)
     os.makedirs(OUT, exist_ok=True)
     images = []
     for name, fn in ICONS.items():
+        if args.only and name != args.only:
+            continue
         svg = fn()
         with open(os.path.join(SVG_DIR, name + ".svg"), "w", encoding="utf-8") as f:
             f.write(svg)
         im = render(svg)
         im.save(os.path.join(OUT, name + ".png"))
         images.append((name, im))
-        if apply:
+        if apply and name not in PIXEL_ICONS:
             os.makedirs(APPLY_DIR, exist_ok=True)
             premultiply(im).save(os.path.join(APPLY_DIR, name + ".png"))
-    preview(images).save(os.path.join(OUT, "_preview.png"))
+    preview_name = "_preview_" + args.only + ".png" if args.only else "_preview.png"
+    preview(images).save(os.path.join(OUT, preview_name))
     print("written", len(images), "icons", "(applied)" if apply else "(preview only)")
 
 

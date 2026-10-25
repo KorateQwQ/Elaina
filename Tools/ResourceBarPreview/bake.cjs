@@ -17,7 +17,8 @@ function serve(){return new Promise(resolve=>{const server=http.createServer(asy
 // Portrait layers: logical box [width, height], origin inside the box, bake scale, and whether 1×/1.5×/2× copies are needed.
 const PORTRAIT=[['PortraitBase',66,66,33,33,4,true],['PortraitRim',66,72,33,39,4,true],['PortraitXp',62,62,31,31,4,true],
  ['PortraitXpGlow',62,62,31,31,4,true],['PortraitXpCapped',62,62,31,31,4,true],['PortraitXpMask',62,62,31,31,4,true],
- ['PortraitPulse',64,64,32,32,4,false],['PortraitGlint',6,6,3,3,8,false],['LevelFlourish',13,10,1.5,5,4,true]];
+ ['PortraitPulse',64,64,32,32,4,false],['PortraitGlint',6,6,3,3,8,false],['LevelFlourish',13,10,1.5,5,4,true],
+ ['LevelFlourishShadow',21,18,5.5,9,4,true]];
 // Same states as the FNA preview: level, experience, cap, displayed life, flash/pulse, time.
 const PORTRAIT_STATES=[['normal',24,65,30,.84,0,4],['low',24,12,30,.84,0,4],['capped',30,100,30,.84,0,4],
  ['levelup',25,5,30,.84,.6,4],['lowhp',7,40,30,.2,0,.26],['wide',120,50,120,.84,0,4]];
@@ -52,7 +53,8 @@ const PORTRAIT_STATES=[['normal',24,65,30,.84,0,4],['low',24,12,30,.84,0,4],['ca
    bake('Pixel',1,1,1,c=>{c.fillStyle='white';c.fillRect(0,0,1,1)});
    const draw={PortraitBase:c=>portraitBase(c),PortraitRim:c=>portraitRim(c),PortraitXp:c=>portraitBand(c,'fill'),
     PortraitXpGlow:c=>portraitBand(c,'glow'),PortraitXpCapped:c=>portraitBand(c,'capped'),PortraitXpMask:c=>portraitBand(c,'mask'),
-    PortraitPulse:c=>portraitPulse(c),PortraitGlint:c=>portraitGlint(c),LevelFlourish:c=>levelFlourish(c)};
+    PortraitPulse:c=>portraitPulse(c),PortraitGlint:c=>portraitGlint(c),LevelFlourish:c=>levelFlourish(c),
+    LevelFlourishShadow:c=>levelFlourishShadow(c)};
    for(const [name,w,h,ox,oy,scale] of PORTRAIT)bake(name,w,h,scale,c=>{c.translate(ox,oy);draw[name](c)});
    return result;
   },PORTRAIT);
@@ -79,15 +81,15 @@ const PORTRAIT_STATES=[['normal',24,65,30,.84,0,4],['low',24,12,30,.84,0,4],['ca
   for(const [name,v,g,t] of [['normal',.84,.84,4],['damage',.18,.84,4],['empty',0,0,4],['full',1,1,4],['tiny',.003,.012,4],['motion',.84,.84,6]]){
    for(const scale of [1,1.5,3])for(const day of [false,true]){
     const png=await page.evaluate(({v,g,t,scale,day})=>{const cv=document.createElement('canvas');cv.width=322*scale;cv.height=76*scale;const c=cv.getContext('2d');c.scale(scale,scale);c.fillStyle=day?'#78a7f5':'#14121d';c.fillRect(0,0,322,76);
-     for(const [kind,y,time] of [['hp',20,t],['mp',48,t+.7]]){c.save();c.translate(34,y);const f=kind==='mp'&&v===.84?.68:v,ghost=kind==='mp'&&g===.84?.68:g;drawBar(c,state[0][kind],time,{v:f,g:ghost,flash:0});c.restore()}return cv.toDataURL().split(',')[1]}, {v,g,t,scale,day});
+     for(const [kind,y,time] of [['hp',20,t],['mp',48,t+.7]]){c.save();c.translate(34,y);const f=kind==='mp'&&v===.84?.68:v,ghost=kind==='mp'&&g===.84?.68:g;drawBar(c,state[0][kind],time,{v:f,g:ghost});c.restore()}return cv.toDataURL().split(',')[1]}, {v,g,t,scale,day});
     await fs.writeFile(path.join(reference,`${name}-${day?'day':'dark'}-${scale.toFixed(1)}.png`),Buffer.from(png,'base64'));
    }
   }
-  // Portrait references: 90×100 logical, centre (45,40); no random particles.
+  // Portrait references: 160×140 logical, centre (60,56); no random particles.
   for(const [name,level,xp,cap,life,burst,time] of PORTRAIT_STATES)for(const scale of [1,1.5,3])for(const day of [false,true]){
-   const png=await page.evaluate(({level,xp,cap,life,burst,time,scale,day})=>{const cv=document.createElement('canvas');cv.width=90*scale;cv.height=100*scale;const c=cv.getContext('2d');c.scale(scale,scale);c.fillStyle=day?'#78a7f5':'#14121d';c.fillRect(0,0,90,100);
+   const png=await page.evaluate(({level,xp,cap,life,burst,time,scale,day})=>{const cv=document.createElement('canvas');cv.width=160*scale;cv.height=140*scale;const c=cv.getContext('2d');c.scale(scale,scale);c.fillStyle=day?'#78a7f5':'#14121d';c.fillRect(0,0,160,140);
     Object.assign(X,{lv:level,xp,cap});Object.assign(XA,{disp:level-1+xp/100,shown:level,flash:burst,pulse:burst,parts:[]});S.lvStyle='floral';A.hp.v=life;
-    c.translate(0,40-PR.y);drawPortraitHud(c,45-PR.x,time);return cv.toDataURL().split(',')[1]},{level,xp,cap,life,burst,time,scale,day});
+    c.translate(0,56-PR.y);drawPortraitHud(c,60-PR.x,time);return cv.toDataURL().split(',')[1]},{level,xp,cap,life,burst,time,scale,day});
    await fs.writeFile(path.join(reference,`portrait-${name}-${day?'day':'dark'}-${scale.toFixed(1)}.png`),Buffer.from(png,'base64'));
   }
   console.log(`Baked ${manifest.assets.length} assets and ${36+PORTRAIT_STATES.length*6} HTML references.`);

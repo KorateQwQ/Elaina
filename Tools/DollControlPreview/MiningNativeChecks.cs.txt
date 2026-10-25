@@ -1,0 +1,66 @@
+using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class PlanterNativeChecks
+{
+    private static void CheckMiningRules(Player player, ModTile modTile)
+    {
+        int before = passed;
+        Point p = new(180, 120);
+        Tile tile = Host.tile[p.X, p.Y]; tile.ClearEverything(); tile.HasTile = true;
+        var pick = new Item(ItemID.CopperPickaxe);
+        foreach (var (type, required) in new[] {
+            (TileID.Ebonstone, 65), (TileID.Cobalt, 100), (TileID.Mythril, 110),
+            (TileID.Adamantite, 150), (TileID.LihzahrdBrick, 210) })
+        {
+            tile.TileType = (ushort)type; pick.pick = required - 1;
+            Check(DollMiningRules.BlockReason(player, p, false, pick) == "DollPickPowerInsufficient", $"Native {type} refuses weak pickaxe");
+            pick.pick = required;
+            Check(DollMiningRules.BlockReason(player, p, false, pick) == null, $"Native {type} permits exact minimum pickaxe power");
+        }
+        int oldMin = modTile.MinPick; float oldResist = modTile.MineResist;
+        modTile.MinPick = 180; modTile.MineResist = 2;
+        tile.TileType = (ushort)modTile.Type; pick.pick = 179;
+        Check(DollMiningRules.BlockReason(player, p, false, pick) == "DollPickPowerInsufficient", "Native ModTile minimum pick power is respected");
+        pick.pick = 180;
+        Check(DollMiningRules.BlockReason(player, p, false, pick) == null, "Native ModTile accepts sufficient power");
+        modTile.MinPick = oldMin; modTile.MineResist = oldResist;
+        Check(DollMiningRules.BlockReason(player, p, false, null) == "DollNoPickaxe", "No pickaxe produces a distinct warning");
+        Check(DollMiningRules.BlockReason(player, p, true, null) == "DollNoHammer", "No hammer produces a distinct warning");
+        var hammer = new Item(ItemID.WoodenHammer);
+        tile.WallType = WallID.BlueDungeonUnsafe;
+        bool oldDungeon = Host.wallDungeon[tile.WallType], oldBoss = NPC.downedBoss3, oldGolem = NPC.downedGolemBoss;
+        Host.wallDungeon[tile.WallType] = true; NPC.downedBoss3 = false;
+        Check(DollMiningRules.BlockReason(player, p, true, hammer) == "DollWallRequiresSkeletron", "Dungeon wall blocked before boss");
+        NPC.downedBoss3 = true;
+        Check(DollMiningRules.BlockReason(player, p, true, hammer) == null, "Dungeon wall allowed after boss with basic hammer");
+        Host.wallDungeon[tile.WallType] = oldDungeon;
+        tile.WallType = WallID.LihzahrdBrickUnsafe; NPC.downedGolemBoss = false;
+        Check(DollMiningRules.BlockReason(player, p, true, hammer) == "DollWallRequiresGolem", "Temple wall blocked before Golem");
+        NPC.downedGolemBoss = true;
+        Check(DollMiningRules.BlockReason(player, p, true, hammer) == null, "Temple wall allowed after Golem");
+        tile.WallType = WallID.DirtUnsafe;
+        for (int x = p.X - 1; x <= p.X + 1; x++) for (int y = p.Y - 1; y <= p.Y + 1; y++)
+            Host.tile[x, y].WallType = WallID.DirtUnsafe;
+        Check(!Player.CanPlayerSmashWall(p.X, p.Y) && DollMiningRules.BlockReason(player, p, true, hammer) == null,
+            "Enclosed walls are not falsely rejected for tool power: a connected task can expose their edges");
+        NPC.downedBoss3 = oldBoss; NPC.downedGolemBoss = oldGolem;
+
+        // Original pickaxe calculation redirects mannequin hit positions and can set blockMouse.
+        var original = player.hitTile;
+        int hit = original.HitObject(30, 30, 1); original.AddDamage(hit, 37);
+        tile.TileType = TileID.Mannequin; tile.TileFrameX = 18;
+        Host.tile[p.X - 1, p.Y].TileFrameX = 100;
+        foreach (bool blocked in new[] { false, true })
+        {
+            Host.blockMouse = blocked;
+            Check(!DollTileBreaker.CanDamageTile(player, p.X, p.Y, 210), "Protected mannequin remains unmineable in native query");
+            Check(ReferenceEquals(player.hitTile, original) && Host.blockMouse == blocked
+                && original.AddDamage(hit, 0, updateAmount: false) == 37,
+                "Preview query preserves live hit buffer, crack damage and mouse blocking");
+        }
+        Host.blockMouse = false;
+        Console.WriteLine($"PASS: {passed - before} native mining eligibility checks; vanilla/mod powers, wall progression, deferred edges, input/hit preservation.");
+    }
+}

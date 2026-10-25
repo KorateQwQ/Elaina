@@ -79,6 +79,7 @@ namespace 伊蕾娜.System
         public int CurrentLevel = 1, Experience, Cap = 10;
         public const int ExperiencePerLevel = 100;
         public int GetMaxLevel() => Cap;
+        public int GetLevel() => CurrentLevel;
         // LIVE_NORMALIZE_LEVEL
 #if DEBUG
         // LIVE_DEBUG_MAX_LEVEL
@@ -304,6 +305,19 @@ namespace KL.SkillSystem
 }
 namespace 伊蕾娜.ElainaModSkills
 {
+    // Use the production parser and bundled progression data for mastery gates.
+    public static class SkillBalanceSystem
+    {
+        public static readonly Dictionary<string, SkillBalanceEntry> Entries = Load();
+        private static Dictionary<string, SkillBalanceEntry> Load()
+        {
+            string json = File.ReadAllText(Path.Combine(PanelGame.Repo, SkillBalanceConfig.ResourcePath));
+            if (!SkillBalanceConfig.TryParse(json, out var config, out string error)) throw new Exception(error);
+            return config.Skills.ToDictionary(pair => pair.Key, pair => pair.Value);
+        }
+        public static bool TryGetSkill(string id, out SkillBalanceEntry entry) => Entries.TryGetValue(id, out entry);
+    }
+
     public abstract partial class ElainaSkill : ModSkill
     {
         protected string SkillTexturePath => Fixtures.Icon(GetType().Name);
@@ -347,10 +361,25 @@ namespace 伊蕾娜.ElainaModSkills
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int level) => SkillUnlockCondition.None;
 }
 [SkillUIInfo(State = 2, Pixels = 200)] public class MultiMissileSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
-[SkillUIInfo(State = 3, Pixels = 0)] public class HealSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+[SkillUIInfo(State = 3, Pixels = 0)] public class HealSkill : 伊蕾娜.ElainaModSkills.Skills.Heal.HealSkill
+{
+    public override int MaxLevel => Math.Max(1, SkillBalanceConfigForPreview.GetCap());
+}
+// Link the production values/description partial; only the game lifecycle is replaced here.
+namespace 伊蕾娜.ElainaModSkills.Skills.Heal { public partial class HealSkill : ElainaSkill { } }
+internal static class SkillBalanceConfigForPreview
+{
+    internal static int GetCap()
+    {
+        var entry = 伊蕾娜.ElainaModSkills.SkillBalanceSystem.Entries[nameof(HealSkill)];
+        return 伊蕾娜.ElainaModSkills.SkillBalanceConfig.Fallback.GetSkillLevelCap(entry,
+            Main.LocalPlayer.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().GetLevel());
+    }
+}
 [SkillUIInfo(State = 4, Pixels = 400)] public class WaterLaserSKill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 [SkillUIInfo(State = 6, Pixels = 600)] public class FireLaserSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
-[SkillUIInfo(State = 7, Pixels = 500)] public class IceConeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
+// Fixture damage / buildup arguments for the term preview; production values come from SkillBalance.json.
+[SkillUIInfo(State = 7, Pixels = 500)] public class IceConeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { protected override object[] SkillDescriptionArgs => [126, 12.5f]; }
 [SkillUIInfo(State = 8, Pixels = 600)] public class FireBurstSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 [SkillUIInfo(State = 12, Pixels = 400)] public class WaterBallSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 public class UnlistedSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }

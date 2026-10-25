@@ -81,7 +81,9 @@ internal sealed class ResourcePreview : Game
                 Render(batch, scale, day, entry.Item1, entry.Item2, entry.Item3, entry.Item4);
         foreach (float scale in new[] { 1f, 1.5f, 3f }) foreach (bool day in new[] { false, true })
             foreach (var entry in PortraitStates) RenderPortrait(batch, scale, day, entry);
-        RenderGame(batch);
+        RenderGame(batch, 1);
+        RenderGame(batch, 1.5f);
+        RenderGame(batch, 1.5f, true);
         for (int i = 0; i <= 5; i++) RenderAnimation(batch, i * .2f);
         RenderLevelUp(batch);
         Console.WriteLine("PASS: state checks, 72 shared-renderer comparisons, layout, six damage frames and a level-up strip.");
@@ -116,9 +118,9 @@ internal sealed class ResourcePreview : Game
     private void RenderPortrait(SpriteBatch batch, float scale, bool day,
         (string Name, int Level, int Experience, int Cap, float Life, float Burst, float Time) entry)
     {
-        using var target = new RenderTarget2D(GraphicsDevice, (int)(90 * scale), (int)(100 * scale));
+        using var target = new RenderTarget2D(GraphicsDevice, (int)(160 * scale), (int)(140 * scale));
         GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(day ? new Color(120,167,245) : new Color(20,18,29));
-        portrait.Draw(batch, Matrix.CreateScale(scale), new Vector2(45, 40),
+        portrait.Draw(batch, Matrix.CreateScale(scale), new Vector2(60, 56),
             Portrait(entry.Level, entry.Experience, entry.Cap, entry.Burst), entry.Life, entry.Time);
         Save(target, $"portrait-{entry.Name}-{(day?"day":"dark")}-{scale:0.0}");
     }
@@ -127,20 +129,19 @@ internal sealed class ResourcePreview : Game
         // Level 24 at 95/100 gains 15 experience: the band reaches the apex, levels up, then restarts at 10.
         var state = Portrait(24, 95, 30, 0);
         float[] moments = [0, .1f, .2f, .35f, .6f];
-        using var target = new RenderTarget2D(GraphicsDevice, moments.Length * 270, 300);
+        using var target = new RenderTarget2D(GraphicsDevice, moments.Length * 480, 420);
         GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(20,18,29));
         int frame = 0;
         for (int i = 0; i < moments.Length; i++)
         {
             while (frame < MathF.Round(moments[i] * 60)) { state.Update(25, 10, 100, 30, 1f / 60); frame++; }
-            portrait.Draw(batch, Matrix.CreateScale(3) * Matrix.CreateTranslation(i * 270, 0, 0), new Vector2(45, 40), state, .84f, 4 + moments[i]);
+            portrait.Draw(batch, Matrix.CreateScale(3) * Matrix.CreateTranslation(i * 480, 0, 0), new Vector2(60, 56), state, .84f, 4 + moments[i]);
         }
         Save(target, "portrait-levelup-strip");
     }
-    private void RenderGame(SpriteBatch batch)
+    private void RenderGame(SpriteBatch batch, float scale, bool wide = false)
     {
-        const float scale=1.5f;
-        using var target=new RenderTarget2D(GraphicsDevice,780,180);
+        using var target=new RenderTarget2D(GraphicsDevice,(int)(520*scale),(int)(150*scale));
         GraphicsDevice.SetRenderTarget(target);GraphicsDevice.Clear(new Color(120,167,245));
         var matrix=Matrix.CreateScale(scale);
         using var stream=File.OpenRead(Path.Combine(root,"Tools/ResourceBarPreview/MinimapFrame.png"));
@@ -149,8 +150,8 @@ internal sealed class ResourcePreview : Game
         batch.Draw(map,new Vector2(224,79),Color.White);batch.End();
         drawing.Draw(batch,matrix,ResourceBarDrawing.LifePosition(520),false,4,State(false,.84f,.84f));
         drawing.Draw(batch,matrix,ResourceBarDrawing.ManaPosition(520),true,4.7f,State(true,.68f,.68f));
-        portrait.Draw(batch,matrix,PortraitHudDrawing.Position(520),Portrait(24,65,30,0),.84f,4);
-        Save(target,"game-layout-1.5");
+        portrait.Draw(batch,matrix,PortraitHudDrawing.Position(520),wide ? Portrait(120,50,120,1) : Portrait(24,65,30,0),.84f,4);
+        Save(target,$"game-layout-{scale:0.0}{(wide ? "-wide" : "")}");
     }
     private void RenderAnimation(SpriteBatch batch,float elapsed)
     {
@@ -172,7 +173,7 @@ internal sealed class ResourcePreview : Game
         Check(Math.Abs(s.Ghost-.84f)<.00001f,"ghost must wait 0.4 seconds");
         for(int i=0;i<240;i++)s.Update(90,500,1f/60,i/60f,false);
         Check(Math.Abs(s.Ghost-s.Value)<.00001f,"ghost must converge");
-        s.Update(190,500,1f/60,5,false);Check(s.Flash>0&&s.Value>.18f&&s.Value<.38f,"healing easing and flash");
+        s.Update(190,500,1f/60,5,false);Check(s.Value>.18f&&s.Value<.38f,"healing easing");
         s.Update(190,1000,1f/60,5,false);Check(s.Value==s.Ghost&&s.Particles.Count==0,"max value change resets visual state");
         s.Reset(200,200);s.Update(0,200,1f/60,6);Check(s.Particles.Count>0,"loss particles");
         for(int i=0;i<300;i++)s.Update(0,200,1f/60,6+i/60f);Check(s.Particles.Count==0,"particles expire at zero");
@@ -187,7 +188,10 @@ internal sealed class ResourcePreview : Game
         p.Reset(5,40,0,30);Check(float.IsFinite(p.Fraction)&&p.Fraction==0,"zero experience requirement");
         p.Reset(1,0,100,90);for(int i=0;i<20;i++)p.Update(90,0,100,90,1f/60);Check(p.Sparks.Count<=66,"sparks stay bounded");
         var centre=PortraitHudDrawing.Position(520);
-        Check(PortraitHudDrawing.Contains(centre,centre+new Vector2(31,0))&&!PortraitHudDrawing.Contains(centre,centre+new Vector2(20,20)),"diamond hover test");
+        float radius=PortraitHudDrawing.DisplayOuter;
+        Check(PortraitHudDrawing.Contains(centre,centre+new Vector2(radius-1,0))&&!PortraitHudDrawing.Contains(centre,centre+new Vector2(radius*.7f,-radius*.7f)),"scaled diamond hover test");
+        var label=centre+(PortraitHudDrawing.LevelAnchor+new Vector2(0,10))*PortraitHudDrawing.DisplayScale;
+        Check(PortraitHudDrawing.Contains(centre,label)&&!PortraitHudDrawing.Contains(centre,centre+new Vector2(0,radius+20))&&!PortraitHudDrawing.Contains(centre,PortraitHudDrawing.TooltipPosition(centre)),"bottom level hover and tooltip clearance");
     }
     protected override void UnloadContent(){foreach(var texture in textures.Values)texture.Dispose();fonts?.Dispose();base.UnloadContent();}
     public static void Main(string[] args){using var game=new ResourcePreview(args[0],args[1]);game.Run();}

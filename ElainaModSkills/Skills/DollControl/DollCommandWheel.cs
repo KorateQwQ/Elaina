@@ -11,7 +11,6 @@ using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 using 伊蕾娜.ElainaModSkills.UICore;
 using 伊蕾娜.Items;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
-using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
@@ -196,7 +195,7 @@ public sealed class DollCommandWheel : BaseBody
         for (int i = 0; i < Count; i++)
             _hover[i] = MathHelper.Lerp(_hover[i], i == lit ? 1 : 0, Math.Min(1, dt / .12f));
 
-        // 圆心展示所指指令，回到中心显示“松开取消”；关闭后保持所选项随轮盘淡出。
+        // 圆心只展示所指指令的图标；关闭后保持所选图标随轮盘淡出。
         int focus = _open ? _hovered : _chosen >= 0 ? _chosen : _focus;
         if (focus != _focus)
         {
@@ -238,7 +237,7 @@ public sealed class DollCommandWheel : BaseBody
         _chosen = slot;
         Clear(true);
         SoundEngine.PlaySound(SoundID.MenuTick);
-        confirmed?.Invoke((DollCommand)slot);
+        confirmed?.Invoke(DollCommands.AtSlot(slot));
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
@@ -253,7 +252,6 @@ public sealed class DollCommandWheel : BaseBody
         try
         {
             SkillWheelDrawing.Draw(spriteBatch, art, _view, PaintSector, Restart);
-            DrawLabels(spriteBatch, art);
         }
         finally
         {
@@ -262,40 +260,13 @@ public sealed class DollCommandWheel : BaseBody
         }
     }
 
-    /// <summary>圆心图标下写指令名；攻击尚未实装，额外注明。环带下方是操作说明。</summary>
-    private void DrawLabels(SpriteBatch batch, in SkillWheelDrawing.Art art)
-    {
-        float alpha = _view.Presence;
-        if (alpha <= 0) return;
-        Vector2 center = _view.Center;
-        float width = HubRadiusFor(Count) * 1.7f;
-        float fade = Math.Clamp(_focusAge / FocusFade, 0, 1);
-        if (_focus >= 0 && _focus < Count)
-        {
-            DollCommand command = (DollCommand)_focus;
-            HealingWheelDrawing.Text(batch, art.Number, LocalizeUI("DollCommand" + command), center + new Vector2(0, 40),
-                14, width, new Color(245, 237, 255) * (alpha * fade));
-            if (command == DollCommand.Attack)
-                HealingWheelDrawing.Text(batch, art.Number, LocalizeUI("DollCommandUnavailable"), center + new Vector2(0, 57),
-                    10, width, new Color(189, 176, 206) * (alpha * fade));
-        }
-        else if (_open)
-        {
-            HealingWheelDrawing.Text(batch, art.Number, LocalizeUI("HealingCancel"), center, 14, width,
-                new Color(200, 187, 218) * (alpha * fade));
-        }
-        float outer = RadiusFor(Count) + BandHalf;
-        HealingWheelDrawing.Text(batch, art.Number, LocalizeUI("DollCommandControls"), center + new Vector2(0, outer + 26),
-            11, outer * 2, new Color(236, 225, 247) * alpha);
-    }
-
     private void FillView()
     {
         if (_icons == null)
         {
             _icons = new Asset<Texture2D>[Count];
             for (int i = 0; i < Count; i++)
-                _icons[i] = ModContent.Request<Texture2D>(DollCommands.IconPath((DollCommand)i), AssetRequestMode.ImmediateLoad);
+                _icons[i] = ModContent.Request<Texture2D>(DollCommands.IconPath(DollCommands.AtSlot(i)), AssetRequestMode.ImmediateLoad);
         }
 
         SkillWheelDrawing.View view = _view;
@@ -319,14 +290,14 @@ public sealed class DollCommandWheel : BaseBody
             var (extent, opacity) = _open
                 ? (OpeningExtent(_time, i), OpeningOpacity(_time, i))
                 : ClosingMotion(_closeTime, i == _chosen, _extentAtClose[i], _opacityAtClose[i]);
-            bool attack = (DollCommand)i == DollCommand.Attack;
+            bool attack = DollCommands.AtSlot(i) == DollCommand.Attack;
             view.Items[i] = new SkillWheelDrawing.WheelItem
             {
                 Position = view.Center + Direction(AngleOf(i, Count)) * (radius * extent + 4 * _hover[i]),
                 Opacity = opacity,
                 Hover = _hover[i],
                 Flash = i == view.Chosen && view.Release >= 0 ? 1 - view.Release : 0,
-                Current = _current == (DollCommand)i,
+                Current = _current.HasValue && DollCommands.BaseCommand(_current.Value) == DollCommands.AtSlot(i),
                 Slot = i,
                 Stack = 1,
                 MaxStack = 1,

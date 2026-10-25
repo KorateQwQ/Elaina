@@ -9,7 +9,7 @@ internal static class AlchemyBookLayout
 {
     internal static Rectangle DockBounds()
     {
-        var skillDock = ConstellationBookButton.DockBounds();
+        var skillDock = ConstellationDiscoveryToastUI.DockBounds();
         return new Rectangle(Math.Max(8, skillDock.X - 104), skillDock.Y, 96, 30);
     }
 }

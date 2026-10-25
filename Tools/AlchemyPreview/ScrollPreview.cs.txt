@@ -42,6 +42,19 @@ internal static class AlchemyScrollPreview
                 target.SaveAsPng(stream, width, height);
             }
         }
+        // Mid-page: the hints above and below the detail both show.
+        foreach (var (width, height, scale) in new[] { (1280, 720, 1f), (1600, 1000, 1.25f) })
+        {
+            var state = new AlchemyNotebookState(new NotebookFixture("all"));
+            float total = P.DetailRows(new AlchemyDrawing { Batch = batch, Scale = 1 }, state).Sum(r => r.Height);
+            using var target = new RenderTarget2D(device, width, height);
+            device.SetRenderTarget(target);
+            device.Clear(new Color(20, 21, 28));
+            AlchemyPreviewGame.Render(batch, width, height, scale, "all", detailScrollOffset: (total - P.DetailHeight) / 2);
+            device.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(directory, $"middle-{width}.png"));
+            target.SaveAsPng(stream, width, height);
+        }
         Console.WriteLine(directory);
     }
 

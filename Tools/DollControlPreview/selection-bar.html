@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>玩偶选区操作条 · 样式方案</title>
+<style>
+  /* 颜色取自 AlchemyDrawing：Ink / Muted / Lavender / Gold / LineColor */
+  :root {
+    --serif: 'Noto Serif SC', serif;
+    --sans: 'HarmonyOS Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+    --ink: 238,233,245; --muted: 178,168,195; --lav: 202,178,237; --gold: 230,206,165; --line: 76,62,88;
+    --goldfill: 185,155,87;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 32px 60px; background: #0e0d15; color: #ddd3ea; font: 14px/1.6 var(--serif); }
+  h1 { font-size: 20px; margin: 0 0 4px; color: #f2e6ff; font-weight: 600; }
+  .sub { color: #8f84a3; font-size: 13px; margin-bottom: 16px; max-width: 1000px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 18px; padding: 10px 14px; background: #17151f; border: 1px solid #2c2838;
+    position: sticky; top: 0; z-index: 10; margin-bottom: 18px; }
+  .controls label { color: #9d92b2; font-size: 13px; margin-right: 6px; }
+  .seg { display: inline-flex; border: 1px solid #3a3449; }
+  .seg button { background: none; border: 0; color: #b6abc9; font: 13px var(--serif); padding: 3px 10px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid #3a3449; }
+  .seg button.on { background: #3a3150; color: #fff; }
+  .option { margin-bottom: 26px; }
+  .option h2 { font-size: 16px; margin: 0; color: #f4e9ff; font-weight: 600; }
+  .option h2 b { color: rgb(var(--gold)); margin-right: 8px; }
+  .option p { margin: 2px 0 8px; color: #978cab; font-size: 13px; max-width: 1000px; }
+  .scene-wrap { display: inline-block; border: 1px solid #2a2635; }
+  .scene { position: relative; width: 640px; height: 200px; overflow: hidden; transform-origin: 0 0; }
+  .scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  .bar-anchor { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; }
+  .ui { white-space: nowrap; font-weight: 400; }
+  img.icon { display: block; }
+
+  /* ---------- 现状 ---------- */
+  .cur { position: relative; width: 540px; height: 116px; background: rgba(27,25,41,.96); border: 1px solid #6f6084;
+    box-shadow: 3px 4px 0 rgba(0,0,0,.25); font-family: var(--serif); }
+  .cur::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--acc75); }
+  .cur .ic { position: absolute; left: 15px; top: 11px; width: 24px; }
+  .cur .tt { position: absolute; left: 46px; top: 11px; font-size: 17px; line-height: 24px; color: var(--acc); }
+  .cur .ct { position: absolute; right: 18px; top: 11px; font-size: 14px; line-height: 24px; }
+  .cur .ht { position: absolute; left: 0; right: 0; top: 38px; text-align: center; font-size: 13px; color: #beb4cd; }
+  .cur .btns { position: absolute; top: 67px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; }
+  .cur .b { height: 34px; border: 1px solid; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #f9ede1; cursor: pointer; }
+  .cur .b.p { width: 174px; background: #574136; border-color: var(--acc70); }
+  .cur .b.p:hover { background: #76583d; border-color: var(--acc); }
+  .cur .b.x { width: 106px; background: #312a41; border-color: rgba(143,120,165,.65); }
+  .cur .b.x:hover { background: #4d3f60; border-color: #8f78a5; }
+  .cur .b.off { background: #2e2b39 !important; border-color: #4c4458 !important; color: #827a90; cursor: default; }
+
+  /* ---------- 公用：手记风格部件 ---------- */
+  /* 面板：深色底 + 1px LineColor 框 + 四角 Lavender 折线（CornerBrackets） */
+  .panel { position: relative; background: linear-gradient(rgba(31,26,43,.95), rgba(22,19,31,.95)); outline: 1px solid rgb(var(--line)); outline-offset: -1px; }
+  .corner { position: absolute; width: 9px; height: 9px; border: 0 solid rgba(var(--lav),.45); }
+  .corner.tl { left: 3px; top: 3px; border-left-width: 1px; border-top-width: 1px; }
+  .corner.tr { right: 3px; top: 3px; border-right-width: 1px; border-top-width: 1px; }
+  .corner.bl { left: 3px; bottom: 3px; border-left-width: 1px; border-bottom-width: 1px; }
+  .corner.br { right: 3px; bottom: 3px; border-right-width: 1px; border-bottom-width: 1px; }
+  /* 图标外的细圆圈（炼金手记标题图标同款） */
+  .medal { position: relative; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(var(--lav),.32); display: grid; place-items: center;
+    background: radial-gradient(circle, rgba(var(--lav),.07), rgba(var(--lav),0) 70%); }
+  .title { font-family: var(--serif); color: rgb(var(--ink)); }
+  .label { font-family: var(--sans); color: rgb(var(--muted)); }
+  .num { font-family: var(--serif); color: rgb(var(--ink)); font-variant-numeric: tabular-nums; }
+  .empty { font-family: var(--sans); color: rgba(var(--muted),.6); }
+  /* 主按钮 = CraftButton：金色胶囊，两端 Spark */
+  .pill { position: relative; display: flex; align-items: center; justify-content: center; border-radius: 999px; flex: none; cursor: pointer; }
+  .pill.gold { color: rgb(var(--gold)); background: rgba(var(--goldfill),.1); box-shadow: inset 0 0 0 1px rgba(var(--gold),.6);
+    font-family: var(--serif); letter-spacing: 1px; }
+  .pill.gold:hover { background: rgba(var(--goldfill),.2); box-shadow: inset 0 0 0 1px rgba(var(--gold),.95); }
+  .pill.gold.off { opacity: .4; cursor: default; background: rgba(var(--goldfill),.1); box-shadow: inset 0 0 0 1px rgba(var(--gold),.6); }
+  .pill.gold svg { position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; fill: rgba(var(--gold),.55); }
+  .pill.gold svg.l { left: 9px; } .pill.gold svg.r { right: 9px; }
+  /* 次按钮 = DebugButton：淡描边胶囊 */
+  .pill.plain { color: rgb(var(--muted)); box-shadow: inset 0 0 0 1px rgba(var(--ink),.18); font-family: var(--sans); }
+  .pill.plain:hover { color: rgb(var(--ink)); background: rgba(var(--ink),.05); box-shadow: inset 0 0 0 1px rgba(var(--ink),.3); }
+  .dots { height: 1px; background: repeating-linear-gradient(90deg, rgba(var(--ink),.14) 0 2px, transparent 2px 4px); }
+
+  /* ---------- 方案一：手记横条 ---------- */
+  .s1 { width: 432px; }
+  .s1 .row { height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 12px; }
+  .s1 .medal { width: 32px; height: 32px; } .s1 .medal img { width: 22px; }
+  .s1 .texts { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+  .s1 .title { font-size: 15px; line-height: 18px; }
+  .s1 .count { font-size: 10px; line-height: 15px; display: flex; align-items: baseline; gap: 3px; }
+  .s1 .count .num { font-size: 14px; }
+  .s1 .pill.plain { height: 26px; padding: 0 14px; font-size: 11px; }
+  .s1 .pill.gold { height: 28px; min-width: 122px; padding: 0 26px; font-size: 13px; }
+  .s1 .dots { margin: 0 12px; }
+  .s1 .hint { height: 22px; line-height: 22px; text-align: center; font-size: 10px; color: rgba(var(--muted),.85); font-family: var(--sans); }
+
+  /* ---------- 方案二：手记浮签（无框） ---------- */
+  .s2 { position: relative; width: 420px; padding: 4px 0 2px; text-align: center; }
+  .s2 .halo { position: absolute; inset: -30px -120px -24px; pointer-events: none;
+    background: radial-gradient(ellipse closest-side, rgba(14,11,22,.92) 62%, rgba(14,11,22,0) 100%); }
+  .s2 > *:not(.halo) { position: relative; }
+  .s2 .head { display: flex; align-items: center; justify-content: center; gap: 9px; height: 30px; }
+  .s2 .medal { width: 28px; height: 28px; } .s2 .medal img { width: 20px; }
+  .s2 .title { font-size: 16px; }
+  .s2 .rule { width: 56px; height: 1px; position: relative; }
+  .s2 .rule.l { background: linear-gradient(90deg, rgba(var(--lav),0), rgba(var(--lav),.45)); }
+  .s2 .rule.r { background: linear-gradient(90deg, rgba(var(--lav),.45), rgba(var(--lav),0)); }
+  .s2 .rule::after { content: ''; position: absolute; top: -2px; width: 4px; height: 4px; transform: rotate(45deg); background: rgba(var(--lav),.75); }
+  .s2 .rule.l::after { right: -2px; } .s2 .rule.r::after { left: -2px; }
+  .s2 .count { font-size: 11px; display: flex; justify-content: center; align-items: baseline; gap: 3px; margin-top: 1px; }
+  .s2 .count .num { font-size: 15px; }
+  .s2 .hint { font-size: 10px; color: rgba(var(--muted),.85); font-family: var(--sans); margin-top: 1px; }
+  .s2 .btns { display: flex; justify-content: center; gap: 10px; margin-top: 8px; }
+  .s2 .pill.gold { height: 30px; min-width: 150px; padding: 0 30px; font-size: 13px; }
+  .s2 .pill.plain { height: 26px; margin-top: 2px; padding: 0 16px; font-size: 11px; }
+
+  .notes { margin-top: 30px; max-width: 1000px; color: #a297b6; font-size: 13px; }
+  .notes h3 { color: #efe3ff; font-size: 15px; margin: 0 0 6px; font-weight: 600; }
+  .notes li { margin-bottom: 3px; }
+  code { color: #d8c7f2; }
+</style>
+</head>
+<body>
+<h1>玩偶选区操作条 · 样式方案</h1>
+<div class="sub">按炼金手记 / 技能手札现有的视觉语言重做：颜色与部件直接取自 <code>AlchemyDrawing</code>（Ink / Muted / Lavender / Gold / LineColor、Frame、CornerBrackets、RoundRect、Spark），主按钮即 <code>CraftButton</code> 样式，次按钮即 <code>DebugButton</code> 样式。无动画。逻辑像素按 100% UI 缩放绘制，鼠标悬停可看 hover。</div>
+
+<div class="controls">
+  <div><label>选区</label><span class="seg" data-k="state"><button data-v="empty">空选区</button><button data-v="some" class="on">已选 24</button><button data-v="many">已选 1386</button></span></div>
+  <div><label>工具</label><span class="seg" data-k="tool"><button data-v="Mine" class="on">挖掘</button><button data-v="MineChain">连锁挖掘</button><button data-v="BreakWall">敲墙</button><button data-v="BreakWallChain">连锁敲墙</button></span></div>
+  <div><label>语言</label><span class="seg" data-k="lang"><button data-v="zh" class="on">中文</button><button data-v="en">English</button></span></div>
+  <div><label>放大</label><span class="seg" data-k="zoom"><button data-v="1">1×</button><button data-v="1.5">1.5×</button><button data-v="2" class="on">2×</button></span></div>
+</div>
+
+<div id="options"></div>
+
+<div class="notes">
+  <h3>与现状相比</h3>
+  <ul>
+    <li>去掉强调色顶条、实心色块按钮和紫色粗边框，改为手记同款的细线框 + 四角折线，整体与炼金 / 技能界面同一套颜色。</li>
+    <li>工具色（琥珀 / 蓝）只留在世界里的选区标记上；操作条统一用 Gold 作为“执行”色，和「炼制」按钮一致。</li>
+    <li>数量按 <code>{0}</code> 拆开：标签用无衬线 Muted 小字，数字用衬线 Ink 大字，与「已研究 20 / 23」的写法一致。</li>
+    <li>禁用态沿用 <code>CraftButton</code> 的整体 40% 透明度，不另造灰色按钮。</li>
+  </ul>
+  <h3>实现要点（选定后再改 C#）</h3>
+  <ul>
+    <li>直接复用 <code>AlchemyDrawing</code> 的 Box / Frame / CornerBrackets / RoundRect / Spark / Text，字体衬线用 NotoSerifSC、小字用 HarmonyOS Sans SC。</li>
+    <li>布局仍由 <code>GetLayout</code> 统一给出面板与按钮矩形，输入命中逻辑不变。</li>
+  </ul>
+</div>
+
+<script>
+const ICON_DIR = '../../ElainaModSkills/Skills/DollControl/Commands/';
+const L = {
+  zh: { Mine: '挖掘物块', MineChain: '连锁挖掘', BreakWall: '敲掉墙壁', BreakWallChain: '连锁敲墙',
+    HintRect: '拖动框选 · 再框一次取消', HintChain: '点击选中相连同类 · 再点一次取消',
+    Start: '开始挖掘', StartWalls: '开始敲墙', Exit: '退出',
+    Tiles: '已选 {0} 个物块', Walls: '已选 {0} 面墙', EmptyTiles: '未选中可挖掘物块', EmptyWalls: '未选中可敲除墙壁' },
+  en: { Mine: 'Mine Blocks', MineChain: 'Chain Mine', BreakWall: 'Break Walls', BreakWallChain: 'Chain Break Walls',
+    HintRect: 'Drag to select · Drag again to deselect', HintChain: 'Click to select connected · Click again to deselect',
+    Start: 'Start Mining', StartWalls: 'Start Breaking', Exit: 'Exit',
+    Tiles: '{0} blocks selected', Walls: '{0} walls selected', EmptyTiles: 'No mineable blocks selected', EmptyWalls: 'No breakable walls selected' },
+};
+const S = { state: 'some', tool: 'Mine', lang: 'zh', zoom: '2' };
+const TILE = [255,196,92], WALL = [110,196,255];
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+function ctx() {
+  const t = L[S.lang], walls = S.tool.startsWith('BreakWall'), chain = S.tool.endsWith('Chain');
+  const n = S.state === 'empty' ? 0 : S.state === 'some' ? 24 : 1386;
+  const fmt = t[walls ? 'Walls' : 'Tiles'], [pre, post] = fmt.split('{0}');
+  return { t, walls, chain, n, enabled: n > 0, acc: walls ? WALL : TILE, fmt,
+    title: t[S.tool], hint: t[chain ? 'HintChain' : 'HintRect'], start: t[walls ? 'StartWalls' : 'Start'], exit: t.Exit,
+    empty: t[walls ? 'EmptyWalls' : 'EmptyTiles'], pre: pre.trim(), post: post.trim(), icon: ICON_DIR + 'DollCommand_' + S.tool + '.png' };
+}
+const SPARK = cls => `<svg class="${cls}" viewBox="-10 -10 20 20"><path d="M0-10Q1.2-1.2 10 0Q1.2 1.2 0 10Q-1.2 1.2-10 0Q-1.2-1.2 0-10Z"/></svg>`;
+const CORNERS = '<i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>';
+const count = (x, cls) => x.enabled
+  ? `<div class="${cls}">${x.pre ? `<span class="label">${x.pre}</span>` : ''}<span class="num">${x.n}</span>${x.post ? `<span class="label">${x.post}</span>` : ''}</div>`
+  : `<div class="${cls}"><span class="empty">${x.empty}</span></div>`;
+const gold = x => `<div class="pill gold ${x.enabled ? '' : 'off'}">${SPARK('l')}${x.start}${SPARK('r')}</div>`;
+
+const OPTIONS = [
+  { key: '现状', name: '当前游戏内样式', desc: '对照用，按 DollSelectionBarDrawing 的尺寸与颜色复刻。',
+    render: x => `<div class="cur ui" style="--acc:${rgba(x.acc,1)};--acc75:${rgba(x.acc,.75)};--acc70:${rgba(x.acc,.7)}">
+      <img class="icon ic" src="${x.icon}"><div class="tt">${x.title}</div>
+      <div class="ct" style="color:${x.enabled ? '#ebe0f6' : '#a99eb7'}">${x.enabled ? x.fmt.replace('{0}', x.n) : x.empty}</div>
+      <div class="ht">${x.hint}</div>
+      <div class="btns"><div class="b p ${x.enabled ? '' : 'off'}">${x.start}</div><div class="b x">${x.exit}</div></div></div>` },
+  { key: '一', name: '手记横条', desc: '约 432×72。上行：圆圈图标 + 标题 / 已选数量，右侧次按钮「退出」与金色主按钮；虚线分隔后一行小字操作说明（同「炼制」按钮下方的说明行）。面板为手记同款细线框 + 四角折线。',
+    render: x => `<div class="panel s1 ui">${CORNERS}
+      <div class="row"><div class="medal"><img class="icon" src="${x.icon}"></div>
+        <div class="texts"><div class="title">${x.title}</div>${count(x, 'count')}</div>
+        <div class="pill plain">${x.exit}</div>${gold(x)}</div>
+      <div class="dots"></div><div class="hint">${x.hint}</div></div>` },
+  { key: '二', name: '手记浮签（无框）', desc: '不画矩形底板，只用一团柔和暗影托底（Glow 贴图染暗色）。标题两侧是分类页签下方同款的渐隐细线 + 小菱形；数量、说明、按钮居中排列，主按钮与「炼制」完全同款。',
+    render: x => `<div class="s2 ui"><div class="halo"></div>
+      <div class="head"><div class="rule l"></div><div class="medal"><img class="icon" src="${x.icon}"></div><div class="title">${x.title}</div><div class="rule r"></div></div>
+      ${count(x, 'count')}<div class="hint">${x.hint}</div>
+      <div class="btns">${gold(x)}<div class="pill plain">${x.exit}</div></div></div>` },
+];
+
+// ---------- 场景背景：泥土/石块像素格 + 草稿选区 ----------
+function rand(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function drawScene(cv, x) {
+  const W = 320, H = 100; cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), r = rand(7);
+  const dirt = [[151,106,72],[134,92,62],[166,118,80]], stone = [[128,128,128],[112,112,116],[146,146,148]];
+  const tile = (tx, ty) => { const n = Math.sin(tx * .7) + Math.cos(ty * .9 + tx * .3) + Math.sin((tx + ty) * .45); return n > 1.2 ? 'stone' : n < -1.9 ? 'air' : 'dirt'; };
+  for (let ty = 0; ty < H / 8; ty++) for (let tx = 0; tx < W / 8; tx++) {
+    const k = tile(tx, ty);
+    if (k === 'air') { g.fillStyle = x.walls ? '#4a3626' : '#2a2018'; g.fillRect(tx * 8, ty * 8, 8, 8); continue; }
+    const pal = k === 'stone' ? stone : dirt;
+    for (let py = 0; py < 8; py += 2) for (let px = 0; px < 8; px += 2) {
+      const c = pal[Math.floor(r() * pal.length)]; g.fillStyle = `rgb(${c})`; g.fillRect(tx * 8 + px, ty * 8 + py, 2, 2);
+    }
+  }
+  if (!x.enabled) return;
+  const cells = [];
+  if (x.chain) { for (let ty = 0; ty < H / 8; ty++) for (let tx = 0; tx < W / 8; tx++) if (tile(tx, ty) === 'stone' && tx > 8 && tx < 30 && ty < 7) cells.push([tx, ty]); }
+  else { const w = S.state === 'many' ? 26 : 6, h = S.state === 'many' ? 6 : 4; for (let ty = 1; ty < 1 + h; ty++) for (let tx = 14; tx < 14 + w; tx++) cells.push([tx, ty]); }
+  const set = new Set(cells.map(c => c + ''));
+  g.fillStyle = 'rgba(150,235,160,.28)'; cells.forEach(([tx, ty]) => g.fillRect(tx * 8, ty * 8, 8, 8));
+  g.fillStyle = 'rgba(150,235,160,.9)';
+  cells.forEach(([tx, ty]) => {
+    if (!set.has([tx, ty - 1] + '')) g.fillRect(tx * 8, ty * 8, 8, 1);
+    if (!set.has([tx, ty + 1] + '')) g.fillRect(tx * 8, ty * 8 + 7, 8, 1);
+    if (!set.has([tx - 1, ty] + '')) g.fillRect(tx * 8, ty * 8, 1, 8);
+    if (!set.has([tx + 1, ty] + '')) g.fillRect(tx * 8 + 7, ty * 8, 1, 8);
+  });
+}
+
+function render() {
+  const x = ctx(), z = +S.zoom, root = document.getElementById('options');
+  root.innerHTML = OPTIONS.map((o, i) => `<section class="option">
+    <h2><b>${o.key}</b>${o.name}</h2><p>${o.desc}</p>
+    <div class="scene-wrap" style="width:${640 * z + 2}px;height:${200 * z + 2}px">
+      <div class="scene" style="transform:scale(${z})"><canvas id="cv${i}"></canvas>
+        <div class="bar-anchor">${o.render(x)}</div></div></div></section>`).join('');
+  OPTIONS.forEach((o, i) => drawScene(document.getElementById('cv' + i), x));
+}
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  seg.querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b));
+  S[seg.dataset.k] = b.dataset.v; render();
+}));
+render();
+</script>
+</body>
+</html>

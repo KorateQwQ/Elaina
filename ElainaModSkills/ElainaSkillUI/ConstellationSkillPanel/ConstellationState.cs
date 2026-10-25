@@ -150,41 +150,34 @@ internal sealed class ConstellationState
     {
         learned = levels = 0;
         if (!IsCurrentPlayer) return false;
-        _player.Player.GetModPlayer<global::伊蕾娜.System.ElainaStatePlayer>().DebugMaxLevel();
+        var character = _player.Player.GetModPlayer<global::伊蕾娜.System.ElainaStatePlayer>();
+        character.DebugMaxLevel();
+        int characterLevel = character.GetLevel(), characterLevelCap = character.GetMaxLevel();
         Refresh();
 
-        // Repeat because a later node can satisfy an earlier node's prerequisite or level requirement.
-        bool changed;
-        do
+        // Bypass discovery, prerequisites and research costs, but retain configured level gates.
+        foreach (var node in Skills)
         {
-            changed = false;
-            foreach (var node in Skills)
-            {
-                if (!IsLearned(node.id))
-                {
-                    if (!Discovered(node) || !node.prereqs.All(IsLearned)
-                        || !DebugMeetsRequirements(node.ModSkill.UnlockCondition, node.ModSkill)) continue;
-                    var skill = Skill.NewSkill(node.ModSkill.GetType(), node.Skill.Mod);
-                    skill.ModSkill.UnlockCondition = node.ModSkill.UnlockCondition;
-                    _player.UnlockSkill(skill);
-                    Refresh();
-                    if (!IsLearned(node.id)) continue;
-                    learned++;
-                    changed = true;
-                }
+            // MaxLevel is clamped to at least 1, so it cannot tell whether the first level is available.
+            if (SkillBalanceSystem.TryGetSkill(node.ModSkill.GetType().Name, out var entry)
+                && (characterLevelCap < entry.UnlockStageCap || characterLevel < entry.UnlockLevel))
+                continue;
 
-                while (node.Skill.Level < node.Skill.MaxLevel
-                    && DebugMeetsRequirements(node.ModSkill.GetConstellationUpgradeCondition(node.Skill.Level + 1)
-                        ?? SkillUnlockCondition.None, node.ModSkill))
-                {
-                    int previous = node.Skill.Level;
-                    node.ModSkill.TryLevelUp();
-                    if (node.Skill.Level <= previous) break;
-                    levels += node.Skill.Level - previous;
-                    changed = true;
-                }
+            if (!IsLearned(node.id))
+            {
+                var skill = Skill.NewSkill(node.ModSkill.GetType(), node.Skill.Mod);
+                skill.ModSkill.UnlockCondition = node.ModSkill.UnlockCondition;
+                _player.UnlockSkill(skill);
+                Refresh();
+                if (!IsLearned(node.id)) continue;
+                learned++;
             }
-        } while (changed);
+
+            // Assign the level directly so custom TryLevelUp guards cannot block this debug action.
+            int targetLevel = Math.Max(node.Skill.Level, node.Skill.MaxLevel);
+            levels += targetLevel - node.Skill.Level;
+            node.Skill.Level = targetLevel;
+        }
 
         Refresh();
         Filter = "learned";
@@ -192,14 +185,6 @@ internal sealed class ConstellationState
         return true;
     }
 
-    // Debug waives resource costs only; stage, character level and custom prerequisites still apply.
-    private bool DebugMeetsRequirements(SkillUnlockCondition condition, ElainaSkill skill) => condition switch
-    {
-        null => false,
-        ItemSkillUnlockCondition or SkillPointUnlockCondition => true,
-        CompositeSkillUnlockCondition composite => composite.Conditions.All(c => DebugMeetsRequirements(c, skill)),
-        _ => condition.CanUnlock(_player, skill)
-    };
 #endif
 
     internal ConstellationNode Find(string id) => id != null ? _nodes.GetValueOrDefault(id) : null;
@@ -228,21 +213,48 @@ internal sealed class ConstellationState
     private Skill Resolve(string id) => _player.UnlockedSkill.Values.FirstOrDefault(s => s?.ModSkill?.GetType().FullName == id) ?? Find(id)?.Skill;
     private bool IsLearned(string id) => Resolve(id) is { } skill
         && _player.UnlockedSkill.TryGetValue(skill.ModSkill.GetType().Name, out var owned) && ReferenceEquals(skill, owned);
-    internal bool Discovered(ConstellationNode node) => node != null && (IsLearned(node.id)
-        || node.Skill.BasicStatus != Skill.SKillBasicStatus.Hide && node.ModSkill.IsConstellationRevealed(_player.Player));
-    internal string Status(ConstellationNode node) => node == null ? "hidden" : IsLearned(node.id) ? "learned"
-        : node.Skill.BasicStatus == Skill.SKillBasicStatus.Hide ? "hidden"
-        : !Discovered(node) ? "locked" : node.prereqs.All(IsLearned) ? "ready" : "locked";
+    internal bool Discovered(ConstellationNode node) => Status(node) is "learned" or "ready";
+
+    /// <summary>
+    /// learned 已习得；hidden 未显现（当前阶段不可能学习：阶段门槛不可达，或前置本身未显现）；
+    /// locked 待启封（问号技能，尚未满足 IsConstellationRevealed）；ready 待研习（缺材料、研习点、前置等可达条件）。
+    /// </summary>
+    internal string Status(ConstellationNode node) => Status(node, []);
+    private string Status(ConstellationNode node, HashSet<string> visiting)
+    {
+        if (node == null) return "hidden";
+        if (IsLearned(node.id)) return "learned";
+        if (node.Skill.BasicStatus == Skill.SKillBasicStatus.Hide || !StageReachable(node, visiting)) return "hidden";
+        return node.ModSkill.IsConstellationRevealed(_player.Player) ? "ready" : "locked";
+    }
+    private bool StageReachable(ConstellationNode node, HashSet<string> visiting)
+    {
+        if (!StageGateUnlockCondition.AllReachable(node.ModSkill.UnlockCondition, _player, node.ModSkill)) return false;
+        // A dependency cycle can never be learned. Prerequisites outside the constellation do not hide the node.
+        if (!visiting.Add(node.id)) return false;
+        try { return node.prereqs.All(id => Find(id) is not { } parent || Status(parent, visiting) != "hidden"); }
+        finally { visiting.Remove(node.id); }
+    }
     internal string Name(ConstellationNode node) => Discovered(node) ? node.name : Status(node) == "locked" ? "???" : LocalizeUI("Hidden");
     internal bool CanUnlock => IsCurrentPlayer && !EmptyFilter && Status(Current) == "ready"
         && Requirements(Selected, false).Satisfied;
+
+    /// <summary>新显现或新启封、尚未在星图中选中过的技能；由发现记录提供，选中后移除。</summary>
+    internal HashSet<string> Fresh { get; set; } = [];
+    internal bool IsFresh(string id) => Fresh.Contains(id) && Status(Find(id)) is "ready" or "locked";
+    internal void MarkSeen(string id) => Fresh.Remove(id);
     internal string UnlockDescription => Current?.ModSkill.UnlockCondition == null ? LocalizeUI("MissingUnlockCondition")
         : ConstellationRequirements.Localize(Current.ModSkill.GetUnlockConditionDescription(_player));
 
     internal ConstellationRequirements Requirements(string id, bool upgrade)
     {
         var skill = Find(id)?.ModSkill;
-        return ConstellationRequirements.Read(upgrade ? UpgradeCondition(id) : skill?.UnlockCondition, _player, skill);
+        var result = ConstellationRequirements.Read(upgrade ? UpgradeCondition(id) : skill?.UnlockCondition, _player, skill);
+        // Unlearned prerequisites are reachable gaps of a ready skill, listed with its other research requirements.
+        if (!upgrade && skill != null && !IsLearned(id))
+            foreach (string parent in Find(id).prereqs.Where(p => !IsLearned(p)).Reverse())
+                result.AddUnmet(LocalizeUI("MissingSkill", Find(parent)?.name ?? LocalizeUI("PrerequisiteSkill")));
+        return result;
     }
 
     internal bool Unlock()

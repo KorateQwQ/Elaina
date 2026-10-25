@@ -5,7 +5,7 @@ using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 using World = Terraria.Main;
 
-static class Checks
+static partial class Checks
 {
     static int assertions;
     static void Check(bool result, string message)
@@ -13,12 +13,12 @@ static class Checks
         if (!result) throw new Exception(message);
         assertions++;
     }
-    public static KumaPetProjectile Reset()
+    public static KumaPetProjectile Reset(int level = 7)
     {
         World.myPlayer = 0; World.netMode = 0;
         World.player = Enumerable.Range(0, World.maxPlayers).Select(i => new Player { whoAmI = i }).ToArray();
         World.projectile = Enumerable.Range(0, World.maxProjectiles).Select(_ => new Projectile()).ToArray();
-        var skill = new DollControlSkill(); skill.Initialize(); skill.PreUseSkill();
+        var skill = new DollControlSkill { Level = level }; skill.Initialize(); skill.PreUseSkill();
         return (KumaPetProjectile)World.projectile[0].ModProjectile;
     }
     public static void Tick(DollPetProjectile doll)
@@ -28,10 +28,13 @@ static class Checks
         doll.AI();
         if (doll.Projectile.active) doll.Projectile.Center += doll.Projectile.velocity;
     }
-    public static void Run()
+    public static void Run(string repo)
     {
+        Check(伊蕾娜.ElainaModSkills.SkillBalanceConfig.TryParse(File.ReadAllText(Path.Combine(repo,
+            "ElainaModSkills/Data/SkillBalance.json")), out var config, out var error), error);
+        伊蕾娜.ElainaModSkills.ElainaSkill.Configuration = config;
         var doll = Reset();
-        var skill = new DollControlSkill(); skill.Initialize();
+        var skill = new DollControlSkill { Level = 7 }; skill.Initialize();
         var owner = World.player[0];
         var mana = owner.GetModPlayer<ElainaAttributeModPlayer>();
         Check(mana.MagicPoint == 80f, "First cast must cost exactly 20");
@@ -89,6 +92,25 @@ static class Checks
         commands.Targets.Clear();
         for (int i = 0; i < 300; i++) Tick(doll);
         Check(!doll.HasWork && !doll.IsMining, "Cleared tasks send the doll back to following");
+        commands.PlanterTargets.AddRange(new[] { first, second });
+        int priorHits = commands.Hits;
+        doll.AI();
+        using (var plantStream = new MemoryStream())
+        {
+            doll.SendExtraAI(new BinaryWriter(plantStream));
+            plantStream.Position = 0;
+            remote.ReceiveExtraAI(new BinaryReader(plantStream));
+            World.myPlayer = 1;
+            for (int i = 0; i < 240; i++) Tick(remote);
+            World.myPlayer = 0;
+            Check(remote.IsUsing && commands.PlacedPlanters == 0 && commands.PlanterTargets.Count == 2,
+                "Synced placement targets animate remotely without consuming or placing");
+        }
+        for (int i = 0; i < 900 && commands.HasTask; i++) Tick(doll);
+        Check(commands.PlacedPlanters == 2 && commands.Hits == priorHits && !commands.HasTask,
+            "Owner flies to placement targets and calls placement, never mining");
+        commands.PlanterTargets.Add(first); Tick(doll); commands.PlanterTargets.Clear(); Tick(doll);
+        Check(!doll.HasWork, "Cancel a placement task immediately restores following");
         foreach (float speed in new[] { 3f, 12f, 30f })
         {
             owner.velocity = new Vector2(speed, 0f);
@@ -101,7 +123,7 @@ static class Checks
             }
             Check(doll.IsMoving && frames.SetEquals(new[] { 0, 1, 2, 3 }), $"Four movement frames at speed {speed}");
             Check(Vector2.Distance(owner.Center, doll.Projectile.Center) < 110f, $"Must keep up at speed {speed}");
-            Check(max - min > 5f && max - min < 15f, $"Flight must gently bob at speed {speed}: {max - min}");
+            Check(max - min > 5f && max - min < 30f, $"Flight must gently bob and drift at speed {speed}: {max - min}");
             owner.velocity = Vector2.Zero;
             for (int i = 0; i < 180; i++) Tick(doll);
             Check(!doll.IsMoving && !doll.IsMining, "Stopping must restore idle");
@@ -116,12 +138,12 @@ static class Checks
         doll.Projectile.Center += new Vector2(300f, 0f);
         Vector2 before = doll.Projectile.Center;
         Check(!skill.BeginWandUse() && !skill.PreUseSkill() && mana.MagicPoint == 80f
-            && World.projectile.Count(p => p.active) == 1 && before == doll.Projectile.Center,
+            && World.projectile.Count(p => p.active) == 4 && before == doll.Projectile.Center,
             "While the doll is out, left-click belongs to commands: no swing, cost, duplicate or recall");
         mana.MagicPoint = 19f;
         Check(!skill.PreUseSkill() && mana.MagicPoint == 19f && before == doll.Projectile.Center, "Insufficient mana must have no effect");
         World.myPlayer = 1; skill.Initialize();
-        Check(skill.PreUseSkill() && World.projectile.Count(p => p.active) == 2 && doll.Projectile.owner == 0,
+        Check(skill.PreUseSkill() && World.projectile.Count(p => p.active) == 8 && doll.Projectile.owner == 0,
             "Each player keeps their own doll");
         World.myPlayer = 0;
         owner.gravDir = -1f; doll.RecallToOwner(owner);
@@ -132,8 +154,20 @@ static class Checks
         doll.Projectile.netUpdate = false; doll.AI();
         Check(doll.Projectile.Center == before && !doll.Projectile.netUpdate, "Server must not originate teleport");
         World.myPlayer = 0; World.netMode = 0;
-        commands.Loot = 3; doll.Dismiss();
-        Check(!doll.Projectile.active && commands.Delivered == 5, "Dismiss hands over collected items and removes the doll");
+        commands.Loot = 3; DollPetProjectile.DismissAll(owner);
+        Check(doll.Projectile.active && doll.IsDismissing && commands.Delivered == 5 && DollPetProjectile.FindOwned(owner) == null,
+            "Dismiss hands over collected items at once and starts the vanish animation");
+        var team = World.projectile.Where(p => p.active && p.owner == 0).ToArray();
+        DollPetProjectile backRow = team.Select(p => (DollPetProjectile)p.ModProjectile).First(d => d.FormationSlot == 3);
+        int vanishTicks = 0, backRowGone = -1;
+        while (team.Any(p => p.active) && vanishTicks++ < 200)
+        {
+            foreach (var p in team.Where(p => p.active)) p.ModProjectile.AI();
+            if (!backRow.Projectile.active && backRowGone < 0) backRowGone = vanishTicks;
+        }
+        Check(backRowGone == DollSummonVisuals.VanishTicks, "Back row vanishes first, without waiting for the stagger");
+        Check(!doll.Projectile.active && vanishTicks == DollSummonVisuals.VanishTicks + 3 * DollSummonVisuals.StaggerTicks,
+            "Every doll is removed once its staggered vanish animation finishes");
         commands.Loot = 4; mana.MagicPoint = 100f; owner.gravDir = 1f;
         Check(skill.BeginWandUse() && skill.PreUseSkill() && commands.Delivered == 9 && mana.MagicPoint == 80f,
             "Summoning again hands over items left by a doll that vanished early");
@@ -150,7 +184,9 @@ static class Checks
         Check(!skill.PreUseSkill() && mana.MagicPoint == 80f, "Full projectile pool must not consume mana");
         skill.DeserializeData(new Terraria.ModLoader.IO.TagCompound());
         Check(skill.MaxCD == 1f && skill.MagicPointCost == 20f, "Old skill saves must restore current cost/cooldown");
-        Console.WriteLine($"PASS: {assertions} production skill/AI assertions (engine/resource host is stubbed).");
+        RunTeamChecks();
+        RunProgressionChecks();
+        Console.WriteLine($"PASS: {assertions} production skill/AI/target assignment assertions (world/resource host is stubbed).");
     }
-    public static void Main() => Run();
+    public static void Main(string[] args) => Run(args[0]);
 }

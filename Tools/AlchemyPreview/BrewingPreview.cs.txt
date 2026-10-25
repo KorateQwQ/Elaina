@@ -1,0 +1,75 @@
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+// Production pose coordinates, frames and real assets. The floor and vanilla
+// cauldron are scene fixtures; the game renderer's lighting/input are not simulated.
+internal static class BrewingPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string repo, string output)
+    {
+        var stool = AlchemyPreviewGame.VanillaTexture("Images/Extra_102");
+        var pot = AlchemyPreviewGame.VanillaTexture("Images/Tiles_96");
+        var hat = AlchemyPreviewGame.Texture("伊蕾娜/Items/accessories/ElainHatFrame");
+        var reading = AlchemyPreviewGame.Texture("伊蕾娜/" + AlchemyBrewAnimation.TexturePath(false));
+        var stirring = AlchemyPreviewGame.Texture("伊蕾娜/" + AlchemyBrewAnimation.TexturePath(true));
+        var pixel = Terraria.GameContent.TextureAssets.MagicPixel.Value;
+        var stirringPixels = new Color[stirring.Width * stirring.Height];
+        stirring.GetData(stirringPixels);
+        var potPixels = new Color[pot.Width * pot.Height];
+        pot.GetData(potPixels);
+        if (stool.Width != AlchemyBrewAnimation.StoolWidth || stool.Height * AlchemyBrewAnimation.StoolScale.Y != AlchemyBrewAnimation.StoolHeight)
+            throw new InvalidOperationException("Stool support must match the real texture height.");
+        foreach (float scale in new[] { 2f, 1.25f })
+        {
+            int cellWidth = (int)(58 * scale), rowHeight = (int)(100 * scale);
+            using var target = new RenderTarget2D(device, 13 * cellWidth + 24, 2 * rowHeight + 40);
+            device.SetRenderTarget(target);
+            device.Clear(new Color(55, 83, 91));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            for (int row = 0; row < 2; row++)
+            {
+                bool brew = row == 1;
+                var texture = brew ? stirring : reading;
+                int count = brew ? AlchemyBrewSession.StirringFrames : AlchemyBrewSession.ReadingFrames;
+                for (int frame = 0; frame < count; frame++)
+                {
+                    // Each panel uses a local world: the player is 20x42, anchored
+                    // beside a 2x2 cauldron whose lower edge rests on the same floor.
+                    Vector2 panel = new(12 + frame * cellWidth, 20 + row * rowHeight);
+                    Vector2 ground = AlchemyBrewAnimation.Ground(new Vector2(14, 42), 20, 42, 0);
+                    Vector2 At(Vector2 point) => panel + point * scale;
+                    var body = AlchemyBrewAnimation.BodyPosition(ground, brew);
+                    var stoolAt = AlchemyBrewAnimation.StoolPosition(ground);
+                    if (body.Y + 56 != (brew ? stoolAt.Y : ground.Y) || stoolAt.Y + stool.Height * AlchemyBrewAnimation.StoolScale.Y != ground.Y)
+                        throw new InvalidOperationException("Feet, stool top and floor do not meet.");
+                    if (brew)
+                    {
+                        // Check the actual dark stick pixels against the actual pot
+                        // rim row, not just feet/stool contact (which missed this bug).
+                        int tipX = -1;
+                        for (int x = 30; x < 40; x++)
+                            if (stirringPixels[(frame * 56 + 35) * stirring.Width + x] == new Color(43, 25, 29)) tipX = x;
+                        int potX = (int)(body.X + tipX - (ground.X - 2));
+                        int sourceX = 36 + potX / 16 * 18 + potX % 16;
+                        if (tipX < 0 || body.Y + 35 != ground.Y - 32 + 4 ||
+                            potX < 0 || potX >= 32 || potPixels[4 * pot.Width + sourceX].A == 0)
+                            throw new InvalidOperationException($"Frame {frame}: stick tip does not meet the cauldron rim.");
+                    }
+                    batch.Draw(pixel, new Rectangle((int)panel.X, (int)At(ground).Y, cellWidth, (int)(4 * scale)), new Rectangle(0, 0, 1, 1), new Color(90, 67, 49));
+                    for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+                        batch.Draw(pot, At(ground + new Vector2(-2 + x * 16, -32 + y * 16)), new Rectangle(36 + x * 18, y * 18, 16, 16), Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                    if (brew)
+                        batch.Draw(stool, At(stoolAt), null, Color.White, 0, Vector2.Zero, AlchemyBrewAnimation.StoolScale * scale, SpriteEffects.None, 0);
+                    batch.Draw(texture, At(body), AlchemyBrewAnimation.Frame(brew, frame), Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                    batch.Draw(hat, At(AlchemyBrewAnimation.HatPosition(ground, brew, frame)), new Rectangle(0, 0, 40, 56), Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                }
+            }
+            batch.End();
+            device.SetRenderTarget(null);
+            string path = Path.Combine(output, $"cauldron-position-{scale:0.00}.png");
+            using var destination = File.Create(path);
+            target.SaveAsPng(destination, target.Width, target.Height);
+            Console.WriteLine(path);
+        }
+    }
+}

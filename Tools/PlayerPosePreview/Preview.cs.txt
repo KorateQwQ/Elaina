@@ -1,0 +1,131 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Content;
+using SDL2;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.GameContent;
+using Terraria.ModLoader;
+using 伊蕾娜.Items.Armors.新版身体;
+using 伊蕾娜.Items.accessories;
+using 伊蕾娜.System;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.UI;
+using Host = Terraria.Main;
+
+using var game = new PosePreview(args[0], args[1], args[2]);
+game.Run();
+
+sealed partial class PosePreview : Game
+{
+    const BindingFlags Hidden = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+    readonly string repo, output;
+    readonly ElainaNewBodyLayer bodyLayer = new();
+    readonly ElainaHatLayer hatLayer = new();
+    readonly ElainaDrawAlignment alignment = new();
+    Texture2D head, reading, pixel;
+    Player player;
+    bool done;
+    public PosePreview(string repo, string output, string tml)
+    {
+        this.repo = repo; this.output = output;
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(tml, "../Terraria/Content"));
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef };
+        SDL.SDL_HideWindow(Window.Handle); IsFixedTimeStep = false;
+    }
+    static Asset<Texture2D> Asset(Texture2D texture)
+    {
+        var asset = (Asset<Texture2D>)Activator.CreateInstance(typeof(Asset<Texture2D>), Hidden, null, new object[] { "fixture" }, null)!;
+        typeof(Asset<Texture2D>).GetMethod("SubmitLoadedContent", Hidden)!.Invoke(asset, new object[] { texture, null });
+        return asset;
+    }
+    Texture2D Load(string path)
+    {
+        using var file = File.OpenRead(Path.Combine(repo, path + ".png"));
+        return Texture2D.FromStream(GraphicsDevice, file);
+    }
+    protected override void LoadContent()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        var mod = new FixtureMod();
+        foreach (var mp in new ModPlayer[] { new global::伊蕾娜.ElainaModplayer(), new AlchemyBrewingPlayer() })
+        { ((ILoadable)mp).Load(mod); ContentInstance.Register(mp); }
+        typeof(PlayerLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
+        player = new Player { active = true, whoAmI = 0, direction = 1, gravDir = 1, legs = 1, wearsRobe = true };
+        foreach (var entry in new[] { ("ElainaBodyTexture", "身体部分"), ("ElainaSittingBodyTexture", "坐姿"),
+            ("ElainaFrontHandTexture", "Elaina_FrontHand_Running"), ("ElainaBackHandTexture", "Elaina_BackHand_Running") })
+            typeof(ElainaNewBodyLayer).GetField(entry.Item1, Hidden)!.SetValue(null, Asset(Load("Items/Armors/新版身体/" + entry.Item2)));
+        TextureAssets.ArmorLeg[1] = Asset(Load("Items/Armors/新版身体/Elaina2legs"));
+        typeof(ElainaHatLayer).GetField("ElainaHatTexture", Hidden)!.SetValue(hatLayer, Asset(Load("Items/accessories/ElainHatFrame")));
+        head = Load("Items/Armors/新版身体/Elaina2head"); reading = Load("炼金/翻书");
+        pixel = Content.Load<Texture2D>("Images/MagicPixel");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        using var batch = new SpriteBatch(GraphicsDevice);
+        foreach (float scale in new[] { 4f, 1.25f })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, (int)(300 * scale), (int)(92 * scale));
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(55, 83, 91));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+            for (int column = 0; column < 5; column++)
+            {
+                player.direction = column >= 2 && column < 4 ? -1 : 1;
+                player.position = new Vector2(20 + 60 * column, 32);
+                player.bodyFrame = player.legFrame = new Rectangle(0, 0, 40, 56);
+                var draw = new PlayerDrawSet {
+                    drawPlayer = player, Position = player.position, ItemLocation = player.position,
+                    DrawDataCache = new(), colorArmorBody = Color.White, colorArmorLegs = Color.White, colorArmorHead = Color.White,
+                    legVect = new Vector2(20, 42), headVect = new Vector2(20, 22.4f), legsGlowMask = -1,
+                    playerEffect = player.direction == 1 ? SpriteEffects.None : SpriteEffects.FlipHorizontally
+                };
+                if (column % 2 == 1) alignment.ModifyDrawInfo(ref draw);
+                Vector2 ground = new(player.position.X + 10, player.position.Y + player.height);
+                if (column == 4)
+                {
+                    batch.Draw(reading, AlchemyBrewAnimation.BodyPosition(ground, false), new Rectangle(0, 0, 40, 56), Color.White);
+                    var hat = (Asset<Texture2D>)typeof(ElainaHatLayer).GetField("ElainaHatTexture", Hidden)!.GetValue(hatLayer)!;
+                    batch.Draw(hat.Value, AlchemyBrewAnimation.HatPosition(ground, false, 0), new Rectangle(0, 0, 40, 56), Color.White);
+                }
+                else
+                {
+                    bodyLayer.DrawWithTransformationAndChildren(ref draw);
+                    PlayerDrawLayers.DrawPlayer_13_Leggings(ref draw);
+                    var leg = draw.DrawDataCache.Last();
+                    // Measure actual visible soles emitted by Terraria's native leg layer.
+                    var colors = new Color[40 * 56]; leg.texture.GetData(0, leg.sourceRect, colors, 0, colors.Length);
+                    int last = Enumerable.Range(0, 56).Last(y => Enumerable.Range(0, 40).Any(x => colors[y * 40 + x].A > 0));
+                    float feet = leg.position.Y - leg.origin.Y + last + 1;
+                    float expected = ground.Y + (column % 2 == 0 ? 4 : 0);
+                    if (feet != expected) throw new Exception($"Column {column}: sole {feet}, expected {expected}");
+                    Console.WriteLine($"{(column % 2 == 0 ? "Before" : "After")} direction {player.direction}: soles {(feet-ground.Y):0}px below floor");
+                    // Head fixture follows the same native equipment-frame anchor.
+                    draw.DrawDataCache.Add(new DrawData(head, draw.Position + new Vector2(-10, -10), new Rectangle(0, 0, 40, 56), Color.White, 0, Vector2.Zero, 1f, draw.playerEffect));
+                    hatLayer.DrawWithTransformationAndChildren(ref draw);
+                    foreach (var data in draw.DrawDataCache) data.Draw(batch);
+                    if (player.position.Y != 32) throw new Exception("Visual correction changed player collision position.");
+                }
+                // Overlay terrain, exposing the lost sole pixels in the old pose.
+                batch.Draw(pixel, new Rectangle(column * 60, (int)ground.Y, 60, 18), new Rectangle(0, 0, 1, 1), new Color(128, 94, 67));
+            }
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(output, $"standing-comparison-{scale:0.00}.png"));
+            target.SaveAsPng(stream, target.Width, target.Height);
+        }
+        // Special poses already own their offsets and must remain untouched.
+        foreach (string mode in new[] { "head", "dead", "sitting", "inverted", "alchemy" })
+        {
+            player.dead = mode == "dead"; player.gravDir = mode == "inverted" ? -1 : 1;
+            player.GetModPlayer<AlchemyBrewingPlayer>().Active = mode == "alchemy";
+            var draw = new PlayerDrawSet { drawPlayer = player, Position = new Vector2(20, 32), headOnlyRender = mode == "head", isSitting = mode == "sitting" };
+            alignment.ModifyDrawInfo(ref draw);
+            if (draw.Position != new Vector2(20, 32)) throw new Exception("Special pose moved: " + mode);
+        }
+        Console.WriteLine("Native sole alignment and special-pose guards passed. " + output);
+        CheckAppearance(batch);
+        Exit();
+    }
+}
+sealed class FixtureMod : Mod { public override string Name => "PoseFixture"; }

@@ -102,7 +102,7 @@ Items: {
 
 	扫帚坐骑: {
 		DisplayName: 扫帚
-		Tooltip: 普通的扫帚
+		Tooltip: 普通的扫帚，仅供伊蕾娜使用
 	}
 
 	寒霜药水: {
@@ -270,8 +270,15 @@ Projectiles: {
 	// HealProj.DisplayName: Heal Proj
 	// RecallPortalProjectile.DisplayName: Recall Portal Projectile
 	KumaPetProjectile.DisplayName: 熊玩偶
+	SecondDollProjectile.DisplayName: 白猫玩偶
+	ThirdDollProjectile.DisplayName: 黄狗玩偶
+	FourthDollProjectile.DisplayName: 兔子玩偶
 	// FrostVeilProjectile.DisplayName: Frost Veil Projectile
 	// ExperienceOrb.DisplayName: Experience Orb
+	// BottledRainCloud.DisplayName: Bottled Rain Cloud
+	// RevealingDustArea.DisplayName: Revealing Dust Area
+	// PurificationDewDrop.DisplayName: Purification Dew Drop
+	// BroomDashWind.DisplayName: Broom Dash Wind
 }
 
 Configs: {
@@ -464,4 +471,16 @@ NewSkillUI: {
 	HiddenName: ？？？
 	HiddenDesc: 尚未知晓的魔法。旅程终会揭示它的名字……
 	CloseHint: V / Esc 关闭星图
+}
+
+Terms: {
+	MagicPower: {
+		Name: 魔力
+		Description:
+			'''
+			伊蕾娜开启灰之魔女后，施放技能所消耗的独特魔力。每1点原版最大魔力，以及灰之魔女减少的每1点生命上限，各提供1点上限。
+			每秒自动回复{0}点＋最大值的{1:0.##}%，施法时也不会停止回复。施法、命中或受到伤害后{2}秒内视为战斗中；脱离战斗后，魔力恢复大幅提升，约{3:0.##}秒即可回满。
+			地图上若还有存活的Boss，始终不会视为脱离战斗。
+			'''
+	}
 }

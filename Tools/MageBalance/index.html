@@ -903,6 +903,13 @@ function normalizeProgression(value){
 }
 function validSaved(x){
  if(!x||x.version!==2||typeof x.nebulaManaBridge!=='boolean'||typeof x.ashenWitch!=='boolean')return false;
+ for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])]){
+  if(!Object.hasOwn(row,'flight'))continue;
+  const f=row.flight;if(!f||typeof f!=='object'||Array.isArray(f))return false;
+  const bounds={baseSpeed:[1,40],learnedSpeedBonus:[0,5],speedBonusPerLevel:[0,1],boostMultiplier:[1,3],boostManaPerSecond:[0,1000],holdSeconds:[.05,2],dashMultiplier:[1,5],dashManaCost:[0,10000],dashSeconds:[1/60,1],dashCooldownSeconds:[.1,60],handlingPercent:[1,100],dashRecoverySeconds:[1/60,.5]};
+  for(const [key,[lo,hi]] of Object.entries(bounds))if(Object.hasOwn(f,key)&&(typeof f[key]!=='number'||!Number.isFinite(f[key])||f[key]<lo||f[key]>hi))return false;
+  if((f.dashCooldownSeconds??1)<(f.dashSeconds??.4))return false;
+ }
  for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])])if(row.freezeBuildup!=null&&(typeof row.freezeBuildup!=='number'||!Number.isFinite(row.freezeBuildup)||row.freezeBuildup<0||row.freezeBuildup>100))return false;
  const d=Balance.defaults();
  for(const k of Object.keys(d))if(!(k in x))return false;
@@ -922,7 +929,7 @@ function validSaved(x){
  return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=200&&r.cdRatio>=0&&r.cdRatio<=1);
 }
 function keepKnown(template,input,property=''){
- if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0}));
+ if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0,...(v.flight?{flight:Balance.clone(v.flight)}:{})}));
  if(property==='ratioCurve')return input; // variable-length points, already checked by validBasics
  if(Array.isArray(template))return ['skills','basicAttacks','loadouts'].includes(property)?input.map(v=>keepKnown(template[0],v)):template.map((v,i)=>keepKnown(v,input[i]));
  if(template&&typeof template==='object')return Object.fromEntries(Object.keys(template).map(k=>[k,keepKnown(template[k],input[k],k)]));
@@ -1380,7 +1387,7 @@ async function localModRequest(method,payload){
  if(await handle.queryPermission(permission)!=='granted'&&await handle.requestPermission(permission)!=='granted')throw new Error('未获得所选文件的写入/读取授权，文件未修改。');
  if(method==='GET')return {path:'已授权文件 '+handle.name,data:JSON.parse((await (await handle.getFile()).text()).replace(/^\uFEFF/,''))};
  const text=JSON.stringify(payload,null,2)+'\n';
- if(new TextEncoder().encode(text).length>32*1024)throw new Error('参数超过 32 KiB，请减少技能条目或事件文本。');
+ if(new TextEncoder().encode(text).length>64*1024)throw new Error('参数超过 64 KiB，请减少技能条目或事件文本。');
  const writable=await handle.createWritable();
  try{await writable.write(text);await writable.close();}catch(error){try{await writable.abort();}catch(_){}throw error;}
  return {saved:true,path:'已授权文件 '+handle.name};

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
@@ -6,10 +6,11 @@ using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Graphics;
 using SDL2;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
 
 // FNA host for SkillWheelDrawing. Sectors use BasicEffect instead of KL's vertexDraw shader;
-// Pixel/GlowDot/DiamondFill mirror UIDrawKit's procedural formulas. Strings mirror the UI hjson.
+// Pixel/GlowDot/DiamondFill load UIDrawKit's production baked PNGs. Strings mirror the UI hjson.
 internal sealed class PreviewGame : Game
 {
     private const float CanvasWidth = 560, CanvasHeight = 480;
@@ -26,6 +27,7 @@ internal sealed class PreviewGame : Game
     ];
 
     private readonly string root, output;
+    private readonly bool dollCommands;
     private readonly Dictionary<string, Texture2D> textures = new();
     private bool rendered;
     private SpriteBatch batch;
@@ -33,10 +35,11 @@ internal sealed class PreviewGame : Game
     private Matrix transform;
     private Art art;
 
-    private PreviewGame(string root, string output)
+    private PreviewGame(string root, string output, bool dollCommands)
     {
         this.root = root;
         this.output = output;
+        this.dollCommands = dollCommands;
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
@@ -56,32 +59,15 @@ internal sealed class PreviewGame : Game
         return texture;
     }
 
-    private Texture2D Procedural(int size, Func<int, int, float> intensity)
-    {
-        var texture = new Texture2D(GraphicsDevice, size, size);
-        var data = new Color[size * size];
-        for (int y = 0; y < size; y++)
-        for (int x = 0; x < size; x++)
-            data[y * size + x] = Color.White * Math.Clamp(intensity(x, y), 0, 1);
-        texture.SetData(data);
-        return texture;
-    }
-
     protected override void LoadContent()
     {
         Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
         var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
         Content.RootDirectory = root;
         var cooldown = Content.Load<Effect>("Effects/Content/SkillSeal");
-        var pixel = new Texture2D(GraphicsDevice, 1, 1);
-        pixel.SetData(new[] { Color.White });
-        var glow = Procedural(128, (x, y) =>
-        {
-            float d = new Vector2(x - 63.5f, y - 63.5f).Length() / 63.5f;
-            return MathF.Pow(Math.Clamp(1 - d, 0, 1), 2.4f);
-        });
-        var diamond = Procedural(64, (x, y) =>
-            (.98f - (Math.Abs(x - 31.5f) / 32f + Math.Abs(y - 31.5f) / 32f)) / .06f);
+        var pixel = Texture("Effects/Tex/Baked/WhitePixel");
+        var glow = Texture("ElainaModSkills/UICore/Assets/GlowDot");
+        var diamond = Texture("ElainaModSkills/UICore/Assets/DiamondFill");
         art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond), cooldown, serif);
         basic = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, TextureEnabled = false };
     }
@@ -93,6 +79,26 @@ internal sealed class PreviewGame : Game
         SDL.SDL_HideWindow(Window.Handle);
         Directory.CreateDirectory(output);
         batch = new SpriteBatch(GraphicsDevice);
+
+        if (dollCommands)
+        {
+            int planterSlot = 0;
+            while (DollCommands.AtSlot(planterSlot) != DollCommand.PlacePlanters) planterSlot++;
+            foreach (float scale in new[] { 1f, 1.5f })
+                Render("doll-idle-chest-reach", scale, v => {
+                    Fill(v, DollCommands.Count, 1, planterSlot, planterSlot);
+                    v.ShowNumber = false;
+                    for (int i = 0; i < v.Count; i++)
+                    {
+                        v.Items[i].Cooldown = v.Items[i].Remaining = 0;
+                        v.Items[i].Stack = v.Items[i].MaxStack = 1;
+                        v.Items[i].Sealed = DollCommands.AtSlot(i) == DollCommand.Attack;
+                        v.Items[i].SealDeniedAge = 9;
+                    }
+                });
+            Exit();
+            return;
+        }
 
         foreach (int count in new[] { 1, 2, 3, 5, 8 })
             Render($"count{count}-idle", 1, v => Fill(v, count, 1, -1, 0));
@@ -177,7 +183,9 @@ internal sealed class PreviewGame : Game
         for (int i = 0; i < view.Count; i++)
         {
             int slot = view.Items[i].Slot;
-            view.Items[i].Icon = Texture("ElainaModSkills/Skills/" + (view.Items[i].Sealed ? "Ice/ShardbindSkill" : Skills[slot].Icon));
+            view.Items[i].Icon = Texture(dollCommands
+                ? DollCommands.IconPath(DollCommands.AtSlot(slot)).Substring("伊蕾娜/".Length)
+                : "ElainaModSkills/Skills/" + (view.Items[i].Sealed ? "Ice/ShardbindSkill" : Skills[slot].Icon));
         }
 
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
@@ -278,7 +286,7 @@ internal sealed class PreviewGame : Game
     [STAThread]
     private static void Main(string[] args)
     {
-        using var game = new PreviewGame(args[0], args[1]);
+        using var game = new PreviewGame(args[0], args[1], args.Length > 2 && bool.Parse(args[2]));
         game.Run();
     }
 }

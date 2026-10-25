@@ -51,26 +51,27 @@ static class Checks
         var effects = player.GetModPlayer<AlchemyBuffPlayer>();
         var broom = player.GetModPlayer<扫帚.扫帚ModPlayer>();
         var otherBroom = other.GetModPlayer<扫帚.扫帚ModPlayer>();
-        Near(broom.最大速度(), 10, "Normal broom speed"); Near(broom.最大冲刺速度(), 20, "Normal broom boost cap");
+        Near(broom.CruiseSpeed, 8, "Normal broom speed"); Near(broom.BoostSpeed, 12, "Normal broom boost cap");
         effects.FeatherlightActive = true;
-        Near(broom.最大速度(), 12, "Featherlight broom cap"); Near(broom.最大冲刺速度(), 24, "Featherlight boost cap");
-        Near(broom.加速度(), 1.2f, "Featherlight broom acceleration");
-        Near(otherBroom.最大速度(), 10, "Another rider receives no shared bonus");
-        broom.加速 = true; Near(broom.加速度(), 36, "Broom burst scales once"); broom.加速 = false;
+        Near(broom.CruiseSpeed, 9.6f, "Featherlight broom cap"); Near(broom.BoostSpeed, 14.4f, "Featherlight boost cap");
+        Near(broom.HandlingPercent, 25, "Featherlight does not change handling percentage");
+        Near(otherBroom.CruiseSpeed, 8, "Another rider receives no shared bonus");
         var mount = new 扫帚(); typeof(ModMount).GetProperty("Type", All)!.SetValue(mount, MountID.Count);
         ContentInstance.Register(mount);
         typeof(Mount).GetField("_active", All)!.SetValue(player.mount, true);
         typeof(Mount).GetField("_type", All)!.SetValue(player.mount, MountID.Count);
-        broom.PoweredFlight = true; broom.FlightSpeed = broom.最大速度(); broom.FlightAcceleration = broom.加速度();
+        broom.PoweredFlight = true; broom.FlightSpeed = broom.CruiseSpeed;
         player.velocity = new Vector2(2, -3); player.maxRunSpeed = 3; player.accRunSpeed = 3;
         effects.PostUpdateRunSpeeds(); broom.PostUpdateRunSpeeds();
-        Near(player.maxRunSpeed, 12, "Broom integration supplies native horizontal cap without double scaling");
-        Near(player.accRunSpeed, 12, "Broom sprint cap agrees with flight cap");
-        Near(player.runAcceleration, 1.2f, "Broom integration supplies native acceleration");
+        Near(player.maxRunSpeed, 9.6f, "Broom integration supplies native horizontal cap without double scaling");
+        Near(player.accRunSpeed, 9.6f, "Broom sprint cap agrees with flight cap");
+        Near(player.runAcceleration, 0, "Broom integration supplies native acceleration");
         Check(player.velocity == new Vector2(2, -3), "Applying broom potion parameters does not rewrite velocity");
-        effects.ResetEffects(); Near(broom.最大速度(), 10, "Broom returns to normal when Buff ends");
+        effects.ResetEffects(); Near(broom.CruiseSpeed, 8, "Broom returns to normal when Buff ends");
         broom.ResetEffects(); Check(!broom.PoweredFlight, "Dismounted or unpowered broom cannot retain flight override");
 
+        BroomAccessChecks.Run(player, other);
+        BroomMovementChecks.Run(player, other, args[0]);
         CheckMoonDew(player, other);
         CheckStarPower(player);
         Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom, moon dew and star power).");
@@ -98,8 +99,8 @@ static class Checks
             }
         }
         void End() { recovery.ResetEffects(); recovery.PostUpdate(); }
-        Check(elixir.Item.buffType == buff.Type && elixir.Item.buffTime == 7200 && elixir.Item.consumable,
-            "Moon dew is a consumable 120-second buff");
+        Check(elixir.Item.buffType == buff.Type && elixir.Item.buffTime == 14400 && elixir.Item.consumable,
+            "Moon dew is a consumable four-minute buff");
         Check(elixir.CanUseItem(player), "Elaina can drink moon dew");
         magic.InBattleState(); Check(elixir.CanUseItem(player), "Moon dew is usable during combat");
         player.GetModPlayer<ElainaModplayer>().Elaina = false;

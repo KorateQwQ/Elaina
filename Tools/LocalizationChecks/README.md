@@ -1,6 +1,6 @@
 # UI 本地化检查
 
-运行 `python Tools/LocalizationChecks/check.py` 检查中英文 UI 键集合、格式参数、调用覆盖和英文值中的中文漏项。读取器支持本项目的单行 UI 值及 tModLoader 自动整理后的嵌套分组；完整 HJSON 解析由预览器使用 tModLoader 附带的 Hjson.dll 完成。
+先运行 `& Tools/LocalizationChecks/parse.ps1`，使用 tModLoader 附带的 Hjson.dll 解析全部本地化文件，再运行 `python Tools/LocalizationChecks/check.py` 检查中英文 UI 键集合、格式参数、调用覆盖和英文值中的中文漏项。Python 读取器支持本项目的单行 UI 值及 tModLoader 自动整理后的嵌套分组，但不能代替完整 HJSON 语法校验。以 `{0}` 等保留符号开头的文案必须用双引号包裹。
 
 英文绘制检查：
 

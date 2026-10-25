@@ -45,8 +45,8 @@ internal static class PotionBehaviorChecks
         // Native AddBuff/UpdateBuffs gives exactly one slot and refreshes duration.
         int focus = ModContent.BuffType<ConcentrationBuff>();
         player.AddBuff(focus, 300);
-        player.AddBuff(focus, 18000);
-        Check(player.buffType.Count(t => t == focus) == 1 && player.buffTime[player.FindBuffIndex(focus)] == 18000,
+        player.AddBuff(focus, 14400);
+        Check(player.buffType.Count(t => t == focus) == 1 && player.buffTime[player.FindBuffIndex(focus)] == 14400,
             "Repeated drinks refresh a single vanilla Buff slot");
         effects.ResetEffects();
         player.UpdateBuffs(0);

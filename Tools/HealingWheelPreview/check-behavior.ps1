@@ -8,6 +8,8 @@ foreach ($entry in @(
     @('Reference', (Join-Path $Tml 'Libraries/FNA/1.0.0/FNA.dll')),
     @('Compile', (Join-Path $PSScriptRoot 'BehaviorChecks.cs.txt')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/Heal/HealSkill.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/Heal/HealSkill.Values.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/SkillBalanceConfig.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/Heal/HealProj.Healing.cs')))) {
     $node = $project.CreateElement($entry[0])
     $node.SetAttribute('Include', $entry[1])
@@ -15,5 +17,5 @@ foreach ($entry in @(
 }
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
-dotnet run --project $projectPath --verbosity quiet
+dotnet run --project $projectPath --verbosity quiet -- $repo
 if ($LASTEXITCODE -ne 0) { throw 'Healing behavior checks failed.' }

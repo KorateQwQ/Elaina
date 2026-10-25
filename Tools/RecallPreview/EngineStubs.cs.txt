@@ -1,4 +1,4 @@
-global using System;
+﻿global using System;
 global using System.Collections.Generic;
 global using Microsoft.Xna.Framework;
 global using Microsoft.Xna.Framework.Graphics;
@@ -15,6 +15,8 @@ namespace Terraria
     {
         public const int maxPlayers = 12, maxProjectiles = 100;
         public static int netMode, myPlayer, maxTilesX = 2000, maxTilesY = 800, spawnTileX = 100, spawnTileY = 200;
+        public static double worldSurface = 250, rockLayer = 400;
+        public static int UnderworldLayer => maxTilesY - 200;
         public static Player[] player = new Player[maxPlayers];
         public static Projectile[] projectile = new Projectile[maxProjectiles];
         public static IEnumerable<Projectile> ActiveProjectiles => projectile.Where(p => p.active);
@@ -23,7 +25,11 @@ namespace Terraria
         public static Main instance = new();
         public static SpriteBatch spriteBatch;
         public static Vector2 MouseWorld, screenPosition;
-        public void MouseText(string text) { }
+        public static int screenWidth = 1280, screenHeight = 720;
+        public sealed class View { public Matrix TransformationMatrix = Matrix.Identity; }
+        public static View GameViewMatrix = new();
+        public static string HoverText;
+        public void MouseText(string text) { HoverText = text; }
         public static List<string> Notices = [];
         public static void NewText(string text) => Notices.Add(text);
         public static void QueueMainThreadAction(Action action) => action();
@@ -31,6 +37,7 @@ namespace Terraria
     public sealed class Player
     {
         public int whoAmI, team, SpawnX = -1, SpawnY = -1, width = 20, height = 42, fallStart, fallStart2, Teleports;
+        public string name = "Elaina";
         public bool active, dead, hostile, mouseInterface, controlUseItem = true, controlUseTile = true;
         public Vector2 position, velocity;
         public Vector2 Center { get => position + new Vector2(width / 2f, height / 2f); set => position = value - new Vector2(width / 2f, height / 2f); }
@@ -110,6 +117,8 @@ namespace Terraria.ModLoader
     public class ModPlayer { public Player Player; public virtual void OnEnterWorld() { } public virtual void PreUpdate() { } public virtual void SetControls() { } public virtual void SyncPlayer(int toWho, int fromWho, bool newPlayer) { } }
     public class ModProjectile
     {
+        public int Type => 1;
+        public virtual void SetStaticDefaults() { }
         public Projectile Projectile;
         public virtual string Texture => "";
         public virtual void SetDefaults() { }
@@ -118,7 +127,11 @@ namespace Terraria.ModLoader
         public virtual void AI() { }
         public virtual bool PreDraw(ref Color color) => true;
     }
-    public static class ModContent { public static T GetInstance<T>() where T : new() => new(); public static int ProjectileType<T>() => 1; }
+    public static class ModContent {
+        public static T GetInstance<T>() where T : new() => new(); public static int ProjectileType<T>() => 1;
+        public static ReLogic.Content.Asset<T> Request<T>(string path, ReLogic.Content.AssetRequestMode mode) =>
+            throw new NotSupportedException("Gameplay-only fixture does not load textures: " + path);
+    }
     public sealed class Mod { public ModPacket GetPacket() => new(); }
     public sealed class ModPacket : BinaryWriter
     {
@@ -134,6 +147,7 @@ namespace Terraria.ModLoader
 }
 namespace Terraria.ID
 {
+    public static class ProjectileID { public static class Sets { public static int[] DrawScreenCheckFluff = new int[2]; } }
     public static class NetmodeID { public const int SinglePlayer = 0, MultiplayerClient = 1, Server = 2; }
     public static class TeleportationStyleID { public const int RecallPotion = 3; }
     public static class MessageID { public const int SyncProjectile = 27; }
@@ -144,7 +158,10 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Recall
 {
     internal static class RecallPortalVisual
     {
-        public static void Request(Vector2 screenCenter, float radius, float age, int delay, int lifetime, bool destination, bool hovered, float burstStart) { }
+        public static int Requests;
+        public static Vector2 LastCenter;
+        public static void Request(Vector2 screenCenter, float radius, float age, int delay, int lifetime, bool destination, bool hovered, float burstStart)
+        { Requests++; LastCenter = screenCenter; }
     }
 }
 namespace 伊蕾娜 { public class 伊蕾娜 { public enum MessageType : byte { RecallPortal } } }
@@ -155,7 +172,7 @@ namespace KL.ActionsSystem
     public class ActionModPlayer { public int Calls; public void StartAction(object action, float rotation) => Calls++; }
 }
 namespace 伊蕾娜.ElainaActions { public class Action_SimpleShoot { } }
-namespace 伊蕾娜.Localization { public static class UIText { public static string LocalizeUI(string key) => key; } }
+namespace 伊蕾娜.Localization { public static class UIText { public static string LocalizeUI(string key, params object[] args) => key + (args.Length == 0 ? "" : ":" + string.Join("|", args)); } }
 namespace 伊蕾娜.ElainaAttribute
 {
     public class ElainaAttributeModPlayer
@@ -171,6 +188,7 @@ namespace 伊蕾娜.ElainaModSkills
     public sealed class SkillStub { public int SkillSlot; }
     public class ElainaSkill
     {
+        public virtual int MaxLevel => 5;
         public Player Player;
         public int Stack = 1;
         public float MaxCD, MagicPointCost;
@@ -204,3 +222,5 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI
         public static void Reset() { OwnsPointer = false; Opens = 0; ElainaSkillWheel.IsShowing = false; }
     }
 }
+
+namespace ReLogic.Content { public enum AssetRequestMode { ImmediateLoad } public sealed class Asset<T> { public T Value; } }

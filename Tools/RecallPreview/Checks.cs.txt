@@ -46,8 +46,119 @@ static class Checks
     }
     static void Main()
     {
-        Selection(); TimingAndTravel(); Lifecycle(); Input(); TransitionChecks(); NetworkChecks.Run(Check);
+        Selection(); TimingAndTravel(); Lifecycle(); Input(); AtSpawn(); Overlap(); TransitionChecks(); NetworkChecks.Run(Check);
         Console.WriteLine($"PASS: {passed} recall behavior assertions (production source, engine/network doubles).");
+    }
+    static void AtSpawn()
+    {
+        foreach (float offset in new[] { 0f, 80f })
+        {
+            Setup(); P(0).Bottom = RecallPortalSystem.HomeFoot(P(0)) + new Vector2(offset, 0);
+            RecallPortalSystem.Cast(P(0), 0); Tick(90); RecallPortalPresentation.Refresh();
+            var origin = Portal(); var exit = Portal(1);
+            Check(origin.DisplayCenter != exit.DisplayCenter && P(0).Bottom == exit.DisplayCenter,
+                "Casting at/near spawn arrives at the visible displaced exit");
+            foreach (var departure in new[] { exit, origin })
+            {
+                Tick(45); P(0).mouseInterface = false;
+                TMain.MouseWorld = departure.DisplayCenter; TMain.mouseRight = TMain.mouseRightRelease = true;
+                Vector2 before = P(0).Bottom;
+                P(0).GetModPlayer<RecallPortalPlayer>().SetControls();
+                Vector2 expected = departure == exit ? origin.DisplayCenter : exit.DisplayCenter;
+                Check(P(0).Bottom == expected && P(0).Bottom != before,
+                    "Right-click at spawn moves between the two visible circles, never in place");
+            }
+        }
+    }
+    static void Overlap()
+    {
+        Setup(); RecallPortalSystem.Cast(P(0), 0); Tick(135);
+        RecallPortalPresentation.Refresh();
+        Check(RecallPortalPresentation.Tooltip(P(0), Portal(1)) == "RecallInteract",
+            "A single pair's two endpoints do not enable destination details");
+        P(1).active = true;
+        Check(RecallPortalPresentation.Tooltip(P(0), Portal(1)) == "RecallInteract",
+            "Another player without a recall pair does not enable destination details");
+        Setup(); P(1).active = true; P(1).name = "Second caster";
+        RecallPortalSystem.Cast(P(0), 0);
+        Vector2 secondOrigin = new(2400, 1600);
+        P(1).Bottom = secondOrigin; TMain.myPlayer = 1; RecallPortalSystem.Cast(P(1), 1); TMain.myPlayer = 0;
+        Tick(135);
+        var first = Portal(1);
+        var second = TMain.ActiveProjectiles.Select(p => (RecallPortalProjectile)p.ModProjectile).Single(p => p.Projectile.owner == 1 && p.Side == 1);
+        RecallPortalPresentation.Refresh();
+        Check(first.Projectile.Center == second.Projectile.Center && first.DisplayCenter != second.DisplayCenter,
+            "Shared spawn anchors produce distinct visible destinations");
+        Check(P(1).Bottom == second.DisplayCenter, "Second caster initially arrives at the displaced home circle");
+        Check(!first.Hovered(second.DisplayCenter) && !second.Hovered(first.DisplayCenter), "Separated hit regions do not overlap");
+        Color light = Color.White;
+        TMain.screenPosition = second.DisplayCenter - new Vector2(640, 360);
+        RecallPortalVisual.Requests = 0; second.PreDraw(ref light);
+        Check(RecallPortalVisual.Requests == 1 && RecallPortalVisual.LastCenter == new Vector2(640, 360),
+            "PreDraw submits the displayed position, matching mouse hit testing");
+        TMain.screenPosition = new Vector2(20000, 1000); second.PreDraw(ref light);
+        Check(RecallPortalVisual.Requests == 1, "Offscreen display centers submit no bloom geometry");
+        TMain.screenPosition = Vector2.Zero;
+        TMain.MouseWorld = second.DisplayCenter;
+        Check(RecallPortalPlayer.FindHovered(P(0)) == null, "The old shared anchor does not retain an invisible interaction region");
+        P(0).Bottom = second.DisplayCenter;
+        Check(RecallPortalPlayer.FindHovered(P(0)) == second, "Shared home selects the second caster by displayed center");
+        P(0).GetModPlayer<RecallPortalPlayer>().SetControls();
+        Check(TMain.HoverText.Contains("Second caster") && TMain.HoverText.Contains("RecallDepthSurface|150|100"),
+            "Tooltip names the caster and the other endpoint's original tile coordinates");
+        // 站在错位后的图形旁，已超出原始阵心半径，也应能通过服务器校验。
+        P(0).Bottom = second.DisplayCenter;
+        TMain.mouseRight = TMain.mouseRightRelease = true;
+        P(0).GetModPlayer<RecallPortalPlayer>().SetControls();
+        Check(P(0).Bottom == secondOrigin, "Clicking displaced second exit travels to second caster's original origin");
+        var secondStart = (RecallPortalProjectile)TMain.ActiveProjectiles.Single(p => p.owner == 1 &&
+            ((RecallPortalProjectile)p.ModProjectile).Side == 0).ModProjectile;
+        Check(RecallPortalPresentation.Tooltip(P(0), secondStart).Contains("RecallDepthSurface|122|200"),
+            "Destination tooltip reports displaced exit coordinates instead of its shared anchor");
+        Tick(45); RecallPortalSystem.RequestTravel(P(0), secondStart);
+        Check(P(0).Bottom == second.DisplayCenter, "Forward travel lands at the same visible displaced home circle");
+        P(0).mouseInterface = false; P(0).Bottom = new Vector2(30000, 1000); TMain.mouseRight = false;
+        TMain.MouseWorld = second.DisplayCenter;
+        Check(RecallPortalPlayer.FindHovered(P(0)) == null && RecallPortalPlayer.FindHovered(P(0), true) == second,
+            "Distant players can inspect destination without reserving travel input");
+        P(0).GetModPlayer<RecallPortalPlayer>().SetControls();
+        Check(TMain.HoverText.Contains("RecallMoveCloser"), "Distant hover explains travel range");
+        P(0).Bottom = second.DisplayCenter; P(0).team = 2;
+        Check(!RecallPortalPresentation.CanTravel(P(0), second) && RecallPortalPresentation.Tooltip(P(0), second).Contains("RecallAlliesOnly"),
+            "Offset cannot bypass ally restriction");
+        P(0).team = 0;
+        second.Projectile.ai[1] = 20;
+        Check(!RecallPortalPresentation.CanTravel(P(0), second) && RecallPortalPresentation.Tooltip(P(0), second).Contains("RecallCharging"),
+            "Charging circles expose their destination without allowing travel");
+        var counterpart = TMain.ActiveProjectiles.Single(p => p.owner == 1 && ((RecallPortalProjectile)p.ModProjectile).Side == 0);
+        counterpart.Kill();
+        Check(!RecallPortalPresentation.CanTravel(P(0), second) && RecallPortalPresentation.Tooltip(P(0), second).Contains("RecallLinkPending"),
+            "Missing counterpart never invents a destination or consumes travel input");
+        first.Projectile.Kill(); RecallPortalPresentation.Refresh();
+        Check(second.DisplayCenter == second.Projectile.Center, "Remaining circle returns to its original center");
+        TMain.ActiveProjectiles.Single(p => p.owner == 0).Kill();
+        Check(RecallPortalPresentation.Tooltip(P(0), second) == "RecallLinkPending",
+            "Details disappear immediately when only one pair remains, including a missing counterpart");
+
+        Check(RecallPortalPresentation.DepthKey(50) == "RecallDepthSky" &&
+            RecallPortalPresentation.DepthKey(250) == "RecallDepthSurface" &&
+            RecallPortalPresentation.DepthKey(400) == "RecallDepthUnderground" &&
+            RecallPortalPresentation.DepthKey(600) == "RecallDepthCaverns" &&
+            RecallPortalPresentation.DepthKey(601) == "RecallDepthUnderworld", "Depth boundary labels use world metadata only");
+        // 相邻但并非完全相同的阵心、世界边界、不同到包顺序。
+        foreach (float x in new[] { 170f, 16000f, 31830f })
+        {
+            var entries = Enumerable.Range(0, 10).Select(i => new RecallPortalLayout.Entry(i, 1, 1, new Vector2(x + i % 2 * 8, 3000))).ToList();
+            RecallPortalLayout.Arrange(entries, 32000);
+            var expected = entries.ToDictionary(e => e.Owner, e => e.Center);
+            entries.Reverse(); RecallPortalLayout.Arrange(entries, 32000);
+            Check(entries.All(e => e.Center == expected[e.Owner]), "Layout is independent of projectile enumeration order");
+            Check(entries.All(e => e.Center.X >= 160 && e.Center.X <= 31840), "Displaced circles stay within horizontal world bounds");
+            for (int i = 0; i < entries.Count; i++)
+            for (int j = i + 1; j < entries.Count; j++)
+                Check(Math.Abs(entries[i].Center.X - entries[j].Center.X) >= RecallPortalLayout.HorizontalSpacing ||
+                    Math.Abs(entries[i].Center.Y - entries[j].Center.Y) >= RecallPortalLayout.VerticalSpacing, "Nearby circles remain visibly separated");
+        }
     }
     static void TransitionChecks()
     {
@@ -232,6 +343,12 @@ static class Checks
         Check(P(0).Teleports == 2, "Skill wheel prevents world interaction");
         ElainaSkillWheel.IsShowing = false; state.SetControls();
         Check(P(0).Teleports == 3, "A fresh right click allows return travel");
+        Tick(45); P(0).mouseInterface = false; TMain.playerInventory = true;
+        TMain.MouseWorld = Portal(1).Projectile.Center; TMain.mouseRight = TMain.mouseRightRelease = true;
+        state.SetControls();
+        Check(P(0).Teleports == 4 && !TMain.mouseRightRelease,
+            "Open inventory does not block recall portal travel outside inventory controls");
+        TMain.playerInventory = false;
         Check(RecallPortalDrawing.Contains(new Vector2(160, 0), 160) &&
             !RecallPortalDrawing.Contains(new Vector2(0, 49), 160), "Hover matches visible ellipse boundary");
     }

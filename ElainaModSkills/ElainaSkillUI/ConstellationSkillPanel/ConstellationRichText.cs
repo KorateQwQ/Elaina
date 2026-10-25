@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using KL.Drawing;
 using KL.Drawing.Snippets;
 using Microsoft.Xna.Framework;
+using ReLogic.Graphics;
 using SilkyUIFramework.Components;
 using SilkyUIFramework.Helper;
 using Terraria.GameContent;
@@ -17,7 +18,11 @@ internal sealed class ConstellationRichText
 {
     private readonly List<SnippetModule> _lines = [];
     private readonly float _scale, _lineHeight;
+    // Registered KL terms (icon plus same-colored name) in paragraph coordinates, for hover explanations.
+    internal readonly List<(Rectangle Area, KLTerm Term)> Terms = [];
     internal float Height => _lines.Count * _lineHeight;
+    // Widest line in design units, so tooltips can shrink to their content.
+    internal float Width { get; private set; }
 
     internal ConstellationRichText(string text, float width, float size, float lineHeight, Color color)
     {
@@ -29,22 +34,36 @@ internal sealed class ConstellationRichText
         float used = 0;
         void Commit()
         {
+            FindTerms(line, font, color);
             var module = new SnippetModule();
             module.UpdateProperties(font, float.MaxValue, 0);
             module.FromSnippets(line);
             _lines.Add(module);
+            Width = Math.Max(Width, used);
             line = []; used = 0;
         }
         void Add(TextSnippet snippet, float reserve = 0)
         {
             float advance = (snippet.GetStringLength(font) + font.CharacterSpacing * snippet.Scale) * _scale;
-            if (line.Count > 0 && used + advance + reserve > width) Commit();
+            if (line.Count > 0 && used + advance + reserve > width)
+            {
+                Commit();
+                // The space that overflowed a line must not indent the next one.
+                if (snippet is not KLTextureSnippet && string.IsNullOrWhiteSpace(snippet.Text)) return;
+            }
             line.Add(snippet); used += advance;
         }
         foreach (var snippet in source)
         {
             if (snippet is KLTextureSnippet texture)
                 texture.SetFontScale(font.LineSpacing / (float)Math.Max(1, FontAssets.MouseText.Value.LineSpacing), 10.5f);
+            // Keep a term's icon and its (short) name together on one line.
+            if (snippet is KLTextureSnippet { Path: var path } && KLTerms.Find(path) != null)
+            {
+                int next = source.IndexOf(snippet) + 1;
+                Add(snippet, next < source.Count ? (font.MeasureString(source[next].Text).X + font.CharacterSpacing) * _scale : 0);
+                continue;
+            }
             if (snippet is not PlainTagHandler.PlainSnippet) { Add(snippet); continue; }
             foreach (Match match in Regex.Matches(snippet.Text, @"[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|[^\r]"))
             {
@@ -60,6 +79,39 @@ internal sealed class ConstellationRichText
             }
         }
         if (line.Count > 0) Commit();
+    }
+
+    // Mirrors SnippetModule.DrawText advances in design units: character spacing plus each snippet's width.
+    private void FindTerms(List<TextSnippet> line, DynamicSpriteFont font, Color baseColor)
+    {
+        float x = 0, start = 0;
+        KLTerm term = null;
+        Color? name = null;
+        void Close(float end)
+        {
+            if (term != null && name != null)
+                Terms.Add((new Rectangle((int)MathF.Floor(start), (int)MathF.Floor(_lines.Count * _lineHeight),
+                    (int)MathF.Ceiling(end - start), (int)MathF.Ceiling(_lineHeight)), term));
+            term = null; name = null;
+        }
+        foreach (var snippet in line)
+        {
+            float width = snippet.UniqueDraw(true, out var size, null, default, default, _scale * snippet.Scale)
+                ? size.X : font.MeasureString(snippet.Text).X * _scale * snippet.Scale;
+            if (snippet is KLTextureSnippet texture)
+            {
+                Close(x);
+                term = KLTerms.Find(texture.Path);
+                start = x;
+            }
+            else if (term != null)
+            {
+                name ??= snippet.Color == baseColor ? null : snippet.Color;
+                if (name != snippet.Color) Close(x);
+            }
+            x += width + font.CharacterSpacing * _scale * snippet.Scale;
+        }
+        Close(x);
     }
 
     internal void Draw(ConstellationDrawing drawing)

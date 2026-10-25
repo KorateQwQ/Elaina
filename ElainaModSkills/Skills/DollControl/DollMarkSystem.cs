@@ -1,6 +1,10 @@
 using System;
+using KL.Drawing;
 using Terraria.GameContent;
+using Terraria.GameInput;
+using Terraria.Localization;
 using Terraria.UI;
+using 伊蕾娜.ElainaModSkills.UICore;
 using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
@@ -13,6 +17,8 @@ public sealed class DollMarkSystem : ModSystem
 {
     private static readonly Color TileColor = new(255, 196, 92), WallColor = new(110, 196, 255),
         AddColor = new(150, 235, 160), RemoveColor = new(240, 120, 130);
+    // 操作条主按钮两端的四芒星与炼金手记共用同一图集。
+    private const string StarsPath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookStars";
 
     private List<Point> _chain = [];
     private Point _chainAt = new(-1, -1);
@@ -35,7 +41,22 @@ public sealed class DollMarkSystem : ModSystem
             float pulse = .5f + .5f * MathF.Sin(Main.GlobalTimeWrappedHourly * 4f);
             DrawMarks(batch, commands.WallMarks, WallColor, view, pulse);
             DrawMarks(batch, commands.TileMarks, TileColor, view, pulse);
-            if (commands.Tool is { } tool) DrawPreview(batch, commands, tool, view);
+            foreach (Point p in commands.PlanterMarks.Keys)
+                if (view.Contains(p)) DrawPlanter(batch, p, false, .6f + .3f * pulse);
+            if (commands.Tool is { } tool)
+            {
+                bool planting = tool == DollCommand.PlacePlanters;
+                if (planting)
+                {
+                    foreach (Point p in commands.DraftMarks)
+                        if (view.Contains(p)) DrawPlanter(batch, p, false, .9f);
+                }
+                else DrawMarks(batch, commands.DraftMarks, AddColor, view, pulse);
+                var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale, planting);
+                Vector2 pointer = new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale;
+                if (!Main.LocalPlayer.mouseInterface && !Main.mapFullscreen && !Main.blockMouse
+                    && !commands.MaterialMenu && !layout.Panel.Contains(pointer.ToPoint())) DrawPreview(batch, commands, tool, view);
+            }
         }
         finally
         {
@@ -61,8 +82,24 @@ public sealed class DollMarkSystem : ModSystem
 
     private void DrawPreview(SpriteBatch batch, DollCommandPlayer commands, DollCommand tool, Rectangle view)
     {
+        if (tool == DollCommand.PlacePlanters)
+        {
+            Rectangle planterArea = DollPlanterBuilding.Area(commands.DragStart ?? commands.HoverTile, commands.HoverTile);
+            int firstY = planterArea.Top + 1 + Math.Max(0, (view.Top - planterArea.Top - 1) / 2) * 2;
+            for (int y = firstY; y < Math.Min(planterArea.Bottom, view.Bottom); y += 2)
+                for (int x = Math.Max(planterArea.Left, view.Left); x < Math.Min(planterArea.Right, view.Right); x++)
+                {
+                    Point p = new(x, y);
+                    bool invalid = commands.DraftMarks.Contains(p) || !commands.CanDraftPlanter(p) || commands.DraftOverlaps(p);
+                    DrawPlanter(batch, p, invalid, .8f);
+                }
+            Rectangle bounds = Cell(new Point(planterArea.X, planterArea.Y));
+            bounds.Width = planterArea.Width * 16; bounds.Height = planterArea.Height * 16;
+            Outline(batch, bounds, Color.White * .8f);
+            return;
+        }
         bool walls = DollCommands.TargetsWalls(tool);
-        HashSet<Point> marks = walls ? commands.WallMarks : commands.TileMarks;
+        HashSet<Point> marks = commands.DraftMarks;
         Point hover = commands.HoverTile;
         Color toolColor = walls ? WallColor : TileColor;
 
@@ -113,6 +150,10 @@ public sealed class DollMarkSystem : ModSystem
         return new Rectangle((int)position.X, (int)position.Y, 16, 16);
     }
 
+    private static void DrawPlanter(SpriteBatch batch, Point p, bool invalid, float opacity) =>
+        DollPlanterDrawing.Draw(batch, TextureAssets.MagicPixel.Value,
+            new Vector2(p.X * 16, p.Y * 16) - Main.screenPosition, invalid, opacity);
+
     private static void Edge(SpriteBatch batch, int x, int y, int width, int height, Color color) =>
         batch.Draw(TextureAssets.MagicPixel.Value, new Rectangle(x, y, width, height), color);
 
@@ -128,21 +169,79 @@ public sealed class DollMarkSystem : ModSystem
     {
         int index = layers.FindIndex(layer => layer.Name == "Vanilla: Mouse Text");
         if (index >= 0)
-            layers.Insert(index, new LegacyGameInterfaceLayer("伊蕾娜: Doll Command Hint", DrawHint, InterfaceScaleType.UI));
+            layers.Insert(index, new LegacyGameInterfaceLayer("伊蕾娜: Doll Selection", DrawSelectionBar, InterfaceScaleType.UI));
     }
 
-    /// <summary>标记工具生效时在指针旁显示当前指令与操作提示，提醒右键可退出框选。</summary>
-    private static bool DrawHint()
+    /// <summary>固定在屏幕下方的选区操作条；鼠标旁不再跟随整段说明。</summary>
+    private static bool DrawSelectionBar()
     {
-        if (Main.myPlayer < 0 || Main.LocalPlayer.GetModPlayer<DollCommandPlayer>().Tool is not { } tool) return true;
-        SpriteBatch batch = Main.spriteBatch;
-        Vector2 at = Main.MouseScreen + new Vector2(20, 18);
+        if (Main.gameMenu || Main.myPlayer < 0 || Main.mapFullscreen || Main.inFancyUI
+            || Main.drawingPlayerChat || Main.editSign || Main.editChest) return true;
+        DollCommandPlayer commands = Main.LocalPlayer.GetModPlayer<DollCommandPlayer>();
+        if (commands.Tool is not { } tool) return true;
+        bool walls = DollCommands.TargetsWalls(tool);
+        bool planting = tool == DollCommand.PlacePlanters;
+        var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale, planting);
+        Vector2 pointer = new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale;
+        if (layout.Panel.Contains(pointer.ToPoint())) Main.LocalPlayer.mouseInterface = true;
         Texture2D icon = ModContent.Request<Texture2D>(DollCommands.IconPath(tool)).Value;
-        batch.Draw(icon, at, null, Color.White, 0, Vector2.Zero, 28f / Math.Max(icon.Width, icon.Height), SpriteEffects.None, 0);
-        Vector2 text = at + new Vector2(32, 0);
-        Utils.DrawBorderString(batch, LocalizeUI("DollCommand" + tool), text, DollCommands.TargetsWalls(tool) ? WallColor : TileColor, .85f);
-        string hint = LocalizeUI(DollCommands.IsChain(tool) ? "DollMarkHintChain" : "DollMarkHintRect");
-        Utils.DrawBorderString(batch, hint, text + new Vector2(0, 20), new Color(236, 225, 247), .75f);
+        var art = new DollSelectionBarDrawing.Art(TextureAssets.MagicPixel.Value,
+            ModContent.Request<Texture2D>(StarsPath).Value, UIDrawKit.TitleFont,
+            FontManager.HarmonyOS_Sans_SC?.Value ?? FontAssets.MouseText.Value);
+        DollSelectionBarDrawing.MaterialMenuView? menu = null;
+        if (planting && commands.MaterialMenu)
+        {
+            var options = commands.MaterialMenuOptions;
+            var menuLayout = DollSelectionBarDrawing.GetMaterialMenuLayout(layout, options.Count, commands.MaterialMenuOffset);
+            if (menuLayout.Panel.Contains(pointer.ToPoint()))
+            {
+                Main.LocalPlayer.mouseInterface = true;
+                PlayerInput.LockVanillaMouseScroll("Elaina:DollMaterials");
+            }
+            int selected = commands.SelectedPlanter;
+            List<DollSelectionBarDrawing.MaterialMenuEntry> entries = [];
+            foreach (var option in options)
+                entries.Add(new(Material(option.Type, option.Count), option.Type == selected));
+            menu = new(menuLayout, entries, LocalizeUI("DollChoosePlanter"),
+                LocalizeUI("DollMaterialNone"));
+        }
+        // 数量文案保留 {0}，由绘制拆开后单独画数字。
+        string countFormat = Language.GetTextValue("Mods.伊蕾娜.UI." + (planting ? "DollSelectionPlanters" : walls ? "DollSelectionWalls" : "DollSelectionTiles"));
+        DollSelectionBarDrawing.Draw(Main.spriteBatch, art, icon, layout, pointer, Main.UIScale,
+            LocalizeUI("DollCommand" + DollCommands.BaseCommand(tool)), countFormat, commands.DraftMarks.Count,
+            LocalizeUI(planting ? "DollSelectionEmptyPlanters" : walls ? "DollSelectionEmptyWalls" : "DollSelectionEmptyTiles"),
+            LocalizeUI(planting ? "DollPlanterHint" : DollCommands.IsChain(tool) ? "DollMarkHintChain" : "DollMarkHintRect"),
+            LocalizeUI(planting ? "DollSelectionStartPlanters" : walls ? "DollSelectionStartWalls" : "DollSelectionStart"), LocalizeUI("DollSelectionExit"),
+            planting ? Material() : null,
+            planting ? commands.CanStartPlanting : commands.DraftBlockReason == null,
+            menu, commands.MaterialMenu, planting ? null : LocalizeUI("DollBringBackItems"), commands.BringBackItems,
+            planting ? null : LocalizeUI(walls ? "DollChainWalls" : "DollChainMining"), DollCommands.IsChain(tool),
+            LocalizeUI("DollToggleOn"), LocalizeUI("DollToggleOff"),
+            !planting && commands.DraftBlockReason != null ? LocalizeUI(commands.DraftBlockReason) : null);
         return true;
+
+        DollSelectionBarDrawing.MaterialOption Material(int? choice = null, int? stock = null)
+        {
+            int type = choice ?? commands.SelectedPlanter;
+            int owned = stock ?? DollPlanterBuilding.Count(commands.Player, type);
+            int required = choice.HasValue ? 0 : commands.DraftMarks.Count;
+            Texture2D texture = null;
+            Rectangle source = default;
+            if (type > 0)
+            {
+                Main.instance.LoadItem(type);
+                texture = TextureAssets.Item[type].Value;
+                source = Main.itemAnimations[type]?.GetFrame(texture) ?? texture.Bounds;
+            }
+            string label = choice.HasValue
+                ? Language.GetTextValue("Mods.伊蕾娜.UI.DollMaterialListOption", Lang.GetItemNameValue(type), owned)
+                : Language.GetTextValue("Mods.伊蕾娜.UI.DollMaterialOption",
+                LocalizeUI("DollPlanterLabel"),
+                type > 0 ? Lang.GetItemNameValue(type) : LocalizeUI("DollMaterialNone"), owned, required);
+            if (!choice.HasValue && !commands.MaterialMenu
+                && layout.Planter.Contains(pointer.ToPoint()))
+                Main.instance.MouseText(LocalizeUI("DollMaterialHint"));
+            return new(texture, source, label, owned >= Math.Max(1, required));
+        }
     }
 }

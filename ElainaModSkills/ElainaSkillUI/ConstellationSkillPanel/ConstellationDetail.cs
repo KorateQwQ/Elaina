@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using KL.SkillSystem;
 using Microsoft.Xna.Framework;
+using 伊蕾娜.System.UI;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
@@ -22,6 +23,8 @@ internal sealed class ConstellationDetail
     internal const int Left = 776, Width = 276;
     internal const float ActionTop = 670, ActionHeight = 36;
     private const float FooterRowGap = 9, FooterRowHeight = 18, FooterLack = 18, MaxFooterRows = 4;
+    // Underline offset inside a 24px description line, just below the 13px glyphs.
+    private const float TermUnderline = 20.5f;
     internal readonly List<ConstellationDetailRow> Rows = [];
     internal float Top => 303;
     internal bool Owned { get; }
@@ -90,7 +93,14 @@ internal sealed class ConstellationDetail
         {
             Heading(LocalizeUI("Effect"));
             var paragraph = new ConstellationRichText(description, Width, 13, 24, Ink * .86f);
-            Add(paragraph.Height + 4, (d, _) => paragraph.Draw(d));
+            Add(paragraph.Height + 4, (d, hover) =>
+            {
+                paragraph.Draw(d);
+                // A faint underline marks terms that explain themselves on hover.
+                foreach (var (area, term) in paragraph.Terms)
+                    d.Line(new Vector2(area.X + 1, area.Y + TermUnderline), new Vector2(area.Right - 2, area.Y + TermUnderline),
+                        term.Color * (hover == "term:" + term.IconPath ? .85f : .35f));
+            }, paragraph.Terms.Select(t => new ConstellationDetailAction(t.Area, "term", t.Term.IconPath, t.Term.Name())).ToArray());
         }
 
         if (node.toggleable)
@@ -243,6 +253,14 @@ internal sealed class ConstellationDetail
         else d.Text(unit, unitLeft, 28, 10, Muted, spacing: 1);
     }
 
+    // Chevrons in the gaps above and below the scrolling body while lines stay hidden there.
+    internal void DrawScrollHints(ConstellationDrawing d, float position, float seconds)
+    {
+        float hiddenBelow = ContentHeight - Height - position;
+        ScrollHint.Draw(d.Line, new Vector2(Left + Width / 2f, Top - 7), -1, seconds, Lavender, ScrollHint.Amount(position));
+        ScrollHint.Draw(d.Line, new Vector2(Left + Width / 2f, Bottom + 6), 1, seconds, Lavender, ScrollHint.Amount(hiddenBelow));
+    }
+
     // Pinned above the action bar, in panel design coordinates.
     internal void DrawFooter(ConstellationDrawing d)
     {
@@ -311,6 +329,13 @@ internal sealed class ConstellationDetail
             }
         }
     }
+
+    // Design-space tooltip anchor for a row action. Terms span the column so their card opens on
+    // the map side instead of covering the paragraph being read.
+    internal static Rectangle TooltipAnchor(ConstellationDetailAction action, Vector2 row)
+        => action.Kind == "term"
+            ? new Rectangle((int)row.X, (int)row.Y + action.Area.Y, Width, action.Area.Height)
+            : new Rectangle((int)row.X + action.Area.X, (int)row.Y + action.Area.Y, action.Area.Width, action.Area.Height);
 
     internal static Rectangle PillArea(ConstellationPill pill)
     {

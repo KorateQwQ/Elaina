@@ -10,13 +10,20 @@ namespace 伊蕾娜.ElainaAttribute;
 internal sealed class PortraitHudDrawing
 {
     public const float Radius = 25, Band = 27.6f, Outer = 31.6f;
-    // Centre relative to the life bar origin (HTML: PR = {x:-45, y:37} against a bar top of 18).
-    public static readonly Vector2 Offset = new(-45, 19);
-    private const float LevelSize = 9, LevelY = 7.5f, FlourishGap = 1.8f, FontEm = 48;
+    public const float DisplayScale = 1.4f, DisplayOuter = Outer * DisplayScale;
+    // Leave room for the larger crown above and the mana ornament to the right.
+    public static readonly Vector2 Offset = new(-70, 40);
+    private const float LevelSize = 12, LevelY = 10, FlourishGap = 2.5f, FontEm = 48;
+    // The number centre hangs 2 px below the diamond tip (Outer + 2 - LevelY): it covers only the white outline.
+    public static readonly Vector2 LevelAnchor = new(0, 23.6f);
+    // Soft dark halo where the number crosses the outline: 8 offset copies per ring, (radius, opacity).
+    private static readonly (float Radius, float Alpha)[] LevelHalo = [(.55f, .2f), (1.1f, .1f)];
+    private static readonly Color HaloInk = new(14, 10, 26);
+    private const float FlourishScale = .65f;
     // Canvas "middle" baseline sits this far below the top of a DynamicSpriteFont line, in em units.
     private const float TextMiddle = .695f;
-    private static readonly Color LevelInk = new(238, 233, 245), CappedInk = new(207, 200, 218), Outline = new(12, 9, 23);
-    private readonly Layer @base, rim, fill, glow, capped, mask, pulse, glint, flourish;
+    private static readonly Color LevelInk = new(238, 233, 245), CappedInk = new(207, 200, 218);
+    private readonly Layer @base, rim, fill, glow, capped, mask, pulse, glint, flourish, flourishShadow;
     private readonly Texture2D nebula, star;
     private readonly DynamicSpriteFont font;
 
@@ -45,18 +52,22 @@ internal sealed class PortraitHudDrawing
         pulse = new(texture, "PortraitPulse", 64, 64, 32, 32, false);
         glint = new(texture, "PortraitGlint", 6, 6, 3, 3, false);
         flourish = new(texture, "LevelFlourish", 13, 10, 1.5f, 5, true);
+        flourishShadow = new(texture, "LevelFlourishShadow", 21, 18, 5.5f, 9, true);
         nebula = texture("Nebula"); star = texture("Star");
     }
 
     public static Vector2 Position(float logicalScreenWidth) => ResourceBarDrawing.LifePosition(logicalScreenWidth) + Offset;
-    public static bool Contains(Vector2 centre, Vector2 point) => Math.Abs(point.X - centre.X) + Math.Abs(point.Y - centre.Y) <= Outer;
     public static float LowLifePulse(float time) => .28f + .24f * MathF.Sin(time * 6);
+    private static int Lod(float scale) => scale <= 1.25f ? 0 : scale <= 1.75f ? 1 : scale <= 2.5f ? 2 : 3;
 
     // Caller must End its batch first. This method owns its Begin/End pair and never switches targets.
     public void Draw(SpriteBatch batch, Matrix ui, Vector2 centre, PortraitHudState state, float lifeFraction, float time)
     {
+        // Scale the complete portrait in local space, including XP clipping, text and level-up sparks.
+        ui = Matrix.CreateScale(DisplayScale) * Matrix.CreateTranslation(centre.X, centre.Y, 0) * ui;
+        centre = Vector2.Zero;
         float scale = new Vector2(ui.M11, ui.M12).Length();
-        int lod = scale <= 1.25f ? 0 : scale <= 1.75f ? 1 : scale <= 2.5f ? 2 : 3;
+        int lod = Lod(scale);
         float frac = state.Fraction;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, RasterizerState.CullNone, null, ui);
@@ -74,7 +85,7 @@ internal sealed class PortraitHudDrawing
         }
         if (state.Flash > 0) Draw(batch, mask, lod, centre, Color.White * (state.Flash * .85f));
         Draw(batch, rim, lod, centre, Color.White);
-        Level(batch, lod, centre + new Vector2(0, Outer), state);
+        Level(batch, scale, centre + LevelAnchor, state);
         foreach (var s in state.Sparks)
         {
             float age = s.Age / s.Duration;
@@ -85,23 +96,29 @@ internal sealed class PortraitHudDrawing
         batch.End();
     }
 
-    private void Level(SpriteBatch batch, int lod, Vector2 anchor, PortraitHudState state)
+    private void Level(SpriteBatch batch, float displayScale, Vector2 anchor, PortraitHudState state)
     {
         float k = 1 + state.Pulse * .18f;
+        // Choose the prefiltered ornament for its final size, including its own reduction.
+        int lod = Lod(displayScale * FlourishScale * k);
         if (state.Pulse > 0)
             batch.Draw(nebula, anchor + new Vector2(0, 3) * k, null, new Color(214, 196, 255) * (.5f * state.Pulse), 0,
                 new Vector2(64), 16f / 64 * k, SpriteEffects.None, 0);
         string text = state.Shown.ToString();
         float size = LevelSize / FontEm, width = font.MeasureString(text).X * size, e = width / 2 + FlourishGap;
-        Draw(batch, flourish, lod, anchor + new Vector2(e, LevelY) * k, Color.White, scale: k);
-        Draw(batch, flourish, lod, anchor + new Vector2(-e, LevelY) * k, Color.White, scale: k, flip: true);
-        var topLeft = anchor + new Vector2(-width / 2, LevelY + .4f - TextMiddle * LevelSize) * k;
-        // Canvas strokes a 1.5px outline under the fill; eight offsets reproduce it without a shader.
-        for (int i = 0; i < 8; i++)
+        foreach (var layer in new[] { flourishShadow, flourish })
         {
-            var offset = new Vector2(MathF.Cos(i * MathF.PI / 4), MathF.Sin(i * MathF.PI / 4)) * .75f * k;
-            batch.DrawString(font, text, topLeft + offset, Outline * .9f, 0, Vector2.Zero, size * k, SpriteEffects.None, 0);
+            Draw(batch, layer, lod, anchor + new Vector2(e, LevelY) * k, Color.White, scale: k * FlourishScale);
+            Draw(batch, layer, lod, anchor + new Vector2(-e, LevelY) * k, Color.White, scale: k * FlourishScale, flip: true);
         }
+        var topLeft = anchor + new Vector2(-width / 2, LevelY + .4f - TextMiddle * LevelSize) * k;
+        foreach (var (radius, alpha) in LevelHalo)
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * MathF.Tau / 8;
+                batch.DrawString(font, text, topLeft + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius * k, HaloInk * alpha,
+                    0, Vector2.Zero, size * k, SpriteEffects.None, 0);
+            }
         batch.DrawString(font, text, topLeft, state.Capped ? CappedInk : LevelInk, 0, Vector2.Zero, size * k, SpriteEffects.None, 0);
     }
 

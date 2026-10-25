@@ -1,0 +1,110 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.Mounts;
+using Host = Terraria.Main;
+
+// Compiled production hooks and ModPlayer, real tML Player/Tilemap/collision routines.
+internal static class Checks
+{
+    private const BindingFlags Hidden = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    private static int passed;
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new Exception(message);
+        passed++;
+    }
+
+    private static void Main(string[] args)
+    {
+        FlightStateChecks.Run(args[0]);
+        Terraria.Program.SavePath = Path.GetTempPath();
+        Host.dedServ = true;
+        Host.netMode = NetmodeID.SinglePlayer;
+        Host.maxTilesX = Host.maxTilesY = 100;
+        Host.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), Hidden, null, new object[] { (ushort)100, (ushort)100 }, null)!;
+        Host.tileSolid[TileID.Platforms] = Host.tileSolidTop[TileID.Platforms] = true;
+        Host.tileSolid[TileID.Stone] = true;
+        TileID.Sets.Platforms[TileID.Platforms] = true;
+        for (int x = 10; x < 30; x++) {
+            Tile tile = Host.tile[x, 30];
+            tile.HasTile = true;
+            tile.TileType = TileID.Platforms;
+        }
+
+        // Register only the real broom ModPlayer; mount identity needs no graphics/assets.
+        var flight = new 扫帚.扫帚ModPlayer();
+        ((ILoadable)flight).Load(new FixtureMod());
+        ContentInstance.Register(flight);
+        typeof(PlayerLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
+        var broom = new 扫帚();
+        typeof(ModMount).GetProperty("Type")!.SetValue(broom, MountID.Count);
+        ContentInstance.Register(broom);
+        var player = new Player { active = true, width = 20, height = 42, gravDir = 1, gravity = 0 };
+        player.mount._data = new Mount.MountData();
+        player.mount._type = broom.Type;
+        player.mount._active = true;
+        player.GetModPlayer<扫帚.扫帚ModPlayer>().PoweredFlight = true;
+        player.controlDown = true;
+
+        void Reset(float speed) {
+            player.position = new Vector2(320, 480 - player.height);
+            player.velocity = new Vector2(0, speed);
+            player.stairFall = false;
+        }
+        Reset(10);
+        player.DryCollision(true, false);
+        Check(player.velocity.Y == 0, "Reproduce vanilla fast descent blocked by platform");
+
+        var hooks = new BroomPlatformCollision();
+        hooks.Load();
+        try {
+            var modes = new (string Name, Action Move)[] {
+                ("dry", () => player.DryCollision(player.controlDown, false)),
+                ("water", () => player.WaterCollision(player.controlDown, false)),
+                ("honey", () => player.HoneyCollision(player.controlDown, false)),
+                ("shimmer", () => player.ShimmerCollision(player.controlDown, false, false))
+            };
+            foreach (var mode in modes) {
+                foreach (float speed in new[] { 1f, 1.25f, 10f, 20f, 30f }) {
+                    Reset(speed);
+                    mode.Move();
+                    player.SlopingCollision(true, false);
+                    Check(player.position.Y > 480 - player.height && player.velocity.Y > 0,
+                        $"{mode.Name}: descend through platform at {speed}");
+                }
+                player.controlDown = false;
+                Reset(10); mode.Move();
+                Check(player.velocity.Y == 0, $"{mode.Name}: released down lands on platform");
+                player.controlDown = true;
+                player.GetModPlayer<扫帚.扫帚ModPlayer>().PoweredFlight = false;
+                Reset(10); mode.Move();
+                Check(player.velocity.Y == 0, $"{mode.Name}: unpowered flight keeps vanilla collision");
+                player.GetModPlayer<扫帚.扫帚ModPlayer>().PoweredFlight = true;
+                player.mount._active = false;
+                Reset(10); mode.Move();
+                Check(player.velocity.Y == 0, $"{mode.Name}: dismounted player keeps vanilla collision");
+                player.mount._active = true;
+                player.mount._type = MountID.Bunny;
+                Reset(10); mode.Move();
+                Check(player.velocity.Y == 0, $"{mode.Name}: other mounts keep vanilla collision");
+                player.mount._type = broom.Type;
+            }
+            for (int x = 10; x < 30; x++) Host.tile[x, 30].TileType = TileID.Stone;
+            foreach (var mode in modes) {
+                Reset(30); mode.Move();
+                Check(player.velocity.Y == 0 && player.position.Y == 480 - player.height,
+                    $"{mode.Name}: solid floor still blocks descent");
+            }
+        }
+        finally { hooks.Unload(); }
+        for (int x = 10; x < 30; x++) Host.tile[x, 30].TileType = TileID.Platforms;
+        Reset(10); player.DryCollision(true, false);
+        Check(player.velocity.Y == 0, "Unload restores original collision");
+        Console.WriteLine($"PASS: {passed} native broom collision checks.");
+    }
+
+    private sealed class FixtureMod : Mod { public override string Name => "BroomCollisionChecks"; }
+}

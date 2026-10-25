@@ -65,7 +65,6 @@ public sealed class AlchemyCatalogItemTypes : ModSystem
         "stew" => ModContent.ItemType<BeefStew>(),
         "brulee" => ModContent.ItemType<CaramelBrulee>(),
         "moondew" => ModContent.ItemType<MoonDew>(),
-        "resin" => ModContent.ItemType<WarmResin>(),
         "flour" => ModContent.ItemType<Flour>(),
         "sugar" => ModContent.ItemType<Sugar>(),
         "egg" => ModContent.ItemType<Egg>(),

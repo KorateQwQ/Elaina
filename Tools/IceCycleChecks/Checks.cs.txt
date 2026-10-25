@@ -196,7 +196,7 @@ static class Checks
         Near(waterBall.ManaCost, 100, "Water Ball costs one hundred mana");
         Near(config.GetSkillDamage(1, waterBall, 95), 6.75, "Water Ball lower cost preserves its original damage budget");
         Near(entry.BaseCooldown, 60, "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
-        Near(config.GetSkillDamage(1, entry, 95), 31.8, "Longer CD preserves single-cast damage budget");
+        Near(config.GetSkillDamage(1, entry, 95), 12, "Lock burst reduced to twelve baseline seconds; cooldown and mana preserved");
         Check(entry.InitialCharges == 1 && entry.MaxCharges == 1, "One opening charge, no stockpile");
         foreach (string culture in new[] { "zh-Hans", "en-US" }) Hjson.HjsonValue.Parse(File.ReadAllText(Path.Combine(root, $"Localization/{culture}_Mods.伊蕾娜.SkillInfo.hjson")));
         Console.WriteLine($"Ice cycle integration: {passed} checks passed against compiled KL/Elaina and real tML entities. Both HJSON files parsed. No renderer or live multiplayer sockets exercised.");

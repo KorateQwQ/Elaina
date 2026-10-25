@@ -11,7 +11,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 public sealed class RecallPortalSystem : ModSystem
 {
     public const float SelectionRadius = 3000f;
-    public const float AreaRadius = 160f;
+    public const float AreaRadius = RecallPortalLayout.Radius;
     public const int DelayTicks = 90;
     public const int ResidueTicks = 30 * 60;
     public const int TravelCooldownTicks = 45;
@@ -41,7 +41,7 @@ public sealed class RecallPortalSystem : ModSystem
 
     /// <summary>
     /// 在目标脚下和目标的“家”（床，无床时为世界出生点）同时打开一对法阵；只在施法客户端或单人模式调用。
-    /// 出口位置在施法时就确定，之后的传送都落到出口法阵处，不再追踪床的变化。
+    /// 出口锚点在施法时确定，不再追踪床的变化；传送使用排布后实际显示的阵心。
     /// </summary>
     internal static bool Cast(Player caster, int target)
     {
@@ -152,22 +152,25 @@ public sealed class RecallPortalSystem : ModSystem
         Projectile projectile = origin.Projectile;
         int exit = FindPortal(projectile.owner, origin.PairId, 1);
         if (exit < 0) return;
+        RecallPortalPresentation.Refresh();
+        Vector2 destination = ((RecallPortalProjectile)Main.projectile[exit].ModProjectile).DisplayCenter;
         Player caster = Main.player[projectile.owner];
         for (int p = 0; p < Main.maxPlayers; p++)
             if (IsAlly(caster, Main.player[p]) && InArea(Main.player[p], projectile.Center))
-                TeleportPlayer(Main.player[p], Main.projectile[exit].Center);
+                TeleportPlayer(Main.player[p], destination);
     }
 
     private static void Travel(int playerIndex, int caster, int pairId, int side)
     {
         if (side != 0 && side != 1 || caster < 0 || caster >= Main.maxPlayers) return;
         int from = FindPortal(caster, pairId, side), to = FindPortal(caster, pairId, 1 - side);
+        RecallPortalPresentation.Refresh();
         Player player = Main.player[playerIndex];
         if (from < 0 || to < 0 || !((RecallPortalProjectile)Main.projectile[from].ModProjectile).Ready ||
             !((RecallPortalProjectile)Main.projectile[to].ModProjectile).Ready ||
             !IsAlly(Main.player[caster], player) || player.GetModPlayer<RecallPortalPlayer>().TravelCooldown > 0 ||
-            !InArea(player, Main.projectile[from].Center)) return;
-        if (!TeleportPlayer(player, Main.projectile[to].Center)) return;
+            !RecallPortalPresentation.InReach(player, (RecallPortalProjectile)Main.projectile[from].ModProjectile)) return;
+        if (!TeleportPlayer(player, ((RecallPortalProjectile)Main.projectile[to].ModProjectile).DisplayCenter)) return;
         // 传送特效：两端各重放一次画完时的向上爆发。
         FlashPair(caster, pairId);
         if (Main.netMode != NetmodeID.Server) return;
@@ -220,10 +223,11 @@ public sealed class RecallPortalSystem : ModSystem
         player.GetModPlayer<RecallPortalPlayer>().TravelCooldown = TravelCooldownTicks;
     }
 
-    public override void OnWorldUnload() => nextId = 0;
+    public override void OnWorldUnload() { nextId = 0; RecallPortalPresentation.Clear(); }
     public override void Unload()
     {
         nextId = 0;
+        RecallPortalPresentation.Clear();
         Main.QueueMainThreadAction(RecallPortalDrawing.Unload);
     }
 }

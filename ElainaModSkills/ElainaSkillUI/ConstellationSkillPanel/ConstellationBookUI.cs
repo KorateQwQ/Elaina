@@ -26,7 +26,6 @@ public sealed partial class ConstellationSkillPanel
 
     internal static bool BookMoving => TryPanel(out var panel) && panel.Enabled && panel._book.Moving;
     internal static bool PanelShown => TryPanel(out var panel) && panel.Enabled;
-    internal static float BookDockGlow => TryPanel(out var panel) && panel.Enabled ? panel._book.DockGlow : 0;
     private static bool TryPanel(out ConstellationSkillPanel panel)
     {
         panel = null;
@@ -78,7 +77,7 @@ public sealed partial class ConstellationSkillPanel
             device.ScissorRectangle = scissor;
             Vector2 origin = Vector2.Transform(Bounds.Position + _origin, matrix);
             float scale = Vector2.TransformNormal(new Vector2(_scale, 0), matrix).Length();
-            var dock = ConstellationBookButton.DockBounds();
+            var dock = ConstellationDiscoveryToastUI.DockBounds();
             Vector2 dockCenter = Vector2.Transform(new Vector2(dock.Center.X, dock.Center.Y), matrix);
             Vector2 dockSize = Vector2.TransformNormal(new Vector2(dock.Width, dock.Height), matrix);
             resources.Renderer(device).Draw(device, page, front, _draw.Texture("BookCoverBack"),

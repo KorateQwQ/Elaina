@@ -13,10 +13,12 @@ public partial class RecallSkill : ElainaSkill
     private int pendingSlot = -1;
     private int pendingTarget = -1;
 
+    public override int MaxLevel => 1;
+
     public override void Initialize()
     {
         MaxCD = 10;
-        MagicPointCost = 200;
+        MagicPointCost = 50;
         base.Initialize();
     }
 

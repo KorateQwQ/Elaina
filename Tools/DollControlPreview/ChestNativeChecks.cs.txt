@@ -1,0 +1,252 @@
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria.DataStructures;
+using Terraria.GameInput;
+using Terraria.ID;
+using Terraria.ObjectData;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class PlanterNativeChecks
+{
+    private static RemoteChestFixture remoteFixture;
+    private static void SetupChestFixture(Mod mod)
+    {
+        remoteFixture = new RemoteChestFixture();
+        ((ILoadable)remoteFixture).Load(mod); ContentInstance.Register(remoteFixture);
+    }
+
+    private sealed class RemoteChestFixture : ModTile
+    {
+        internal static bool CheckOwnRange;
+        internal static int Calls, Opens;
+        public override bool RightClick(int i, int j)
+        {
+            Calls++;
+            var player = Host.LocalPlayer;
+            if (CheckOwnRange && !player.IsInTileInteractionRange(i, j, TileReachCheckSettings.Simple)) return false;
+            if (player.inventory[0].type != ItemID.Ruby || player.inventory[0].stack <= 0) return false;
+            DollChestReachSystem.TryChestOrigin(i, j, out var p);
+            int chest = Chest.FindChest(p.X, p.Y);
+            if (chest < 0) return false;
+            player.inventory[0].stack--; Opens++;
+            player.OpenChest(p.X, p.Y, chest);
+            return true;
+        }
+    }
+
+    private static void CheckChests(Player player)
+    {
+        int before = passed;
+        Host.myPlayer = 0; Host.netMode = NetmodeID.SinglePlayer;
+        Host.gameMenu = Host.mapFullscreen = Host.blockMouse = Host.gamePaused = false;
+        Host.drawingPlayerChat = Host.editSign = Host.inFancyUI = false;
+        Host.HasInteractibleObjectThatIsNotATile = Host.SmartInteractShowingGenuine = false;
+        Host.SmartInteractNPC = Host.SmartInteractProj = -1;
+        Host.instance ??= (Host)RuntimeHelpers.GetUninitializedObject(typeof(Host));
+        Host.instance.currentNPCShowingChatBubble = -1;
+        Host.InGameUI.SetState(new Terraria.UI.UIState());
+        PlayerInput.Triggers.Initialize();
+        var profile = new PlayerInputProfile("ChestReachFixture");
+        foreach (var config in profile.InputModes.Values) config.SetupKeys();
+        typeof(PlayerInput).GetField("_currentProfile", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, profile);
+        Host.screenWidth = 1280; Host.screenHeight = 720; Host.screenPosition = new(600, 600);
+        Host.GameViewMatrix = new Terraria.Graphics.SpriteViewMatrix(null);
+        Host.GameViewMatrix.SetViewportOverride(new Viewport(0, 0, 1280, 720));
+        Host.GameViewMatrix.Zoom = Vector2.One;
+        Host.dust = Enumerable.Range(0, Host.dust.Length).Select(_ => new Dust()).ToArray();
+        player.active = true; player.dead = player.mouseInterface = false;
+        player.Center = new(700, 900); player.chest = -1; player.sign = -1; player.SetTalkNPC(-1);
+        for (int i = 0; i < 58; i++) player.inventory[i] = new Item();
+        for (int i = 0; i < Host.maxPlayers; i++) Host.player[i].chest = -1;
+        for (int i = 0; i < Host.maxProjectiles; i++) Host.projectile[i].active = false;
+        var commands = player.GetModPlayer<DollCommandPlayer>(); commands.PauseGarden();
+        var team = new KumaPetProjectile[4];
+        for (int i = 0; i < 4; i++)
+        {
+            var projectile = new Projectile { active = true, owner = 0, whoAmI = i };
+            var worker = (KumaPetProjectile)new KumaPetProjectile().NewInstance(projectile);
+            typeof(Projectile).GetProperty("ModProjectile")!.SetValue(projectile, worker);
+            worker.SetDefaults(); projectile.Center = player.Center; Host.projectile[i] = projectile; team[i] = worker;
+        }
+        Point p = new(90, 60);
+        Host.chest = new Chest[Host.maxChests];
+        int index = Chest.CreateChest(p.X, p.Y);
+        var item = new Item(ItemID.Muramasa) { prefix = PrefixID.Legendary };
+        Host.chest[index].item[0] = item;
+        void Tiles(ushort type = TileID.Containers, int style = 0)
+        {
+            for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+            {
+                Tile tile = Host.tile[p.X + x, p.Y + y]; tile.ClearEverything();
+                tile.HasTile = true; tile.TileType = type;
+                tile.TileFrameX = (short)(style * 36 + x * 18); tile.TileFrameY = (short)(y * 18);
+            }
+        }
+        void Click()
+        {
+            Player.tileTargetX = p.X + 1; Player.tileTargetY = p.Y + 1;
+            player.controlUseTile = player.releaseUseTile = true; player.mouseInterface = false;
+            player.LookForTileInteractions();
+            player.controlUseTile = player.tileInteractAttempted = false;
+            player.releaseUseTile = true;
+        }
+        var flightStates = new HashSet<int>();
+        void Tick()
+        {
+            commands.PostUpdate();
+            foreach (var worker in team)
+            {
+                worker.AI(); worker.Projectile.Center += worker.Projectile.velocity;
+                if (commands.IsRemoteChestHelper(worker)) flightStates.Add((int)worker.Projectile.ai[1]);
+            }
+        }
+        void FinishFlight()
+        {
+            for (int i = 0; i < 300 && team.Any(commands.IsRemoteChestHelper) && !commands.RemoteChestActionFinished; i++) Tick();
+            Tick();
+        }
+        void ClickAndWait() { Click(); if (team.Any(commands.IsRemoteChestHelper)) FinishFlight(); }
+        void Close()
+        { player.chest = -1; Tick(); }
+        var chestLifetime = typeof(Player).GetMethod("HandleBeingInChestRange", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        void CheckLifetime() => chestLifetime.Invoke(player, null);
+        void NoHover(On_Player.orig_TileInteractionsMouseOver orig, Player self, int x, int y) { }
+        void NoFarHover(On_Player.orig_TileInteractionsCheckLongDistance orig, Player self, int x, int y) { }
+        var messages = new List<int>();
+        void Capture(On_NetMessage.orig_SendData orig, int msg, int remote, int ignore, Terraria.Localization.NetworkText text,
+            int n, float n2, float n3, float n4, int n5, int n6, int n7) => messages.Add(msg);
+        // Rendering/transport are excluded; real input entry, vanilla handlers, mod callbacks and lifetime run.
+        On_Player.TileInteractionsMouseOver += NoHover;
+        On_Player.TileInteractionsCheckLongDistance += NoFarHover;
+        On_NetMessage.SendData += Capture;
+        var system = new DollChestReachSystem(); system.Load();
+        try
+        {
+            Tiles();
+            CheckChestCursor(player, p, team);
+            Check(DollChestReachSystem.TryChestOrigin(p.X + 1, p.Y + 1, out var origin) && origin == p, "Chest bottom-right resolves correctly");
+            Check(!player.IsInTileInteractionRange(p.X, p.Y, TileReachCheckSettings.Simple), "Public range query stays vanilla");
+            int rangeX = Player.tileRangeX, rangeY = Player.tileRangeY;
+            Click();
+            Check(player.chest == -1 && team.Count(commands.IsRemoteChestHelper) == 1, "Right-click queues one doll without opening immediately");
+            Vector2 departure = team[0].Projectile.Center;
+            for (int i = 0; i < 10; i++) Tick();
+            Check(player.chest == -1 && Vector2.Distance(departure, team[0].Projectile.Center) > 20 && team[0].IsMoving,
+                "Doll visibly travels while the chest stays closed");
+            using (var sync = new MemoryStream())
+            {
+                team[0].SendExtraAI(new BinaryWriter(sync)); sync.Position = 0;
+                var projectile = new Projectile { active = true, owner = 0 };
+                var remote = (KumaPetProjectile)new KumaPetProjectile().NewInstance(projectile);
+                typeof(Projectile).GetProperty("ModProjectile")!.SetValue(projectile, remote);
+                remote.SetDefaults(); projectile.Center = team[0].Projectile.Center;
+                remote.ReceiveExtraAI(new BinaryReader(sync)); Host.myPlayer = 1;
+                for (int i = 0; i < 180; i++) { remote.AI(); projectile.Center += projectile.velocity; }
+                Check(remote.IsOpeningChest && player.chest == -1, "Remote client animates the synced chest target but never performs the opening");
+                Host.myPlayer = 0;
+            }
+            Click();
+            FinishFlight();
+            Check(player.chest == index && Host.playerInventory, "Arrival and completed hand gesture open the chest");
+            Check(flightStates.Contains(1) && flightStates.Contains(3) && flightStates.Contains(0), "Flight, use gesture and waiting idle states all occur");
+            Check(ReferenceEquals(item, Host.chest[index].item[0]) && item.prefix == PrefixID.Legendary, "Vanilla item instance/prefix is unchanged");
+            Check(team.Count(commands.IsRemoteChestHelper) == 1, "One idle doll is reserved");
+            team[0].AI(); Check(commands.IsRemoteChestHelper(team[0]) && team[0].IsOpeningChest && team[0].HasWork, "Reserved doll waits beside the chest and cannot acquire another task");
+            CheckLifetime(); Check(player.chest == index, "Vanilla chest lifetime accepts the reserved helper");
+            Check(!player.IsInInteractionRangeToMultiTileHitbox(p.X, p.Y), "Independent mod distance checks are not broadened");
+            Check(Player.tileRangeX == rangeX && Player.tileRangeY == rangeY, "Global mining/building ranges are unchanged");
+            float returnDistance = Vector2.Distance(team[0].Projectile.Center, player.Center);
+            Close(); Check(!team.Any(commands.IsRemoteChestHelper), "Closing releases the helper");
+            for (int i = 0; i < 12; i++) Tick();
+            Check(!team[0].HasWork && Vector2.Distance(team[0].Projectile.Center, player.Center) < returnDistance - 40,
+                "Closing restores visible movement back toward the owner");
+            var work = typeof(DollPetProjectile).GetField("workTile", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            foreach (var worker in team) work.SetValue(worker, new Point(45, 55));
+            ClickAndWait(); Check(player.chest == -1, "All four dolls busy means no extended reach");
+            work.SetValue(team[2], new Point(-1, -1));
+            ClickAndWait(); Check(player.chest == index && commands.IsRemoteChestHelper(team[2]), "One idle doll suffices while three work");
+            Close(); foreach (var worker in team) work.SetValue(worker, new Point(-1, -1));
+            Host.mapFullscreen = true; ClickAndWait(); Check(player.chest == -1, "Fullscreen map cannot open remote chests"); Host.mapFullscreen = false;
+            Host.screenPosition = new(2200, 600); ClickAndWait(); Check(player.chest == -1, "Offscreen chest keeps vanilla range"); Host.screenPosition = new(600, 600);
+            Host.GameViewMatrix.Zoom = new(2); Check(!DollChestReachSystem.TileOnScreen(110, 60), "World zoom clips tiles that leave the rendered viewport");
+            Host.GameViewMatrix.Zoom = Vector2.One; Check(DollChestReachSystem.TileOnScreen(110, 60), "Zoom out restores viewport membership");
+            foreach (ushort type in new[] { TileID.ClosedDoor, TileID.Beds, TileID.Signs, TileID.Switches, TileID.Dressers })
+            {
+                Tiles(type);
+                Check(!DollChestReachSystem.InteractionGate(player, p.X, p.Y, TileReachCheckSettings.Simple), "Only chests receive extra distance: " + type);
+            }
+            Tiles(); ClickAndWait(); team[0].Projectile.active = false; commands.PostUpdate();
+            Check(player.chest == -1, "Losing the reserved doll closes distant chest"); team[0].Projectile.active = true;
+            ClickAndWait(); player.dead = true; commands.UpdateDead(); Check(player.chest == -1, "Death revokes access"); player.dead = false;
+            ClickAndWait(); Host.screenPosition = new(2200); commands.PostUpdate(); Check(player.chest == -1, "Leaving screen plus margin releases distant chest"); Host.screenPosition = new(600, 600);
+            Tiles(); Click();
+            commands.ReleaseRemoteChest(true); FinishFlight();
+            Check(player.chest == -1, "Cancelling in flight never invokes the delayed click");
+            Click(); var replaced = Host.chest[index]; Host.chest[index] = new Chest { x = p.X, y = p.Y };
+            Tick(); Check(!team.Any(commands.IsRemoteChestHelper) && player.chest == -1, "Replacement at same coordinates cancels the pending action");
+            Host.chest[index] = replaced;
+            Click(); var missingTile = Host.tile[p.X, p.Y]; missingTile.HasTile = false; Tick();
+            Check(!team.Any(commands.IsRemoteChestHelper) && player.chest == -1, "Destroyed target cancels before arrival"); Tiles();
+            Click(); Player.tileTargetX = 7; Player.tileTargetY = 9;
+            FinishFlight();
+            Check(player.chest == index && Player.tileTargetX == 7 && Player.tileTargetY == 9
+                && !player.controlUseTile && !player.tileInteractAttempted && player.releaseUseTile,
+                "Arrival uses the original clicked tile and restores the current input target and flags"); Close();
+            Tiles(TileID.Containers, 2); player.inventory[1] = new(ItemID.GoldenKey, 2); Click();
+            Check(Chest.IsLocked(p.X, p.Y) && player.inventory[1].stack == 2, "Key is not spent at dispatch");
+            player.inventory[1].TurnToAir(); FinishFlight();
+            Check(Chest.IsLocked(p.X, p.Y) && player.chest == -1, "Removing key in flight is respected by the original arrival interaction");
+            Tiles(TileID.Containers, 2); ClickAndWait(); Check(Chest.IsLocked(p.X, p.Y) && player.chest == -1, "Without golden key vanilla refuses unlock");
+            player.inventory[1] = new(ItemID.GoldenKey, 2); ClickAndWait();
+            Check(!Chest.IsLocked(p.X, p.Y) && player.inventory[1].stack == 1 && player.chest == -1, "Vanilla first click unlocks and consumes one key");
+            Tiles(); // Avoid initializing achievement UI in this headless fixture; the unlocked chest flow was exercised above.
+            ClickAndWait(); Check(player.chest == index && player.inventory[1].stack == 1, "Next right-click opens without another key consumption"); Close();
+            CheckModChest();
+            Tiles(); CheckMultiplayer();
+            Vector2 saved = player.Center; player.Center = p.ToWorldCoordinates();
+            foreach (var worker in team) work.SetValue(worker, new Point(45, 55));
+            ClickAndWait(); Check(player.chest == index, "Ordinary close-range opening still works with every doll busy"); Close(); player.Center = saved;
+        }
+        finally
+        {
+            commands.ReleaseRemoteChest(false); system.Unload(); Host.netMode = NetmodeID.SinglePlayer;
+            On_Player.TileInteractionsMouseOver -= NoHover; On_Player.TileInteractionsCheckLongDistance -= NoFarHover;
+            On_NetMessage.SendData -= Capture;
+        }
+        Console.WriteLine($"PASS: {passed - before} native chest reach checks; real right-click/lifetime, idle reservation, vanilla keys, mod hooks, unchanged other interactions and vanilla MP request.");
+
+        void CheckModChest()
+        {
+            ushort type = (ushort)remoteFixture.Type;
+            TileID.Sets.BasicChest[type] = true;
+            TileObjectData.newTile.CopyFrom(TileObjectData.Style2x2); TileObjectData.addTile(type);
+            Tiles(type); RemoteChestFixture.Calls = RemoteChestFixture.Opens = 0;
+            RemoteChestFixture.CheckOwnRange = true; player.inventory[0] = new(ItemID.Ruby, 2);
+            ClickAndWait();
+            Check(RemoteChestFixture.Calls == 1 && RemoteChestFixture.Opens == 0 && player.chest == -1, "Mod RightClick runs but its own range check still rejects");
+            RemoteChestFixture.CheckOwnRange = false; player.inventory[0].TurnToAir(); ClickAndWait();
+            Check(player.chest == -1, "Mod-specific item requirement is not bypassed");
+            player.inventory[0] = new(ItemID.Ruby, 2); ClickAndWait();
+            Check(player.chest == index && RemoteChestFixture.Opens == 1 && player.inventory[0].stack == 1,
+                "Standard mod chest opens through its own callback and custom key rule");
+            CheckLifetime(); Check(player.chest == index, "Mod chest using vanilla UI retains vanilla-lifetime extension"); Close();
+        }
+
+        void CheckMultiplayer()
+        {
+            Host.netMode = NetmodeID.MultiplayerClient; messages.Clear(); ClickAndWait();
+            Check(player.chest == -1 && messages.Contains(MessageID.RequestChestOpen), "Multiplayer uses original RequestChestOpen and waits");
+            Check(team.Any(commands.IsRemoteChestHelper), "Waiting response reserves an idle doll");
+            // Emulate the vanilla response's player fields, then run the actual vanilla lifetime method.
+            player.chest = index; player.chestX = p.X; player.chestY = p.Y; Host.playerInventory = true;
+            CheckLifetime(); Check(player.chest == index, "Vanilla async response is recognized before its first lifetime check");
+            Close(); ClickAndWait(); for (int i = 0; i < 301; i++) commands.PostUpdate();
+            Check(!team.Any(commands.IsRemoteChestHelper), "Unanswered request releases reservation after timeout");
+            player.chest = index; player.chestX = p.X; player.chestY = p.Y; CheckLifetime();
+            Check(player.chest == -1, "Late response has no remote distance permission");
+            Host.netMode = NetmodeID.SinglePlayer;
+        }
+    }
+}

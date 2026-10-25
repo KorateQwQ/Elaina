@@ -10,6 +10,27 @@ using System.IO;
 
 namespace 伊蕾娜.ElainaModSkills;
 
+/// <summary>扫帚参数来自 FlightSkill.flight；速度单位为像素/帧，时间单位为秒。</summary>
+public sealed record FlightBalance(
+    float BaseSpeed = 8f,
+    float LearnedSpeedBonus = .10f,
+    float SpeedBonusPerLevel = .05f,
+    float BoostMultiplier = 1.5f,
+    float BoostManaPerSecond = 12f,
+    float HoldSeconds = .25f,
+    float DashMultiplier = 2.5f,
+    float DashManaCost = 25f,
+    float DashSeconds = .4f,
+    float DashCooldownSeconds = 1f,
+    float HandlingPercent = 25f,
+    float DashRecoverySeconds = .15f)
+{
+    public float Speed(int learnedLevel) => BaseSpeed * (learnedLevel <= 0 ? 1f
+        : 1f + LearnedSpeedBonus + SpeedBonusPerLevel * (learnedLevel - 1));
+
+    public static int Ticks(float seconds) => Math.Max(1, (int)Math.Ceiling(seconds * 60d - .00001));
+}
+
 public enum SkillBalanceKind { BasicAttack, Active }
 public enum SkillGrowthMode { Phase, Interval }
 
@@ -20,7 +41,7 @@ public enum SkillGrowthMode { Phase, Interval }
 /// MaxCharges / InitialCharges 为主动技能的储存层数上限与新习得时的可用层数，普攻固定为 1。</summary>
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, double ManaCost,
     double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
-    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0);
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0, FlightBalance Flight = null);
 
 /// <summary>阶段推荐配装中的一个饰品；Id 与 Prefix 是网页键名（如 sorcerer / arcane），由 Loadout 映射到物品与前缀。</summary>
 public sealed record SkillLoadoutItem(string Id, string Prefix);
@@ -33,7 +54,7 @@ public sealed record SkillLoadout(int Stage, string Name, string Armor, int Slot
 /// 只有可选的 loadouts 供快捷配装面板按阶段换装。</summary>
 public sealed class SkillBalanceConfig
 {
-    public const int MaxJsonBytes = 32 * 1024;
+    public const int MaxJsonBytes = 64 * 1024;
     public const string Schema = "elaina-mage-balance-v2";
     public const string ResourcePath = "ElainaModSkills/Data/SkillBalance.json";
     public const int LoadoutStages = 19;
@@ -74,7 +95,7 @@ public sealed class SkillBalanceConfig
         try
         {
             if (Encoding.UTF8.GetByteCount(json) > MaxJsonBytes)
-                throw new FormatException("配置超过 32 KiB，请保存参数而不是试算日志。");
+                throw new FormatException("配置超过 64 KiB，请保存参数而不是试算日志。");
             using JsonDocument document = JsonDocument.Parse(json.TrimStart('\uFEFF'));
             JsonElement root = document.RootElement;
             RequireObject(root, "配置");
@@ -99,7 +120,7 @@ public sealed class SkillBalanceConfig
                 skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Number(row, "cost", 0, 10000),
                     Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
                     RatioCurve: ReadRatioCurve(row), GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0)));
+                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row)));
             }
             string reference = c.GetProperty("selectedBasicAttackId").GetString();
             if (reference == null || !ids.Contains(reference))
@@ -115,7 +136,7 @@ public sealed class SkillBalanceConfig
                     ConversionRate: Number(row, "k", 0, 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
                     MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
                     GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0)));
+                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row)));
             }
             config = new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
             return true;
@@ -125,6 +146,24 @@ public sealed class SkillBalanceConfig
             error = ex.Message;
             return false;
         }
+    }
+
+    private static FlightBalance ReadFlight(JsonElement row)
+    {
+        if (!row.TryGetProperty("flight", out var flight)) return null;
+        RequireObject(flight, "flight");
+        float Read(string key, double min, double max, float fallback) =>
+            (float)OptionalNumber(flight, key, min, max, fallback);
+        var value = new FlightBalance(
+            Read("baseSpeed", 1, 40, 8), Read("learnedSpeedBonus", 0, 5, .1f),
+            Read("speedBonusPerLevel", 0, 1, .05f), Read("boostMultiplier", 1, 3, 1.5f),
+            Read("boostManaPerSecond", 0, 1000, 12), Read("holdSeconds", .05, 2, .25f),
+            Read("dashMultiplier", 1, 5, 2.5f), Read("dashManaCost", 0, 10000, 25),
+            Read("dashSeconds", 1d / 60, 1, .4f), Read("dashCooldownSeconds", .1, 60, 1),
+            Read("handlingPercent", 1, 100, 25), Read("dashRecoverySeconds", 1d / 60, .5, .15f));
+        if (value.DashCooldownSeconds < value.DashSeconds)
+            throw new FormatException("冲刺冷却不能短于冲刺持续时间。");
+        return value;
     }
 
     private static SkillGrowthMode ReadGrowthMode(JsonElement row)
@@ -375,7 +414,7 @@ public sealed class SkillBalanceFileStore(SkillBalanceConfig initial)
         try
         {
             using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            if (stream.Length > SkillBalanceConfig.MaxJsonBytes) throw new IOException("配置超过 32 KiB。");
+            if (stream.Length > SkillBalanceConfig.MaxJsonBytes) throw new IOException("配置超过 64 KiB。");
             using StreamReader reader = new(stream, Encoding.UTF8, true);
             return Apply(reader.ReadToEnd());
         }

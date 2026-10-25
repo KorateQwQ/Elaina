@@ -17,7 +17,12 @@ namespace 伊蕾娜.Buffs
 
         public override void Update(Player player, ref int buffIndex)
         {
-
+            if (!BroomAccessSystem.CanRide(player))
+            {
+                player.DelBuff(buffIndex);
+                buffIndex--;
+                return;
+            }
             player.mount.SetMount(ModContent.MountType<扫帚>(), player);
             player.buffTime[buffIndex] = 10;
             player.mount._fatigue = 0;//坐骑的疲劳值始终为0

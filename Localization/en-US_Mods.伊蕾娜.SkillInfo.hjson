@@ -1,6 +1,8 @@
 Snippets: {
 	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]"
 	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
+	NoLifeConversion: "[c/E28096:Cannot be cast through Ashen Witch's life conversion]"
+	HiddenSkill: the ??? skill
 }
 
 SkillName: {
@@ -26,6 +28,13 @@ SkillName: {
 }
 
 SkillDesc: {
+	FlightSkill:
+		'''
+		While riding the broom, increases flight speed by {0:0.##}% and enables the Broom Acceleration key:
+		Hold it to boost to {1:0.##}x speed, costing {2:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] per second.
+		Tap it to dash in your movement direction, costing {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] with a {4:0.##}-second cooldown.
+		'''
+	HealSkill: Restores {0} life to you or one nearby teammate over {2} seconds. Healing stacks.
 	AlchemySkill:
 		'''
 		Elaina can craft all kinds of items through alchemy. Right-click a cauldron to browse recipes and start crafting.
@@ -33,45 +42,43 @@ SkillDesc: {
 		'''
 	FrostVeilSkill:
 		'''
-		Grants you and non-PvP allied players on the same team within {0} pixels 3 orbiting frost shields each.
-		Each hit consumes one shield to block damage equal to your maximum Magic Power at cast time / 20 (currently {1:0.##}), after Magic Barrier's percentage reduction.
-		Each cycle lasts 60 seconds. If any shields remain at expiry, freely refill to 3 and restart the 60 seconds. Once all shields are consumed, you must cast again. Recasting refills and refreshes without stacking.
+		Grants you and nearby teammates 3 frost shields each. Each hit consumes one shield to block {1:0.##} damage (5% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]).
+		Shields last 60 seconds. If any remain at expiry, they refill for free and renew; once all are consumed, cast again.
 		'''
 	DollControlSkill:
 		'''
-		Consumes 20 Magic Power to summon a bear doll that floats alongside you and stays until dismissed.
-		While it is out, hold left-click to open the command wheel: Mine Blocks and Break Walls let you drag areas to mark, and their chain versions mark connected matches with a click. Mark again to erase, and right-click to stop marking.
-		The doll digs out every mark with the best pickaxe or hammer in your inventory, then returns and hands over what it collected. Cancel Tasks clears all marks; Dismiss Doll ends the skill.
+		Consumes 20 [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] to summon {0} dolls that stay until dismissed. Their work actions are {1}% faster.
+		While it is out, hold left-click to open the command wheel: Mine Blocks and Break Walls let you select areas, and their chain versions select connected matches with a click. Select again to erase. Click Start Mining or Start Breaking to submit; Exit discards this selection without affecting existing tasks.
+		The dolls claim separate targets to mine blocks, break walls or place planters together. They use the best pickaxe or hammer in your inventory, then return to hand over their collected items when the work is done. Cancel Tasks clears all marks; Dismiss Dolls recalls the whole team.
+		With at least one idle doll, right-click a distant chest on screen to send it over. It interacts after arriving and completing its opening gesture, using the chest's usual keys and conditions. It waits beside the open chest and returns when you close it. Ordinary nearby opening is unchanged.
 		'''
 	RecallSkill:
 		'''
-		Hold left-click to select yourself or an ally within 3000 pixels; release to summon a magic circle at their feet.
-		After 1.5 seconds, allies within 160 pixels of the circle travel to the selected ally's spawn, or world spawn if their bed is invalid.
-		Both circles remain for 30 seconds. Approach and right-click either circle to travel for free. Recasting closes your previous pair without affecting other players' circles.
+		Summons a magic circle beneath you or a nearby ally. After 1.5 seconds, all allies standing on it travel to the chosen ally's spawn point.
+		Both circles remain for 30 seconds, allowing unlimited travel between them. Recasting closes your previous pair.
 		'''
 	ShardbindSkill:
 		'''
 		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} Ice damage in total.
 		Binds the target in ice for the duration, leaving it unable to act.
-		Starts sealed. Triggering a freeze unseals one use, which cannot stack. Casting still requires the cooldown to finish and seals the spell again. Unsealing does not reduce its cooldown.
+		Starts sealed. Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] unseals one use, which cannot stack. Casting still requires the cooldown to finish and seals the spell again. Unsealing does not reduce its cooldown.
 		'''
 	IceConeSkill:
 		'''
-		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} freeze buildup.
-		Reaching 100 buildup freezes the enemy for 4 seconds. Thawing starts a 60-second freeze cooldown that prevents further buildup.
-		Boss parts share freeze buildup and cooldown. Triggering a freeze unseals one use of Shardbind, even during its cooldown; unused releases do not stack.
+		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] buildup.
+		Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] yourself unseals one use of {2}.
 		'''
 	WaterBallSkill:
 		'''
 		Hold to conjure a water orb, then release to launch it, dealing {0} damage.
 		After traveling a certain distance, the orb bursts in a wide splash behind the target along its flight direction. At close range, it bursts in a circular splash instead.
-		On hit, reduces the target's freeze cooldown by 10 seconds and Shardbind's cooldown by 8 seconds.
+		On hit, reduces the target's [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown by 10 seconds and {1}'s cooldown by 8 seconds.
 		'''
 	WaterLaserSKill:
 		'''
 		Hold to channel a water beam. Every {0} seconds, consumes {3} Magic Power and deals {1} Water damage, splashing enemies near the end of the beam for {2}%.
-		Deals only {4:0.#}% damage to targets not on freeze cooldown.
-		On hit, reduces the target's freeze cooldown by 0.5 seconds and Shardbind's cooldown by 0.3 seconds.
+		Deals only {4:0.#}% damage to targets not on [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown.
+		On hit, reduces the target's [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown by 0.5 seconds and {5}'s cooldown by 0.3 seconds.
 		'''
 	MagicMissileSkill:
 		'''
@@ -104,9 +111,15 @@ SkillDesc: {
 
 AlchemyLevelCap: Alchemy level cap
 
+DollStats: {
+	Count: Doll count
+	ActionSpeed: Bonus action speed
+}
+
 UnlockConditions: {
 	ObtainedReturnPotion: Obtain a Potion of Return at least once
 	IceQueen: Defeat the Ice Queen during the Frost Moon
+	ShardbindReveal: Experience a certain winter night event
 	CharacterLevel: Reach character Lv.{0}
 	CharacterLevelCap: Reach a character level cap of Lv.{0}
 	SkillLevel: Reach Lv.{1} in {0}
@@ -125,3 +138,8 @@ SkillTotalInfo:
 	Effect:
 	'''
 LackOfMagic: Not Enough [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]
+
+FlightStats: {
+	Speed: Broom speed
+	Boost: Boost speed
+}

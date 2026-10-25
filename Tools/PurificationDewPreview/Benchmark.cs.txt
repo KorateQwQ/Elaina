@@ -1,0 +1,46 @@
+﻿using System.Diagnostics;
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class DewPreview
+{
+    void Benchmark()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 1920, 1080);
+        var pixel = new Color[1];
+        int[] counts = [0, 1, 8, 16, 32, 64];
+        var samples = counts.ToDictionary(count => count, _ => new List<double>());
+        double Render(int count, int frame)
+        {
+            long start = Stopwatch.GetTimestamp();
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(15, 18, 29));
+            if (count > 0)
+                bloom.Draw(target, Matrix.Identity, () => {
+                    for (int i = 0; i < count; i++)
+                        renderer.Draw(batch, new Vector2(80 + i % 32 * 54, 350 + i / 32 * 320), 120 + frame, Matrix.Identity);
+                });
+            GraphicsDevice.SetRenderTarget(null);
+            target.GetData(0, new Rectangle(80, 350, 1, 1), pixel, 0, 1);
+            return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        }
+        for (int i = 0; i < 120; i++) Render(64, i);
+        for (int round = 0; round < 4; round++)
+        for (int c = 0; c < counts.Length; c++)
+        {
+            int count = counts[(c + round) % counts.Length];
+            for (int i = 0; i < 10; i++) Render(count, i);
+            for (int i = 0; i < 60; i++) samples[count].Add(Render(count, i));
+        }
+        double Percentile(List<double> data, double percentile) => data.Order().ElementAt((int)Math.Ceiling(data.Count * percentile) - 1);
+        var result = new {
+            Adapter = GraphicsAdapter.DefaultAdapter.Description,
+            Resolution = "1920x1080", Size = "24x210 tapered source each, one shared KL bloom, all visible, 100% scale",
+            Method = "CPU submission + real KL shared bloom + GPU completion + readback; includes offline reflection adapter overhead, NOT in-game frame time or GPU-only time. Terrain/network absent.",
+            Rows = counts.Select(count => new { Count = count, Samples = samples[count].Count,
+                MedianMs = Percentile(samples[count], .5), P95Ms = Percentile(samples[count], .95) }).ToArray()
+        };
+        string json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(output, "benchmark-render.json"), json); Console.WriteLine(json);
+    }
+}

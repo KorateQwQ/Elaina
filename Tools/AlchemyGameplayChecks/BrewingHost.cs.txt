@@ -1,0 +1,29 @@
+// Only the character toggle, packet enum and SUI window are fixtures. The brew
+// player, timer, world tiles, native inventory collection and crafting are real.
+namespace 伊蕾娜
+{
+    public sealed class ElainaModplayer : Terraria.ModLoader.ModPlayer { public bool Elaina = true; }
+    public sealed class 伊蕾娜 : Terraria.ModLoader.Mod
+    { public enum MessageType : byte { 炼金状态 } }
+}
+namespace 伊蕾娜.ElainaModAlchemy.UI
+{
+    public static class AlchemyNotebookPanel
+    {
+        public static bool Available = true;
+        public static bool OpenPanel() => Available;
+    }
+}
+
+internal sealed class BrewingChatFixture : Terraria.GameContent.UI.Chat.IChatMonitor
+{
+    public readonly System.Collections.Generic.List<string> Messages = new();
+    public void NewText(string text, byte r = 255, byte g = 255, byte b = 255) => Messages.Add(text);
+    public void NewTextMultiline(string text, bool force = false, Microsoft.Xna.Framework.Color c = default, int WidthLimit = -1) => Messages.Add(text);
+    public void DrawChat(bool drawingPlayerChat) { }
+    public void Clear() => Messages.Clear();
+    public void Update() { }
+    public void Offset(int linesOffset) { }
+    public void ResetOffset() { }
+    public void OnResolutionChange() { }
+}

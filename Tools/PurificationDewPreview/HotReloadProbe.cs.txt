@@ -1,0 +1,68 @@
+﻿using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.Purification;
+
+using var game = new HotReloadProbe(args[0], args[1], args[2]);
+game.Run();
+
+sealed class HotReloadProbe : Game
+{
+    readonly string effects, trailPath, output;
+    SpriteBatch batch;
+    Texture2D trail;
+    ContentManager materials;
+    PurificationDewRenderer renderer;
+    Effect material;
+    bool ready, passed;
+    public HotReloadProbe(string effects, string trailPath, string output)
+    {
+        this.effects = effects; this.trailPath = trailPath; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 512, PreferredBackBufferHeight = 448 };
+        IsFixedTimeStep = true; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        materials = new ContentManager(Services, effects);
+        using (var input = File.OpenRead(trailPath)) trail = Texture2D.FromStream(GraphicsDevice, input);
+        material = materials.Load<Effect>("PurificationDew");
+        renderer = new PurificationDewRenderer(material, trail);
+        if (!global::System.Reflection.Metadata.MetadataUpdater.IsSupported)
+            throw new Exception("This process does not support metadata updates.");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (passed) return;
+        GraphicsDevice.Clear(new Color(15, 18, 29));
+        batch.Begin(); renderer.Draw(batch, new Vector2(264, 328), 120, Matrix.Identity); batch.End();
+        var settings = PurificationDewVisualSettings.Read();
+        Vector4 motion = material.Parameters["Motion"].GetValueVector4();
+        Vector4 hue = material.Parameters["Hue"].GetValueVector4();
+        Vector4 shape = material.Parameters["Shape"].GetValueVector4();
+        if (!ready)
+        {
+            if (Math.Abs(motion.X - 1.8f) > .0001f || Math.Abs(hue.X - .10f) > .0001f)
+                throw new Exception("Initial production settings differ from the expected baseline.");
+            ready = true;
+            File.WriteAllText(Path.Combine(output, "ready.json"), JsonSerializer.Serialize(new { Process = Environment.ProcessId }));
+        }
+        if (Math.Abs(motion.X - .9f) < .0001f && Math.Abs(motion.Y - .16f) < .0001f
+            && Math.Abs(hue.X - .25f) < .0001f && Math.Abs(shape.Z - 1.2f) < .0001f
+            && settings.Width == 30f)
+        {
+            // The renderer borrows the same content-owned Effect throughout the metadata update.
+            File.WriteAllText(Path.Combine(output, "passed.json"), JsonSerializer.Serialize(new {
+                Process = Environment.ProcessId, SameEffect = true, SwaySpeed = motion.X, SwayAmplitude = motion.Y,
+                ColorSpeed = hue.X, TaperExponent = shape.Z, settings.Width,
+                Scope = "Real .NET Hot Reload in standalone FNA; not the user's running Terraria process."
+            }, new JsonSerializerOptions { WriteIndented = true }));
+            passed = true; Exit();
+        }
+    }
+    protected override void UnloadContent()
+    { trail.Dispose(); batch.Dispose(); materials.Dispose(); base.UnloadContent(); }
+}

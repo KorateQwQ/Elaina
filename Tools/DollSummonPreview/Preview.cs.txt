@@ -1,0 +1,156 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+
+using var game = new Preview(args[0], args[1]);
+game.Run();
+
+// Fixture timeline: summon at tick 0 (staggered by formation slot), dismiss at tick 100 (back row first).
+// Doll frames and DollSummonVisuals are production; player/ground are neutral fixtures.
+// Sparks mirror the game path: premultiplied AlphaBlend into a target that records coverage (as KL RequestBloom does),
+// then composited as scene * (1 - a) + rgb * Hdr (ReColor). KL Bloom blur is not simulated.
+sealed class Preview : Game
+{
+    const int DismissAt = 100, Ticks = 170;
+    const float Hdr = 2.2f; // DollSummonDust.Hdr
+    static readonly (string Name, Color Sky, Color Ground, Color Edge)[] Scenes =
+        [("night", new(16, 21, 32), new(39, 38, 46), new(67, 63, 72)), ("day", new(122, 206, 205), new(118, 92, 66), new(92, 168, 70))];
+    static readonly BlendState Under = new()
+    {
+        ColorSourceBlend = Blend.One, ColorDestinationBlend = Blend.InverseSourceAlpha,
+        AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One,
+    };
+    static readonly BlendState Lift = new()
+    {
+        ColorSourceBlend = Blend.One, ColorDestinationBlend = Blend.One,
+        AlphaSourceBlend = Blend.Zero, AlphaDestinationBlend = Blend.One,
+    };
+    static readonly string[] Names = ["Bear", "WhiteCat", "YellowDog", "Rabbit"];
+    static readonly Vector2[] Offsets = [new(40, -34), new(82, -10), new(84, -62), new(122, -36)];
+    readonly string output, repo;
+    SpriteBatch batch;
+    Texture2D pixel, dot, sparkle, flare, line;
+    readonly Texture2D[] dolls = new Texture2D[4];
+    readonly List<(Vector2 Center, DollSpark Spark)> sparks = [];
+    bool done;
+
+    public Preview(string output, string repo)
+    {
+        this.output = output; this.repo = repo;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 640, PreferredBackBufferHeight = 360,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    // tModLoader premultiplies PNG alpha on load; mirror it so blending matches the game.
+    Texture2D Load(string path)
+    {
+        using var stream = File.OpenRead(path);
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++) data[i] = Color.FromNonPremultiplied(data[i].ToVector4());
+        texture.SetData(data);
+        return texture;
+    }
+
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData([Color.White]);
+        string kl = Path.Combine(repo, "../KL/Effects/Tex/Sparkle");
+        dot = Load(Path.Combine(repo, "ElainaModSkills/UICore/Assets/GlowDot.png"));
+        sparkle = Load(Path.Combine(repo, "ElainaModSkills/UICore/Assets/Star4.png"));
+        flare = Load(Path.Combine(kl, "T_StartFlare001.PNG"));
+        line = Load(Path.Combine(kl, "ShotLine.png"));
+        for (int i = 0; i < 4; i++)
+            dolls[i] = Load(Path.Combine(repo, $"ElainaModSkills/Skills/DollControl/NewDoll/Ready/{Names[i]}_Idle_1.png"));
+    }
+
+    void Burst(Random random, Vector2 center, bool vanish)
+    {
+        for (int i = 0; i < DollSummonVisuals.BurstCount(vanish); i++)
+            sparks.Add((center, DollSummonVisuals.Create(random, i, vanish)));
+    }
+
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        foreach (var scene in Scenes) Render(scene.Name, scene.Sky, scene.Ground, scene.Edge);
+        Console.WriteLine("Exported doll summon/dismiss timeline on night and day backgrounds (production DollSummonVisuals and doll frames).");
+        Exit();
+    }
+
+    void Render(string name, Color sky, Color ground, Color edge)
+    {
+        sparks.Clear();
+        var random = new Random(7);
+        Vector2 player = new(110, 120);
+        using var target = new RenderTarget2D(GraphicsDevice, 320, 180);
+        using var hdr = new RenderTarget2D(GraphicsDevice, 320, 180, false, SurfaceFormat.HalfVector4, DepthFormat.None);
+        using var big = new RenderTarget2D(GraphicsDevice, 640, 360);
+        for (int tick = 0; tick < Ticks; tick++)
+        {
+            // Production rule: appear at slot * stagger; dismiss back row first; vanish burst when the doll is removed.
+            for (int slot = 0; slot < 4; slot++)
+            {
+                Vector2 at = player + Offsets[slot];
+                if (tick == slot * DollSummonVisuals.StaggerTicks) Burst(random, at, false);
+                if (tick == DismissAt + (3 - slot) * DollSummonVisuals.StaggerTicks + DollSummonVisuals.VanishTicks - DollSummonVisuals.VanishBurstLead)
+                    Burst(random, at + new Vector2(0, -12f * .7f * .7f), true);
+            }
+            for (int i = sparks.Count - 1; i >= 0; i--)
+            {
+                var entry = sparks[i];
+                if (!DollSummonVisuals.Step(ref entry.Spark)) sparks.RemoveAt(i); else sparks[i] = entry;
+            }
+
+            GraphicsDevice.SetRenderTarget(hdr);
+            GraphicsDevice.Clear(Color.Transparent);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            foreach (var (center, spark) in sparks) DollSummonVisuals.Draw(batch, dot, sparkle, flare, line, center, spark);
+            batch.End();
+
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(sky);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            batch.Draw(pixel, new Rectangle(0, 144, 320, 36), ground);
+            batch.Draw(pixel, new Rectangle(0, 144, 320, 2), edge);
+            batch.Draw(pixel, new Rectangle((int)player.X - 6, (int)player.Y - 4, 12, 28), new Color(148, 132, 183));
+            batch.Draw(pixel, new Rectangle((int)player.X - 5, (int)player.Y - 14, 10, 10), new Color(224, 195, 174));
+            for (int slot = 0; slot < 4; slot++)
+            {
+                float appearAge = tick - slot * DollSummonVisuals.StaggerTicks;
+                float vanishAge = tick - DismissAt - (3 - slot) * DollSummonVisuals.StaggerTicks;
+                if (vanishAge >= DollSummonVisuals.VanishTicks) continue;
+                DollSummonVisuals.Appearance(appearAge, tick >= DismissAt ? Math.Max(0, vanishAge) : -1,
+                    out Vector2 scale, out float flash, out float alpha, out Vector2 offset);
+                if (alpha <= 0) continue;
+                // Mirrors DollPetProjectile.PreDraw: sprite, then an additive tint of the same frame for the flash.
+                Texture2D doll = dolls[slot];
+                Vector2 at = player + Offsets[slot] + new Vector2(0, MathF.Sin((tick + slot * 22) * .07f) * 1.5f) + offset;
+                Vector2 origin = new Vector2(doll.Width, doll.Height) * .5f;
+                batch.Draw(doll, at, null, Color.White * alpha, 0, origin, scale, SpriteEffects.FlipHorizontally, 0);
+                if (flash > 0)
+                    batch.Draw(doll, at, null, new Color(255, 226, 255, 0) * (flash * alpha), 0, origin, scale, SpriteEffects.FlipHorizontally, 0);
+            }
+            batch.End();
+            // scene * (1 - a) + rgb, then add rgb * (Hdr - 1); the 8-bit target clips like the game's scene target.
+            batch.Begin(SpriteSortMode.Deferred, Under, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            batch.Draw(hdr, Vector2.Zero, Color.White);
+            batch.End();
+            batch.Begin(SpriteSortMode.Deferred, Lift, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            for (float lift = Hdr - 1; lift > 0; lift -= 1) batch.Draw(hdr, Vector2.Zero, Color.White * Math.Min(1, lift));
+            batch.End();
+
+            GraphicsDevice.SetRenderTarget(big);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            batch.Draw(target, new Rectangle(0, 0, 640, 360), Color.White);
+            batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            if (tick % 2 == 0)
+                using (var stream = File.Create(Path.Combine(output, $"frame-{name}-{tick:000}.png"))) big.SaveAsPng(stream, 640, 360);
+        }
+    }
+}

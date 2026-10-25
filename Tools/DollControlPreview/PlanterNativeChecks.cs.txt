@@ -1,0 +1,190 @@
+global using Microsoft.Xna.Framework;
+global using Terraria;
+global using Terraria.ModLoader;
+using System.Reflection;
+using Terraria.ID;
+using Terraria.ObjectData;
+using Terraria.Utilities;
+using Terraria.Enums;
+using Terraria.DataStructures;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+// Actual tML Item defaults, Tilemap, WorldGen, TileObject and consumption hooks. No sockets or saves.
+internal static partial class PlanterNativeChecks
+{
+    private static int passed;
+    private static void Check(bool condition, string reason) { if (!condition) throw new Exception(reason); passed++; }
+    private static void Main()
+    {
+        const BindingFlags hidden = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        Terraria.Program.SavePath = Path.GetTempPath();
+        Host.dedServ = true; Host.netMode = NetmodeID.SinglePlayer; Host.myPlayer = 0;
+        Host.SceneMetrics = new SceneMetrics(); Host.PylonSystem = new Terraria.GameContent.TeleportPylonsSystem();
+        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(WallID.Sets), typeof(ItemID.Sets) })
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(sets.TypeHandle);
+        SetFactory.ResizeArrays(false); TileObjectData.Initialize();
+        var mod = new FixtureMod();
+#if GARDEN
+        GardenSetup(mod);
+#endif
+        var fixtures = new[] { "Planter", "Soil", "OrdinaryPlatform", "LargePlanter", "StylePlanter", "Herb", "AlternatePlanter", "UnlistedTop", "InvalidPlanter" }
+            .Select(name => new FixtureTile(name)).ToArray();
+        foreach (var tile in fixtures) { ((ILoadable)tile).Load(mod); ContentInstance.Register(tile); }
+        foreach (Type loader in new[] { typeof(TileLoader), typeof(WallLoader), typeof(ItemLoader) })
+            loader.GetMethod("ResizeArrays", hidden)!.Invoke(null, new object[] { false });
+        typeof(PlayerLoader).GetMethod("ResizeArrays", hidden)!.Invoke(null, null);
+        Host.maxTilesX = Host.maxTilesY = 240;
+        Host.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)240, (ushort)240 }, null)!;
+        Host.worldSurface = 180; Host.rockLayer = 200; Host.rand = new UnifiedRandom(703);
+        WorldGen._genRand = new UnifiedRandom(704); WorldGen.gen = false;
+        foreach (int type in new[] { TileID.Platforms, TileID.PlanterBox })
+        { Host.tileSolid[type] = Host.tileSolidTop[type] = true; }
+        Host.tileTable[TileID.Platforms] = true;
+        Host.tileFrameImportant[TileID.Platforms] = Host.tileFrameImportant[TileID.PlanterBox] = Host.tileFrameImportant[TileID.ClayPot] = true;
+        Host.player = Enumerable.Range(0, 256).Select(i => new Player { whoAmI = i }).ToArray();
+        Host.item = Enumerable.Range(0, Host.maxItems + 1).Select(_ => new Item()).ToArray();
+        Host.projectile = Enumerable.Range(0, Host.maxProjectiles + 1).Select(_ => new Projectile()).ToArray();
+        Host.npc = Enumerable.Range(0, Host.maxNPCs + 1).Select(_ => new NPC()).ToArray();
+        Player player = Host.player[0]; player.active = true; player.position = new(600, 400);
+        var planters = typeof(ItemID).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(short) && f.Name.EndsWith("PlanterBox"))
+            .Select(f => Convert.ToInt32(f.GetRawConstantValue())).ToArray();
+        Check(planters.Length >= 8, "All vanilla planter styles discovered");
+        int column = 30;
+        foreach (int pot in planters)
+        {
+            for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+            player.inventory[1] = new Item(pot, 5);
+            ContentSamples.ItemsByType[pot] = new Item(pot);
+            Point p = new(column++, 60);
+            var result = DollPlanterBuilding.Place(player, p, pot);
+            Check(result == DollPlanterBuilding.Result.Placed, $"Native unsupported planter {pot}: {result}");
+            Check(Host.tile[p.X, p.Y].HasTile && Host.tile[p.X, p.Y].TileType == player.inventory[1].createTile,
+                "Real planter remains after tile framing without a supporting tile");
+            Check(!Host.tile[p.X, p.Y - 1].HasTile && !Host.tile[p.X, p.Y + 1].HasTile && player.inventory[1].stack == 4,
+                "Only one planter is consumed; cells above and below remain empty");
+            Check(DollPlanterBuilding.Place(player, p, pot) == DollPlanterBuilding.Result.Blocked
+                && player.inventory[1].stack == 4, "Replaying work cannot duplicate or consume again");
+        }
+        var target = new Point(90, 90);
+        for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+        player.inventory[0] = new Item(ItemID.WoodPlatform, 1);
+        Check(DollPlanterBuilding.Place(player, target, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.MissingPlanter
+            && !Host.tile[90, 91].HasTile && player.inventory[0].stack == 1, "Missing planter does not touch platforms");
+        player.inventory[1] = new Item(ItemID.DayBloomPlanterBox, 1);
+        Check(DollPlanterBuilding.Place(player, target, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed
+            && player.inventory[1].IsAir && player.inventory[0].stack == 1, "Last planter consumed, platform unchanged");
+        Check(DollPlanterBuilding.Place(player, new(91, 90), ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.MissingPlanter,
+            "Native material lookup detects planter exhaustion");
+        player.inventory[1] = new Item(ItemID.ClayPot, 2);
+        Check(!DollPlanterBuilding.IsMaterial(player.inventory[1]) && DollPlanterBuilding.Options(player).Count == 0,
+            "Clay pots and ordinary platforms are excluded from choices");
+        Tile below = Host.tile[91, 91]; below.HasTile = true; below.TileType = TileID.Dirt;
+        Check(DollPlanterBuilding.Place(player, new(91, 90), ItemID.ClayPot) == DollPlanterBuilding.Result.MissingPlanter
+            && player.inventory[1].stack == 2 && !Host.tile[91, 90].HasTile, "Clay pots rejected even with solid support");
+        player.inventory[1] = new Item(ItemID.DayBloomPlanterBox, 2);
+        Check(DollPlanterBuilding.Place(player, new(91, 90), ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed
+            && Host.tile[91, 91].TileType == TileID.Dirt, "Existing tile below a planter is preserved and does not block it");
+        CheckCompatibility(player, fixtures);
+#if GARDEN
+        CheckGarden(player, fixtures);
+        CheckMiningRules(player, fixtures[0]);
+        CheckChests(player);
+#endif
+        Host.myPlayer = 1;
+        Check(DollPlanterBuilding.Place(player, new(92, 90), ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Blocked,
+            "Remote owners cannot place or consume");
+        Console.WriteLine($"PASS: {passed} native tML placement checks; {planters.Length} unsupported planter styles, framing, consumption, exhaustion, owner authority.");
+    }
+
+    private static void CheckCompatibility(Player player, FixtureTile[] tiles)
+    {
+        int pot = tiles[0].Type, soil = tiles[1].Type, platform = tiles[2].Type, large = tiles[3].Type,
+            styled = tiles[4].Type, herb = tiles[5].Type, alternate = tiles[6].Type, unlisted = tiles[7].Type,
+            invalid = tiles[8].Type;
+        foreach (var tile in tiles.Where(t => t.Type != herb))
+        {
+            Host.tileSolid[tile.Type] = true;
+            Host.tileSolidTop[tile.Type] = tile.Type != soil;
+            Host.tileFrameImportant[tile.Type] = true;
+            TileObjectData.newTile.CopyFrom(TileObjectData.Style1x1);
+            TileObjectData.newTile.Origin = Point16.Zero;
+            TileObjectData.newTile.AnchorBottom = AnchorData.Empty;
+            if (tile.Type == large) TileObjectData.newTile.Width = 2;
+            TileObjectData.addTile(tile.Type);
+        }
+        TileID.Sets.Platforms[platform] = true;
+        Host.tileAlch[herb] = true;
+        // 模拟模组给原版药草的后续样式添加额外花盆（不是仅样式 0）。
+        var originalHerb = TileObjectData.GetTileData(TileID.ImmatureHerbs, 6);
+        int[] oldAnchors = originalHerb.AnchorAlternateTiles;
+        originalHerb.AnchorAlternateTiles = [.. oldAnchors, pot, soil, large];
+        // 模组药草的种子声明样式 8，基类不声明这些支撑；另外测试 alternate。
+        TileObjectData.newTile.CopyFrom(TileObjectData.StyleAlch);
+        TileObjectData.newTile.AnchorAlternateTiles = [];
+        TileObjectData.newAlternate.CopyFrom(TileObjectData.newTile);
+        TileObjectData.newAlternate.AnchorAlternateTiles = [alternate];
+        TileObjectData.addAlternate(0);
+        TileObjectData.newSubTile.CopyFrom(TileObjectData.StyleAlch);
+        TileObjectData.newSubTile.AnchorBottom = new AnchorData(AnchorType.SolidWithTop, 1, 0);
+        TileObjectData.newSubTile.AnchorValidTiles = [styled, invalid];
+        TileObjectData.newSubTile.AnchorInvalidTiles = [invalid];
+        TileObjectData.addSubTile(8);
+        TileObjectData.addTile(herb);
+        Item Material(int type) => new(ItemID.ClayPot) { createTile = type, stack = 3 };
+        // 检查生产端的内容样本扫描；种子样式不必已经在玩家背包里。
+        ContentSamples.ItemsByType[60000] = new Item(ItemID.DaybloomSeeds) { createTile = herb, placeStyle = 8 };
+        AdvanceSupportIndex();
+        Check(DollPlanterBuilding.IsMaterial(Material(pot)), "Mod tile: top-solid plus vanilla herb alternate anchor is recognized");
+        Check(!TileID.Sets.Platforms[pot], "Planter recognition does not require Platforms tag");
+        Check(!DollPlanterBuilding.IsMaterial(Material(soil)), "Herb-supporting soil without top-solid is rejected");
+        Check(!DollPlanterBuilding.IsMaterial(Material(platform)), "Ordinary mod platform is not a planter");
+        Check(!DollPlanterBuilding.IsMaterial(Material(large)), "Multi-tile planter is excluded from single-cell layout");
+        Check(DollPlanterBuilding.IsMaterial(Material(styled)), "Mod herb seed style and explicit valid support list are read");
+        Check(DollPlanterBuilding.IsMaterial(Material(alternate)), "Mod herb alternate placement support is read");
+        Check(!DollPlanterBuilding.IsMaterial(Material(unlisted)), "Top-solid alone is insufficient");
+        Check(!DollPlanterBuilding.IsMaterial(Material(invalid)), "Explicit invalid anchors are respected");
+        var potData = TileObjectData.GetTileData(pot, 0);
+        potData.AnchorBottom = new AnchorData(AnchorType.SolidWithTop, 1, 0);
+        Check(!DollPlanterBuilding.IsMaterial(Material(pot)), "Single-cell herb container requiring support is excluded");
+        potData.AnchorBottom = AnchorData.Empty;
+        Host.tileSolidTop[pot] = false;
+        Check(!DollPlanterBuilding.IsMaterial(Material(pot)), "Top-solid is required even after support index is cached");
+        Host.tileSolidTop[pot] = true;
+        for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+        var potItem = Material(pot); potItem.type = 60001;
+        player.inventory[0] = new Item(ItemID.WoodPlatform, 3);
+        player.inventory[1] = potItem;
+        ContentSamples.ItemsByType[60001] = Material(pot);
+        Check(DollPlanterBuilding.Options(player).Exists(o => o.Type == 60001), "Recognized mod planter reaches inventory menu");
+        var p = new Point(120, 100);
+        Check(DollPlanterBuilding.Place(player, p, 60001) == DollPlanterBuilding.Result.Placed,
+            "Real TileObject placement supports registered mod planter");
+        Check(Host.tile[p.X, p.Y].TileType == pot && player.inventory[0].stack == 3 && potItem.stack == 2
+            && !Host.tile[p.X, p.Y - 1].HasTile && !Host.tile[p.X, p.Y + 1].HasTile, "Mod planter needs no support and consumes only itself");
+        Check(TileObject.CanPlace(p.X, p.Y - 1, TileID.ImmatureHerbs, 6, player.direction, out _),
+            "Real herb placement accepts the recognized mod planter as support");
+        var baseHerb = TileObjectData.GetTileData(herb, 0);
+        var oldBottom = baseHerb.AnchorBottom;
+        baseHerb.AnchorBottom = new AnchorData(AnchorType.SolidWithTop, 1, 0);
+        baseHerb.AnchorValidTiles = null;
+        AdvanceSupportIndex();
+        Check(!DollPlanterBuilding.IsMaterial(Material(unlisted))
+            && !DollPlanterBuilding.IsMaterial(Material(platform)),
+            "A herb that accepts every top-solid surface does not turn ordinary platforms into planters");
+        baseHerb.AnchorBottom = oldBottom;
+        Check(!DollPlanterBuilding.IsMaterial(Material(TileLoader.TileCount))
+            && !DollPlanterBuilding.IsMaterial(Material(-1)), "Invalid createTile IDs are rejected safely");
+        originalHerb.AnchorAlternateTiles = oldAnchors;
+        AdvanceSupportIndex();
+        Check(!DollPlanterBuilding.IsMaterial(Material(pot)), "Cached support index refreshes after rule removal");
+        ContentSamples.ItemsByType.Remove(60000); ContentSamples.ItemsByType.Remove(60001);
+    }
+
+    private sealed class FixtureMod : Mod { public override string Name => "DollPlanterCompatibilityChecks"; }
+    private sealed class FixtureTile(string name) : ModTile { public override string Name => name; }
+    private static void AdvanceSupportIndex() => typeof(Host).GetField("_gameUpdateCount", BindingFlags.Static | BindingFlags.NonPublic)!
+        .SetValue(null, Host.GameUpdateCount + 60);
+}

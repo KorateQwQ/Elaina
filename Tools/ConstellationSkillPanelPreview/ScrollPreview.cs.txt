@@ -41,6 +41,17 @@ internal static class ScrollPreview
             using var stream = File.Create(Path.Combine(directory, name + ".png"));
             target.SaveAsPng(stream, width, height);
         }
+        // Mid-page: the hints above and below the body both show.
+        foreach (var (width, height, scale) in new[] { (1280, 720, 1f), (1600, 1000, 1.25f) })
+        {
+            using var target = new RenderTarget2D(device, width, height);
+            device.SetRenderTarget(target);
+            device.Clear(new Color(20, 21, 28));
+            new PanelScene().Render(batch, width, height, scale, "growth-long", detail => (detail.ContentHeight - detail.Height) / 2);
+            device.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(directory, $"middle-{width}.png"));
+            target.SaveAsPng(stream, width, height);
+        }
         File.WriteAllLines(Path.Combine(directory, "checks.txt"), checks);
         Console.WriteLine($"{checks.Count} skill detail scroll samples passed: {directory}");
     }

@@ -1,0 +1,44 @@
+using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class PlanterNativeChecks
+{
+    // Reuse the native engine and registered DollLootCapture from garden.ps1; no sockets or player files.
+    private static void CheckLootModes()
+    {
+        int before = passed;
+        Point p = new(160, 120);
+        Host.tileSolid[TileID.Stone] = true;
+        foreach (bool walls in new[] { false, true })
+        foreach (bool bringBack in new[] { true, false, true })
+        {
+            foreach (Item item in Host.item) { item.TurnToAir(); item.active = false; }
+            Tile tile = Host.tile[p.X, p.Y]; tile.ClearEverything();
+            if (walls) tile.WallType = WallID.Stone;
+            else { tile.HasTile = true; tile.TileType = TileID.Stone; }
+            List<(int Type, int Stack)> captured = [(ItemID.DirtBlock, 99)];
+            bool broken = walls ? DollTileBreaker.BreakWall(p.X, p.Y, captured, bringBack)
+                : DollTileBreaker.BreakTile(p.X, p.Y, captured, bringBack);
+            int expected = walls ? ItemID.StoneWall : ItemID.StoneBlock;
+            var worldDrops = Host.item.Take(Host.maxItems).Where(i => i.active && !i.IsAir).ToArray();
+            Check(broken && (walls ? tile.WallType == 0 : !tile.HasTile), "Native break removes the selected tile/wall");
+            Check(!DollLootCapture.Capturing, "Capture hook must be inactive after either mode");
+            if (bringBack)
+            {
+                Check(captured.Count == 1 && captured[0] == (expected, 1), "Enabled: exactly one native drop is collected");
+                Check(worldDrops.Length == 0, "Enabled: no duplicate drop remains in world");
+            }
+            else
+            {
+                Check(captured.Count == 0, "Disabled: no new or stale drops enter collected loot");
+                Check(worldDrops.Length == 1 && worldDrops[0].type == expected && worldDrops[0].stack == 1,
+                    "Disabled: exactly one native drop remains in world");
+                Check(Vector2.Distance(worldDrops[0].Center, p.ToWorldCoordinates()) < 24,
+                    "Disabled: drop stays at the broken block, not at the owner");
+            }
+        }
+        foreach (Item item in Host.item) { item.TurnToAir(); item.active = false; }
+        Console.WriteLine($"PASS: {passed - before} native loot-mode checks; tiles/walls, capture/drop/capture, location and no duplicates.");
+    }
+}

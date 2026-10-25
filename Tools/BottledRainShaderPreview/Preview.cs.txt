@@ -1,0 +1,149 @@
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.Rain;
+
+using var game = new ShaderRainPreview(args[0], args[1], args[2], args.Contains("--benchmark"));
+game.Run();
+
+sealed partial class ShaderRainPreview : Game
+{
+    readonly string output;
+    readonly string effectsPath;
+    readonly bool benchmark;
+    SpriteBatch batch;
+    Texture2D pixel, white, cloud, herbs, blooms, noise;
+    Effect effect;
+    RainCloudShaderRenderer renderer;
+    ContentManager shaderContent;
+    bool done;
+    readonly float[] lengths = Enumerable.Range(0, 20).Select(i => i >= 3 && i <= 6 ? 88f : 168f).ToArray();
+
+    public ShaderRainPreview(string output, string content, string effectsPath, bool benchmark = false)
+    {
+        this.output = output; this.effectsPath = effectsPath; this.benchmark = benchmark; Content.RootDirectory = content;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 800, PreferredBackBufferHeight = 450,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = Content.Load<Texture2D>("Images/MagicPixel");
+        cloud = Content.Load<Texture2D>("Images/Projectile_238");
+        herbs = Content.Load<Texture2D>("Images/Tiles_83");
+        blooms = Content.Load<Texture2D>("Images/Tiles_84");
+        string repo = Path.GetFullPath(Path.Combine(effectsPath, "../.."));
+        using (var input = File.OpenRead(Path.Combine(repo, "Effects/Tex/Baked/WhitePixel.png"))) white = Texture2D.FromStream(GraphicsDevice, input);
+        using (var input = File.OpenRead(Path.Combine(repo, "ElainaModAlchemy/Rain/Assets/CloudNoise.png"))) noise = Texture2D.FromStream(GraphicsDevice, input);
+        shaderContent = new ContentManager(Services, effectsPath);
+        effect = shaderContent.Load<Effect>("BottledRainCloud");
+        foreach (string name in new[] { "Time", "Opacity", "Density", "FlowSpeed", "Reveal", "RevealGlow" })
+            if (effect.Parameters[name] == null) throw new Exception("Missing compiled cloud uniform: " + name);
+        renderer = new RainCloudShaderRenderer(effect, white, noise);
+        Console.WriteLine("FNA loaded production BottledRainCloud.xnb and production RainCloudShaderRenderer.");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        Directory.CreateDirectory(output);
+        if (benchmark) { Benchmark(); Exit(); return; }
+        using var sheet = new RenderTarget2D(GraphicsDevice, 1280, 720, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        GraphicsDevice.SetRenderTarget(sheet); GraphicsDevice.Clear(Color.Black); GraphicsDevice.SetRenderTarget(null);
+        int[] ages = [24, 180, 600, 3575];
+        for (int i = 0; i < ages.Length; i++)
+        {
+            using var frame = Frame(ages[i], i == 2, 1, true);
+            Save(frame, $"shader-{ages[i]:0000}.png");
+            GraphicsDevice.SetRenderTarget(sheet); batch.Begin();
+            batch.Draw(frame, new Vector2(i % 2 * 640, i / 2 * 360), Color.White);
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+        }
+        Save(sheet, "shader-sequence.png");
+        using (var dissolveSheet = new RenderTarget2D(GraphicsDevice, 1280, 720, false, SurfaceFormat.Color,
+            DepthFormat.None, 0, RenderTargetUsage.PreserveContents))
+        {
+            GraphicsDevice.SetRenderTarget(dissolveSheet); GraphicsDevice.Clear(Color.Black); GraphicsDevice.SetRenderTarget(null);
+            int[] dissolveAges = [24, 54, 90, 132];
+            for (int i = 0; i < dissolveAges.Length; i++)
+            {
+                using var frame = Frame(dissolveAges[i], false, 1, true);
+                GraphicsDevice.SetRenderTarget(dissolveSheet); batch.Begin();
+                batch.Draw(frame, new Vector2(i % 2 * 640, i / 2 * 360), Color.White);
+                batch.End(); GraphicsDevice.SetRenderTarget(null);
+            }
+            Save(dissolveSheet, "dissolve-sequence.png");
+        }
+        using (var zoom = Frame(180, false, 1.25f, true)) Save(zoom, "shader-125.png");
+        using (var oldFrame = Frame(180, false, 1, false))
+        using (var newFrame = Frame(180, false, 1, true))
+        using (var comparison = new RenderTarget2D(GraphicsDevice, 1280, 360))
+        {
+            GraphicsDevice.SetRenderTarget(comparison); GraphicsDevice.Clear(Color.Black); batch.Begin();
+            batch.Draw(oldFrame, Vector2.Zero, Color.White); batch.Draw(newFrame, new Vector2(640, 0), Color.White);
+            batch.End(); GraphicsDevice.SetRenderTarget(null); Save(comparison, "original-vs-shader.png");
+        }
+        for (int i = 0; i < 120; i++)
+        {
+            using var frame = Frame(180 + i * 3, false, 1, true);
+            Save(frame, $"motion-{i:000}.png");
+        }
+        for (int i = 0; i < 150; i++)
+        {
+            using var frame = Frame(i * 2, false, 1, true);
+            Save(frame, $"reveal-{i:000}.png");
+        }
+        Console.WriteLine("Rendered old/new comparison, emergence, day/night, fade, 125% and 120 animated shader frames.");
+        Exit();
+    }
+    RenderTarget2D Frame(float age, bool bright, float scale, bool shader)
+    {
+        var target = new RenderTarget2D(GraphicsDevice, (int)(640 * scale), (int)(360 * scale));
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(bright ? new Color(142, 187, 211) : new Color(27, 31, 52));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None,
+            RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        Fill(0, 304, 640, 56, new Color(73, 59, 71));
+        Fill(0, 302, 640, 4, new Color(93, 133, 109));
+        for (int x = 0; x < 640; x += 16) Fill(x, 309 + (x % 3) * 5, 8, 2, new Color(86, 70, 83));
+        Fill(208, 224, 64, 8, new Color(106, 99, 125));
+        Fill(208, 222, 64, 2, new Color(156, 145, 171));
+        for (int x = 176; x < 496; x += 32)
+        {
+            bool flowering = age >= 30 && (x < 208 || x >= 272);
+            batch.Draw(flowering ? blooms : herbs, new Vector2(x, 284), new Rectangle(72, 0, 16, 20), Color.White);
+            if (flowering)
+            {
+                float indicatorFade = MathHelper.Clamp((age - 30) / 12, 0, 1)
+                    * MathHelper.Clamp((RainCloudDrawing.Duration - age) / 12, 0, 1);
+                RainPlantIndicatorDrawing.Draw(batch, pixel, new Vector2(x + 8, 288), age, indicatorFade, x * 17);
+            }
+        }
+        Fill(114, 274, 13, 28, new Color(174, 158, 204));
+        Fill(114, 261, 12, 13, new Color(235, 207, 205));
+        Fill(105, 256, 32, 5, new Color(180, 162, 209));
+        Fill(114, 245, 15, 12, new Color(161, 142, 193));
+        RainCloudDrawing.Draw(batch, pixel, shader ? null : cloud, new Vector2(320, 120), age, lengths, 3);
+        if (shader) renderer.Draw(batch, new Vector2(320, 120), age, Matrix.CreateScale(scale));
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+    void DrawCloud(float age, float scale, Vector2 offset = default)
+    {
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        renderer.Draw(batch, new Vector2(320, 120) + offset, age, Matrix.CreateScale(scale));
+        batch.End();
+    }
+    void Fill(int x, int y, int width, int height, Color color) =>
+        batch.Draw(pixel, new Rectangle(x, y, width, height), new Rectangle(0, 0, 1, 1), color);
+    void Save(RenderTarget2D target, string name)
+    { using var stream = File.Create(Path.Combine(output, name)); target.SaveAsPng(stream, target.Width, target.Height); }
+    protected override void UnloadContent()
+    {
+        batch.Dispose(); white.Dispose(); noise.Dispose(); shaderContent.Dispose();
+        base.UnloadContent();
+    }
+}

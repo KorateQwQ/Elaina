@@ -1,0 +1,206 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.ID;
+using Terraria.Localization;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaModAlchemy.Purification;
+
+internal static class DewProtectionChecks
+{
+    public static void Run(string repo)
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var system = ModContent.GetInstance<PurificationProtectionSystem>();
+        var protect = typeof(PurificationProtectionSystem).GetMethod("ProtectRow", flags)!.CreateDelegate<Action<int, int>>();
+        var contains = typeof(PurificationProtectionSystem).GetMethod("IsProtected", flags)!.CreateDelegate<Func<int, int, bool>>();
+        var clean = typeof(PurificationProtectionSystem).GetMethod("CleanTile", flags)!.CreateDelegate<Action<int, int>>();
+        var sync = typeof(PurificationProtectionSystem).GetMethod("SyncStrip", flags)!.CreateDelegate<Action<int, int, int>>();
+        var receive = typeof(PurificationProtectionSystem).GetMethod("HandlePacket", flags)!.CreateDelegate<Action<BinaryReader, int, int>>();
+        var purify = typeof(PurificationDewDrop).GetMethod("PurifyRow", flags)!.CreateDelegate<Action<int, int>>();
+        int passed = 0;
+        void Check(bool ok, string name) { if (!ok) throw new Exception(name); passed++; Console.WriteLine("PASS Dew protection: " + name); }
+        Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        Main.hardMode = true; WorldGen.AllowedToSpreadInfections = true; NPC.downedPlantBoss = false;
+        Main.worldSurface = 100; Main.rockLayer = 180;
+        void Reset()
+        {
+            system.ClearWorld();
+            for (int x = 1; x < Main.maxTilesX - 1; x++) for (int y = 1; y < Main.maxTilesY - 1; y++) Main.tile[x, y].ClearEverything();
+        }
+        void Put(int x, int y, ushort type)
+        { var tile = Main.tile[x, y]; tile.ClearEverything(); tile.HasTile = true; tile.TileType = type; }
+        Reset();
+        foreach (int y in new[] { 100, 102, 101, 100, 105 }) protect(100, y);
+        Check(contains(99, 100) && contains(101, 102) && !contains(98, 101) && !contains(102, 101)
+            && !contains(100, 103) && contains(100, 105), "Intervals merge adjacency and overlap without protecting unvisited gaps");
+        var tag = new TagCompound(); system.SaveWorldData(tag);
+        Check(tag.GetIntArray("PurifiedColumnsV1").Length == 18, "Two disjoint ranges per column use six compact triples");
+        using (var stream = new MemoryStream())
+        {
+            TagIO.ToStream(tag, stream); system.ClearWorld(); stream.Position = 0;
+            system.LoadWorldData(TagIO.FromStream(stream));
+        }
+        Check(contains(100, 100) && contains(100, 105) && !contains(100, 104), "Real compressed TagIO round trip restores protection and gaps");
+        system.LoadWorldData(new TagCompound());
+        Check(!contains(100, 100), "Older saves without protection data load safely without invented history");
+        Main.netMode = NetmodeID.MultiplayerClient; protect(100, 100);
+        Check(!contains(100, 100), "Client projectile cannot author protection"); Main.netMode = NetmodeID.SinglePlayer;
+
+        ushort[] blocks = [TileID.Stone, TileID.Grass, TileID.JungleGrass, TileID.Sand, TileID.IceBlock, TileID.Sandstone, TileID.HardenedSand];
+        foreach (int conversion in new[] { BiomeConversionID.Corruption, BiomeConversionID.Crimson, BiomeConversionID.Hallow })
+        foreach (ushort type in blocks)
+        {
+            Reset(); Put(100, 120, type); Put(104, 120, type); protect(100, 120);
+            WorldGen.Convert(100, 120, conversion, 0, tiles: true, walls: false);
+            WorldGen.Convert(104, 120, conversion, 0, tiles: true, walls: false);
+            Check(Main.tile[100, 120].TileType == type, $"Conversion {conversion} cannot alter protected tile {type}");
+            if (type != TileID.JungleGrass || conversion != BiomeConversionID.Hallow)
+                Check(Main.tile[104, 120].TileType != type, $"Conversion {conversion} still works outside the strip for {type}");
+        }
+        Reset(); protect(100, 100); Put(100, 100, TileID.Ebonstone);
+        WorldGen.Convert(100, 100, BiomeConversionID.Purity, 0, tiles: true, walls: false);
+        Check(Main.tile[100, 100].TileType == TileID.Stone, "Purity conversion remains allowed");
+        Main.tile[100, 100].ClearTile(); Put(100, 100, TileID.Stone);
+        WorldGen.Convert(100, 100, BiomeConversionID.Crimson, 0, tiles: true, walls: false);
+        Check(Main.tile[100, 100].TileType == TileID.Stone, "Mining and replacing a tile retains coordinate protection");
+        Put(100, 100, TileID.Pearlstone); WorldGen.TileFrame(100, 100);
+        Check(Main.tile[100, 100].TileType == TileID.Stone, "Newly placed infectious material is purified during native framing");
+
+        foreach (ushort grass in new ushort[] { TileID.CorruptGrass, TileID.CrimsonGrass, TileID.HallowedGrass, TileID.CorruptJungleGrass, TileID.CrimsonJungleGrass })
+        {
+            Reset(); ushort dirt = grass is TileID.CorruptJungleGrass or TileID.CrimsonJungleGrass ? TileID.Mud : TileID.Dirt;
+            Put(100, 70, dirt); Put(104, 70, dirt); protect(100, 70);
+            WorldGen.SpreadGrass(100, 70, dirt, grass, false); WorldGen.SpreadGrass(104, 70, dirt, grass, false);
+            Check(Main.tile[100, 70].TileType == dirt && Main.tile[104, 70].TileType == grass, $"Grass entry {grass} is blocked only inside protection");
+        }
+        Reset(); Put(100, 70, TileID.Dirt); protect(100, 70); WorldGen.SpreadGrass(100, 70, TileID.Dirt, TileID.Grass, false);
+        Check(Main.tile[100, 70].TileType == TileID.Grass, "Ordinary grass still grows inside the sanctuary");
+        foreach (ushort source in new ushort[] { TileID.CorruptGrass, TileID.CrimsonGrass, TileID.HallowedGrass, TileID.CorruptVines, TileID.CrimsonVines, TileID.HallowedVines })
+        {
+            Reset(); Put(100, 70, source); protect(100, 71);
+            Check(!WorldGen.GrowMoreVines(100, 70), $"Infectious vine source {source} cannot grow into protected air");
+            system.ClearWorld(); Check(WorldGen.GrowMoreVines(100, 70), $"Vine source {source} still works outside protection");
+        }
+        Reset(); Put(100, 70, TileID.Grass); protect(100, 71);
+        Check(WorldGen.GrowMoreVines(100, 70), "Ordinary vines are not disabled");
+        foreach (ushort grass in new ushort[] { TileID.CorruptGrass, TileID.CrimsonGrass, TileID.HallowedGrass })
+        {
+            Reset(); Put(100, 70, grass); Put(100, 71, TileID.Vines); protect(100, 71);
+            WorldGen.TileFrame(100, 71);
+            Check(!Main.tile[100, 71].HasTile, $"Native vine recoloring under grass {grass} cannot leave an infected vine inside protection");
+        }
+        Reset(); protect(100, 100); Main.netMode = NetmodeID.Server;
+        using (var discardTransport = new Hook(typeof(NetMessage).GetMethod(nameof(NetMessage.SendData))!,
+            (Action<int, int, int, NetworkText, int, float, float, float, int, int, int>)((a,b,c,d,e,f,g,h,i,j,k) => {})))
+        {
+            Put(100, 100, TileID.Crimstone); WorldGen.RangeFrame(99, 99, 102, 102);
+            Check(Main.tile[100, 100].TileType == TileID.Stone, "Server RangeFrame repairs protected terrain received through native TileSquare");
+        }
+        Main.netMode = NetmodeID.SinglePlayer;
+        foreach (ushort plant in new ushort[] { TileID.CorruptVines, TileID.CrimsonVines, TileID.HallowedVines, TileID.CorruptThorns, TileID.CrimsonThorns, TileID.CrimsonPlants, TileID.HallowedPlants2 })
+        {
+            Reset(); Put(100, 100, plant); var tile = Main.tile[100, 100]; tile.WallType = WallID.EbonstoneUnsafe; tile.RedWire = true; tile.LiquidAmount = 50;
+            purify(100, 100);
+            Check(!tile.HasTile && tile.WallType == WallID.EbonstoneUnsafe && tile.RedWire && tile.LiquidAmount == 50,
+                $"Dew removes pre-existing infection plant {plant} while retaining wall, liquid and wire");
+        }
+        foreach ((ushort thorn, ushort land) in new[] { (TileID.CorruptThorns, TileID.CorruptGrass), (TileID.CrimsonThorns, TileID.CrimsonGrass) })
+        {
+            Reset(); Put(100, 100, land); Put(100, 99, thorn); protect(102, 99);
+            int unprotectedGrowth = 0;
+            WorldGen._genRand = new UnifiedRandom(1207);
+            for (int attempt = 0; attempt < 400; attempt++)
+            {
+                Main.tile[99, 99].ClearEverything(); Main.tile[101, 99].ClearEverything(); Main.tile[100, 98].ClearEverything();
+                WorldGen.GrowSpike(100, 99, thorn, land);
+                if (Main.tile[99, 99].HasTile) unprotectedGrowth++;
+                if (Main.tile[101, 99].HasTile) throw new Exception("Thorn crossed protected air.");
+            }
+            Check(unprotectedGrowth > 0, $"400 real GrowSpike attempts: {thorn} grows outside but never enters sanctuary");
+        }
+
+        foreach (ushort source in new ushort[] { TileID.Ebonstone, TileID.Crimstone, TileID.Pearlstone, TileID.CorruptThorns, TileID.CrimsonThorns, TileID.CorruptVines, TileID.CrimsonVines, TileID.HallowedVines })
+        {
+            Reset();
+            for (int x = 94; x <= 106; x++) for (int y = 114; y <= 126; y++) Put(x, y, TileID.Stone);
+            for (int y = 114; y <= 126; y++) protect(100, y);
+            Put(98, 120, source); WorldGen._genRand = new UnifiedRandom(3407);
+            for (int i = 0; i < 1500; i++) { Put(98, 120, source); WorldGen.hardUpdateWorld(98, 120); }
+            Check(Enumerable.Range(114, 13).All(y => Enumerable.Range(99, 3).All(x => Main.tile[x, y].TileType == TileID.Stone)),
+                $"1500 real infection attempts from {source} never convert the three protected columns");
+            Check(Enumerable.Range(115, 11).Any(y => Main.tile[97, y].TileType != TileID.Stone), $"Infection source {source} still converts nearby unprotected stone");
+        }
+        foreach (bool good in new[] { false, true })
+        foreach (bool crimson in new[] { false, true })
+        {
+            Reset(); WorldGen.crimson = crimson;
+            for (int x = 90; x <= 110; x++) for (int y = 40; y <= 190; y++) Put(x, y, TileID.Stone);
+            for (int y = 40; y <= 190; y++) protect(100, y);
+            WorldGen._genRand = new UnifiedRandom(233); WorldGen.GERunner(100, 100, 0, 5, good);
+            Check(Enumerable.Range(40, 151).All(y => Enumerable.Range(99, 3).All(x => Main.tile[x, y].TileType == TileID.Stone))
+                && Main.tile[98, 100].TileType != TileID.Stone, $"Real hardmode GERunner protects the band but still generates outside (good={good}, crimson={crimson})");
+        }
+
+        var packets = new List<(int To, byte[] Bytes)>();
+        using var capture = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!,
+            (Action<ModPacket, int, int>)((packet, to, ignore) => packets.Add((to, ((MemoryStream)packet.BaseStream).ToArray()))));
+        using var vanillaSend = new Hook(typeof(NetMessage).GetMethod(nameof(NetMessage.SendData))!,
+            (Action<int, int, int, NetworkText, int, float, float, float, int, int, int>)((a,b,c,d,e,f,g,h,i,j,k) => {}));
+        void Request(int sender, int claimed)
+        { using var reader = new BinaryReader(new MemoryStream(new byte[] { 0 })); receive(reader, sender, claimed); }
+        void Deliver(byte[] bytes)
+        { using var reader = new BinaryReader(new MemoryStream(bytes)); reader.ReadUInt16(); reader.ReadByte(); reader.ReadByte(); reader.ReadByte();
+          int target = reader.ReadInt32(); receive(reader, 256, target);
+          if (reader.BaseStream.Position != reader.BaseStream.Length) throw new Exception("Protection payload not fully consumed."); }
+        Reset(); Main.netMode = NetmodeID.Server; Main.myPlayer = 255; Main.player[0].active = true;
+        for (int x = 5; x < 235; x += 6) foreach (int y in new[] { 60, 80, 100 }) protect(x, y);
+        Request(1, 0); Check(packets.Count == 0, "Server rejects a snapshot request with mismatched player identity");
+        Request(0, 0);
+        Check(packets.Count == 2 && packets.All(p => p.To == 0 && p.Bytes.Length < 1600), "Late join gets bounded snapshot chunks only for the joining player");
+        var snapshot = packets.ToArray(); system.ClearWorld(); Main.netMode = NetmodeID.MultiplayerClient; Main.myPlayer = 0;
+        foreach (var packet in snapshot) Deliver(packet.Bytes);
+        Check(contains(5, 60) && contains(233, 100) && !contains(5, 61), "Client restores all snapshot chunks including gaps");
+        Main.netMode = NetmodeID.Server; Main.myPlayer = 255; packets.Clear(); sync(100, 120, 8);
+        Check(packets.Count == 1 && packets[0].To == -1, "New strip protection is broadcast as one small delta");
+        Main.netMode = NetmodeID.MultiplayerClient; Main.myPlayer = 0; Deliver(packets[0].Bytes);
+        Check(contains(99, 120) && contains(101, 127) && !contains(100, 128), "Client delta covers the exact newly protected band");
+        Put(100, 120, TileID.Stone); WorldGen.Convert(100, 120, BiomeConversionID.Corruption, 0, tiles: true, walls: false);
+        Check(Main.tile[100, 120].TileType == TileID.Stone, "Synced client protection also blocks local solution conversion");
+        system.ClearWorld(); Main.netMode = NetmodeID.Server;
+        using (var reader = new BinaryReader(new MemoryStream(new byte[] { 2 }))) receive(reader, 0, -1);
+        Check(!contains(100, 120), "Server rejects client-authored protection deltas");
+        Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+
+        // Lookup cost and storage scale, with no tile scan, graphics or network measured.
+        int oldWidth = Main.maxTilesX, oldHeight = Main.maxTilesY;
+        var timings = new List<object>();
+        try
+        {
+            Main.maxTilesX = 8400; Main.maxTilesY = 2400;
+            foreach (int bands in new[] { 1, 64, 256 })
+            {
+                system.ClearWorld();
+                for (int b = 0; b < bands; b++) for (int y = 100; y < 2300; y++) protect(100 + b * 20, y);
+                var saved = new TagCompound(); system.SaveWorldData(saved);
+                Check(saved.GetIntArray("PurifiedColumnsV1").Length == bands * 9, $"{bands} full-height bands remain three intervals each");
+                var times = new List<double>(); int hits = 0;
+                for (int run = 0; run < 40; run++)
+                {
+                    long start = Stopwatch.GetTimestamp();
+                    for (int i = 0; i < 100000; i++) if (contains(98 + (i % bands) * 20 + i % 5, 1000)) hits++;
+                    if (run >= 10) times.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+                }
+                times.Sort(); timings.Add(new { Bands = bands, Lookups = 100000, MedianMs = times[times.Count / 2], P95Ms = times[(int)(times.Count * .95)], RawSaveInts = saved.GetIntArray("PurifiedColumnsV1").Length, Hits = hits });
+            }
+        }
+        finally { Main.maxTilesX = oldWidth; Main.maxTilesY = oldHeight; system.ClearWorld(); }
+        File.WriteAllText(Path.Combine(repo, ".vissandbox/purification-dew/benchmark-protection.json"), JsonSerializer.Serialize(timings, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine($"Purification protection: {passed} real-engine, save/load and captured-network checks passed.");
+    }
+}

@@ -177,3 +177,9 @@ python test_server.py
 `test-level-cap.cjs` 使用临时无头浏览器与内存文件服务，验证正式炼金术 Lv8 封顶、伤害技能不封顶、两种成长方式、保存重读及桌面/窄屏显示，不改写正式 JSON。`test.cjs` 可通过环境变量 `BALANCE_TEST_FILTER` 按测试名称的正则筛选专项检查。
 
 `test-unlocks.cjs` 在隔离临时项目中编译实际配置解析器，以及从技能源码提取的阶段条件声明与判断方法，用最小玩家／框架桩验证冰锥、风刃、水流术、火焰射线的门槛边界、实际等级无关、默认消耗保留、配置热更新与缺省门槛；不启动游戏，也不替代游戏内测试。
+
+### 飞行魔法 / 扫帚参数
+
+`configuration.skills` 的 `FlightSkill` 行新增 `flight` 对象，直接编辑正式 JSON；网页导入/保存会完整保留该对象。`baseSpeed` 为基础速度，`learnedSpeedBonus` 为习得加成，`speedBonusPerLevel` 为每级追加加成；`boostMultiplier` / `boostManaPerSecond` 控制长按速度与每秒耗蓝，`holdSeconds` 是点按/长按阈值；`dashMultiplier` / `dashManaCost` / `dashSeconds` / `dashCooldownSeconds` 控制短冲刺；`handlingPercent` 为固定操控响应百分比（1–100，默认 25），每帧消除相应比例的当前速度与目标速度差，统一用于起步、转向和刹车，不随技能等级或药水成长；越高越跟手。旧的 `acceleration` / `braking` 已停用。时间均以秒表示，速度以像素/帧表示。普通飞行耗蓝固定为零，实际支付使用独特魔力且不转化生命。JSON 最大体积现为 64 KiB。
+
+扫帚冲刺当前默认持续 **0.4 秒**；`flight.dashRecoverySeconds`（默认 **0.15 秒**）控制冲刺自然结束后的超速收回时间。其校验范围为 1/60–0.5 秒，仍使用固定的 `handlingPercent` 响应；冷却和一次性耗蓝不随恢复时间追加。

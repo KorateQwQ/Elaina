@@ -148,31 +148,51 @@ public abstract partial class ElainaSkill : ModSkill
     protected static SkillUnlockCondition DefaultUnlockCost => SkillUnlockCondition.
         ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
 
-    /// <summary>习得条件：角色当前等级达到指定等级。</summary>
-    protected static SkillUnlockCondition RequireCharacterLevel(int level) => SkillUnlockCondition.Custom(
-        (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetLevel() >= level,
-        description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevel", level));
+    private static int CharacterLevel(KLSkillModPlayer skillPlayer) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetLevel() ?? 0;
+    private static int CharacterLevelCap(KLSkillModPlayer skillPlayer) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() ?? 0;
 
-    /// <summary>习得条件：角色等级上限（由 Boss 进度决定）达到指定等级。</summary>
-    protected static SkillUnlockCondition RequireCharacterLevelCap(int levelCap) => SkillUnlockCondition.Custom(
-        (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() >= levelCap,
-        description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap", levelCap));
+    /// <summary>习得条件：角色当前等级达到指定等级。等级上限不足时技能未显现。</summary>
+    protected static SkillUnlockCondition RequireCharacterLevel(int level) => RequireCharacterLevel(() => level);
+
+    /// <summary>习得条件：角色当前等级达到 JSON 的 unlockLevel；每次判断和显示都读取当前配置。</summary>
+    protected static SkillUnlockCondition RequireConfiguredCharacterLevel(string skillId, int fallbackLevel) =>
+        RequireCharacterLevel(() => SkillBalanceSystem.TryGetSkill(skillId, out var entry) ? entry.UnlockLevel : fallbackLevel);
+
+    private static SkillUnlockCondition RequireCharacterLevel(Func<int> level) => new StageGateUnlockCondition(
+        (skillPlayer, _) => CharacterLevel(skillPlayer) >= level(),
+        (skillPlayer, _) => CharacterLevelCap(skillPlayer) >= level(),
+        (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevel", level()));
+
+    /// <summary>习得条件：角色等级上限（由 Boss 进度决定）达到指定等级。不满足时技能未显现。</summary>
+    protected static SkillUnlockCondition RequireCharacterLevelCap(int levelCap) => RequireCharacterLevelCap(() => levelCap);
 
     /// <summary>习得条件：角色等级上限达到 JSON 的解锁阶段上限；每次判断和显示都读取当前配置。</summary>
-    protected static SkillUnlockCondition RequireConfiguredCharacterLevelCap(string skillId, int fallbackLevelCap)
+    protected static SkillUnlockCondition RequireConfiguredCharacterLevelCap(string skillId, int fallbackLevelCap) =>
+        RequireCharacterLevelCap(() => SkillBalanceSystem.TryGetSkill(skillId, out var entry) ? entry.UnlockStageCap : fallbackLevelCap);
+
+    private static SkillUnlockCondition RequireCharacterLevelCap(Func<int> levelCap)
     {
-        int GetRequiredCap() => SkillBalanceSystem.TryGetSkill(skillId, out var entry) ? entry.UnlockStageCap : fallbackLevelCap;
-        return SkillUnlockCondition.Custom(
-            (skillPlayer, _) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() >= GetRequiredCap(),
-            description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap", GetRequiredCap()));
+        bool Reached(KLSkillModPlayer skillPlayer, ModSkill _) => CharacterLevelCap(skillPlayer) >= levelCap();
+        return new StageGateUnlockCondition(Reached, Reached,
+            (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap", levelCap()));
     }
 
-    /// <summary>习得条件：指定技能已习得且等级达到指定等级。</summary>
-    protected static SkillUnlockCondition RequireSkillLevel<TSkill>(int level) where TSkill : ElainaSkill => SkillUnlockCondition.Custom(
+    /// <summary>习得条件：指定技能已习得且等级达到指定等级。
+    /// 按当前角色等级上限推算该技能最多能升到的等级，到不了时技能未显现。</summary>
+    protected static SkillUnlockCondition RequireSkillLevel<TSkill>(int level) where TSkill : ElainaSkill => new StageGateUnlockCondition(
         (skillPlayer, _) => skillPlayer?.UnlockedSkill != null
             && skillPlayer.UnlockedSkill.TryGetValue(typeof(TSkill).Name, out Skill skill) && skill.Level >= level,
-        description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.SkillLevel",
+        (skillPlayer, _) => !SkillBalanceSystem.TryGetSkill(typeof(TSkill).Name, out var entry)
+            || SkillBalanceSystem.Current.GetSkillLevelCap(entry, CharacterLevelCap(skillPlayer)) >= level,
+        (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.SkillLevel",
             Language.GetTextValue($"Mods.伊蕾娜.SkillInfo.SkillName.{typeof(TSkill).Name}"), level));
+
+    /// <summary>习得条件：角色完成某个 Boss 或事件。角色等级上限未达到 <paramref name="availableLevelCap"/>
+    /// （事件尚未开放）时技能未显现，例如霜月女王需要先到花后阶段。</summary>
+    protected static SkillUnlockCondition RequireEvent(Func<Player, bool> completed, int availableLevelCap, string descriptionKey) =>
+        new StageGateUnlockCondition((skillPlayer, _) => skillPlayer != null && completed(skillPlayer.Player),
+            (skillPlayer, _) => (skillPlayer != null && completed(skillPlayer.Player)) || CharacterLevelCap(skillPlayer) >= availableLevelCap,
+            (_, _) => Language.GetTextValue(descriptionKey));
 
     /// <summary>
     /// 判断技能是否可以从技能面板拖入技能栏。被动技能不能拖入技能栏。
@@ -202,7 +222,7 @@ public abstract partial class ElainaSkill : ModSkill
     {
         // 数值配置只覆盖已有参数；没有配置的技能仍按自身规则判断能否使用。
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
-        if (MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(MagicPointCost, false))
+        if (MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(MagicPointCost, false, AllowsLifeConversion))
         {
             return false;
         }
@@ -262,8 +282,8 @@ public abstract partial class ElainaSkill : ModSkill
             "Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint").Value;
         string magicPointCost = MagicPointCost < 0 ? "--" : $"{MagicPointCost:0.##} {magicPointName}";
         desc = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillTotalInfo").WithFormatArgs(type, maxCD, magicPointCost).Value;
-        desc += Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}")
-            .WithFormatArgs(SkillDescriptionArgs).Value;
+        desc += AppendDescriptionNotes(Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}")
+            .WithFormatArgs(SkillDescriptionArgs).Value);
         //level = $"Lv. {Level}";
         /*name = GetType().Name;
         level = $"Lv. {Level}";

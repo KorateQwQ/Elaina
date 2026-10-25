@@ -16,7 +16,7 @@ public class WaterBallSkill: ElainaSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30));
 
-    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage()];
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(), Ice.ShardbindSkill.NameFor(Player)];
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单次伤害

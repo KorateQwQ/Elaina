@@ -103,7 +103,7 @@ Items: {
 
 	扫帚坐骑: {
 		DisplayName: Broom
-		Tooltip: Summon Broom
+		Tooltip: Summons a broom. For Elaina only.
 	}
 
 	寒霜药水: {
@@ -271,8 +271,15 @@ Projectiles: {
 	HealProj.DisplayName: Heal Proj
 	RecallPortalProjectile.DisplayName: Recall Portal Projectile
 	KumaPetProjectile.DisplayName: Bear Doll
+	SecondDollProjectile.DisplayName: White Cat Doll
+	ThirdDollProjectile.DisplayName: Yellow Dog Doll
+	FourthDollProjectile.DisplayName: Rabbit Doll
 	FrostVeilProjectile.DisplayName: Frost Veil Projectile
 	ExperienceOrb.DisplayName: Experience Orb
+	BottledRainCloud.DisplayName: Bottled Rain Cloud
+	RevealingDustArea.DisplayName: Revealing Dust Area
+	PurificationDewDrop.DisplayName: Purification Dew Drop
+	BroomDashWind.DisplayName: Broom Dash Wind
 }
 
 Configs: {
@@ -465,4 +472,16 @@ NewSkillUI: {
 	HiddenName: ???
 	HiddenDesc: A magic not yet known. The journey will reveal its name...
 	CloseHint: V / Esc to close
+}
+
+Terms: {
+	MagicPower: {
+		Name: Magic Power
+		Description:
+			'''
+			Elaina's unique magic for casting skills while Ashen Witch is active. Each point of vanilla maximum mana, and each point of maximum life lost to Ashen Witch, adds 1 to its maximum.
+			Regenerates {0} plus {1:0.##}% of its maximum per second, even while casting. Casting, hitting or taking damage keeps you in combat for {2} seconds; out of combat, recovery greatly increases and it refills in about {3:0.##} seconds.
+			While any boss is still alive, you never leave combat.
+			'''
+	}
 }

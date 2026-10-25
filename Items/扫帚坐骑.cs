@@ -9,8 +9,7 @@ namespace 伊蕾娜.Items
 {
     public class 扫帚坐骑 : ModItem
     {
-        public override LocalizedText Tooltip => Main.gameMenu ? base.Tooltip : Main.LocalPlayer.EMP().Elaina ?
-                base.Tooltip : Language.GetText("Mods.伊蕾娜.Items." + GetType().Name + ".Warn");
+        public override bool CanUseItem(Player player) => BroomAccessSystem.CanRide(player);
 
         public override void SetDefaults()
         {

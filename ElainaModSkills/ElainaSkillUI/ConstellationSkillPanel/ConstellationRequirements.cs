@@ -28,6 +28,11 @@ internal sealed class ConstellationRequirements
     internal string ActionTooltip(string heading) => heading + "\n" + (Satisfied
         ? Rows.Count == 0 ? LocalizeUI("FreeAction") : LocalizeUI("ReadyAction")
         : string.Join("\n", Rows.Where(r => !r.Met).Select(r => r.Name + (r.Custom ? LocalizeUI("UnmetSuffix") : LocalizeUI("MissingTooltipSuffix", Math.Max(0, r.Needed - r.Owned))))));
+    internal void AddUnmet(string description)
+    {
+        Rows.Insert(0, new(description, 0, 0, false, Custom: true));
+        Satisfied = false;
+    }
     internal static string Localize(string text) => Regex.Replace(text ?? "", @"\bSP\b", LocalizeUI("StudyPoints"), RegexOptions.IgnoreCase);
 
     internal static ConstellationRequirements Read(SkillUnlockCondition condition, ElainaSkillModPlayer player, ModSkill skill)

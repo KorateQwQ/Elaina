@@ -12,8 +12,8 @@ public sealed class FrostVeilSkill : ElainaSkill
 {
     public override Type[] PrerequisiteSkills => [typeof(IceConeSkill)];
     public override Vector2? ConstellationPosition => new Vector2(700, 590);
-    public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<IceConeSkill>(13));
+    // 习得冰锥术即可研习，只需通用消耗。
+    public override SkillUnlockCondition UnlockCondition { get; set; } = DefaultUnlockCost;
 
     protected override object[] SkillDescriptionArgs =>
         [FrostVeilSystem.CastRadius, Player?.GetModPlayer<ElainaAttributeModPlayer>().MaxMagicPoint / 20f ?? 0f];

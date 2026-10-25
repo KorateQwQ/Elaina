@@ -1,4 +1,6 @@
-using System;
+﻿using System;
+using ReLogic.Content;
+using Terraria.ModLoader;
 using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -81,27 +83,11 @@ internal static class RecallPortalDrawing
     /// <summary>线条横截面：中间实心、两侧柔边，预乘白色。沿 v 方向（0..1）采样。</summary>
     static Texture2D lineTexture;
 
-    static void EnsureTexture(GraphicsDevice device)
-    {
-        if (lineTexture is { IsDisposed: false }) return;
-        var data = new Color[32];
-        for (int y = 0; y < data.Length; y++)
-        {
-            float d = Math.Abs(y + .5f - 16) / 16; // 0 在中心，1 在边缘
-            float t = Math.Clamp((1 - d) / .45f, 0, 1);
-            float v = t * t * (3 - 2 * t);
-            data[y] = new Color(v, v, v, v);
-        }
-        lineTexture = new Texture2D(device, 1, data.Length);
-        lineTexture.SetData(data);
-    }
+    static void EnsureTexture() => lineTexture ??=
+        ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/Skills/Recall/Assets/PortalLine", AssetRequestMode.ImmediateLoad).Value;
 
-    /// <summary>释放线条贴图；需在主线程调用。</summary>
-    public static void Unload()
-    {
-        lineTexture?.Dispose();
-        lineTexture = null;
-    }
+    // 借用资源系统的预制线条，只清理引用。
+    public static void Unload() => lineTexture = null;
 
     static void BeginStroke(float width)
     {
@@ -328,7 +314,7 @@ internal static class RecallPortalDrawing
         DrawScript(Math.Min(build, 1));
         if (indexCount == 0) return;
 
-        EnsureTexture(device);
+        EnsureTexture();
         effect.Parameters["uTransform"].SetValue(transform);
         effect.Parameters["ImageScale"].SetValue(Vector2.One);
         effect.Parameters["useTime"].SetValue(false);

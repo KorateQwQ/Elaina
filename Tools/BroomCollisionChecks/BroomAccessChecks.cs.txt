@@ -1,0 +1,55 @@
+using System.Reflection;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜;
+using 伊蕾娜.Mounts;
+
+internal static class BroomAccessChecks
+{
+    public static void Run(Player elaina, Player other)
+    {
+        const BindingFlags all=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static|BindingFlags.Instance;
+        int passed=0;void Check(bool value,string name){if(!value)throw new Exception(name);passed++;}
+        var item=new 伊蕾娜.Items.扫帚坐骑();
+        other.GetModPlayer<ElainaModplayer>().Elaina=false;
+        Check(item.CanUseItem(elaina) && !item.CanUseItem(other),"Broom item can only be used by Elaina");
+        Check(item.CanEquipAccessory(elaina,0,false) && !item.CanEquipAccessory(other,0,false),"Equipment gate follows the actual player");
+        var mount=ModContent.GetInstance<扫帚>();
+        // Real SetMount and Dismount, server mode suppresses native dust/graphics.
+        int previousMode=Main.netMode,previousLocal=Main.myPlayer;
+        Main.netMode=NetmodeID.Server;Main.myPlayer=255;
+        var previousMounts=Mount.mounts;
+        var entries=new Mount.MountData[mount.Type+1];if(previousMounts!=null)Array.Copy(previousMounts,entries,Math.Min(previousMounts.Length,entries.Length));
+        entries[mount.Type]=new Mount.MountData { buff=BuffID.WellFed, playerYOffsets=new[]{0} };
+        Mount.mounts=entries;
+        var previousTile=Main.tile;int oldX=Main.maxTilesX,oldY=Main.maxTilesY;
+        Main.maxTilesX=Main.maxTilesY=100;
+        Main.tile=(Tilemap)Activator.CreateInstance(typeof(Tilemap),all,null,new object[]{(ushort)100,(ushort)100},null)!;
+        elaina.position=other.position=new Microsoft.Xna.Framework.Vector2(320,320);
+        elaina.mount._active=other.mount._active=false;elaina.mount._type=other.mount._type=-1;
+        var system=new BroomAccessSystem();system.Load();
+        try
+        {
+            Check(!other.mount.CanMount(mount.Type,other),"Native CanMount rejects a non-Elaina rider");
+            other.mount.SetMount(mount.Type,other);
+            Check(!other.mount.Active,"Native SetMount cannot bypass the character gate");
+            Check(elaina.mount.CanMount(mount.Type,elaina),"Native CanMount allows Elaina in clear space");
+            elaina.mount.SetMount(mount.Type,elaina);
+            Check(elaina.mount.Active && elaina.mount.Type==mount.Type,"Native SetMount still works for Elaina");
+            var buff=new 伊蕾娜.Buffs.扫帚buff();other.buffType[0]=BuffID.WellFed;other.buffTime[0]=60;int index=0;
+            buff.Update(other,ref index);
+            Check(index==-1 && other.buffType[0]==0 && !other.mount.Active,"Forbidden buff is removed without remounting");
+            elaina.GetModPlayer<ElainaModplayer>().Elaina=false;
+            mount.UpdateEffects(elaina);
+            Check(!elaina.mount.Active && !elaina.GetModPlayer<扫帚.扫帚ModPlayer>().PoweredFlight,"Changing away from Elaina immediately dismounts");
+        }
+        finally
+        {
+            system.Unload();Mount.mounts=previousMounts;Main.tile=previousTile;Main.maxTilesX=oldX;Main.maxTilesY=oldY;
+            elaina.GetModPlayer<ElainaModplayer>().Elaina=true;other.GetModPlayer<ElainaModplayer>().Elaina=true;
+            Main.netMode=previousMode;Main.myPlayer=previousLocal;
+        }
+        Console.WriteLine($"PASS: {passed} character restriction checks using native mounting.");
+    }
+}

@@ -20,7 +20,7 @@ using 伊蕾娜.Buffs;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Items.accessories;
 using 伊蕾娜.Projectiles.Lightning;
-using 伊蕾娜.炼金;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
 
 
 
@@ -47,7 +47,6 @@ namespace 伊蕾娜
             ElainaModInstance = this;
             //On.Terraria.Main.CalculateDamageNPCsTake += Main_NewDamage;
             //Terraria.On_Player.itemcheck
-            On_PlayerDrawLayers.DrawPlayer_03_PortableStool += Elaina_PortableStool;
             //Terraria.On_NPC.strikenpc += Main_NewStrikeNpc;
             //On_PlayerDrawLayers.DrawSittingLegs += Elaina_sittinglegs;
             On_PlayerDrawLayers.DrawSittingLegs += Elaina_sittinglegs2;
@@ -97,23 +96,6 @@ namespace 伊蕾娜
             return false;
         }
 
-        private void Elaina_PortableStool(On_PlayerDrawLayers.orig_DrawPlayer_03_PortableStool orig, ref PlayerDrawSet drawinfo)
-        {
-            if (drawinfo.drawPlayer.GetModPlayer<炼金modplayer>().搅拌中)
-            {
-                Texture2D value = TextureAssets.Extra[102].Value;
-                Vector2 position = new Vector2((int)(drawinfo.Position.X - Main.screenPosition.X + (float)(drawinfo.drawPlayer.width / 2)), (int)(drawinfo.Position.Y - Main.screenPosition.Y + (float)drawinfo.drawPlayer.height + 28f)) + new Vector2(0, 7);
-                Rectangle rectangle = value.Frame();
-                Vector2 origin = rectangle.Size() * new Vector2(0.5f, 1f);
-                Vector2 scale = new(1, 0.5f);
-                DrawData item = new(value, position + new Vector2(0, -15), rectangle, drawinfo.colorArmorLegs, drawinfo.drawPlayer.bodyRotation, origin, scale, drawinfo.playerEffect, 0);
-                item.shader = drawinfo.cPortableStool;
-                drawinfo.DrawDataCache.Add(item);
-                return;
-            }
-            orig(ref drawinfo);
-        }
-        
         private void On_Rain_Update(On_Rain.orig_Update orig, Rain self)
         {
             Rectangle r = new((int)self.position.X, (int)self.position.Y, 2, 2);
@@ -307,8 +289,22 @@ namespace 伊蕾娜
             RecallPortal,
             FrostVeil,
             Experience,
+            DollGarden,
+            PurificationDew,
+            PurificationDewMap,
+            PurificationDewProtection,
         }
 
+
+        public override object Call(params object[] args)
+        {
+            if (args is ["RegisterDollHerb", int seedType, Func<int, int, bool> matches, Func<int, int, bool> blooming])
+            {
+                ElainaModSkills.Skills.DollControl.DollHerbPlanting.Register(seedType, matches, blooming);
+                return true;
+            }
+            return base.Call(args);
+        }
 
         public override void HandlePacket(BinaryReader reader, int whoAmI)
         {
@@ -316,6 +312,18 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
+                case MessageType.PurificationDewProtection:
+                    ElainaModAlchemy.Purification.PurificationProtectionSystem.HandlePacket(reader, whoAmI, playernumber);
+                    break;
+                case MessageType.PurificationDewMap:
+                    ElainaModAlchemy.Purification.PurificationDewMapSystem.HandlePacket(reader, playernumber);
+                    break;
+                case MessageType.PurificationDew:
+                    ElainaModAlchemy.Purification.PurificationDewSystem.HandlePacket(reader, whoAmI, playernumber);
+                    break;
+                case MessageType.DollGarden:
+                    ElainaModSkills.Skills.DollControl.DollGardenSystem.HandlePacket(reader, whoAmI, playernumber);
+                    break;
                 case MessageType.Experience:
                     System.Experience.ExperienceNetwork.HandlePacket(reader, playernumber);
                     break;
@@ -326,34 +334,7 @@ namespace 伊蕾娜
                     ElainaModSkills.Skills.Recall.RecallPortalSystem.HandlePacket(reader, whoAmI, playernumber);
                     break;
                 case MessageType.炼金状态:
-
-                    bool 炼制中 = reader.ReadBoolean();
-                    bool 搅拌中 = reader.ReadBoolean();
-                    if (Main.netMode == NetmodeID.Server)
-                    {
-                        ModPacket packet = GetPacket();
-                        packet.Write((byte)MessageType.炼金状态);
-                        packet.Write(playernumber);
-                        packet.Write(炼制中);
-                        packet.Write(搅拌中);
-                        packet.Send(-1, whoAmI);
-                    }
-                    else
-                    {
-                        炼金modplayer examplePlayer = Main.player[playernumber].GetModPlayer<炼金modplayer>();
-                        examplePlayer.炼制中 = 炼制中;
-                        examplePlayer.搅拌中 = 搅拌中;
-                        if (炼制中)
-                            Main.player[playernumber].velocity = Vector2.Zero;
-                        if (!炼制中 || !搅拌中)
-                        {
-                            Main.player[playernumber].bodyFrame.Y = 0;
-                            Main.player[playernumber].bodyFrame.X = 0;
-                        }
-
-                    }
-
-                    // SyncPlayer will be called automatically, so there is no need to forward this data to other clients.
+                    AlchemyBrewingPlayer.Receive(reader, whoAmI, playernumber);
                     break;
                 case MessageType.小动物状态:
                     {

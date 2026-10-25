@@ -1,0 +1,249 @@
+﻿using System.Reflection;
+using Microsoft.Xna.Framework;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.ID;
+using Terraria.Localization;
+using Terraria.ModLoader;
+using Terraria.ObjectData;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaModAlchemy.Purification;
+using 伊蕾娜.ElainaModAlchemy.item.Potions;
+
+// Real tML terrain conversion, item use, projectile AI and packet codecs.
+// Only network transport is captured; this does not open sockets or save a world.
+internal static class PurificationDewChecks
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    static T Invoke<T>(Type type, string name, params object[] args) => (T)type.GetMethod(name, All)!.Invoke(null, args);
+    static int passed;
+    static void Check(bool value, string name)
+    { if (!value) throw new Exception(name); passed++; Console.WriteLine("PASS Dew: " + name); }
+    public static void Run(Mod mod)
+    {
+        Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        Main.SceneMetrics = new SceneMetrics(); Main.PylonSystem = new Terraria.GameContent.TeleportPylonsSystem();
+        Lighting.Initialize();
+        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(WallID.Sets), typeof(ProjectileID.Sets), typeof(ItemID.Sets) })
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(sets.TypeHandle);
+        SetFactory.ResizeArrays(false); TileObjectData.Initialize();
+        foreach (Type loader in new[] { typeof(TileLoader), typeof(WallLoader), typeof(ProjectileLoader), typeof(ItemLoader) })
+            loader.GetMethod("ResizeArrays", All)!.Invoke(null, new object[] { false });
+        Main.maxTilesX = Main.maxTilesY = 240;
+        Main.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)240, (ushort)240 }, null)!;
+        Main.worldSurface = 100; Main.rockLayer = 150;
+        Main.rand = new UnifiedRandom(703); WorldGen._genRandSeed = 704; WorldGen._genRand = new UnifiedRandom(704);
+        typeof(WorldGen).GetField("_lastSeed", All)!.SetValue(null, 704);
+        WorldGen.gen = false;
+        Main.projectile = Enumerable.Range(0, 1001).Select(i => new Projectile { whoAmI = i }).ToArray();
+        Main.player = Enumerable.Range(0, 256).Select(i => new Player { whoAmI = i }).ToArray();
+        Main.item = Enumerable.Range(0, Main.maxItems + 1).Select(_ => new Item()).ToArray();
+        Main.clientPlayer = new Player();
+        Main.mouseItem = new Item(); Main.guideItem = new Item();
+        Main.projectileIdentity = new int[256, 1001];
+        Main.tileSolid[TileID.Stone] = Main.tileSolid[TileID.Ebonstone] = Main.tileSolid[TileID.Crimstone] = Main.tileSolid[TileID.Pearlstone] = true;
+        Player player = Main.player[0]; player.active = true; player.Center = new Vector2(1608, 1608);
+        player.inventory[0] = new Item(ModContent.ItemType<PurificationDew>(), 3);
+        var system = ModContent.GetInstance<PurificationDewSystem>(); system.ClearWorld();
+        Check(Invoke<object>(typeof(PurificationDewVisualSystem), "GetRenderer") == null, "Dedicated server creates no graphics resources");
+
+        Tile Put(int x, int y, ushort type)
+        { Tile t = Main.tile[x, y]; t.ClearEverything(); t.HasTile = true; t.TileType = type; return t; }
+        void ClearProjectiles() { foreach (var p in Main.projectile) p.active = false; system.ClearWorld(); }
+        Projectile Drop(int x = 100, int y = 100)
+        {
+            var p = new Projectile(); p.SetDefaults(ModContent.ProjectileType<PurificationDewDrop>());
+            p.active = true; p.owner = Main.myPlayer; p.Center = new Vector2(x * 16 + 8, y * 16 + 8);
+            p.ai[0] = y; p.ai[2] = 0; return p;
+        }
+        for (int x = 96; x <= 104; x++) for (int y = 98; y < 106; y++) Put(x, y, TileID.Ebonstone);
+        Tile preserved = Main.tile[100, 100]; preserved.WallType = WallID.EbonstoneUnsafe;
+        preserved.LiquidType = LiquidID.Water; preserved.LiquidAmount = 128;
+        preserved.RedWire = true; preserved.TileColor = 7;
+        Invoke<object>(typeof(PurificationDewDrop), "PurifyRow", 100, 100);
+        Check(Enumerable.Range(99, 3).All(x => Main.tile[x, 100].TileType == TileID.Stone), "All three target columns purify");
+        Check(Main.tile[98, 100].TileType == TileID.Ebonstone && Main.tile[102, 100].TileType == TileID.Ebonstone
+            && Main.tile[100, 99].TileType == TileID.Ebonstone && Main.tile[100, 101].TileType == TileID.Ebonstone,
+            "Conversion does not expand outside exactly three cells or into adjacent rows");
+        Check(Main.tile[100, 100].WallType == WallID.EbonstoneUnsafe && preserved.LiquidAmount == 128
+            && Main.tile[100, 100].RedWire && preserved.TileColor == 7,
+            "Background walls, liquid, wires and paint survive purification");
+        foreach (ushort infected in new ushort[] { TileID.Crimstone, TileID.Pearlstone, TileID.Ebonstone })
+        { Put(100, 100, infected); Invoke<object>(typeof(PurificationDewDrop), "PurifyRow", 100, 100); Check(Main.tile[100, 100].TileType == TileID.Stone, "Purity handles biome stone " + infected); }
+        Put(100, 100, TileID.WoodBlock); Invoke<object>(typeof(PurificationDewDrop), "PurifyRow", 100, 100);
+        Check(Main.tile[100, 100].TileType == TileID.WoodBlock, "Ordinary building blocks are preserved");
+        Put(100, 100, TileID.Ebonstone);
+        Main.netMode = NetmodeID.MultiplayerClient; Invoke<object>(typeof(PurificationDewDrop), "PurifyRow", 100, 100);
+        Projectile client = Drop(); client.ai[1] = 120; client.ModProjectile.AI();
+        Check(Main.tile[100, 100].TileType == TileID.Ebonstone && client.Center.Y == 2568,
+            "Late client uses synced age for visuals and cannot change terrain");
+        Check(!Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", player, 0, new Point(100, 100)), "Client cannot originate authoritative release");
+        Main.netMode = NetmodeID.SinglePlayer;
+        Projectile moving = Drop(); var dew = (PurificationDewDrop)moving.ModProjectile;
+        Check(dew.CanDamage() == false && dew.CanCutTiles() == false && !moving.tileCollide && moving.ignoreWater,
+            "Dew crosses solids/liquids without combat damage or cutting tiles");
+        for (int tick = 0; tick < 9; tick++) dew.AI();
+        Check(Enumerable.Range(100, 5).All(y => Enumerable.Range(99, 3).All(x => Main.tile[x, y].TileType == TileID.Stone))
+            && Main.tile[100, 105].TileType == TileID.Ebonstone, "Falling advances without skipped or premature rows");
+        Put(100, 100, TileID.Ebonstone); dew.AI();
+        Check(Main.tile[100, 100].TileType == TileID.Ebonstone, "Completed projectile rows do not poll arbitrary direct tile writes");
+        Projectile edge = Drop(2, 238); edge.ModProjectile.AI();
+        Check(!edge.active, "Dew finishes safely at final interior world row");
+        Projectile outside = Drop(0, 100); outside.ModProjectile.AI(); Check(!outside.active, "Invalid edge position is rejected");
+        Check(!Invoke<bool>(typeof(PurificationDewSystem), "ValidTarget", player, new Point(239, 100))
+            && !Invoke<bool>(typeof(PurificationDewSystem), "ValidTarget", player, new Point(200, 200)), "Requests enforce world bounds and 60-tile use range");
+
+        // Capture real tML send calls and serialized ModPackets without sockets.
+        var terrainPackets = new List<int>();
+        using var vanillaSend = new Hook(typeof(NetMessage).GetMethod(nameof(NetMessage.SendData))!,
+            (Action<int, int, int, NetworkText, int, float, float, float, int, int, int>)
+            ((id, to, ignore, text, number, n2, n3, n4, n5, n6, n7) => terrainPackets.Add(id)));
+        var packets = new List<byte[]>();
+        using var packetSend = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!,
+            (Action<ModPacket, int, int>)((packet, to, ignore) => packets.Add(((MemoryStream)packet.BaseStream).ToArray())));
+        typeof(Mod).GetField("netID", All)!.SetValue(mod, (short)0);
+        typeof(Mod).Assembly.GetType("Terraria.ModLoader.ModNet")!.GetField("netMods", All)!.SetValue(null, new Mod[] { mod });
+        Main.netMode = NetmodeID.Server; Main.myPlayer = 255;
+        Put(99, 100, TileID.Ebonstone); Put(100, 100, TileID.Crimstone); Put(101, 100, TileID.Pearlstone);
+        terrainPackets.Clear(); Invoke<object>(typeof(PurificationDewDrop), "PurifyRow", 100, 100);
+        Check(terrainPackets.Count(id => id == MessageID.TileSquare) == 3, "Server uses exactly the three native changed-tile updates");
+        terrainPackets.Clear(); Invoke<object>(typeof(PurificationDewDrop), "PurifyRow", 100, 100);
+        Check(terrainPackets.Count == 0, "Already pure stone sends no terrain updates");
+        Projectile forged = Drop(); forged.owner = 0; Put(100, 100, TileID.Ebonstone); forged.ModProjectile.AI();
+        Check(!forged.active && Main.tile[100, 100].TileType == TileID.Ebonstone, "Client-owned forged dew is killed before changing tiles");
+        ClearProjectiles();
+        Check(Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", player, 0, new Point(100, 100)), "Server accepts a valid use");
+        Projectile released = Main.projectile.Single(p => p.active);
+        Check(released.owner == 255 && released.ai[2] == 0 && released.netImportant,
+            "Server owns the projectile; user ID is retained separately");
+        Check(!Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", player, 0, new Point(101, 100)), "Normal use cooldown rejects immediate repeated use");
+        for (int tick = 0; tick < 30; tick++) system.PostUpdateWorld();
+        Check(Invoke<bool>(typeof(PurificationDewSystem), "CanRequest", player)
+            && Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", player, 0, new Point(101, 100))
+            && Main.projectile.Count(p => p.active) == 2, "Same player can release another dew while the first remains active");
+        ClearProjectiles();
+        for (int i = 0; i < 8; i++)
+        {
+            Main.player[i].active = true; Main.player[i].Center = player.Center;
+            Main.player[i].inventory[0] = new Item(ModContent.ItemType<PurificationDew>(), 3);
+            Check(Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", Main.player[i], 0, new Point(100, 100)), "Concurrent release " + i);
+        }
+        Main.player[8].active = true; Main.player[8].Center = player.Center;
+        Main.player[8].inventory[0] = new Item(ModContent.ItemType<PurificationDew>(), 1);
+        Check(Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", Main.player[8], 0, new Point(100, 100))
+            && Main.projectile.Count(p => p.active) == 9, "Ninth simultaneous dew is accepted without a world count cap");
+        for (int cast = 0; cast < 23; cast++)
+        {
+            for (int tick = 0; tick < 30; tick++) system.PostUpdateWorld();
+            if (!Invoke<bool>(typeof(PurificationDewSystem), "CanRequest", player)
+                || !Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", player, 0, new Point(100, 100)))
+                throw new Exception("Existing dews unexpectedly blocked another valid cast");
+        }
+        Check(Main.projectile.Count(p => p.active) == 32, "Thirty-two active dews do not impose a hidden release cap");
+        ClearProjectiles();
+
+        // Request payloads are delivered through production handler; repeated IDs and spoofed senders do not spawn twice.
+        void Deliver(int id, int sender, int claimed, int x = 100)
+        {
+            using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream);
+            writer.Write(id); writer.Write((byte)0); writer.Write((short)x); writer.Write((short)100); stream.Position = 0;
+            Invoke<object>(typeof(PurificationDewSystem), "HandlePacket", new BinaryReader(stream), sender, claimed);
+        }
+        Deliver(1, 1, 0); Check(!Main.projectile.Any(p => p.active), "Spoofed player ID is rejected");
+        Deliver(1, 0, 0); Check(Main.projectile.Count(p => p.active) == 1, "Serialized valid request creates one authoritative dew");
+        int replies = packets.Count; Deliver(1, 0, 0);
+        Check(Main.projectile.Count(p => p.active) == 1 && packets.Count == replies, "Repeated request neither duplicates dew nor sends an extra refund");
+        Deliver(2, 0, 0); Check(packets[^1][^1] == 0, "Rejected use receives a negative acknowledgment");
+        ClearProjectiles();
+        Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        var item = (PurificationDew)player.inventory[0].ModItem;
+        item.UseAnimation(player);
+        Check(!item.ConsumeItem(player), "An unaccepted item use does not consume anything");
+
+        // Complete owner -> server -> owner round trips with independent inventory copies.
+        void Reply(byte[] bytes)
+        {
+            using var reader = new BinaryReader(new MemoryStream(bytes));
+            reader.ReadUInt16(); Check(reader.ReadByte() == MessageID.ModPacket, "Native ModPacket header is preserved");
+            reader.ReadByte(); reader.ReadByte(); int owner = reader.ReadInt32();
+            Invoke<object>(typeof(PurificationDewSystem), "HandlePacket", reader, 256, owner);
+            Check(reader.BaseStream.Position == reader.BaseStream.Length, "Acknowledgment consumes its complete payload");
+        }
+        Main.netMode = NetmodeID.MultiplayerClient;
+        Item held = player.inventory[0] = new Item(ModContent.ItemType<PurificationDew>(), 1);
+        Item serverCopy = held.Clone();
+        Main.screenPosition = new Vector2(1508, 1508); Main.mouseX = Main.mouseY = 100; player.gravDir = 1;
+        var heldMod = (PurificationDew)held.ModItem;
+        heldMod.UseAnimation(player);
+        Check(heldMod.UseItem(player) == true && ItemLoader.ConsumeItem(held, player), "Owner use sends one request and authorizes one vanilla consumption");
+        held.stack--;
+        Check(!heldMod.ConsumeItem(player), "The same animation cannot consume a second item");
+        byte[] use = packets[^1];
+        Main.netMode = NetmodeID.Server; Main.myPlayer = 255; player.inventory[0] = serverCopy;
+        using (var reader = new BinaryReader(new MemoryStream(use)))
+        {
+            reader.ReadUInt16(); reader.ReadByte(); reader.ReadByte(); reader.ReadByte(); int owner = reader.ReadInt32();
+            Invoke<object>(typeof(PurificationDewSystem), "HandlePacket", reader, owner, owner);
+        }
+        byte[] success = packets[^1];
+        Check(Main.projectile.Count(p => p.active) == 1 && success[^1] == 1, "Last item in a stack still passes the server inventory check");
+        Main.netMode = NetmodeID.MultiplayerClient; Main.myPlayer = 0; player.inventory[0] = held;
+        int refundCount() => Main.item.Where(i => i.active && i.type == ModContent.ItemType<PurificationDew>()).Sum(i => i.stack);
+        Reply(success); Reply(success);
+        Check(held.stack == 0 && refundCount() == 0, "Accepted and repeated acknowledgments do not duplicate consumption or refunds");
+        ClearProjectiles();
+        player.inventory[0] = new Item(ModContent.ItemType<PurificationDew>(), 2);
+        Check(Invoke<bool>(typeof(PurificationDewSystem), "Request", player, new Point(100, 100)), "Another request can begin after acknowledgment");
+        player.inventory[0].stack--; use = packets[^1];
+        Main.netMode = NetmodeID.Server; Main.myPlayer = 255;
+        // Player dies after the owner sends the request but before the server accepts it.
+        player.dead = true;
+        using (var reader = new BinaryReader(new MemoryStream(use)))
+        {
+            reader.ReadUInt16(); reader.ReadByte(); reader.ReadByte(); reader.ReadByte(); int owner = reader.ReadInt32();
+            Invoke<object>(typeof(PurificationDewSystem), "HandlePacket", reader, owner, owner);
+        }
+        byte[] failure = packets[^1];
+        Check(failure[^1] == 0, "Death before server acceptance returns a rejection acknowledgment");
+        player.dead = false;
+        Main.netMode = NetmodeID.MultiplayerClient; Main.myPlayer = 0;
+        Reply(failure); Reply(failure);
+        Check(refundCount() == 1 && player.inventory[0].stack == 1, "Rejected use returns exactly one item without overwriting the current inventory slot");
+
+        ClearProjectiles(); Main.netMode = NetmodeID.Server; Main.myPlayer = 255;
+        for (int y = 10; y < 239; y++) for (int x = 99; x <= 101; x++) Put(x, y, TileID.Ebonstone);
+        Projectile complete = Drop(100, 10); int ticks = 0;
+        while (complete.active && ticks++ < 1000) complete.ModProjectile.AI();
+        Check(!complete.active && ticks == 456 && Enumerable.Range(10, 229).All(y =>
+            Enumerable.Range(99, 3).All(x => Main.tile[x, y].TileType == TileID.Stone)),
+            "Full descent visits every row once, reaches the bottom and terminates at the expected speed");
+        ClearProjectiles();
+        foreach (var p in Main.projectile) p.active = true;
+        Check(!Invoke<bool>(typeof(PurificationDewSystem), "TryRelease", player, 0, new Point(100, 100)),
+            "A full projectile pool rejects the use without replacing another projectile");
+        ClearProjectiles();
+        system.ClearWorld();
+        Check(Invoke<bool>(typeof(PurificationDewSystem), "CanRequest", player), "World cleanup clears pending use and cooldown state");
+        Console.WriteLine($"Purification Dew: {passed} real-engine and captured-transport checks passed.");
+    }
+}
+
+internal static class DewCheckHost
+{
+    private sealed class CheckMod : Mod { public override string Name => "DewChecks"; }
+    public static void Main(string[] args)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath(); Terraria.Main.dedServ = true;
+        var mod = new CheckMod();
+        foreach (ModType content in new ModType[] { new PurificationDewDrop(), new PurificationDewSystem(), new PurificationDewMapSystem(), new PurificationProtectionSystem(), new PurificationDew() })
+        {
+            ((ILoadable)content).Load(mod); ContentInstance.Register(content);
+            if (content is ModItem item) item.SetDefaults();
+        }
+        PurificationDewChecks.Run(mod);
+        DewMapChecks.Run(args[0]);
+        DewProtectionChecks.Run(args[0]);
+        if (args.Contains("--benchmark")) TerrainBenchmark.Run(args[0]);
+    }
+}

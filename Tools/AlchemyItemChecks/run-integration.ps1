@@ -27,6 +27,8 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/AlchemySkillIntegrationChecks.cs
 $check.SetAttribute('Link', 'AlchemySkillIntegrationChecks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/ImproveGameIntegrationChecks.cs.txt"
 $check.SetAttribute('Link', 'ImproveGameIntegrationChecks.cs')
+$null = Add-CheckItem 'Compile' "$repo/Tools/BroomCollisionChecks/BroomMovementChecks.cs.txt"
+$null = Add-CheckItem 'Compile' "$repo/Tools/BroomCollisionChecks/BroomAccessChecks.cs.txt"
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
 dotnet run --project $projectPath --configuration Release --verbosity quiet -- $repo $ImproveGameTmod

@@ -2,6 +2,7 @@ using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
 using KL.SkillSystem;
+using KL.Utils;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
@@ -22,12 +23,34 @@ public class ShardbindSkill : ElainaSealedSkill
         return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
-    // 当前成长配置下，花后角色等级上限 Lv.65 对应冰锥术满级 Lv.19。
+    // 当前成长配置下，花后角色等级上限 Lv.65 对应冰锥术最高 Lv.13。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<IceConeSkill>(19),
-            SkillUnlockCondition.Custom((_, _) => NPC.downedChristmasIceQueen,
-                description: (_, _) => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.IceQueen")));
-    
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<IceConeSkill>(13),
+            // 霜月事件在花后开放，按角色等级上限判断阶段。
+            RequireEvent(player => player.GetModPlayer<ShardbindDiscoveryPlayer>().DefeatedIceQueen,
+                KLGameStateManager.GetLevelCap(KLGameStateManager.Plantera),
+                "Mods.伊蕾娜.SkillInfo.UnlockConditions.IceQueen"));
+
+    // 花后以问号显现，角色经历过霜月后启封；击败霜月女王作为研习需求列出。
+    public override bool IsConstellationRevealed(Player player) =>
+        player?.GetModPlayer<ShardbindDiscoveryPlayer>().ExperiencedFrostMoon == true;
+
+    public override string ConstellationRevealHint => Language.GetTextValue(
+        "Mods.伊蕾娜.SkillInfo.UnlockConditions.ShardbindReveal");
+
+    /// <summary>其他技能描述提到冰凌锁时使用：对该角色仍未显现或待启封时显示「技能???」，避免剧透。</summary>
+    public static string NameFor(Player player)
+    {
+        player ??= Main.LocalPlayer;
+        var skillPlayer = player?.GetModPlayer<ElainaSkillModPlayer>();
+        var template = ModContent.GetInstance<ShardbindSkill>();
+        bool known = skillPlayer != null && template != null
+            && (skillPlayer.UnlockedSkill?.ContainsKey(nameof(ShardbindSkill)) == true
+                || (template.IsConstellationRevealed(player)
+                    && StageGateUnlockCondition.AllReachable(template.UnlockCondition, skillPlayer, template)));
+        return known ? Language.GetTextValue($"Mods.伊蕾娜.SkillInfo.SkillName.{nameof(ShardbindSkill)}") : Language.GetTextValue("Mods.伊蕾娜.SkillInfo.Snippets.HiddenSkill");
+    }
+
     public override bool CanUseSkill()
     {
         return Player.whoAmI == Main.myPlayer

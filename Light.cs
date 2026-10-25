@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using Terraria.GameContent;
 using Terraria.ModLoader;
 using 伊蕾娜.Items;
 using 伊蕾娜.ReProjs;
-using 伊蕾娜.炼金;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
 
 namespace 伊蕾娜
 {
@@ -131,8 +131,8 @@ namespace 伊蕾娜
 
                 p.onLight = true;
                 //Main.NewText(Projectile.timeLeft+"678");
-                var p2 = player.GetModPlayer<炼金modplayer>();
-                if (p2.搅拌中 || p2.炼制中 || p.isACritter || !IsWand(player.HeldItem.type) | !player.active | player.dead)
+                var p2 = player.GetModPlayer<AlchemyBrewingPlayer>();
+                if (p2.IsBrewing || p2.IsReading || p.isACritter || !IsWand(player.HeldItem.type) | !player.active | player.dead)
                 {   //p.selectedItem指的是123456快捷键+" "+p.HeldItem指的是具体item且为手上的
                     //进入炼制或者切换武器时关闭灯光
                     Projectile.Kill();

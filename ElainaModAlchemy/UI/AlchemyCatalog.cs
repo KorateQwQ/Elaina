@@ -139,8 +139,7 @@ public static class AlchemyCatalog
         new("honey", "Catalog.BottledHoney", "Bottled Honey", "Catalog.GlassBottleHoney", 4, null, null),
         new("wood", "Catalog.Wood", "Wood", "Catalog.ChopDownTrees", 60, null, null),
         new("gel", "Catalog.Gel", "Gel", "Catalog.DroppedBySlimes", 15, null, null),
-        new("moondew", "Catalog.MoonDew", "Moon Dew", "Catalog.BottledWater3Moonglow1MoonDew3", 9, "MoonDew", "moondew"),
-        new("resin", "Catalog.WarmResin", "Warm Resin", "Catalog.Wood20Gel2WarmResin2", 4, "WarmResin", "resin"),
+        new("moondew", "Catalog.MoonDew", "Moon Dew", "Catalog.BottledWater1Moonglow1MoonDew3", 9, "MoonDew", "moondew"),
         new("flour", "Catalog.Flour", "Flour", "Catalog.SoldByTheMerchant", 8, "Flour", "flour"),
         new("sugar", "Catalog.Sugar", "Sugar", "Catalog.SoldByTheMerchant", 9, "Sugar", "sugar"),
         new("egg", "Catalog.Egg", "Egg", "Catalog.SoldByTheMerchant", 5, "Egg", "egg"),
@@ -159,13 +158,13 @@ public static class AlchemyCatalog
             PixelWidth = 33, PixelHeight = 40,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(3, "moondew"),
+                new(1, "moondew"),
                 new(1, "star"),
                 new(1, "glowingmushroom"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.Duration", "Catalog.120S"),
+                new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.RecoveryPerSecond", "Catalog.1OfMaximumMagicPower"),
                 new("Catalog.UsageRestriction", "Catalog.ElainaOnly"),
             },
@@ -203,6 +202,7 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
+                new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.MeleeLifeSteal", "+5%"),
                 new("Catalog.MeleeDamage", "+10%"),
                 new("Catalog.DamageTaken", "+20%", "bad"),
@@ -223,6 +223,7 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
+                new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.MaximumMana", "+40"),
                 new("Catalog.MaximumMagicDamageBonus", "+30%"),
                 new("Catalog.RequiredManaLifeDifference", "300"),
@@ -242,6 +243,7 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
+                new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.DamageBonus", "+5% ~ +30%"),
                 new("Catalog.MaximumAngle", "Catalog.30Degrees"),
             },
@@ -251,7 +253,7 @@ public static class AlchemyCatalog
             Id = "resonance", Name = "Catalog.ResonancePotion", EnglishName = "Resonance Potion",
             Category = "potion", Art = "ResonancePotion", Kind = "Catalog.PotionCombat", Stage = "Catalog.RecipeSoldByTheWitchDoctorAtNight",
             Description = "Catalog.WhipHitsMarkEnemiesWithResonanceYourMinionsDealIncreasedDamageTo",
-            Note = "Catalog.TheRibbonsAroundTheBottlesHelpMeTellThemApart", Rarity = 1, Yield = 1,
+            Note = "Catalog.TheRibbonsAroundTheBottlesHelpMeTellThemApart", Rarity = 2, Yield = 1,
             PixelWidth = 31, PixelHeight = 39,
             Ingredients = new AlchemyCatalogIngredient[]
             {
@@ -260,6 +262,7 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
+                new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.MarkDuration", "Catalog.3S"),
                 new("Catalog.MinionDamage", "+20%"),
             },
@@ -279,6 +282,7 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
+                new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.SpeedBonus", "+20%"),
             },
         },
@@ -334,8 +338,7 @@ public static class AlchemyCatalog
             Effects = new AlchemyCatalogEffect[]
             {
                 new("Catalog.MaterialRequirement", "Catalog.OwnAtLeast1OfEachRequiredMaterial"),
-                new("Catalog.QuantityRequirement", "Catalog.FulfillAtLeast50OfTheTotalMaterialRequirement"),
-                new("Catalog.Priority", "Catalog.FavoriteToPrioritizeReplacingOriginalMaterials"),
+                new("Catalog.HowToUse", "Catalog.RightClickSelectedRecipeToCraftWithDust"),
             },
         },
         new()
@@ -344,7 +347,7 @@ public static class AlchemyCatalog
             Category = "curio", Art = "RevealingDust", Kind = "Catalog.CurioUtility", Stage = "Catalog.RequiresAlchemyLv2",
             Description = "Catalog.RevealsAllEnemiesAndTraps",
             Note = "Catalog.PerhapsAlchemyIsSimplyFindingNewPossibilitiesInOrdinaryThings", Rarity = 2, Yield = 3,
-            PixelWidth = 24, PixelHeight = 25,
+            PixelWidth = 32, PixelHeight = 32,
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "blinkroot"),
@@ -352,8 +355,8 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.RevealRadius", "1500"),
-                new("Catalog.Duration", "Catalog.120S"),
+                new("Catalog.RevealRadius", "1000"),
+                new("Catalog.Duration", "Catalog.5Min"),
             },
         },
         new()
@@ -445,30 +448,12 @@ public static class AlchemyCatalog
             OutputMaterial = "moondew",
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(3, "water"),
+                new(1, "water"),
                 new(1, "moonglow"),
             },
             Effects = new AlchemyCatalogEffect[]
             {
                 new("Catalog.Use", "Catalog.BaseForPotions"),
-            },
-        },
-        new()
-        {
-            Id = "resin", Name = "Catalog.WarmResin", EnglishName = "Warm Resin",
-            Category = "material", Art = "WarmResin", Kind = "Catalog.INGREDIENTS", Stage = "Catalog.InitiallyUnlocked",
-            Description = "Catalog.ASmoothWarmResinBrewedFromWoodAndGel",
-            Note = "Catalog.KeepTrackOfWhereEachIngredientComesFromAndSpareYourselfTheNextRu", Rarity = 0, Yield = 2, InitialUnlocked = true,
-            PixelWidth = 25, PixelHeight = 24,
-            OutputMaterial = "resin",
-            Ingredients = new AlchemyCatalogIngredient[]
-            {
-                new(20, "wood"),
-                new(2, "gel"),
-            },
-            Effects = new AlchemyCatalogEffect[]
-            {
-                new("Catalog.Use", "Catalog.SupplementForPotions"),
             },
         },
         new()

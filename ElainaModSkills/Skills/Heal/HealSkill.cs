@@ -1,4 +1,5 @@
 using KL.ActionsSystem;
+using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
@@ -8,7 +9,7 @@ using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 namespace 伊蕾娜.ElainaModSkills.Skills.Heal;
 
 [SkillUIInfo(State = 3, Pixels = 0)]
-public class HealSkill : ElainaSkill
+public partial class HealSkill : ElainaSkill
 {
     private const float TargetSearchRadius = 3000f;
     private const int InvalidTargetIndex = -1;
@@ -16,12 +17,8 @@ public class HealSkill : ElainaSkill
     private int pendingTargetIndex = InvalidTargetIndex;
     private int pendingSkillSlot = -1;
 
-    public override void Initialize()
-    {
-        MaxCD = 1;
-        MagicPointCost = 200;
-        base.Initialize();
-    }
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(HealSkill), 25));
 
     /// <summary>
     /// 有队友时只打开选择盘，即使队友全在范围外也需确认自疗，避免误触。
@@ -38,7 +35,6 @@ public class HealSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
-        //MaxCD = 60;
         if (pendingTargetIndex != InvalidTargetIndex)
         {
             int targetIndex = pendingTargetIndex;
@@ -87,13 +83,14 @@ public class HealSkill : ElainaSkill
     private bool CastAt(int targetIndex, IEntitySource source)
     {
         if (!TryGetValidTarget(targetIndex, out Player target) ||
-            !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost)) return false;
+            !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, allowLifeConversion: AllowsLifeConversion)) return false;
 
+        int totalHealing = GetTotalHealing(Level);
         AnimAction action = new Action_SimpleShoot().AddNode(new ShootActionNode(
             1, ModContent.ProjectileType<HealProj>(), _ => target.MountedCenter,
             damage: 0, 0, _ => Vector2.Zero, projectile =>
             {
-                projectile.ai[0] = 100; // 测试阶段：十秒内的总治疗量。
+                projectile.ai[0] = totalHealing;
                 projectile.ai[1] = targetIndex;
             }));
         float rotation = (target.MountedCenter - Player.MountedCenter).ToRotation();

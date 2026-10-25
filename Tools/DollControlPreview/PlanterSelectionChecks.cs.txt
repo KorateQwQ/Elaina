@@ -1,0 +1,160 @@
+using System;
+using Terraria.GameInput;
+using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static class PlanterSelectionChecks
+{
+    private static int assertions;
+    internal static void Run()
+    {
+        TileID.Sets.Platforms[19] = true;
+        foreach (float scale in new[] { 1f, 1.5f, 2f })
+        {
+            Host.UIScale = scale;
+            for (int x = 0; x < Host.maxTilesX; x++) for (int y = 0; y < Host.maxTilesY; y++) Host.tile[x, y] = new();
+            var c = new DollCommandPlayer();
+            c.Player.inventory[0] = Supply(1, 19, 30);
+            c.Player.inventory[1] = Supply(2, 19, 20, 1);
+            c.Player.inventory[2] = Supply(2, 19, 20, 1);
+            c.Player.inventory[3] = Supply(3, 380, 12);
+            c.Player.inventory[4] = Supply(4, 380, 8, 1);
+            c.Player.inventory[5] = Supply(6, 78, 99);
+            c.Player.inventory[6] = Supply(3, 380, 12);
+            c.Player.inventory[50] = Supply(5, 19, 999); // Coin/ammo slots aren't building inventory.
+            Begin(c);
+            Check(c.Tool == DollCommand.PlacePlanters && c.SelectedPlanter == 3 && DollPlanterBuilding.Options(c.Player).Count == 2,
+                "Default materials aggregate stacks and ignore non-inventory slots");
+            var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / scale, true);
+            Drag(c, new(20, 20), new(20, 20));
+            Check(c.DraftMarks.SetEquals([new Point(20, 21)]) && !c.HasTask, "One tile selects one full 2-tile group, still a draft");
+            Drag(c, new(20, 20), new(20, 20));
+            Check(c.DraftMarks.Count == 0, "Repeating a selection erases it");
+            Drag(c, new(23, 23), new(20, 20));
+            Check(c.DraftMarks.Count == 8, "Reverse drag packs 4 columns by 2 rows");
+            Drag(c, new(20, 21), new(23, 21));
+            Check(c.DraftMarks.Count == 8, "Misaligned selections cannot overlap reserved growth/planter cells");
+            Button(c, layout.Planter);
+            Check(c.MaterialMenu && c.SelectedPlanter == 3, "Only planter choices are shown");
+            var menu = DollSelectionBarDrawing.GetMaterialMenuLayout(layout, c.MaterialMenuOptions.Count, c.MaterialMenuOffset);
+            Button(c, menu.Row(1));
+            Check(!c.MaterialMenu && c.SelectedPlanter == 4 && c.DraftMarks.Count == 8 && c.DragStart == null,
+                "Choosing planter preserves draft without selecting world");
+            Button(c, layout.Start);
+            Check(c.Tool == null && c.PlanterMarks.Count == 8 && c.TileMarks.Count == 0 && c.WallMarks.Count == 0,
+                "Commit goes to placement queue only");
+            Check(c.TrySelectPlanterTarget(c.Player.Center, new(-1, -1), out Point target), "Doll obtains a placement target");
+            c.PlacePlanter(target);
+            Check(Host.tile[target.X, target.Y].TileType == 380 && !Host.tile[target.X, target.Y + 1].HasTile
+                && !Host.tile[target.X, target.Y - 1].HasTile, "Places planter alone and preserves growth space");
+            Check(DollPlanterBuilding.Count(c.Player, 1) == 30 && DollPlanterBuilding.Count(c.Player, 4) == 7,
+                "Only the selected planter is consumed");
+            c.Player.inventory[0].TurnToAir(); c.Player.inventory[1].TurnToAir(); c.Player.inventory[2].TurnToAir();
+            c.TrySelectPlanterTarget(c.Player.Center, new(-1, -1), out target); c.PlacePlanter(target);
+            Check(c.PlanterMarks.Count == 6 && DollPlanterBuilding.Count(c.Player, 4) == 6,
+                "Placement continues without any platforms");
+            c.Player.inventory[4].TurnToAir();
+            c.TrySelectPlanterTarget(c.Player.Center, new(-1, -1), out target); c.PlacePlanter(target);
+            Check(!c.HasTask && !Host.tile[target.X, target.Y].HasTile && DollPlanterBuilding.Count(c.Player, 3) == 24,
+                "Chosen planter exhaustion ends queue without substituting another type");
+            Begin(c); Drag(c, new(40, 20), new(41, 20)); Button(c, layout.Exit);
+            Check(c.Tool == null && !c.HasTask && c.DraftMarks.Count == 0, "Exit discards placement draft");
+            Begin(c); Drag(c, new(40, 20), new(41, 20)); Button(c, layout.Start); c.ClearTasks();
+            Check(!c.HasTask && c.PlanterMarks.Count == 0, "Cancel clears placement queue too");
+        }
+        Host.UIScale = 1;
+        CheckMenu();
+        var player = new Player(); player.inventory[0] = Supply(1, 19, 10); player.inventory[1] = Supply(3, 380, 10);
+        var p = new Point(80, 30);
+        Host.tile[p.X, p.Y - 1].HasTile = true;
+        Check(!DollPlanterBuilding.CanBuild(p), "Occupied growth cell blocks a group");
+        Host.tile[p.X, p.Y - 1].HasTile = false;
+        Host.tile[p.X, p.Y].LiquidAmount = 100;
+        Check(!DollPlanterBuilding.CanBuild(p), "Liquid blocks placement");
+        Host.tile[p.X, p.Y].LiquidAmount = 0;
+        Terraria.ModLoader.TileLoader.Reject = true;
+        Check(DollPlanterBuilding.Place(player, p, 3) == DollPlanterBuilding.Result.Blocked
+            && player.inventory[0].stack == 10 && player.inventory[1].stack == 10, "Rejected placement consumes no items");
+        Terraria.ModLoader.TileLoader.Reject = false;
+        Host.tile[p.X, p.Y + 1] = new Tile { HasTile = true, TileType = 19 };
+        Check(DollPlanterBuilding.Place(player, p, 3) == DollPlanterBuilding.Result.Placed
+            && player.inventory[0].stack == 10 && player.inventory[1].stack == 9, "Existing tile below does not block placement or change inventory");
+        Rectangle edge = DollPlanterBuilding.Area(new(-500, -500), new(999, 999));
+        Check(edge.Top >= 1 && edge.Bottom < Host.maxTilesY && edge.Height % 2 == 0, "World edge clips to complete groups");
+        Console.WriteLine($"PASS: {assertions} planter assertions, 3 UI scales; selection, materials, queue, consumption, exhaustion, obstacles, cancellation.");
+    }
+    private static void CheckMenu()
+    {
+        var c = new DollCommandPlayer();
+        for (int i = 0; i < 12; i++) c.Player.inventory[i] = Supply(100 + i, 380, i + 1);
+        var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize, true);
+        Begin(c); Drag(c, new(100, 30), new(101, 30));
+        int draftCount = c.DraftMarks.Count;
+        Button(c, layout.Planter);
+        var menu = DollSelectionBarDrawing.GetMaterialMenuLayout(layout, c.MaterialMenuOptions.Count, c.MaterialMenuOffset);
+        Check(menu.VisibleRows == 6 && c.MaterialMenuOptions.Count == 12, "Long inventory shows six rows in a bounded list");
+        Button(c, menu.Next);
+        Check(c.MaterialMenuOffset == 6 && c.SelectedPlanter == 111, "Paging doesn't change selected material");
+        menu = DollSelectionBarDrawing.GetMaterialMenuLayout(layout, c.MaterialMenuOptions.Count, c.MaterialMenuOffset);
+        PlayerInput.ScrollWheelDeltaForUI = 120;
+        PlayerInput.MouseX = menu.Panel.Center.X; PlayerInput.MouseY = menu.Panel.Center.Y;
+        Host.mouseLeft = false; c.Player.mouseInterface = false; c.ProcessTriggers(new());
+        PlayerInput.ScrollWheelDeltaForUI = 0;
+        Check(c.MaterialMenuOffset == 5, "Mouse wheel scrolls the open list");
+        menu = DollSelectionBarDrawing.GetMaterialMenuLayout(layout, c.MaterialMenuOptions.Count, c.MaterialMenuOffset);
+        Button(c, menu.Row(2));
+        Check(c.SelectedPlanter == 107 && !c.MaterialMenu && c.DraftMarks.Count == draftCount,
+            "Scrolled row maps to the correct material and preserves draft");
+        Button(c, layout.Planter); Button(c, layout.Planter);
+        Check(!c.MaterialMenu, "Clicking the open planter row toggles it closed");
+        Button(c, layout.Planter);
+        Tick(c, true, new(90, 30)); Tick(c, false, new(90, 30));
+        Check(!c.MaterialMenu && c.DragStart == null && c.DraftMarks.Count == draftCount,
+            "Outside click dismisses popup without selecting world cells");
+        Button(c, layout.Planter); Button(c, layout.Exit);
+        Check(c.Tool == null && !c.MaterialMenu, "Exiting selection closes popup");
+        c = new DollCommandPlayer(); Begin(c); Button(c, layout.Planter);
+        Check(c.MaterialMenu && c.MaterialMenuOptions.Count == 0, "Empty inventory still opens an empty menu");
+        menu = DollSelectionBarDrawing.GetMaterialMenuLayout(layout, 0, 0); Button(c, menu.Row(0));
+        Check(c.SelectedPlanter == 0 && c.MaterialMenu, "Empty message cannot select a material");
+        c.Player.inventory[0] = Supply(1, 380, 10);
+        Button(c, layout.Planter); Button(c, layout.Planter);
+        Check(c.MaterialMenuOptions.Count == 1, "Reopening list refreshes inventory choices");
+        c.Player.inventory[0].TurnToAir(); Button(c, menu.Row(0));
+        Check(c.SelectedPlanter == 0 && c.MaterialMenuOptions.Count == 0, "Removed inventory item cannot be selected from stale popup");
+        c.ClearTasks();
+        foreach (float scale in new[] { 1f, 1.5f, 2f })
+        {
+            var bar = DollSelectionBarDrawing.GetLayout(new Vector2(800, 600) / scale, true);
+            var small = DollSelectionBarDrawing.GetMaterialMenuLayout(bar, 50, 99);
+            Check(small.Panel.Top >= 0 && small.Panel.Bottom <= bar.Panel.Top && small.Offset == 50 - small.VisibleRows,
+                "Small screen clips menu height and clamps last page");
+        }
+    }
+    private static Item Supply(int type, int tile, int stack, int style = 0)
+    {
+        var item = new Item { type = type, createTile = tile, stack = stack, placeStyle = style };
+        ContentSamples.ItemsByType[type] = new Item { type = type, createTile = tile, stack = 1, placeStyle = style };
+        return item;
+    }
+    private static void Begin(DollCommandPlayer c)
+    {
+        Tick(c, false, new(2, 2)); Tick(c, true, new(2, 2)); Tick(c, false, new(2, 2)); DollCommandWheel.Choose(DollCommand.PlacePlanters);
+    }
+    private static void Drag(DollCommandPlayer c, Point a, Point b) { Tick(c, false, a); Tick(c, true, a); Tick(c, false, b); }
+    private static void Tick(DollCommandPlayer c, bool left, Point tile)
+    {
+        c.Player.mouseInterface = false; Host.mouseLeft = left; Host.MouseWorld = new(tile.X * 16, tile.Y * 16);
+        PlayerInput.MouseX = PlayerInput.MouseY = 100; c.ProcessTriggers(new());
+    }
+    private static void Button(DollCommandPlayer c, Rectangle r)
+    {
+        foreach (bool left in new[] { false, true, false })
+        {
+            c.Player.mouseInterface = false; Host.mouseLeft = left;
+            PlayerInput.MouseX = (int)(r.Center.X * Host.UIScale); PlayerInput.MouseY = (int)(r.Center.Y * Host.UIScale); c.ProcessTriggers(new());
+        }
+    }
+    private static void Check(bool value, string reason) { assertions++; if (!value) throw new Exception(reason); }
+}

@@ -1,5 +1,4 @@
 using System;
-using KL.Buffs.ElementalDebuff;
 using KL.DamageSystem;
 using KL.Drawing;
 using KL.Drawing.ThreeD;
@@ -111,30 +110,8 @@ public class IceConeProj : ElainaBasicProjectile
 
         float speed = forwardVelocity.Length();
         // 冲刺初速是 speed * 4 并逐渐衰减，按约 speed * 2 估算飞行时间
-        float leadTime = MathHelper.Clamp(Vector2.Distance(Projectile.Center, target.Center) / (speed * 2f), 0f, 15f);
-        // KL 冻结和时停会保留 velocity，暂停期间不能把它当作实际移动速度。
-        Vector2 aimPoint = target.Center;
-        if (!IsTargetMovementPaused(target))
-            aimPoint += target.velocity * leadTime;
+        Vector2 aimPoint = PredictiveAim.GetAimPoint(Projectile.Center, target, speed * 2f);
         forwardVelocity = (aimPoint - Projectile.Center).SafeNormalize(forwardVelocity / speed) * speed;
-    }
-
-    private static bool IsTargetMovementPaused(NPC target)
-    {
-        if (TimeStopManager.timeStop || IsFrozen(target))
-            return true;
-
-        // 多部位 Boss 共用元素锚点；不能只依赖 PostAI 中会被清除的 IsLogicFrozen。
-        NPC anchor = target.GetElementAnchorNPC();
-        return anchor != target && anchor is { active: true } && IsFrozen(anchor);
-    }
-
-    private static bool IsFrozen(NPC target)
-    {
-        ElementalGlobalNPC state = target.GetGlobalNPC<ElementalGlobalNPC>();
-        return target.HasBuff<ElementalAffliction_Freeze>()
-            || state.GetAffliction(ElementType.Ice)
-            || state.IsLogicFrozen;
     }
 
     private void UpdateMovement()

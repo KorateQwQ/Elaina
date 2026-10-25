@@ -1,0 +1,427 @@
+using System.Reflection;
+using Terraria.ID;
+using Terraria.ModLoader.IO;
+using Terraria.ObjectData;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class PlanterNativeChecks
+{
+    private static GardenHerb modHerb;
+    private static GardenSeed modSeed;
+    private static void GardenSetup(Mod mod)
+    {
+        var commands = new DollCommandPlayer(); ((ILoadable)commands).Load(mod); ContentInstance.Register(commands);
+        SetupChestFixture(mod);
+        var capture = new DollLootCapture(); ((ILoadable)capture).Load(mod); ContentInstance.Register(capture);
+        modHerb = new GardenHerb(); ((ILoadable)modHerb).Load(mod); ContentInstance.Register(modHerb);
+        modSeed = new GardenSeed(); ((ILoadable)modSeed).Load(mod); ContentInstance.Register(modSeed);
+    }
+
+    private static void CheckGarden(Player player, FixtureTile[] fixtures)
+    {
+        Host.myPlayer = 0;
+        Host.guideItem = new Item();
+        Host.recipe[0] = (Recipe)Activator.CreateInstance(typeof(Recipe), BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { null }, null)!;
+        ContentSamples.ItemsByType[modSeed.Type] = new Item(modSeed.Type);
+        typeof(ItemLoader).GetMethod("FinishSetup", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, null);
+        foreach (int tile in new[] { TileID.ImmatureHerbs, TileID.MatureHerbs, TileID.BloomingHerbs })
+        {
+            Host.tileAlch[tile] = true; Host.tileFrameImportant[tile] = true; Host.tileCut[tile] = true;
+        }
+        foreach (var t in typeof(ItemID).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(short)))
+        {
+            int id = Convert.ToInt32(t.GetRawConstantValue());
+            if (id > 0 && id < ItemID.Count) ContentSamples.ItemsByType[id] = new Item(id);
+        }
+        CheckLootModes();
+        for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        commands.ResumeGarden();
+        Point pot = new(100, 130);
+        player.Center = pot.ToWorldCoordinates() + new Vector2(-80, 0);
+        int before = passed;
+        int[] pots = [ItemID.DayBloomPlanterBox, ItemID.MoonglowPlanterBox, ItemID.BlinkrootPlanterBox,
+            ItemID.CorruptPlanterBox, ItemID.CrimsonPlanterBox, ItemID.WaterleafPlanterBox, ItemID.FireBlossomPlanterBox, ItemID.ShiverthornPlanterBox];
+        int[] seeds = [ItemID.DaybloomSeeds, ItemID.MoonglowSeeds, ItemID.BlinkrootSeeds,
+            ItemID.DeathweedSeeds, ItemID.DeathweedSeeds, ItemID.WaterleafSeeds, ItemID.FireblossomSeeds, ItemID.ShiverthornSeeds];
+        for (int i = 0; i < pots.Length; i++)
+        {
+            Point p = new(pot.X + i * 2, pot.Y);
+            player.inventory[0] = new(ItemID.WoodPlatform, 2); player.inventory[1] = new(pots[i], 2);
+            var placeResult = DollPlanterBuilding.Place(player, p, pots[i]);
+            Check(placeResult == DollPlanterBuilding.Result.Placed, "Garden native support placement");
+            DollGardenSystem.Register(player, p, pots[i]);
+            Check(DollGardenSystem.Beds[p].Seed.Type == seeds[i], "Planter maps to its corresponding herb");
+            player.inventory[2] = new(seeds[i], 2);
+            Check(DollHerbPlanting.IsSeed(player.inventory[2]) && DollHerbPlanting.CanPlant(player, p, player.inventory[2]), "Real seed and anchor accepted");
+            bool planted = DollHerbPlanting.Plant(player, p, player.inventory[2]);
+            Check(planted && player.inventory[2].stack == 1, "Native sow consumes exactly one seed");
+            Check(!DollHerbPlanting.Plant(player, p, player.inventory[2]) && player.inventory[2].stack == 1, "Occupied plant never overwritten or charged twice");
+            Check(!DollHerbPlanting.CanHarvest(seeds[i], p.X, p.Y - 1), "Never harvest seedlings");
+            Host.tile[p.X, p.Y - 1].TileType = TileID.BloomingHerbs;
+            Check(DollHerbPlanting.CanHarvest(seeds[i], p.X, p.Y - 1), "Native flowering stage is harvestable");
+        }
+        Point day = pot;
+        Host.tile[day.X, day.Y - 1].TileType = TileID.MatureHerbs;
+        Host.dayTime = false;
+        Check(!DollHerbPlanting.CanHarvest(ItemID.DaybloomSeeds, day.X, day.Y - 1), "Mature daybloom at night is left alone");
+        Host.dayTime = true;
+        Check(DollHerbPlanting.CanHarvest(ItemID.DaybloomSeeds, day.X, day.Y - 1), "Engine daytime flowering rule is used, even before tile changes to BloomingHerbs");
+        Check(!DollHerbPlanting.CanHarvest(ItemID.MoonglowSeeds, day.X, day.Y - 1), "Different herb is never harvested as corresponding seed");
+        Check(commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out Point selected) && selected == day, "Production task selects owned flowering plant");
+        int stock = DollPlanterBuilding.Count(player, ItemID.DaybloomSeeds);
+        commands.TendGarden(day);
+        Check(!Host.tile[day.X, day.Y - 1].HasTile && Host.tile[day.X, day.Y].HasTile, "Harvest removes only plant, keeps the pot");
+        Check(commands.LootCount(ItemID.Daybloom) > 0, "Actual harvest drop is collected");
+        Check(DollPlanterBuilding.Count(player, ItemID.DaybloomSeeds) > stock, "Actual harvest seeds enter owner's inventory");
+        commands.TendGarden(day);
+        Check(Host.tile[day.X, day.Y - 1].TileType == TileID.ImmatureHerbs && Host.tile[day.X, day.Y - 1].HasTile, "Automatic resow uses returned seed");
+
+        var stranger = Host.player[1].GetModPlayer<DollCommandPlayer>();
+        stranger.Player.Center = player.Center; stranger.ResumeGarden();
+        Check(!stranger.TrySelectGardenTarget(day.ToWorldCoordinates(), new(-1, -1), out _), "Different owner cannot adopt these planters");
+        Host.tile[day.X, day.Y - 1].TileType = TileID.BloomingHerbs;
+        commands.TileMarks.Add(day);
+        Check(!commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out selected) || selected != day, "Manual removal has priority over gardening");
+        commands.TileMarks.Clear(); commands.PauseGarden();
+        Check(!commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out _), "Cancel pauses recurring gardening");
+        commands.ResumeGarden();
+        Check(commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out _), "Resummon can resume recurring gardening");
+
+        var world = new DollGardenSystem(); var save = new TagCompound(); world.SaveWorldData(save);
+        var role = new TagCompound(); commands.SaveData(role); Guid ownerId = commands.GardenOwner;
+        world.ClearWorld(); Check(DollGardenSystem.Beds.Count == 0, "Different world starts without old beds");
+        world.LoadWorldData(save); commands.LoadData(role); commands.ResumeGarden();
+        Check(DollGardenSystem.Beds.Count == pots.Length && commands.GardenOwner == ownerId, "World bed ownership and stable character key roundtrip");
+        Check(DollGardenSystem.Beds[day].Seed.Type == ItemID.DaybloomSeeds, "Saved item identity restores seed type");
+
+        Point retired = new(123, 130);
+        Tile retiredPot = Host.tile[retired.X, retired.Y]; retiredPot.HasTile = true; retiredPot.TileType = TileID.ClayPot;
+        ContentSamples.ItemsByType[ItemID.ClayPot] = new Item(ItemID.ClayPot);
+        DollGardenSystem.Register(player, retired, ItemID.ClayPot);
+        Check(!DollGardenSystem.Beds.ContainsKey(retired), "Clay pots cannot register for maintenance");
+        DollGardenSystem.Beds[retired] = new(commands.GardenOwner, new(ItemID.ClayPot), new(ItemID.DaybloomSeeds));
+        player.inventory[3] = new(ItemID.DaybloomSeeds, 4);
+        Check(!DollHerbPlanting.CanPlant(player, retired, player.inventory[3]), "Doll planting rejects clay pots");
+        commands.TendGarden(retired);
+        Check(!Host.tile[retired.X, retired.Y - 1].HasTile && player.inventory[3].stack == 4,
+            "Legacy clay-pot record cannot plant or consume seeds");
+        var legacy = new TagCompound(); world.SaveWorldData(legacy); world.ClearWorld(); world.LoadWorldData(legacy);
+        Check(!DollGardenSystem.Exists(retired, DollGardenSystem.Beds[retired]), "Saved clay-pot record stays inactive after reload");
+        Tile retiredHerb = Host.tile[retired.X, retired.Y - 1]; retiredHerb.HasTile = true;
+        Host.tile[retired.X, retired.Y - 1].TileType = TileID.BloomingHerbs;
+        commands.TendGarden(retired);
+        Check(Host.tile[retired.X, retired.Y - 1].HasTile, "Legacy clay-pot record cannot harvest existing herbs");
+        DollGardenSystem.Remove(retired);
+        Host.tile[retired.X, retired.Y - 1].ClearTile(); Host.tile[retired.X, retired.Y].ClearTile();
+        Point planter = new(125, 130);
+        player.inventory[1] = new(ItemID.WaterleafPlanterBox, 2);
+        Check(DollPlanterBuilding.Place(player, planter, ItemID.WaterleafPlanterBox) == DollPlanterBuilding.Result.Placed, "Unsupported waterleaf planter");
+        for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+        player.inventory[2] = new(ItemID.WaterleafSeeds, 2);
+        Check(!DollGardenSystem.Beds.ContainsKey(planter), "Ordinary hand-placed planter is not automatically managed");
+        DollGardenSystem.Register(player, planter, ItemID.WaterleafPlanterBox);
+        commands.TendGarden(planter);
+        Check(DollGardenSystem.Beds[planter].Seed.Type == ItemID.WaterleafSeeds, "Planter remembers its preferred seed");
+        Host.tile[planter.X, planter.Y - 1].ClearTile(); player.inventory[2].TurnToAir();
+        player.inventory[3] = new(ItemID.DaybloomSeeds, 4);
+        Check(DollHerbPlanting.FindSeed(player, planter, ItemID.WaterleafSeeds) == null, "Missing matching seed does not borrow other species");
+        commands.TendGarden(planter);
+        Check(!Host.tile[planter.X, planter.Y - 1].HasTile && player.inventory[3].stack == 4, "No matching seed: wait without spending another seed");
+        Check(DollHerbPlanting.Plant(player, planter, player.inventory[3]), "Manual replacement crop can be placed");
+        Host.tile[planter.X, planter.Y - 1].TileType = TileID.BloomingHerbs;
+        commands.ResumeGarden();
+        Check(commands.TrySelectGardenTarget(planter.ToWorldCoordinates(), planter, out selected) && selected == planter
+            && DollGardenSystem.Beds[planter].Seed.Type == ItemID.DaybloomSeeds, "Managed pot adopts known manually changed crop for harvest and resow");
+        Host.tile[planter.X, planter.Y - 1].ClearTile();
+        Host.myPlayer = 1;
+        Check(!DollHerbPlanting.Plant(player, planter, player.inventory[3]), "Remote copies cannot sow or spend");
+        Host.myPlayer = 0;
+        CheckModHerb(player, fixtures[5].Type, planter);
+        CheckRealModHerb(player, planter);
+        CheckGardenClaims(player, day);
+        CheckGardenNetwork(player, day);
+        CheckGardenAI(player);
+        CheckGardenWeeds(player);
+        Console.WriteLine($"PASS: {passed - before} gardening checks (real seeds, growth rules, harvesting, inventory, ownership, saves, mod adapter).");
+    }
+
+    private static void CheckModHerb(Player player, int herb, Point pot)
+    {
+        int seedType = ItemID.DaybloomSeeds; // Fixture replaces this content sample only; no third-party mod is claimed tested.
+        Item original = ContentSamples.ItemsByType[seedType];
+        var sample = new Item(seedType) { createTile = herb, placeStyle = 0 };
+        ContentSamples.ItemsByType[seedType] = sample;
+        var tile = Host.tile[pot.X, pot.Y - 1]; tile.HasTile = true; tile.TileType = (ushort)herb; tile.TileFrameX = 0; tile.TileFrameY = 0;
+        Check(!DollHerbPlanting.CanHarvest(seedType, pot.X, pot.Y - 1), "Unknown mod herb has no guessed maturity");
+        DollHerbPlanting.Register(seedType, (x, y) => Host.tile[x, y].TileType == herb,
+            (x, y) => Host.tile[x, y].TileFrameX == 36);
+        Check(!DollHerbPlanting.CanHarvest(seedType, pot.X, pot.Y - 1), "Adapter rejects immature custom frame");
+        tile.TileFrameX = 36;
+        Check(DollHerbPlanting.CanHarvest(seedType, pot.X, pot.Y - 1), "Adapter accepts declared mod flowering stage");
+        DollHerbPlanting.Clear(); ContentSamples.ItemsByType[seedType] = original;
+    }
+
+    private static void CheckRealModHerb(Player player, Point pot)
+    {
+        int type = modHerb.Type;
+        Host.tileAlch[type] = Host.tileFrameImportant[type] = Host.tileCut[type] = true;
+        TileObjectData.newTile.CopyFrom(TileObjectData.StyleAlch);
+        TileObjectData.newTile.AnchorAlternateTiles = [TileID.PlanterBox];
+        TileObjectData.addTile(type);
+        TileObjectData data = TileObjectData.GetTileData(type, 0);
+        data.StyleMultiplier = 3; // 3 growth frames represent one plant style.
+        ContentSamples.ItemsByType[modSeed.Type] = new Item(modSeed.Type);
+        Host.tile[pot.X, pot.Y - 1].ClearTile();
+        player.inventory[5] = new Item(modSeed.Type, 3);
+        Check(DollHerbPlanting.IsSeed(player.inventory[5]), "Registered mod seed auto-detected from tileAlch + single-cell data");
+        modHerb.RejectPlace = true;
+        Check(!DollHerbPlanting.Plant(player, pot, player.inventory[5]) && player.inventory[5].stack == 3,
+            "Mod CanPlace veto does not consume seed");
+        modHerb.RejectPlace = false;
+        Check(DollHerbPlanting.Plant(player, pot, player.inventory[5]) && player.inventory[5].stack == 2,
+            "Real custom herb places through TileObject and consumes one seed");
+        var tile = Host.tile[pot.X, pot.Y - 1];
+        tile.TileFrameX = 36;
+        Check(!DollHerbPlanting.CanHarvest(modSeed.Type, pot.X, pot.Y - 1), "Unadapted real mod herb is left untouched");
+        DollHerbPlanting.Register(modSeed.Type, (x, y) => Host.tile[x, y].TileType == type,
+            (x, y) => Host.tile[x, y].TileFrameX == 36);
+        modHerb.RejectKill = true;
+        Check(!DollHerbPlanting.CanHarvest(modSeed.Type, pot.X, pot.Y - 1), "Custom CanKillTile veto is respected");
+        modHerb.RejectKill = false;
+        Check(DollHerbPlanting.CanHarvest(modSeed.Type, pot.X, pot.Y - 1), "Registered real mod flowering stage is harvestable");
+        var drops = new List<(int Type, int Stack)>();
+        Check(DollTileBreaker.BreakTile(pot.X, pot.Y - 1, drops)
+            && drops.Contains((ItemID.Daybloom, 2)) && drops.Contains((modSeed.Type, 3)),
+            "Real mod GetItemDrops supplies its own herb and seed yields");
+        Check(Host.tile[pot.X, pot.Y].HasTile && !Host.tile[pot.X, pot.Y - 1].HasTile,
+            "Custom herb harvest leaves planter intact");
+        Check(DollHerbPlanting.Plant(player, pot, player.inventory[5]), "Adapted mod herb can be resown");
+        Host.tile[pot.X, pot.Y - 1].TileFrameX = 36;
+        modHerb.RejectDrop = true;
+        Check(DollTileBreaker.BreakTile(pot.X, pot.Y - 1, drops) && drops.Count == 0,
+            "Mod CanDrop veto does not fabricate a reward");
+        modHerb.RejectDrop = false;
+        // Install real KillTile hook and verify that ownership vanishes with the pot.
+        var world = new DollGardenSystem(); world.Load();
+        WorldGen.KillTile(pot.X, pot.Y, noItem: true);
+        Check(!DollGardenSystem.Beds.ContainsKey(pot), "Destroyed planter immediately loses ownership through real WorldGen hook");
+        world.Unload();
+    }
+
+    private static void CheckGardenClaims(Player player, Point p)
+    {
+        var commands = player.GetModPlayer<DollCommandPlayer>(); commands.ResumeGarden();
+        DollGardenSystem.Register(player, p, ItemID.DayBloomPlanterBox);
+        Host.tile[p.X, p.Y - 1].TileType = TileID.BloomingHerbs;
+        var crop = Host.tile[p.X, p.Y - 1]; crop.HasTile = true; crop.TileFrameX = 0;
+        DollPetProjectile Worker()
+        {
+            var projectile = new Projectile { owner = 0, active = true };
+            var worker = (DollPetProjectile)new KumaPetProjectile().NewInstance(projectile);
+            typeof(Projectile).GetProperty("ModProjectile")!.SetValue(projectile, worker);
+            return worker;
+        }
+        var first = Worker(); var second = Worker();
+        Check(commands.TrySelectGardenTarget(p.ToWorldCoordinates(), p, out _, first), "First worker claims crop");
+        Check(!commands.TrySelectGardenTarget(p.ToWorldCoordinates(), p, out _, second), "Second worker cannot duplicate crop work");
+        first.Projectile.active = false;
+        Check(commands.TrySelectGardenTarget(p.ToWorldCoordinates(), p, out _, second), "Vanished worker releases crop for teammate");
+        commands.ReleaseTarget(p, true, true, second);
+        player.position += new Vector2(6000, 0);
+        Check(!commands.TrySelectGardenTarget(p.ToWorldCoordinates(), p, out _), "Out-of-range beds wait without being forgotten");
+        player.position -= new Vector2(6000, 0);
+        Check(DollGardenSystem.Beds.ContainsKey(p), "Range pause preserves ownership");
+    }
+
+    private static void CheckGardenNetwork(Player player, Point p)
+    {
+        // Packet handler is real; no sockets. Test rejection paths and received snapshots.
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        void Handle(byte op, int sender, int owner, Action<BinaryWriter> body)
+        {
+            using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream);
+            writer.Write(op); body(writer); stream.Position = 0;
+            DollGardenSystem.HandlePacket(new BinaryReader(stream), sender, owner);
+        }
+        Host.netMode = NetmodeID.Server;
+        Handle(2, 1, 0, w => { w.Write((short)p.X); w.Write((short)p.Y); w.Write((int)ItemID.MoonglowSeeds); });
+        Check(DollGardenSystem.Beds[p].Seed.Type == ItemID.DaybloomSeeds, "Server rejects spoofed player index");
+        Handle(2, 0, 0, w => { w.Write((short)p.X); w.Write((short)p.Y); w.Write((int)ItemID.MoonglowSeeds); });
+        Check(DollGardenSystem.Beds[p].Seed.Type == ItemID.DaybloomSeeds, "Server rejects mismatched crop identity");
+        Host.netMode = NetmodeID.MultiplayerClient;
+        Handle(3, 256, 0, w => { w.Write(true); w.Write((byte)1); w.Write((short)p.X); w.Write((short)p.Y);
+            w.Write("Terraria/DayBloomPlanterBox"); w.Write("Terraria/DaybloomSeeds"); });
+        Check(DollGardenSystem.Beds.Count == 1 && DollGardenSystem.Beds[p].Owner == commands.GardenOwner,
+            "Joining client restores only its own persisted beds");
+        Handle(4, 256, 0, w => { w.Write((short)p.X); w.Write((short)p.Y); });
+        Check(DollGardenSystem.Beds.Count == 0, "Server removal message revokes local bed");
+        Host.netMode = NetmodeID.SinglePlayer;
+    }
+
+    private static void CheckGardenAI(Player player)
+    {
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        commands.ResumeGarden();
+        player.Center = new Vector2(1900, 2400);
+        Point[] pots = [new(125, 150), new(127, 150), new(129, 150), new(131, 150)];
+        for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+        player.inventory[0] = new(ItemID.WoodPlatform, 4); player.inventory[1] = new(ItemID.DayBloomPlanterBox, 4);
+        player.inventory[2] = new(ItemID.DaybloomSeeds, 4);
+        foreach (var p in pots)
+        {
+            Check(DollPlanterBuilding.Place(player, p, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed, "AI garden bed placed");
+            DollGardenSystem.Register(player, p, ItemID.DayBloomPlanterBox);
+        }
+        KumaPetProjectile Worker(int slot)
+        {
+            var projectile = new Projectile { owner = 0, active = true, whoAmI = slot };
+            var worker = (KumaPetProjectile)new KumaPetProjectile().NewInstance(projectile);
+            typeof(Projectile).GetProperty("ModProjectile")!.SetValue(projectile, worker);
+            worker.SetDefaults(); projectile.Center = player.Center;
+            return worker;
+        }
+        var team = Enumerable.Range(0, 4).Select(Worker).ToArray();
+        for (int i = 0; i < 4; i++) Host.projectile[i] = team[i].Projectile;
+        var frameSet = new HashSet<int>();
+        void Tick()
+        {
+            typeof(Host).GetField("_gameUpdateCount", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, Host.GameUpdateCount + 1);
+            foreach (var member in team)
+            {
+                member.AI(); member.Projectile.Center += member.Projectile.velocity;
+                if (member.IsUsing) frameSet.Add(member.Projectile.frame);
+            }
+        }
+        Tick();
+        Check(team.All(d => d.HasWork), "Real AI assigns four real empty beds to four workers");
+        using (var stream = new MemoryStream())
+        {
+            team[0].SendExtraAI(new BinaryWriter(stream)); stream.Position = 0;
+            var remote = Worker(8); remote.ReceiveExtraAI(new BinaryReader(stream));
+            Host.myPlayer = 1;
+            for (int i = 0; i < 180; i++) { remote.AI(); remote.Projectile.Center += remote.Projectile.velocity; }
+            Host.myPlayer = 0;
+            Check(remote.IsUsing && pots.All(p => !Host.tile[p.X, p.Y - 1].HasTile) && player.inventory[2].stack == 4,
+                "Real remote AI only animates; it cannot plant or consume inventory");
+        }
+        for (int i = 0; i < 300 && pots.Any(p => !Host.tile[p.X, p.Y - 1].HasTile); i++) Tick();
+        Check(pots.All(p => Host.tile[p.X, p.Y - 1].HasTile) && player.inventory[2].IsAir,
+            "Real team AI plants four beds using exactly four seeds");
+        Check(frameSet.SetEquals(new[] { 0, 1, 2, 3 }), "Use animation visits all four new frames before planting");
+        foreach (var p in pots) Host.tile[p.X, p.Y - 1].TileType = TileID.BloomingHerbs;
+        bool harvested = false;
+        for (int i = 0; i < 360; i++)
+        {
+            Tick(); harvested |= pots.Any(p => !Host.tile[p.X, p.Y - 1].HasTile);
+            if (harvested && pots.All(p => Host.tile[p.X, p.Y - 1].HasTile && Host.tile[p.X, p.Y - 1].TileType == TileID.ImmatureHerbs)) break;
+        }
+        Check(harvested && pots.All(p => Host.tile[p.X, p.Y - 1].HasTile && Host.tile[p.X, p.Y - 1].TileType == TileID.ImmatureHerbs),
+            "Real AI completes flowering -> harvest -> inventory -> resow cycle");
+        Check(DollPlanterBuilding.Count(player, ItemID.DaybloomSeeds) >= 0 && pots.All(p => Host.tile[p.X, p.Y].HasTile),
+            "Automatic harvest keeps all four supports");
+        for (int i = 0; i < 300; i++) Tick();
+        Check(team.All(d => !d.HasWork && !d.IsUsing) && commands.Delivered > 0, "Waiting for growth releases team to follow and deliver loot");
+        commands.PauseGarden();
+        foreach (var p in pots) Host.tile[p.X, p.Y - 1].TileType = TileID.BloomingHerbs;
+        for (int i = 0; i < 90; i++) Tick();
+        Check(pots.All(p => Host.tile[p.X, p.Y - 1].TileType == TileID.BloomingHerbs), "Cancel pauses autonomous work while plants remain intact");
+    }
+
+    private static void CheckGardenWeeds(Player player)
+    {
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        new DollGardenSystem().ClearWorld(); commands.ResumeGarden();
+        Point pot = new(145, 160);
+        player.Center = pot.ToWorldCoordinates() - new Vector2(80, 0);
+        player.inventory[0] = new(ItemID.WoodPlatform, 2);
+        player.inventory[1] = new(ItemID.DayBloomPlanterBox, 2);
+        player.inventory[2] = new(ItemID.DaybloomSeeds, 2);
+        Check(DollPlanterBuilding.Place(player, pot, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed,
+            "Weed fixture has an unsupported planter");
+        Tile crop = Host.tile[pot.X, pot.Y - 1];
+        foreach (int type in new[] { TileID.Plants, TileID.Plants2 })
+        { Host.tileFrameImportant[type] = Host.tileCut[type] = true; }
+        Check(WorldGen.PlaceTile(pot.X, pot.Y - 1, TileID.Plants, mute: true) && crop.HasTile,
+            "Actual natural decorative plant can occupy planter");
+        commands.TendGarden(pot);
+        Check(crop.HasTile && crop.TileType == TileID.Plants, "Unmanaged pots are not weeded");
+        DollGardenSystem.Register(player, pot, ItemID.DayBloomPlanterBox);
+        Check(commands.TrySelectGardenTarget(pot.ToWorldCoordinates(), pot, out Point selected) && selected == pot,
+            "Managed weed is scheduled despite occupying the sowing space");
+        Host.myPlayer = 1; commands.TendGarden(pot); Host.myPlayer = 0;
+        Check(crop.HasTile && player.inventory[2].stack == 2, "Remote owner cannot clear weeds or spend seeds");
+        commands.TendGarden(pot);
+        Check(!crop.HasTile && player.inventory[2].stack == 2 && DollGardenSystem.Beds[pot].Seed.Type == ItemID.DaybloomSeeds,
+            "First action clears weed without consuming seeds or changing remembered species");
+        Check(Host.tile[pot.X, pot.Y].HasTile && !Host.tile[pot.X, pot.Y + 1].HasTile, "Weeding preserves unsupported planter");
+        commands.TendGarden(pot);
+        Check(crop.HasTile && crop.TileType == TileID.ImmatureHerbs && player.inventory[2].stack == 1,
+            "Next action sows exactly one matching seed");
+        foreach (ushort type in new ushort[] { TileID.ImmatureHerbs, TileID.MatureHerbs, TileID.BloomingHerbs, (ushort)modHerb.Type, TileID.Stone })
+        {
+            crop.TileType = type;
+            Check(!DollHerbPlanting.CanClearWeed(pot.X, pot.Y - 1), "Herb stages, unknown mod herbs and ordinary blocks are not weeds");
+        }
+        crop.TileType = TileID.Plants2; crop.TileFrameX = 0;
+        Check(DollHerbPlanting.CanClearWeed(pot.X, pot.Y - 1), "Second vanilla decorative plant family is clearable");
+        crop.IsActuated = true;
+        Check(!DollHerbPlanting.CanClearWeed(pot.X, pot.Y - 1), "Actuated plants are left alone");
+        crop.IsActuated = false;
+        DollHerbPlanting.Register(modSeed.Type, (x, y) => Host.tile[x, y].TileType == TileID.Plants2, (_, _) => false);
+        Check(!DollHerbPlanting.CanClearWeed(pot.X, pot.Y - 1), "Explicit adapter can protect a crop using vanilla plant tiles");
+        DollHerbPlanting.Clear();
+        player.inventory[2].TurnToAir();
+        commands.TendGarden(pot); commands.TendGarden(pot);
+        Check(!crop.HasTile && DollGardenSystem.Beds[pot].Seed.Type == ItemID.DaybloomSeeds,
+            "Missing seed: weed is cleared, pot waits with remembered crop intact");
+        crop.HasTile = true; crop.TileType = TileID.Plants;
+        commands.TrySelectGardenTarget(pot.ToWorldCoordinates(), pot, out _);
+        // Another actor planted a seed after target selection: execution must revalidate the actual tile.
+        crop.TileType = TileID.ImmatureHerbs; crop.TileFrameX = 0;
+        commands.TendGarden(pot);
+        Check(crop.HasTile && crop.TileType == TileID.ImmatureHerbs, "Stale weed target cannot cut a newly planted seedling");
+        crop.TileType = TileID.Plants;
+        commands.PauseGarden(); commands.TendGarden(pot);
+        Check(crop.HasTile, "Cancel pauses weed clearing");
+        commands.ResumeGarden();
+        // Exercise production movement/animation/task routing, with real WorldGen clearing followed by real planting.
+        player.inventory[2] = new(ItemID.DaybloomSeeds, 1);
+        var worker = (KumaPetProjectile)new KumaPetProjectile().NewInstance(new Projectile { active = true, owner = 0 });
+        typeof(Projectile).GetProperty("ModProjectile")!.SetValue(worker.Projectile, worker);
+        worker.SetDefaults(); worker.Projectile.Center = player.Center;
+        bool clearedBeforeSowing = false;
+        for (int i = 0; i < 240; i++)
+        {
+            typeof(Host).GetField("_gameUpdateCount", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, Host.GameUpdateCount + 1);
+            worker.AI(); worker.Projectile.Center += worker.Projectile.velocity;
+            clearedBeforeSowing |= !crop.HasTile && player.inventory[2].stack == 1;
+            if (crop.HasTile && crop.TileType == TileID.ImmatureHerbs) break;
+        }
+        Check(clearedBeforeSowing && crop.HasTile && crop.TileType == TileID.ImmatureHerbs && player.inventory[2].IsAir,
+            "Production doll AI performs weed -> empty pot -> seedling, spending the last seed once");
+    }
+
+    private sealed class GardenSeed : ModItem
+    {
+        public override void SetDefaults()
+        {
+            Item.DefaultToPlaceableTile(modHerb.Type);
+            Item.maxStack = 9999;
+        }
+    }
+    private sealed class GardenHerb : ModTile
+    {
+        public bool RejectPlace, RejectKill, RejectDrop;
+        public override bool CanPlace(int i, int j) => !RejectPlace;
+        public override bool CanKillTile(int i, int j, ref bool blockDamaged) => !RejectKill;
+        public override bool CanDrop(int i, int j) => !RejectDrop;
+        public override IEnumerable<Item> GetItemDrops(int i, int j)
+        {
+            yield return new Item(ItemID.Daybloom, 2);
+            yield return new Item(modSeed.Type, 3);
+        }
+    }
+}

@@ -11,7 +11,6 @@ using SilkyUIFramework.Elements;
 using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria;
-using Terraria.GameInput;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaModAlchemy.Gameplay;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
@@ -36,7 +35,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private ElasticPageScrollView _catalog, _detail;
     private SUIScrollView _bagScroll;
     private AlchemyCatalogMaterial[] _bagMaterials = [];
-    private float _scale = 1, _lastScale = 1, _brewTime, _flash, _toastTime;
+    private float _scale = 1, _lastScale = 1, _flash, _toastTime, _clock;
     private string _craftedId, _toast;
     private bool _dirty = true, _resetScroll = true;
     private bool _revealSelection;
@@ -44,9 +43,8 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private Player _owner;
     private float _inventoryRefresh;
     private int _lastResultSequence;
-    private const float BrewDuration = .65f;
-    private bool Brewing => _brewTime > 0;
-    private float BrewProgress => Brewing ? Math.Clamp(1 - _brewTime / BrewDuration, .001f, .999f) : 0;
+    private bool Brewing => _owner?.GetModPlayer<AlchemyBrewingPlayer>().IsBrewing == true;
+    private float BrewProgress => _owner?.GetModPlayer<AlchemyBrewingPlayer>().Session.Progress ?? 0;
     public override bool IsInteractable => !Main.gameMenu;
 
     public AlchemyNotebookPanel() { Enabled = false; }
@@ -252,12 +250,12 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private void ProcessResult()
     {
         var result = _state.LastResult;
-        if (result == null || result.Sequence == _lastResultSequence) return;
+        if (result == null || result.Pending || result.Sequence == _lastResultSequence) return;
         _lastResultSequence = result.Sequence;
         if (result.Success && result.Action == AlchemyNotebookAction.Craft)
         {
             _craftedId = result.EntryId; _toast = result.Message;
-            _toastTime = 0; _brewTime = BrewDuration;
+            _toastTime = 3; _flash = 1;
         }
         else
         {
@@ -403,6 +401,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         if (!Main.hasFocus || !Main.mouseLeft) StopDragging();
         float dt = Main.hasFocus ? Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f) : 0;
         _quill.Advance(dt);
+        _clock += dt;
         _tabMarker ??= new ConstellationTween(ActiveTab(), .18f);
         _tabMarker.SetTarget(ActiveTab());
         _tabMarker.Advance(dt);
@@ -414,11 +413,6 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
             _inventoryRefresh = .2f;
             if (_state.Refresh()) Dirty(false);
             ProcessResult();
-        }
-        if (Brewing)
-        {
-            _brewTime = Math.Max(0, _brewTime - dt);
-            if (!Brewing) { _flash = 1; _toastTime = 3; _state.SetQuantity(_state.Quantity); Dirty(false); }
         }
         _flash = Math.Max(0, _flash - dt * 1.25f);
         _toastTime = Math.Max(0, _toastTime - dt);
@@ -461,8 +455,10 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         WithLocal(this, spriteBatch, d =>
         {
             d.CatalogFade();
-            if (_detail.Motion.Position + DetailHeight < _rows.Sum(r => r.Row?.Height ?? 0) - 1)
+            float detailContent = _rows.Sum(r => r.Row?.Height ?? 0);
+            if (_detail.Motion.Position + DetailHeight < detailContent - 1)
                 d.DetailFade();
+            d.DetailScrollHints(_detail.Motion.Position, detailContent, _clock);
             // Above the catalog's top fade, like the HTML chrome layer over the catalog.
             TabMarker(d, _tabMarker?.Value ?? ActiveTab());
             PaintScrollBar(d, _bagScroll.ScrollBar);
@@ -498,9 +494,10 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         _detail?.Motion.EndDrag();
         _bagScroll?.ScrollBar.OnLeftMouseUp(new UIMouseEvent(_bagScroll.ScrollBar, Main.MouseScreen));
     }
-    public void Close() { RequestBook(false); }
+    public void Close() { _owner?.GetModPlayer<AlchemyBrewingPlayer>().CloseNotebook(); RequestBook(false); }
     private void CloseImmediately()
     {
+        _owner?.GetModPlayer<AlchemyBrewingPlayer>().CloseNotebook();
         StopDragging();
         _book.Reset();
         _quill.Reset();
@@ -510,15 +507,15 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         _keyboard = default;
     }
     protected override void OnExitTree() { CloseImmediately(); _owner = null; _state.Clear(); base.OnExitTree(); }
-    public static bool TogglePanel()
+    public static bool OpenPanel()
     {
         if (Main.dedServ || Main.gameMenu || SilkyUISystem.ServiceProvider == null || !SilkyUIRenderSystem.Instance.TryGetInstance<AlchemyNotebookPanel>(out var body)) return false;
-        if (body._book.TargetOpen) { body.Close(); return true; }
+        if (body._book.TargetOpen) return true;
         if (body._owner != Main.LocalPlayer)
         {
             body.CloseImmediately(); body._state.Bind(new AlchemyNotebookSource(Main.LocalPlayer));
             body._revealSelection = false;
-            body._lastResultSequence = 0; body._brewTime = body._flash = 0; body._tabMarker = null; body.Dirty(true);
+            body._lastResultSequence = 0; body._flash = 0; body._tabMarker = null; body.Dirty(true);
         }
         else if (body._state.Refresh()) body.Dirty(false);
         body._owner = Main.LocalPlayer;
@@ -547,16 +544,10 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
 
 public sealed class AlchemyNotebookSystem : ModSystem
 {
-    internal static ModKeybind OpenNotebook;
-    public override void Load() { if (!Main.dedServ) OpenNotebook = KeybindLoader.RegisterKeybind(Mod, "OpenAlchemyNotebook", "P"); }
-    public override void Unload() => OpenNotebook = null;
-    public override void OnWorldUnload() => AlchemyNotebookPanel.ResetWorld();
-}
-public sealed class AlchemyNotebookInput : ModPlayer
-{
-    public override void ProcessTriggers(TriggersSet triggersSet)
+    public override void OnWorldUnload()
     {
-        if (Main.hasFocus && Player.whoAmI == Main.myPlayer && !Main.drawingPlayerChat && !Main.editSign && !Main.editChest && AlchemyNotebookSystem.OpenNotebook?.JustPressed == true)
-            AlchemyNotebookPanel.TogglePanel();
+        foreach (var player in Main.player)
+            if (player?.active == true) player.GetModPlayer<AlchemyBrewingPlayer>().Cancel(false);
+        AlchemyNotebookPanel.ResetWorld();
     }
 }

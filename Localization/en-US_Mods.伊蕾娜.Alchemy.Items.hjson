@@ -1,10 +1,11 @@
-AshenFacsimileDust: {
+﻿AshenFacsimileDust: {
 	DisplayName: Ashen Facsimile Dust
 	Tooltip:
 		'''
 		An alchemical creation
-		For normal crafting, carry at least one of each ingredient and fulfill an average of 50% of ingredient requirements
-		Consumes 1 dust per missing ingredient unit; consumes none when all materials are available
+		For normal crafting, carry at least one of each ingredient
+		Left-click a selected recipe to craft normally; right-click it to craft with dust
+		Right-click always uses only 1 of each material and replaces the rest with dust
 		Still requires crafting stations and recipe conditions; does not affect Elaina's alchemy system
 		'''
 }
@@ -16,7 +17,7 @@ Painkiller: {
 
 PainkillerRecipe: {
 	DisplayName: Painkiller Recipe
-	Tooltip: An alchemical note found in Jungle Ivy Chests, recording a method of steadily restoring life.
+	Tooltip: Records a method of steadily restoring life.
 }
 
 BloodthirstPotionRecipe: {
@@ -41,12 +42,12 @@ ResonancePotionRecipe: {
 
 PurificationDewRecipe: {
 	DisplayName: Purification Dew Recipe
-	Tooltip: An alchemical note sold by the Dryad in Hardmode, recording the method of brewing Purification Dew.
+	Tooltip: Records the method of brewing Purification Dew.
 }
 
 FeatherlightPotionRecipe: {
 	DisplayName: Featherlight Potion Recipe
-	Tooltip: A traveler's note found in underground Gold Chests, recording a method of making movement and flight swifter.
+	Tooltip: Records a method of making movement and flight swifter.
 }
 
 BloodthirstPotion: {
@@ -106,10 +107,10 @@ PurificationDew: {
 	DisplayName: Purification Dew
 	Tooltip:
 		'''
-		Drip onto a block to purify it and every block below it
-		Creates a vertical barrier against biome spread
-		Planned availability: early Hardmode
-		Effects not implemented yet
+		Releases a rainbow dew at the target, passing through blocks and purifying down to the bottom of the world
+		Purifies a three-tile-wide strip: the target column and one on each side; leaves background walls unchanged
+		Permanently protects the passed area from Corruption, Crimson and Hallow, including infectious thorns and vines
+		Protection is saved with the world and remains after blocks are mined and replaced
 		'''
 }
 
@@ -122,10 +123,8 @@ RevealingDust: {
 	DisplayName: Revealing Dust
 	Tooltip:
 		'''
-		Scatter sparkling dust to expose hidden danger
-		Marks nearby hostile creatures and traps
-		Planned availability: the Hallow in Hardmode
-		Effects not implemented yet
+		Scatters golden dust, leaving a revealing area for 5 minutes
+		Highlights dangerous tiles in the area and reveals enemies for 5 minutes
 		'''
 }
 
@@ -133,12 +132,9 @@ BottledRain: {
 	DisplayName: Bottled Rain
 	Tooltip:
 		'''
-		Break the bottle to release a small rain cloud for 45 seconds
-		Covers an area approximately 20 tiles wide
-		Extinguishes ordinary On Fire! and waters nearby plants
-		Makes Waterleaf bloom and accelerates plant growth
-		Planned availability: after exploring the sky
-		Effects not implemented yet
+		Throw to release a portable rain cloud for 60 seconds
+		Waters an area about 20 tiles wide; solid blocks stop the rain
+		Accelerates plant growth and makes mature {$ItemName.Waterleaf} bloom
 		'''
 }
 
@@ -175,19 +171,8 @@ MoonDew: {
 	Tooltip:
 		'''
 		An alchemical base made by steeping Moonglow in Bottled Water
-		Used for mana, stars and spatial alchemy
+		Can be used in a variety of potions
 		Planned recipe: 3 Bottled Water + 1 Moonglow yields 3 Moon Dew
-		Effects not implemented yet
-		'''
-}
-
-WarmResin: {
-	DisplayName: Warm Resin
-	Tooltip:
-		'''
-		Slowly simmer wood and gel to obtain a warm, mildly sweet resin
-		Used for salves, incense and broom maintenance
-		Planned recipe: 20 Wood + 2 Gel yields 2 Warm Resin
 		Effects not implemented yet
 		'''
 }

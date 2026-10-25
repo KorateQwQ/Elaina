@@ -1,0 +1,175 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ObjectData;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaModAlchemy.Rain;
+
+// Real tML tilemap, plant growth, harvest predicate and projectile AI; no saves or network sockets.
+internal static class BottledRainChecks
+{
+    private static int passed;
+    static void Check(bool condition, string message)
+    { if (!condition) throw new Exception(message); passed++; Console.WriteLine("PASS Rain: " + message); }
+
+    public static void Run()
+    {
+        const BindingFlags hidden = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        Check(RainCloudVisualSystem.GetRenderer() == null, "Dedicated servers do not create cloud shaders or textures");
+        Main.SceneMetrics = new SceneMetrics();
+        Main.PylonSystem = new Terraria.GameContent.TeleportPylonsSystem();
+        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(WallID.Sets), typeof(ProjectileID.Sets) })
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(sets.TypeHandle);
+        SetFactory.ResizeArrays(false);
+        TileObjectData.Initialize();
+        foreach (Type loader in new[] { typeof(TileLoader), typeof(WallLoader), typeof(ProjectileLoader) })
+            loader.GetMethod("ResizeArrays", hidden)!.Invoke(null, new object[] { false });
+        Main.maxTilesX = Main.maxTilesY = 240;
+        Main.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)240, (ushort)240 }, null)!;
+        Main.worldSurface = 180; Main.rockLayer = 200;
+        Main.raining = false; Main.cloudAlpha = 0; Main.dayTime = true; Main.time = 100;
+        Main.rand = new UnifiedRandom(703);
+        typeof(WorldGen).GetField("_lastSeed", hidden)!.SetValue(null, 704);
+        WorldGen._genRandSeed = 704; WorldGen._genRand = new UnifiedRandom(704);
+        WorldGen.gen = false;
+        Main.tileSolid[TileID.Stone] = Main.tileSolid[TileID.Sand] = Main.tileSolid[TileID.Grass] = true;
+        Main.tileAlch[TileID.ImmatureHerbs] = Main.tileAlch[TileID.MatureHerbs] = Main.tileAlch[TileID.BloomingHerbs] = true;
+        foreach (int type in new[] { TileID.ImmatureHerbs, TileID.MatureHerbs, TileID.BloomingHerbs,
+            TileID.Saplings, TileID.Pumpkins }) Main.tileFrameImportant[type] = true;
+        Main.projectile = Enumerable.Range(0, 1001).Select(_ => new Projectile()).ToArray();
+        Main.player = Enumerable.Range(0, 256).Select(i => new Player { whoAmI = i }).ToArray();
+
+        Tile Place(int x, int y, ushort type, int frame = 0)
+        { Tile t = Main.tile[x, y]; t.ClearEverything(); t.HasTile = true; t.TileType = type; t.TileFrameX = (short)frame; return t; }
+        Vector2 center = new(100 * 16, 90 * 16);
+        for (int x = 80; x < 125; x++) { Place(x, 100, TileID.Sand); Place(x, 101, TileID.Stone); }
+        Tile waterleaf = Place(100, 99, TileID.MatureHerbs, 72);
+        Tile outside = Place(111, 99, TileID.MatureHerbs, 72);
+        Tile protectedPlant = Place(96, 99, TileID.MatureHerbs, 72);
+        Place(96, 95, TileID.Stone);
+        Tile young = Place(102, 99, TileID.ImmatureHerbs, 72);
+        Tile fireblossom = Place(104, 99, TileID.MatureHerbs, 90);
+        Place(104, 100, TileID.Ash);
+        Tile actuated = Place(107, 99, TileID.MatureHerbs, 72); actuated.IsActuated = true;
+        var lengths = new float[RainCloudDrawing.Columns];
+        RainPlantGrowth.MeasureRain(center, lengths);
+        Check(lengths[6] == 64 && lengths[10] == 144, "Rain lengths stop at the roof and ground");
+
+        Main.netMode = NetmodeID.MultiplayerClient;
+        var coveredPlants = new List<Point>();
+        RainPlantGrowth.CollectCoveredPlants(center, coveredPlants);
+        Check(coveredPlants.Contains(new Point(100, 99)) && coveredPlants.Contains(new Point(102, 99))
+            && coveredPlants.Contains(new Point(104, 99)), "Indicator collection finds plants actually reached by the rain");
+        Check(!coveredPlants.Contains(new Point(96, 99)) && !coveredPlants.Contains(new Point(111, 99))
+            && !coveredPlants.Contains(new Point(107, 99)), "Indicator collection excludes roofed, outside and actuated plants");
+        RainPlantGrowth.Water(center);
+        Check(waterleaf.TileType == TileID.MatureHerbs, "Clients cannot change plant tiles");
+        Main.netMode = NetmodeID.SinglePlayer;
+        RainPlantGrowth.Water(center);
+        Check(waterleaf.TileType == TileID.BloomingHerbs, "Mature Waterleaf blooms in local rain");
+        Check(WorldGen.IsHarvestableHerbWithSeed(waterleaf.TileType, 4), "Local bloom is harvestable with seeds in dry weather");
+        Check(protectedPlant.TileType == TileID.MatureHerbs && outside.TileType == TileID.MatureHerbs,
+            "Roofed and out-of-range plants remain unchanged");
+        Check(actuated.TileType == TileID.MatureHerbs, "Actuated plants do not receive growth");
+        Check(fireblossom.TileType == TileID.MatureHerbs && !WorldGen.IsHarvestableHerbWithSeed(fireblossom.TileType, 5),
+            "Other herbs retain their native blooming conditions");
+        for (int i = 0; i < 120; i++) RainPlantGrowth.Water(center);
+        Check(young.HasTile && young.TileType == TileID.BloomingHerbs,
+            $"A planted Waterleaf seed can mature and bloom during one cloud (active={young.HasTile}, type={young.TileType}, frame={young.TileFrameX})");
+        Check(!Main.raining && Main.cloudAlpha == 0, "Local watering does not change global weather");
+        Check(Main.tile[100, 99].LiquidAmount == 0 && Main.tile[100, 98].LiquidAmount == 0, "Rain does not create permanent liquid");
+        Check(!RainPlantGrowth.IsPlant(TileID.Stone) && !RainPlantGrowth.IsPlant(TileID.CorruptGrass),
+            "Growth scheduler excludes stone and spreading biome ground");
+        foreach (ushort type in new ushort[] { TileID.Saplings, TileID.GemSaplings, TileID.Pumpkins,
+            TileID.Cactus, TileID.Bamboo, TileID.Vines, TileID.Seaweed })
+            Check(RainPlantGrowth.IsPlant(type), "Growth recognizes native plant type " + type);
+        RainPlantGrowth.Water(new Vector2(0, 0));
+        RainPlantGrowth.MeasureRain(new Vector2(239 * 16, 239 * 16), lengths);
+        Check(lengths.All(v => v >= 0 && v <= RainCloudDrawing.MaxFall), "World edges stay within tilemap bounds");
+
+        for (int x = 135; x <= 170; x++) { Place(x, 100, TileID.Grass); Place(x, 101, TileID.Stone); }
+        for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+        { Tile t = Place(145 + x, 98 + y, TileID.Pumpkins, x * 18); t.TileFrameY = (short)(y * 18); }
+        Place(155, 98, TileID.Saplings);
+        Tile sapling = Place(155, 99, TileID.Saplings); sapling.TileFrameY = 18;
+        RainPlantGrowth.CollectCoveredPlants(new Vector2(150 * 16, 90 * 16), coveredPlants);
+        Check(coveredPlants.Count(p => p.X == 155) == 1 && coveredPlants.Contains(new Point(155, 99))
+            && coveredPlants.Count(p => p.X is 145 or 146) == 1 && coveredPlants.Contains(new Point(145, 98)),
+            "Sapling and pumpkin multi-tiles each produce one candidate");
+        for (int i = 0; i < 120; i++) RainPlantGrowth.Water(new Vector2(150 * 16, 90 * 16));
+        Check(Main.tile[145, 98].HasTile && Main.tile[145, 98].TileFrameX == 144,
+            "Rain advances a real 2x2 pumpkin to its final growth stage");
+        Check(Main.tile[155, 99].HasTile && Main.tile[155, 99].TileType == TileID.Trees,
+            "Rain grows a real sapling when its native space and soil conditions are met");
+
+        Projectile Bottle(Vector2 position)
+        {
+            var p = new Projectile(); p.SetDefaults(ModContent.ProjectileType<BottledRainCloud>());
+            p.Center = position; p.owner = 0; p.active = true; p.velocity = new Vector2(6, -2);
+            return p;
+        }
+        Projectile bottle = Bottle(new Vector2(100 * 16, 98 * 16));
+        var cloud = (BottledRainCloud)bottle.ModProjectile;
+        Check(cloud.CanDamage() == false && cloud.CanCutTiles() == false, "Bottle and cloud cannot damage or cut plants");
+        Vector2 before = bottle.Center;
+        cloud.OnTileCollide(bottle.velocity);
+        Check(bottle.ai[0] == 1 && bottle.ai[1] == 0 && bottle.timeLeft == 3600 && !bottle.tileCollide,
+            "Impact transforms the existing projectile into a 60-second cloud");
+        Check(bottle.Center.Y == before.Y - 96, "Cloud unfolds above the impact point");
+        cloud.AI(); float age = bottle.ai[1]; Vector2 after = bottle.Center;
+        cloud.OnTileCollide(Vector2.Zero);
+        Check(bottle.ai[1] == age && bottle.Center == after, "Repeated collision cannot duplicate or reset the cloud");
+        bottle.ai[1] = 1800; cloud.AI();
+        Check(bottle.timeLeft == 1799, "Synced age determines remaining lifetime for a joining client");
+        bottle.ai[1] = 3599; cloud.AI();
+        Check(!bottle.active, "Cloud expires at exactly 60 seconds");
+        Projectile airborne = Bottle(new Vector2(90 * 16, 80 * 16));
+        for (int tick = 0; tick < 45; tick++) airborne.ModProjectile.AI();
+        Check(airborne.ai[0] == 1, "A bottle thrown into open air still releases its cloud");
+        Projectile lowCeiling = Bottle(new Vector2(100 * 16, 98 * 16));
+        for (int x = 98; x <= 102; x++) Place(x, 96, TileID.Stone);
+        lowCeiling.ModProjectile.OnTileCollide(Vector2.Zero);
+        Check(lowCeiling.Center.Y >= 97 * 16, "Cloud emergence cannot pass through a low ceiling");
+
+        // The real client overlay scans synced entities without invoking any growth on the client.
+        Vector2 markerCenter = new(180 * 16, 140 * 16);
+        for (int x = 170; x <= 192; x++) { Place(x, 150, TileID.Sand); Place(x, 151, TileID.Stone); }
+        Place(175, 149, TileID.ImmatureHerbs, 72);
+        Place(185, 149, TileID.MatureHerbs, 72); Place(185, 145, TileID.Stone);
+        Place(191, 149, TileID.MatureHerbs, 72);
+        Place(177, 148, TileID.Saplings); Place(177, 149, TileID.Saplings).TileFrameY = 18;
+        for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+        { Tile t = Place(179 + x, 148 + y, TileID.Pumpkins, x * 18); t.TileFrameY = (short)(y * 18); }
+        for (int y = 146; y < 150; y++) Place(181, y, TileID.Cactus);
+        for (int i = 0; i < 2; i++)
+        {
+            Main.projectile[i] = Bottle(markerCenter);
+            Main.projectile[i].ai[0] = 1; Main.projectile[i].ai[1] = 180;
+        }
+        var indicators = new RainPlantIndicatorSystem();
+        int MarkerCount() => (typeof(RainPlantIndicatorSystem).GetField("markers", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(indicators) as global::System.Collections.IDictionary)?.Count ?? 0;
+        Main.dedServ = false; Main.netMode = NetmodeID.MultiplayerClient; Main.gameMenu = false;
+        indicators.PostUpdateProjectiles();
+        Check(MarkerCount() == 4, "Overlapping clouds and continuous cactus segments do not duplicate the four plant icons");
+        Check(Main.tile[175, 149].TileType == TileID.ImmatureHerbs, "Client indicator updates never grow or modify plants");
+        Main.tile[175, 149].ClearEverything();
+        indicators.PostUpdateProjectiles();
+        Check(MarkerCount() == 3, "Harvested plants immediately lose their indicators");
+        Main.projectile[0].active = Main.projectile[1].active = false;
+        for (int i = 0; i < 21; i++) indicators.PostUpdateProjectiles();
+        Check(MarkerCount() == 0, "Indicators fade out after the last overlapping cloud expires");
+        Main.projectile[0].active = true;
+        for (int i = 0; i < 10; i++) indicators.PostUpdateProjectiles();
+        Check(MarkerCount() == 3, "Existing plants regain indicators when rain coverage returns");
+        indicators.ClearWorld();
+        Check(MarkerCount() == 0, "World changes clear all rain indicator state");
+        Main.dedServ = true; indicators.PostUpdateProjectiles();
+        Check(MarkerCount() == 0, "Dedicated server skips indicator collection");
+        Console.WriteLine($"Bottled Rain: {passed} real-engine checks passed.");
+    }
+}

@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria;
@@ -18,7 +18,7 @@ namespace 伊蕾娜.Items.Armors.新版身体
         {
             if (drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().Elaina&&!drawInfo.drawPlayer.invis&&
                 (!drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().BecomeAnimal|| !drawInfo.drawPlayer.active) && !drawInfo.drawPlayer.sleeping.isSleeping
-                && !drawInfo.drawPlayer.GetModPlayer<炼金.炼金modplayer>().炼制中 && !drawInfo.drawPlayer.GetModPlayer<炼金.炼金modplayer>().搅拌中)
+                && !drawInfo.drawPlayer.GetModPlayer<ElainaModAlchemy.Gameplay.AlchemyBrewingPlayer>().Active)
             return true;
             return false;
         }

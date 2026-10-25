@@ -1,0 +1,72 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using 伊蕾娜.ElainaModAlchemy.Rain;
+
+sealed partial class ShaderRainPreview
+{
+    // Wall-clock submission + synchronized completion. This is NOT a GPU timestamp query or in-game FPS.
+    // The identical readback cost is included in every case and can be compared against rain-only/empty.
+    void Benchmark()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 1920, 1080);
+        var readback = new Color[1];
+        var cases = new List<(string Mode, int Count, float Scale)> { ("empty", 0, 1) };
+        foreach (int count in new[] { 1, 4, 8, 16 })
+            foreach (string mode in new[] { "rain-only", "sprite", "volume" }) cases.Add((mode, count, 1));
+        foreach (float scale in new[] { 1.5f, 2f })
+            foreach (string mode in new[] { "rain-only", "sprite", "volume" }) cases.Add((mode, 1, scale));
+        var samples = cases.ToDictionary(c => c, c => new List<double>());
+
+        double Render((string Mode, int Count, float Scale) c, int frame)
+        {
+            long start = Stopwatch.GetTimestamp();
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(27, 31, 52));
+            float age = 120 + frame % 240;
+            Vector2 Position(int index) => new Vector2(960 + MathF.Sin(index * 2.4f) * 90,
+                470 + MathF.Cos(index * 2.4f) * 50) / c.Scale;
+            if (c.Count > 0)
+            {
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(c.Scale));
+                for (int i = 0; i < c.Count; i++)
+                    RainCloudDrawing.Draw(batch, pixel, c.Mode == "sprite" ? cloud : null,
+                        Position(i), age, lengths, i);
+                batch.End();
+                if (c.Mode == "volume")
+                    for (int i = 0; i < c.Count; i++) DrawCloud(age, c.Scale, Position(i) - new Vector2(320, 120));
+            }
+            GraphicsDevice.SetRenderTarget(null);
+            // Drain the GPU before stopping the clock: timing only Draw/End would measure queued CPU work.
+            target.GetData(0, new Rectangle(960, 470, 1, 1), readback, 0, 1);
+            return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        }
+
+        for (int i = 0; i < 120; i++) Render(("volume", 16, 1), i);
+        // Rotate case order across four blocks to reduce clock/power/order bias.
+        for (int round = 0; round < 4; round++)
+        for (int n = 0; n < cases.Count; n++)
+        {
+            var c = cases[(n + round * 7) % cases.Count];
+            for (int warm = 0; warm < 6; warm++) Render(c, warm);
+            for (int i = 0; i < 40; i++) samples[c].Add(Render(c, round * 40 + i));
+        }
+        double Percentile(List<double> values, double p)
+        { var sorted = values.Order().ToArray(); return sorted[(int)Math.Ceiling(p * sorted.Length) - 1]; }
+        var rows = cases.Select(c => new {
+            c.Mode, c.Count, c.Scale, Samples = samples[c].Count,
+            MedianMs = Percentile(samples[c], .5), P95Ms = Percentile(samples[c], .95)
+        }).ToArray();
+        var result = new {
+            Display = GraphicsAdapter.DefaultAdapter.Description,
+            Resolution = "1920x1080", BaseCloudPixels = "360x140",
+            Method = "CPU submission + GPU completion + identical one-pixel readback; not GPU-only or in-game FPS",
+            Placement = "All clouds fully onscreen, overlapping; shared effect/noise; no file output inside timed region",
+            Rows = rows
+        };
+        string json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(output, "benchmark.json"), json);
+        Console.WriteLine(json);
+    }
+}

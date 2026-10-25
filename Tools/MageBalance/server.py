@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "ElainaModSkills" / "Data" / "SkillBalance.json"
 HTML_PATH = Path(__file__).with_name("index.html")
 SCHEMA = "elaina-mage-balance-v2"
-MAX_BYTES = 32 * 1024
+MAX_BYTES = 64 * 1024
 
 def number(obj, key, lo, hi, integer=False):
     value = obj.get(key)
@@ -33,6 +33,19 @@ def skill_growth(row):
         number(row, "levelInterval", 1, 1000, True)
     if "maxLevel" in row:
         number(row, "maxLevel", 0, 1000, True)
+    if "flight" in row:
+        flight = row["flight"]
+        if not isinstance(flight, dict):
+            raise ValueError("flight 必须是对象。")
+        bounds = {"baseSpeed": (1, 40), "learnedSpeedBonus": (0, 5), "speedBonusPerLevel": (0, 1),
+                  "boostMultiplier": (1, 3), "boostManaPerSecond": (0, 1000), "holdSeconds": (.05, 2),
+                  "dashMultiplier": (1, 5), "dashManaCost": (0, 10000), "dashSeconds": (1 / 60, 1),
+                  "dashCooldownSeconds": (.1, 60), "handlingPercent": (1, 100), "dashRecoverySeconds": (1 / 60, .5)}
+        for key, (lo, hi) in bounds.items():
+            if key in flight:
+                number(flight, key, lo, hi)
+        if flight.get("dashCooldownSeconds", 1) < flight.get("dashSeconds", .4):
+            raise ValueError("冲刺冷却不能短于冲刺持续时间。")
 
 def ratio_curve(row):
     curve = row.get("ratioCurve")
@@ -167,7 +180,7 @@ def validate_payload(payload):
 def atomic_save(path, payload):
     data = (json.dumps(validate_payload(payload), ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
     if len(data) > MAX_BYTES:
-        raise ValueError("参数超过 32 KiB，不能保存包含事件日志的试算结果。")
+        raise ValueError("参数超过 64 KiB，不能保存包含事件日志的试算结果。")
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -218,7 +231,7 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, {"tool": "elaina-mage-balance", "schema": SCHEMA, "path": str(self.server.config_path)})
         elif route == "/api/skill-balance":
             try:
-                if self.server.config_path.stat().st_size > MAX_BYTES: raise ValueError("配置超过 32 KiB。")
+                if self.server.config_path.stat().st_size > MAX_BYTES: raise ValueError("配置超过 64 KiB。")
                 data = validate_payload(json.loads(self.server.config_path.read_text(encoding="utf-8-sig")))
                 self.reply(200, {"path": str(self.server.config_path), "data": data})
             except (OSError, ValueError) as error:
@@ -234,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(415, {"error": "需要 application/json。"}); return
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= MAX_BYTES: raise ValueError("请求为空或超过 32 KiB。")
+            if not 0 < length <= MAX_BYTES: raise ValueError("请求为空或超过 64 KiB。")
             payload = json.loads(self.rfile.read(length).decode("utf-8-sig"))
             atomic_save(self.server.config_path, payload)
             self.reply(200, {"saved": True, "path": str(self.server.config_path)})

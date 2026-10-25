@@ -1,0 +1,113 @@
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.Purification;
+
+if (OperatingSystem.IsWindows())
+    global::System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
+using var game = new DewPreview(args[0], args[1], args[2]);
+game.BenchmarkOnly = args.Contains("--benchmark");
+game.Run();
+
+sealed partial class DewPreview : Game
+{
+    readonly string output, effects;
+    SpriteBatch batch;
+    Texture2D white, stone, corrupt, trail;
+    ContentManager shaderContent;
+    PurificationDewRenderer renderer;
+    DewBloomReplay bloom;
+    bool done;
+    public bool BenchmarkOnly;
+    public DewPreview(string output, string content, string effects)
+    {
+        this.output = output; this.effects = effects; Content.RootDirectory = content;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 800, PreferredBackBufferHeight = 480,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        white = new Texture2D(GraphicsDevice, 1, 1); white.SetData(new[] { Color.White });
+        stone = Content.Load<Texture2D>("Images/Tiles_1");
+        corrupt = Content.Load<Texture2D>("Images/Tiles_25");
+        shaderContent = new ContentManager(Services, effects);
+        string kl = Path.GetFullPath(Path.Combine(effects, "../../../KL"));
+        using (var file = File.OpenRead(Path.Combine(kl, "Effects/Tex/Trail/LightTrail2.png")))
+            trail = Texture2D.FromStream(GraphicsDevice, file);
+        renderer = new PurificationDewRenderer(shaderContent.Load<Effect>("PurificationDew"), trail);
+        bloom = new DewBloomReplay(GraphicsDevice, batch, Services, kl);
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        if (BenchmarkOnly) { Benchmark(); Exit(); return; }
+        foreach (int age in new[] { 6, 20, 38, 80 })
+        { using var frame = Frame(age, 1); Save(frame, $"dew-{age:000}.png"); }
+        using (var zoom = Frame(38, 1.25f)) Save(zoom, "dew-125.png");
+        using (var dark = Frame(38, 1, false, true)) Save(dark, "dew-dark.png");
+        using (var noBloom = Frame(38, 1, false, false)) Save(noBloom, "dew-bloom-off.png");
+        using (var bright = Frame(38, 1, false, true, true)) Save(bright, "dew-bright.png");
+        CheckBloomAndTaper();
+        for (int i = 0; i < 75; i++)
+        { using var frame = Frame(i * 2, 1); Save(frame, $"motion-{i:000}.png"); }
+        Console.WriteLine("FNA: production XNB + LightTrail2 + renderer + current KL bloom pipeline; 4 stages, 125% and 75 frames exported.");
+        Exit();
+    }
+    RenderTarget2D Frame(int age, float scale, bool terrain = true, bool withBloom = true, bool bright = false)
+    {
+        var target = new RenderTarget2D(GraphicsDevice, (int)(512 * scale), (int)(448 * scale));
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(bright ? new Color(116, 143, 163) : new Color(15, 18, 29));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        float head = 72 + age * 8, camera = Math.Max(0, head - 328);
+        int cameraRow = (int)(camera / 16);
+        for (int row = cameraRow; row <= cameraRow + 29; row++)
+        for (int column = 2; column < 30; column++)
+        {
+            if (!terrain || row < 6) continue;
+            bool purified = column >= 15 && column <= 17 && row <= (int)(head / 16);
+            Texture2D texture = purified ? stone : corrupt;
+            Color shade = purified ? new Color(165, 179, 179) : new Color(114, 93, 134);
+            batch.Draw(texture, new Vector2(column * 16, row * 16 - camera), new Rectangle(18 + (column % 3) * 18, 18, 16, 16), shade);
+        }
+        // A 3-cell ruler above the terrain makes the 48px footprint inspectable.
+        if (camera < 32)
+        for (int i = 0; i < 3; i++)
+        {
+            batch.Draw(white, new Rectangle(240 + i * 16, (int)(88 - camera), 15, 1), new Color(159, 188, 198));
+            batch.Draw(white, new Rectangle(240 + i * 16, (int)(84 - camera), 1, 5), new Color(159, 188, 198));
+        }
+        batch.End();
+        bloom.Draw(target, Matrix.CreateScale(scale), () => renderer.Draw(batch, new Vector2(264, head - camera), age, Matrix.CreateScale(scale)), withBloom);
+        GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+    void Save(RenderTarget2D target, string name)
+    { using var stream = File.Create(Path.Combine(output, name)); target.SaveAsPng(stream, target.Width, target.Height); }
+    void CheckBloomAndTaper()
+    {
+        using var plain = Frame(38, 1, false, false);
+        using var glowing = Frame(38, 1, false, true);
+        Color[] a = new Color[512 * 448], b = new Color[a.Length]; plain.GetData(a); glowing.GetData(b);
+        int halo = a.Zip(b).Count(p => p.Second.R > p.First.R + 1 || p.Second.G > p.First.G + 1 || p.Second.B > p.First.B + 1);
+        if (halo < 25) throw new Exception("Current KL pipeline produced no visible halo for the dew.");
+        Color bg = new(15, 18, 29);
+        int WidthAt(int y)
+        {
+            var xs = Enumerable.Range(240, 48).Where(x => {
+                Color c = a[y * 512 + x]; return c.R > bg.R + 12 || c.G > bg.G + 12 || c.B > bg.B + 12;
+            }).ToArray();
+            return xs.Length == 0 ? 0 : xs[^1] - xs[0] + 1;
+        }
+        int tip = WidthAt(185), body = WidthAt(290);
+        if (tip <= 0 || body <= tip || body >= 20) throw new Exception($"Trail is not narrow and tapered: tip={tip}, body={body}");
+        if (b[4 * 512 + 4] != bg) throw new Exception("Bloom changed background outside the effect.");
+        Console.WriteLine($"PASS actual KL bloom ({halo} brightened pixels), tapered silhouette ({tip}px -> {body}px), background retained.");
+    }
+    protected override void UnloadContent()
+    { bloom.Dispose(); batch.Dispose(); trail.Dispose(); white.Dispose(); shaderContent.Dispose(); base.UnloadContent(); }
+}

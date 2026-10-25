@@ -1,0 +1,185 @@
+// Only the engine and command-wheel host are replaced. Selection/input comes from production on each run.
+global using System.Collections.Generic;
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using Terraria;
+global using Terraria.ModLoader;
+using System;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+
+namespace Terraria
+{
+    public static class Main
+    {
+        public static int myPlayer, netMode, maxTilesX = 160, maxTilesY = 100;
+        public static bool mouseLeft, mouseRight, blockMouse, mapFullscreen, drawingPlayerChat, editSign, editChest, inFancyUI;
+        public static float UIScale = 1;
+        public static uint GameUpdateCount = 1;
+        public static Vector2 MouseWorld;
+        public static bool[] tileSolid = [true, true, true], tileSolidTop = [false, false, false];
+        public static bool[] tileFrameImportant = new bool[700], tileAlch = new bool[700];
+        public static bool[] wallDungeon = new bool[400];
+        public static Tile[,] tile = new Tile[maxTilesX, maxTilesY];
+    }
+    public class NPC { public static bool downedBoss3, downedGolemBoss; }
+    public class Tile { public int RequiredPick; public bool HasTile, IsActuated, IsHalfBlock; public ushort TileType, WallType; public short TileFrameY; public byte LiquidAmount; public Terraria.ID.SlopeType Slope; }
+    public class Item
+    {
+        public Item() { }
+        public Item(int id) { type = id; stack = 1; }
+        public object ModItem;
+        public int type, stack, createTile = -1, placeStyle;
+        public int pick = 100, hammer = 100;
+        public bool consumable = true;
+        public bool IsAir => type <= 0 || stack <= 0;
+        public void TurnToAir() { type = stack = 0; createTile = -1; }
+    }
+    public class Player
+    {
+        public int whoAmI;
+        public int chest = -1;
+        public int direction = 1;
+        public Vector2 Center = new(320, 320);
+        public Item[] inventory = System.Linq.Enumerable.Range(0, 59).Select(_ => new Item()).ToArray();
+        public bool active = true, dead, mouseInterface, controlUseItem, controlUseTile;
+        public Item HeldItem = new() { ModItem = new 伊蕾娜.Items.ElainaWand() };
+        public Item Pickaxe = new(), Hammer = new();
+        public Item GetBestPickaxe() => Pickaxe;
+        public Rectangle getRect() => default;
+        public T GetModPlayer<T>() where T : new() => new();
+    }
+    public static class WorldGen
+    {
+        public static bool InWorld(int x, int y, int pad) => x >= pad && y >= pad && x < Main.maxTilesX - pad && y < Main.maxTilesY - pad;
+        public static bool PlaceTile(int x, int y, int type, bool mute, bool forced, int plr, int style)
+        {
+            if (Main.tile[x, y].HasTile || type == 78 && !Main.tile[x, y + 1].HasTile) return false;
+            Main.tile[x, y].HasTile = true; Main.tile[x, y].TileType = (ushort)type; Main.tile[x, y].TileFrameY = (short)(style * 18); return true;
+        }
+        public static void SquareTileFrame(int x, int y) { }
+    }
+    public struct TileObject
+    {
+        public int alternate, random;
+        public static bool CanPlace(int x, int y, int type, int style, int direction, out TileObject data) { data = default; return true; }
+        public static bool Place(TileObject data) => true;
+    }
+    public static class NetMessage
+    {
+        public static void SendObjectPlacement(int a, int b, int c, int d, int e, int f, int g, int h) { }
+        public static void SendData(int a, int b, int c, object d, int e, int f, int g, int h, int i) { }
+    }
+    public static class Utils
+    {
+        public static Point ToTileCoordinates(this Vector2 p) => new((int)p.X / 16, (int)p.Y / 16);
+        public static Point ToPoint(this Vector2 p) => new((int)p.X, (int)p.Y);
+        public static Vector2 ToWorldCoordinates(this Point p) => new(p.X * 16 + 8, p.Y * 16 + 8);
+    }
+    public static class CombatText { public static string Last; public static void NewText(Rectangle area, Color color, string text, bool dot) => Last = text; }
+}
+namespace Terraria.Audio { public static class SoundEngine { public static void PlaySound(int sound, Vector2? position = null) { } } }
+namespace Terraria.ID
+{
+    public static class SoundID { public const int MenuTick = 1, MenuOpen = 2, MenuClose = 3, Dig = 4; }
+    public static class WallID { public const int LihzahrdBrickUnsafe = 87; }
+    public static class TileID { public const int PlanterBox = 380, ClayPot = 78, ImmatureHerbs = 82, BloomingHerbs = 84; public static class Sets { public static bool[] Platforms = new bool[700]; } }
+    public static class ContentSamples { public static Dictionary<int, Item> ItemsByType = []; }
+    public enum SlopeType { Solid }
+    public static class NetmodeID { public const int MultiplayerClient = 1; }
+    public static class MessageID { public const int TileManipulation = 17; }
+}
+namespace Terraria.ObjectData
+{
+    public class TileObjectData
+    {
+        public int Width = 1, Height = 1;
+        public Point Origin;
+        public (Terraria.Enums.AnchorType type, int tileCount) AnchorBottom, AnchorTop, AnchorLeft, AnchorRight;
+        public bool AnchorWall;
+        public int[] AnchorAlternateTiles, AnchorValidTiles;
+        public bool isValidTileAnchor(int type) => AnchorValidTiles != null && Array.IndexOf(AnchorValidTiles, type) >= 0;
+        public static TileObjectData GetTileData(int type, int style, int alternate = 0) => null;
+        public static bool CustomPlace(int type, int style) => false;
+        public static void CallPostPlacementPlayerHook(int a, int b, int c, int d, int e, int f, TileObject g) { }
+    }
+}
+namespace Terraria.Enums { [Flags] public enum AnchorType { AlternateTile = 1, SolidWithTop = 2, Table = 4 } }
+namespace Terraria.ModLoader
+{
+    public static class TileLoader
+    {
+        public const int TileCount = 700;
+        public static bool Reject;
+        public static bool CanPlace(int x, int y, int type) => !Reject;
+        public static void PlaceInWorld(int x, int y, Item item) { }
+    }
+    public static class ItemLoader { public static bool ConsumeItem(Item item, Player player) => true; }
+}
+namespace Terraria.DataStructures { }
+namespace Terraria.ModLoader.IO
+{
+    public class TagCompound : Dictionary<string, object>
+    {
+        public bool GetBool(string key) => TryGetValue(key, out var value) && (bool)value;
+        public int GetInt(string key) => TryGetValue(key, out var value) ? (int)value : 0;
+        public IList<T> GetList<T>(string key) => TryGetValue(key, out var value) ? (IList<T>)value : new List<T>();
+        public TagCompound GetCompound(string key) => (TagCompound)this[key];
+    }
+    public static class ItemIO
+    {
+        public static TagCompound Save(Item item) => new() { ["type"] = item.type };
+        public static Item Load(TagCompound tag) => new(tag.GetInt("type"));
+    }
+}
+namespace Terraria.ModLoader.Default { public class UnloadedItem { } }
+namespace Terraria.ModLoader { public class ModPlayer { public Player Player = new(); public virtual void OnEnterWorld() { } public virtual void ProcessTriggers(Terraria.GameInput.TriggersSet set) { } public virtual void SaveData(IO.TagCompound tag) { } public virtual void LoadData(IO.TagCompound tag) { } } }
+namespace Terraria.GameInput
+{
+    public class TriggersSet { }
+    public static class PlayerInput
+    {
+        public static Vector2 OriginalScreenSize = new(1280, 800);
+        public static int MouseX, MouseY, ScrollWheelDeltaForUI;
+        public static void LockVanillaMouseScroll(string owner) { }
+    }
+}
+namespace 伊蕾娜 { public class ElainaModplayer { public bool Elaina = true; } }
+namespace 伊蕾娜.Items { public class ElainaWand { } }
+namespace 伊蕾娜.ElainaAttribute { public class ElainaAttributeModPlayer { public bool UniqueMagicEnabled = true; } }
+namespace 伊蕾娜.Localization { public static class UIText { public static string LocalizeUI(string key) => key; } }
+namespace 伊蕾娜.ElainaModSkills
+{
+    public class SkillSlot { public object ModSkill = new DollControlSkill(); }
+    public static class ElainaSkillModPlayer { public static List<SkillSlot> GetActiveSkill = [new()]; public static int CurrentSkillIndex; }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
+{
+    internal static class DollTileBreaker
+    {
+        internal static bool CanDamageTile(Player player, int x, int y, int power) => power >= Main.tile[x, y].RequiredPick;
+    }
+    public class DollControlSkill { }
+    public class DollPetProjectile
+    {
+        public sealed class Host { public bool active; public int owner; public DollPetProjectile ModProjectile; }
+        public Host Projectile = new();
+        public static DollPetProjectile FindOwned(Player player) => new();
+        public static void DismissAll(Player player) { }
+    }
+    public static class DollCommandWheel
+    {
+        public static bool OwnsPointer;
+        public static int Opens;
+        private static Action<DollCommand> callback;
+        public static void TryOpen(Func<bool> canOpen, object unused, Action<DollCommand> confirmed) { Opens++; callback = confirmed; }
+        public static void Choose(DollCommand command) => callback(command);
+    }
+}
+
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl {
+ public sealed partial class DollCommandPlayer {
+    internal void ReleaseRemoteChest(bool close) { }
+ }
+ public sealed partial class DollCommandPlayer { internal bool HasGardenTask => false; internal void PauseGarden() { } internal void ResumeGarden() { } private void SaveGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { } private void LoadGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { } }
+ internal static class DollGardenSystem { internal static void Join(Player player) { } internal static void Register(Player player, Point p, int pot) { } }
+}

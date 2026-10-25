@@ -1,0 +1,296 @@
+using System.Diagnostics;
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Mono.Cecil.Cil;
+using MonoMod.Cil;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.GameContent.Drawing;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModAlchemy.Revealing;
+
+internal static class RevealingDustChecks
+{
+    private static int passed;
+    private const BindingFlags Hidden = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+    private static void Check(bool value, string message)
+    { if (!value) throw new Exception(message); passed++; Console.WriteLine("PASS Reveal: " + message); }
+    private static void Tick(uint tick) => typeof(Main).GetField("_gameUpdateCount", Hidden)!.SetValue(null, tick);
+
+    public static void Run(Mod mod)
+    {
+        Main.dedServ = true; Main.gameMenu = false; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
+        Main.SceneMetrics = new SceneMetrics();
+        Main.PylonSystem = new Terraria.GameContent.TeleportPylonsSystem();
+        var global = new RevealingDustNPC();
+        ((ILoadable)global).Load(mod); ContentInstance.Register(global);
+        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(NPCID.Sets), typeof(ProjectileID.Sets) })
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(sets.TypeHandle);
+        SetFactory.ResizeArrays(false);
+        Terraria.ObjectData.TileObjectData.Initialize();
+        foreach (Type loader in new[] { typeof(TileLoader), typeof(ProjectileLoader) })
+            loader.GetMethod("ResizeArrays", Hidden)!.Invoke(null, new object[] { false });
+        Main.maxTilesX = Main.maxTilesY = 400;
+        Main.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)400, (ushort)400 }, null)!;
+        Main.projectile = Enumerable.Range(0, 1001).Select(_ => new Projectile { active = false }).ToArray();
+        Main.npc = Enumerable.Range(0, 201).Select(_ => new NPC { active = false }).ToArray();
+        Main.player = Enumerable.Range(0, 256).Select(i => new Player { whoAmI = i }).ToArray();
+        Vector2 center = new(200 * 16 + 8, 200 * 16 + 8);
+        Tile Place(int x, int y, ushort type)
+        { Tile t = Main.tile[x, y]; t.ClearEverything(); t.HasTile = true; t.TileType = type; return t; }
+        RevealingDustArea Area(int slot, Vector2 at)
+        {
+            Projectile p = Main.projectile[slot]; p.SetDefaults(ModContent.ProjectileType<RevealingDustArea>());
+            p.Center = at; p.active = true; p.owner = 0; p.whoAmI = slot;
+            return (RevealingDustArea)p.ModProjectile;
+        }
+        NPC Enemy(int slot, Vector2 at)
+        {
+            NPC n = Main.npc[slot]; n.active = true; n.type = NPCID.BlueSlime; n.lifeMax = 100;
+            n.width = n.height = 24; n.Center = at;
+            typeof(NPC).GetField("_globals", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(n, new GlobalNPC[] { new RevealingDustNPC() });
+            return n;
+        }
+        var system = new RevealingDustSystem();
+        ContentInstance.Register(system);
+        var area = Area(0, center);
+        var overlap = Area(1, center);
+        Check(!ReferenceEquals(area.DangerousTiles, overlap.DangerousTiles), "Regions have independent caches");
+        Check(area.CanDamage() == false && area.CanCutTiles() == false && !area.ShouldUpdatePosition(),
+            "Dust area cannot move, damage enemies or cut plants");
+        Check(area.Contains(center + new Vector2(1000, 0)) && !area.Contains(center + new Vector2(1001, 0)),
+            "Radius includes 1000 pixels and excludes 1001");
+        Place(200, 200, TileID.Spikes); Place(201, 200, TileID.Traps);
+        Place(202, 200, TileID.Stone); Place(270, 200, TileID.Spikes);
+        Place(204, 200, TileID.Explosives); Place(205, 200, TileID.Detonator);
+        Tile flame = Place(206, 200, TileID.Traps); flame.TileFrameY = 36; // Native FlameTrap placeStyle 2.
+        NPC enemy = Enemy(0, center), outside = Enemy(1, center + new Vector2(1001, 0));
+        NPC friendly = Enemy(2, center); friendly.friendly = true;
+        NPC invulnerable = Enemy(3, center); invulnerable.dontTakeDamage = true;
+        NPC critter = Enemy(4, center); critter.type = NPCID.Bunny;
+        NPC dummy = Enemy(5, center); dummy.type = NPCID.TargetDummy;
+        NPC bat = Enemy(7, center); bat.type = NPCID.CaveBat;
+        Main.dedServ = false;
+        Tick(0); system.PostUpdateProjectiles();
+        var mark = enemy.GetGlobalNPC<RevealingDustNPC>();
+        Check(mark.Remaining == 18000 && enemy.netUpdate, "First scan applies exactly five minutes immediately");
+        Check(!outside.GetGlobalNPC<RevealingDustNPC>().Marked && !friendly.GetGlobalNPC<RevealingDustNPC>().Marked
+            && !critter.GetGlobalNPC<RevealingDustNPC>().Marked && !dummy.GetGlobalNPC<RevealingDustNPC>().Marked,
+            "Outside enemies, friendly NPCs, critters and target dummies are excluded");
+        Check(invulnerable.GetGlobalNPC<RevealingDustNPC>().Marked, "Hostile invulnerability phases still receive a mark");
+        Check(system.IsHighlighted(200, 200, TileID.Spikes) && system.IsHighlighted(201, 200, TileID.Traps)
+            && !system.IsHighlighted(202, 200, TileID.Stone) && !system.IsHighlighted(270, 200, TileID.Spikes),
+            "Danger scan follows real vanilla rules and the fixed radius");
+        var union = (System.Collections.IDictionary)typeof(RevealingDustSystem).GetField("visibleDanger", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(system)!;
+        Check(union.Count == 5, "Overlapping regions produce one highlight per dangerous tile");
+        Check(system.IsHighlighted(206, 200, TileID.Traps), "Temple flame traps are included in the native danger scan");
+        Check(system.IsHighlighted(204, 200, TileID.Explosives) && system.IsHighlighted(205, 200, TileID.Detonator),
+            "Explosives and detonators are detected by the native Dangersense rules");
+        Check(bat.GetGlobalNPC<RevealingDustNPC>().Marked, "Cave bats are hostile and receive the same five-minute mark");
+        CheckTargetLighting(system, enemy);
+        enemy.netUpdate = false;
+        NPC entering = Enemy(6, center);
+        Place(203, 200, TileID.Spikes);
+        Tick(59); system.PostUpdateProjectiles();
+        Check(!entering.GetGlobalNPC<RevealingDustNPC>().Marked && !system.IsHighlighted(203, 200, TileID.Spikes),
+            "No intermediate full scan before one second");
+        Tick(60); system.PostUpdateProjectiles();
+        Check(entering.GetGlobalNPC<RevealingDustNPC>().Marked && system.IsHighlighted(203, 200, TileID.Spikes)
+            && mark.Remaining == 18000 && !enemy.netUpdate, "Second scan finds arrivals and new hazards without per-second NPC broadcasts");
+        enemy.Center = center + new Vector2(2000, 0);
+        Tick(120); system.PostUpdateProjectiles(); mark.PostAI(enemy);
+        Check(mark.Remaining == 17940 && !enemy.netUpdate, "Leaving does not clear or prematurely synchronize the mark");
+        Tick(121); mark.PostAI(enemy);
+        Check(enemy.netUpdate && mark.Remaining == 17939, "Departure synchronizes remaining time once");
+        enemy.netUpdate = false; Tick(122); mark.PostAI(enemy);
+        Check(!enemy.netUpdate, "Departure does not repeatedly request synchronization");
+        Tick(18059); Check(mark.Marked, "Last exposure remains marked through the final tick");
+        Tick(18060); Check(!mark.Marked, "Mark expires exactly five minutes after the last exposure");
+        Tick(19000); mark.Refresh(enemy); mark.Refresh(enemy);
+        Check(mark.Remaining == 18000, "Repeated exposure refreshes rather than stacking duration");
+        Tick(19100);
+        using (var bitsStream = new MemoryStream())
+        using (var dataStream = new MemoryStream())
+        {
+            var bits = new BitWriter(); using var dataWriter = new BinaryWriter(dataStream, System.Text.Encoding.UTF8, true);
+            mark.SendExtraAI(enemy, bits, dataWriter);
+            using (var bitWriter = new BinaryWriter(bitsStream, System.Text.Encoding.UTF8, true)) bits.Flush(bitWriter);
+            bitsStream.Position = dataStream.Position = 0;
+            var received = new RevealingDustNPC();
+            received.ReceiveExtraAI(enemy, new BitReader(new BinaryReader(bitsStream)), new BinaryReader(dataStream));
+            Check(received.Remaining == 17900, "Late clients receive remaining time, not a fresh five minutes");
+        }
+        mark.SetDefaults(enemy); Check(!mark.Marked, "Reused NPC slots do not inherit marks");
+        Main.netMode = NetmodeID.MultiplayerClient; mark.Refresh(enemy);
+        Check(!mark.Marked, "Clients cannot authoritatively apply marks");
+        Main.netMode = NetmodeID.SinglePlayer;
+        Tick(20000); mark.Refresh(enemy);
+        // Exercise the actual detours against the installed runtime, including animated tile rendering.
+        system.Load();
+        Main.LocalPlayer.detectCreature = false;
+        Check(enemy.CanApplyHunterPotionEffects() && !outside.CanApplyHunterPotionEffects(),
+            "Hunter effect hook reveals marked enemies without enabling the player's Hunter buff");
+        var color = enemy.GetNPCColorTintedByBuffs(Color.Black);
+        Check(color.R == 255 && color.G >= 50, "Real NPC buff-color rendering reveals marked enemies in darkness");
+        Color directColor = Color.Black;
+        mark.DrawEffects(enemy, ref directColor);
+        Check(directColor.R == 255, "NPC draw hook also covers enemies that disable native buff tinting");
+        var tileDraw = new Terraria.DataStructures.TileDrawInfo { tileLight = Color.Black, typeCache = TileID.Explosives };
+        system.ApplyTileVision(tileDraw, 204, 200);
+        Check(tileDraw.tileLight.R == 255, "Early vision hook raises black explosive tiles before final color and visibility are computed");
+        tileDraw.typeCache = TileID.Stone; tileDraw.tileLight = Color.Black;
+        system.ApplyTileVision(tileDraw, 202, 200);
+        Check(tileDraw.tileLight == Color.Black, "Early vision hook does not illuminate ordinary stone");
+        Tile tile = Main.tile[200, 200]; Color tileColor = Color.Black;
+        var drawing = new TileDrawing(null);
+        typeof(TileDrawing).GetField("_localPlayer", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawing, Main.LocalPlayer);
+        drawing.DrawAnimatedTile_AdjustForVisionChangers(200, 200, tile, tile.TileType, 0, 0, ref tileColor, false);
+        Check(tileColor.R == 255, "Animated danger rendering also uses the region highlight");
+        CheckNativeTileColorPipeline(system, drawing);
+        area.Projectile.active = false;
+        system.PostUpdateProjectiles();
+        Check(system.IsHighlighted(200, 200, TileID.Spikes), "One expired overlap does not remove another region's highlight");
+        overlap.Projectile.active = false; system.PostUpdateProjectiles();
+        Check(!system.IsHighlighted(200, 200, TileID.Spikes) && mark.Marked, "Last region disappears immediately but enemy marks remain");
+        var centerLights = new List<(int X, int Y, Vector3 Color)>();
+        using (new Hook(typeof(Lighting).GetMethod(nameof(Lighting.AddLight),
+            new[] { typeof(int), typeof(int), typeof(float), typeof(float), typeof(float) })!,
+            (Action<AddLightOriginal, int, int, float, float, float>)((orig, x, y, r, g, b)
+                => centerLights.Add((x, y, new Vector3(r, g, b))))))
+        {
+            var joining = Area(0, center); joining.Projectile.ai[0] = 9000; joining.AI();
+            Check(joining.Projectile.timeLeft == 8999, "Synced area age preserves remaining lifetime for late joiners");
+            Check(centerLights.Count == 1 && centerLights[0].X == (int)(center.X / 16) && centerLights[0].Y == (int)(center.Y / 16)
+                && centerLights[0].Color.X > centerLights[0].Color.Y && centerLights[0].Color.Y > centerLights[0].Color.Z
+                && centerLights[0].Color.X > .9f, "Area center emits steady warm gold light every update");
+            joining.Projectile.ai[0] = 29; centerLights.Clear(); joining.AI();
+            Check(centerLights.Count > 20 && centerLights.Skip(1).Any(l => Math.Abs(l.X - (int)(center.X / 16)) > 10
+                || Math.Abs(l.Y - (int)(center.Y / 16)) > 10), "Flying dust lights the area along its spread");
+            joining.Projectile.ai[0] = RevealingDustDrawing.BurstTicks; centerLights.Clear(); joining.AI();
+            Check(centerLights.Count == 1, "Dust lights stop once the burst has settled");
+            joining.Projectile.ai[0] = 17900; centerLights.Clear(); joining.AI();
+            Check(centerLights.Count == 1 && centerLights[0].Color.X < .7f, "Center light fades out before the area expires");
+            joining.Projectile.ai[0] = 17999; joining.AI();
+            Check(!joining.Projectile.active, "Area expires at five minutes");
+            Main.dedServ = true; centerLights.Clear(); Area(0, center).AI(); Main.dedServ = false;
+            Check(centerLights.Count == 0, "Dedicated server submits no center light");
+        }
+        Area(0, Vector2.Zero); Tick(21000); system.PostUpdateProjectiles();
+        Check(true, "Scanning at the world edge stays inside the tilemap");
+        system.ClearWorld(); Check(!system.IsHighlighted(200, 200, TileID.Spikes), "World cleanup clears tile caches");
+        var serverArea = Area(1, center); enemy.Center = center; mark.SetDefaults(enemy);
+        Main.dedServ = true; Main.netMode = NetmodeID.Server;
+        Tick(22000); system.PostUpdateProjectiles();
+        Check(mark.Marked && serverArea.DangerousTiles.Count == 0,
+            "Dedicated server applies enemy marks without scanning or storing visual tile highlights");
+        Main.dedServ = false; Main.netMode = NetmodeID.SinglePlayer;
+
+        // Worst-case dense tile fixture; measures actual scan/caching code, not full-game FPS.
+        for (int x = 1; x < 399; x++) for (int y = 1; y < 399; y++) Place(x, y, (x + y) % 7 == 0 ? TileID.Spikes : TileID.Stone);
+        foreach (int count in new[] { 1, 5, 10, 20 })
+        {
+            foreach (var p in Main.projectile) p.active = false;
+            for (int i = 0; i < count; i++) Area(i, center + new Vector2((i % 5 - 2) * 320, (i / 5 - 1) * 320));
+            var samples = new List<double>();
+            for (int iteration = 0; iteration < 65; iteration++)
+            {
+                Tick((uint)(30000 + iteration * 60));
+                var watch = Stopwatch.StartNew(); system.PostUpdateProjectiles(); watch.Stop();
+                if (iteration >= 5) samples.Add(watch.Elapsed.TotalMilliseconds);
+            }
+            samples.Sort();
+            Console.WriteLine($"BENCH {count} simultaneous dense regions: median={samples[30]:F3} ms, p95={samples[57]:F3} ms per full refresh");
+        }
+        Console.WriteLine($"Revealing Dust: {passed} engine checks passed. Benchmark excludes graphics, sockets and other mods.");
+    }
+
+    private delegate Color SampleOriginal(int x, int y);
+    private delegate void AddLightOriginal(int x, int y, float r, float g, float b);
+
+    private static void CheckTargetLighting(RevealingDustSystem system, NPC enemy)
+    {
+        var lights = new List<(int X, int Y, Vector3 Color)>();
+        using var capture = new Hook(typeof(Lighting).GetMethod(nameof(Lighting.AddLight),
+            new[] { typeof(int), typeof(int), typeof(float), typeof(float), typeof(float) })!,
+            (Action<AddLightOriginal, int, int, float, float, float>)((orig, x, y, r, g, b)
+                => lights.Add((x, y, new Vector3(r, g, b)))));
+        system.PostUpdateEverything();
+        Check(lights.Count == 8 && lights.All(l => l.Color.X > l.Color.Y && l.Color.Y > l.Color.Z && l.Color.Z > 0),
+            "Five unique marked tiles and three marked NPCs emit warm gold light despite overlapping regions");
+        Check(lights.Any(l => l.X == 206 && l.Y == 200)
+            && !lights.Any(l => l.X == 202 && l.Y == 200), "Trap emits real light; ordinary stone does not");
+        lights.Clear(); Tick(1); system.PostUpdateEverything();
+        Check(lights.Count == 8, "Target light is resubmitted between full scans");
+        Vector2 previous = enemy.Center;
+        enemy.Center += new Vector2(160, 80);
+        lights.Clear(); system.PostUpdateEverything();
+        Check(lights.Any(l => l.X == 210 && l.Y == 205), "NPC light follows its current world position");
+        enemy.Center = previous;
+        Tile markedTile = Main.tile[200, 200];
+        markedTile.HasTile = false;
+        lights.Clear(); system.PostUpdateEverything();
+        Check(lights.Count == 7, "Destroyed marked tile stops emitting light before the next scan");
+        markedTile.HasTile = true;
+        markedTile.TileType = TileID.Stone;
+        lights.Clear(); system.PostUpdateEverything();
+        Check(lights.Count == 7, "Replacement ordinary tile does not inherit the cached light");
+        markedTile.TileType = TileID.Spikes;
+        Main.dedServ = true; lights.Clear(); system.PostUpdateEverything();
+        Check(lights.Count == 0, "Dedicated server submits no lighting");
+        Main.dedServ = false; Main.gameMenu = true; system.PostUpdateEverything();
+        Check(lights.Count == 0, "Menu submits no target lighting");
+        Main.gameMenu = false;
+        Tick(18000); system.PostUpdateEverything();
+        Check(lights.Count == 5, "Expired NPC marks stop emitting while cached tile marks remain");
+        Tick(0);
+    }
+
+    private delegate Texture2D TextureOriginal(TileDrawing self, Tile tile, int x, int y);
+
+    private static void CheckNativeTileColorPipeline(RevealingDustSystem system, TileDrawing drawing)
+    {
+        // Run the installed engine's actual DrawSingleTile preparation path. Only replace the
+        // ambient sample/texture lookup and stop after native finalColor, before GPU submission.
+        using var ambient = new Hook(typeof(Lighting).GetMethod(nameof(Lighting.GetColor), new[] { typeof(int), typeof(int) })!,
+            (Func<SampleOriginal, int, int, Color>)((orig, x, y) => Color.Black));
+        using var texture = new Hook(typeof(TileDrawing).GetMethod(nameof(TileDrawing.GetTileDrawTexture), new[] { typeof(Tile), typeof(int), typeof(int) })!,
+            (Func<TextureOriginal, TileDrawing, Tile, int, int, Texture2D>)((orig, self, tile, x, y) => null));
+        Color captured = Color.Transparent;
+        var method = typeof(TileDrawing).GetMethod("DrawSingleTile", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        using var stop = new ILHook(method, il =>
+        {
+            var cursor = new ILCursor(il);
+            if (!cursor.TryGotoNext(MoveType.After, i => i.MatchStfld<Terraria.DataStructures.TileDrawInfo>("finalColor")))
+                throw new Exception("Native tile final color probe could not find its capture point");
+            cursor.Emit(OpCodes.Ldarg_1);
+            cursor.EmitDelegate<Action<Terraria.DataStructures.TileDrawInfo>>(data => captured = data.finalColor);
+            cursor.Emit(OpCodes.Ret);
+        });
+        var cache = (Dictionary<int, ushort>)typeof(RevealingDustSystem)
+            .GetField("visibleDanger", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(system)!;
+        Color Render(int x)
+        {
+            captured = Color.Transparent;
+            method.Invoke(drawing, new object[] { new Terraria.DataStructures.TileDrawInfo(), false, -1, Vector2.Zero, Vector2.Zero, x, 200 });
+            return captured;
+        }
+        foreach (int x in new[] { 204, 205, 206 })
+        {
+            int key = x + 200 * Main.maxTilesX; ushort type = cache[key]; cache.Remove(key);
+            Main.LocalPlayer.dangerSense = false;
+            Check(Render(x) == Color.Black, $"Native tile {type} is black without any vision effect");
+            Main.LocalPlayer.dangerSense = true;
+            Color vanilla = Render(x);
+            Main.LocalPlayer.dangerSense = false;
+            cache[key] = type;
+            Color revealing = Render(x);
+            Check(vanilla.R == 255 && revealing == vanilla,
+                $"Native tile {type} final draw color matches Dangersense exactly, including temple flame trap frame {Main.tile[x, 200].TileFrameY}");
+        }
+    }
+}

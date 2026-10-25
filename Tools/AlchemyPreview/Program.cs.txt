@@ -85,6 +85,13 @@ internal sealed class AlchemyPreviewGame : Game
             return;
         }
         using var batch = new SpriteBatch(Device);
+        if (FocusScene == "cauldron-animations")
+        {
+            BrewingPreview.Run(Device, batch, Repo, output);
+            Console.WriteLine(output);
+            Exit();
+            return;
+        }
         if (ScrollOnly)
         {
             AlchemyScrollPreview.Run(Device, batch, output);
@@ -139,6 +146,7 @@ internal sealed class AlchemyPreviewGame : Game
             case "curio-dropper": state.SetCategory("curio"); state.Select("dropper"); break;
             case "bottled-shimmer": state.SetCategory("material"); state.Select("shimmer"); break;
             case "curio-rain": state.SetCategory("curio"); state.Select("rain"); break;
+            case "curio-trace": state.SetCategory("curio"); state.Select("trace"); break;
             case "food": case "food-initial": state.SetCategory("food"); break;
             case "bread": case "stew": case "brulee": state.SetCategory("food"); state.Select(scene); break;
             case "material":
@@ -256,12 +264,14 @@ internal sealed class AlchemyPreviewGame : Game
         {
             Begin(); At(0,0); d.DetailFade(); batch.End();
         }
+        Begin(); At(0,0); d.DetailScrollHints(offset, total, 0); batch.End();
 
     }
 
-    internal static Texture2D VanillaItemTexture(int itemType)
+    internal static Texture2D VanillaItemTexture(int itemType) => VanillaTexture("Images/Item_" + itemType);
+
+    internal static Texture2D VanillaTexture(string asset)
     {
-        string asset = "Images/Item_" + itemType;
         var content = File.Exists(Path.Combine(TmlContent.RootDirectory, asset + ".xnb"))
             ? TmlContent : VanillaContent;
         return content.Load<Texture2D>(asset);
@@ -299,7 +309,7 @@ internal sealed class AlchemyPreviewGame : Game
     {
         Repo = Path.GetFullPath(args[0]);
         Tml = Path.GetFullPath(args[1]);
-        Terraria.Localization.Language.Load(Repo, args[2]);
+        Terraria.Localization.Language.Load(Repo, args[2], tml: Tml);
         BookOnly = args.Contains("--book-only");
         QuillOnly = args.Contains("--quill-only");
         StarPowerOnly = args.Contains("--star-power-only");

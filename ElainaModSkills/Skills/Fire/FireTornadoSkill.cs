@@ -1,4 +1,5 @@
 using KL.ActionsSystem;
+using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
@@ -8,6 +9,11 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 [SkillUIInfo(State = 8, Pixels = 300)]
 public class FireTornadoSkill : ElainaSkill
 {
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost,
+            RequireConfiguredCharacterLevelCap(nameof(FireTornadoSkill), 90),
+            RequireConfiguredCharacterLevel(nameof(FireTornadoSkill), 86));
+
     public override void Initialize()
     {
         MaxCD = 1;

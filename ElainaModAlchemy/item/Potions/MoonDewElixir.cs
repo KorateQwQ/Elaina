@@ -9,7 +9,6 @@ public sealed class MoonDewElixir : AlchemyPotion
 {
     public override string EntryId => "mana";
     protected override int PotionBuffType => ModContent.BuffType<MoonDewElixirBuff>();
-    protected override int DurationTicks => 120 * 60;
 
     public override bool CanUseItem(Player player) => !player.dead && player.GetModPlayer<ElainaModplayer>().Elaina;
 }

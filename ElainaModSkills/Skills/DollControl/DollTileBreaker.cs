@@ -6,9 +6,9 @@ using Terraria.ID;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 玩偶在主人客户端拆物块与墙，并把掉落物收进 <see cref="DollCommandPlayer"/> 而不是生成到世界上。
-/// 多人模式下客户端的 KillTile 本不掉落，因此先在捕获期间单独执行原版掉落计算，再无掉落地拆除并同步；
-/// 墙没有“无掉落”的网络操作，改为本地拆除后发送物块方块同步。
+/// 玩偶在主人客户端拆物块与墙；按开关选择收集掉落或沿用原版原地掉落。
+/// 收集模式下，客户端的 KillTile 本不掉落，因此先在捕获期间单独执行原版掉落计算，再无掉落地拆除并同步；
+/// 墙没有“无掉落”的网络操作，收集时改为本地拆除后发送物块方块同步。关闭收集时使用原版拆除消息。
 /// 判定镐力、草地转换与掉落沿用原版私有实现，避免各模组物块的规则走样。
 /// </summary>
 internal static class DollTileBreaker
@@ -16,8 +16,28 @@ internal static class DollTileBreaker
     private static Func<Player, int, int, int, int, Tile, int> _pickaxeDamage;
     private static Func<Player, HitTile, int, int, int, int, int, Tile, bool> _transformsOnKill;
     private static Action<int, int, Tile, bool, bool> _dropTileItems;
+    private static readonly HitTile PreviewHits = new();
 
     private const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
+
+    /// <summary>原版镐力判定可能移动裂纹记录、阻止鼠标输入；预检使用独立记录并恢复输入状态。</summary>
+    internal static bool CanDamageTile(Player player, int x, int y, int pickPower)
+    {
+        HitTile originalHits = player.hitTile;
+        bool originalBlockMouse = Main.blockMouse;
+        int index = PreviewHits.HitObject(x, y, 1);
+        try
+        {
+            player.hitTile = PreviewHits;
+            return PickaxeDamage(player, x, y, pickPower, index, Main.tile[x, y]) > 0;
+        }
+        finally
+        {
+            player.hitTile = originalHits;
+            Main.blockMouse = originalBlockMouse;
+            PreviewHits.Clear(index);
+        }
+    }
 
     public static int PickaxeDamage(Player player, int x, int y, int pickPower, int hitIndex, Tile tile)
     {
@@ -34,12 +54,21 @@ internal static class DollTileBreaker
         return _transformsOnKill(player, hitTile, damage, x, y, pickPower, hitIndex, tile);
     }
 
-    /// <summary>拆掉实心物块；只有物块确实消失时才把掉落写入 <paramref name="drops"/>。</summary>
-    public static bool BreakTile(int x, int y, List<(int Type, int Stack)> drops)
+    /// <summary>拆掉实心物块；收集模式下只有物块确实消失才返回掉落，否则让原版把掉落留在世界中。</summary>
+    public static bool BreakTile(int x, int y, List<(int Type, int Stack)> drops, bool bringBackItems = true)
     {
+        drops.Clear();
+        if (!bringBackItems)
+        {
+            // 客户端沿用原版挖掘消息，让服务器计算掉落，不能再发送 noItem 操作。
+            WorldGen.KillTile(x, y);
+            if (Main.tile[x, y].HasTile) return false;
+            if (Main.netMode == NetmodeID.MultiplayerClient)
+                NetMessage.SendData(MessageID.TileManipulation, -1, -1, null, 0, x, y);
+            return true;
+        }
         _dropTileItems ??= typeof(WorldGen).GetMethod("KillTile_DropItems", BindingFlags.NonPublic | BindingFlags.Static)!
             .CreateDelegate<Action<int, int, Tile, bool, bool>>();
-        drops.Clear();
         DollLootCapture.Begin(drops);
         try { _dropTileItems(x, y, Main.tile[x, y], false, false); }
         finally { DollLootCapture.End(); }
@@ -55,10 +84,18 @@ internal static class DollTileBreaker
         return true;
     }
 
-    /// <summary>拆掉墙；本地 KillWall 生成的掉落在捕获期间被收走，再用方块同步通知服务器与其他玩家。</summary>
-    public static bool BreakWall(int x, int y, List<(int Type, int Stack)> drops)
+    /// <summary>拆掉墙；收集时捕获本地掉落并同步方块，关闭收集则使用原版拆墙与掉落同步。</summary>
+    public static bool BreakWall(int x, int y, List<(int Type, int Stack)> drops, bool bringBackItems = true)
     {
         drops.Clear();
+        if (!bringBackItems)
+        {
+            WorldGen.KillWall(x, y);
+            if (Main.tile[x, y].WallType > 0) return false;
+            if (Main.netMode == NetmodeID.MultiplayerClient)
+                NetMessage.SendData(MessageID.TileManipulation, -1, -1, null, 2, x, y);
+            return true;
+        }
         DollLootCapture.Begin(drops);
         try { WorldGen.KillWall(x, y); }
         finally { DollLootCapture.End(); }

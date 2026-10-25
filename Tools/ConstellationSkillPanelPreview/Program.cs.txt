@@ -22,6 +22,9 @@ internal sealed class PanelGame : Game
     private static bool ScrollOnly;
     private static bool DebugToolsOnly;
     private static bool RecallResearchOnly;
+    private static bool HealingOnly;
+    private static bool DiscoveryOnly;
+    private static bool TermsOnly;
     private PanelGame()
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
@@ -61,6 +64,7 @@ internal sealed class PanelGame : Game
 #endif
             Console.WriteLine(output); Exit(); return;
         }
+        if (DiscoveryOnly) { DiscoveryPreview.Run(Device, batch, output); Exit(); return; }
         if (ScrollOnly) { ScrollPreview.Run(Device, batch, output); Exit(); return; }
         if (OrnamentsOnly) OrnamentPreview.Run(Device, batch, output);
         if (BookOnly) { BookPreview.Run(Device, batch, output); Exit(); return; }
@@ -84,7 +88,9 @@ internal sealed class PanelGame : Game
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
-        string[] scenes = RecallResearchOnly ? ["recall-sealed", "recall-revealed-missing", "recall-ready", "recall-learned"]
+        string[] scenes = TermsOnly ? ["terms-freeze", "terms-magic"]
+            : HealingOnly ? ["healing-new", "healing-level1", "healing-growth", "healing-level8", "healing-description"]
+            : RecallResearchOnly ? ["recall-sealed", "recall-revealed-missing", "recall-ready", "recall-learned"]
             : OrnamentsOnly ? ["camera-350", "empty", "editor"]
             : CameraOnly ? ["camera-0", "camera-100", "camera-200", "camera-350", "camera-retarget"]
             : RequirementsOnly || PolishOnly ? ["requirements-learn", "requirements-upgrade", "requirements-ready", "requirements-tooltip", "requirements-long"]
@@ -103,7 +109,9 @@ internal sealed class PanelGame : Game
     internal static Texture2D Texture(string asset)
     {
         if (Textures.TryGetValue(asset, out var result)) return result;
-        using var stream = File.OpenRead(Path.Combine(Repo, asset[(asset.IndexOf('/') + 1)..] + ".png"));
+        // KL assets (term icons) live in the sibling KL mod; the rest are this repository's.
+        string root = asset.StartsWith("KL/", StringComparison.Ordinal) ? Path.Combine(Repo, "../KL") : Repo;
+        using var stream = File.OpenRead(Path.Combine(root, asset[(asset.IndexOf('/') + 1)..] + ".png"));
         result = Texture2D.FromStream(Device, stream);
         var pixels = new Color[result.Width * result.Height]; result.GetData(pixels);
         for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
@@ -131,14 +139,28 @@ internal sealed class PanelGame : Game
         ScrollOnly = args.Contains("--scroll-only");
         DebugToolsOnly = args.Contains("--debug-tools-only");
         RecallResearchOnly = args.Contains("--recall-research-only");
+        HealingOnly = args.Contains("--healing-only");
+        DiscoveryOnly = args.Contains("--discovery-only");
+        TermsOnly = args.Contains("--terms-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
         Fixtures.Text();
-        if (RecallResearchOnly) RecallResearchChecks.Run();
+        if (DiscoveryOnly) DiscoveryChecks.Run();
+        else if (RecallResearchOnly) RecallResearchChecks.Run();
         else if (DebugToolsOnly) PanelChecks.RunDebugTools();
         else if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
         Terraria.Localization.Language.Text.Clear();
         Terraria.Localization.Language.Load(Repo, args[2]);
+        Terraria.Localization.Language.Load(Path.Combine(Repo, "../KL"), args[2]);
+        // The mods register these in KL ElementBuildUpSystem and 伊蕾娜 ElainaTerms; same paths, keys and freeze constants.
+        KL.Drawing.Snippets.KLTerms.Register(new("KL/Drawing/Snippets/Icons/IceIcon", new Color(143, 227, 255),
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Name"),
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Description", 100f),
+            () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Duration"), "4", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds")),
+                (Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Cooldown"), "60", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))]));
+        KL.Drawing.Snippets.KLTerms.Register(new("伊蕾娜/Snippets/MagicStarIcon", new Color(76, 145, 255),
+            () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Name"),
+            () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Description", 10f, 2f, 10f, 2f)));
         // The old fixture class uses WindBladeSkill for the production WindSlashSkill.
         Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillName.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.WindSlashSkill");
         using var game = new PanelGame(); game.Run();

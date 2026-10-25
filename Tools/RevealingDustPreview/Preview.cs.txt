@@ -1,0 +1,149 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.Revealing;
+
+using var game = new Preview(args[0], args[1], args[2]);
+game.Run();
+
+sealed class Preview : Game
+{
+    readonly string output;
+    readonly string repo;
+    SpriteBatch batch;
+    Texture2D pixel, spikes, slime, bat, glow, explosives, traps;
+    RevealingDustTextures dust;
+    bool done;
+    public Preview(string output, string content, string repo)
+    {
+        this.repo = repo;
+        this.output = output; Content.RootDirectory = content;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 960, PreferredBackBufferHeight = 540,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = Content.Load<Texture2D>("Images/MagicPixel");
+        spikes = Content.Load<Texture2D>("Images/Tiles_48");
+        slime = Content.Load<Texture2D>("Images/NPC_1");
+        bat = Content.Load<Texture2D>("Images/NPC_49");
+        explosives = Content.Load<Texture2D>("Images/Tiles_141");
+        traps = Content.Load<Texture2D>("Images/Tiles_137");
+        glow = Load(Path.Combine(repo, "ElainaModAlchemy/Revealing/Assets/MarkGlow.png"));
+        string kl = Path.Combine(repo, "../KL/Effects/Tex/Sparkle");
+        dust = new RevealingDustTextures(glow, Load(Path.Combine(repo, "ElainaModSkills/UICore/Assets/GlowDot.png")),
+            Load(Path.Combine(repo, "ElainaModSkills/UICore/Assets/Star4.png")),
+            Load(Path.Combine(kl, "T_StartFlare001.PNG")), Load(Path.Combine(kl, "ShotLine.png")));
+        Console.WriteLine($"Native CaveBat texture={bat.Width}x{bat.Height}, explosives={explosives.Width}x{explosives.Height}");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        Directory.CreateDirectory(output);
+        int[] ages = [2, 12, 32, 65, 95, 120, 150];
+        foreach (int age in ages)
+        {
+            using var frame = Frame(age, false, 1); Save(frame, $"dust-{age:000}.png");
+        }
+        using (var bright = Frame(32, true, 1)) Save(bright, "dust-bright.png");
+        using (var scaled = Frame(32, false, 1.25f)) Save(scaled, "dust-125.png");
+        using (var overview = Frame(65, false, .42f)) Save(overview, "dust-range.png");
+        foreach (int age in new[] { 300, 17900 })
+        {
+            using var frame = Frame(age, false, 1); Save(frame, $"center-{age:00000}.png");
+        }
+        using (var centerBright = Frame(300, true, 1)) Save(centerBright, "center-bright.png");
+        for (int i = 0; i < 60; i++)
+        {
+            using var frame = Frame(600 + i * 4, false, 1); Save(frame, $"wick-{i:000}.png");
+        }
+        using (var markers = MarkerComparison()) Save(markers, "mark-comparison.png");
+        for (int i = 0; i < 60; i++)
+        {
+            using var frame = Frame(i * 3, false, 1); Save(frame, $"motion-{i:000}.png");
+        }
+        Console.WriteLine("Exported shared production gold dust: emergence, spread, fade, bright background, 125% zoom and full radius.");
+        Exit();
+    }
+    RenderTarget2D Frame(float age, bool bright, float zoom)
+    {
+        var target = new RenderTarget2D(GraphicsDevice, 960, 540);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(bright ? new Color(127, 153, 168) : new Color(16, 21, 32));
+        Matrix camera = Matrix.CreateTranslation(-480, -270, 0) * Matrix.CreateScale(zoom) * Matrix.CreateTranslation(480, 270, 0);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None,
+            RasterizerState.CullNone, null, camera);
+        Fill(-700, 390, 2400, 600, bright ? new Color(90, 83, 80) : new Color(39, 38, 46));
+        Fill(-700, 390, 2400, 3, new Color(67, 63, 72));
+        for (int x = -700; x < 1700; x += 32)
+            Fill(x, 407 + (x & 7), 16, 3, new Color(52, 47, 56));
+        Fill(208, 310, 96, 12, new Color(59, 56, 68));
+        // Native tile/NPC textures in a fixture scene; this is not a full Terraria world render.
+        Color danger = RevealingDustDrawing.DangerColor(new Color(18, 20, 25));
+        for (int i = 0; i < 5; i++) batch.Draw(spikes, new Vector2(640 + i * 16, 374), new Rectangle(18, 0, 16, 16), danger);
+        batch.Draw(slime, new Vector2(180, 366), new Rectangle(0, 0, slime.Width, slime.Height / 2), danger);
+        batch.Draw(slime, new Vector2(1200, 366), new Rectangle(0, 0, slime.Width, slime.Height / 2), danger);
+        Fill(444, 360, 12, 30, new Color(148, 132, 183));
+        Fill(444, 347, 12, 13, new Color(224, 195, 174));
+        Fill(434, 344, 34, 4, new Color(172, 153, 202));
+        Fill(444, 332, 14, 12, new Color(151, 134, 183));
+        batch.End();
+        // Game draws dust and center star in PostDrawTiles with LinearClamp; world Lighting is not simulated here.
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None,
+            RasterizerState.CullNone, null, camera);
+        RevealingDustDrawing.Draw(batch, dust, new Vector2(480, 370), age, 3);
+        RevealingDustDrawing.DrawCenter(batch, dust, new Vector2(480, 370), age, 18000, 3);
+        batch.End(); GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+    RenderTarget2D MarkerComparison()
+    {
+        var target = new RenderTarget2D(GraphicsDevice, 960, 480);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(Color.Black);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        // Columns: old red tint / red tint + production golden spot. Rows: dark / light.
+        for (int row = 0; row < 2; row++)
+        for (int col = 0; col < 2; col++)
+        {
+            int x = col * 480, y = row * 240;
+            Fill(x, y, 480, 240, row == 0 ? Color.Black : new Color(120, 132, 142));
+            Color light = row == 0 ? RevealingDustDrawing.DangerColor(Color.Black) : Color.White;
+            Rectangle frame = new(0, 0, bat.Width, bat.Height / 5); // Installed Main.npcFrameCount[CaveBat] = 5.
+            Vector2 at = new(x + 120, y + 104);
+            batch.Draw(bat, at, frame, light, 0, new Vector2(frame.Width, frame.Height) * .5f, 2f, SpriteEffects.None, 0);
+            if (col == 1) RevealingDustDrawing.DrawMark(batch, glow, at, 42, 30, 7);
+            // At native scale, next to a dark spike/explosive cluster.
+            at = new Vector2(x + 225, y + 104);
+            batch.Draw(bat, at, frame, light, 0, new Vector2(frame.Width, frame.Height) * .5f, 1f, SpriteEffects.None, 0);
+            if (col == 1) RevealingDustDrawing.DrawMark(batch, glow, at, 24, 30, 7);
+            // Previous late hook left finalColor black. The fixed early hook feeds the red final tint.
+            Color hazard = col == 0 ? (row == 0 ? Color.Black : new Color(80, 80, 80)) : RevealingDustDrawing.DangerColor(row == 0 ? Color.Black : new Color(80, 80, 80));
+            batch.Draw(explosives, new Vector2(x + 340, y + 100), new Rectangle(0, 0, 16, 16), hazard,
+                0, new Vector2(8), 2f, SpriteEffects.None, 0);
+            batch.Draw(traps, new Vector2(x + 410, y + 100), new Rectangle(0, 36, 16, 18), hazard,
+                0, new Vector2(8, 9), 2f, SpriteEffects.None, 0);
+        }
+        batch.End(); GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+    // tModLoader premultiplies PNG alpha on load; mirror it so additive tints match the game.
+    Texture2D Load(string path)
+    {
+        using var stream = File.OpenRead(path);
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++) data[i] = Color.FromNonPremultiplied(data[i].ToVector4());
+        texture.SetData(data);
+        return texture;
+    }
+    void Fill(int x, int y, int width, int height, Color color) =>
+        batch.Draw(pixel, new Rectangle(x, y, width, height), new Rectangle(0, 0, 1, 1), color);
+    void Save(RenderTarget2D target, string name)
+    { using var stream = File.Create(Path.Combine(output, name)); target.SaveAsPng(stream, target.Width, target.Height); }
+    protected override void UnloadContent() { glow.Dispose(); dust.Dot.Dispose(); dust.Sparkle.Dispose(); dust.Flare.Dispose(); dust.Line.Dispose(); batch.Dispose(); base.UnloadContent(); }
+}

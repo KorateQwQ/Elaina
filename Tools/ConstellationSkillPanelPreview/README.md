@@ -2,11 +2,13 @@
 
 `pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、50 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。
 
+`-DiscoveryOnly` 链接正式 `StageGateUnlockCondition`、`ConstellationState` 与 `ConstellationDiscovery`，检查已习得/待研习/待启封/未显现四态、不可达门槛与其子技能未显现、未显现不能研习、可达门槛和未学前置列为缺口、依赖成环、追踪器的显现/启封判定与静默首次观察、共享新标记，以及提示队列的合并、淡入淡出、悬停保持和清空。随后导出显现、问号显现、多项合并、启封四种横幅的入场/停留/悬停帧（100%、125%），位于 `output/<culture>/discovery`。实际 SUI 点击、存档往返和真实 Boss 进度仍需游戏内验证。
+
 运行 `& Tools/ConstellationSkillPanelPreview/run.ps1`。可通过 `-Tml` 指定安装目录，`-Sources` 指定本地 Terraria 源码目录。
 
-`-DebugToolsOnly` 运行调试栏专项状态检查，并以正式 `DrawLayoutButton` / `DrawDebugButton` / `ToolButton` 导出普通、升满级悬停、精通技能悬停和布局编辑状态，覆盖 86% / 100% / 125% / 200% 缩放。输出 `output/zh-Hans/debug-tools-*.png`。状态检查链接正式 `ConstellationState`，每次抽取实际 `DebugMaxLevel`、等级规范化及 KL 解锁/升级方法；角色和技能定义为隔离夹具。覆盖当前上限、倒序前置链、阶段/等级/自定义限制、免费学习进修、模板不变、装配/冷却保留、重复调用及提升上限后补齐。此模式始终执行专项断言，不依赖通用检查；`-DebugToolsOnly -Configuration Release` 验证调试方法被排除，不输出调试栏图片。真实 Boss 上限和内存存档往返由 `Tools/CharacterProgressChecks/run.ps1` 验证；完整游戏输入与联机需另验。
+`-DebugToolsOnly` 运行调试栏专项状态检查，并以正式 `DrawLayoutButton` / `DrawDebugButton` / `ToolButton` 导出普通、升满级悬停、精通技能悬停和布局编辑状态，覆盖 86% / 100% / 125% / 200% 缩放。输出 `output/zh-Hans/debug-tools-*.png`。状态检查链接正式 `ConstellationState`，每次抽取实际 `DebugMaxLevel`、等级规范化及 KL 解锁/升级方法；角色和技能定义为隔离夹具。覆盖当前上限、保留配置等级门槛的学习（含倒序/循环前置、隐藏节点、缺失条件及 Boss 等其他条件跳过；读取正式配置验证冰锥术在等级上限 35/36/39 时不学习、40 时学习，并验证首级角色等级门槛）、绕过自定义升级限制、免费学习进修、模板不变、装配/冷却保留、重复调用及提升上限后补齐。此模式始终执行专项断言，不依赖通用检查；`-DebugToolsOnly -Configuration Release` 验证调试方法被排除，不输出调试栏图片。真实 Boss 上限和内存存档往返由 `Tools/CharacterProgressChecks/run.ps1` 验证；完整游戏输入与联机需另验。
 
-`-ScrollOnly -SkipChecks -Configuration Release` 链接共用的 `System/UI/ElasticScrollMotion` 与正式详情绘制，使用长描述、成长对比和关联技能夹具导出顶部/底部、拖动/滚轮的 40 个状态，覆盖 1280×720 与 1600×1000 / 125% UI 缩放。输出在 `output/zh-Hans/scroll-frames`，记录实际内容范围、越界偏移及最终回弹位置；原生滚动条不绘制。共用状态机的 30/60/144 FPS、点击抖动、连续输入、重抓、内容缩短和取消拖动检查由 `Tools/AlchemyPreview/run.ps1 -ScrollOnly -Configuration Release` 运行。这些是 FNA 离线预览，完整 SUI 输入派发、开关点击和拖出窗口释放仍需游戏内检查。
+`-ScrollOnly -SkipChecks -Configuration Release` 链接共用的 `System/UI/ElasticScrollMotion` 与正式详情绘制，使用长描述、成长对比和关联技能夹具导出顶部/底部、拖动/滚轮的 40 个状态，覆盖 1280×720 与 1600×1000 / 125% UI 缩放。输出在 `output/zh-Hans/scroll-frames`，记录实际内容范围、越界偏移及最终回弹位置；原生滚动条不绘制。另导出 `middle-<宽>.png`（内容中段），检查共用 `System/UI/ScrollHint` 的上下双层箭头同时出现；到达顶/底边时对应箭头隐藏。共用状态机的 30/60/144 FPS、点击抖动、连续输入、重抓、内容缩短和取消拖动检查由 `Tools/AlchemyPreview/run.ps1 -ScrollOnly -Configuration Release` 运行。这些是 FNA 离线预览，完整 SUI 输入派发、开关点击和拖出窗口释放仍需游戏内检查。
 
 2026-10-20 滚动专项验证：40 个技能详情采样、90 项共用滚动检查及炼金正式轮廓资源检查通过。现有通用业务检查 `current configured upgrade requirement is represented` 仍假定升级复用解锁材料，而正式默认升级条件现为 20 研习点，因此本次用 `-SkipChecks` 跳过通用业务/图标回归；滚动专项断言照常执行，未修改升级规则或放宽原有断言。
 
@@ -14,9 +16,9 @@
 
 `-CameraOnly` 每次从正式面板抽取 `CenterOn` / `AdvanceCamera` 与实际绘制方法，导出聚焦开始、100ms、200ms、350ms 和途中改选后的 FNA 离线帧，覆盖 720p 与 125% UI 缩放；检查最终图标居中、120% 倍率和改选瞬间的位置连续性。输出为 `output/camera-*.png`。使用隔离角色夹具，不模拟完整 SUI 点击、拖拽和开书输入生命周期，这些交互仍需游戏内验证。
 
-`-BookOnly` 链接正式 `ConstellationBookMotion` / `ConstellationBookRenderer`，导出书从手札按钮飞出、翻开、合拢、收回及两次快速反向的 FNA 连续帧。1600×1000 / 100% 输出 145 帧，1280×720 / 100% 和 1600×1000 / 125%、200% 输出代表帧，位于 `output/book-frames`。标题用实际 Noto Serif SC，页面使用正式绘制方法与隔离角色夹具。状态检查覆盖 30/60/144 FPS 时长、反向瞬间位置/曲率/速度连续性、闭式阻尼步长一致性、失焦收敛和世界重置。这不是游戏截图，也不模拟完整 SUI 输入树。
+`-BookOnly` 链接正式 `ConstellationBookMotion` / `ConstellationBookRenderer`，导出书从技能栏右上方锚点（原手札按钮位置）飞出、翻开、合拢、收回及两次快速反向的 FNA 连续帧。1600×1000 / 100% 输出 145 帧，1280×720 / 100% 和 1600×1000 / 125%、200% 输出代表帧，位于 `output/book-frames`。标题用实际 Noto Serif SC，页面使用正式绘制方法与隔离角色夹具。状态检查覆盖 30/60/144 FPS 时长、反向瞬间位置/曲率/速度连续性、闭式阻尼步长一致性、失焦收敛和世界重置。这不是游戏截图，也不模拟完整 SUI 输入树。
 
-`python Tools/ConstellationSkillPanelPreview/book_contact_sheet.py` 将上述帧生成 `output/book-contact-sheet.jpg` 与 `output/book-animation.webp`。`book_reference.py` 用隐藏 Chrome 捕获当前 HTML 的五个固定开合姿态；它只写 `.vissandbox`，不运行会覆盖正式底图的 `reference.py`。网页与 FNA 的角色内容、字体和手札按钮位置不同，比较的是曲面与动画阶段。
+`python Tools/ConstellationSkillPanelPreview/book_contact_sheet.py` 将上述帧生成 `output/book-contact-sheet.jpg` 与 `output/book-animation.webp`。`book_reference.py` 用隐藏 Chrome 捕获当前 HTML 的五个固定开合姿态；它只写 `.vissandbox`，不运行会覆盖正式底图的 `reference.py`。网页与 FNA 的角色内容、字体和飞出锚点位置不同，比较的是曲面与动画阶段。
 
 `-BookChecksOnly` 只运行开合状态和独立计时器检查，不启动 FNA 窗口或导出图片。计时器使用实际 Stopwatch 检查采样、停止及重开；动画状态另用确定的时间间隔验证不均匀帧、反向连续性与失焦收敛。正式计时器没有测试时间委托。离线连续帧仍使用固定时间步长，不能用它证明实际游戏帧间隔已变平稳。
 
@@ -61,3 +63,9 @@
 `& Tools/ConstellationSkillPanelPreview/run.ps1 -HeadersOnly` 重放正式 `DrawChrome` / `DrawFilter` / `ConstellationDrawing.PlayerLevel`，沿用 KL 的 Noto Serif SC、HarmonyOS Sans SC 与 Gelasio 字体。标题栏等级布局对应 `elaina-battle-eight-skills-level-preview.html`：淡金菱形等级、右侧上限与经验、3px 渐变进度条；星图收录独立位于详情页上方。游戏仍从 `ElainaStatePlayer` 实时读取等级与经验，预览只注入隔离夹具。
 
 输出 `output/study-header-{研习点}-lv{等级}-xp{经验}-{缩放}.png`，覆盖 1/24/99/120 级、0/65/99/100 经验、0/9999 研习点和 86%/100%/125% 缩放，共 30 张。此模式无需加载全场景的技能图标；常规全场景检查若因旧夹具引用缺失的 `AshenWitchSkill_Gray.png` 中断，不能视为全场景验证通过。所有图像为实际 FNA 绘制的离线预览，不是游戏截图，实际 SUI 输入和游戏重载需另验。
+
+`-HealingOnly -SkipChecks` 链接正式 `HealSkill.Values.cs` 与本地化说明，导出未学习、1 级、满级、说明滚动和升级对比，覆盖 720p、默认和 125% UI，英文加 `-Culture en-US`。耗蓝/冷却和成长上限读取正式 JSON，人物与施法生命周期为夹具；每个场景验证格式参数已解析并显示当前治疗量。施法、叠加、禁止生命代付与逐级回血另由 `Tools/HealingWheelPreview/check-behavior.ps1` 检查。
+
+## 专有名词悬停说明（2026-10-26）
+
+`-TermsOnly -SkipChecks`（英文加 `-Culture en-US`）导出 `terms-freeze`（冰锥术）与 `terms-magic`（灰之魔女）在 720p、默认和 125% UI 下的详情页，悬停首个已注册名词：重放正式 `ConstellationRichText` 命中区域、`ConstellationDetail` 下划线与锚点、`ConstellationDrawing.TermTooltip` 说明卡（2026-10-26 定稿为“手札便签”款：书页点线内框加四角星、衬线名称、可选的大号数值两栏；曾对比书签夹页、星注两款）。名词注册在 `Program` 中按正式路径、本地化键与冻结常量复刻（正式注册位于 KL `ElementBuildUpSystem` 与 `Localization/ElainaTerms.cs`），并额外加载 KL 的 HJSON；`KL/` 开头的贴图从相邻 KL 目录读取。冰锥术的伤害/积累参数是夹具值。实际 SUI 悬停派发、提示延迟和滚动中的命中需游戏内验证。

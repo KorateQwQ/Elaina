@@ -1,11 +1,11 @@
-AshenFacsimileDust: {
+﻿AshenFacsimileDust: {
 	DisplayName: 灰赝尘
 	Tooltip:
 		'''
 		炼金造物
 		以微光嬗变之力补全不足的素材
-		每种所需材料至少持有1件，所有所需素材的满足平均值大于50%
-		通过收藏可以在合成时优先使用灰赝尘替代原材料
+		每种所需材料至少持有1件即可使用
+		选中配方后左键按原版制作，右键使用灰赝尘制作
 		'''
 }
 
@@ -16,7 +16,7 @@ Painkiller: {
 
 PainkillerRecipe: {
 	DisplayName: 止痛药配方
-	Tooltip: 藏在丛林常春藤宝箱中的药剂笔记，记载着持续恢复生命的炼制方法。
+	Tooltip: 记载着持续恢复生命的炼制方法。
 }
 
 BloodthirstPotionRecipe: {
@@ -41,12 +41,12 @@ ResonancePotionRecipe: {
 
 PurificationDewRecipe: {
 	DisplayName: 净土露滴配方
-	Tooltip: 树妖在困难模式出售的炼金笔记，记载着净土露滴的炼制方法。
+	Tooltip: 记载着净土露滴的炼制方法。
 }
 
 FeatherlightPotionRecipe: {
 	DisplayName: 轻羽药水配方
-	Tooltip: 藏在地下金宝箱中的旅人笔记，记载着让步伐与飞行更加轻快的炼制方法。
+	Tooltip: 记载着让步伐与飞行更加轻快的炼制方法。
 }
 
 BloodthirstPotion: {
@@ -114,10 +114,10 @@ PurificationDew: {
 	DisplayName: 净土露滴
 	Tooltip:
 		'''
-		魔药 · 功能
-		使用后在目标位置滴下净土露滴，其会下落穿透物块并净化附近所有物块。
-		作用范围：附近所有物块
-		特性：下落时穿透物块
+		在目标位置滴下一道彩虹露光，穿透物块并向下净化至世界底部
+		净化宽度为三格：目标列及左右各一列，不改变背景墙
+		经过的区域永久抵御腐化、猩红与神圣感染，阻止感染荆棘和藤蔓侵入
+		保护随世界保存，挖除后重新放置物块仍然有效
 		'''
 }
 
@@ -131,9 +131,8 @@ RevealingDust: {
 	Tooltip:
 		'''
 		奇物 · 功能
-		照亮所有敌人与陷阱。
-		照亮半径：1500
-		持续时间：120 秒
+		洒下金尘，留下持续 5 分钟的显迹区域
+		高亮区域内的危险物块，并使敌人显形 5 分钟
 		'''
 }
 
@@ -142,7 +141,8 @@ BottledRain: {
 	Tooltip:
 		'''
 		奇物 · 功能
-		释放一朵便携雨云，增快附近所有植物的生长，让水叶草开花。
+		投掷后释放一朵便携雨云，加速雨幕内植物生长，让成熟的{$ItemName.Waterleaf}开花。
+		雨幕宽约 20 格，受实心物块阻挡。
 		持续时间：60 秒
 		'''
 }
@@ -180,16 +180,7 @@ MoonDew: {
 	Tooltip:
 		'''
 		素材
-		用瓶装水与月光草制成的药液基底，可直接用于炼金。
-		'''
-}
-
-WarmResin: {
-	DisplayName: 温香树脂
-	Tooltip:
-		'''
-		素材
-		木材和凝胶熬制成的温润树脂。
+		用瓶装水与月光草制成的药液基底，可用于各种药水。
 		'''
 }
 

@@ -1,0 +1,211 @@
+using System;
+using System.IO;
+using System.Linq;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using World = Terraria.Main;
+
+static partial class Checks
+{
+    public static DollPetProjectile[] Team(int owner = 0) => World.projectile
+        .Where(p => p.active && p.owner == owner).Select(p => p.ModProjectile).OfType<DollPetProjectile>().ToArray();
+
+    public static void TickTeam()
+    {
+        foreach (var owner in World.player) owner.Center += owner.velocity;
+        foreach (var doll in Team())
+        {
+            doll.AI();
+            if (doll.Projectile.active) doll.Projectile.Center += doll.Projectile.velocity;
+        }
+    }
+
+    static (Point Point, bool Wall, bool Planter) Target(DollPetProjectile doll)
+    {
+        using var stream = new MemoryStream();
+        doll.SendExtraAI(new BinaryWriter(stream));
+        stream.Position = 0;
+        using var reader = new BinaryReader(stream);
+        return (new(reader.ReadInt16(), reader.ReadInt16()), reader.ReadBoolean(), reader.ReadBoolean());
+    }
+
+    static void CheckHammerAnimations()
+    {
+        Reset();
+        var team = Team();
+        var commands = World.player[0].GetModPlayer<DollCommandPlayer>();
+        commands.HitsPerTile = 10000;
+        for (int x = 0; x < 4; x++) commands.WallMarks.Add(new Point(5 + x * 3, 6));
+        var frames = team.Select(_ => new System.Collections.Generic.HashSet<int>()).ToArray();
+        for (int tick = 0; tick < 240; tick++)
+        {
+            TickTeam();
+            for (int i = 0; i < team.Length; i++) if (team[i].IsHammering) frames[i].Add(team[i].Projectile.frame);
+        }
+        Check(team.All(d => d.IsHammering && !d.IsMining && !d.IsUsing), "All four dolls hammer walls, without pick or use animation");
+        Check(frames.All(f => f.SetEquals(new[] { 0, 1, 2, 3 })), "Each doll plays all four hammer frames");
+        int hits = commands.Hits;
+        foreach (var member in team)
+        {
+            using var stream = new MemoryStream(); member.SendExtraAI(new BinaryWriter(stream)); stream.Position = 0;
+            var copy = (DollPetProjectile)Activator.CreateInstance(member.GetType());
+            copy.SetDefaults(); copy.Projectile.owner = 0; copy.Projectile.active = true; copy.Projectile.Center = member.Projectile.Center;
+            copy.ReceiveExtraAI(new BinaryReader(stream));
+            World.myPlayer = 1;
+            for (int i = 0; i < 48; i++) Tick(copy);
+            World.myPlayer = 0;
+            Check(copy.IsHammering && commands.Hits == hits, "Remote wall task uses hammer frames without executing hits");
+        }
+        commands.ClearTasks();
+        for (int x = 0; x < 4; x++) commands.TileMarks.Add(new Point(5 + x * 3, 6));
+        for (int tick = 0; tick < 180; tick++) TickTeam();
+        Check(team.All(d => d.IsMining && !d.IsHammering), "Switching from walls to blocks restores each doll's pick animation");
+    }
+
+    static void RunTeamChecks()
+    {
+        CheckHammerAnimations();
+        Reset();
+        var team = Team();
+        Check(team.Length == 4 && team.Select(d => d.GetType()).Distinct().Count() == 4,
+            "One cast must create four distinct projectile types");
+        Check(team.Select(d => d.FormationSlot).Order().SequenceEqual(new[] { 0, 1, 2, 3 }), "Each type has a stable formation slot");
+        Check(team.Select(d => d.Texture).Distinct().Count() == 4, "Four dolls use four distinct sprite sets");
+        var owner = World.player[0];
+        foreach (int direction in new[] { -1, 1 })
+        foreach (float gravity in new[] { -1f, 1f })
+        {
+            owner.direction = direction; owner.gravDir = gravity;
+            foreach (var doll in team) doll.RecallToOwner(owner);
+            for (int i = 0; i < 180; i++) TickTeam();
+            Check(team.All(d => !d.IsMoving && !d.IsMining), "Whole formation settles at either facing/gravity");
+            Check(team.All(d => (d.Projectile.Center.X - owner.Center.X) * direction < 0
+                && (d.Projectile.Center.Y - owner.Center.Y) * gravity < 0), "Formation follows behind and above its owner");
+            Check(team.All(a => team.All(b => a == b || Vector2.Distance(a.Projectile.Center, b.Projectile.Center) > 36f)),
+                $"Formation members must not overlap: dir={direction} grav={gravity} " + string.Join(" ", team.Select(d => $"{d.FormationSlot}:{d.Projectile.Center - owner.Center}")));
+        }
+
+        bool[] periodicSync = new bool[4];
+        for (int tick = 0; tick < 90; tick++)
+        {
+            foreach (var member in team) member.Projectile.netUpdate = false;
+            TickTeam();
+            for (int slot = 0; slot < 4; slot++) periodicSync[slot] |= team[slot].Projectile.netUpdate;
+        }
+        Check(periodicSync.All(value => value), "Every staggered bob phase must still reach the periodic network sync point");
+
+        // All task kinds use the actual production selectors and claim table.
+        foreach (int kind in new[] { 0, 1, 2 })
+        {
+            Reset(); team = Team();
+            var c = World.player[0].GetModPlayer<DollCommandPlayer>();
+            for (int x = 0; x < 8; x++)
+            {
+                Point p = new(x + 2, 4);
+                if (kind == 2) c.PlanterTargets.Add(p);
+                else (kind == 1 ? c.WallMarks : c.TileMarks).Add(p);
+            }
+            TickTeam();
+            Check(team.All(d => d.HasWork) && team.Select(Target).Distinct().Count() == 4, $"Four distinct targets for task kind {kind}");
+            for (int tick = 0; tick < 1500 && c.HasTask; tick++) TickTeam();
+            Check(!c.HasTask && (kind == 2 ? c.PlacedPlanters == 8 && c.Hits == 0 : c.Loot == 8 && c.Hits == 24),
+                $"Every task is completed exactly once for kind {kind}");
+            for (int tick = 0; tick < 300; tick++) TickTeam();
+            Check(team.All(d => !d.HasWork && !d.IsMining), "Finished team returns to follow");
+            if (kind != 2) Check(c.Delivered == 8 && c.Loot == 0, "Shared loot is delivered exactly once");
+        }
+
+        Reset(); team = Team();
+        var networkCommands = World.player[0].GetModPlayer<DollCommandPlayer>();
+        for (int x = 0; x < 4; x++) networkCommands.TileMarks.Add(new Point(x + 2, 4));
+        TickTeam();
+        var copies = team.Select(member =>
+        {
+            var copy = (DollPetProjectile)Activator.CreateInstance(member.GetType());
+            copy.SetDefaults(); copy.Projectile.owner = 0; copy.Projectile.active = true;
+            copy.Projectile.Center = member.Projectile.Center;
+            using var stream = new MemoryStream(); member.SendExtraAI(new BinaryWriter(stream)); stream.Position = 0;
+            copy.ReceiveExtraAI(new BinaryReader(stream));
+            return copy;
+        }).ToArray();
+        World.myPlayer = 1;
+        for (int tick = 0; tick < 240; tick++) foreach (var copy in copies) Tick(copy);
+        World.myPlayer = 0;
+        Check(copies.All(d => d.IsMining) && copies.Select(Target).Distinct().Count() == 4
+            && networkCommands.Hits == 0 && networkCommands.TileMarks.Count == 4,
+            "All four remote types preserve distinct targets and animate without performing work");
+
+        Reset(); team = Team();
+        var commands = World.player[0].GetModPlayer<DollCommandPlayer>();
+        Point edge = new(4, 4), inner = new(5, 4);
+        commands.WallMarks.UnionWith(new[] { edge, inner }); commands.BlockedWalls.Add(inner);
+        commands.UnlockWallsAfterRemoval[edge] = inner;
+        TickTeam();
+        Check(team.Count(d => d.HasWork) == 1 && commands.WallMarks.Count == 2,
+            "Idle teammates must preserve a claimed edge and walls waiting for that edge");
+        for (int tick = 0; tick < 500 && commands.WallMarks.Contains(edge); tick++) TickTeam();
+        commands.BlockedWalls.Clear();
+        for (int tick = 0; tick < 500 && commands.HasTask; tick++) TickTeam();
+        Check(commands.Loot + commands.Delivered == 2, "Unblocked wall remains available to the team");
+
+        Reset(); team = Team(); commands = World.player[0].GetModPlayer<DollCommandPlayer>();
+        commands.TileMarks.Add(edge); TickTeam();
+        var working = team.Single(d => d.HasWork);
+        working.Projectile.Kill(); TickTeam();
+        Check(Team().Count(d => d.HasWork) == 1 && commands.HasTask, "Vanished worker releases its task for another member");
+        working = Team().Single(d => d.HasWork);
+        // Simulate a projectile slot being replaced without OnKill.
+        working.Projectile.ModProjectile = new KumaPetProjectile();
+        foreach (var survivor in team.Where(d => d != working && d.Projectile.active)) survivor.AI();
+        Check(team.Any(d => d != working && d.Projectile.active && d.HasWork), "Reused projectile slot cannot hold a stale claim");
+
+        Reset(); team = Team(); commands = World.player[0].GetModPlayer<DollCommandPlayer>();
+        commands.TileMarks.Add(edge); commands.WallMarks.Add(edge); commands.PlanterTargets.Add(inner);
+        TickTeam();
+        Check(team.Count(d => d.HasWork) == 3 && team.Where(d => d.HasWork).Select(Target).Distinct().Count() == 3,
+            "Mixed block, wall and planter tasks are assigned independently, including a block and wall at one coordinate");
+        commands.ClearTasks(); TickTeam();
+        Check(team.All(d => !d.HasWork), "Cancel removes all three task kinds and their assignments");
+        commands.TileMarks.Add(edge); TickTeam();
+        Check(team.Count(d => d.HasWork) == 1, "Cancelled claims do not block the same target in a new task");
+        commands.ClearTasks(); commands.TileMarks.Add(new Point(300, 300)); TickTeam();
+        Check(commands.HasTask && team.All(d => !d.HasWork), "Out-of-range marks remain queued for the team");
+
+        int solo = CompletionTicks(false), group = CompletionTicks(true);
+        Check(group < solo * .6f, $"Four workers should complete a batch substantially faster: solo={solo}, team={group}");
+        Console.WriteLine($"Batch comparison (stub world): one doll {solo} ticks; four dolls {group} ticks.");
+
+        for (int free = 0; free < 4; free++)
+        {
+            Reset(); DollPetProjectile.DismissAll(World.player[0]);
+            for (int i = 0; i < World.maxProjectiles; i++) { World.projectile[i].active = i >= free; World.projectile[i].ModProjectile = null; }
+            var skill = new DollControlSkill { Level = 7 }; skill.Initialize();
+            var mana = World.player[0].GetModPlayer<ElainaAttributeModPlayer>();
+            Check(!skill.PreUseSkill() && mana.MagicPoint == 80f && Team().Length == 0,
+                $"With only {free} free slots, do not pay or summon a partial team");
+        }
+        Reset(); owner = World.player[0]; commands = owner.GetModPlayer<DollCommandPlayer>();
+        World.myPlayer = 1; var otherSkill = new DollControlSkill { Level = 7 }; otherSkill.Initialize(); otherSkill.PreUseSkill();
+        World.myPlayer = 0; commands.Loot = 7; DollPetProjectile.DismissAll(owner);
+        Check(Team().All(d => d.IsDismissing) && Team(1).All(d => !d.IsDismissing) && commands.Delivered == 7,
+            "Dismiss starts the vanish animation for the owner's team only");
+        for (int tick = 0; tick < DollSummonVisuals.VanishTicks + 3 * DollSummonVisuals.StaggerTicks; tick++) TickTeam();
+        Check(Team().Length == 0 && Team(1).Length == 4 && commands.Delivered == 7,
+            "Dismiss removes only the owner's entire team and delivers loot once");
+        Reset(); World.player[0].dead = true; TickTeam(); Check(Team().Length == 0, "Death removes all four dolls");
+        Reset(); World.player[0].active = false; TickTeam(); Check(Team().Length == 0, "Disconnect removes all four dolls");
+    }
+
+    static int CompletionTicks(bool fullTeam)
+    {
+        Reset();
+        if (!fullTeam) foreach (var doll in Team().Skip(1)) doll.Projectile.Kill();
+        var c = World.player[0].GetModPlayer<DollCommandPlayer>();
+        c.HitsPerTile = 8;
+        for (int x = 0; x < 24; x++) c.TileMarks.Add(new(x + 2, 4));
+        int ticks = 0;
+        while (c.HasTask && ticks < 6000) { TickTeam(); ticks++; }
+        Check(!c.HasTask && c.Loot + c.Delivered == 24, "Timed batch must finish and preserve every drop");
+        return ticks;
+    }
+}

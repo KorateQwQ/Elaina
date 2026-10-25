@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -8,7 +8,8 @@ using Terraria.Localization;
 using ReLogic.Content;
 using Terraria.DataStructures;
 using System.Collections.Generic;
-using 伊蕾娜.炼金;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.UI;
 
 namespace 伊蕾娜.Items.accessories
 {
@@ -134,7 +135,8 @@ namespace 伊蕾娜.Items.accessories
             }
             return false;
         }
-        public override Position GetDefaultPosition() => new AfterParent(PlayerDrawLayers.ArmOverItem);
+        public override Position GetDefaultPosition() => new Between(PlayerDrawLayers.ArmOverItem, PlayerDrawLayers.HandOnAcc);
+        public override Transformation Transform => PlayerDrawLayers.TorsoGroup;
         protected override void Draw(ref PlayerDrawSet drawInfo)
         {
             if (texture == null) texture =
@@ -147,22 +149,13 @@ namespace 伊蕾娜.Items.accessories
             position += new Vector2(0, drawInfo.drawPlayer.HeightOffsetVisual + drawInfo.drawPlayer.HeightOffsetHitboxCenter);
             position += new Vector2(10, 20);
             float timescale = MathHelper.Lerp(0.3f, 0.5f, Math.Abs(30f - Main.GameUpdateCount % 60) / 30f);
-            var p = drawInfo.drawPlayer.GetModPlayer<炼金modplayer>();
-            if (p.搅拌中)
+            var p = drawInfo.drawPlayer.GetModPlayer<AlchemyBrewingPlayer>();
+            if (p.Active && !drawInfo.headOnlyRender)
             {
-                position += new Vector2(0, -3);
-                if (p.bodyFrame >= 5 && p.bodyFrame <= 8)
-                {
-                    position += new Vector2(p.bodyFrame - 4, 0);
-                }
-                if (p.bodyFrame == 9)
-                {
-                    position += new Vector2(p.bodyFrame - 4, 0);
-                }
-                if (p.bodyFrame >= 10 && p.bodyFrame <= 12)
-                {
-                    position += new Vector2(13 - p.bodyFrame, 0);
-                }
+                var ground = AlchemyBrewAnimation.Ground(
+                    drawInfo.Position - Main.screenPosition - new Vector2(0, drawInfo.torsoOffset),
+                    drawInfo.drawPlayer.width, drawInfo.drawPlayer.height, drawInfo.drawPlayer.HeightOffsetVisual);
+                position = AlchemyBrewAnimation.PendantPosition(ground, p.IsBrewing, p.AnimationFrame);
             }
             //Main.NewText(drawInfo.rotation + " " + drawInfo.drawPlayer.fullRotation);
             if (drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().SayoProtectCD > 17970)

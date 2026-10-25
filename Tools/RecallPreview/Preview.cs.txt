@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -10,8 +10,9 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
+using ReLogic.Graphics;
 
-try { using var game = new Preview(args[0], args[1], args[2]); game.Run(); }
+try { using var game = new Preview(args[0], args[1], args[2], args.Length > 3 && bool.Parse(args[3])); game.Run(); }
 catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
 
 /// <summary>
@@ -26,19 +27,21 @@ sealed class Preview : Game
     static readonly Vector2 Center = new(200, 280);
     static readonly Color Sky = new(27, 34, 46), Ground = new(37, 43, 43);
     readonly string root, output, toolDirectory;
+    readonly bool overlapOnly;
     Assembly replay;
     Type scene;
     SpriteBatch batch;
-    Texture2D pixel;
+    Texture2D pixel, portalLine;
     RenderTarget2D frame;
     bool done;
 
-    public Preview(string root, string output, string toolDirectory)
+    public Preview(string root, string output, string toolDirectory, bool overlapOnly)
     {
         this.root = root;
         this.output = output;
         this.toolDirectory = toolDirectory;
-        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+        this.overlapOnly = overlapOnly;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = overlapOnly ? 1280 : Width, PreferredBackBufferHeight = overlapOnly ? 600 : Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
@@ -107,6 +110,7 @@ sealed class Preview : Game
             global using System.Collections.Generic;
             global using System.Linq;
             global using System.Reflection;
+            global using System.IO;
             global using Microsoft.Xna.Framework;
             global using Microsoft.Xna.Framework.Graphics;
             global using ReLogic.Content;
@@ -129,6 +133,12 @@ sealed class Preview : Game
                 public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
                 public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
                 public static class Main {
+                    public const int maxPlayers = 255;
+                    public static int maxTilesX = 8400, UnderworldLayer = 2200;
+                    public static double worldSurface = 450, rockLayer = 750;
+                    public static Player[] player = Enumerable.Range(0, 255).Select(_ => new Player()).ToArray();
+                    public static Projectile[] projectile = [];
+                    public static IEnumerable<Projectile> ActiveProjectiles => projectile;
                     public static DeviceContext instance, graphics;
                     public static SpriteBatch spriteBatch;
                     public static int screenWidth, screenHeight;
@@ -140,13 +150,57 @@ sealed class Preview : Game
                     public static void QueueMainThreadAction(Action a) => a();
                     public static void NewText(object text, Color color = default) {}
                 }
+                public class Player { public string name; public Vector2 Bottom; }
+                public class Projectile { public int owner; public Vector2 Center; public object ModProjectile; }
+            }
+            namespace 伊蕾娜.ElainaModSkills.Skills.Recall {
+                // 只适配预览世界；布局与提示直接链接正式源文件。
+                public class RecallPortalProjectile {
+                    public Projectile Projectile;
+                    public int PairId = 1, Side;
+                    public bool Ready = true;
+                    public Vector2 DisplayCenter;
+                }
+                public static class RecallPortalSystem {
+                    public static bool IsAlly(Player a, Player b) => true;
+                    public static bool InArea(Player player, Vector2 foot) => Vector2.DistanceSquared(player.Bottom, foot) <= 160 * 160;
+                    public static int FindPortal(int owner, int pair, int side) => Array.FindIndex(Main.projectile,
+                        p => p.owner == owner && p.ModProjectile is RecallPortalProjectile portal && portal.PairId == pair && portal.Side == side);
+                }
             }
             """;
         string sceneSource = """
             using KL.Drawing;
             using 伊蕾娜.ElainaModSkills.Skills.Recall;
             public static class RecallPreviewScene {
-                public static void Setup(GraphicsDevice gd, SpriteBatch sb, Effect vertexDraw, Effect bloom, Effect reColor) {
+                public static string DrawOverlap(int count, float age, float zoom, string root, string culture) {
+                    Terraria.Localization.Language.Load(root, culture, uiOnly: true);
+                    Main.screenWidth = 1280; Main.screenHeight = 600;
+                    Main.GameViewMatrix.TransformationMatrix = Matrix.CreateTranslation(-640, -300, 0) *
+                        Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(640, 300, 0);
+                    Main.Transform = Main.GameViewMatrix.TransformationMatrix;
+                    Main.projectile = new Projectile[count * 2];
+                    Vector2 anchor = new(640, 420);
+                    for (int i = 0; i < count; i++) {
+                        Main.player[i].name = i == count - 1 ? "Elaina — Wandering Witch" : "Elaina " + (i + 1);
+                        Main.player[i].Bottom = anchor;
+                        for (int side = 0; side < 2; side++) {
+                            var projectile = new Projectile { owner = i, Center = side == 1 ? anchor : new Vector2((1000 + i * 300) * 16, (2300 + i * 100) * 16) };
+                            projectile.ModProjectile = new RecallPortalProjectile { Projectile = projectile, Side = side, Ready = age >= 90 };
+                            Main.projectile[i * 2 + side] = projectile;
+                        }
+                    }
+                    RecallPortalPresentation.Refresh();
+                    BloomReplay.Enabled = true;
+                    LayerDrawRequestSystem.ClearFrame();
+                    for (int i = 0; i < count; i++) {
+                        var portal = (RecallPortalProjectile)Main.projectile[i * 2 + 1].ModProjectile;
+                        RecallPortalVisual.Request(portal.DisplayCenter, 160, age, 90, 1800, true, i == count - 1, 90);
+                    }
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                    return RecallPortalPresentation.Tooltip(Main.player[0], (RecallPortalProjectile)Main.projectile[count * 2 - 1].ModProjectile);
+                }
+                public static void Setup(GraphicsDevice gd, SpriteBatch sb, Effect vertexDraw, Effect bloom, Effect reColor, Texture2D portalLine) {
                     Main.instance = Main.graphics = new DeviceContext { GraphicsDevice = gd };
                     Main.spriteBatch = sb;
                     Main.screenWidth = gd.PresentationParameters.BackBufferWidth;
@@ -154,6 +208,7 @@ sealed class Preview : Game
                     DrawHelper.bloom = bloom;
                     DrawHelper.reColor = reColor;
                     ModContent.Assets["KL/Effects/Content/VertexDraw"] = vertexDraw;
+                    ModContent.Assets["伊蕾娜/ElainaModSkills/Skills/Recall/Assets/PortalLine"] = portalLine;
                 }
                 // 与游戏一致：弹幕在 Projectiles 层提交 bloom 请求，KL 在该层 After 时机统一合成。
                 public static void Draw(float age, bool destination, bool hovered, bool bloom, Vector2 center, float zoom, float burstStart) {
@@ -175,9 +230,15 @@ sealed class Preview : Game
             File.ReadAllText(Path.Combine(recall, "RecallPortalScript.cs")),
             File.ReadAllText(Path.Combine(recall, "RecallPortalPattern.cs")),
             File.ReadAllText(Path.Combine(recall, "RecallPortalVisual.cs")) };
+        sources = sources.Concat(new[] {
+            File.ReadAllText(Path.Combine(recall, "RecallPortalLayout.cs")),
+            File.ReadAllText(Path.Combine(recall, "RecallPortalPresentation.cs")),
+            File.ReadAllText(Path.Combine(root, "Localization/UIText.cs")),
+            File.ReadAllText(Path.Combine(root, "Tools/LocalizationChecks/PreviewLocalization.cs.txt")) }).ToArray();
         var trees = sources.Select(s => CSharpSyntaxTree.ParseText(s, new CSharpParseOptions(LanguageVersion.Latest)));
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
-            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+            .Append(typeof(GraphicsDevice).Assembly.Location).Append(typeof(Hjson.HjsonValue).Assembly.Location)
+            .Distinct().Select(p => MetadataReference.CreateFromFile(p));
         var compilation = CSharpCompilation.Create("RecallReplay", trees, refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         using var bytes = new MemoryStream();
@@ -197,8 +258,10 @@ sealed class Preview : Game
         pixel.SetData(new[] { Color.White });
         frame = new RenderTarget2D(GraphicsDevice, Width, Height);
         var effects = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
+        using (var stream = File.OpenRead(Path.Combine(root, "ElainaModSkills/Skills/Recall/Assets/PortalLine.png")))
+            portalLine = Texture2D.FromStream(GraphicsDevice, stream);
         scene.GetMethod("Setup").Invoke(null, [GraphicsDevice, batch,
-            effects.Load<Effect>("VertexDraw"), effects.Load<Effect>("Bloom"), effects.Load<Effect>("ReColor")]);
+            effects.Load<Effect>("VertexDraw"), effects.Load<Effect>("Bloom"), effects.Load<Effect>("ReColor"), portalLine]);
     }
 
     /// <summary>在场景目标上画背景与人物参考，再按游戏流程提交并合成法阵。</summary>
@@ -234,10 +297,39 @@ sealed class Preview : Game
     {
         if (done) return;
         done = true;
+        if (overlapOnly) { RenderOverlap(); Exit(); return; }
         Verify();
         RenderSheet();
         RenderAnimation();
         Exit();
+    }
+
+    void RenderOverlap()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 1280, 600);
+        using var fonts = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL")));
+        var font = fonts.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
+        foreach (var item in new[] { (1, 1200f, 1f, "zh-Hans"), (1, 1200f, 1.25f, "en-US"),
+            (2, 1200f, 1f, "zh-Hans"), (3, 1200f, 1f, "zh-Hans"),
+            (3, 96f, 1f, "zh-Hans"), (2, 1200f, 1.25f, "en-US"), (2, 45f, 1f, "zh-Hans") })
+        {
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(Sky);
+            batch.Begin();
+            batch.Draw(pixel, new Rectangle(0, 421, 1280, 179), Ground);
+            batch.Draw(pixel, new Rectangle(630, 378, 20, 42), new Color(133, 148, 168));
+            batch.End();
+            string tooltip = (string)scene.GetMethod("DrawOverlap").Invoke(null, [item.Item1, item.Item2, item.Item3, root, item.Item4]);
+            // 原版 MouseText 的排版由游戏负责；这里用正式 Tooltip 文本及项目 FNA 字体检查长行和缩放。
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            batch.DrawString(font, tooltip, new Vector2(40, 38), Color.White, 0, Vector2.Zero, .55f * item.Item3, SpriteEffects.None, 0);
+            batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            string path = Path.Combine(output, $"overlap-{item.Item1}-{item.Item2}-{item.Item3}-{item.Item4}.png");
+            using var stream = File.Create(path);
+            target.SaveAsPng(stream, 1280, 600);
+            Console.WriteLine(path);
+        }
     }
 
     void Verify()
@@ -397,5 +489,5 @@ sealed class Preview : Game
         Console.WriteLine($"{frames} animation frames: {path}");
     }
 
-    protected override void UnloadContent() { frame?.Dispose(); pixel?.Dispose(); batch?.Dispose(); }
+    protected override void UnloadContent() { frame?.Dispose(); pixel?.Dispose(); portalLine?.Dispose(); batch?.Dispose(); }
 }

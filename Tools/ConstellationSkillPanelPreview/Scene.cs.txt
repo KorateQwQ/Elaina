@@ -1,3 +1,4 @@
+using KL.Drawing.Snippets;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationDrawing;
 internal sealed class PanelScene
@@ -17,6 +18,7 @@ internal sealed class PanelScene
     private const int SlotLeft = 99, SlotTop = 741, SlotSize = 42, SlotStride = 48;
     private static readonly string[] SlotKeys = ConstellationState.SlotLabels;
     private float _zoom = .84f, _flash;
+    private float _clock => SkySeconds;
     private Vector2 _pan;
     private bool _focusing;
     private float _focusElapsed, _focusStartZoom, _focusTargetZoom;
@@ -24,6 +26,7 @@ internal sealed class PanelScene
     private string _hoverNode, _tooltip;
     private string _tooltipKey;
     private Rectangle? _tooltipAnchor;
+    private KLTerm _tooltipTerm;
     private int _slotPress = -1, _slotDropTarget = -1;
     private bool _slotDragging;
     private HashSet<string> _ancestors;
@@ -146,6 +149,35 @@ internal sealed class PanelScene
             _state.Current.Skill.MaxCD = 8;
             if (scenario == "growth-maxed") for (int i = 0; i < 10; i++) _state.Current.ModSkill.TryLevelUp();
         }
+        if (scenario.StartsWith("terms-"))
+        {
+            var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
+            var type = scenario == "terms-freeze" ? typeof(IceConeSkill) : typeof(AshenWitchSkill);
+            player.UnlockSkill(KL.SkillSystem.Skill.NewSkill(type));
+            _state.Refresh(); _state.Select(type.Name);
+        }
+        if (scenario.StartsWith("healing-"))
+        {
+            var player = Fixtures.Player();
+            var character = player.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>();
+            character.CurrentLevel = character.Cap = 95;
+            player.SkillPoint = 100;
+            if (scenario != "healing-new")
+            {
+                var skill = KL.SkillSystem.Skill.NewSkill(typeof(HealSkill));
+                player.UnlockSkill(skill);
+                skill.Level = scenario == "healing-level8" ? 8 : 1;
+            }
+            _state = new(player);
+            _state.Select(nameof(HealSkill));
+            var entry = 伊蕾娜.ElainaModSkills.SkillBalanceSystem.Entries[nameof(HealSkill)];
+            _state.Current.ModSkill.MagicPointCost = (int)entry.ManaCost;
+            _state.Current.Skill.MaxCD = (float)entry.BaseCooldown;
+            string description = _state.Current.ModSkill.GetConstellationDescription();
+            if (description.Contains("{0}") || description.Contains("{1}") || description.Contains("{2}")
+                || !description.Contains(scenario == "healing-level8" ? "240" : "100"))
+                throw new Exception("Healing description does not show the actual healing tier.");
+        }
         _layoutEditor = new(_state, new(), new());
         if (scenario.StartsWith("editor"))
         {
@@ -214,11 +246,29 @@ internal sealed class PanelScene
         batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
         float offset = scrollPosition?.Invoke(detail) ??
-            (scenario is "bottom" or "growth-long" ? Math.Max(0, detail.ContentHeight - detail.Height) : 0);
+            (scenario is "bottom" or "growth-long" or "healing-growth" ? Math.Max(0, detail.ContentHeight - detail.Height)
+                : scenario == "healing-description" ? 120 : 0);
         float y = detail.Top - offset;
-        foreach (var row in detail.Rows) { _draw.Origin = origin + new Vector2(ConstellationDetail.Left, y) * scale; row.Paint(_draw, null); y += row.Height; }
+        // Term scenes hover the first registered term, as the panel does under the pointer.
+        (ConstellationDetailAction Action, float Top)? term = null;
+        foreach (var row in detail.Rows)
+        {
+            var action = scenario.StartsWith("terms-") && term == null ? row.Actions.FirstOrDefault(a => a.Kind == "term") : null;
+            if (action != null) term = (action, y);
+            _draw.Origin = origin + new Vector2(ConstellationDetail.Left, y) * scale;
+            row.Paint(_draw, action == null ? null : "term:" + action.Id);
+            y += row.Height;
+        }
         batch.End(); _draw.Origin = origin;
+        if (scenario.StartsWith("terms-") && term == null) throw new Exception($"{scenario}: no registered term in the description.");
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        detail.DrawScrollHints(_draw, offset, 0);
+        if (term is var (termAction, termTop))
+        {
+            var pointer = new Vector2(ConstellationDetail.Left + termAction.Area.Center.X, termTop + termAction.Area.Center.Y);
+            var termAnchor = ConstellationDetail.TooltipAnchor(termAction, new Vector2(ConstellationDetail.Left, termTop));
+            _draw.TermTooltip(KLTerms.Find(termAction.Id), pointer, new Vector2(DesignWidth, DesignHeight), termAnchor);
+        }
         if (scenario == "requirements-tooltip")
         {
             var area = ConstellationDetail.PillArea(ConstellationDetail.Pills(_state)[0]);

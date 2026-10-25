@@ -12,6 +12,13 @@ public sealed class RecallPortalProjectile : ModProjectile
     public int PairId => (int)Projectile.ai[0];
     public int Side => (int)Projectile.ai[2] & 1;
     public bool Ready => Projectile.ai[1] >= RecallPortalSystem.DelayTicks;
+    // 排布后的实际阵心，绘制、右键使用范围和另一端的传送目标共用。
+    internal Vector2 DisplayCenter;
+
+    public override void SetStaticDefaults() =>
+        // 错位后的图形可能在屏幕内，原始阵心却在屏幕外，不能按原始弹幕位置提前剔除。
+        Terraria.ID.ProjectileID.Sets.DrawScreenCheckFluff[Type] =
+            (int)RecallPortalLayout.HorizontalSpacing * Main.maxPlayers * 2;
     /// <summary>最近一次向上爆发光效开始时的年龄：画完时一次，之后每次有人经这对法阵传送再放一次。仅本地视觉。</summary>
     public float BurstStart => Projectile.localAI[1] > 0 ? Projectile.localAI[1] : RecallPortalSystem.DelayTicks;
     public void Flash() => Projectile.localAI[1] = Math.Max(Projectile.ai[1], RecallPortalSystem.DelayTicks);
@@ -47,12 +54,19 @@ public sealed class RecallPortalProjectile : ModProjectile
             Projectile.Kill();
     }
 
-    // 与占位图的椭圆足迹一致。真实传送范围另外按玩家脚底到阵心的距离校验。
-    public bool Hovered(Vector2 world) => RecallPortalDrawing.Contains(world - Projectile.Center, RecallPortalSystem.AreaRadius);
+    // 悬停匹配显示阵心的椭圆；右键使用范围按玩家脚底到同一阵心的距离校验。
+    public bool Hovered(Vector2 world) => RecallPortalDrawing.Contains(world - DisplayCenter, RecallPortalSystem.AreaRadius);
 
     public override bool PreDraw(ref Color lightColor)
     {
-        RecallPortalVisual.Request(Projectile.Center - Main.screenPosition, RecallPortalSystem.AreaRadius, Projectile.ai[1],
+        RecallPortalPresentation.Refresh();
+        // 原版剔除已放宽；这里按实际显示位置剔除，避免把远端的法阵也提交给 bloom。
+        Matrix view = Main.GameViewMatrix.TransformationMatrix;
+        Vector2 screen = Vector2.Transform(DisplayCenter - Main.screenPosition, view);
+        Vector2 padding = Vector2.TransformNormal(new Vector2(RecallPortalSystem.AreaRadius + 96), view);
+        if (screen.X + padding.X < 0 || screen.X - padding.X > Main.screenWidth ||
+            screen.Y + padding.Y < 0 || screen.Y - padding.Y > Main.screenHeight) return false;
+        RecallPortalVisual.Request(DisplayCenter - Main.screenPosition, RecallPortalSystem.AreaRadius, Projectile.ai[1],
             RecallPortalSystem.DelayTicks, RecallPortalSystem.ResidueTicks, Side == 1, Hovered(Main.MouseWorld), BurstStart);
         return false;
     }

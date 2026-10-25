@@ -10,6 +10,21 @@ import server
 
 
 class BasicDesignTests(unittest.TestCase):
+    def test_flight_configuration_round_trip_and_validation(self):
+        row = next(row for row in self.c["skills"] if row["id"] == "FlightSkill")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "balance.json"
+            server.atomic_save(path, self.payload)
+            restored = json.loads(path.read_text(encoding="utf-8"))["configuration"]
+            self.assertEqual(next(r for r in restored["skills"] if r["id"] == "FlightSkill"), row)
+        for key, value in [("dashCooldownSeconds", 0), ("dashCooldownSeconds", .1), ("dashManaCost", -1),
+                           ("boostManaPerSecond", True), ("baseSpeed", 0), ("handlingPercent", 0), ("handlingPercent", 101), ("dashRecoverySeconds", 0), ("dashRecoverySeconds", .6)]:
+            with self.subTest(key=key, value=value):
+                bad = copy.deepcopy(self.payload)
+                next(r for r in bad["configuration"]["skills"] if r["id"] == "FlightSkill")["flight"][key] = value
+                with self.assertRaises(ValueError):
+                    server.validate_payload(bad)
+
     def setUp(self):
         self.payload = json.loads(server.CONFIG_PATH.read_text(encoding="utf-8-sig"))
         self.c = self.payload["configuration"]

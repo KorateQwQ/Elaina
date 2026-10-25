@@ -16,8 +16,13 @@ $reference = Add-Item 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/Crafting/*.cs"
 $null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
+# 与 AlchemyGameplayChecks 相同：技能经验接口用替身，不加载食物与 ImproveGame 兼容钩子。
+$null = Add-Item 'Compile' "$repo/Tools/AlchemyGameplayChecks/SkillFixture.cs.txt"
 foreach ($path in @('AlchemyRecipe.cs','AlchemyIngredient.cs','UI/AlchemyCatalog.cs','UI/AlchemyNotebookSnapshot.cs','Gameplay/*.cs','item/AlchemyItem.cs','item/Curios/AshenFacsimileDust.cs','item/Recipes/*.cs')) {
-    $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/$path"
+    $source = Add-Item 'Compile' "$repo/ElainaModAlchemy/$path"
+    if ($path -eq 'Gameplay/*.cs') {
+        $source.SetAttribute('Exclude', "$repo/ElainaModAlchemy/Gameplay/ImproveGameFoodCompatibility.cs")
+    }
 }
 $checks = Add-Item 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $checks.SetAttribute('Link', 'Checks.cs')

@@ -44,14 +44,14 @@ internal static class Checks
         };
         bool Quote(Dictionary<int, int> owned, out FacsimileMaterialRule.Quote result) =>
             FacsimileMaterialRule.TryQuote(requirements, owned, Dust, FacsimilePriority.Materials, out result);
-        Assert(Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 15)), out var q) && q.Dust == 15 && Math.Abs(q.Fulfillment - .5) < 1e-12, "exact 50%, one of every material, 15 dust");
+        Assert(Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 15)), out var q) && q.Dust == 15, "one of every material, 15 dust");
         Assert(!Quote(Owned((1, 20), (3, 5), (Dust, 99)), out _), "missing an entire ingredient is rejected");
-        Assert(!Quote(Owned((1, 20000), (2, 1), (3, 1), (Dust, 99)), out _), "excess cheap material cannot inflate average");
-        Assert(!Quote(Owned((1, 20), (2, 1), (3, 3), (Dust, 99)), out _), "below 50% rejected");
+        Assert(Quote(Owned((1, 20000), (2, 1), (3, 1), (Dust, 99)), out q) && q.Dust == 18, "excess material does not reduce other gaps");
+        Assert(Quote(Owned((1, 1), (2, 1), (3, 1), (Dust, 37)), out q) && q.Dust == 37, "no overall fulfillment threshold: one of each is enough");
         Assert(!Quote(Owned((1, 20), (2, 1), (3, 4), (Dust, 14)), out _), "insufficient dust rejected");
         Assert(Quote(Owned((1, 20), (2, 10), (3, 10)), out q) && q.Dust == 0, "full original materials require no dust");
-        Assert(FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 3), (Dust, 2)), Dust, FacsimilePriority.Materials, out q) && q.Dust == 2, "odd single ingredient rounds up threshold");
-        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 2), (Dust, 3)), Dust, FacsimilePriority.Materials, out _), "odd single ingredient below half");
+        Assert(FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((1, 1), (Dust, 4)), Dust, FacsimilePriority.Materials, out q) && q.Dust == 4, "single ingredient needs only one real item");
+        Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(5, new[] { 1 }) }, Owned((Dust, 99)), Dust, FacsimilePriority.Materials, out _), "single ingredient with no real item rejected");
         Assert(!FacsimileMaterialRule.TryQuote(Array.Empty<FacsimileMaterialRule.Requirement>(), Owned((Dust, 99)), Dust, FacsimilePriority.Materials, out _), "empty recipe not eligible");
         Assert(!FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(2, new[] { Dust }) }, Owned((Dust, 1)), Dust, FacsimilePriority.Materials, out _), "dust never substitutes itself");
         var twoSingles = new[] { new FacsimileMaterialRule.Requirement(1, new[] { 1 }), new FacsimileMaterialRule.Requirement(1, new[] { 2 }) };
@@ -69,12 +69,31 @@ internal static class Checks
         }, Owned((1, 10), (2, 10), (Dust, 17)), Dust, FacsimilePriority.Dust, out _),
             "dust priority requires enough dust for the remainder");
 
+        Assert(FacsimileMaterialRule.ChooseRoute(false, false, true) == FacsimileCraftRoute.Original &&
+            FacsimileMaterialRule.ChooseRoute(false, false, false) == FacsimileCraftRoute.None,
+            "left click uses only original materials and never spends dust");
+        Assert(FacsimileMaterialRule.ChooseRoute(false, true, true) == FacsimileCraftRoute.Dust &&
+            FacsimileMaterialRule.ChooseRoute(false, true, false) == FacsimileCraftRoute.Dust,
+            "right click crafts with dust whether or not originals are complete");
+        Assert(FacsimileMaterialRule.ChooseRoute(true, true, true) == FacsimileCraftRoute.Original &&
+            FacsimileMaterialRule.ChooseRoute(true, false, false) == FacsimileCraftRoute.Dust,
+            "alchemy opt-in ignores mouse buttons and fills only missing materials");
+        Assert(FacsimileMaterialRule.PriorityFor(false) == FacsimilePriority.Dust &&
+            FacsimileMaterialRule.PriorityFor(true) == FacsimilePriority.Materials,
+            "crafting right click always keeps one of each; opted-in notebook fills only the gap");
+        Assert(FacsimileMaterialRule.TryQuote(new[] { new FacsimileMaterialRule.Requirement(20, new[] { 1 }) }, Owned((1, 6), (Dust, 19)), Dust,
+            FacsimileMaterialRule.PriorityFor(false), out var shortQuote) && shortQuote.Dust == 19,
+            "short on materials, right click still uses only one (20 needed, 6 owned -> 19 dust)");
+        Assert(FacsimileMaterialRule.HasOriginals(requirements, Owned((1, 20), (2, 10), (3, 10))) &&
+            !FacsimileMaterialRule.HasOriginals(requirements, Owned((1, 20), (2, 10), (3, 9), (Dust, 99))),
+            "original material check ignores dust");
+
         var recipe = Recipe((1, 10), (2, 10));
         var cached = FacsimileRecipe.Build(recipe, Dust);
         Assert(cached.Requirements.Length == 2, "real tML Recipe descriptor");
         var duplicate = FacsimileRecipe.Build(Recipe((1, 10), (1, 10)), Dust);
         Assert(duplicate.Requirements.Length == 1 && duplicate.Requirements[0].Stack == 20, "duplicate ingredient rows merge");
-        Assert(!FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 5), (Dust, 100)), Dust, FacsimilePriority.Materials, out _), "duplicates cannot count one stock twice");
+        Assert(FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 5), (Dust, 100)), Dust, FacsimilePriority.Materials, out q) && q.Dust == 15, "duplicates cannot count one stock twice");
         Assert(FacsimileMaterialRule.TryQuote(duplicate.Requirements, Owned((1, 20), (Dust, 19)), Dust, FacsimilePriority.Dust, out q) && q.Dust == 19,
             "duplicate rows keep one material for the merged requirement");
         int group = RecipeGroup.RegisterGroup("AshenChecks", new RecipeGroup(() => "test metal", 1, 3));
@@ -263,12 +282,12 @@ internal static class Checks
         foreach (string language in new[] { "zh-Hans", "en-US" })
         {
             var localization = Hjson.HjsonValue.Load(Path.Combine(args[1], $"Localization/{language}_Mods.伊蕾娜.Alchemy.hjson"));
-            string tooltip = localization["Crafting"]["FacsimileCost"];
             var itemLocalization = Hjson.HjsonValue.Load(Path.Combine(args[1], $"Localization/{language}_Mods.伊蕾娜.Alchemy.Items.hjson"));
             Assert(!string.IsNullOrWhiteSpace((string)itemLocalization["AshenFacsimileDust"]["DisplayName"]) &&
-                string.Format(tooltip, 15).Contains("15") &&
-                !string.IsNullOrWhiteSpace((string)localization["Crafting"]["FacsimileSubstitution"]) &&
-                !string.IsNullOrWhiteSpace((string)localization["Crafting"]["FacsimileSubstitutionPriority"]), "localization parses and formats " + language);
+                !((string)localization["Crafting"]["FacsimileCraftable"]).Contains(']') &&
+                string.Format((string)localization["Crafting"]["FacsimileRightClick"], 15).Contains("15") &&
+                !((Hjson.JsonObject)localization["Crafting"]).ContainsKey("FacsimileRightClickFill") &&
+                !((Hjson.JsonObject)localization["Crafting"]).ContainsKey("FacsimileModeDust"), "localization parses and formats " + language);
         }
 
         var benchOwned = Owned((1, 20), (2, 1), (3, 4), (Dust, 15));

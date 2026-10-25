@@ -33,6 +33,9 @@ public sealed class ElainaSkillWheel : BaseBody
     private Matrix _matrix;
     private Vector2 _anchor;
     private bool _open, _anchorPending;
+    private static bool _pendingInteractOpen;
+    private static bool _pendingInventoryWasOpen;
+    private static int _pendingChest = int.MinValue;
     private float _time, _closeTime = -1, _presence, _focusAge;
     private int _hovered = -1, _chosen = -1, _focus = -1;
 
@@ -81,7 +84,8 @@ public sealed class ElainaSkillWheel : BaseBody
     private static bool HoldingWand => Main.LocalPlayer.HeldItem.ModItem is ElainaWand;
 
     private static bool CanStayOpen => HoldingWand && Main.hasFocus && !Main.gameMenu && !Main.drawingPlayerChat
-        && !Main.ingameOptionsWindow && !Main.inFancyUI && Main.LocalPlayer is { active: true, dead: false }
+        && !Main.ingameOptionsWindow && !Main.inFancyUI
+        && Main.LocalPlayer is { active: true, dead: false }
         && ElainaSkillManager.SelectionMode == SkillSelectionMode.Wheel && !ElainaHealingWheel.IsShowing
         && !Skills.DollControl.DollCommandWheel.IsShowing;
 
@@ -89,24 +93,77 @@ public sealed class ElainaSkillWheel : BaseBody
         && !(Main.mouseRight && Skills.Recall.RecallPortalPlayer.FindHovered(Main.LocalPlayer) != null)
         && !ConstellationSkillPanel.ConstellationSkillPanel.PanelShown;
 
+    private static InputMode BindingMode => PlayerInput.CurrentInputMode is InputMode.XBoxGamepad or InputMode.XBoxGamepadUI
+        ? InputMode.XBoxGamepad : InputMode.Keyboard;
+
+    private static bool UsesVanillaInteractKey()
+    {
+        ModKeybind key = KeyBind.OpenSkillWheel;
+        if (key == null || PlayerInput.CurrentProfile == null) return false;
+        InputMode mode = BindingMode;
+        if (!PlayerInput.CurrentProfile.InputModes.TryGetValue(mode, out var configuration) ||
+            !configuration.KeyStatus.TryGetValue("MouseRight", out var interactKeys)) return false;
+        foreach (string assigned in key.GetAssignedKeys(mode))
+            if (interactKeys.Contains(assigned)) return true;
+        return false;
+    }
+
+    private static bool VanillaInteractionConsumed => Main.playerInventory && !_pendingInventoryWasOpen
+        || Main.editSign || Main.editChest || Main.LocalPlayer.tileInteractionHappened
+        || Main.LocalPlayer.talkNPC != -1 || Main.LocalPlayer.chest != _pendingChest;
+
+    private static void ClearPendingInteract()
+    {
+        _pendingInteractOpen = false;
+        _pendingInventoryWasOpen = false;
+        _pendingChest = int.MinValue;
+    }
+
     internal static void HandleInput(ModKeybind key)
     {
-        if (key == null || !TryGet(out var wheel)) return;
+        if (key == null) return;
+        if (!TryGet(out var wheel))
+        {
+            ClearPendingInteract();
+            return;
+        }
         if (!HoldingWand)
         {
+            ClearPendingInteract();
             wheel.CloseImmediately();
             return;
         }
         if (wheel._open)
         {
+            ClearPendingInteract();
             if (!CanStayOpen) wheel.Close(false);
             else if (!key.Current) wheel.Close(true);
         }
-        else if (key.JustPressed && CanOpen) wheel.Open();
+        else if (!key.Current)
+            ClearPendingInteract();
+        else if (key.JustPressed && CanOpen)
+        {
+            // The default binding is Mouse2, which is also Terraria's interact key.
+            // Give vanilla one update to open a Void Vault, chest, NPC dialog, etc.
+            _pendingInteractOpen = UsesVanillaInteractKey();
+            if (_pendingInteractOpen)
+            {
+                _pendingInventoryWasOpen = Main.playerInventory;
+                _pendingChest = Main.LocalPlayer.chest;
+            }
+            if (!_pendingInteractOpen) wheel.Open();
+        }
+        else if (_pendingInteractOpen)
+        {
+            bool consumed = VanillaInteractionConsumed;
+            ClearPendingInteract();
+            if (CanOpen && !consumed) wheel.Open();
+        }
     }
 
     internal static void ResetWorld()
     {
+        ClearPendingInteract();
         if (TryGet(out var wheel)) Main.QueueMainThreadAction(wheel.CloseImmediately);
     }
 

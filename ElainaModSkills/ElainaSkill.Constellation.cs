@@ -28,6 +28,14 @@ public abstract partial class ElainaSkill
     /// <summary>用于升级比较的实际当前值和下一等级值。在定义成长效果前保持为空。</summary>
     public virtual (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel) => [];
 
+    /// <summary>魔力不足时能否通过灰之魔女消耗生命补足施法消耗。为 false 时描述末尾自动追加通用警告。</summary>
+    public virtual bool AllowsLifeConversion => true;
+
+    /// <summary>在技能描述后追加由技能属性决定的通用说明，技能栏提示与星图详情共用。</summary>
+    protected string AppendDescriptionNotes(string description) => AllowsLifeConversion
+        ? description
+        : description + "\n" + Language.GetTextValue("Mods.伊蕾娜.SkillInfo.Snippets.NoLifeConversion");
+
     public virtual string GetConstellationDescription()
     {
         string key = $"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}";
@@ -35,7 +43,7 @@ public abstract partial class ElainaSkill
         try
         {
             string text = Language.GetText(key).WithFormatArgs(SkillDescriptionArgs).Value;
-            return string.IsNullOrWhiteSpace(text) ? LocalizeUI("MissingDescription") : text;
+            return string.IsNullOrWhiteSpace(text) ? LocalizeUI("MissingDescription") : AppendDescriptionNotes(text);
         }
         catch (FormatException)
         {

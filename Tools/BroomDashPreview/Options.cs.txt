@@ -1,0 +1,136 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using System.Text.Json;
+using 伊蕾娜.Mounts;
+using var game = new Options(args[0], args[1]); game.Run();
+
+sealed class Options : Game
+{
+    const int Frames = 46, TrailSamples = BroomDashWindRenderer.TrailSamples;
+    readonly string output; readonly float dashSpeed, cruiseSpeed, handling; readonly int dashTicks, recoveryTicks;
+    SpriteBatch batch; Texture2D wind, broom, pixel; BroomDashWindRenderer rings; bool done;
+    public Options(string output, string repo)
+    {
+        this.output = output;
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Data/SkillBalance.json")));
+        var f = doc.RootElement.GetProperty("configuration").GetProperty("skills").EnumerateArray().First(x => x.GetProperty("id").GetString() == "FlightSkill").GetProperty("flight");
+        cruiseSpeed = f.GetProperty("baseSpeed").GetSingle() * (1 + f.GetProperty("learnedSpeedBonus").GetSingle() + 8 * f.GetProperty("speedBonusPerLevel").GetSingle());
+        dashSpeed = cruiseSpeed * f.GetProperty("dashMultiplier").GetSingle(); handling = f.GetProperty("handlingPercent").GetSingle() / 100f;
+        dashTicks = (int)Math.Round(f.GetProperty("dashSeconds").GetDouble() * 60); recoveryTicks = (int)Math.Round(f.GetProperty("dashRecoverySeconds").GetDouble() * 60);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 1200, PreferredBackBufferHeight = 360, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    Texture2D LoadRaw(string name)
+    {
+        using var reader = new BinaryReader(File.OpenRead(Path.Combine(output, name + ".rgba")));
+        int width = reader.ReadInt32(), height = reader.ReadInt32(); var texture = new Texture2D(GraphicsDevice, width, height);
+        texture.SetData(reader.ReadBytes(width * height * 4)); return texture;
+    }
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice); rings = new BroomDashWindRenderer(GraphicsDevice);
+        wind = LoadRaw("wind"); broom = LoadRaw("broom"); pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+    }
+    void Background(bool bright, Vector2 camera)
+    {
+        GraphicsDevice.Clear(bright ? new Color(125, 172, 195) : new Color(23, 31, 46));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        // 网格随世界滚动，用来读出镜头跟随时的相对速度。
+        int ox = (int)(-camera.X % 40 + 40) % 40, oy = (int)(-camera.Y % 40 + 40) % 40;
+        for (int x = ox; x < 1200; x += 40) batch.Draw(pixel, new Rectangle(x, 0, 1, 360), new Color(15, 15, 15, 15));
+        for (int y = oy; y < 360; y += 40) batch.Draw(pixel, new Rectangle(0, y, 1200, 1), new Color(15, 15, 15, 15));
+        batch.End();
+    }
+    // 按 Mount.Draw 定位：扫帚贴图中心 = MountedCenter + (xOffset*方向, yOffset)，绕玩家中心按 fullRotation 旋转。
+    // 人物为 20×42 判定框上的中性替身；扫帚 back 层画在人物后面。
+    void Rider(Vector2 center, int facing, float rotation)
+    {
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        Vector2 broomAt = center + Rotate(new Vector2(facing * 1f, -4f), rotation);
+        batch.Draw(broom, broomAt, null, Color.White, rotation, new Vector2(broom.Width, broom.Height) * .5f, 1,
+            facing < 0 ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0);
+        batch.Draw(pixel, new Rectangle((int)center.X - 7, (int)center.Y - 5, 14, 24), new Color(159, 142, 190));
+        batch.Draw(pixel, new Rectangle((int)center.X - 6, (int)center.Y - 17, 12, 12), new Color(240, 219, 204));
+        batch.Draw(pixel, new Rectangle((int)center.X - 15, (int)center.Y - 20, 30, 4), new Color(83, 69, 109));
+        batch.Draw(pixel, new Rectangle((int)center.X - 7, (int)center.Y - 29, 14, 10), new Color(83, 69, 109));
+        batch.End();
+    }
+    static Vector2 Rotate(Vector2 v, float r) => Vector2.Transform(v, Matrix.CreateRotationZ(r));
+    // 与 扫帚.UpdateRotation 一致。
+    static float Tilt(Vector2 velocity, int facing) => MathHelper.Clamp(velocity.Y / 5f, -1f, 1f) * .15f * facing;
+    // 实际冲刺：Lv9 巡航速度 × 冲刺倍率，冲刺结束后按正式恢复/操控收速，无方向输入。
+    List<Vector2> DashPath(Vector2 start, Vector2 dir)
+    {
+        var list = new List<Vector2> { start }; float speed = dashSpeed; Vector2 p = start;
+        for (int tick = 1; tick < Frames; tick++)
+        {
+            if (tick < dashTicks) speed = dashSpeed;
+            else { float cap = MathHelper.Lerp(dashSpeed, cruiseSpeed, MathHelper.Clamp((tick - dashTicks) / (float)recoveryTicks, 0, 1)); speed = Math.Min(speed, cap) * (1 - handling); if (speed < cruiseSpeed * .01f) speed = 0; }
+            p += dir * speed; list.Add(p);
+        }
+        return list;
+    }
+    // 扫帚毛中段（贴图 x≈10, y≈66，中心 48,48）换算到玩家中心坐标，随朝向镜像、随倾角旋转。
+    static Vector2 Tail(Vector2 center, Vector2 dir)
+    {
+        int facing = dir.X < 0 ? -1 : 1;
+        return center + Rotate(new Vector2(-37f * facing, 14f), Tilt(dir * 30f, facing));
+    }
+
+    void Effects(char variant, int tick, List<Vector2> path, Vector2 dir, Matrix view)
+    {
+        var d = GraphicsDevice;
+        if (variant == 'A') { rings.DrawWake(d, wind, path[0], dir, tick, dashSpeed, view); return; }
+        // B/D：起点保留双环，冲刺途中每 8 tick 在扫帚尾部补一枚较小的环，接力到冲刺结束。
+        if (variant == 'B' || variant == 'D')
+        {
+            rings.DrawWake(d, wind, path[0], dir, tick, dashSpeed, view);
+            for (int spawn = 8; spawn < dashTicks; spawn += 8)
+                if (tick >= spawn)
+                    rings.Draw(d, wind, Tail(path[spawn], dir) + dir * 30f, dir, tick - spawn, dashSpeed * .6f, view,
+                        startAngle: spawn * .9f, rotationSpeed: -.15f, radiusStart: 30f, radiusEnd: 52f,
+                        depthStart: 7f, depthEnd: 13f, thicknessStart: 10f, thicknessEnd: 14f, openingAngle: 1.4f);
+        }
+        if (variant == 'C') rings.DrawWake(d, wind, path[0], dir, tick, dashSpeed, view);
+        if (variant == 'C' || variant == 'D')
+        {
+            // 与 BroomDashWind 相同：起点采样一次，之后每 tick 采样当前扫帚尾部，头部在 [0]。
+            var pts = new List<Vector2>();
+            for (int i = tick; i >= Math.Max(0, tick - TrailSamples); i--) pts.Add(Tail(path[i], dir));
+            rings.DrawTrail(d, wind, pts.ToArray(), tick, dashTicks, view);
+        }
+    }
+
+    void Capture(string name, char variant, int tick, List<Vector2> path, Vector2 dir, bool bright = false)
+    {
+        Vector2 rider = path[tick];
+        // 镜头锁定人物，和游戏中跟随视角一致；人物固定在画面 x=760。
+        Vector2 camera = rider - new Vector2(760, 190) + dir * new Vector2(0, 0);
+        Matrix view = Matrix.CreateTranslation(-camera.X, -camera.Y, 0);
+        using var target = new RenderTarget2D(GraphicsDevice, 1200, 360);
+        GraphicsDevice.SetRenderTarget(target); Background(bright, camera);
+        Effects(variant, tick, path, dir, view);
+        int facing = dir.X < 0 ? -1 : 1;
+        Rider(rider - camera, facing, Tilt(dir * 30f, facing));
+        GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(System.IO.Path.Combine(output, name + ".png")); target.SaveAsPng(file, 1200, 360);
+    }
+
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        var right = DashPath(Vector2.Zero, Vector2.UnitX);
+        foreach (char v in "ABCD")
+            for (int tick = 0; tick < Frames; tick++) Capture($"{v}-{tick:000}", v, tick, right, Vector2.UnitX);
+        var diag = new Vector2(-.7071f, -.7071f);
+        var up = DashPath(Vector2.Zero, diag);
+        foreach (char v in "CD") Capture($"{v}-diag", v, 12, up, diag);
+        foreach (char v in "CD") Capture($"{v}-bright", v, 12, right, Vector2.UnitX, true);
+        var left = DashPath(Vector2.Zero, -Vector2.UnitX);
+        foreach (char v in "CD") Capture($"{v}-left", v, 12, left, -Vector2.UnitX);
+        Console.WriteLine($"FNA options: dash {dashSpeed:0.0}px/tick × {dashTicks} ticks, recovery {recoveryTicks}.");
+        Exit();
+    }
+    protected override void UnloadContent() { rings?.Dispose(); wind?.Dispose(); broom?.Dispose(); pixel?.Dispose(); batch?.Dispose(); }
+}

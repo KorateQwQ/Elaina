@@ -1,10 +1,11 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ModLoader;
-using 伊蕾娜.炼金;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.UI;
 
 namespace 伊蕾娜.Items.accessories
 {
@@ -22,13 +23,29 @@ namespace 伊蕾娜.Items.accessories
             }
             return false;
         }
-        public override Position GetDefaultPosition() => new AfterParent(PlayerDrawLayers.Head);
+        public override Position GetDefaultPosition() => new Between(PlayerDrawLayers.Head, PlayerDrawLayers.FinchNest);
+        public override Transformation Transform => PlayerDrawLayers.TorsoGroup;
+        public override bool IsHeadLayer => true;
         protected override void Draw(ref PlayerDrawSet drawInfo)
         {
             drawInfo.hatHair = true;
             Vector2 move = new(-0, 0);
             if (ElainaHatTexture == null) ElainaHatTexture =
                     Mod.Assets.Request<Texture2D>("Items/accessories/ElainHatFrame");
+            var alchemy = drawInfo.drawPlayer.GetModPlayer<AlchemyBrewingPlayer>();
+            if (alchemy.Active && !drawInfo.headOnlyRender)
+            {
+                // This layer normally inherits TorsoGroup. The full-body alchemy
+                // sheet has its own head, so anchor the hat to that same canvas.
+                var ground = AlchemyBrewAnimation.Ground(
+                    drawInfo.Position - Main.screenPosition - new Vector2(0, drawInfo.torsoOffset),
+                    drawInfo.drawPlayer.width, drawInfo.drawPlayer.height, drawInfo.drawPlayer.HeightOffsetVisual);
+                drawInfo.DrawDataCache.Add(new DrawData(ElainaHatTexture.Value,
+                    AlchemyBrewAnimation.HatPosition(ground, alchemy.IsBrewing, alchemy.AnimationFrame),
+                    new Rectangle(0, 0, ElainaHatTexture.Width(), ElainaHatTexture.Height() / 20),
+                    drawInfo.colorArmorHead, 0, Vector2.Zero, 1f, SpriteEffects.None) { shader = drawInfo.cHead });
+                return;
+            }
             SpriteEffects SE = drawInfo.playerEffect;
             // var position = drawInfo.drawPlayer.MountedCenter.Floor() + new Vector2(-19f, -4f + drawInfo.drawPlayer.gfxOffY) - Main.screenPosition;
             Vector2 position = new Vector2((int)(drawInfo.Position.X - Main.screenPosition.X - (float)(drawInfo.drawPlayer.bodyFrame.Width / 2) + (float)(drawInfo.drawPlayer.width / 2)), (int)(drawInfo.Position.Y - Main.screenPosition.Y + (float)drawInfo.drawPlayer.height - (float)drawInfo.drawPlayer.bodyFrame.Height + 4f)) + drawInfo.drawPlayer.headPosition + drawInfo.headVect;
@@ -50,7 +67,7 @@ namespace 伊蕾娜.Items.accessories
             {
                 position.Y += 4f;
             }
-            //if (drawInfo.drawPlayer.GetModPlayer<炼金modplayer>().搅拌中) move += new Vector2(0, -10);
+            //if (drawInfo.drawPlayer.GetModPlayer<AlchemyBrewingPlayer>().IsBrewing) move += new Vector2(0, -10);
             //if (drawInfo.drawPlayer.mount.Active) position.Y += drawInfo.drawPlayer.mount.HeightBoost/2;
             int frameHeight = ElainaHatTexture.Height() / 20;
             int startY = 0;
@@ -61,35 +78,11 @@ namespace 伊蕾娜.Items.accessories
             
             if (drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().掉落帽子 >= 2)
             {
-                if (drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().掉落帽子 > 2 && drawInfo.shadow == 0) drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().掉落帽子--;
+                if (!Main.gamePaused && !Main.gameMenu && drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().掉落帽子 > 2 && drawInfo.shadow == 0) drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().掉落帽子--;
                 Vector2 endposition = new(0, 56);
                 move = Vector2.Lerp(endposition, Vector2.Zero, drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().掉落帽子 / 150f);
             }
 
-            var p = drawInfo.drawPlayer.GetModPlayer<炼金modplayer>();
-            if (p.搅拌中)
-            {
-                rotation = 0;
-                move += new Vector2(0, drawInfo.drawPlayer.HeightOffsetVisual/2);
-
-                if (p.bodyFrame >= 5 && p.bodyFrame <= 8)
-                {
-                    move += new Vector2(p.bodyFrame - 4, 0);
-                }
-                if (p.bodyFrame == 9)
-                {
-                    move += new Vector2(p.bodyFrame - 4, 0);
-                }
-                if (p.bodyFrame >= 10 && p.bodyFrame <= 12)
-                {
-                    move += new Vector2(13 - p.bodyFrame, 0);
-                }
-            }
-
-            if (p.炼制中)
-            {
-                rotation = 0;
-            }
             if (drawInfo.drawPlayer.sitting.isSitting)
             {
                 //position += new Vector2(0, -5);

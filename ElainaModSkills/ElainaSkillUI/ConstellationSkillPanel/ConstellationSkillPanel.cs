@@ -2,6 +2,7 @@ using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using KL.Drawing.Snippets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -40,6 +41,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private string _pressedNode, _hoverNode, _toast, _tooltip;
     private string _tooltipKey;
     private Rectangle? _tooltipAnchor;
+    // Set when the hovered text is a registered term; shown as a term card instead of a plain tooltip.
+    private KLTerm _tooltipTerm;
     private readonly ConstellationTooltipDelay _tooltipDelay = new();
     private float _toastLife, _lastBlankClick = -1;
     private float _refreshTimer;
@@ -251,9 +254,9 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         foreach (var (view, visible) in _conditionalButtons) view.Invalid = !visible();
     }
 
-    private void RequestTooltip(string text, Rectangle? anchor, string key)
+    private void RequestTooltip(string text, Rectangle? anchor, string key, KLTerm term = null)
     {
-        _tooltip = text; _tooltipAnchor = anchor; _tooltipKey = key;
+        _tooltip = text; _tooltipAnchor = anchor; _tooltipKey = key; _tooltipTerm = term;
     }
 
     private void FitWindowToScreen(Size screenSize)
@@ -382,6 +385,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     {
         bool changed = _state.Selected != id;
         _state.Select(id);
+        _state.MarkSeen(id);
         _ancestors = _state.Ancestors();
         _flash = 0;
         InvalidateDetail(changed);
@@ -499,8 +503,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _tooltip = null;
         _tooltipAnchor = null;
         _tooltipKey = null;
+        _tooltipTerm = null;
         DrawChrome();
         DrawDetails();
+        if (_detailScroll != null && !_state.EmptyFilter)
+            _detail?.DrawScrollHints(_draw, _detailScroll.Motion.Position, _clock);
     }
 
     public override void DrawChildren(GameTime gameTime, SpriteBatch spriteBatch)
@@ -519,7 +526,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         }
         if (!_book.IsOpen || !Main.hasFocus || Main.mouseLeft || _dragging || string.IsNullOrEmpty(_tooltip)) { _tooltipDelay.Reset(); return; }
         if (!_tooltipDelay.Ready(_tooltipKey, _clock)) return;
-        _draw.Tooltip(_tooltip, Design(Main.MouseScreen), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
+        if (_tooltipTerm != null) _draw.TermTooltip(_tooltipTerm, Design(Main.MouseScreen), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
+        else _draw.Tooltip(_tooltip, Design(Main.MouseScreen), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
     }
 
     private void DrawChrome()
@@ -723,6 +731,14 @@ public sealed partial class ConstellationSkillPanel : BaseBody
                 ringAlpha * alpha, selected, _nodeFx.Time, _nodeFx.SinceTrace(s.id));
             d.NodeSelection(p, _zoom, amount, _nodeFx.Landed(s.id), _nodeFx.SinceLanding, _nodeFx.Time, _nodeFx.Flutter, alpha);
         }
+        if (!Editing && !selected && _state.IsFresh(s.id))
+        {
+            // New since the last visit: a slow gold pulse and a spark that clear once the node is selected.
+            float pulse = .5f + .5f * MathF.Sin(_clock * 3.2f);
+            d.Image("Glow", p.X - 50 * _zoom, p.Y - 50 * _zoom, 100 * _zoom, 100 * _zoom, Gold * ((.1f + .14f * pulse) * alpha));
+            d.Ring(p, (NodeRadius + 4 + 3 * pulse) * _zoom, (NodeRadius + 4 + 3 * pulse) * _zoom, Gold * ((.35f + .4f * pulse) * Math.Max(alpha, .6f)), 1.2f);
+            d.Spark(p + Polar(NodeRadius + 6, -45) * _zoom, (9 + 3 * pulse) * _zoom, Gold * Math.Max(alpha, .7f));
+        }
         if (selected && _flash > 0) d.Ring(p, (NodeRadius + (1 - _flash) * 40) * _zoom,
             (NodeRadius + (1 - _flash) * 40) * _zoom, Gold * _flash * .7f, 1.5f);
         // Levels and slot keys live in the detail column and the slot bar; the map only names the star.
@@ -877,6 +893,14 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         d.DotSeparator(502, 733, 783);
     }
 
+    /// <summary>打开手札并选中指定技能（来自显现/启封提示）；已打开时只改选。</summary>
+    internal static void OpenAt(string id)
+    {
+        if (!PanelShown && !TogglePanel()) return;
+        if (!TryPanel(out var body) || body._state?.Find(id) == null) return;
+        body.Select(id);
+    }
+
     public static bool TogglePanel()
     {
         if (Main.dedServ || Main.gameMenu || SilkyUISystem.ServiceProvider == null) return false;
@@ -887,7 +911,10 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             bool initializeCamera = body._state == null || !body._state.IsCurrentPlayer;
             if (initializeCamera)
             {
-                body._state = new ConstellationState(ElainaSkillModPlayer.SkillModPlayer);
+                body._state = new ConstellationState(ElainaSkillModPlayer.SkillModPlayer)
+                {
+                    Fresh = Main.LocalPlayer.GetModPlayer<ConstellationDiscoveryPlayer>().Tracker.Fresh
+                };
                 body.LoadLayout();
                 body.Recenter();
             }

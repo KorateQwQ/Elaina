@@ -145,7 +145,7 @@ public sealed partial class ConstellationSkillPanel
             InvalidateDetail(true);
             Notify($"精通完成 · 角色 Lv. {Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().GetLevel()} · 新学 {learned} 个技能 · 技能共提升 {levels} 级");
         }, h => DrawDebugButton("master-skills", h),
-            "先升至当前等级上限，再学会当前可解锁的全部技能并升至当前可达最高等级；免材料与研习点，保留阶段和前置条件", () => !Editing);
+            "先升至当前等级上限，再学会满足角色等级与等级上限要求的星图技能（含隐藏技能）并升至技能当前等级上限；无视 Boss、前置与其他研习条件，不消耗材料和研习点", () => !Editing);
         Button(ToolButton("reset-skills", false), () =>
         {
             if (Editing) return;

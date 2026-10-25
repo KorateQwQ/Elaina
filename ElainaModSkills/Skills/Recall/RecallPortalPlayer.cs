@@ -1,6 +1,5 @@
 using Terraria.ID;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
-using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 
@@ -33,13 +32,14 @@ public sealed class RecallPortalPlayer : ModPlayer
 
     public override void SetControls()
     {
-        if (Player.dead || !Main.hasFocus || Main.gameMenu || Main.playerInventory || Main.drawingPlayerChat ||
+        if (Player.whoAmI != Main.myPlayer || Player.dead || !Main.hasFocus || Main.gameMenu || Main.drawingPlayerChat ||
             Main.ingameOptionsWindow || Main.inFancyUI || Main.editSign || Main.editChest ||
             Player.mouseInterface || ElainaHealingWheel.OwnsPointer) return;
         if (ElainaSkillWheel.IsShowing) return;
-        RecallPortalProjectile nearest = FindHovered(Player);
+        RecallPortalProjectile nearest = FindHovered(Player, inspectOnly: true);
         if (nearest == null) return;
-        Main.instance.MouseText(LocalizeUI("RecallInteract"));
+        Main.instance.MouseText(RecallPortalPresentation.Tooltip(Player, nearest));
+        if (!RecallPortalPresentation.CanTravel(Player, nearest)) return;
         if (!Main.mouseRight) return;
         // 阻止右键同时触发魔杖技能盘、床或其他物品交互；松开后才可再次传送。
         Player.mouseInterface = true;
@@ -52,17 +52,17 @@ public sealed class RecallPortalPlayer : ModPlayer
         if (Main.netMode == NetmodeID.MultiplayerClient) TravelCooldown = RecallPortalSystem.TravelCooldownTicks;
     }
 
-    internal static RecallPortalProjectile FindHovered(Player player)
+    internal static RecallPortalProjectile FindHovered(Player player, bool inspectOnly = false)
     {
+        RecallPortalPresentation.Refresh();
         RecallPortalProjectile nearest = null;
         float nearestDistance = float.MaxValue;
         foreach (Projectile projectile in Main.ActiveProjectiles)
         {
-            if (projectile.ModProjectile is not RecallPortalProjectile portal || !portal.Ready ||
+            if (projectile.ModProjectile is not RecallPortalProjectile portal ||
                 projectile.owner < 0 || projectile.owner >= Main.maxPlayers ||
-                !RecallPortalSystem.IsAlly(Main.player[projectile.owner], player) ||
-                !RecallPortalSystem.InArea(player, projectile.Center) || !portal.Hovered(Main.MouseWorld)) continue;
-            float distance = Vector2.DistanceSquared(Main.MouseWorld, projectile.Center);
+                (!inspectOnly && !RecallPortalPresentation.CanTravel(player, portal)) || !portal.Hovered(Main.MouseWorld)) continue;
+            float distance = Vector2.DistanceSquared(Main.MouseWorld, portal.DisplayCenter);
             if (distance >= nearestDistance) continue;
             nearest = portal; nearestDistance = distance;
         }

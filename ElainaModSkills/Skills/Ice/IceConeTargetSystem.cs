@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using KL.SkillSystem;
 using Terraria.GameContent;
@@ -23,7 +23,6 @@ public class IceConeTargetSystem : ModSystem
     // 绘制四边形的半边长（以准星半径为单位），需要容纳最外圈的冰尘和冲击环
     private const float ReticleExtent = 2.8f;
 
-    private const int NoiseSize = 512;
     // 霜纹只出现在锁定后收紧的菱形框内，fbm(p * 7) 的采样范围不超过 ±9
     private const float NoiseRange = 9f;
 
@@ -100,13 +99,7 @@ public class IceConeTargetSystem : ModSystem
         age = -1f;
     }
 
-    public override void Unload()
-    {
-        Texture2D texture = noiseTexture;
-        noiseTexture = null;
-        if (texture != null)
-            Main.QueueMainThreadAction(texture.Dispose);
-    }
+    public override void Unload() => noiseTexture = null; // ModContent 负责释放资源。
 
     public override void PostUpdateEverything()
     {
@@ -172,7 +165,7 @@ public class IceConeTargetSystem : ModSystem
             return;
 
         Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/IceReticle", AssetRequestMode.ImmediateLoad).Value;
-        noiseTexture ??= BakeNoiseTexture(Main.instance.GraphicsDevice);
+        noiseTexture ??= ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/Skills/Ice/Assets/ReticleNoise", AssetRequestMode.ImmediateLoad).Value;
         SetReticleParameters(effect);
 
         // AlphaBlend 即预乘混合，与 shader 输出一致；Immediate 模式下逐个 pass 画同一个四边形
@@ -251,58 +244,4 @@ public class IceConeTargetSystem : ModSystem
         return t * t * (3f - 2f * t);
     }
 
-    // 与预览 / 原 GLSL 相同的 fbm，烘焙成纹理供霜纹采样（ps_3_0 指令数放不下实时计算）
-    private static Texture2D BakeNoiseTexture(GraphicsDevice gd)
-    {
-        Color[] data = new Color[NoiseSize * NoiseSize];
-        for (int y = 0; y < NoiseSize; y++)
-        {
-            float qy = ((y + 0.5f) / NoiseSize * 2f - 1f) * NoiseRange;
-            for (int x = 0; x < NoiseSize; x++)
-            {
-                float qx = ((x + 0.5f) / NoiseSize * 2f - 1f) * NoiseRange;
-                byte value = (byte)Math.Clamp((int)MathF.Round(Fbm(qx, qy) * 255f), 0, 255);
-                data[y * NoiseSize + x] = new Color(value, value, value, 255);
-            }
-        }
-
-        Texture2D texture = new(gd, NoiseSize, NoiseSize);
-        texture.SetData(data);
-        return texture;
-    }
-
-    private static float Fract(float x) => x - MathF.Floor(x);
-
-    private static float Hash(float x, float y)
-    {
-        x = Fract(x * 123.34f);
-        y = Fract(y * 456.21f);
-        float d = x * (x + 45.32f) + y * (y + 45.32f);
-        return Fract((x + d) * (y + d));
-    }
-
-    private static float Noise(float x, float y)
-    {
-        float ix = MathF.Floor(x), iy = MathF.Floor(y);
-        float fx = x - ix, fy = y - iy;
-        fx = fx * fx * (3f - 2f * fx);
-        fy = fy * fy * (3f - 2f * fy);
-        float bottom = MathHelper.Lerp(Hash(ix, iy), Hash(ix + 1f, iy), fx);
-        float top = MathHelper.Lerp(Hash(ix, iy + 1f), Hash(ix + 1f, iy + 1f), fx);
-        return MathHelper.Lerp(bottom, top, fy);
-    }
-
-    private static float Fbm(float x, float y)
-    {
-        float sum = 0f, amplitude = 0.5f;
-        for (int i = 0; i < 4; i++)
-        {
-            sum += amplitude * Noise(x, y);
-            x = x * 2.03f + 1.7f;
-            y = y * 2.03f + 1.7f;
-            amplitude *= 0.5f;
-        }
-
-        return sum;
-    }
 }

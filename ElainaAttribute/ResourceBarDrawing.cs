@@ -94,15 +94,15 @@ internal sealed class ResourceBarDrawing
         if (ghost > width)
         {
             BeginClipped(batch, ui, origin, ghost, h);
-            Rect(batch, pixel, origin, ghost, h, (isMana ? new Color(234, 236, 255) : new Color(255, 236, 246)) * .9f);
+            // Darker and more saturated than the fill, brighter than the empty slot, so the real value edge stays readable.
+            Rect(batch, pixel, origin, ghost, h, isMana ? new Color(132, 112, 236) * .9f : new Color(160, 52, 92) * .85f);
             batch.End();
         }
         if (width > 0)
         {
             BeginClipped(batch, ui, origin, width, h);
             Material(batch, origin, art, isMana, time, width, h, 1);
-            if (state.Flash > 0) Rect(batch, pixel, origin, width, h, Color.White * (state.Flash * .5f));
-            batch.End();
+                        batch.End();
         }
         Begin(batch, ui);
         batch.Draw(frame, origin - new Vector2(32, 16), null, Color.White, 0, Vector2.Zero, 322f / frame.Width, SpriteEffects.None, 0);

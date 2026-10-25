@@ -6,6 +6,7 @@ using SilkyUIFramework;
 using SilkyUIFramework.Elements;
 using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
+using KL.Drawing.Snippets;
 using Terraria;
 using 伊蕾娜.System.UI;
 
@@ -23,7 +24,7 @@ public sealed partial class ConstellationSkillPanel
                 _state?.IsCurrentPlayer == true && !_state.EmptyFilter,
             // Switches and related skill icons retain their click gestures.
             CanDrag = e => !_detailRows.Any(r => r.View == e.Source && r.Row != null &&
-                r.Row.Actions.Any(a => a.Area.Contains(((e.MousePosition - r.View.Bounds.Position) / _scale).ToPoint())))
+                r.Row.Actions.Any(a => a.Kind != "term" && a.Area.Contains(((e.MousePosition - r.View.Bounds.Position) / _scale).ToPoint())))
         }.Join(this);
         _detailScroll.Mask.IndependentRenderTarget = false;
         _detailScroll.Mask.Border = 0;
@@ -62,14 +63,19 @@ public sealed partial class ConstellationSkillPanel
                     ? row.Actions.FirstOrDefault(a => a.Area.Contains(mouse.ToPoint())) : null;
                 var oldOrigin = _draw.Origin;
                 _draw.Origin = v.Bounds.Position;
-                string visualAction = action == null ? null : action.Kind == "relation" ? action.Id : action.Kind;
+                string visualAction = action?.Kind switch
+                {
+                    null => null,
+                    "relation" => action.Id,
+                    "term" => "term:" + action.Id,
+                    _ => action.Kind
+                };
                 row.Paint(_draw, visualAction);
                 _draw.Origin = oldOrigin;
                 if (action != null)
                 {
-                    var position = Design(v.Bounds.Position);
-                    RequestTooltip(action.Tooltip, new Rectangle((int)position.X + action.Area.X, (int)position.Y + action.Area.Y,
-                        action.Area.Width, action.Area.Height), action.Kind + ":" + action.Id);
+                    RequestTooltip(action.Tooltip, ConstellationDetail.TooltipAnchor(action, Design(v.Bounds.Position)),
+                        action.Kind + ":" + action.Id, action.Kind == "term" ? KLTerms.Find(action.Id) : null);
                 }
             })
             {

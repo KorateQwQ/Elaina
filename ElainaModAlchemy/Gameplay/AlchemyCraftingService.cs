@@ -78,6 +78,18 @@ public static class AlchemyCraftingService
 #endif
         if (action != AlchemyNotebookAction.Craft) return Fail(LocalizeUI("ActionUnavailable"));
         if (!progress.IsUnlocked(id)) return Fail(LocalizeUI("ResearchFirst"));
+        return player.GetModPlayer<AlchemyBrewingPlayer>().StartBrew(id, batches, sequence);
+    }
+
+    // Called only when the player's world-update timer finishes, never by the UI.
+    internal static AlchemyNotebookResult CompleteCraft(Player player, string id, int batches, int sequence)
+    {
+        AlchemyNotebookResult Fail(string text) => new(sequence, AlchemyNotebookAction.Craft, id, false, text);
+        var entry = FindEntry(id);
+        if (Main.dedServ || player != Main.LocalPlayer || !player.active || player.dead || player.ghost ||
+            entry == null || batches is < 1 or > MaximumBatches) return Fail(LocalizeUI("CannotAlchemy"));
+        var progress = player.GetModPlayer<AlchemyProgressPlayer>();
+        if (!progress.IsUnlocked(id)) return Fail(LocalizeUI("ResearchFirst"));
         int completed = 0, output = 0, experience = 0;
         for (int i = 0; i < batches; i++)
         {
@@ -94,7 +106,7 @@ public static class AlchemyCraftingService
         Recipe.FindRecipes();
         string result = LocalizeUI("CraftSuccess", entry.Name, output, experience);
         if (completed != batches) result += LocalizeUI("PartialCraft", completed, batches);
-        return new(sequence, action, id, true, result, output, experience);
+        return new(sequence, AlchemyNotebookAction.Craft, id, true, result, output, experience);
     }
 
     private static void Give(Player player, int type, int count, string context)

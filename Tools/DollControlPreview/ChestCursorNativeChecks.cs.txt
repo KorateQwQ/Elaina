@@ -1,0 +1,60 @@
+using System.Reflection;
+using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class PlanterNativeChecks
+{
+    private static void CheckChestCursor(Player player, Point chest, KumaPetProjectile[] team)
+    {
+        int before = passed;
+        int oldIcon = player.cursorItemIconID;
+        bool oldEnabled = player.cursorItemIconEnabled;
+        uint oldTick = Host.GameUpdateCount;
+        var tick = typeof(Host).GetField("_gameUpdateCount", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var work = typeof(DollPetProjectile).GetField("workTile", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        void Capture(int icon)
+        {
+            player.cursorItemIconEnabled = true; player.cursorItemIconID = icon;
+            DollChestCursorSystem.CaptureHover(player, chest.X, chest.Y);
+        }
+        try
+        {
+            foreach (int icon in new[] { (int)ItemID.Chest, ItemID.GoldChest, ItemID.GoldenKey, ItemID.ShadowKey })
+            {
+                Capture(icon);
+                Check(DollChestCursorSystem.HasBadge(player), "Chest/key hover icon receives the bear badge: " + icon);
+            }
+            tick.SetValue(null, oldTick + 1);
+            Check(DollChestCursorSystem.HasBadge(player), "Badge survives vanilla tick increment between player update and draw");
+            tick.SetValue(null, oldTick + 2);
+            Check(!DollChestCursorSystem.HasBadge(player), "Old hover cache cannot leave a stale bear badge");
+            Capture(ItemID.Chest); player.cursorItemIconEnabled = false;
+            Check(!DollChestCursorSystem.HasBadge(player), "Vanilla cached item fade does not create a standalone bear");
+            Capture(ItemID.Chest); player.cursorItemIconID = ItemID.Torch;
+            Check(!DollChestCursorSystem.HasBadge(player), "Another hint replacing the chest icon cannot inherit the badge");
+            Capture(ItemID.Chest); player.mouseInterface = true;
+            Check(!DollChestCursorSystem.HasBadge(player), "Inventory/UI hover hides the badge"); player.mouseInterface = false;
+            Capture(ItemID.Chest); Host.mapFullscreen = true;
+            Check(!DollChestCursorSystem.HasBadge(player), "Fullscreen map hides the badge"); Host.mapFullscreen = false;
+            foreach (var worker in team) work.SetValue(worker, new Point(20, 20));
+            Capture(ItemID.Chest);
+            Check(!DollChestCursorSystem.HasBadge(player), "All dolls busy means no help badge");
+            foreach (var worker in team) work.SetValue(worker, new Point(-1, -1));
+            Capture(ItemID.Chest);
+            DollChestCursorSystem.CaptureHover(player, 5, 5);
+            Check(!DollChestCursorSystem.HasBadge(player), "Non-chest tiles never receive the bear badge");
+            Capture(-1);
+            Check(!DollChestCursorSystem.HasBadge(player), "Text-only named chest hint does not attach the badge to a held-item icon");
+            Capture(ItemID.Chest); player.dead = true;
+            Check(!DollChestCursorSystem.HasBadge(player), "Dead player's badge is hidden"); player.dead = false;
+        }
+        finally
+        {
+            player.cursorItemIconID = oldIcon; player.cursorItemIconEnabled = oldEnabled;
+            tick.SetValue(null, oldTick);
+            new DollChestCursorSystem().OnWorldUnload();
+        }
+        Console.WriteLine($"PASS: {passed - before} chest cursor badge visibility checks; vanilla icon/key, tick timing, cache, UI and idle dolls.");
+    }
+}

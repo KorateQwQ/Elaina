@@ -17,7 +17,7 @@ namespace 伊蕾娜.ElainaModAlchemy.Crafting;
 public sealed class FacsimileCraftingSystem : ModSystem
 {
     private readonly Dictionary<Recipe, FacsimileRecipe> recipes = new();
-    private readonly Dictionary<Recipe, FacsimileMaterialRule.Quote> quotes = new();
+    private readonly Dictionary<Recipe, FacsimileMaterialRule.Quote> options = new();
     private Dictionary<int, int> ownedItems;
     private List<Item> consumedItems;
     private Func<Player, Recipe, bool> meetsTiles;
@@ -54,7 +54,7 @@ public sealed class FacsimileCraftingSystem : ModSystem
     {
         dustType = ModContent.ItemType<AshenFacsimileDust>();
         recipes.Clear();
-        quotes.Clear();
+        options.Clear();
         for (int i = 0; i < Recipe.numRecipes; i++)
         {
             Recipe recipe = Main.recipe[i];
@@ -71,7 +71,7 @@ public sealed class FacsimileCraftingSystem : ModSystem
         On_Main.CraftItem -= CraftItem;
         On_Recipe.Create -= ConsumeMaterials;
         recipes.Clear();
-        quotes.Clear();
+        options.Clear();
         activeRecipe = null;
         activeInventory = null;
         ownedItems = null;
@@ -92,33 +92,32 @@ public sealed class FacsimileCraftingSystem : ModSystem
     private void FindRecipes(On_Recipe.orig_FindRecipes orig, bool canDelayCheck)
     {
         if (!canDelayCheck)
-            quotes.Clear();
+            options.Clear();
         orig(canDelayCheck);
     }
 
     private bool HasMaterials(Recipe recipe)
     {
         bool hasOriginalMaterials = Recipe.CollectedEnoughItemsToCraftRecipeNew(recipe);
-        if (AlchemyVanillaRecipes.IsAlchemyRecipe(recipe) && !AlchemyVanillaRecipes.AllowFacsimileDust)
+        bool alchemy = AlchemyVanillaRecipes.IsAlchemyRecipe(recipe);
+        if ((alchemy && !AlchemyVanillaRecipes.AllowFacsimileDust) ||
+            dustType <= 0 || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
         {
-            quotes.Remove(recipe);
+            options.Remove(recipe);
             return hasOriginalMaterials;
         }
-        if (dustType <= 0 || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
-            return hasOriginalMaterials;
 
-        FacsimilePriority priority = GetPriority();
-        if (priority == FacsimilePriority.Materials && hasOriginalMaterials)
-            return true;
-
-        if (FacsimileMaterialRule.TryQuote(cached.Requirements, ownedItems, dustType, priority, out var quote) &&
+        // 合成栏原料齐全时也报价，供右键选择用灰赝尘制作；炼金手记齐料时直接走原版。
+        if (!(alchemy && hasOriginalMaterials) &&
+            FacsimileMaterialRule.TryQuote(cached.Requirements, ownedItems, dustType,
+                FacsimileMaterialRule.PriorityFor(alchemy), out var quote) &&
             quote.Dust > 0)
         {
-            quotes[recipe] = quote;
+            options[recipe] = quote;
             return true;
         }
 
-        // 灰赝尘方案不可用时，优先灰赝尘模式仍可回退到完整的原版材料方案。
+        options.Remove(recipe);
         return hasOriginalMaterials;
     }
 
@@ -126,12 +125,12 @@ public sealed class FacsimileCraftingSystem : ModSystem
     {
         if (AlchemyVanillaRecipes.IsAlchemyRecipe(recipe) && !AlchemyVanillaRecipes.AllowFacsimileDust)
         {
-            quotes.Remove(recipe);
+            options.Remove(recipe);
             orig(recipe);
             return;
         }
-        // 原料齐全的配方和独立制作系统保持原路径，包括它们的所有扣料钩子。
-        if (!quotes.ContainsKey(recipe) || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
+        // 没有灰赝尘方案的配方和独立制作系统保持原路径，左右键均与原版相同。
+        if (!options.ContainsKey(recipe) || !recipes.TryGetValue(recipe, out FacsimileRecipe cached))
         {
             orig(recipe);
             return;
@@ -148,7 +147,18 @@ public sealed class FacsimileCraftingSystem : ModSystem
             return;
 
         var inventory = new FacsimileCraftingInventory(player);
-        FacsimilePriority priority = GetPriority();
+        bool alchemy = AlchemyVanillaRecipes.IsAlchemyRecipe(recipe);
+        bool hasOriginals = FacsimileMaterialRule.HasOriginals(cached.Requirements, inventory.Counts);
+        switch (FacsimileMaterialRule.ChooseRoute(alchemy, IsRightClickCraft(), hasOriginals))
+        {
+            case FacsimileCraftRoute.None:
+                return; // 左键只用原料；原料不足时不替玩家消耗灰赝尘。
+            case FacsimileCraftRoute.Original:
+                orig(recipe);
+                return;
+        }
+
+        FacsimilePriority priority = FacsimileMaterialRule.PriorityFor(alchemy);
         if (!FacsimileMaterialRule.TryQuote(cached.Requirements, inventory.Counts, dustType, priority, out var quote))
         {
             Recipe.FindRecipes();
@@ -204,7 +214,8 @@ public sealed class FacsimileCraftingSystem : ModSystem
         Recipe.FindRecipes();
     }
 
-    internal bool TryGetQuote(Recipe recipe, out FacsimileMaterialRule.Quote quote) => quotes.TryGetValue(recipe, out quote);
+    internal bool TryGetQuote(Recipe recipe, out FacsimileMaterialRule.Quote quote) =>
+        options.TryGetValue(recipe, out quote);
 
     internal bool HasAlchemyMaterials(Recipe recipe) => HasMaterials(recipe);
     internal int MaxAlchemyBatches(Recipe recipe, int limit)
@@ -223,16 +234,14 @@ public sealed class FacsimileCraftingSystem : ModSystem
                 foreach (int type in original.AcceptedTypes) have += ownedItems.GetValueOrDefault(type);
                 if (have < requirements[i].Stack) originals = false;
             }
-            if (!originals && !FacsimileMaterialRule.TryQuote(requirements, ownedItems, dustType, GetPriority(), out _)) break;
+            if (!originals && !FacsimileMaterialRule.TryQuote(requirements, ownedItems, dustType, FacsimilePriority.Materials, out _)) break;
             result = count;
         }
         return result;
     }
 
-    private static FacsimilePriority GetPriority() => Main.LocalPlayer.active &&
-        Main.LocalPlayer.GetModPlayer<FacsimileCraftingPlayer>().PreferDust
-            ? FacsimilePriority.Dust
-            : FacsimilePriority.Materials;
+    // 原版合成按钮左右键都会调用 CraftItem；只在右键单独按下时改用灰赝尘。
+    private static bool IsRightClickCraft() => Main.mouseRight && !Main.mouseLeft;
 
     private sealed class StaleFacsimilePlanException : Exception { }
 }

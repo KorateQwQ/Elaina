@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
@@ -9,7 +9,7 @@ using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
 
 // FNA host for SkillWheelDrawing. Sectors use BasicEffect instead of KL's vertexDraw shader;
-// Pixel/GlowDot/DiamondFill mirror UIDrawKit's procedural formulas. Strings mirror the UI hjson.
+// Pixel/GlowDot/DiamondFill load UIDrawKit's production baked PNGs. Strings mirror the UI hjson.
 internal sealed class PreviewGame : Game
 {
     private const float CanvasWidth = 560, CanvasHeight = 480;
@@ -56,31 +56,14 @@ internal sealed class PreviewGame : Game
         return texture;
     }
 
-    private Texture2D Procedural(int size, Func<int, int, float> intensity)
-    {
-        var texture = new Texture2D(GraphicsDevice, size, size);
-        var data = new Color[size * size];
-        for (int y = 0; y < size; y++)
-        for (int x = 0; x < size; x++)
-            data[y * size + x] = Color.White * Math.Clamp(intensity(x, y), 0, 1);
-        texture.SetData(data);
-        return texture;
-    }
-
     protected override void LoadContent()
     {
         Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
         var cooldown = Content.Load<Effect>("Effects/Content/CDEffect");
         var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
-        var pixel = new Texture2D(GraphicsDevice, 1, 1);
-        pixel.SetData(new[] { Color.White });
-        var glow = Procedural(128, (x, y) =>
-        {
-            float d = new Vector2(x - 63.5f, y - 63.5f).Length() / 63.5f;
-            return MathF.Pow(Math.Clamp(1 - d, 0, 1), 2.4f);
-        });
-        var diamond = Procedural(64, (x, y) =>
-            (.98f - (Math.Abs(x - 31.5f) / 32f + Math.Abs(y - 31.5f) / 32f)) / .06f);
+        var pixel = Texture("Effects/Tex/Baked/WhitePixel");
+        var glow = Texture("ElainaModSkills/UICore/Assets/GlowDot");
+        var diamond = Texture("ElainaModSkills/UICore/Assets/DiamondFill");
         art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond), cooldown, serif);
         basic = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, TextureEnabled = false };
     }

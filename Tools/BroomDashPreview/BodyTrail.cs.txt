@@ -1,0 +1,263 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using System.Text.Json;
+using 伊蕾娜.Mounts;
+using var game = new BodyOptions(args[0], args[1]); game.Run();
+
+/// <param name="Length">只取路径前段的比例，用于长短错落的风线。</param>
+record struct Style(float Alpha, float HeadWidth, float TailWidth, float Offset, float OffsetTail,
+    float VMin, float VMax, float UScale, float ScrollSpeed, float Wave = 0f, float WaveFreq = 0f, float WavePhase = 0f,
+    float HeadFadePx = 14f, float Length = 1f, float TailPow = 1.6f);
+
+/// <summary>原型：以骑乘中心为路径、与人物同宽的拖尾。采样点用 Catmull-Rom 插值，转向时不出折角。</summary>
+sealed class BodyTrail
+{
+    readonly BasicEffect effect;
+    readonly List<VertexPositionColorTexture> verts = new();
+    readonly List<short> idx = new();
+    public BodyTrail(GraphicsDevice device) => effect = new BasicEffect(device)
+    { TextureEnabled = true, VertexColorEnabled = true, LightingEnabled = false, World = Matrix.Identity, View = Matrix.Identity };
+
+    public static List<Vector2> Smooth(IReadOnlyList<Vector2> p, int sub = 4)
+    {
+        if (p.Count < 3) return p.ToList();
+        var r = new List<Vector2>();
+        for (int i = 0; i < p.Count - 1; i++)
+        {
+            Vector2 p0 = p[Math.Max(i - 1, 0)], p1 = p[i], p2 = p[i + 1], p3 = p[Math.Min(i + 2, p.Count - 1)];
+            for (int s = 0; s < sub; s++) r.Add(Vector2.CatmullRom(p0, p1, p2, p3, s / (float)sub));
+        }
+        r.Add(p[^1]);
+        return r;
+    }
+
+    public void Ribbon(GraphicsDevice device, Texture2D tex, IReadOnlyList<Vector2> points, Matrix view, float alpha,
+        float age, Color tailColor, Style s)
+    {
+        if (points.Count < 2 || alpha <= .001f) return;
+        verts.Clear(); idx.Clear();
+        float total = 0f;
+        for (int i = 1; i < points.Count; i++) total += Vector2.Distance(points[i - 1], points[i]);
+        if (total < 1f) return;
+        float along = 0f;
+        for (int i = 0; i < points.Count; i++)
+        {
+            if (i > 0) along += Vector2.Distance(points[i - 1], points[i]);
+            float t = along / total;
+            if (t > s.Length && i > 1) break;
+            float tl = MathHelper.Clamp(t / s.Length, 0f, 1f);
+            Vector2 tangent = points[Math.Min(i + 1, points.Count - 1)] - points[Math.Max(i - 1, 0)];
+            if (tangent.LengthSquared() < .001f) tangent = Vector2.UnitX;
+            tangent.Normalize();
+            Vector2 normal = new(-tangent.Y, tangent.X);
+            float head = MathHelper.SmoothStep(0f, 1f, MathHelper.Clamp(along / s.HeadFadePx, 0f, 1f));
+            float tail = MathF.Pow(1f - tl, s.TailPow);
+            float k = MathHelper.SmoothStep(0f, 1f, tl);
+            float w = MathHelper.Lerp(s.HeadWidth, s.TailWidth, k);
+            float offset = MathHelper.Lerp(s.Offset, s.OffsetTail, k)
+                + MathF.Sin(along * s.WaveFreq + s.WavePhase + age * .45f) * s.Wave * MathF.Min(1f, tl * 3f);
+            Vector2 center = points[i] + normal * offset;
+            Color c = Color.Lerp(Color.White, tailColor, tl);
+            c.A = (byte)(255f * MathHelper.Clamp(alpha * s.Alpha * head * tail, 0f, 1f));
+            float u = along / s.UScale - age * .11f * s.ScrollSpeed;
+            verts.Add(new VertexPositionColorTexture(new Vector3(Vector2.Transform(center + normal * w * .5f, view), 0), c, new Vector2(u, s.VMin)));
+            verts.Add(new VertexPositionColorTexture(new Vector3(Vector2.Transform(center - normal * w * .5f, view), 0), c, new Vector2(u, s.VMax)));
+            if (verts.Count >= 4)
+            {
+                short v = (short)(verts.Count - 2);
+                idx.AddRange(new short[] { (short)(v - 2), (short)(v - 1), v, (short)(v - 1), (short)(v + 1), v });
+            }
+        }
+        if (idx.Count == 0) return;
+        effect.Texture = tex;
+        effect.Projection = Matrix.CreateOrthographicOffCenter(0, device.Viewport.Width, device.Viewport.Height, 0, 0, 1);
+        device.BlendState = BlendState.NonPremultiplied;
+        device.DepthStencilState = DepthStencilState.None;
+        device.RasterizerState = RasterizerState.CullNone;
+        foreach (var pass in effect.CurrentTechnique.Passes)
+        {
+            pass.Apply();
+            device.Textures[0] = tex;
+            device.SamplerStates[0] = SamplerState.LinearWrap;
+            device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, verts.ToArray(), 0, verts.Count, idx.ToArray(), 0, idx.Count / 3);
+        }
+    }
+}
+
+sealed class BodyOptions : Game
+{
+    const int Frames = 46, W = 960, H = 560, Samples = BroomDashWindRenderer.TrailSamples, Fade = 14;
+    readonly string output; readonly float dashSpeed, cruiseSpeed, handling; readonly int dashTicks, recoveryTicks;
+    SpriteBatch batch; Texture2D wind, broom, pixel; BroomDashWindRenderer rings; BodyTrail trail; bool done;
+    static readonly Color Haze = new(176, 204, 228), Fiber = new(205, 225, 240);
+
+    // E 整体气流带：与身体同宽的气流带 + 从身体上下缘收拢的两条风线。
+    static readonly Style[] E =
+    {
+        new(.55f, 44f, 62f, 0f, 0f, .18f, .82f, 190f, 1f, HeadFadePx: 16f),
+        new(.85f, 4f, 3f, 20f, 9f, .2f, .32f, 120f, 1.6f, 3f, .03f, 0f),
+        new(.8f, 4f, 3f, -20f, -9f, .62f, .74f, 140f, 1.3f, 3f, .03f, MathF.PI),
+    };
+    // F 尾流扩散：身体宽处起始、向后张开的尾流，四条风线向外散。
+    static readonly Style[] F =
+    {
+        new(.42f, 40f, 100f, 0f, 0f, .18f, .82f, 220f, 1f, HeadFadePx: 16f, TailPow: 1.3f),
+        new(.8f, 4f, 3f, 14f, 30f, .2f, .32f, 120f, 1.6f, 2f, .03f, 0f),
+        new(.8f, 4f, 3f, -14f, -30f, .62f, .74f, 140f, 1.3f, 2f, .03f, MathF.PI),
+        new(.6f, 3f, 2f, 25f, 50f, .2f, .32f, 110f, 1.9f, 2f, .03f, 1f, Length: .75f),
+        new(.6f, 3f, 2f, -25f, -50f, .62f, .74f, 130f, 1.5f, 2f, .03f, 2.5f, Length: .8f),
+    };
+    // G 速度线：极淡底带 + 覆盖身体高度、长短错落的平行风线。
+    static readonly Style[] G =
+    {
+        new(.22f, 50f, 56f, 0f, 0f, .18f, .82f, 190f, 1f, HeadFadePx: 16f),
+        new(.85f, 4f, 3f, -22f, -18f, .2f, .32f, 120f, 1.7f, Length: .6f, HeadFadePx: 22f),
+        new(.8f, 5f, 3f, -10f, -8f, .62f, .74f, 150f, 1.2f, Length: 1f),
+        new(.9f, 4f, 3f, 3f, 2f, .2f, .32f, 110f, 1.9f, Length: .8f, HeadFadePx: 20f),
+        new(.8f, 5f, 3f, 14f, 11f, .62f, .74f, 140f, 1.4f, Length: .95f),
+        new(.75f, 3f, 2f, 24f, 19f, .2f, .32f, 120f, 1.6f, Length: .5f, HeadFadePx: 26f),
+    };
+
+    public BodyOptions(string output, string repo)
+    {
+        this.output = output;
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Data/SkillBalance.json")));
+        var f = doc.RootElement.GetProperty("configuration").GetProperty("skills").EnumerateArray().First(x => x.GetProperty("id").GetString() == "FlightSkill").GetProperty("flight");
+        cruiseSpeed = f.GetProperty("baseSpeed").GetSingle() * (1 + f.GetProperty("learnedSpeedBonus").GetSingle() + 8 * f.GetProperty("speedBonusPerLevel").GetSingle());
+        dashSpeed = cruiseSpeed * f.GetProperty("dashMultiplier").GetSingle(); handling = f.GetProperty("handlingPercent").GetSingle() / 100f;
+        dashTicks = (int)Math.Round(f.GetProperty("dashSeconds").GetDouble() * 60); recoveryTicks = (int)Math.Round(f.GetProperty("dashRecoverySeconds").GetDouble() * 60);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = W, PreferredBackBufferHeight = H, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    Texture2D LoadRaw(string name)
+    {
+        using var reader = new BinaryReader(File.OpenRead(Path.Combine(output, name + ".rgba")));
+        int width = reader.ReadInt32(), height = reader.ReadInt32(); var texture = new Texture2D(GraphicsDevice, width, height);
+        texture.SetData(reader.ReadBytes(width * height * 4)); return texture;
+    }
+    protected override void LoadContent()
+    {
+        batch = new SpriteBatch(GraphicsDevice); rings = new BroomDashWindRenderer(GraphicsDevice); trail = new BodyTrail(GraphicsDevice);
+        wind = LoadRaw("wind"); broom = LoadRaw("broom"); pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+    }
+    void Background(bool bright, Vector2 camera)
+    {
+        // 亮背景取用户游戏截图里的青绿天空色。
+        GraphicsDevice.Clear(bright ? new Color(62, 140, 140) : new Color(23, 31, 46));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        int ox = (int)(-camera.X % 40 + 40) % 40, oy = (int)(-camera.Y % 40 + 40) % 40;
+        for (int x = ox; x < W; x += 40) batch.Draw(pixel, new Rectangle(x, 0, 1, H), new Color(15, 15, 15, 15));
+        for (int y = oy; y < H; y += 40) batch.Draw(pixel, new Rectangle(0, y, W, 1), new Color(15, 15, 15, 15));
+        batch.End();
+    }
+    void Rider(Vector2 center, int facing, float rotation)
+    {
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        Vector2 broomAt = center + Rotate(new Vector2(facing * 1f, -4f), rotation);
+        batch.Draw(broom, broomAt, null, Color.White, rotation, new Vector2(broom.Width, broom.Height) * .5f, 1,
+            facing < 0 ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0);
+        batch.Draw(pixel, new Rectangle((int)center.X - 7, (int)center.Y - 5, 14, 24), new Color(159, 142, 190));
+        batch.Draw(pixel, new Rectangle((int)center.X - 6, (int)center.Y - 17, 12, 12), new Color(240, 219, 204));
+        batch.Draw(pixel, new Rectangle((int)center.X - 15, (int)center.Y - 20, 30, 4), new Color(83, 69, 109));
+        batch.Draw(pixel, new Rectangle((int)center.X - 7, (int)center.Y - 29, 14, 10), new Color(83, 69, 109));
+        batch.End();
+    }
+    static Vector2 Rotate(Vector2 v, float r) => Vector2.Transform(v, Matrix.CreateRotationZ(r));
+    static float Tilt(Vector2 velocity, int facing) => MathHelper.Clamp(velocity.Y / 5f, -1f, 1f) * .15f * facing;
+    static Vector2 Tail(Vector2 center, int facing, float rotation) => center + Rotate(new Vector2(-37f * facing, 14f), rotation);
+
+    record Frame(Vector2 Pos, Vector2 Vel, int Facing);
+    // 与 扫帚ModPlayer.PreUpdateMovement 一致：冲刺锁定速度，结束后限速回收并以操控百分比追向输入方向。
+    List<Frame> Simulate(Vector2 dashDir, Vector2 input)
+    {
+        var list = new List<Frame>(); Vector2 p = Vector2.Zero, vel = dashDir * dashSpeed;
+        int facing = dashDir.X < 0 ? -1 : 1;
+        list.Add(new(p, vel, facing));
+        for (int tick = 1; tick < Frames; tick++)
+        {
+            if (tick < dashTicks) vel = dashDir * dashSpeed;
+            else
+            {
+                float limit = MathHelper.Lerp(dashSpeed, cruiseSpeed, MathHelper.Clamp((tick - dashTicks) / (float)recoveryTicks, 0, 1));
+                if (vel.Length() > limit) vel = Vector2.Normalize(vel) * limit;
+                Vector2 target = input * cruiseSpeed;
+                vel = Vector2.Lerp(vel, target, handling);
+                if (Vector2.Distance(vel, target) <= cruiseSpeed * .01f) vel = target;
+                if (input.X != 0) facing = input.X < 0 ? -1 : 1;
+            }
+            p += vel; list.Add(new(p, vel, facing));
+        }
+        return list;
+    }
+
+    void Effects(char v, int tick, List<Frame> path, Vector2 dir, Matrix view, bool freeze)
+    {
+        var d = GraphicsDevice;
+        rings.DrawWake(d, wind, path[0].Pos, dir, tick, dashSpeed, view);
+        var raw = new List<Vector2>();
+        int from = Math.Max(0, tick - Samples);
+        if (v == 'C')
+        {
+            for (int i = tick; i >= from; i--) raw.Add(Tail(path[i].Pos, path[i].Facing, Tilt(path[i].Vel, path[i].Facing)));
+            rings.DrawTrail(d, wind, raw.ToArray(), tick, dashTicks, view);
+            return;
+        }
+        // freeze：冲刺结束后不再追加新点，拖尾留在冲刺直线上向终点收拢，不随转向弯折。
+        int head = freeze ? Math.Min(tick, dashTicks - 1) : tick;
+        for (int i = head; i >= Math.Max(0, head - Samples); i--) raw.Add(path[i].Pos);
+        // E 已定稿：直接调用正式渲染器（内部完成收拢与插值），用来核对正式实现与原型一致。
+        if (v == 'E')
+        {
+            rings.DrawTrail(d, wind, raw.ToArray(), tick, dashTicks, view);
+            return;
+        }
+        float alpha = MathHelper.Clamp(tick / 2f, 0f, 1f) * (tick < dashTicks ? 1f : MathHelper.Clamp(1f - (tick - dashTicks) / (float)Fade, 0f, 1f));
+        if (tick >= dashTicks)
+        {
+            float shrink = MathHelper.Clamp((tick - dashTicks) / (float)Fade, 0f, 1f);
+            raw = raw.Take(Math.Max(2, (int)MathF.Round(raw.Count * (1f - shrink * .8f)))).ToList();
+        }
+        var pts = BodyTrail.Smooth(raw);
+        foreach (var s in v == 'E' ? E : v == 'F' ? F : G)
+            trail.Ribbon(d, wind, pts, view, alpha, tick, s.HeadWidth > 20f ? Haze : Fiber, s);
+    }
+
+    void Capture(string name, char variant, int tick, List<Frame> path, Vector2 dir, bool bright, bool freeze)
+    {
+        Vector2 rider = path[tick].Pos;
+        // 镜头跟随人物，人物放在画面中心略偏冲刺前方，留出拖尾空间。
+        Vector2 camera = rider - new Vector2(W / 2, H / 2) - dir * 170f;
+        Matrix view = Matrix.CreateTranslation(-camera.X, -camera.Y, 0);
+        using var target = new RenderTarget2D(GraphicsDevice, W, H);
+        GraphicsDevice.SetRenderTarget(target); Background(bright, camera);
+        Effects(variant, tick, path, dir, view, freeze);
+        Rider(rider - camera, path[tick].Facing, Tilt(path[tick].Vel, path[tick].Facing));
+        GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(Path.Combine(output, name + ".png")); target.SaveAsPng(file, W, H);
+    }
+
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        float r = MathF.Sqrt(.5f);
+        var scenes = new (string Name, Vector2 Dir, Vector2 Input, bool Bright, bool Freeze)[]
+        {
+            ("right", Vector2.UnitX, Vector2.Zero, false, false),
+            // 用户截图：向左下冲刺，亮色天空背景。
+            ("diag", new Vector2(-r, r), Vector2.Zero, true, false),
+            // 斜上冲刺，结束后按住下：拖尾跟随转弯。
+            ("turn", new Vector2(r, -r), Vector2.UnitY, false, false),
+            ("freeze", new Vector2(r, -r), Vector2.UnitY, false, true),
+        };
+        foreach (var s in scenes)
+        {
+            var path = Simulate(s.Dir, s.Input);
+            foreach (char v in "CEFG")
+                for (int tick = 0; tick < Frames; tick++) Capture($"{s.Name}-{v}-{tick:000}", v, tick, path, s.Dir, s.Bright, s.Freeze && v != 'C');
+        }
+        Console.WriteLine($"FNA body trail: dash {dashSpeed:0.0}px/tick × {dashTicks} ticks, recovery {recoveryTicks}.");
+        Exit();
+    }
+    protected override void UnloadContent() { rings?.Dispose(); wind?.Dispose(); broom?.Dispose(); pixel?.Dispose(); batch?.Dispose(); }
+}

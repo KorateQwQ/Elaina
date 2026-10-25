@@ -24,20 +24,6 @@ internal sealed class ConstellationBookRenderer : IDisposable
         draw.Text(LocalizeUI("NotebookTitle"), 550, 512, 29, new Color(226, 208, 233), .5f, spacing: 7, serif: true);
     }
 
-    internal static void PaintDock(ConstellationDrawing draw, string key, bool hover, float glow)
-    {
-        draw.Box(0, 0, 96, 30, hover ? new Color(81, 64, 90) : new Color(33, 29, 44) * .86f);
-        draw.Frame(0, 0, 96, 30, new Color(161, 133, 178) * (hover ? .8f : .4f));
-        if (glow > 0)
-        {
-            draw.Image("Glow", -15, -15, 126, 60, new Color(189, 161, 221) * (glow * .45f));
-            draw.Frame(-3, -3, 102, 36, new Color(216, 192, 237) * glow);
-        }
-        draw.Image("StudyBook", 8, 7, 16, 16, new Color(215, 197, 174));
-        draw.FittedText(LocalizeUI("NotebookDock"), 29, 8, 37, 12, new Color(216, 197, 231));
-        draw.FittedText(key, 79, 9, 25, 10, new Color(196, 173, 201), .5f, serif: true);
-    }
-
     internal void Draw(GraphicsDevice device, Texture2D page, Texture2D front, Texture2D back, Texture2D pixel,
         ConstellationBookMotion motion, Vector2 origin, float scale, Vector2 dockCenter, Vector2 dockSize)
     {

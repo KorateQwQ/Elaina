@@ -8,7 +8,6 @@ internal sealed class ResourceBarState
 {
     public float Value { get; private set; }
     public float Ghost { get; private set; }
-    public float Flash { get; private set; }
     public readonly List<Particle> Particles = new(64);
     private readonly bool mana;
     private readonly Random random;
@@ -28,7 +27,7 @@ internal sealed class ResourceBarState
     public void Reset(float value, float max)
     {
         initialized = true; maximum = max; target = Value = Ghost = Fraction(value, max);
-        delay = Flash = ambient = 0; Particles.Clear();
+        delay = ambient = 0; Particles.Clear();
     }
     public void Update(float value, float max, float dt, float time, bool particles = true)
     {
@@ -40,10 +39,9 @@ internal sealed class ResourceBarState
             float before = Value; Ghost = Math.Max(Ghost, Value); Value = next; delay = .4f;
             if (particles) Lose(next * 262, before * 262, h);
         }
-        // Passive regeneration only makes ambient stars. A larger gain gets a short healing pulse.
+        // Passive regeneration only makes ambient stars. A larger gain sparkles at the edge; the bar itself never flashes.
         else if (next > target && (next - target) * max >= 2)
         {
-            Flash = 1;
             if (particles) for (int i = 0; i < 6; i++)
                 Spawn(true, next * 262 - R() * 20, R() * h, -6 + R() * 12, -14 - R() * 10, 0, .8f + R(), .6f + R() * .4f);
         }
@@ -51,7 +49,7 @@ internal sealed class ResourceBarState
         if (target > Value) Value = Math.Min(target, Value + (target - Value) * Math.Min(1, dt * 7) + dt * .02f);
         else Value = target;
         if (delay > 0) delay -= dt; else Ghost = Math.Max(Value, Ghost - dt * .45f);
-        Ghost = Math.Max(Ghost, Value); Flash = Math.Max(0, Flash - dt * 2.2f);
+        Ghost = Math.Max(Ghost, Value);
         if (particles && Value * 262 > 2 && (ambient -= dt) <= 0)
         {
             if (mana)

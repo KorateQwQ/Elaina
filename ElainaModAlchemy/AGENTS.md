@@ -4,6 +4,7 @@
 
 - `UI/AlchemyDrawing.cs` 的 `Outline(path)` 会直接加载同名预制描边，不会在缺图时自动生成。新增原版材料必须有 `UI/Assets/Outlines/Item_<真实 ItemID>.png`；新增或改画模组图标必须同步对应的 `<图标名>_Pixel.png` 描边。
 - 原版 ItemID 使用 `item/AlchemyCatalogItemTypes.cs` 与本机 tModLoader 常量解析，不凭记忆填写。材料目录、真实物品映射、中英文本地化、轮廓 PNG 和 `UI/Assets/Outlines/manifest.json` 必须一致。
+- 玩家可见文本引用原版物品名时，使用游戏本地化引用（例如 HJSON 中的 `{$ItemName.Waterleaf}`）或按 ItemID 获取名称，不手写某一版本的译名；说明文字与材料列表都应随游戏版本及语言变化。
 - 新增原版材料后，从仓库根目录依次执行：
   1. `pwsh -File Tools/AlchemyPreview/run.ps1 -ExportMaterials`
   2. `python Tools/AlchemyPreview/bake_redesign.py`

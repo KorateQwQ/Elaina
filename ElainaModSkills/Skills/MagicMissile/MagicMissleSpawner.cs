@@ -121,15 +121,17 @@ public class MagicMissleSpawner : KLProjectile
         if(!HasAuthority()||time<40)return;
         NPC npc = null;
         int id = Projectile.FindTargetWithLineOfSight(1000);
-        if(id<0||id>Main.npc.Length)return;
+        if(id<0||id>=Main.npc.Length)return;
         npc = Main.npc[id];
 
         if (npc!=null&& npc.IsAttackable(true, true))
         {
 
             RPC("ToDeadState",KLNetModule.NetSendType.ClientToAll);
-            Vector2 velocity = (npc.Center - Projectile.Center).SafeNormalize(Vector2.One);
-            Projectile.NewProjectile(Projectile.GetSource_FromAI(), Projectile.Center, velocity*30f, ModContent.ProjectileType<MagicMissile>(), Projectile.damage, 2);
+            const float missileSpeed = 30f;
+            Vector2 aimPoint = PredictiveAim.GetAimPoint(Projectile.Center, npc, missileSpeed);
+            Vector2 velocity = (aimPoint - Projectile.Center).SafeNormalize(Vector2.One) * missileSpeed;
+            Projectile.NewProjectile(Projectile.GetSource_FromAI(), Projectile.Center, velocity, ModContent.ProjectileType<MagicMissile>(), Projectile.damage, 2);
         }
     }
 

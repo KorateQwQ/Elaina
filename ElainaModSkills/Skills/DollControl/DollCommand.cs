@@ -1,6 +1,6 @@
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
-/// <summary>玩偶指令盘的选项，顺序即轮盘上从十二点方向顺时针的排列。</summary>
+/// <summary>玩偶指令与选择模式；连锁模式由操作条切换，不单独占用指令盘。</summary>
 public enum DollCommand
 {
     Mine,
@@ -10,17 +10,29 @@ public enum DollCommand
     Attack,
     Cancel,
     Dismiss,
+    PlacePlanters,
 }
 
 internal static class DollCommands
 {
-    public const int Count = 7;
+    public const int Count = 6;
+    private static readonly DollCommand[] WheelCommands =
+        [DollCommand.Mine, DollCommand.BreakWall, DollCommand.Attack, DollCommand.Cancel, DollCommand.Dismiss, DollCommand.PlacePlanters];
+
+    public static DollCommand AtSlot(int slot) => WheelCommands[slot];
+    public static DollCommand BaseCommand(DollCommand command) => command switch
+    {
+        DollCommand.MineChain => DollCommand.Mine,
+        DollCommand.BreakWallChain => DollCommand.BreakWall,
+        _ => command
+    };
     private const string IconPrefix = "伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_";
 
     public static string IconPath(DollCommand command) => IconPrefix + command;
 
     /// <summary>选中后进入世界标记状态的指令；其余指令在确认时立即生效。</summary>
-    public static bool IsMarkingTool(DollCommand command) => command <= DollCommand.BreakWallChain;
+    public static bool IsMarkingTool(DollCommand command) => command <= DollCommand.BreakWallChain
+        || command == DollCommand.PlacePlanters;
 
     public static bool TargetsWalls(DollCommand command) =>
         command is DollCommand.BreakWall or DollCommand.BreakWallChain;

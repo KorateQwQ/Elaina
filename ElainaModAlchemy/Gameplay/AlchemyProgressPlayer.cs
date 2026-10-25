@@ -51,8 +51,10 @@ public sealed class AlchemyProgressPlayer : ModPlayer
         _experience = _level == AlchemyProgressionRules.MaximumLevel ? 0
             : Math.Clamp(experience, 0, AlchemyProgressionRules.ExperienceToNextLevel(_level) - 1);
         _unlocked.Clear();
-        foreach (string id in unlocked.Take(AlchemyCatalog.Recipes.Count))
-            if (id != null && AlchemyCatalog.Recipes.Any(r => r.Id == id)) _unlocked.Add(id);
+        // Filter retired entries before limiting the count, so an older, larger catalog cannot truncate valid research.
+        var knownIds = AlchemyCatalog.Recipes.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (string id in unlocked.Where(knownIds.Contains).Distinct(StringComparer.Ordinal).Take(knownIds.Count))
+            _unlocked.Add(id);
         foreach (string id in AlchemyCatalog.InitiallyUnlockedIds) _unlocked.Add(id);
     }
 

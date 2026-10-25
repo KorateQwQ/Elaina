@@ -1,5 +1,7 @@
 // Player-facing UI. Debug controls intentionally remain in Chinese.
 HealingTarget: 治疗目标
+HealingTotal: 总治疗量
+HealingPerSecond: 每秒治疗
 HealingSelf: 我
 HealingCritical: 生命垂危
 HealingFull: 生命已满
@@ -9,7 +11,18 @@ HealingCancel: 松开取消
 RecallTarget: 回城阵法中心
 RecallDestination: 目的地：该友军的出生点
 RecallControls: 按住左键选择 · 松开召唤 · 中心取消
-RecallInteract: 右键使用回城魔法阵 · 免费往返
+RecallInteract: "[klicon/16,0:伊蕾娜/Snippets/RightClickIcon] 使用回城魔法阵"
+RecallPortalOwner: 施法者：{0}
+RecallPortalDestination: 通往：{0}（{1}, {2}）
+RecallDepthSky: 太空
+RecallDepthSurface: 地表
+RecallDepthUnderground: 地下
+RecallDepthCaverns: 洞穴
+RecallDepthUnderworld: 地狱
+RecallLinkPending: 正在连接另一端…
+RecallCharging: 魔法阵正在成形…
+RecallAlliesOnly: 仅施法者与同队友军可使用
+RecallMoveCloser: 靠近魔法阵后可往返
 RecallCastFailed: 回城法阵未能建立，本次未消耗魔力。
 DollCommandMine: 挖掘物块
 DollCommandMineChain: 连锁挖掘
@@ -23,8 +36,37 @@ DollCommandControls: 按住左键选择 · 松开确认 · 中心取消
 DollCommandCancelled: 任务已取消
 DollNoPickaxe: 背包里没有镐子
 DollNoHammer: 背包里没有锤子
-DollMarkHintRect: 拖动框选 · 再次框选可擦除 · 右键取消框选
-DollMarkHintChain: 点击标记相连的同类 · 再次点击清除 · 右键取消框选
+DollMarkHintRect: 拖动框选 · 再框一次取消
+DollMarkHintChain: 点击选中相连同类 · 再点一次取消
+DollSelectionStart: 开始挖掘
+DollSelectionStartWalls: 开始敲墙
+DollSelectionExit: 退出
+DollBringBackItems: 带回物品
+DollChainMining: 连锁挖掘
+DollChainWalls: 连锁敲墙
+DollToggleOn: 开启
+DollToggleOff: 关闭
+DollPickPowerInsufficient: 镐力不足，选区内有无法挖掘的物块
+DollWallRequiresSkeletron: 选区含地牢墙，需先击败骷髅王
+DollWallRequiresGolem: 选区含神庙墙，需先击败石巨人
+DollSelectionTiles: 已选 {0} 个物块
+DollSelectionWalls: 已选 {0} 面墙
+DollSelectionEmptyTiles: 未选中可挖掘物块
+DollSelectionEmptyWalls: 未选中可敲除墙壁
+DollCommandPlacePlanters: 放置种植盆
+DollSelectionPlanters: 已选 {0} 组种植盆
+DollSelectionEmptyPlanters: 框选空地，每组占两格
+DollSelectionStartPlanters: 开始放置
+DollPlanterHint: 上方留空 · 下方种植盆；再次框选取消
+DollPlanterLabel: 种植盆
+DollMaterialNone: 背包中没有
+DollMaterialOption: "{0} · {1} × {2} / 需要 {3}"
+DollMaterialHint: 点击展开材料列表；数量不足会提前结束任务
+DollChoosePlanter: 选择种植盆
+DollMaterialListOption: "{0} × {1}"
+DollNoPlanter: 背包中没有选定的种植盆
+DollPlanterExhausted: 种植盆已用完，放置任务提前结束
+DollPlanterLimit: 最多同时安排 10000 组种植盆
 AccessorySlots: 饰品 · 推荐 {0} 槽（当前可用 {1} 槽）
 Acquirable: 可取得
 Acquisition: 获取方式
@@ -75,17 +117,17 @@ Catalog: {
 	3S: 3 秒
 	1OfMaximumMagicPower: 最大[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]的1%
 	60S: 60 秒
-	ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy: 用瓶装水与月光草制成的药液基底，可直接用于炼金。
+	ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy: 用瓶装水与月光草制成的药液基底，可用于各种药水。
 	ABasicIngredientForCookingAndBaking: 料理与烘焙的基础食材。
+	HowToUse: 使用方式
 	MoonDewElixirDescription: 融合了月光与星尘的药剂。
-	ASmoothWarmResinBrewedFromWoodAndGel: 木材和凝胶熬制成的温润树脂。
 	BottledShimmerDescription: 用以太滴管提取的瓶装微光。可以倒出少量微光。
 	AWarmingBeefAndPotatoStewThatElainaMakesWellThoughItIsNotHerFavo: 比起炖菜，我还是更期待甜点。
 	AetherBlock: 以太块
 	AetherDropper: 以太滴管
 	AetherDropperCollectFromShimmer: 以太滴管 · 从微光中取得
 	All: 全部
-	AllNearbyTiles: 附近所有物块
+	AllNearbyTiles: 三格宽的纵向区域
 	AlwaysStockedByTheTravelingMerchantWhenHeVisits: 旅行商人到访时固定售卖。
 	AreaOfEffect: 作用范围
 	AshenFacsimileDust: 灰赝尘
@@ -104,7 +146,7 @@ Catalog: {
 	BottledHoney: 蜂蜜瓶
 	BottledRain: 瓶中雨
 	BottledWater: 瓶装水
-	BottledWater3Moonglow1MoonDew3: 瓶装水×3＋月光草×1 → 月露×3
+	BottledWater1Moonglow1MoonDew3: "{$ItemName.BottledWater}×1＋{$ItemName.Moonglow}×1 → 月露×3"
 	BrewBasicMixturesInTheCauldronAndBuyEverydayIngredientsFromMerch: 基础药液在锅中调制，日常食材向商人购入。
 	CUISINE: 料理
 	CURIOS: 奇物
@@ -134,11 +176,11 @@ Catalog: {
 	Elaina: 伊蕾娜
 	Exotic: 珍奇
 	PlentySatisfiedAndHappy: 很满意 · 开心
+	4Min: 4 分钟
 	5Min: 5 分钟
 	FallenStar: 坠落之星
 	FallsFromTheNightSky: 夜空坠落
 	FallsThroughBlocks: 下落时穿透物块
-	FavoriteToPrioritizeReplacingOriginalMaterials: 通过收藏优先替代原材料
 	Feather: 羽毛
 	FeatherlightPotion: 轻羽药水
 	Fine: 精良
@@ -147,7 +189,6 @@ Catalog: {
 	Flour: 面粉
 	FoodEffect: 食用效果
 	FoodSupport: 料理 · 辅助
-	FulfillAtLeast50OfTheTotalMaterialRequirement: 总需求已满足至少 50%
 	FurnaceSand: 熔炉 · 沙块
 	Gel: 凝胶
 	Glass: 玻璃
@@ -155,7 +196,7 @@ Catalog: {
 	GlassBottleWater: 玻璃瓶 · 水源
 	GlowingMushroom: 发光蘑菇
 	GlowingMushroomBiome: 发光蘑菇生物群落
-	HardmodeBloodMoonEnemyDrop: 肉后血月战斗敌人掉落配方
+	HardmodeBloodMoonEnemyDrop: 困难模式血月战斗敌人掉落配方
 	HoneyBlock: 蜂蜜块
 	HoneyBread: 蜂蜜面包
 	HoneyBreadCaramelBrulee: 蜂蜜面包、焦糖布蕾
@@ -174,6 +215,7 @@ Catalog: {
 	RegenerationPotion: 再生药水
 	MagicPowerPotion: 魔能药水
 	ArcheryPotion: 箭术药水
+	RightClickSelectedRecipeToCraftWithDust: 选中配方后右键制作
 	SummoningPotion: 召唤药水
 	VanillaPotionCrafting: 使用原版药水配方制作
 	MakesYouLightAsAFeatherIncreasingMovementFlightAndBroomSpeed: 使你变得身轻如燕，移动速度、飞行速度和扫帚速度增加。
@@ -202,24 +244,22 @@ Catalog: {
 	PotionRecovery: 魔药 · 回复
 	PotionUtility: 魔药 · 功能
 	PotionsForTheRoad: 随身的魔药
-	Priority: 优先级
 	Properties: 特性
 	ProvidesContinuousLifeRegeneration: 提供持续的生命恢复。
 	PurchaseFromTheMerchant: 向商人购买。
 	PurificationDew: 净土露滴
 	PurificationPowder: 净化粉
-	QuantityRequirement: 数量前提
 	Rare: 稀有
 	RecipeSoldByTheArmsDealerAtNight: 夜晚军火商出售配方
-	RecipeSoldByTheDryadInHardmode: 肉后树妖出售配方
+	RecipeSoldByTheDryadInHardmode: 困难模式树妖出售配方
 	RecipeSoldByTheWitchDoctorAtNight: 夜晚巫医出售配方
 	RecipeSoldByTheWizard: 巫师出售配方
 	RecipeFoundInJungleChests: 丛林常春藤宝箱中可能找到配方
 	RecipeFoundInUndergroundGoldChests: 地下金箱中可能找到配方
 	RecoveryPerSecond: 每秒恢复
 	ElainaOnly: 仅供伊蕾娜使用
-	ReleasesAPortableRainCloudThatSpeedsUpNearbyPlantGrowthAndMakesW: 释放一朵便携雨云，增快附近所有植物的生长，让水叶草开花。
-	ReleasesPurificationDewAtTheTargetLocationItFallsThroughBlocksAn: 使用后在目标位置滴下净土露滴，其会下落穿透物块并净化附近所有物块。
+	ReleasesAPortableRainCloudThatSpeedsUpNearbyPlantGrowthAndMakesW: 释放一朵便携雨云，增快附近所有植物的生长，让{$ItemName.Waterleaf}开花。
+	ReleasesPurificationDewAtTheTargetLocationItFallsThroughBlocksAn: 彩虹露光穿透物块，向下留下三格宽的永久净土，抵御腐化、猩红、神圣与感染植物。
 	ReplenishYourMagicForTheJourneyAndBrewALittleCourageForBattle: 为旅途补充魔力，为战斗调配一点勇气。
 	RequiredManaLifeDifference: 所需生命差值
 	RequiresAlchemyLv1: 需要炼金等级 1
@@ -228,7 +268,7 @@ Catalog: {
 	ResonancePotion: 共鸣药水
 	RevealRadius: 照亮半径
 	RevealingDust: 显迹尘
-	RevealsAllEnemiesAndTraps: 照亮所有敌人与陷阱。
+	RevealsAllEnemiesAndTraps: 洒出金色粉尘，留下固定显迹区域。立即探测并每秒刷新危险物块与敌人，敌人离区后仍显形 5 分钟。
 	BottledShimmer: 瓶中微光
 	SkyHarpies: 天空 · 鸟妖
 	SoldByTheDryad: 树妖出售
@@ -237,7 +277,6 @@ Catalog: {
 	StarPowerPotion: 星力药水
 	Stinger: 毒刺
 	Sugar: 糖
-	SupplementForPotions: 作为药液辅材
 	SurfaceForestDaytime: 森林地表 · 白昼
 	SweetensDoughAndFormsACaramelCrustWhenCooked: 给面团带来甜味，熬煮后也能形成焦糖外壳。
 	TheCorruptionOrCrimson: 腐化或猩红之地
@@ -253,15 +292,13 @@ Catalog: {
 	Use: 用途
 	UsedIn: 用于
 	UsesShimmerSTransmutingPowerToReplaceSomeMissingCraftingMaterial: 借助微光的转化之力，为尚未齐备的材料补上缺失的一部分。
-	WarmResin: 温香树脂
 	WarmSoupAndSweetsGiveEvenTheLongestJourneyAMealToLookForwardTo: 热汤与甜点，让漫长的旅途也有值得期待的一餐。
 	WaterTouchingLava: 水与熔岩接触
-	Waterleaf: 幌菊
+	Waterleaf: "{$ItemName.Waterleaf}"
 	WellFed: 吃得好
 	WellFedDoesNotRestoreLife: 吃得好 · 不回复生命
 	WhipHitsMarkEnemiesWithResonanceYourMinionsDealIncreasedDamageTo: 鞭子命中敌人后赋予共鸣标记，你的召唤物攻击被共鸣的敌人时伤害增加。
 	Wood: 木材
-	Wood20Gel2WarmResin2: 木材×20＋凝胶×2 → 树脂×2
 	YourRangedAttacksDealMoreDamageTheCloserYouAimToTheTargetSCenter: 你的远程攻击方向距离目标中心越近，造成的伤害就越高。
 }
 
@@ -285,6 +322,10 @@ DefaultLayoutFailed: 默认布局读取失败，已使用技能默认位置
 Disable: 关闭
 Disabled: 已关闭
 DisabledSuffix: " · 已关闭"
+DiscoveryAppeared: 星图显现
+DiscoveryMany: "{0} 等 {1} 项"
+DiscoveryOpen: "{0} 查看"
+DiscoveryUnsealed: 星图启封
 DroppedEquipment: 背包已满，换下的装备掉在脚下
 DropperSource: 以太滴管取得
 ElainaLoadout: 只有伊蕾娜可以使用快捷配装
@@ -380,6 +421,7 @@ MissingSuffix: " · 缺少 {0}"
 MissingTooltipSuffix: ：还缺 {0}
 MissingUnlockCondition: 解锁条件待补充。
 MoreRequirements: …其余需求见详情
+TermTag: 名词
 NeedAlchemyLevel: 需要炼金等级 {0}
 NeedObsidian: 黑曜石不足
 NeedRecipe: 需要 {0} × {1}
@@ -392,7 +434,6 @@ NoRecipeNeeded: 无需配方物品，达到等级后点击研究即可解锁。
 NoStageLoadout: SkillBalance.json 中没有这个阶段的配装
 NotLearned: 尚未习得
 NotLearnedShort: 未习得
-NotebookDock: 手札
 NotebookTitle: 魔女手札
 OtherSkill: 其他技能
 Output: 产出 ×{0}
@@ -482,3 +523,5 @@ AlchemyMissingList: 还缺 {0}
 AlchemyListSeparator: 、
 AlchemyCraftCapacity: 最多可制 {0} 批
 AlchemyBatchCount: 批数
+AlchemyNeedCauldron: 请右键大锅，入位后再开始炼制。
+AlchemyInterrupted: 炼制已中断，未消耗本次炼制材料。

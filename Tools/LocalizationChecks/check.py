@@ -41,8 +41,13 @@ used = set()
 for folder in ('ElainaModSkills', 'ElainaModAlchemy', '炼金'):
     for file in (ROOT / folder).rglob('*.cs'):
         source = file.read_text(encoding='utf-8-sig')
-        used.update(re.findall(r'LocalizeUI\("([\w.]+)"', source))
+        # A concatenated prefix such as "DollCommand" + tool is not a full key.
+        used.update(re.findall(r'LocalizeUI\("([\w.]+)"(?=\s*[,\)])', source))
         used.update(re.findall(r'"(Catalog\.[\w.]+)"', source))
+# The command wheel resolves every enum entry dynamically.
+commands = (ROOT / 'ElainaModSkills/Skills/DollControl/DollCommand.cs').read_text(encoding='utf-8-sig')
+command_enum = re.search(r'public enum DollCommand\s*\{([^}]+)\}', commands).group(1)
+used.update('DollCommand' + name for name in re.findall(r'^\s*(\w+)\s*,', command_enum, re.M))
 assert not used - en.keys(), f'Missing UI keys: {used - en.keys()}'
 
 print(f'PASS: {len(en)} translation pairs, matching placeholders, {len(used)} referenced UI keys, no Chinese English values.')

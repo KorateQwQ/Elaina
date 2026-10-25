@@ -1,3 +1,4 @@
+using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 
@@ -7,6 +8,11 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 
 public class FireBurstSkill : ElainaSkill
 {
+    public override SkillUnlockCondition UnlockCondition { get; set; } =
+        new CompositeSkillUnlockCondition(DefaultUnlockCost,
+            RequireConfiguredCharacterLevelCap(nameof(FireBurstSkill), 50),
+            RequireConfiguredCharacterLevel(nameof(FireBurstSkill), 46));
+
     public override void Initialize()
     {
         base.Initialize();

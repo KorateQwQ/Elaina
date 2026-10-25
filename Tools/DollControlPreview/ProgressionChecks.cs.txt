@@ -1,0 +1,111 @@
+using System;
+using System.IO;
+using System.Linq;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using World = Terraria.Main;
+
+static partial class Checks
+{
+    static void RunProgressionChecks()
+    {
+        int[] counts = [1, 1, 2, 2, 3, 3, 4, 4], bonuses = [0, 10, 10, 20, 20, 30, 30, 50];
+        var config = ElainaSkill.Configuration;
+        var entry = config.Skills[nameof(DollControlSkill)];
+        Check(config.GetSkillLevelNodes(entry).SequenceEqual(new[] { 6, 10, 15, 20, 25, 30, 35, 40 }),
+            "Production JSON opens eight doll levels, once per phase, and stops at Lv8");
+        for (int level = 1; level <= 8; level++)
+        {
+            var doll = Reset(level);
+            var owner = World.player[0];
+            var skill = new DollControlSkill { Level = level }; skill.Initialize();
+            Check(Team().Length == counts[level - 1] && Team().All(d => d.SkillLevel == level), $"Lv{level} team count and spawn level");
+            Check(owner.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint == 80, $"Lv{level} costs 20 mana for the whole team");
+            var stats = skill.GetConstellationStats(level);
+            Check(stats[0].Value == counts[level - 1].ToString() && stats[1].Value == bonuses[level - 1].ToString(), $"Lv{level} actual stat display");
+            if (level < 8)
+            {
+                var preview = skill.GetConstellationUpgradePreview(level + 1);
+                Check(preview[0].Current == counts[level - 1].ToString() && preview[0].Next == counts[level].ToString()
+                    && preview[1].Current == bonuses[level - 1].ToString() && preview[1].Next == bonuses[level].ToString(), $"Lv{level} upgrade comparison");
+            }
+            owner.CharacterLevel = new[] { 6, 10, 15, 20, 25, 30, 35, 40 }[level - 1];
+            Check(skill.MaxLevel == level, $"Lv{level} respects production growth nodes through the base skill host");
+            // A single worker stays at one valid target: count actual production AI hits, not a second timing formula.
+            foreach (bool wall in new[] { false, true })
+            {
+                doll = Reset(level); owner = World.player[0];
+                var commands = owner.GetModPlayer<DollCommandPlayer>();
+                commands.Interval = 12; commands.HitsPerTile = 10000;
+                Point target = new(8, 6);
+                (wall ? commands.WallMarks : commands.TileMarks).Add(target);
+                doll.Projectile.Center = target.ToWorldCoordinates() + new Vector2(-22, -6);
+                for (int tick = 0; tick < 600; tick++) doll.AI();
+                Check(commands.Hits == 50 * (100 + bonuses[level - 1]) / 100, $"Lv{level} {(wall ? "hammer" : "pick")} hit throughput: {commands.Hits}");
+            }
+            // Placement, garden and chest gestures use the same accelerated production work clock.
+            for (int kind = 0; kind < 3; kind++)
+            {
+                doll = Reset(level); owner = World.player[0];
+                var commands = owner.GetModPlayer<DollCommandPlayer>();
+                Point target = new(8, 6);
+                if (kind == 0) commands.PlanterTargets.Add(target);
+                else if (kind == 1) commands.PreviewGardenTarget = target;
+                else { commands.PreviewChestTarget = target; commands.PreviewChestHelper = doll; }
+                doll.Projectile.Center = target.ToWorldCoordinates() + new Vector2(-22, -6)
+                    + (kind == 1 ? new Vector2(0, -16) : kind == 2 ? new Vector2(8, 8) : Vector2.Zero);
+                int ticks = 0;
+                while (commands.PlacedPlanters + commands.GardenActions + commands.PreviewChestOpened == 0 && ticks < 60)
+                { doll.AI(); ticks++; }
+                int expected = (int)Math.Ceiling(2400d / (100 + bonuses[level - 1]));
+                Check(ticks == expected, $"Lv{level} use action {kind}: expected {expected}, got {ticks}");
+                using var stream = new MemoryStream(); doll.SendExtraAI(new BinaryWriter(stream)); stream.Position = 0;
+                var remote = new KumaPetProjectile(); remote.SetDefaults(); remote.Projectile.owner = 0; remote.Projectile.active = true;
+                remote.Projectile.Center = doll.Projectile.Center; remote.ReceiveExtraAI(new BinaryReader(stream));
+                Check(remote.SkillLevel == level, $"Lv{level} synchronizes work speed to remote/late-join projectile");
+                int actions = commands.PlacedPlanters + commands.GardenActions + commands.PreviewChestOpened;
+                World.myPlayer = 1;
+                for (int tick = 0; tick < 60; tick++) remote.AI();
+                World.myPlayer = 0;
+                Check(actions == commands.PlacedPlanters + commands.GardenActions + commands.PreviewChestOpened,
+                    $"Lv{level} remote use action {kind} never executes work");
+            }
+            // A low-level summon needs only its actual number of free slots.
+            Reset(level);
+            for (int i = 0; i < World.maxProjectiles; i++) { World.projectile[i].active = i >= counts[level - 1]; World.projectile[i].ModProjectile = null; }
+            World.player[0].GetModPlayer<ElainaAttributeModPlayer>().MagicPoint = 100;
+            Check(skill.PreUseSkill() && Team().Length == counts[level - 1], $"Lv{level} exact free-slot summon succeeds");
+            DollPetProjectile.DismissAll(World.player[0]);
+            int ticksToVanish = 0;
+            while (Team().Length > 0 && ticksToVanish < 100) { TickTeam(); ticksToVanish++; }
+            Check(ticksToVanish == DollSummonVisuals.VanishTicks + (counts[level - 1] - 1) * DollSummonVisuals.StaggerTicks,
+                $"Lv{level} dismissal stagger uses its actual team size");
+        }
+
+        Reset(1);
+        var live = new DollControlSkill { Level = 1 }; live.Initialize(); live.UpdateEquips(World.player[0]);
+        live.Level = 3; live.UpdateEquips(World.player[0]);
+        Check(Team().Length == 2 && Team().All(d => d.SkillLevel == 3), "Upgrade to Lv3 adds exactly one doll and accelerates both");
+        live.Level = 8; live.UpdateEquips(World.player[0]);
+        Check(Team().Length == 4 && Team().All(d => d.SkillLevel == 8)
+            && World.player[0].GetModPlayer<ElainaAttributeModPlayer>().MagicPoint == 80,
+            "Upgrade to Lv8 updates all four dolls without charging mana again");
+        live.Level = 1; live.UpdateEquips(World.player[0]);
+        Check(Team().Count(d => !d.IsDismissing) == 1, "Downgrade dismisses only excess dolls");
+
+        Reset(1); live = new DollControlSkill { Level = 1 }; live.Initialize(); live.UpdateEquips(World.player[0]);
+        foreach (var p in World.projectile) p.active = true;
+        live.Level = 3; live.UpdateEquips(World.player[0]);
+        Check(Team().Length == 1 && Team()[0].SkillLevel == 3, "Pool-full upgrade preserves the existing worker and updates its speed");
+        World.projectile[1].active = false; live.UpdateEquips(World.player[0]);
+        Check(Team().Length == 2, "Pending upgrade fills the new slot when the projectile pool has room");
+        DollPetProjectile.DismissAll(World.player[0]); live.Level = 5; live.UpdateEquips(World.player[0]);
+        Check(Team().All(d => d.IsDismissing), "An upgrade must not resummon a dismissed team");
+        World.myPlayer = 1; live.Level = 8; live.UpdateEquips(World.player[0]); World.myPlayer = 0;
+        Check(Team(1).Length == 0, "Another client must not create dolls for this owner");
+        Check(DollControlProgression.DollCount(99) == 4 && DollControlProgression.ActionSpeedBonusPercent(99) == 50,
+            "Old overleveled saves cannot exceed the Lv8 effect");
+        Console.WriteLine("PASS: Lv1-8 count, work throughput, use actions, live upgrades, pool limits and synchronized level.");
+    }
+}

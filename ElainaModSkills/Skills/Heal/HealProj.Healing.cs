@@ -5,7 +5,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Heal;
 
 public partial class HealProj
 {
-    private const int HealingSeconds = 10;
+    private const int HealingSeconds = HealSkill.HealingSeconds;
     private const int HealingInterval = 60;
     private const int HealingLifetime = HealingSeconds * HealingInterval;
 

@@ -50,6 +50,7 @@ public class WaterLaserSKill : ElainaSkill
         GetConfiguredDamage(),
         WaterLaser.SplashDamageMultiplier * 100f,
         MagicPointCost,
-        WaterLaser.OutsideFreezeCooldownDamageMultiplier * 100f
+        WaterLaser.OutsideFreezeCooldownDamageMultiplier * 100f,
+        Ice.ShardbindSkill.NameFor(Player)
     ];
 }

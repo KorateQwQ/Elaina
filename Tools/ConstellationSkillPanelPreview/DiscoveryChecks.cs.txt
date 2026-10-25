@@ -1,0 +1,154 @@
+using KL.SkillSystem;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+
+// Stage-gated fixtures: a production StageGateUnlockCondition driven by switchable world progress.
+internal static class GateWorld { internal static bool Reachable, Met; internal static void Reset() => Reachable = Met = false; }
+[KL.SkillSystem.SilkyUI.SkillUIInfo(State = 9, Pixels = 100)] public class GatedSkill : ElainaSkill
+{
+    public override SkillUnlockCondition UnlockCondition { get; set; } = new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(1),
+        new StageGateUnlockCondition((_, _) => GateWorld.Met, (_, _) => GateWorld.Reachable, (_, _) => "击败霜月女王"));
+}
+[KL.SkillSystem.SilkyUI.SkillUIInfo(State = 10, Pixels = 100)] public class GatedChildSkill : ElainaSkill
+{
+    public override Type[] PrerequisiteSkills => [typeof(GatedSkill)];
+}
+
+internal static class DiscoveryChecks
+{
+    private static int _count;
+    private static void Check(bool ok, string name) { if (!ok) throw new Exception(name); _count++; }
+
+    internal static void Run()
+    {
+        GateWorld.Reset();
+        var player = Fixtures.Player(typeof(GatedSkill), typeof(GatedChildSkill), typeof(RecallSkill));
+        var state = new ConstellationState(player);
+        string gated = typeof(GatedSkill).FullName, child = typeof(GatedChildSkill).FullName, recall = typeof(RecallSkill).FullName;
+        string S(string id) => state.Status(state.Find(id));
+
+        // Four states.
+        Check(S(gated) == "hidden" && state.Name(state.Find(gated)) == LocalizeUI("Hidden"), "unreachable stage gate is hidden");
+        Check(S(child) == "hidden", "child of a hidden prerequisite is hidden");
+        Check(S(recall) == "locked" && state.Name(state.Find(recall)) == "???", "unrevealed reachable skill is sealed");
+        state.Select(gated); player.SkillPoint = 5;
+        Check(!state.CanUnlock && !state.Unlock() && player.SkillPoint == 5, "hidden skill cannot be researched");
+        GateWorld.Reachable = true;
+        Check(S(gated) == "ready" && S(child) == "ready", "reachable stage gate and its child become ready");
+        var rows = state.Requirements(gated, false);
+        Check(!rows.Satisfied && rows.Rows.Any(r => r.Custom && !r.Met && r.Name == "击败霜月女王"), "reachable but unmet gate is listed as a gap");
+        var childRows = state.Requirements(child, false);
+        Check(!childRows.Satisfied && childRows.Rows[0].Name == LocalizeUI("MissingSkill", nameof(GatedSkill)), "unlearned prerequisite is a ready skill's first gap");
+        state.Select(child);
+        Check(!state.CanUnlock && !state.Unlock(), "ready skill with unlearned prerequisite cannot be researched");
+        GateWorld.Met = true; state.Select(gated);
+        Check(state.Unlock() && S(gated) == "learned" && player.SkillPoint == 4, "met gate researches normally");
+        GateWorld.Reachable = GateWorld.Met = false;
+        Check(S(gated) == "learned" && S(child) == "ready", "learned skills ignore later gate changes");
+        Check(StageGateUnlockCondition.AllReachable(SkillUnlockCondition.None, player, null)
+            && StageGateUnlockCondition.AllReachable(null, player, null), "plain conditions never hide");
+        player = Fixtures.Player(typeof(CycleA), typeof(CycleB)); state = new(player);
+        Check(state.Status(state.Find(nameof(CycleA))) == "hidden", "dependency cycle can never be learned");
+
+        TrackerChecks();
+        QueueChecks();
+        Console.WriteLine($"PASS: {_count} discovery checks (isolated player boundary)");
+    }
+
+    private static void TrackerChecks()
+    {
+        var tracker = new ConstellationDiscoveryTracker();
+        Check(tracker.Observe([("a", "hidden"), ("b", "locked"), ("c", "ready")]).Count == 0 && tracker.Initialized, "first observation is silent");
+        var events = tracker.Observe([("a", "ready"), ("b", "ready"), ("c", "learned"), ("d", "ready")]);
+        Check(events.Count == 2 && events[0] == new ConstellationDiscoveryEvent("a", ConstellationDiscoveryKind.Appeared)
+            && events[1] == new ConstellationDiscoveryEvent("b", ConstellationDiscoveryKind.Unsealed), "appeared and unsealed are reported");
+        Check(tracker.Fresh.SetEquals(["a", "b"]), "newly added skill is recorded silently");
+        Check(tracker.Observe([("a", "ready"), ("b", "ready")]).Count == 0, "unchanged states do not repeat");
+        events = tracker.Observe([("e", "hidden")]);
+        events = tracker.Observe([("e", "locked")]);
+        Check(events.Single().Kind == ConstellationDiscoveryKind.Appeared && tracker.Fresh.Contains("e"), "hidden to sealed counts as appeared");
+        Check(tracker.Observe([("e", "ready")]).Single().Kind == ConstellationDiscoveryKind.Unsealed, "then unsealing is reported");
+        tracker.Observe([("a", "learned"), ("b", "hidden")]);
+        Check(!tracker.Fresh.Contains("a") && !tracker.Fresh.Contains("b"), "learned or re-hidden skills leave the fresh set");
+        Check(tracker.Observe([("b", "ready")]).Single().Kind == ConstellationDiscoveryKind.Appeared, "re-hidden skill can appear again");
+
+        // The panel state shares the tracker's fresh set; selecting clears it.
+        var player = Fixtures.Player(typeof(RecallSkill));
+        var state = new ConstellationState(player) { Fresh = tracker.Fresh };
+        tracker.Fresh.Add(typeof(RecallSkill).FullName); tracker.Fresh.Add(nameof(AshenWitchSkill));
+        Check(state.IsFresh(typeof(RecallSkill).FullName) && state.IsFresh(nameof(AshenWitchSkill)), "fresh marker reads the shared set");
+        state.Select(nameof(AshenWitchSkill)); state.Unlock();
+        Check(!state.IsFresh(nameof(AshenWitchSkill)), "learned skill no longer shows a fresh marker");
+        state.MarkSeen(typeof(RecallSkill).FullName);
+        Check(!tracker.Fresh.Contains(typeof(RecallSkill).FullName), "selecting marks the shared entry seen");
+    }
+
+    private static void QueueChecks()
+    {
+        var queue = new ConstellationToastQueue();
+        queue.Push([new("a", ConstellationDiscoveryKind.Appeared), new("b", ConstellationDiscoveryKind.Appeared), new("c", ConstellationDiscoveryKind.Unsealed)]);
+        Check(queue.Current == null && queue.PendingCount == 2, "same kinds merge into one toast");
+        queue.Advance(0, false);
+        Check(queue.Current.Ids.SequenceEqual(["a", "b"]) && ConstellationToastQueue.Alpha(queue.Current) == 0, "first toast starts transparent");
+        queue.Push([new("d", ConstellationDiscoveryKind.Appeared)]);
+        Check(queue.Current.Ids.Count == 2 && queue.PendingCount == 2, "the toast on screen keeps its content");
+        queue.Advance(.125f, false);
+        Check(Math.Abs(ConstellationToastQueue.Alpha(queue.Current) - .5f) < .001f && ConstellationToastQueue.Rise(queue.Current) > 0, "fade in and slide");
+        queue.Advance(1f, false);
+        Check(ConstellationToastQueue.Alpha(queue.Current) == 1 && ConstellationToastQueue.Rise(queue.Current) == 0, "fully shown while holding");
+        queue.Advance(1.9f, false);
+        Check(ConstellationToastQueue.Alpha(queue.Current) is > 0 and < 1, "fading out after the hold");
+        queue.Advance(.016f, true);
+        Check(ConstellationToastQueue.Alpha(queue.Current) == 1, "hover restores and holds a fading toast");
+        for (int i = 0; i < 600; i++) queue.Advance(1 / 60f, true);
+        Check(queue.Current?.Ids[0] == "a", "hover keeps it indefinitely");
+        var first = queue.Current; int steps = 0;
+        while (queue.Current == first && steps++ < 1000) queue.Advance(1 / 60f, false);
+        // Hover parked it at the end of the fade in, so the rest is the hold plus the fade out.
+        float rest = ConstellationToastQueue.Hold + ConstellationToastQueue.FadeOut;
+        Check(queue.Current == null && Math.Abs(steps / 60f - rest) < .02f, "toast ends after the hold and fade out");
+        queue.Advance(1 / 144f, false);
+        Check(queue.Current.Kind == ConstellationDiscoveryKind.Unsealed, "next toast follows");
+        queue.Clear();
+        Check(queue.Current == null && queue.PendingCount == 0, "clear drops all toasts");
+    }
+}
+
+internal static class DiscoveryPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        GateWorld.Reset(); GateWorld.Reachable = true;
+        var player = Fixtures.Player(typeof(GatedSkill), typeof(RecallSkill));
+        var state = new ConstellationState(player);
+        Fixtures.Text();
+        var cases = new (string Name, ConstellationDiscoveryKind Kind, string[] Ids)[]
+        {
+            ("appeared", ConstellationDiscoveryKind.Appeared, [nameof(WindBladeSkill)]),
+            ("appeared-sealed", ConstellationDiscoveryKind.Appeared, [typeof(RecallSkill).FullName]),
+            ("appeared-many", ConstellationDiscoveryKind.Appeared, [nameof(MultiMissileSkill), nameof(WindBladeSkill), typeof(RecallSkill).FullName, nameof(MagicBarrierSkill)]),
+            ("unsealed", ConstellationDiscoveryKind.Unsealed, [nameof(MagicBarrierSkill)]),
+        };
+        var dir = Path.Combine(output, "discovery"); Directory.CreateDirectory(dir);
+        foreach (float scale in new[] { 1f, 1.25f })
+        foreach (var c in cases)
+        foreach (var (frame, age, hover) in new[] { ("in", .1f, false), ("hold", 1f, false), ("hover", 1f, true) })
+        {
+            var toast = new ConstellationToast(c.Kind) { Age = age };
+            toast.Ids.AddRange(c.Ids);
+            int w = (int)Math.Ceiling(300 * scale), h = (int)Math.Ceiling(110 * scale);
+            using var target = new RenderTarget2D(device, w, h);
+            device.SetRenderTarget(target); device.Clear(new Color(58, 74, 66));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            // A world-like backdrop and the skill bar edge under the toast's anchor.
+            batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(0, (int)(84 * scale), w, h), new Color(24, 22, 33));
+            var drawing = new ConstellationDrawing(new()) { Batch = batch, Scale = scale, Origin = new Vector2(32, 24) * scale };
+            ConstellationToastPainter.Paint(drawing, state, toast, "V", hover);
+            batch.End(); device.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(dir, $"{c.Name}-{frame}-{scale:0.00}.png"));
+            target.SaveAsPng(file, w, h);
+        }
+        Console.WriteLine("FNA discovery toast: " + dir);
+    }
+}

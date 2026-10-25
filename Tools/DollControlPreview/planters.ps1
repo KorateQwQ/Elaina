@@ -1,0 +1,20 @@
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
+$ErrorActionPreference = 'Stop'
+$repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
+$output = Join-Path $repo '.vissandbox/doll-planter-checks'
+New-Item -ItemType Directory -Force -Path $output | Out-Null
+$project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
+foreach ($entry in @(
+    @('Reference', "$Tml/tModLoader.dll"),
+    @('Reference', "$Tml/Libraries/**/*.dll"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlanterBuilding.cs"),
+    @('Compile', "$PSScriptRoot/PlanterNativeChecks.cs.txt"))) {
+    $node = $project.CreateElement($entry[0]); $node.SetAttribute('Include', $entry[1])
+    if ($entry[1].EndsWith('**/*.dll')) {
+        $node.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
+    }
+    [void]$project.Project.SelectSingleNode('ItemGroup').AppendChild($node)
+}
+$path = Join-Path $output 'Checks.csproj'; $project.Save($path)
+dotnet run --project $path --verbosity quiet
+if ($LASTEXITCODE -ne 0) { throw 'Native planter placement checks failed.' }

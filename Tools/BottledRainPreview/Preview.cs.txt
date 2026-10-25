@@ -1,0 +1,88 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.Rain;
+
+using var game = new RainPreview(args[0], args[1]);
+game.Run();
+
+sealed class RainPreview : Game
+{
+    readonly string output;
+    SpriteBatch batch;
+    Texture2D pixel, cloud, herbs, blooms;
+    bool done;
+    readonly float[] lengths = Enumerable.Range(0, 20).Select(i => i >= 3 && i <= 6 ? 88f : 168f).ToArray();
+    public RainPreview(string output, string content)
+    {
+        this.output = output; Content.RootDirectory = content;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 800, PreferredBackBufferHeight = 450,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = Content.Load<Texture2D>("Images/MagicPixel");
+        cloud = Content.Load<Texture2D>("Images/Projectile_238");
+        herbs = Content.Load<Texture2D>("Images/Tiles_83");
+        blooms = Content.Load<Texture2D>("Images/Tiles_84");
+        Console.WriteLine($"Actual assets: MagicPixel {pixel.Width}x{pixel.Height}; rain cloud {cloud.Width}x{cloud.Height}");
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        Directory.CreateDirectory(output);
+        using var sheet = new RenderTarget2D(GraphicsDevice, 1280, 720, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        GraphicsDevice.SetRenderTarget(sheet); GraphicsDevice.Clear(Color.Black); GraphicsDevice.SetRenderTarget(null);
+        int[] ages = [12, 120, 600, 3575];
+        for (int i = 0; i < ages.Length; i++)
+        {
+            using var frame = Frame(ages[i], i == 2, 1);
+            Save(frame, $"rain-{ages[i]:0000}.png");
+            GraphicsDevice.SetRenderTarget(sheet); batch.Begin();
+            batch.Draw(frame, new Vector2(i % 2 * 640, i / 2 * 360), Color.White);
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+        }
+        Save(sheet, "rain-sequence.png");
+        using (var zoom = Frame(120, false, 1.25f)) Save(zoom, "rain-125.png");
+        for (int i = 0; i < 90; i++)
+        {
+            using var frame = Frame(120 + i * 3, false, 1);
+            Save(frame, $"motion-{i:000}.png");
+        }
+        Console.WriteLine("Exported emergence/rain/daylight/fade, 125% scale and 90 animation frames.");
+        Exit();
+    }
+    RenderTarget2D Frame(float age, bool bright, float scale)
+    {
+        var target = new RenderTarget2D(GraphicsDevice, (int)(640 * scale), (int)(360 * scale));
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(bright ? new Color(142, 187, 211) : new Color(27, 31, 52));
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None,
+            RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+        Fill(0, 304, 640, 56, new Color(73, 59, 71));
+        Fill(0, 302, 640, 4, new Color(93, 133, 109));
+        for (int x = 0; x < 640; x += 16) Fill(x, 309 + (x % 3) * 5, 8, 2, new Color(86, 70, 83));
+        Fill(208, 224, 64, 8, new Color(106, 99, 125));
+        Fill(208, 222, 64, 2, new Color(156, 145, 171));
+        // Fixture plants demonstrate where the roof blocks rain; production tile growth is tested separately.
+        for (int x = 176; x < 496; x += 32)
+        {
+            bool flowering = age >= 30 && (x < 208 || x >= 272);
+            batch.Draw(flowering ? blooms : herbs, new Vector2(x, 284), new Rectangle(72, 0, 16, 20), Color.White);
+        }
+        Fill(114, 274, 13, 28, new Color(174, 158, 204));
+        Fill(114, 261, 12, 13, new Color(235, 207, 205));
+        Fill(105, 256, 32, 5, new Color(180, 162, 209));
+        Fill(114, 245, 15, 12, new Color(161, 142, 193));
+        RainCloudDrawing.Draw(batch, pixel, cloud, new Vector2(320, 120), age, lengths, 3);
+        batch.End(); GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+    void Fill(int x, int y, int width, int height, Color color) =>
+        batch.Draw(pixel, new Rectangle(x, y, width, height), new Rectangle(0, 0, 1, 1), color);
+    void Save(RenderTarget2D target, string name)
+    { using var stream = File.Create(Path.Combine(output, name)); target.SaveAsPng(stream, target.Width, target.Height); }
+    protected override void UnloadContent() { batch.Dispose(); base.UnloadContent(); }
+}

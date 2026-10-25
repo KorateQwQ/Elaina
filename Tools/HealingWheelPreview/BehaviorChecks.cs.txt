@@ -32,9 +32,35 @@ static class BehaviorChecks
     }
     static ElainaAttributeModPlayer Magic(HealSkill s) => s.Player.GetModPlayer<ElainaAttributeModPlayer>();
     static ActionModPlayer Actions(HealSkill s) => s.Player.GetModPlayer<ActionModPlayer>();
-    static void Main()
+    static void Main(string[] args)
     {
+        string json = System.IO.File.ReadAllText(System.IO.Path.Combine(args[0], SkillBalanceConfig.ResourcePath));
+        Check(SkillBalanceConfig.TryParse(json, out var config, out _), "Production balance configuration parses");
+        SkillBalanceSystem.Current = config;
+        var entry = config.Skills[nameof(HealSkill)];
+        Check(entry.UnlockStageCap == 25 && entry.UnlockLevel == 21 && entry.LevelInterval == 10
+            && entry.GrowthMode == SkillGrowthMode.Interval && entry.MaxLevel == 8, "Healing unlock and growth configuration");
+        Check(entry.ManaCost == 120 && entry.BaseCooldown == 60 && entry.MaxCharges == 1, "120 magic and fixed 60-second base cooldown");
+        for (int level = 1; level <= 8; level++)
+        {
+            int characterLevel = 21 + (level - 1) * 10;
+            Check(config.GetSkillLevelCap(entry, characterLevel - 1) == level - 1
+                && config.GetSkillLevelCap(entry, characterLevel) == level, "Exact growth boundary " + characterLevel);
+            var skill = Setup(); skill.Level = level;
+            Check(skill.PreUseSkill() && Actions(skill).LastHealing == 100 + (level - 1) * 20, "Cast healing at skill level " + level);
+            var stats = skill.GetConstellationStats(level);
+            var preview = skill.GetConstellationUpgradePreview(level + 1);
+            Check(stats[0].Value == Actions(skill).LastHealing.ToString() && stats[1].Value == (Actions(skill).LastHealing / 10).ToString()
+                && preview[0].Current == stats[0].Value && preview[0].Next == Math.Min(240, Actions(skill).LastHealing + 20).ToString(),
+                "Stats and upgrade preview match actual healing at level " + level);
+            var healing = StartHealing(total: Actions(skill).LastHealing);
+            TickHealing(healing, 600);
+            Check(Terraria.Main.player[1].statLife == 150 + (level - 1) * 20, "Ten pulses deliver the complete tier " + level);
+        }
+        Check(config.GetSkillLevelCap(entry, 1000) == 8 && HealSkill.GetTotalHealing(1000) == 240
+            && HealSkill.GetTotalHealing(0) == 100, "Level cap, old saves and unlearned previews stay within the healing tiers");
         var s = Setup();
+        Check(s.CanUseSkill() && Magic(s).Spent == 0, "Eligibility checks do not spend magic");
         Check(s.PreUseSkill(), "Solo cast succeeds");
         Check(!ElainaHealingWheel.IsShowing && ElainaHealingWheel.Opens == 0, "Solo never opens a picker");
         Check(Actions(s).LastHealing == 100, "Cast passes total healing through ai[0]");
@@ -98,9 +124,12 @@ static class BehaviorChecks
         ElainaHealingWheel.Confirm(1);
         Check(Actions(s).Calls == 0 && Magic(s).Spent == 0, "Unequipped skill cannot cast");
         s = Setup(); Magic(s).Available = s.MagicPointCost - 1;
+        Check(!s.CanUseSkill() && Magic(s).ConversionAttempts == 0, "Cannot pass eligibility by converting life");
         Check(!s.PreUseSkill() && Actions(s).Calls == 0 && Magic(s).Spent == 0, "Insufficient magic blocks direct cast");
+        Check(Magic(s).ConversionAttempts == 0, "Direct cast never requests life conversion");
         s = Setup(true); s.PreUseSkill(); Magic(s).Available = s.MagicPointCost - 1; ElainaHealingWheel.Confirm(1);
         Check(Actions(s).Calls == 0 && Magic(s).Spent == 0, "Insufficient magic at confirmation costs nothing");
+        Check(Magic(s).ConversionAttempts == 0, "Ally confirmation never requests life conversion");
         s = Setup(true); s.PreUseSkill(); Magic(s).UniqueMagicEnabled = false;
         Check(!ElainaHealingWheel.ValidSource(), "Disabling magic invalidates picker");
         ElainaHealingWheel.Confirm(1);
@@ -187,6 +216,11 @@ static class BehaviorChecks
         Check(Terraria.Main.player[1].statLife == 490, "No banked healing after full-health pulses");
         var variable = StartHealing(total: 103); TickHealing(variable, 600);
         Check(Terraria.Main.player[1].statLife == 153, "ai[0] supplies total healing including integer remainder");
+        var first = StartHealing(total: 100);
+        var stacked = new HealProj(); stacked.SetDefaults();
+        stacked.Projectile.ai[0] = 240; stacked.Projectile.ai[1] = 1;
+        for (int tick = 0; tick < 600; tick++) { TickHealing(first, 1); TickHealing(stacked, 1); }
+        Check(Terraria.Main.player[1].statLife == 390, "Independent casts on the same target stack their full healing");
         var resumed = StartHealing(age: 300); TickHealing(resumed, 300);
         Check(Terraria.Main.player[1].statLife == 100 && !resumed.Projectile.active, "Received age resumes remaining five pulses and lifetime");
         var finished = StartHealing(age: 600); TickHealing(finished, 1);
@@ -272,22 +306,42 @@ namespace 伊蕾娜.ElainaAttribute
     {
         public float Available = 1000, Spent;
         public bool UniqueMagicEnabled = true;
-        public bool ConsumeMagicPoint(float cost)
+        public int ConversionAttempts;
+        public bool ConsumeMagicPoint(float cost, bool consume = true, bool allowLifeConversion = true)
         {
-            if (Available < cost) return false;
-            Available -= cost; Spent += cost; return true;
+            if (Available < cost)
+            {
+                if (!allowLifeConversion) return false;
+                ConversionAttempts++;
+                return true; // Deliberately allow conversion so regressions cannot pass through a lack of life.
+            }
+            if (consume) { Available -= cost; Spent += cost; }
+            return true;
         }
     }
 }
 namespace 伊蕾娜.ElainaModSkills
 {
+    public static class SkillBalanceSystem { public static SkillBalanceConfig Current; }
     public sealed class SkillStub { public int SkillSlot; }
     public class ElainaSkill
     {
         public Player Player;
         public SkillStub Skill = new();
         public float MaxCD, MagicPointCost;
-        public virtual void Initialize() { }
+        public int Level = 1;
+        public virtual KL.SkillSystem.SkillUnlockCondition UnlockCondition { get; set; }
+        protected static KL.SkillSystem.SkillUnlockCondition DefaultUnlockCost => new();
+        protected static KL.SkillSystem.SkillUnlockCondition RequireConfiguredCharacterLevelCap(string id, int cap) => new();
+        protected virtual object[] SkillDescriptionArgs => [];
+        public virtual (string Label, string Value, string Unit)[] GetConstellationStats(int level) => [];
+        public virtual (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int level) => [];
+        public virtual bool CanUseSkill() => true;
+        public virtual void Initialize()
+        {
+            var entry = SkillBalanceSystem.Current.Skills[GetType().Name];
+            MaxCD = (float)entry.BaseCooldown; MagicPointCost = (float)entry.ManaCost;
+        }
         public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
         public virtual bool BeginWandUse() => true;
         public virtual void UpdateEquips(Player player) { }
@@ -298,6 +352,15 @@ namespace 伊蕾娜.ElainaModSkills
         public HealSkill Owner;
         public void UseSkill(int slot) => Owner.PreUseSkill();
     }
+}
+namespace KL.SkillSystem
+{
+    public class SkillUnlockCondition { }
+    public class CompositeSkillUnlockCondition(params SkillUnlockCondition[] conditions) : SkillUnlockCondition { }
+}
+namespace 伊蕾娜.Localization
+{
+    internal static class UIText { internal static string LocalizeUI(string key) => key; }
 }
 namespace Terraria.ID { public static class NetmodeID { public const int Server = 2; } }
 namespace 伊蕾娜.ElainaModSkills.Skills

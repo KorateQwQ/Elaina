@@ -23,7 +23,7 @@ public static class ElainaMagicAttributes
     public static float ExtraLifeRetentionRatio => 0.5f;
 
     /// <summary>战斗中的固定每秒恢复量。</summary>
-    public static float CombatRecoveryPerSecond => 5f;
+    public static float CombatRecoveryPerSecond => 10f;
 
     /// <summary>战斗中的每秒最大魔力百分比恢复量。</summary>
     public static float CombatMaxMagicPointRecoveryPercentPerSecond => 0.02f;

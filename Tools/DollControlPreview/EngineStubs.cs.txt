@@ -21,9 +21,11 @@ namespace Terraria
         public static Player LocalPlayer => player[myPlayer];
         public static SpriteBatch spriteBatch;
         public static Vector2 screenPosition;
+        public static bool dedServ;
     }
     public class Player
     {
+        public int CharacterLevel = 40;
         public bool active = true, dead;
         public int whoAmI, direction = 1, itemAnimation;
         public float gravDir = 1f;
@@ -31,7 +33,7 @@ namespace Terraria
         public Vector2 Center, velocity;
         readonly ElainaAttributeModPlayer attributes = new();
         readonly DollCommandPlayer commands = new();
-        public T GetModPlayer<T>() where T : class => attributes as T ?? commands as T;
+        public T GetModPlayer<T>() where T : class { commands.Player = this; return attributes as T ?? commands as T; }
         public DataStructures.IEntitySource GetSource_Misc(string context) => null;
     }
     public class Item { public int pick; }
@@ -48,9 +50,9 @@ namespace Terraria
         public int width, height, aiStyle, penetrate, timeLeft, owner, frame, frameCounter, direction, spriteDirection;
         public bool active, friendly, hostile, tileCollide, ignoreWater, netImportant, netUpdate;
         public float rotation, scale = 1f;
-        public float[] ai = new float[3];
+        public float[] ai = new float[3], localAI = new float[3];
         public ModProjectile ModProjectile;
-        public void Kill() => active = false;
+        public void Kill() { active = false; ModProjectile?.OnKill(timeLeft); }
         public Color GetAlpha(Color color) => color;
         public DataStructures.IEntitySource GetSource_FromThis() => null;
         public static int NewProjectile(DataStructures.IEntitySource source, Vector2 center, Vector2 velocity,
@@ -59,7 +61,7 @@ namespace Terraria
             if (owner != Main.myPlayer || Main.netMode == 2) throw new Exception("Non-owner spawn");
             int index = Array.FindIndex(Main.projectile, p => !p.active);
             if (index < 0) throw new Exception("Projectile pool exhausted");
-            var mod = new KumaPetProjectile();
+            var mod = (ModProjectile)Activator.CreateInstance(ModContent.ProjectileTypes[type]);
             mod.SetDefaults();
             var p = mod.Projectile;
             p.Center = center; p.velocity = velocity; p.owner = owner; p.active = true;
@@ -71,6 +73,13 @@ namespace Terraria
 namespace Terraria.DataStructures { public interface IEntitySource { } }
 namespace Terraria.ID { public static class NetmodeID { public const int Server = 2; } }
 namespace Terraria.ModLoader.IO { public class TagCompound { } }
+namespace Terraria.Localization { public static class Language { public static string GetTextValue(string key) => key; } }
+namespace KL.SkillSystem
+{
+    // Unlock-condition host is not executed by this projectile fixture.
+    public class SkillUnlockCondition { }
+    public class CompositeSkillUnlockCondition(params SkillUnlockCondition[] conditions) : SkillUnlockCondition { }
+}
 namespace Terraria.ModLoader
 {
     public class ModProjectile
@@ -83,6 +92,7 @@ namespace Terraria.ModLoader
         public virtual bool? CanDamage() => null;
         public virtual bool? CanCutTiles() => null;
         public virtual void AI() { }
+        public virtual void OnKill(int timeLeft) { }
         public virtual void SendExtraAI(System.IO.BinaryWriter writer) { }
         public virtual void ReceiveExtraAI(System.IO.BinaryReader reader) { }
         public virtual bool PreDraw(ref Color lightColor) => true;
@@ -90,7 +100,13 @@ namespace Terraria.ModLoader
     public static class ModContent
     {
         public static Func<string, Texture2D> LoadTexture;
-        public static int ProjectileType<T>() => 0;
+        public static readonly List<Type> ProjectileTypes = [];
+        public static int ProjectileType<T>()
+        {
+            int type = ProjectileTypes.IndexOf(typeof(T));
+            if (type >= 0) return type;
+            ProjectileTypes.Add(typeof(T)); return ProjectileTypes.Count - 1;
+        }
         public static Asset<T> Request<T>(string path, AssetRequestMode mode) =>
             new((T)(object)LoadTexture(path));
     }
@@ -125,6 +141,18 @@ namespace 伊蕾娜.ElainaModSkills
 {
     public class ElainaSkill
     {
+        public static SkillBalanceConfig Configuration;
+        public int Level = 1;
+        public virtual int MaxLevel => UsesLiveBalance && Configuration != null
+            ? Math.Max(1, Configuration.GetSkillLevelCap(Configuration.Skills[GetType().Name], Player.CharacterLevel)) : 5;
+        public virtual KL.SkillSystem.SkillUnlockCondition UnlockCondition { get; set; }
+        protected static KL.SkillSystem.SkillUnlockCondition DefaultUnlockCost => new();
+        protected static KL.SkillSystem.SkillUnlockCondition RequireConfiguredCharacterLevelCap(string id, int level) => new();
+        protected static KL.SkillSystem.SkillUnlockCondition RequireConfiguredCharacterLevel(string id, int level) => new();
+        protected virtual object[] SkillDescriptionArgs => [];
+        public virtual (string Label, string Value, string Unit)[] GetConstellationStats(int level) => [];
+        public virtual (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int level) => [];
+        public virtual void UpdateEquips(Player player) { }
         public Player Player => Main.LocalPlayer;
         public float MagicPointCost, MaxCD;
         protected virtual bool UsesLiveBalance => true;
@@ -137,29 +165,75 @@ namespace 伊蕾娜.ElainaModSkills
 }
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
 {
+    // KL Bloom dust is game-only; previews/checks compile DollSummonVisuals and draw sparks themselves.
+    public static class DollSummonDust { public static void Burst(Vector2 center, bool vanish) { } }
     /// <summary>
     /// 指令/标记/收集物宿主的替身：正式版依赖 WorldGen 与网络，这里只按队列给出目标格，
     /// 每格敲 <see cref="HitsPerTile"/> 下算挖掉并记一件收集物，用来检查玩偶 AI 如何使用这些接口。
     /// </summary>
-    public class DollCommandPlayer
+    public sealed partial class DollCommandPlayer
     {
-        public readonly List<Point> Targets = [];
+        public Player Player;
+        public sealed class MarkSet : HashSet<Point>
+        {
+            public void AddRange(IEnumerable<Point> points) => UnionWith(points);
+            public Point this[int index] => this.ElementAt(index);
+        }
+        public sealed class PlanterSet : Dictionary<Point, int>
+        {
+            public void Add(Point p) => this[p] = 1;
+            public void AddRange(IEnumerable<Point> points) { foreach (Point p in points) Add(p); }
+        }
+        public readonly MarkSet TileMarks = [], WallMarks = [];
+        public MarkSet Targets => TargetsWalls ? WallMarks : TileMarks;
+        public readonly PlanterSet PlanterMarks = [];
+        public PlanterSet PlanterTargets => PlanterMarks;
+        public readonly HashSet<Point> BlockedTiles = [], BlockedWalls = [], InvalidTiles = [], InvalidWalls = [], BlockedPlanters = [];
+        public readonly Dictionary<Point, Point> UnlockWallsAfterRemoval = [];
+        private int validateTimer;
+        private enum Work { Ready, Later, Never }
+        private Work Check(Point p, bool wall) => (wall ? InvalidWalls : InvalidTiles).Contains(p) ? Work.Never
+            : (wall ? BlockedWalls : BlockedTiles).Contains(p) ? Work.Later : Work.Ready;
+        private bool IsMarkable(int x, int y, bool wall) => !(wall ? InvalidWalls : InvalidTiles).Contains(new(x, y));
+        private bool InRange(Point p) => Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) <= 2400f * 2400f;
+        private bool CanBuild(Point p) => !BlockedPlanters.Contains(p);
+        public void ClearTasks() { TileMarks.Clear(); WallMarks.Clear(); PlanterMarks.Clear(); workClaims.Clear(); }
+        public void ResumeGarden() { }
+        public Point? PreviewChestTarget;
+        public DollPetProjectile PreviewChestHelper;
+        public bool RemoteChestActionFinished;
+        public int PreviewChestOpened;
+        internal bool IsRemoteChestHelper(DollPetProjectile worker) => worker == PreviewChestHelper && PreviewChestTarget != null;
+        internal bool TrySelectRemoteChest(DollPetProjectile worker, out Point target)
+        { target = PreviewChestTarget ?? new Point(-1, -1); return IsRemoteChestHelper(worker); }
+        internal void CompleteRemoteChestGesture(DollPetProjectile worker)
+        { if (IsRemoteChestHelper(worker) && !RemoteChestActionFinished) { RemoteChestActionFinished = true; PreviewChestOpened++; } }
+        public Point? PreviewGardenTarget;
+        public int GardenActions;
+        internal bool TrySelectGardenTarget(Vector2 from, Point current, out Point target, DollPetProjectile worker = null)
+        { target = PreviewGardenTarget ?? new(-1, -1); return PreviewGardenTarget != null; }
+        internal void TendGarden(Point point) { GardenActions++; }
+        public int PlacedPlanters;
         public bool TargetsWalls;
         public int HitsPerTile = 3, Interval = 6, Hits, Loot, Delivered;
         public Vector2 DeliveredAt;
-        public bool HasTask => Targets.Count > 0;
+        public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlanterTargets.Count > 0;
         public bool HasLoot => Loot > 0;
-        internal bool TrySelectTarget(Vector2 from, Point current, bool currentWall, out Point target, out bool wall)
-        {
-            wall = TargetsWalls;
-            target = Targets.Count > 0 ? Targets[0] : new Point(-1, -1);
-            return Targets.Count > 0;
-        }
+        internal void PlacePlanter(Point point) { if (PlanterTargets.Remove(point)) PlacedPlanters++; }
         internal int HitInterval(bool walls) => Interval;
+        readonly Dictionary<(Point, bool), int> damage = [];
         internal void Hit(Point point, bool walls)
         {
-            if (++Hits % HitsPerTile != 0) return;
-            Targets.Remove(point);
+            var marks = walls ? WallMarks : TileMarks;
+            if (!marks.Contains(point)) throw new Exception("Duplicate or stale hit");
+            Hits++;
+            var key = (point, walls);
+            damage.TryGetValue(key, out int prior);
+            damage[key] = prior + 1;
+            if (damage[key] < HitsPerTile) return;
+            damage.Remove(key);
+            marks.Remove(point);
+            if (walls && UnlockWallsAfterRemoval.TryGetValue(point, out Point exposed)) BlockedWalls.Remove(exposed);
             Loot++;
         }
         public void DeliverLoot(Vector2 from, Terraria.DataStructures.IEntitySource source)

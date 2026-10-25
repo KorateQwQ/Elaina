@@ -4,7 +4,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const assert=require('node:assert/strict');
 const {spawnSync}=require('node:child_process');
 const root=path.resolve(__dirname,'../..');
-const skills=[['Ice/IceConeSkill',25],['Wind/WindSlashSkill',20],['Water/WaterLaserSKill',30],['Fire/FireLaserSkill',40]];
+const skills=[['Ice/IceConeSkill',25],['Wind/WindSlashSkill',20],['Water/WaterLaserSKill',30],['Fire/FireLaserSkill',40],['Heal/HealSkill',25]];
 const base=fs.readFileSync(path.join(root,'ElainaModSkills/ElainaSkill.cs'),'utf8');
 const helper=base.match(/    protected static SkillUnlockCondition RequireConfiguredCharacterLevelCap[\s\S]*?(?=    \/\/\/ <summary>)/)?.[0];
 assert.ok(helper,'Configured cap helper is missing');
@@ -32,7 +32,7 @@ void Apply(string text){if(!SkillBalanceConfig.TryParse(text,out var config,out 
 int passed=0;
 void Check(bool condition,string message){if(!condition)throw new Exception(message);passed++;Console.WriteLine("PASS "+message);}
 Apply(json);
-foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(new WindSlashSkill(),20),(new WaterLaserSKill(),30),(new FireLaserSkill(),40)}){
+foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(new WindSlashSkill(),20),(new WaterLaserSKill(),30),(new FireLaserSkill(),40),(new HealSkill(),25)}){
  Apply(json);
  string id=skill.GetType().Name;
  int cap=SkillBalanceSystem.Current.Skills[id].UnlockStageCap;
@@ -41,7 +41,7 @@ foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(
  player.Player.State.Cap=cap-1;player.Player.State.Level=1000;
  Check(!condition.CanUnlock(player,skill),id+": stage cap below threshold blocks unlock");
  player.Player.State.Cap=cap;player.Player.State.Level=1;
- Check(condition.CanUnlock(player,skill),id+": stage cap at threshold unlocks regardless of actual level");
+ Check(condition.CanUnlock(player,skill),id+": stage cap at threshold unlocks even at character level 1");
  Check(condition.GetDescription(player,skill).Contains("Lv."+cap),id+": description uses configured cap");
  player.HasCost=false;
  Check(!condition.CanUnlock(player,skill),id+": stage readiness does not remove default material/point cost");
@@ -53,11 +53,16 @@ foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(
  }
  Check(!condition.CanUnlock(null,skill),id+": null player is safe");
  var payload=JsonNode.Parse(json);
- var row=payload["configuration"]["basicAttacks"].AsArray().First(x=>x["id"].GetValue<string>()==id);
+ var row=payload["configuration"][id=="HealSkill"?"skills":"basicAttacks"].AsArray().First(x=>x["id"].GetValue<string>()==id);
  row["unlockStageCap"]=cap+5;Apply(payload.ToJsonString());
  Check(!condition.CanUnlock(player,skill)&&condition.GetDescription(player,skill).Contains("Lv."+(cap+5)),id+": existing rule and description read updated JSON");
  player.Player.State.Cap=cap+5;
  Check(condition.CanUnlock(player,skill),id+": updated threshold unlocks correctly");
+ if(id=="HealSkill"){
+  row["unlockLevel"]=31;Apply(payload.ToJsonString());
+  Check(condition.CanUnlock(player,skill)&&!condition.GetDescription(player,skill).Contains("Lv.31"),
+   "Healing growth origin does not impose an actual-level learning requirement");
+ }
  SkillBalanceSystem.Current=SkillBalanceConfig.Fallback;
  player.Player.State.Cap=fallback;
  Check(condition.CanUnlock(player,skill)&&condition.GetDescription(player,skill).Contains("Lv."+fallback),id+": missing JSON entry uses fallback stage");
@@ -109,7 +114,7 @@ namespace KL.SkillSystem {
 namespace Terraria.Localization {
  public static class Language {
   public static string GetTextValue(string key,params object[] args){
-   if(key!="Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap")throw new Exception("Wrong localization key");
+   if(key!="Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevelCap"&&key!="Mods.伊蕾娜.SkillInfo.UnlockConditions.CharacterLevel")throw new Exception("Wrong localization key");
    return string.Format("角色等级上限达到 Lv.{0}",args);
   }
  }

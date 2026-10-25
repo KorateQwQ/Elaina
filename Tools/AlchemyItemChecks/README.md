@@ -2,12 +2,12 @@
 
 运行 `& Tools/AlchemyItemChecks/run.ps1 -PotionsOnly` 验证本轮魔药；可用 `-Tml` 指定 tModLoader 安装目录。省略 `-PotionsOnly` 会额外检查所有非药剂的图像资产。
 
-链接真实 `AlchemyItem`、`AlchemyPotion`、`AlchemyFood`、20 个具体物品、6 个 Buff 及效果类型，直接使用本机 tModLoader 程序集，没有 Terraria 或 ModContent 桩。通过真实 `ILoadable.Load` / `ItemLoader` / `ContentInstance` 路径注册，再调用生产 `SetDefaults`，检查：
+链接真实 `AlchemyItem`、`AlchemyPotion`、`AlchemyFood`、19 个具体物品、6 个 Buff 及效果类型，直接使用本机 tModLoader 程序集，没有 Terraria 或 ModContent 桩。通过真实 `ILoadable.Load` / `ItemLoader` / `ContentInstance` 路径注册，再调用生产 `SetDefaults`，检查：
 
 - 未配置 Buff 的测试物品仍不可饮用；净土露滴保持普通物品且不可消耗。
-- 六种增益药剂沿用原版饮用、消耗与持续时间字段；止痛药 60 秒，其余沿用基类 5 分钟。
+- 七种增益药剂沿用原版饮用、消耗与持续时间字段；止痛药 60 秒，其余统一为 4 分钟，炼金手记均显示持续时间。
 - 物品继承关系、目录尺寸/稀有度和像素图资产。
-- 中英两种语言的 23 个物品均使用 `Alchemy.Items` 且名称/描述非空，没有旧 `NotebookItems` 键。
+- 中英两种语言的 22 个物品均使用 `Alchemy.Items` 且名称/描述非空，没有旧 `NotebookItems` 键。
 - 原版 AddBuff 续时/移除、每秒百分比直接治疗及整数小数累计、嗜血与原版吸血额度/月噬/目标限制。星力的角色魔力接入由完整程序集检查覆盖。
 - 集中夹角边界、发射方向保留、子弹丸继承、ExtraAI 往返和实际伤害钩子。
 - 共鸣归属/续时/到期/NPC 槽位重用，鞭击与召唤物/哨兵伤害分类。
@@ -73,3 +73,7 @@ ImproveGame 的 `ApplyBuffItem.GetItemBuffTypes`（旧版为单数 `GetItemBuffT
 上一轮“ImproveGame 1.8.2 通过 22 项”的报告无效：默认加载上下文复用了 Homura 依赖中的旧版同名 DLL，且测试绕过了正式入口查找。2026-10-22 客户端日志证实当时实际游戏中未安装兼容钩子；实际安装的 1.8.2 包已经采用复数方法名，更新后的 1.8.3 源码亦如此。
 
 修正后本机安装包 1.8.2、1.8.1.22 各通过 27 项，旧版 1.8.1.14 通过 26 项，覆盖正式挂接、未装 ImproveGame/独立服务器不挂接、程序集身份、缓存修复、角色差异、数量与自定义门槛、总开关和忽略名单、两个 Buff 独立禁用、强食物覆盖、持续刷新、物品减少停止续时、远端隔离及卸载钩子。新版额外验证控制面板的激活标记能识别很满意和开心。储存/队友来源通过共同查询与应用入口验证，未做容器 UI 或网络端到端测试。原有 52 项药剂、94 项食物/开心、22 项技能检查同时通过。此次没有图像、材料或 UI 改动，无新增资源或 FNA 视觉预览；游戏内实际装载、药水袋/储存管理器操作和多人共享仍需验收。
+
+### 显迹尘（2026-10-24）
+
+新增 -RevealingOnly 入口，通过 31 项真实引擎检查。完整炼金检查现通过 482 项物品/本地化、67 项药剂、128 项配方、113 项微光和 40 项瓶中雨检查；显迹尘目录尺寸已修正为正式 PNG 的 32×32，历史记录中的图像尺寸阻塞已解除。行为、压测范围与 FNA 预览说明见 Tools/RevealingDustPreview/README.md。

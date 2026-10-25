@@ -1,0 +1,67 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.ID;
+using Terraria.Localization;
+using 伊蕾娜.ElainaModAlchemy.Purification;
+
+internal static class TerrainBenchmark
+{
+    public static void Run(string repo)
+    {
+        Main.netMode = NetmodeID.Server; Main.myPlayer = 255;
+        var purify = typeof(PurificationDewDrop).GetMethod("PurifyRow", BindingFlags.NonPublic | BindingFlags.Static)!
+            .CreateDelegate<Action<int, int>>();
+        int packets = 0;
+        using var send = new Hook(typeof(NetMessage).GetMethod(nameof(NetMessage.SendData))!,
+            (Action<int, int, int, NetworkText, int, float, float, float, int, int, int>)
+            ((id, to, ignore, text, number, n2, n3, n4, n5, n6, n7) => { if (id == MessageID.TileSquare) packets++; }));
+        int[] counts = [1, 8, 16, 32, 64];
+        var rows = new List<object>();
+        // Warm conversion/framing and tiered JIT before comparing different counts.
+        for (int warm = 0; warm < 2000; warm++)
+        for (int i = 0; i < 64; i++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                Tile t = Main.tile[6 + i * 3 + dx, 120];
+                t.ClearEverything(); t.HasTile = true; t.TileType = TileID.Ebonstone;
+            }
+            purify(6 + i * 3, 120);
+        }
+        foreach (bool infected in new[] { false, true })
+        foreach (int count in counts)
+        {
+            var times = new List<double>();
+            for (int repeat = 0; repeat < 600; repeat++)
+            {
+                for (int i = 0; i < count; i++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    Tile t = Main.tile[6 + i * 3 + dx, 120];
+                    t.ClearEverything(); t.HasTile = true; t.TileType = infected ? TileID.Ebonstone : TileID.Stone;
+                }
+                packets = 0;
+                long start = Stopwatch.GetTimestamp();
+                for (int i = 0; i < count; i++) purify(6 + i * 3, 120);
+                double ms = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                if (repeat >= 120) times.Add(ms);
+                if (packets != (infected ? count * 3 : 0)) throw new Exception("Unexpected terrain-update count.");
+            }
+            times.Sort();
+            rows.Add(new { Infected = infected, Count = count, Samples = times.Count,
+                MedianMs = times[times.Count / 2], P95Ms = times[(int)(times.Count * .95)],
+                TileUpdatesPerDueTick = packets,
+                SteadyStateTileUpdatesPerSecondAt60Hz = packets * 30 });
+        }
+        var result = new {
+            Method = "Real installed tML WorldGen conversion + framing; one due row per dew, all due on the same tick. Three stone cells each. Reset outside timer. SendData captured: no packet serialization, sockets, clients, modded tile hooks or GPU work.",
+            Rows = rows
+        };
+        string json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(repo, ".vissandbox/purification-dew/benchmark-terrain.json"), json);
+        Console.WriteLine(json);
+    }
+}

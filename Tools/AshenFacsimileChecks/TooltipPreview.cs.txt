@@ -7,12 +7,13 @@ using Terraria.ModLoader;
 using Terraria.Localization;
 using 伊蕾娜.ElainaModAlchemy.Crafting;
 
-// Production ModifyTooltips and material rules, with isolated inventory/UI fixtures.
+// 正式 ModifyTooltips/PreDrawTooltipLine 与补料规则，配合隔离的库存/UI 替身和原版 Mouse_Text 字体。
 internal sealed class TooltipPreview : Game
 {
+    private const int AnimationFrames = 96;
+    private const float FrameTime = 1f / 24f;
     private readonly string repo, tml, culture;
     private DynamicSpriteFont font;
-    private Texture2D pixel;
     private bool done;
     private TooltipPreview(string[] args)
     {
@@ -26,105 +27,188 @@ internal sealed class TooltipPreview : Game
     {
         Content.RootDirectory = Path.GetFullPath(Path.Combine(tml, "../Terraria/Content"));
         font = Content.Load<DynamicSpriteFont>("Fonts/Mouse_Text");
-        pixel = new Texture2D(GraphicsDevice, 1, 1);
-        pixel.SetData(new[] { Color.White });
+        Terraria.GameContent.TextureAssets.MagicPixel.Value = new Texture2D(GraphicsDevice, 1, 1);
+        Terraria.GameContent.TextureAssets.MagicPixel.Value.SetData(new[] { Color.White });
+        ModContent.Load = path => LoadPremultiplied(Path.Combine(repo, path[(path.IndexOf('/') + 1)..] + ".png"));
         Language.Load(repo, culture);
     }
     protected override void Update(GameTime time)
     {
         if (done) return;
         done = true;
-        foreach (float scale in new[] { 1f, 1.25f }) Render(scale);
+        string output = Path.Combine(repo, ".vissandbox/ashen-tooltip-preview");
+        foreach (float scale in new[] { 1f, 1.25f })
+            Render(scale, 0.45f, Path.Combine(output, $"tooltip-{culture}-{scale:0.00}.png"));
+        string frames = Path.Combine(output, $"frames-{culture}");
+        Directory.CreateDirectory(frames);
+        for (int frame = 0; frame < AnimationFrames; frame++)
+            Render(1.5f, frame * FrameTime, Path.Combine(frames, $"frame-{frame:00}.png"));
         Exit();
     }
-    private void Render(float scale)
+    private void Render(float scale, float seconds, string path)
     {
         using var target = new RenderTarget2D(GraphicsDevice, (int)(1280 * scale), (int)(880 * scale));
         GraphicsDevice.SetRenderTarget(target);
         GraphicsDevice.Clear(new Color(32, 52, 61));
         using var batch = new SpriteBatch(GraphicsDevice);
+        Terraria.Main.spriteBatch = batch;
+        Terraria.Main.GlobalTimeWrappedHourly = seconds;
+        Terraria.Main.UIScale = scale;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
-        void Text(string text, float x, float y, Color color)
-        {
-            foreach (char c in text.Where(c => !char.IsWhiteSpace(c)))
-                if (!font.IsCharacterSupported(c)) throw new Exception($"Missing game font glyph: {c}");
-            batch.DrawString(font, text, new Vector2(x + 1, y + 1), Color.Black);
-            batch.DrawString(font, text, new Vector2(x, y), color);
-        }
-        Text("FNA offline preview / production tooltip + vanilla Mouse_Text", 24, 18, Color.White);
+        Label(batch, "FNA offline preview / production tooltip hooks + vanilla Mouse_Text", 24, 18);
+        var tooltip = new FacsimileCraftingTooltip();
         for (int scene = 0; scene < 4; scene++)
         {
-            bool priority = scene == 1 || scene == 3;
-            // Wooden Chair: four wood. Three wood + dust, full wood, and insufficient dust.
-            int wood = scene >= 2 ? 4 : 3;
-            int dust = scene == 3 ? 1 : 20;
-            Terraria.Main.LocalPlayer.Preference.PreferDust = priority;
+            // Wooden Chair: four wood. Missing wood, full wood, missing wood without enough dust, full wood without dust.
+            int wood = scene == 1 || scene == 3 ? 4 : 3;
+            int dust = scene >= 2 ? 0 : 20;
+            var owned = new Dictionary<int, int> { [9] = wood, [5000] = dust };
             var rule = new[] { new FacsimileMaterialRule.Requirement(4, new[] { 9 }) };
-            bool valid = FacsimileMaterialRule.TryQuote(rule, new Dictionary<int, int> { [9] = wood, [5000] = dust },
-                5000, priority ? FacsimilePriority.Dust : FacsimilePriority.Materials, out var quote);
+            bool valid = FacsimileMaterialRule.TryQuote(rule, owned, 5000,
+                FacsimileMaterialRule.PriorityFor(false), out var quote) && quote.Dust > 0;
             PreviewState.Valid = valid;
             PreviewState.Quote = quote;
             var lines = new List<TooltipLine> {
-                new(null, "ItemName", culture == "zh-Hans" ? "木椅" : "Wooden Chair"),
+                new(null, "ItemName", culture == "zh-Hans" ? "木椅" : "Wooden Chair") { OverrideColor = Color.White },
                 new(null, "Placeable", culture == "zh-Hans" ? "可放置" : "Can be placed")
             };
-            new FacsimileCraftingTooltip().ModifyTooltips(new Item(), lines);
-            int expected = scene < 2 ? 4 : 2;
+            tooltip.ModifyTooltips(new Item(), lines);
+            int expected = scene < 2 ? 3 : 2;
             if (lines.Count != expected) throw new Exception("Unexpected tooltip line count in scene " + scene);
+            if (scene < 2 != lines[0].Text.EndsWith(FacsimileCraftingTooltip.MarkerSeparator + FacsimileCraftingTooltip.Marker))
+                throw new Exception("Item name craftable marker mismatch in scene " + scene);
+            if (scene < 2 && !lines[2].Text.Contains("3"))
+                throw new Exception("Unexpected dust cost in scene " + scene);
             float y = 72 + scene * 200;
-            Text(new[] { "Missing materials: dust substitutes", "Dust priority: keep one wood",
-                "Full materials: no dust hint", "Insufficient dust: vanilla fallback, no hint" }[scene], 24, y, new Color(180, 205, 215));
+            Label(batch, new[] { "3/4 wood + dust: right-click keeps one wood (3 dust)", "4/4 wood + dust: right-click keeps one wood (3 dust)",
+                "3/4 wood, no dust: no hint", "4/4 wood, no dust: left-click only, no hint" }[scene], 24, y);
             float width = lines.Max(l => font.MeasureString(l.Text).X) + 32;
             if (width > 1220) throw new Exception("Tooltip exceeds preview width");
-            batch.Draw(pixel, new Rectangle(24, (int)y + 32, (int)width, lines.Count * 28 + 24), new Color(24, 29, 81));
-            for (int i = 0; i < lines.Count; i++) Text(lines[i].Text, 40, y + 44 + i * 28, lines[i].OverrideColor ?? Color.White);
+            batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value,
+                new Rectangle(24, (int)y + 32, (int)width, lines.Count * 28 + 24), new Color(24, 29, 81));
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var drawable = new DrawableTooltipLine(lines[i], 40, (int)y + 44 + i * 28, Color.White) { Font = font };
+                int yOffset = 0;
+                if (tooltip.PreDrawTooltipLine(new Item(), drawable, ref yOffset))
+                    Terraria.UI.Chat.ChatManager.DrawColorCodedStringWithShadow(batch, font, drawable.Text, new Vector2(drawable.X, drawable.Y),
+                        drawable.OverrideColor ?? drawable.Color, 0f, Vector2.Zero, Vector2.One);
+            }
         }
         batch.End();
         GraphicsDevice.SetRenderTarget(null);
-        string path = Path.Combine(repo, ".vissandbox/ashen-tooltip-preview", $"tooltip-{culture}-{scale:0.00}.png");
         using var stream = File.Create(path);
         target.SaveAsPng(stream, target.Width, target.Height);
-        Console.WriteLine(path);
+        if (!path.Contains("frame-")) Console.WriteLine(path);
     }
+    // tML 的 PNG 读取器会预乘 alpha，这里照做。
+    private Texture2D LoadPremultiplied(string file)
+    {
+        using var stream = File.OpenRead(file);
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++)
+            data[i] = Color.FromNonPremultiplied(data[i].R, data[i].G, data[i].B, data[i].A);
+        texture.SetData(data);
+        return texture;
+    }
+    private void Label(SpriteBatch batch, string text, float x, float y) =>
+        Terraria.UI.Chat.ChatManager.DrawColorCodedStringWithShadow(batch, font, text, new Vector2(x, y), new Color(180, 205, 215), 0f, Vector2.Zero, Vector2.One);
     [STAThread] private static void Main(string[] args) { using var game = new TooltipPreview(args); game.Run(); }
 }
 
-// Only adapt the game state consumed by the production GlobalItem hook.
+// 只替身正式 GlobalItem 钩子用到的游戏状态。
 namespace Terraria
 {
     public sealed class Item { }
     public sealed class Recipe { }
-    public sealed class Player
+    public static class Main
     {
-        internal FacsimileCraftingPlayer Preference = new();
-        public T GetModPlayer<T>() where T : class => Preference as T;
+        public static SpriteBatch spriteBatch;
+        public static float GlobalTimeWrappedHourly;
+        public static float UIScale = 1f;
     }
-    public static class Main { public static Player LocalPlayer = new(); }
+}
+namespace ReLogic.Content
+{
+    public enum AssetRequestMode { ImmediateLoad }
+    public sealed class Asset<T> { public T Value; }
+}
+namespace Terraria.GameContent
+{
+    public sealed class Asset { public Texture2D Value; }
+    public static class TextureAssets { public static readonly Asset MagicPixel = new(); }
+}
+namespace Terraria.UI.Chat
+{
+    // 原版提示：8 方向、spread 像素黑影后画本体；本预览不含颜色标签。
+    public static class ChatManager
+    {
+        public static Vector2 GetStringSize(DynamicSpriteFont font, string text, Vector2 baseScale, float maxWidth = -1f) =>
+            font.MeasureString(text) * baseScale;
+        public static void DrawColorCodedStringShadow(SpriteBatch batch, DynamicSpriteFont font, string text, Vector2 position,
+            Color baseColor, float rotation, Vector2 origin, Vector2 baseScale, float maxWidth = -1f, float spread = 2f)
+        {
+            foreach (char c in text.Where(c => !char.IsWhiteSpace(c)))
+                if (!font.IsCharacterSupported(c)) throw new Exception($"Missing game font glyph: {c}");
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * MathF.Tau / 8;
+                batch.DrawString(font, text, position + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * spread, baseColor,
+                    rotation, origin, baseScale, SpriteEffects.None, 0f);
+            }
+        }
+        public static Vector2 DrawColorCodedStringWithShadow(SpriteBatch batch, DynamicSpriteFont font, string text, Vector2 position,
+            Color baseColor, float rotation, Vector2 origin, Vector2 baseScale, float maxWidth = -1f, float spread = 2f)
+        {
+            DrawColorCodedStringShadow(batch, font, text, position, new Color(0, 0, 0, baseColor.A), rotation, origin, baseScale, maxWidth, spread);
+            batch.DrawString(font, text, position, baseColor, rotation, origin, baseScale, SpriteEffects.None, 0f);
+            return GetStringSize(font, text, baseScale);
+        }
+    }
 }
 namespace Terraria.ModLoader
 {
-    public class Mod { }
+    public class Mod { public string Name => "伊蕾娜"; }
     public class GlobalItem
     {
-        public Mod Mod => null;
+        public Mod Mod { get; } = new();
         public virtual void ModifyTooltips(Item item, List<TooltipLine> lines) { }
+        public virtual bool PreDrawTooltipLine(Item item, DrawableTooltipLine line, ref int yOffset) => true;
+        public virtual void Unload() { }
     }
-    public sealed class TooltipLine(Mod mod, string name, string text)
+    public class TooltipLine(Mod mod, string name, string text)
     {
-        public readonly Mod Mod = mod;
+        public readonly string Mod = mod?.Name ?? "Terraria";
         public readonly string Name = name;
         public string Text = text;
-        public Color? OverrideColor;
+        public Color? OverrideColor { get; set; }
+    }
+    public sealed class DrawableTooltipLine(TooltipLine parent, int x, int y, Color color) : TooltipLine(null, parent.Name, parent.Text)
+    {
+        public new readonly string Mod = parent.Mod;
+        public new readonly string Text = parent.Text;
+        public int X = x, Y = y;
+        public DynamicSpriteFont Font;
+        public float Rotation;
+        public Vector2 Origin = Vector2.Zero;
+        public Vector2 BaseScale = Vector2.One;
+        public float MaxWidth = -1f;
+        public float Spread = 2f;
+        public Color Color { get; } = color;
+        public new Color? OverrideColor { get; } = parent.OverrideColor;
     }
     public static class ModContent
     {
+        internal static Func<string, Texture2D> Load;
         public static T GetInstance<T>() where T : new() => new();
+        public static ReLogic.Content.Asset<Texture2D> Request<T>(string path, ReLogic.Content.AssetRequestMode mode) => new() { Value = Load(path) };
     }
 }
 namespace 伊蕾娜.ElainaModAlchemy.Crafting
 {
-    public sealed class FacsimileCraftingPlayer { public bool PreferDust; }
     public sealed class FacsimileCraftingSystem
     {
         internal bool TryGetQuote(Recipe recipe, out FacsimileMaterialRule.Quote quote)

@@ -79,7 +79,7 @@ canvas{display:block;border:1px solid #ffffff12;border-radius:2px}
 'use strict';
 const TAU=Math.PI*2,L=262;
 const S={hp:420,hpMax:500,mp:136,mpMax:200,regen:true,regenRate:8,bg:'dark',pal:'bright',lvStyle:'floral',badgeFx:'gem'};
-const A={hp:{v:.84,g:.84,delay:0,flash:0},mp:{v:.68,g:.68,delay:0,flash:0}};
+const A={hp:{v:.84,g:.84,delay:0},mp:{v:.68,g:.68,delay:0}};
 const rng=seed=>()=>(seed=(seed*16807)%2147483647)/2147483647;
 const lerp=(a,b,t)=>a+(b-a)*t;
 const minimap=new Image();minimap.src='MinimapFrame.png';
@@ -109,10 +109,10 @@ function makeFacets(seed,pal){const r=rng(seed),tris=[],step=5.5;const cols=Math
  return{tris,plumes}}
 
 const PALS={
- bright:{hp:{st:['#85436c','#bd6599','#efa3ca'],silk:'255,220,237',pet:'255,230,243',top:'255,240,248',shade:'50,10,35',head:'255,240,248',ghost:'rgba(255,236,246,.9)',glow:'236,150,198',spark:'#ffe8f3',petal:'#f5c6dd'},
-         mp:{st:['#343779','#565bc0','#a6acf6'],neb:['186,156,255','140,162,255'],star:'240,241,255',top:'236,238,255',shade:'6,6,40',head:'238,240,255',ghost:'rgba(234,236,255,.9)',glow:'150,158,255',spark:'#eeefff'}},
- canon:{hp:{st:['#5e3150','#a16687','#cb8eb1'],silk:'245,214,230',pet:'246,222,236',top:'250,232,242',shade:'40,10,30',head:'246,226,238',ghost:'rgba(246,228,238,.9)',glow:'203,142,177',spark:'#f6e2ee',petal:'#e2b2cb'},
-        mp:{st:['#24264f','#40427f','#6e73c4'],neb:['150,130,220','110,120,210'],star:'222,224,255',top:'214,218,255',shade:'6,6,30',head:'220,224,255',ghost:'rgba(220,224,255,.88)',glow:'110,116,210',spark:'#dfe2ff'}}};
+ bright:{hp:{st:['#85436c','#bd6599','#efa3ca'],silk:'255,220,237',pet:'255,230,243',top:'255,240,248',shade:'50,10,35',head:'255,240,248',ghost:'rgba(160,52,92,.85)',glow:'236,150,198',spark:'#ffe8f3',petal:'#f5c6dd'},
+         mp:{st:['#343779','#565bc0','#a6acf6'],neb:['186,156,255','140,162,255'],star:'240,241,255',top:'236,238,255',shade:'6,6,40',head:'238,240,255',ghost:'rgba(132,112,236,.9)',glow:'150,158,255',spark:'#eeefff'}},
+ canon:{hp:{st:['#5e3150','#a16687','#cb8eb1'],silk:'245,214,230',pet:'246,222,236',top:'250,232,242',shade:'40,10,30',head:'246,226,238',ghost:'rgba(140,48,84,.85)',glow:'203,142,177',spark:'#f6e2ee',petal:'#e2b2cb'},
+        mp:{st:['#24264f','#40427f','#6e73c4'],neb:['150,130,220','110,120,210'],star:'222,224,255',top:'214,218,255',shade:'6,6,30',head:'220,224,255',ghost:'rgba(112,96,210,.88)',glow:'110,116,210',spark:'#dfe2ff'}}};
 const P=k=>PALS[S.pal][k];
 const MAT={
  rose:{tex:makeRose(),
@@ -266,7 +266,7 @@ function drawBar(c,bar,t,a){const h=bar.h,F=FRAME[bar.c.frame],x1=a.v*L,xg=a.g*L
  c.globalAlpha=.13;mat.draw(c,h,t,L);c.globalAlpha=1;
  c.fillStyle='rgba(12,8,20,.35)';c.fillRect(0,0,L,h);
  if(xg>x1)clipResourceFill(c,xg,h,()=>{c.fillStyle=mat.ghost;c.fillRect(0,0,xg,h)});
- clipResourceFill(c,x1,h,()=>{mat.draw(c,h,t,x1);if(a.flash>0){c.fillStyle=`rgba(255,255,255,${a.flash*.5})`;c.fillRect(0,0,x1,h)}});
+ clipResourceFill(c,x1,h,()=>mat.draw(c,h,t,x1));
  c.restore();
  F.over&&F.over(c,h,bar.k,t);
  // 插在条上的羽毛
@@ -282,9 +282,9 @@ function drawBar(c,bar,t,a){const h=bar.h,F=FRAME[bar.c.frame],x1=a.v*L,xg=a.g*L
 /* ---------- 头像 · 等级 · 经验 ---------- */
 // 头像菱形居于两条左侧，与资源条之间留白。坐标相对生命条左端 / 屏幕顶部；PH 为头像局部尺寸。
 // 静态层（底座 / 外缘）、经验带与花饰都由 bake.cjs 直接调用下列函数烘焙，游戏按同一顺序叠放。
-const XPL=100,PR={x:-45,y:37},NUM='"ElainaNum",Georgia,serif';
+const XPL=100,PR={x:-70,y:58,scale:1.4},NUM='"ElainaNum",Georgia,serif';
 const PH={r:25,band:27.6,bw:1.3,outer:31.6};
-const portrait=new Image();portrait.src='../../ElainaModSkills/ElainaSkillUI/touxiang.png';
+const portrait=new Image();portrait.src='PortraitSource.png';
 const X={lv:24,xp:65,cap:30};
 const XA={disp:23.65,shown:24,flash:0,pulse:0,parts:[]};
 // 与 ExperienceRules.Add 相同：上限处最多暂存一条经验，可一次跨多级并保留余数。
@@ -314,17 +314,32 @@ function levelPill(c,txt,capped){
  c.fillStyle='rgb(178,168,195)';c.fillText('Lv',x0,y+h/2+.5);
  c.font=`8px ${NUM}`;c.fillStyle=capped?'#cfc8da':'rgb(238,233,245)';c.fillText(txt,x0+wl+1.4,y+h/2+.3)}
 // 花饰：无框衬线数字，两侧各一枝与端部花蔓同款的银卷须和小花。
-// 右侧卷须以 (数字半宽 + 1.8, 7.5) 为原点，左侧水平镜像；游戏中烘焙为 LevelFlourish。
-const FLORAL={cy:7.5,size:9,gap:1.8};
+// 右侧卷须以 (数字半宽 + 2.5, 10) 为原点，左侧水平镜像；游戏中烘焙为 LevelFlourish。
+// 锚点让数字中心落在菱形底尖下方 2 像素（y = outer + 2 - cy），只压住白色外线，经验带起点仍露在数字上方。
+const FLORAL={cy:10,size:12,gap:2.5,scale:.65,x:0,y:23.6};
+// 数字跨过白色外线处的淡暗影：两圈各 8 个方向的偏移副本，[半径, 不透明度]。游戏中用同样的 DrawString 叠放。
+const LEVEL_HALO=[[.55,.2],[1.1,.1]];
 function levelFlourish(c){
- const g=c.createLinearGradient(0,-FLORAL.cy,0,5);g.addColorStop(0,'#f3ebfc');g.addColorStop(.5,'#d5c8e5');g.addColorStop(1,'#b5a5ca');c.fillStyle=g;
- silverWire(c,'M 0 2 C 3 3.5 6 2 7 -1 C 7.5 -3 5.5 -3.5 5 -2',.38);
- scrollFlower(c,8.4,1.6,.3,.4)}
+ const g=c.createLinearGradient(0,-4,0,4);g.addColorStop(0,'#fff6ff');g.addColorStop(1,'#d8bff1');c.fillStyle=g;
+ // At the final small size, use a firmer curl and four distinct petals instead of six hairline petals.
+ c.save();c.lineCap='round';c.strokeStyle=g;c.lineWidth=.85;
+ c.stroke(ornamentPath('M 0 2 C 3 3.5 6 2 7 -1 C 7.5 -3 5.5 -3.5 5 -2'));c.restore();
+ c.save();c.translate(8.4,1.3);c.rotate(.4);
+ for(let i=0;i<4;i++){c.rotate(TAU/4);c.beginPath();c.ellipse(0,-1.25,.6,1.05,0,0,TAU);c.fill()}
+ c.restore()}
+// 花纹形暗底：花纹的暗色剪影向 8 个方向各扩 0.9 再模糊 1.6（花纹局部单位），只在白天浅色背景上托住细线。
+// 剪影画在画布外，只让偏移回来的阴影落在花纹下方；游戏中烘焙为 LevelFlourishShadow，比花纹贴图四周各多留 4 像素。
+const FLOURISH_SHADOW={spread:.9,blur:1.6,color:'rgba(18,12,32,.45)'};
+function levelFlourishShadow(c){
+ const m=c.getTransform(),px=Math.hypot(m.a,m.b),{spread,blur,color}=FLOURISH_SHADOW;
+ c.save();c.shadowBlur=blur*px;c.shadowColor=color;c.shadowOffsetX=1000*m.a;c.shadowOffsetY=1000*m.b;
+ for(let i=0;i<8;i++){const q=i*TAU/8;c.save();c.translate(Math.cos(q)*spread-1000,Math.sin(q)*spread);levelFlourish(c);c.restore()}
+ c.restore()}
 function levelFloral(c,txt,capped){
  c.font=`${FLORAL.size}px ${NUM}`;const wn=c.measureText(txt).width,cy=FLORAL.cy,e=wn/2+FLORAL.gap;
- for(const s of[1,-1]){c.save();c.scale(s,1);c.translate(e,cy);levelFlourish(c);c.restore()}
- // 只用暗紫描边托住数字，与银线的暗衬同色，白昼背景下不出现黑晕。
- c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.strokeStyle='rgba(12,9,23,.9)';c.lineWidth=1.5;c.strokeText(txt,0,cy+.4);
+ for(const s of[1,-1]){c.save();c.scale(s,1);c.translate(e,cy);c.scale(FLORAL.scale,FLORAL.scale);levelFlourishShadow(c);levelFlourish(c);c.restore()}
+ c.textAlign='center';c.textBaseline='middle';
+ for(const[r,a]of LEVEL_HALO){c.fillStyle=`rgba(14,10,26,${a})`;for(let i=0;i<8;i++){const q=i*TAU/8;c.fillText(txt,Math.cos(q)*r,cy+.4+Math.sin(q)*r)}}
  c.fillStyle=capped?'#cfc8da':'rgb(238,233,245)';c.fillText(txt,0,cy+.4)}
 // 星芒：白色数字（项目数字字体）下排三颗柔光四芒星（中大侧小），无框，靠柔光与淡暗影立在任意背景上。
 function sparkle(c,x,y,rx,ry){c.beginPath();c.moveTo(x,y-ry);c.quadraticCurveTo(x+rx*.1,y-ry*.1,x+rx,y);c.quadraticCurveTo(x+rx*.1,y+ry*.1,x,y+ry);
@@ -389,13 +404,23 @@ function levelBadge(c,txt,capped){
  c.shadowBlur=1.2*px;c.shadowOffsetY=.35*px;c.shadowColor='rgba(18,12,40,.9)';c.fillStyle=ink;c.fillText(txt,0,.5);
  c.restore()}
 const LEVEL_STYLES={pill:levelPill,floral:levelFloral,star:levelStar,badge:levelBadge};
-// 底座：深色菱形底、裁进菱形的头像、深色内线与经验槽。
-function portraitBase(c){const{r:R,band,bw,outer}=PH;c.save();c.lineCap='round';c.lineJoin='round';
- diamond(c,outer);c.fillStyle='rgba(12,9,20,.94)';c.fill();
- c.save();diamond(c,R);c.clip();
- const bg=c.createRadialGradient(0,-4,2,0,0,R);bg.addColorStop(0,'#5d4b76');bg.addColorStop(1,'#211b30');c.fillStyle=bg;c.fillRect(-R,-R,R*2,R*2);
- if(portrait.complete&&portrait.naturalWidth)c.drawImage(portrait,-R*1.24,-R*1.19,R*2.48,R*2.48);
- const vg=c.createRadialGradient(0,0,R*.5,0,0,R*1.05);vg.addColorStop(0,'rgba(20,12,32,0)');vg.addColorStop(1,'rgba(20,12,32,.5)');c.fillStyle=vg;c.fillRect(-R,-R,R*2,R*2);
+// 底座：镂空。经验带底下保留深色槽；头像透明区域与外圈留白（经验带外沿到白色外线）只铺 35% 暗纱，透出游戏画面。
+const PORTRAIT_VEIL='rgba(12,9,20,.35)';
+function diamondRing(c,a,b){c.beginPath();for(const r of[a,b]){c.moveTo(0,-r);c.lineTo(r,0);c.lineTo(0,r);c.lineTo(-r,0);c.closePath()}}
+// 暗角只压在人物上：在离屏画布里按头像自身 alpha 叠加（source-atop），透明处不变暗。头像加载后缓存一次。
+let vignettedPortrait=null;
+function portraitWithVignette(){
+ if(vignettedPortrait||!portrait.complete||!portrait.naturalWidth)return vignettedPortrait;
+ const N=400,cv=document.createElement('canvas');cv.width=cv.height=N;const o=cv.getContext('2d');
+ // The supplied PNG already has a diamond alpha mask; fit its full square bounds without cropping it again.
+ o.drawImage(portrait,0,0,N,N);o.globalCompositeOperation='source-atop';
+ const vg=o.createRadialGradient(N/2,N/2,N/4,N/2,N/2,N/2*1.05);vg.addColorStop(0,'rgba(20,12,32,0)');vg.addColorStop(1,'rgba(20,12,32,.5)');
+ o.fillStyle=vg;o.fillRect(0,0,N,N);return vignettedPortrait=cv}
+function portraitBase(c){const{r:R,band,bw,outer}=PH,edge=band+bw/2*Math.SQRT2;c.save();c.lineCap='round';c.lineJoin='round';
+ diamondRing(c,edge,R);c.fillStyle='rgba(12,9,20,.94)';c.fill('evenodd');
+ diamondRing(c,outer,edge);c.fillStyle=PORTRAIT_VEIL;c.fill('evenodd');
+ c.save();diamond(c,R);c.clip();c.fillStyle=PORTRAIT_VEIL;c.fillRect(-R,-R,R*2,R*2);
+ const img=portraitWithVignette();if(img)c.drawImage(img,-R,-R,R*2,R*2);
  c.restore();
  diamond(c,R+.6);c.strokeStyle='#1a1630';c.lineWidth=1.2;c.stroke();
  diamond(c,band);c.strokeStyle='rgba(22,18,42,.92)';c.lineWidth=bw;c.stroke();c.restore()}
@@ -421,7 +446,7 @@ function portraitGlint(c){const g=c.createRadialGradient(0,0,0,0,0,2.6);
 function xpCut(frac){return frac>=1?-PH.outer*2:PH.band*(1-2*frac)}
 function drawPortraitHud(c,ox,t){
  const{band,outer}=PH,G=outer,capped=X.lv>=X.cap,shown=XA.shown,frac=Math.max(0,Math.min(1,XA.disp-(shown-1)));
- c.save();c.translate(ox+PR.x,PR.y);
+ c.save();c.translate(ox+PR.x,PR.y);c.scale(PR.scale,PR.scale);
  portraitBase(c);
  // 低血量：经验槽上泛起蔷薇色脉冲（游戏中为白色底形着色）。
  if(A.hp.v<.25){c.save();c.globalAlpha=lowLifePulse(t);portraitPulse(c,'rgb(255,122,172)');c.restore()}
@@ -431,8 +456,8 @@ function drawPortraitHud(c,ox,t){
   if(!capped&&frac<1)for(const s of[1,-1]){const[x,y]=armPoint(band,frac,s);c.save();c.translate(x,y);portraitGlint(c);c.restore()}}
  if(XA.flash>0){c.globalAlpha=XA.flash*.85;portraitBand(c,'mask');c.globalAlpha=1}
  portraitRim(c);
- // 等级：压在外线底点，升级时整体轻微放大。
- c.save();c.translate(0,G);const k=1+XA.pulse*.18;c.scale(k,k);
+ // 等级：居中挂在菱形底尖，轻压白色外线。
+ c.save();c.translate(FLORAL.x,FLORAL.y);const k=1+XA.pulse*.18;c.scale(k,k);
  if(XA.pulse>0){const rg=c.createRadialGradient(0,3,0,0,3,16);rg.addColorStop(0,`rgba(214,196,255,${.5*XA.pulse})`);rg.addColorStop(1,'rgba(214,196,255,0)');c.fillStyle=rg;c.fillRect(-16,-13,32,32)}
  LEVEL_STYLES[S.lvStyle](c,String(shown),capped,t);
  c.restore();
@@ -458,12 +483,12 @@ for(const st of state){const c=st.c;
 }
 // 头像与等级只叠加在 A 款上，资源条本体及其烘焙来源保持不变。
 {const el=document.createElement('section');el.className='card';
- const notes=[['头像',['沿用 touxiang.png，裁进菱形；由内到外为深色内线、发光经验带、留白、白色细外线，外线顶点缀一颗小星','头像在两条左侧，与资源条之间留白；魔力花蔓正好落在菱形与魔力条之间','生命低于 25% 时经验带泛起蔷薇色脉冲，不额外占位']],
+ const notes=[['头像',['使用 PortraitSource.png，裁进菱形；由内到外为深色内线、发光经验带、留白、白色细外线，外线顶点缀一颗小星','头像在两条左侧，与资源条之间留白；魔力花蔓正好落在菱形与魔力条之间','生命低于 25% 时经验带泛起蔷薇色脉冲，不额外占位']],
   ['等级 · 经验',['星徽：白边凹四芒星压在外线底点，黑底内缩一圈铺薰衣草芯、露出一道黑边，芯上放数字，左右各一颗小星横排成小大小；花饰（默认）为无框数字配两枝端部同款卷须小花；另保留银胶囊 / 星芒以便对比','经验带从底点沿两侧同时上升，薰衣草渐入淡粉并带柔光，前端一粒光点，顶点汇合即升级：经验带闪白、星屑散开','到达 Boss 进度上限时经验带褪成灰银、光点熄灭，表示经验暂存（最多一条，与 ExperienceRules 一致）']]];
  el.innerHTML=`<div class="card-head"><span class="no">A+</span><h2>头像 · 等级</h2><span class="en">Portrait, Level &amp; Experience</span></div><div class="views"></div>
   <div class="card-foot">${notes.map(([h,li])=>`<div><h3>${h}</h3><ul>${li.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>`;
  cardsEl.insertBefore(el,cardsEl.children[1]);const vw=el.querySelector('.views');
- for(const v of[{w:L+130,h:96,scale:3,kind:'detail',hud:true},{w:520,h:120,scale:1.5,kind:'game',hud:true}]){
+ for(const v of[{w:L+170,h:150,scale:3,kind:'detail',hud:true},{w:520,h:150,scale:1.5,kind:'game',hud:true}]){
   const box=document.createElement('div');box.className='view';box.innerHTML=`<span>${v.kind==='detail'?'特写 ×3':'游戏内 · UI 150% · 右上角，含原版小地图'}</span>`;
   const cv=mkCanvas(v.w,v.h,v.scale);box.appendChild(cv);vw.appendChild(box);views.push({st:state[0],v,cv,ctx:cv.getContext('2d')})}}
 
@@ -474,7 +499,7 @@ function render(t){
   if(day){const g=ctx.createLinearGradient(0,0,0,v.h);g.addColorStop(0,'#6a9cf4');g.addColorStop(1,'#86b0f7');ctx.fillStyle=g}else ctx.fillStyle='#14121d';
   ctx.fillRect(0,0,v.w,v.h);
   let ox,oy1,oy2;
-  if(v.kind==='detail'){if(v.hud){ox=96;oy1=18;oy2=46}else{ox=34;oy1=20;oy2=48}}
+  if(v.kind==='detail'){if(v.hud){ox=136;oy1=18;oy2=46}else{ox=34;oy1=20;oy2=48}}
   else{if(minimap.complete&&minimap.naturalWidth){ctx.imageSmoothingEnabled=false;ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(v.w-294,88,244,40);ctx.fillStyle='#5f78f2';ctx.fillRect(v.w-288,94,232,30);ctx.drawImage(minimap,v.w-296,79);ctx.imageSmoothingEnabled=true}
    ox=v.w-16-FRAME[st.c.frame].pad[1]-L;oy1=18;oy2=46}
   ctx.save();ctx.translate(ox,oy1);drawBar(ctx,st.hp,t,A.hp);ctx.restore();
@@ -486,7 +511,7 @@ function render(t){
 /* ---------- 状态 ---------- */
 function setRes(k,v,silent){const max=S[k+'Max'];v=Math.max(0,Math.min(max,v));const d=v-S[k];if(!d)return;const a=A[k],before=a.v;S[k]=v;
  if(d<0){a.g=Math.max(a.g,a.v);a.v=v/max;a.delay=.4;if(!silent)state.forEach(st=>st[k].lose(a.v*L,before*L))}
- else if(!silent){a.flash=1;state.forEach(st=>st[k].gain(Math.min(1,v/max)*L))}}
+ else if(!silent){state.forEach(st=>st[k].gain(Math.min(1,v/max)*L))}}
 const ACTS={hit:()=>setRes('hp',S.hp-(18+Math.random()*30|0)),bighit:()=>setRes('hp',S.hp-(110+Math.random()*60|0)),heal:()=>setRes('hp',S.hp+100),
  cast:()=>setRes('mp',S.mp-(22+Math.random()*16|0)),potion:()=>setRes('mp',S.mp+80)};
 const $$=s=>[...document.querySelectorAll(s)];
@@ -513,7 +538,7 @@ function frame(now){const dt=Math.min(.05,(now-last)/1000),t=now/1000;last=now;
  if(S.regen&&S.mp<S.mpMax)setRes('mp',S.mp+S.regenRate*dt,true);
  for(const k of['hp','mp']){const a=A[k],target=S[k]/S[k+'Max'];
   if(target>a.v)a.v=Math.min(target,a.v+(target-a.v)*Math.min(1,dt*7)+dt*.02);else a.v=target;
-  if(a.delay>0)a.delay-=dt;else a.g=Math.max(a.v,a.g-dt*.45);a.g=Math.max(a.g,a.v);a.flash=Math.max(0,a.flash-dt*2.2);
+  if(a.delay>0)a.delay-=dt;else a.g=Math.max(a.v,a.g-dt*.45);a.g=Math.max(a.g,a.v);
   state.forEach(st=>st[k].update(dt,t,a.v))}
  updateHud(dt);capBtn.classList.toggle('on',X.lv>=X.cap);
  render(t);

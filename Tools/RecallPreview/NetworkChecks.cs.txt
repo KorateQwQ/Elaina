@@ -123,14 +123,76 @@ static class NetworkChecks
     public static void Run(Action<bool, string> assertion)
     {
         check = assertion;
-        ReproduceOldOwnerBug(); SoloSelection(); CastAndTravel(); SpawnBroadcast(); Spoofing(); RecastIsolation();
+        ReproduceOldOwnerBug(); SoloSelection(); CastAndTravel(); SpawnBroadcast(); Spoofing(); RecastIsolation(); SharedHome(); AtSpawn();
+    }
+    static void AtSpawn()
+    {
+        Setup();
+        foreach (Host host in new[] { a, b, server })
+            host.Players[0].Bottom = new Vector2(1608, 3200);
+        Begin(a, 0); Pump(); Tick(135);
+        Enter(a); RecallPortalPresentation.Refresh();
+        Vector2 origin = Portal(a, 0, 0).DisplayCenter, exit = Portal(a, 0, 1).DisplayCenter;
+        check(origin != exit && new[] { a, b, server }.All(h => h.Players[0].Bottom == exit),
+            "Server broadcasts the visible displaced arrival when casting at world spawn");
+        foreach (int side in new[] { 1, 0 })
+        {
+            Enter(a); a.Players[0].mouseInterface = false;
+            TMain.MouseWorld = Portal(a, 0, side).DisplayCenter; TMain.mouseRight = TMain.mouseRightRelease = true;
+            a.Players[0].GetModPlayer<RecallPortalPlayer>().SetControls(); Pump();
+            Vector2 expected = side == 1 ? origin : exit;
+            check(new[] { a, b, server }.All(h => h.Players[0].Bottom == expected),
+                "Both clients and server agree on visible destination after right-click at spawn");
+            Tick(45);
+        }
+    }
+    static void SharedHome()
+    {
+        Setup();
+        Vector2 firstOrigin = new(800, 900), secondOrigin = new(2400, 1600);
+        foreach (Host host in new[] { a, b, server })
+        {
+            host.Players[1].SpawnX = host.Players[1].SpawnY = -1;
+            host.Players[0].Bottom = firstOrigin;
+            host.Players[1].Bottom = secondOrigin;
+        }
+        Begin(a, 0); Begin(b, 1); Pump(); Tick(135);
+        check(Portal(a, 0, 1).PairId == Portal(a, 1, 1).PairId, "Two clients may legitimately reuse the same pair id");
+        Enter(a); RecallPortalPresentation.Refresh();
+        check(RecallPortalPresentation.Tooltip(a.Players[0], Portal(a, 1, 1)).Contains("RecallPortalDestination"),
+            "Equal pair IDs from different owners still enable destination details");
+        Vector2 firstDisplay = Portal(a, 0, 1).DisplayCenter, secondDisplay = Portal(a, 1, 1).DisplayCenter;
+        // 不同客户端的 projectile.whoAmI/枚举顺序并不一致。
+        Array.Reverse(b.Projectiles); Enter(b); RecallPortalPresentation.Refresh();
+        check(Portal(b, 0, 1).DisplayCenter == firstDisplay && Portal(b, 1, 1).DisplayCenter == secondDisplay,
+            "Different projectile slot order yields identical shared-home layout on both clients");
+        check(server.Players[1].Bottom == secondDisplay && b.Players[1].Bottom == secondDisplay,
+            "Server sends second caster to the visible displaced home circle");
+        Enter(a); RecallPortalSystem.RequestTravel(a.Players[0], Portal(a, 1, 1)); Pump();
+        check(server.Players[0].Bottom == firstDisplay, "Server rejects interaction from the displaced circle's old anchor");
+        Enter(a); TMain.MouseWorld = secondDisplay; TMain.mouseRight = TMain.mouseRightRelease = true;
+        a.Players[0].Bottom = server.Players[0].Bottom = secondDisplay;
+        a.Players[0].mouseInterface = false;
+        a.Players[0].GetModPlayer<RecallPortalPlayer>().SetControls();
+        Pump();
+        check(server.Players[0].Bottom == secondOrigin && a.Players[0].Bottom == secondOrigin,
+            "Client clicks second displaced circle; authoritative server returns to second caster, despite equal pair ids");
+        Tick(45); Enter(a);
+        RecallPortalSystem.RequestTravel(a.Players[0], Portal(a, 1, 0)); Pump();
+        check(server.Players[0].Bottom == secondDisplay && a.Players[0].Bottom == secondDisplay,
+            "Server sends forward travel back to the visible displaced exit");
+        Tick(45); Enter(a);
+        Vector2 far = new(20000, 1000);
+        a.Players[0].Bottom = server.Players[0].Bottom = far;
+        RecallPortalSystem.RequestTravel(a.Players[0], Portal(a, 1, 1)); Pump();
+        check(server.Players[0].Bottom == far, "Server rejects travel outside the displayed circle");
     }
     static void SoloSelection()
     {
         Setup();
         foreach (Host host in new[] { a, b, server }) host.Players[1].active = false;
         Begin(a, 0);
-        check(ElainaHealingWheel.Opens == 0 && Mana(a).Spent == 200 && a.Skill.Stack == 0 && Portals(a, 0).Length == 2,
+        check(ElainaHealingWheel.Opens == 0 && Mana(a).Spent == a.Skill.MagicPointCost && a.Skill.Stack == 0 && Portals(a, 0).Length == 2,
             "Multiplayer without any ally skips wheel, pays once and opens both circles at once");
         Pump(); Tick(90);
         check(a.Players[0].Teleports == 1 && server.Players[0].Teleports == 1 &&
@@ -151,7 +213,7 @@ static class NetworkChecks
             Setup(); Begin(a, target);
             int id = Portal(a, 0, 0).PairId;
             Vector2 expected = target == 0 ? new Vector2(1608, 3200) : new Vector2(6408, 4800);
-            check(id > 0 && Mana(a).Spent == 200 && a.Skill.Stack == 0 && Portal(a, 0, 1).Projectile.Center == expected &&
+            check(id > 0 && Mana(a).Spent == a.Skill.MagicPointCost && a.Skill.Stack == 0 && Portal(a, 0, 1).Projectile.Center == expected &&
                 Portals(a, 0).All(p => p.ai[1] == 0), "Cast pays immediately and opens origin and home exit together");
             check(Portals(server, 0).Length == 0, "Circles exist only on the caster until synchronized");
             Pump();
@@ -182,7 +244,7 @@ static class NetworkChecks
                 "Server broadcasts the travel burst to both circles on every client");
             check(server.Players[0].Bottom == new Vector2(800, 900) && a.Players[0].Bottom == server.Players[0].Bottom,
                 "Right-click return is server-validated and synchronized");
-            check(Mana(a).Spent == 200 && a.Skill.Stack == 0, "Return costs no additional mana or charges");
+            check(Mana(a).Spent == a.Skill.MagicPointCost && a.Skill.Stack == 0, "Return costs no additional mana or charges");
             Tick(45); Enter(b);
             RecallPortalSystem.RequestTravel(b.Players[1], Portal(b, 0, 1)); Pump();
             check(server.Players[1].Bottom == new Vector2(800, 900), "Client B can use client A's paired portal");

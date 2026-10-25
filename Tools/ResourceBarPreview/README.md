@@ -10,14 +10,19 @@
 `bars.html` 的“A+ 头像 · 等级”卡片是确认稿，默认等级样式为花饰（银胶囊 / 星芒 / 星徽仅作对比，未接入游戏）。
 正式绘制为 `ElainaAttribute/PortraitHudDrawing.cs`，等级动画与升级星屑为 `PortraitHudState.cs`，同样被 FNA 预览直接链接。
 
-- 头像中心位于生命条原点 (-45, 19)，菱形外线半径 31.6；由内到外为头像、深色内线、经验带、留白、白色外线与顶点小星。
+头像源图为本目录 `PortraitSource.png`（用户提供的 100×100 透明 PNG），经 `bake.cjs` 生成正式 `PortraitBase` 及各缩放版本。
+源图已带菱形透明裁切，完整 100×100 边界映射到头像区域 50×50；不再额外放大 1.24 倍或上移，保留用户提供的帽子、脸和衣领构图。
+底座镂空：头像透明区域和外圈留白（经验带外沿到白色外线）只铺 35% 暗纱 `rgba(12,9,20,.35)`，透出游戏画面；经验带底下的深色槽、内线和槽色保持原样。暗角按头像自身 alpha 叠加，只压在人物上，不压暗透出的背景。比较稿见 `hollow-portrait-study.png`（第三行）。
+
+- 头像中心位于生命条原点 (-70, 40)，整组绘制放大 1.4 倍，菱形外线显示半径 44.24（素材坐标 31.6）；由内到外为头像、深色内线、经验带、留白、白色外线与顶点小星。
 - 静态层 `PortraitBase` / `PortraitRim`、完整经验带 `PortraitXp`（含 `Glow` / `Capped` / `Mask`）、低血量 `PortraitPulse`、
-  前端 `PortraitGlint` 与花饰 `LevelFlourish` 都由 `bake.cjs` 调用 HTML 中同名函数烘焙；局部尺寸记录在 manifest 的 `box`。
+  前端 `PortraitGlint`、花饰 `LevelFlourish` 及其暗底 `LevelFlourishShadow` 都由 `bake.cjs` 调用 HTML 中同名函数烘焙；局部尺寸记录在 manifest 的 `box`。
 - 经验两侧同高上升，运行时按进度水平裁切经验带纹理的源矩形即可得到两条臂，不需要额外 Shader；HTML 采用同一裁切。
-- 等级数字使用 KL 的 Gelasio XNB（9px，暗紫 8 向描边），HTML 加载 `.vissandbox/gelasio-source/Gelasio.ttf`，
+- 等级数字使用 KL 的 Gelasio XNB（素材坐标 12px，显示 16.8 UI 像素），居中挂在菱形底尖：数字中心位于底尖下方 2 像素（局部锚点 (0, 23.6)，加 `LevelY` 10），只压住白色外线，经验带起点仍露在数字上方；两侧花饰缩至 65%。位置对比见 `level-position-study.png`（A 方案）。HTML 加载 `.vissandbox/gelasio-source/Gelasio.ttf`，
   其来源与 SHA-256 见 `KL/Fonts/Gelasio.source.json`。数据来自 `ElainaStatePlayer`（等级、经验、升级所需、Boss 进度上限）。
+- 等级字色为银白色 `#eee9f5`，达到上限时为灰银 `#cfc8da`；数字下叠两圈各 8 个方向的偏移暗影（半径 0.55 / 1.1，不透明度 .2 / .1，色 `#0e0a1a`），只为跨过白色外线时可读，不是实心描边。两侧花饰下另有贴着花纹形状的暗底 `LevelFlourishShadow`（剪影向 8 方向扩 0.9、模糊 1.6，`rgba(18,12,32,.45)`，花纹局部单位），白天浅色背景上托住细线，夜晚几乎不可见；比较稿见 `flourish-shadow-study.png`（中档）。等级花饰使用 0.85 素材像素的卷须和简化四瓣花，按 UI 缩放、花饰自身缩放及升级动画的最终尺寸选择预过滤贴图，减少细线发虚。
 - 获得经验时进度缓动，可连续跨级；每次升级经验带闪白、等级放大并散出 22 颗星屑（上限 66）。
-  到达上限后经验带转灰银并熄灭光点。生命显示值低于 25% 时经验槽泛蔷薇色脉冲。悬停菱形显示 `Lv 当前/上限  EXP 当前/所需`。
+  到达上限后经验带转灰银并熄灭光点。生命显示值低于 25% 时经验槽泛蔷薇色脉冲。悬停放大后的菱形或等级区域显示 `Lv 当前/上限  EXP 当前/所需`，提示位于等级下方。
 
 ## 资源与动态绘制
 
@@ -28,7 +33,8 @@
   未烘焙整条动画；运行时不创建纹理、不切换 RenderTarget。
 - `Effects/Content/ResourceBarClip.fx/.xnb` 对每层分别做圆角裁剪，并与完整底槽相交。
   这同时处理满值、空值、极短填充和残影尾部；采样包含小粒子的像素覆盖。
-- 残影等待 0.4 秒，随后每秒缩短 45%；治疗平滑回升。资源上限、角色或魔力类型切换会重置视觉状态。
+- 残影等待 0.4 秒，随后每秒缩短 45%；治疗平滑回升。残影比填充更暗更饱和（生命暗玫红、魔力偏紫），又亮于空槽，实战中能分清实际值；
+  回复不再整条闪白，只在填充末端冒星屑。资源上限、角色或魔力类型切换会重置视觉状态。
   受伤花瓣 / 施法星屑是 UI 内的有界粒子（每条至多 96 个），不依赖世界坐标或修改游戏资源值。
 - tML 的 UI layer 已转换 `Main.screenWidth` 与鼠标到 UI 单位；不再次除 `UIScale`。
   绘制使用传入 SpriteBatch，恢复 vanilla UI batch 的矩阵、混合、采样、深度、光栅与裁剪状态。
@@ -57,7 +63,7 @@ dotnet msbuild 伊蕾娜.csproj -t:Compile -p:BuildProjectReferences=false -v:q
 `run.ps1` 每次链接上述真实 C# 绘制与状态源码，读取正式贴图和 Shader；没有第二套模拟绘制。
 覆盖 1× / 1.5× / 3×、暗 / 日间背景、常态 / 受伤 / 空值 / 满值 / 极低值 / 不同时间，
 头像另有常态 / 低经验 / 上限 / 升级闪光 / 低血量 / 三位数等级 6 种状态（从 KL/Fonts 加载真实 Gelasio），
-以及含头像的小地图布局、6 个动态受伤帧和升级过程帧条 `portrait-levelup-strip.png`。
+以及含头像的小地图布局（1× / 1.5×，另含三位数等级升级放大）、6 个动态受伤帧和升级过程帧条 `portrait-levelup-strip.png`。头像独立画布为 160×140 UI 像素，容纳右移后的等级及升级效果。
 状态断言验证延迟、收敛、治疗、上限变化、粒子回收、无效最大值，以及连续跨级、经验回退、上限暂存、星屑上限与菱形悬停判定。
 
 输出在 `.vissandbox/resource-bars/output`，HTML 同状态参考在 `reference`。

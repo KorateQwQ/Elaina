@@ -1,0 +1,209 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.GameContent;
+using Terraria.Graphics.Light;
+using Terraria.Graphics.Renderers;
+using Terraria.ID;
+using Terraria.Utilities;
+using 伊蕾娜.System;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using Host = Terraria.Main;
+
+sealed partial class PosePreview
+{
+    int appearanceChecks;
+    void Check(bool result, string text)
+    { if (!result) throw new Exception(text); appearanceChecks++; }
+    static (int,int,int,int,bool) Equipment(Player p) => (p.head,p.body,p.legs,p.skinVariant,p.wearsRobe);
+    PlayerDrawSet Prepare(bool portrait = false)
+    {
+        var result = new PlayerDrawSet();
+        if (portrait) result.HeadOnlySetup(player, new(), new(), new(), player.position.X, player.position.Y, 1, 1);
+        else result.BoringSetup(player, new(), new(), new(), player.position, 0, 0, Vector2.Zero);
+        return result;
+    }
+    void CheckAppearance(SpriteBatch batch)
+    {
+        // Only the host's window/lighting are fixtures. Both native setup paths,
+        // the appearance scopes and head/leg drawing below are production code.
+        Host.instance = (Terraria.Main)RuntimeHelpers.GetUninitializedObject(typeof(Terraria.Main));
+        Host.rand = new UnifiedRandom(1);
+        typeof(Lighting).GetField("_activeEngine", Hidden)!.SetValue(null, new FlatLight());
+        player.dead = false; player.gravDir = 1;
+        player.GetModPlayer<AlchemyBrewingPlayer>().Active = false;
+        player.position = new Vector2(20,32); player.direction = 1;
+        player.bodyFrame = player.legFrame = new Rectangle(0,0,40,56);
+        player.lastVisualizedSelectedItem = new Item();
+        TextureAssets.PlayerHair[0] = Asset(Content.Load<Texture2D>("Images/Player_Hair_1"));
+        TextureAssets.PlayerHairAlt[0] = Asset(Content.Load<Texture2D>("Images/Player_HairAlt_1"));
+        TextureAssets.ArmorHead[1] = Asset(head);
+        TextureAssets.ArmorBody[1] = Asset(Load("Items/Armors/新版身体/Elaina2body"));
+        TextureAssets.ArmorBodyComposite[1] = TextureAssets.ArmorBody[1];
+        ArmorIDs.Head.Sets.DrawHead[1] = false;
+        ArmorIDs.Head.Sets.DrawFullHair[1] = ArmorIDs.Head.Sets.DrawHatHair[1] = false;
+        ArmorIDs.Body.Sets.HidesTopSkin[1] = ArmorIDs.Body.Sets.HidesArms[1] = true;
+        ArmorIDs.Legs.Sets.HidesBottomSkin[1] = true;
+        foreach (var field in new[] { "_head", "_body", "_legs" })
+            typeof(ElainaAppearanceSystem).GetField(field, Hidden)!.SetValue(null, 1);
+
+        var wizard = new Item(ItemID.WizardHat);
+        var nebulaHead = new Item(ItemID.NebulaHelmet);
+        var nebulaBody = new Item(ItemID.NebulaBreastplate);
+        var nebulaLegs = new Item(ItemID.NebulaLeggings);
+        foreach (int slot in new[] { (int)wizard.headSlot, (int)nebulaHead.headSlot })
+            TextureAssets.ArmorHead[slot] = Asset(Content.Load<Texture2D>("Images/Armor_Head_" + slot));
+        TextureAssets.ArmorBodyComposite[nebulaBody.bodySlot] = Asset(Content.Load<Texture2D>("Images/Armor/Armor_" + nebulaBody.bodySlot));
+        TextureAssets.ArmorBody[nebulaBody.bodySlot] = TextureAssets.ArmorBodyComposite[nebulaBody.bodySlot];
+        TextureAssets.ArmorLeg[nebulaLegs.legSlot] = Asset(Content.Load<Texture2D>("Images/Armor_Legs_" + nebulaLegs.legSlot));
+        var outfits = new[] { ((int)wizard.headSlot,1,1), ((int)nebulaHead.headSlot,1,1),
+            ((int)nebulaHead.headSlot,(int)nebulaBody.bodySlot,(int)nebulaLegs.legSlot) };
+
+        foreach (var mode in new[] { "running", "paused", "menu" })
+        {
+            Host.gamePaused = mode == "paused"; Host.gameMenu = mode == "menu";
+            foreach (var outfit in outfits)
+            {
+                (player.head,player.body,player.legs) = outfit;
+                var original = Equipment(player);
+                var late = Prepare();
+                if (outfit.Item1 == nebulaHead.headSlot) Check(late.headGlowMask >= 0, "Native setup reproduces Nebula's leftover head glow");
+                using (var scope = new ElainaAppearanceSystem.AppearanceScope(player,1,1,1))
+                {
+                    var fixedDraw = Prepare();
+                    Check(fixedDraw.headGlowMask == -1 && fixedDraw.bodyGlowMask == -1 && fixedDraw.armGlowMask == -1 && fixedDraw.legsGlowMask == -1,
+                        "No original-equipment glow survives early appearance selection: " + mode);
+                    Check(!fixedDraw.fullHair && !fixedDraw.hatHair && fixedDraw.armorHidesArms && fixedDraw.hidesBottomSkin,
+                        "Hair and composite-arm state derives from Elaina equipment: " + mode);
+                    var headDraw = Prepare(true);
+                    Check(headDraw.drawPlayer.head == 1 && !headDraw.fullHair && !headDraw.hatHair, "Native portrait setup uses Elaina appearance");
+                }
+                Check(Equipment(player) == original, "Draw scope restores equipment, skin and robe flag");
+            }
+        }
+        // Sweep all native helmet slots through the corrected setup. No list of
+        // forbidden armor IDs is used by production, so new armor shares this path.
+        Host.gamePaused = true; Host.gameMenu = false;
+        for (int slot = 0; slot < ArmorIDs.Head.Count; slot++)
+        {
+            player.head = slot; player.body = player.legs = 1;
+            using (var scope = new ElainaAppearanceSystem.AppearanceScope(player,1,1,1))
+            {
+                var draw = Prepare();
+                Check(draw.headGlowMask == -1 && !draw.fullHair && !draw.hatHair, "Helmet sweep failed at " + slot);
+            }
+            Check(player.head == slot, "Helmet sweep modified equipment " + slot);
+        }
+        var saved = Equipment(player);
+        try { using var scope = new ElainaAppearanceSystem.AppearanceScope(player,1,1,1); throw new InvalidOperationException("fixture"); }
+        catch (InvalidOperationException) { }
+        Check(Equipment(player) == saved, "Exceptions restore appearance");
+        using (var outer = new ElainaAppearanceSystem.AppearanceScope(player,1,1,1))
+        {
+            using (var inner = new ElainaAppearanceSystem.AppearanceScope(player,2,2,2)) { }
+            Check(player.head == 1 && player.body == 1, "Nested previews restore the outer appearance");
+        }
+        Check(Equipment(player) == saved, "Nested previews restore real equipment");
+        CheckRendererEntryPoints(outfits[1]);
+        CheckPausedHat();
+        RenderAppearance(batch, outfits);
+        Console.WriteLine($"Native appearance setup: {appearanceChecks} checks passed; all {ArmorIDs.Head.Count} helmet slots covered.");
+        Host.gamePaused = Host.gameMenu = false;
+    }
+
+    void CheckRendererEntryPoints((int Head,int Body,int Legs) outfit)
+    {
+        (player.head,player.body,player.legs) = outfit;
+        var original = Equipment(player);
+        var armor = player.armor.ToArray();
+        bool enabled = true;
+        On_LegacyPlayerRenderer.orig_DrawPlayer draw = (renderer,camera,p,position,rotation,origin,shadow,scale) =>
+        {
+            Check(p.head == (enabled ? 1 : outfit.Head), "Full renderer selects appearance before its original method");
+            Check(Prepare().headGlowMask == (enabled ? -1 : 16), "Full renderer's original native setup sees the selected equipment");
+        };
+        On_LegacyPlayerRenderer.orig_DrawPlayerHead headDraw = (renderer,camera,p,position,alpha,scale,border) =>
+        {
+            Check(p.head == (enabled ? 1 : outfit.Head), "Portrait renderer selects appearance before its original method");
+            Check(Prepare(true).drawPlayer.head == p.head, "Portrait uses native HeadOnlySetup");
+        };
+        foreach (string mode in new[] { "running", "paused", "menu" })
+        foreach (bool elaina in new[] { true, false })
+        {
+            Host.gamePaused = mode == "paused"; Host.gameMenu = mode == "menu";
+            enabled = elaina; player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = elaina;
+            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayer", Hidden)!.Invoke(null,
+                new object[] { draw, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f });
+            typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
+                new object[] { headDraw, null, null, player, player.position, 1f, 1f, Color.Transparent });
+            Check(Equipment(player) == original && player.armor.SequenceEqual(armor), "Both renderer wrappers restore equipment and leave inventory slots alone");
+        }
+        player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = true;
+        On_LegacyPlayerRenderer.orig_DrawPlayer failing = (_,_,_,_,_,_,_,_) => throw new InvalidOperationException("draw fixture");
+        try
+        {
+            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayer", Hidden)!.Invoke(null,
+                new object[] { failing, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f });
+        }
+        catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { }
+        Check(Equipment(player) == original, "A failed original renderer still restores the player's state");
+    }
+
+    void CheckPausedHat()
+    {
+        var owner = player.GetModPlayer<global::伊蕾娜.ElainaModplayer>();
+        foreach (bool menu in new[] { false, true })
+        {
+            Host.gameMenu = menu; Host.gamePaused = !menu; owner.掉落帽子 = 100;
+            var draw = new PlayerDrawSet { drawPlayer = player, DrawDataCache = new(), colorArmorHead = Color.White };
+            for (int i = 0; i < 120; i++) hatLayer.DrawWithTransformationAndChildren(ref draw);
+            Check(owner.掉落帽子 == 100, "Repeated paused/menu draws cannot advance the falling-hat clock");
+        }
+        owner.掉落帽子 = 0;
+    }
+
+    void RenderAppearance(SpriteBatch batch, (int Head,int Body,int Legs)[] outfits)
+    {
+        Host.gamePaused = true; Host.gameMenu = false;
+        foreach (float scale in new[] { 4f, 1.25f })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice,(int)(210*scale),(int)(180*scale));
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(55,83,91));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone,null,Matrix.CreateScale(scale));
+            for (int row=0;row<2;row++) for(int column=0;column<outfits.Length;column++)
+            {
+                var outfit=outfits[column]; (player.head,player.body,player.legs)=outfit;
+                player.position=new Vector2(20+70*column,26+row*90);
+                player.bodyFrame=player.legFrame=new Rectangle(0,0,40,56);
+                PlayerDrawSet draw;
+                // Row 0 reproduces late replacement. Row 1 selects appearance
+                // before calling native BoringSetup, exactly as the new hooks do.
+                var scope = row==1 ? new ElainaAppearanceSystem.AppearanceScope(player,1,1,1) : default;
+                try { draw=Prepare(); } finally { scope.Dispose(); }
+                using var rendering=new ElainaAppearanceSystem.AppearanceScope(player,1,1,1);
+                foreach (int glow in new[] { draw.headGlowMask, draw.bodyGlowMask, draw.armGlowMask, draw.legsGlowMask }.Where(g => g >= 0).Distinct())
+                    TextureAssets.GlowMask[glow]=Asset(Content.Load<Texture2D>("Images/Glow_"+glow));
+                alignment.ModifyDrawInfo(ref draw);
+                bodyLayer.DrawWithTransformationAndChildren(ref draw);
+                PlayerDrawLayers.DrawPlayer_13_Leggings(ref draw);
+                PlayerDrawLayers.DrawPlayer_21_Head(ref draw);
+                hatLayer.DrawWithTransformationAndChildren(ref draw);
+                foreach (var data in draw.DrawDataCache) data.Draw(batch);
+            }
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            using var file=File.Create(Path.Combine(output,$"appearance-paused-{scale:0.00}.png"));
+            target.SaveAsPng(file,target.Width,target.Height);
+        }
+    }
+}
+sealed class FlatLight : ILightingEngine
+{
+    public void Rebuild() { }
+    public void AddLight(int x,int y,Vector3 color) { }
+    public void ProcessArea(Rectangle area) { }
+    public Vector3 GetColor(int x,int y)=>Vector3.One;
+    public void Clear() { }
+}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using KL.Drawing;
 using ReLogic.Graphics;
 using Terraria.GameContent;
@@ -6,14 +6,14 @@ using Terraria.GameContent;
 namespace 伊蕾娜.ElainaModSkills.UICore;
 
 /// <summary>
-/// 星图 UI 绘制工具箱:程序化纹理、着色器缓存、SpriteBatch 状态切换与常用绘制原语。
-/// 所有纹理在首次绘制时于主线程惰性生成,不依赖外部美术资源。
+/// 星图 UI 绘制工具箱：预制纹理、着色器缓存与常用绘制原语。
+/// 固定图案由 Tools/FixedTextureBake 离线生成，运行时由资源系统加载。
 /// </summary>
 public static class UIDrawKit
 {
     private const string EffectRoot = "伊蕾娜/ElainaModSkills/UICore/Effects/";
 
-    // ---------- 程序化纹理 ----------
+    // ---------- 预制纹理 ----------
     private static Texture2D _pixel;
     private static Texture2D _glowDot;
     private static Texture2D _softRing;
@@ -75,74 +75,15 @@ public static class UIDrawKit
     private static void EnsureTextures()
     {
         if (_pixel != null) return;
-        GraphicsDevice gd = Main.instance.GraphicsDevice;
-
-        _pixel = new Texture2D(gd, 1, 1);
-        _pixel.SetData(new[] { Color.White });
-
-        _glowDot = BuildTexture(128, (x, y) =>
-        {
-            float d = Dist01(x, y, 128);
-            float v = MathF.Pow(Math.Clamp(1f - d, 0f, 1f), 2.4f);
-            return v;
-        });
-
-        _softRing = BuildTexture(128, (x, y) =>
-        {
-            float d = Dist01(x, y, 128);
-            float sigma = 0.09f;
-            float delta = (d - 0.78f) / sigma;
-            return MathF.Exp(-delta * delta);
-        });
-
-        _star4 = BuildTexture(128, (x, y) =>
-        {
-            float nx = Math.Abs(x - 63.5f) / 64f;
-            float ny = Math.Abs(y - 63.5f) / 64f;
-            float armH = MathF.Pow(1f - Math.Clamp(ny, 0f, 1f), 9f) * MathF.Pow(1f - Math.Clamp(nx, 0f, 1f), 2.2f);
-            float armV = MathF.Pow(1f - Math.Clamp(nx, 0f, 1f), 9f) * MathF.Pow(1f - Math.Clamp(ny, 0f, 1f), 2.2f);
-            float core = MathF.Pow(Math.Clamp(1f - MathF.Sqrt(nx * nx + ny * ny) * 1.6f, 0f, 1f), 3f);
-            return Math.Clamp(MathF.Max(MathF.Max(armH, armV), core), 0f, 1f);
-        });
-
-        _diamondFill = BuildTexture(64, (x, y) =>
-        {
-            float nx = Math.Abs(x - 31.5f) / 32f;
-            float ny = Math.Abs(y - 31.5f) / 32f;
-            float d = nx + ny;
-            return Math.Clamp((0.98f - d) / 0.06f, 0f, 1f);
-        });
-    }
-
-    private static float Dist01(int x, int y, int size)
-    {
-        float half = (size - 1) * 0.5f;
-        float dx = (x - half) / half;
-        float dy = (y - half) / half;
-        return MathF.Sqrt(dx * dx + dy * dy);
-    }
-
-    private static Texture2D BuildTexture(int size, Func<int, int, float> intensity)
-    {
-        var tex = new Texture2D(Main.instance.GraphicsDevice, size, size);
-        var data = new Color[size * size];
-        for (int y = 0; y < size; y++)
-            for (int x = 0; x < size; x++)
-            {
-                float v = Math.Clamp(intensity(x, y), 0f, 1f);
-                data[y * size + x] = Color.White * v;
-            }
-        tex.SetData(data);
-        return tex;
+        _glowDot = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/UICore/Assets/GlowDot", AssetRequestMode.ImmediateLoad).Value;
+        _softRing = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/UICore/Assets/SoftRing", AssetRequestMode.ImmediateLoad).Value;
+        _star4 = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/UICore/Assets/Star4", AssetRequestMode.ImmediateLoad).Value;
+        _diamondFill = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/UICore/Assets/DiamondFill", AssetRequestMode.ImmediateLoad).Value;
+        _pixel = ModContent.Request<Texture2D>("伊蕾娜/Effects/Tex/Baked/WhitePixel", AssetRequestMode.ImmediateLoad).Value;
     }
 
     public static void Unload()
     {
-        Texture2D[] textures = { _pixel, _glowDot, _softRing, _star4, _diamondFill };
-        Main.QueueMainThreadAction(() =>
-        {
-            foreach (var tex in textures) tex?.Dispose();
-        });
         _pixel = _glowDot = _softRing = _star4 = _diamondFill = null;
         _nebula = _glassCard = _starGlow = _constellationLine = _radialCooldown = null;
         _starfieldPlaque = _sigilRing = null;

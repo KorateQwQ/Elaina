@@ -68,7 +68,7 @@ internal static class PanelChecks
         Check(state.Skills.Length == 12, "attribute plus ElainaSkill eligibility");
         Check(state.Points == 0 && state.Learned.Count == 0 && state.Slots.All(s => s == null), "no preview progression seeded");
         state.Select(nameof(MagicBarrierSkill));
-        Check(state.Status(state.Current) == "locked" && !state.Unlock(), "locked prerequisite");
+        Check(state.Status(state.Current) == "ready" && !state.Unlock(), "unlearned prerequisite is ready but blocked");
         state.Select(nameof(AshenWitchSkill));
         var template = Skill.RegisterSkill[nameof(AshenWitchSkill)];
         Check(state.Unlock(), "unlock free skill");
@@ -128,7 +128,7 @@ internal static class PanelChecks
         state.SelectFilter("hidden"); Check(state.EmptyFilter, "empty filter");
         state.Select(nameof(HealSkill));
         Check(state.Current.name == nameof(HealSkill) && state.Current.ModSkill.GetConstellationDescription().Contains("待补充"), "missing localization fallback");
-        Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill"] = "{2}";
+        Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill"] = "{9}";
         Check(state.Current.ModSkill.GetConstellationDescription().Contains("参数"), "missing format argument fallback");
         Terraria.Localization.Language.Text.Remove("Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill");
         Main.gameMenu = true; Check(!state.Unlock() && !state.Equip() && !state.Toggle(nameof(AshenWitchSkill)), "world exit rejects mutations");
@@ -245,12 +245,12 @@ internal static class PanelChecks
             "learning consumes the same dynamic condition that was displayed");
         Check(!state.Unlock(), "duplicate learning cannot spend resources twice");
         report = state.Requirements(state.Selected, true);
-        Check(report.Rows.Count == 2 && report.PointCost == 20 && !state.CanUpgrade(state.Selected), "current configured upgrade requirement is represented");
+        Check(report.Rows.Count == 1 && report.PointCost == 20 && !state.CanUpgrade(state.Selected), "current configured upgrade requirement (points only) is represented");
         player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 10;
         Check(state.Requirements(state.Selected, true).BlockReason == "研习点不足" && !state.Upgrade(state.Selected), "upgrade points shortage is explicit and cannot consume items");
         Check(player.Player.inventory[0].stack == 10, "failed upgrade keeps materials");
         player.SkillPoint = 20;
-        Check(state.Upgrade(state.Selected) && state.Level(state.Selected) == 2 && player.SkillPoint == 0 && player.Player.inventory[0].IsAir, "upgrade consumes displayed materials and points");
+        Check(state.Upgrade(state.Selected) && state.Level(state.Selected) == 2 && player.SkillPoint == 0 && player.Player.inventory[0].stack == 10, "upgrade consumes only the displayed points");
         player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 5;
         var duplicate = new CompositeSkillUnlockCondition(SkillUnlockCondition.ByItems(new SkillUnlockItem(9, 3)),
             new CompositeSkillUnlockCondition(SkillUnlockCondition.ByItems(new SkillUnlockItem(9, 4)), SkillUnlockCondition.BySkillPoint(2)));
@@ -319,8 +319,7 @@ internal static class PanelChecks
         character.CurrentLevel = 2; character.Experience = 80;
         Skill.RegisterSkill[nameof(MagicBarrierSkill)].BasicStatus = Skill.SKillBasicStatus.Hide;
         Skill.RegisterSkill[nameof(WindBladeSkill)].ModSkill.UnlockCondition = null;
-        Skill.RegisterSkill[nameof(FireLaserSkill)].ModSkill.UnlockCondition = SkillUnlockCondition.Custom((p, _) =>
-            p.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().CurrentLevel >= 11);
+        Skill.RegisterSkill[nameof(FireLaserSkill)].ModSkill.UnlockCondition = SkillUnlockCondition.Custom((_, _) => false);
         Skill.RegisterSkill[nameof(WaterBallSkill)].ModSkill.UnlockCondition = new CompositeSkillUnlockCondition(
             SkillUnlockCondition.BySkillPoint(200), SkillUnlockCondition.Custom((p, _) =>
                 p.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().GetMaxLevel() >= 20));
@@ -337,11 +336,14 @@ internal static class PanelChecks
         Check(state.DebugMasterSkills(out int learned, out int levels) && learned > 0 && levels > 0, "master learns and upgrades without resources");
         Check(character.CurrentLevel == 10 && character.Cap == 10 && character.Experience == 0, "master uses the current character cap");
         Check(state.Level(nameof(MasterBaseSkill)) == 5 && state.Level(nameof(MasterDependentSkill)) == 5,
-            "master resolves reverse-ordered prerequisites after leveling their dependency");
-        Check(state.Level(nameof(MasterBlockedUpgradeSkill)) == 2 && state.Level(nameof(MasterNoProgressSkill)) == 1,
-            "master respects custom upgrade gates and terminates when an override refuses progress");
-        Check(new[] { nameof(FireLaserSkill), nameof(WaterBallSkill), nameof(MagicBarrierSkill), nameof(WindBladeSkill), nameof(CycleA), nameof(CycleB), nameof(UnlistedSkill) }
-            .All(id => !player.UnlockedSkill.ContainsKey(id)), "master respects level, stage, hidden, missing-condition and cyclic gates and the learnable catalog");
+            "master bypasses reverse-ordered prerequisites and their level requirements");
+        Check(state.Level(nameof(MasterBlockedUpgradeSkill)) == 5 && state.Level(nameof(MasterNoProgressSkill)) == 5,
+            "master bypasses custom upgrade conditions and overrides that refuse progress");
+        Check(new[] { nameof(MagicBarrierSkill), nameof(WindBladeSkill), nameof(CycleA), nameof(CycleB) }
+            .All(id => state.Level(id) == state.MaxLevel(id)), "master bypasses hidden, missing-condition and cyclic gates");
+        Check(new[] { nameof(FireLaserSkill), nameof(WaterBallSkill), nameof(IceConeSkill) }
+            .All(id => state.Level(id) == 0), "master preserves configured character level and stage gates");
+        Check(!player.UnlockedSkill.ContainsKey(nameof(UnlistedSkill)), "master stays within the constellation catalog");
         Check(player.SkillPoint == 0 && player.Player.inventory[0].stack == 1, "master preserves points and inventory");
         Check(ReferenceEquals(player.ActiveSkill[3], equipped) && equipped.CurrentCD == 7 && equipped.Stack == 0,
             "master preserves equipped instances, cooldowns and charges");
@@ -352,8 +354,28 @@ internal static class PanelChecks
         Check(state.DebugMasterSkills(out learned, out levels) && learned == 0 && levels == 0, "repeated mastery has no extra learning or upgrades");
         character.Cap = 20;
         Check(state.DebugMasterSkills(out learned, out levels) && character.CurrentLevel == 20
-            && state.Level(nameof(MasterBaseSkill)) == 10 && state.Level(nameof(FireLaserSkill)) == 5 && state.Level(nameof(WaterBallSkill)) == 5,
-            "master reevaluates dynamic caps and newly available stages");
+            && state.Level(nameof(MasterBaseSkill)) == 10 && state.Level(nameof(FireLaserSkill)) == 0 && state.Level(nameof(WaterBallSkill)) == 0
+            && learned == 0, "master reevaluates dynamic caps without relearning skills");
+        foreach (int cap in new[] { 35, 36, 39 })
+        {
+            character.Cap = cap;
+            Check(state.DebugMasterSkills(out _, out _) && state.Level(nameof(IceConeSkill)) == 0,
+                $"ice cone remains unlearned at character cap {cap}, including above its first level 36");
+        }
+        var ice = SkillBalanceSystem.Entries[nameof(IceConeSkill)];
+        Check(ice.UnlockStageCap == 40 && ice.UnlockLevel == 36, "bundled ice cone starts in the level-cap 40 stage");
+        character.Cap = 40;
+        SkillBalanceSystem.Entries[nameof(IceConeSkill)] = ice with { UnlockLevel = 41 };
+        Check(state.DebugMasterSkills(out _, out _) && state.Level(nameof(IceConeSkill)) == 0,
+            "meeting the stage cap cannot bypass the configured first character level");
+        Check(state.Level(nameof(FireLaserSkill)) == state.MaxLevel(nameof(FireLaserSkill)),
+            "master still bypasses a false non-level condition once the level gates are met");
+        SkillBalanceSystem.Entries[nameof(IceConeSkill)] = ice;
+        Check(state.DebugMasterSkills(out learned, out _) && learned == 1
+            && state.Level(nameof(IceConeSkill)) == state.MaxLevel(nameof(IceConeSkill)),
+            "ice cone is learned and mastered exactly at character cap 40");
+        Check(state.DebugMasterSkills(out learned, out levels) && learned == 0 && levels == 0,
+            "mastery remains idempotent after unlocking the new stage");
         int count = player.UnlockedSkill.Count;
         Main.gameMenu = true;
         Check(!state.DebugMasterSkills(out _, out _) && player.UnlockedSkill.Count == count, "master rejects menu context");

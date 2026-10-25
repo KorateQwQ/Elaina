@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using Terraria.ID;
 using KL.ActionsSystem;
 using KL.DamageSystem;
 using KL.Drawing;
@@ -177,9 +178,33 @@ public class WaterLaser : ElainaBasicProjectile
 
     public override bool? CanDamage() => damagePulse && IsChanneling && HasAuthority();
 
+    private bool CanTargetNPC(NPC target)
+    {
+        if (!target.IsAttackable(Owner.dontHurtCritters)
+            || (target.friendly && !(target.type == NPCID.Guide && Owner.killGuide)
+                && !(target.type == NPCID.Clothier && Owner.killClothier))
+            || (target.aiStyle == 112 && target.ai[2] > 1f)
+            || !Owner.CanNPCBeHitByPlayerOrPlayerProjectile(target, Projectile))
+            return false;
+
+        // 非伤害帧也按友方攻击检查保护规则，避免射线在脉冲之间被不可受击目标截断。
+        bool wasFriendly = Projectile.friendly;
+        try
+        {
+            Projectile.friendly = true;
+            // 不调用 CombinedHooks：它会再次进入本弹幕的 CanHitNPC，并依赖尚未确定的落点。
+            return PlayerLoader.CanHitNPCWithProj(Owner, Projectile, target) != false
+                && NPCLoader.CanBeHitByProjectile(target, Projectile) != false;
+        }
+        finally
+        {
+            Projectile.friendly = wasFriendly;
+        }
+    }
+
     public override bool? CanHitNPC(NPC target)
     {
-        if (!target.IsAttackable(Owner.dontHurtCritters) || hitNpcIndices.Contains(target.whoAmI))
+        if (!CanTargetNPC(target) || hitNpcIndices.Contains(target.whoAmI))
             return false;
         if (target.whoAmI == primaryTarget) return null;
         // 各个可受击部位独立检查溅射，不按 realLife 合并伤害目标。
@@ -278,7 +303,7 @@ public class WaterLaser : ElainaBasicProjectile
         
         foreach (var npc in Main.ActiveNPCs)
         {
-            if (npc.IsAttackable(Owner.dontHurtCritters))
+            if (CanTargetNPC(npc))
             {
                 float hitLength = 0f;
                 bool collidingNpc = npc.Hitbox.Contains(Projectile.Center.ToPoint())

@@ -1,0 +1,109 @@
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+using var game = new FixedTexturePreview(args[0], args[1]); game.Run();
+
+sealed class FixedTexturePreview : Game
+{
+    readonly string repo, output;
+    SpriteBatch batch;
+    ContentManager effects;
+    Texture2D pixel;
+    bool done;
+    public FixedTexturePreview(string repo, string output)
+    {
+        this.repo = repo; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 800, PreferredBackBufferHeight = 600,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle); batch = new SpriteBatch(GraphicsDevice);
+        effects = new ContentManager(Services, Path.Combine(repo, "Effects/Content"));
+        using var file = File.OpenRead(Path.Combine(repo, "Effects/Tex/Baked/WhitePixel.png"));
+        pixel = Texture2D.FromStream(GraphicsDevice, file);
+    }
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "pixels.json")));
+        using var sheet = new RenderTarget2D(GraphicsDevice, 640, 8 * 160, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        GraphicsDevice.SetRenderTarget(sheet); GraphicsDevice.Clear(new Color(21, 25, 35)); GraphicsDevice.SetRenderTarget(null);
+        int index = 0, checks = 0;
+        foreach (var entry in json.RootElement.EnumerateArray())
+        {
+            string path = entry.GetProperty("Path").GetString()!;
+            int width = entry.GetProperty("Width").GetInt32(), height = entry.GetProperty("Height").GetInt32();
+            byte[] raw = File.ReadAllBytes(Path.Combine(output, entry.GetProperty("Raw").GetString()!));
+            Color[] original = Enumerable.Range(0, width * height).Select(i => new Color(raw[i*4], raw[i*4+1], raw[i*4+2], raw[i*4+3])).ToArray();
+            using var expected = new Texture2D(GraphicsDevice, width, height); expected.SetData(original);
+            using var input = File.OpenRead(Path.Combine(repo, path));
+            using var actual = Texture2D.FromStream(GraphicsDevice, input);
+            var loaded = new Color[width * height]; actual.GetData(loaded);
+            if (!loaded.SequenceEqual(original)) throw new Exception("FNA loaded different bytes: " + path);
+            checks++;
+            for (int col = 0; col < 4; col++)
+            {
+                Color background = col is 0 or 2 ? new Color(21, 25, 35) : new Color(224, 224, 218);
+                float scale = col < 2 ? 1 : 1.25f;
+                using var a = Mask(expected, background, scale);
+                using var b = Mask(actual, background, scale);
+                CheckSame(a, b, path); checks++;
+                GraphicsDevice.SetRenderTarget(sheet); batch.Begin();
+                batch.Draw(b, new Vector2(col * 160, index * 160), Color.White); batch.End(); GraphicsDevice.SetRenderTarget(null);
+            }
+            if (path.EndsWith("ReticleNoise.png"))
+            {
+                foreach (float scale in new[] { 1f, 1.25f })
+                foreach (float age in new[] { -.1f, 0f, .4f, 1.2f })
+                {
+                    using var a = Reticle(expected, age, scale); using var b = Reticle(actual, age, scale);
+                    CheckSame(a, b, "reticle"); checks++;
+                    Save(b, $"reticle-{age:0.0}-{scale:0.00}.png");
+                }
+            }
+            index++;
+        }
+        Save(sheet, "texture-review.png");
+        Console.WriteLine($"PASS {checks} FNA checks: all 8 GPU textures equal the old generated data; black/light backgrounds at 100%/125%; actual reticle shader and current production uniforms across 4 stages.");
+        Exit();
+    }
+    RenderTarget2D Mask(Texture2D texture, Color background, float scale)
+    {
+        var rt = new RenderTarget2D(GraphicsDevice, 160, 160);
+        GraphicsDevice.SetRenderTarget(rt); GraphicsDevice.Clear(background);
+        float width = texture.Width == 1 ? (texture.Height == 1 ? 24 : 36) : Math.Min(128, texture.Width);
+        float height = texture.Height == 1 ? 24 : Math.Min(128, texture.Height);
+        Vector2 size = new(width * scale, height * scale);
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        batch.Draw(texture, new Vector2(80) - size / 2, null, Color.White, 0, Vector2.Zero,
+            size / new Vector2(texture.Width, texture.Height), SpriteEffects.None, 0);
+        batch.End(); GraphicsDevice.SetRenderTarget(null); return rt;
+    }
+    RenderTarget2D Reticle(Texture2D noise, float age, float scale)
+    {
+        var rt = new RenderTarget2D(GraphicsDevice, 400, 400);
+        GraphicsDevice.SetRenderTarget(rt); GraphicsDevice.Clear(new Color(21, 25, 35));
+        Effect effect = effects.Load<Effect>("IceReticle");
+        ReticleReplay.Apply(effect, 2, scale, age < 0 ? .55f : 1, age);
+        float size = 52 * 2.8f * 2 * scale;
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, effect);
+        GraphicsDevice.Textures[1] = noise; GraphicsDevice.SamplerStates[1] = SamplerState.LinearClamp;
+        batch.Draw(pixel, new Vector2(200 - size / 2), null, Color.White, 0, Vector2.Zero, new Vector2(size), SpriteEffects.None, 0);
+        batch.End(); GraphicsDevice.SetRenderTarget(null); return rt;
+    }
+    static void CheckSame(RenderTarget2D a, RenderTarget2D b, string name)
+    {
+        var x = new Color[a.Width*a.Height]; var y = new Color[x.Length]; a.GetData(x); b.GetData(y);
+        if (!x.SequenceEqual(y)) throw new Exception("Rendered output differs: " + name);
+    }
+    void Save(RenderTarget2D rt, string name)
+    { using var file = File.Create(Path.Combine(output, name)); rt.SaveAsPng(file, rt.Width, rt.Height); }
+    protected override void UnloadContent() { pixel.Dispose(); batch.Dispose(); effects.Dispose(); }
+}

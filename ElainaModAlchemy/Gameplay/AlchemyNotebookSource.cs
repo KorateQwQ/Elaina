@@ -9,14 +9,12 @@ namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
 public sealed class AlchemyNotebookSource : IAlchemyNotebookSource
 {
     private readonly Player _player;
-    private int _sequence;
-    public AlchemyNotebookResult LastResult { get; private set; }
+    public AlchemyNotebookResult LastResult => _player.GetModPlayer<AlchemyBrewingPlayer>().LastResult;
     public AlchemyNotebookSource(Player player) => _player = player;
     public bool Request(AlchemyNotebookAction action, string id, int batches = 1)
     {
         if (_player != Main.LocalPlayer || Main.dedServ) return false;
-        LastResult = AlchemyCraftingService.Execute(_player, action, id, batches, ++_sequence);
-        return true;
+        return _player.GetModPlayer<AlchemyBrewingPlayer>().Request(action, id, batches);
     }
     public AlchemyNotebookSnapshot Capture()
     {
@@ -39,7 +37,8 @@ public sealed class AlchemyNotebookSource : IAlchemyNotebookSource
         {
             Materials = materials, Products = products, Unlocked = unlocked, Research = research,
             MaximumBatches = maximum, Level = progress.Level, MaximumLevel = progress.MaximumLevel,
-            Experience = progress.Experience, ExperienceToNextLevel = progress.ExperienceToNextLevel
+            Experience = progress.Experience, ExperienceToNextLevel = progress.ExperienceToNextLevel,
+            IsBusy = _player.GetModPlayer<AlchemyBrewingPlayer>().IsBrewing
         };
     }
 }

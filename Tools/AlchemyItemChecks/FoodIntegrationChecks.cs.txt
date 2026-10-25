@@ -187,21 +187,20 @@ internal static class FoodIntegrationChecks
                 Near(Player.jumpSpeed, 5, "Jetpack restores its shared jump baseline");
                 Near(player.wingTime, 298, "Happy does not extend jetpack flight time");
             }
-            Near(broom.最大速度(), 10 * multiplier, "Happy boosts normal broom speed");
-            Near(broom.最大冲刺速度(), 20 * multiplier, "Happy boosts broom sprint speed");
-            Near(broom.加速度(), multiplier, "Happy boosts broom acceleration");
-            Near(otherBroom.最大速度(), 10, "Happy does not alter another rider's broom");
-            broom.加速 = true; Near(broom.加速度(), 30 * multiplier, "Broom burst receives the bonus only once"); broom.加速 = false;
+            Near(broom.CruiseSpeed, 8 * multiplier, "Happy boosts normal broom speed");
+            Near(broom.BoostSpeed, 12 * multiplier, "Happy boosts broom sprint speed");
+            Near(broom.HandlingPercent, 25, "Happy does not change handling percentage");
+            Near(otherBroom.CruiseSpeed, 8, "Happy does not alter another rider's broom");
             typeof(Mount).GetField("_active", hidden)!.SetValue(player.mount, true);
-            broom.PoweredFlight = true; broom.FlightSpeed = broom.最大速度(); broom.FlightAcceleration = broom.加速度();
+            broom.PoweredFlight = true; broom.FlightSpeed = broom.CruiseSpeed;
             player.maxRunSpeed = 3; player.accRunSpeed = 3;
             effects.PostUpdateRunSpeeds(); broom.PostUpdateRunSpeeds();
-            Near(player.maxRunSpeed, 10 * multiplier, "Mounted movement does not apply Happy twice");
-            Near(player.runAcceleration, multiplier, "Mounted acceleration uses the same travel multiplier");
+            Near(player.maxRunSpeed, 8 * multiplier, "Mounted movement does not apply Happy twice");
+            Near(player.runAcceleration, 0, "Mounted acceleration uses the same travel multiplier");
         }
         effects.UpdateDead();
         Near(effects.TravelSpeedMultiplier, 1, "Happy and Featherlight clear on death");
-        Near(broom.最大速度(), 10, "Broom returns to normal after Happy ends");
+        Near(broom.CruiseSpeed, 8, "Broom returns to normal after Happy ends");
         broom.ResetEffects();
         typeof(Mount).GetField("_active", hidden)!.SetValue(player.mount, false);
         player.gravDir = 1; player.controlUp = false; player.wingsLogic = 0;

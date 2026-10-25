@@ -3,7 +3,6 @@ using KL.Utils;
 using KL.Utils.Net;
 using Terraria;
 using Terraria.ModLoader.IO;
-using 伊蕾娜.System.EssenceSystemFolder;
 using 伊蕾娜.System.Experience;
 
 namespace 伊蕾娜.System;
@@ -67,8 +66,7 @@ public class ElainaStatePlayer : KLModPlayer
                 ProgressSet.Add(bossProgress);
             }
         
-            //是否应该只有伊蕾娜击败boss才会产生基质呢？还是说每个玩家本地生成一个不同步的基质？
-            EssenceItemSystem.MakeNewEssences(boss);
+            // 纯净基石玩法尚未完成，暂不在击败 Boss 时掉落。
         }
     }
 

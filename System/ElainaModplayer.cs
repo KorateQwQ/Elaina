@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using KL.Extensions;
@@ -392,7 +392,7 @@ namespace 伊蕾娜
         }
         public override void DrawEffects(PlayerDrawSet drawInfo, ref float r, ref float g, ref float b, ref float a, ref bool fullBright)
         {
-            if (drawInfo.shadow == 0)
+            if (!Main.gamePaused && !Main.gameMenu && drawInfo.shadow == 0)
             {
                 if (Player.whoAmI == Main.myPlayer && Player.active)
                 {
@@ -419,11 +419,10 @@ namespace 伊蕾娜
             }
             if (Elaina)
             {
-                if (drawInfo.shadow == 0)
+                if (!Main.gamePaused && !Main.gameMenu && drawInfo.shadow == 0)
                 {
                     判定动作状态();
                 }
-                Player.Male = false;
                 if (Player.dead)
                 {
                     Player.headVelocity = Vector2.Zero;
@@ -457,7 +456,7 @@ namespace 伊蕾娜
                 }
                 if (Player.sleeping.isSleeping)
                 {
-                    SoundEngine.PlaySound(睡觉, Player.Center);
+                    if (!Main.gamePaused && !Main.gameMenu && sleep == 0) SoundEngine.PlaySound(睡觉, Player.Center);
                     hat = false;
                     Player.legFrame.Y = 56;
                     Player.legFrame.X = 40;
@@ -481,16 +480,6 @@ namespace 伊蕾娜
                     Player.legFrame.Y = 0;
                     Player.legFrame.X = 0;
                 }
-                int equipSlotHead = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Head);
-                int equipSlotBody = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Body);
-                int equipSlotLegs = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Legs);
-                drawInfo.drawPlayer.head = equipSlotHead;
-                drawInfo.drawPlayer.body = equipSlotBody;
-                drawInfo.drawPlayer.legs = equipSlotLegs;
-                ArmorIDs.Head.Sets.DrawHead[equipSlotHead] = false;
-                ArmorIDs.Body.Sets.HidesTopSkin[equipSlotBody] = true;
-                ArmorIDs.Body.Sets.HidesArms[equipSlotBody] = true;
-                ArmorIDs.Legs.Sets.HidesBottomSkin[equipSlotLegs] = true;
                 Player.manaFlower = true;
             }
         }
@@ -545,34 +534,6 @@ namespace 伊蕾娜
 
                 }
             }
-            //Elaina2 = false;
-            //这里必须写，不然地图头像没有
-
-            /*if (Elaina)
-            {
-                int equipSlotHead = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Head);
-                int equipSlotBody = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Body);
-                int equipSlotLegs = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Legs);
-                Player.head = equipSlotHead;
-                Player.body = equipSlotBody;
-                Player.legs = equipSlotLegs;
-            }*/
-
-        }
-
-        public override void ModifyDrawInfo(ref PlayerDrawSet drawInfo)
-        {
-            if (Elaina)
-            {
-                int equipSlotHead = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Head);
-                int equipSlotBody = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Body);
-                int equipSlotLegs = EquipLoader.GetEquipSlot(Mod, "Elaina2", EquipType.Legs);
-                Player.head = equipSlotHead;
-                Player.body = equipSlotBody;
-                Player.legs = equipSlotLegs;
-                
-            }
-            base.ModifyDrawInfo(ref drawInfo);
         }
 
         public override void UpdateEquips()

@@ -49,7 +49,6 @@ internal sealed class ConstellationBookMotion
     internal float CoverAlpha => Progress == 1 ? 0 : 1 - Ease((Progress - .78f) / .2f);
     internal float ShadowAlpha => MathF.Sin(MathF.PI * Turn) * .45f;
     internal float BackdropAlpha => Ease((Progress - .08f) / .72f);
-    internal float DockGlow => MathF.Sin(MathF.PI * Math.Min(1, Progress / .26f)) * .7f;
 
     // Everything is measured in 1100 x 800 design units, before the final UI scale.
     internal Matrix Pose(Vector2 dock, float dockScale)

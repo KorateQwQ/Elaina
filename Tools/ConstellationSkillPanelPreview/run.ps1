@@ -16,6 +16,9 @@ param(
     [switch]$ScrollOnly,
     [switch]$DebugToolsOnly,
     [switch]$RecallResearchOnly,
+    [switch]$HealingOnly,
+    [switch]$DiscoveryOnly,
+    [switch]$TermsOnly,
     [switch]$SkipChecks,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
@@ -54,7 +57,7 @@ foreach ($name in @('UpdateButterfly','CenterOn','AdvanceCamera','MapPoint','Req
 }
 $scene += "`n}"
 [IO.File]::WriteAllText((Join-Path $out 'Scene.cs'), $scene)
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview')) {
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview','DiscoveryChecks')) {
     [IO.File]::WriteAllText((Join-Path $out "$name.cs"), [IO.File]::ReadAllText((Join-Path $PSScriptRoot "$name.cs.txt")))
 }
 # Exercise KL's actual default, upgrade guard and Skill accessor instead of duplicating their rules in a stub.
@@ -88,18 +91,22 @@ $null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
 $null = Add-Item 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
 $null = Add-Item 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
-foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
+foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview','DiscoveryChecks','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
 $null = Add-Item 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
+$null = Add-Item 'Compile' "$repo/System/UI/ScrollHint.cs"
 foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
-foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
+foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants','ConstellationDiscovery')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Heal/HealSkill.Values.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillBalanceConfig.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillStageGate.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallSkill.Research.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallDiscoveryPlayer.cs"
 $null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
 foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
 $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Helper/TextSnippetHelper.cs"
-foreach ($name in @('KLTextureSnippet','KLTextureTagHandler')) { $null = Add-Item 'Compile' "$repo/../KL/Drawing/Snippets/$name.cs" }
+foreach ($name in @('KLTextureSnippet','KLTextureTagHandler','KLTerms')) { $null = Add-Item 'Compile' "$repo/../KL/Drawing/Snippets/$name.cs" }
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SkillUnlockCondition.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SilkyUI/SkillUIInfoAttribute.cs"
 foreach ($name in @('TextSnippet','ITagHandler')) { $null = Add-Item 'Compile' "$Sources/Terraria/UI/Chat/$name.cs" }
@@ -123,6 +130,9 @@ if ($OrnamentsOnly) { $previewArgs += '--ornaments-only' }
 if ($ScrollOnly) { $previewArgs += '--scroll-only' }
 if ($DebugToolsOnly) { $previewArgs += '--debug-tools-only' }
 if ($RecallResearchOnly) { $previewArgs += '--recall-research-only' }
+if ($HealingOnly) { $previewArgs += '--healing-only' }
+if ($DiscoveryOnly) { $previewArgs += '--discovery-only' }
+if ($TermsOnly) { $previewArgs += '--terms-only' }
 if ($SkipChecks) { $previewArgs += '--skip-checks' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }
