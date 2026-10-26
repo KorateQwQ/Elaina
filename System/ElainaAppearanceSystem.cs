@@ -53,7 +53,24 @@ public sealed class ElainaAppearanceSystem : ModSystem
         Camera camera, Player player, Vector2 position, float alpha, float scale, Color borderColor)
     {
         using var appearance = Begin(player);
-        orig(renderer, camera, player, position, alpha, scale, borderColor);
+        if (!player.GetModPlayer<ElainaModplayer>().Elaina || !player.sleeping.isSleeping)
+        {
+            orig(renderer, camera, player, position, alpha, scale, borderColor);
+            return;
+        }
+
+        // Sleeping hides the world equipment using an empty frame. Portraits still
+        // need the normal head frame, which vanilla reads from bodyFrame.
+        Rectangle bodyFrame = player.bodyFrame;
+        try
+        {
+            player.bodyFrame = new Rectangle(0, 0, bodyFrame.Width, bodyFrame.Height);
+            orig(renderer, camera, player, position, alpha, scale, borderColor);
+        }
+        finally
+        {
+            player.bodyFrame = bodyFrame;
+        }
     }
 
     // A draw may be a paused world, a menu clone, a portrait or a nested preview.

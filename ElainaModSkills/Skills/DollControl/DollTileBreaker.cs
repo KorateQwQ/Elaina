@@ -6,8 +6,8 @@ using Terraria.ID;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 玩偶在主人客户端拆物块与墙；按开关选择收集掉落或沿用原版原地掉落。
-/// 收集模式下，客户端的 KillTile 本不掉落，因此先在捕获期间单独执行原版掉落计算，再无掉落地拆除并同步；
+/// 玩偶拆物块与墙的引擎入口；按开关选择收集掉落或沿用原版原地掉落。
+/// 联机物块收集由 DollMiningNetwork 请求服务器执行，完整捕获家具解体及其连带掉落；
 /// 墙没有“无掉落”的网络操作，收集时改为本地拆除后发送物块方块同步。关闭收集时使用原版拆除消息。
 /// 判定镐力、草地转换与掉落沿用原版私有实现，避免各模组物块的规则走样。
 /// </summary>
@@ -54,10 +54,11 @@ internal static class DollTileBreaker
         return _transformsOnKill(player, hitTile, damage, x, y, pickPower, hitIndex, tile);
     }
 
-    /// <summary>拆掉实心物块；收集模式下只有物块确实消失才返回掉落，否则让原版把掉落留在世界中。</summary>
+    /// <summary>拆掉物块或家具；挖掘任务在单机或服务器完整捕获，客户端分支保留供单格药草照料使用。</summary>
     public static bool BreakTile(int x, int y, List<(int Type, int Stack)> drops, bool bringBackItems = true)
     {
         drops.Clear();
+        if (!Main.tile[x, y].HasTile || !WorldGen.CanKillTile(x, y)) return false;
         if (!bringBackItems)
         {
             // 客户端沿用原版挖掘消息，让服务器计算掉落，不能再发送 noItem 操作。
@@ -67,13 +68,20 @@ internal static class DollTileBreaker
                 NetMessage.SendData(MessageID.TileManipulation, -1, -1, null, 0, x, y);
             return true;
         }
-        _dropTileItems ??= typeof(WorldGen).GetMethod("KillTile_DropItems", BindingFlags.NonPublic | BindingFlags.Static)!
-            .CreateDelegate<Action<int, int, Tile, bool, bool>>();
         DollLootCapture.Begin(drops);
-        try { _dropTileItems(x, y, Main.tile[x, y], false, false); }
+        try
+        {
+            if (Main.netMode == NetmodeID.MultiplayerClient)
+            {
+                // 药草照料仍使用既有的单格收获流程；挖掘任务从 DollMiningNetwork 进入服务器分支。
+                _dropTileItems ??= typeof(WorldGen).GetMethod("KillTile_DropItems", BindingFlags.NonPublic | BindingFlags.Static)!
+                    .CreateDelegate<Action<int, int, Tile, bool, bool>>();
+                _dropTileItems(x, y, Main.tile[x, y], false, false);
+            }
+            else WorldGen.KillTile(x, y);
+        }
         finally { DollLootCapture.End(); }
-
-        WorldGen.KillTile(x, y, noItem: true);
+        if (Main.netMode == NetmodeID.MultiplayerClient) WorldGen.KillTile(x, y, noItem: true);
         if (Main.tile[x, y].HasTile)
         {
             drops.Clear();
@@ -137,6 +145,8 @@ public sealed class DollLootCapture : GlobalItem
 
     /// <summary>玩偶正在拆物块并收走掉落物；此期间生成的物品会被收走，其他逻辑不应再处理它。</summary>
     public static bool Capturing => _sink != null;
+
+    internal static bool IsCaptured(Item item) => Capturing && _spawned.Contains(item);
 
     public override void OnSpawn(Item item, IEntitySource source)
     {

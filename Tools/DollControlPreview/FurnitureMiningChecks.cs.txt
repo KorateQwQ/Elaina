@@ -1,0 +1,108 @@
+global using Microsoft.Xna.Framework;
+global using Terraria;
+global using Terraria.ModLoader;
+using System.Reflection;
+using Terraria.ID;
+using Terraria.ObjectData;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class FurnitureMiningChecks
+{
+    private static int passed;
+    private static void Check(bool value, string reason) { if (!value) throw new Exception(reason); passed++; }
+    private sealed class FixtureMod : Mod { public override string Name => "FurnitureMiningFixture"; }
+    private static void Main()
+    {
+        const BindingFlags hidden = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        Terraria.Program.SavePath = Path.GetTempPath();
+        Host.dedServ = true; Host.netMode = NetmodeID.SinglePlayer; Host.myPlayer = 0;
+        Host.SceneMetrics = new SceneMetrics(); Host.PylonSystem = new Terraria.GameContent.TeleportPylonsSystem();
+        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(WallID.Sets), typeof(ItemID.Sets) })
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(sets.TypeHandle);
+        SetFactory.ResizeArrays(false); TileObjectData.Initialize();
+        var mod = new FixtureMod();
+        var capture = new DollLootCapture(); ((ILoadable)capture).Load(mod); ContentInstance.Register(capture);
+        SetupNetwork(mod);
+        foreach (Type loader in new[] { typeof(TileLoader), typeof(WallLoader), typeof(ItemLoader) })
+            loader.GetMethod("ResizeArrays", hidden)!.Invoke(null, new object[] { false });
+        typeof(PlayerLoader).GetMethod("ResizeArrays", hidden)!.Invoke(null, null);
+        Host.maxTilesX = Host.maxTilesY = 240;
+        Host.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)240, (ushort)240 }, null)!;
+        Host.worldSurface = 180; Host.rockLayer = 200; Host.rand = new UnifiedRandom(703);
+        WorldGen._genRand = new UnifiedRandom(704); WorldGen.gen = false;
+        Host.player = Enumerable.Range(0, 256).Select(i => new Player { whoAmI = i }).ToArray();
+        Host.item = Enumerable.Range(0, Host.maxItems + 1).Select(_ => new Item()).ToArray();
+        Host.projectile = Enumerable.Range(0, Host.maxProjectiles + 1).Select(_ => new Projectile()).ToArray();
+        Host.npc = Enumerable.Range(0, Host.maxNPCs + 1).Select(_ => new NPC()).ToArray();
+        Host.player[0].active = true; Host.player[0].position = new(1600, 1600);
+        Host.guideItem = new Item();
+        Host.recipe[0] = (Recipe)Activator.CreateInstance(typeof(Recipe), BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { null }, null)!;
+        typeof(ItemLoader).GetMethod("FinishSetup", hidden)!.Invoke(null, null);
+        Host.tileSolid[TileID.Stone] = true;
+        foreach (int type in new[] { TileID.Beds, TileID.WorkBenches, TileID.Tables, TileID.Bottles, TileID.Chairs, TileID.Torches })
+            Host.tileFrameImportant[type] = true;
+        Host.tileTable[TileID.Tables] = Host.tileTable[TileID.WorkBenches] = true;
+        Host.tileSolidTop[TileID.Tables] = Host.tileSolidTop[TileID.WorkBenches] = true;
+        foreach (bool collect in new[] { true, false })
+        foreach (var (type, width, height, item) in new[] {
+            (TileID.Beds, 4, 2, ItemID.Bed), (TileID.WorkBenches, 2, 1, ItemID.WorkBench),
+            (TileID.Tables, 3, 2, ItemID.WoodenTable), (TileID.Bottles, 1, 1, ItemID.Bottle),
+            (TileID.Chairs, 1, 2, ItemID.WoodenChair), (TileID.Stone, 1, 1, ItemID.StoneBlock) })
+        for (int hitX = 0; hitX < width; hitX++) for (int hitY = 0; hitY < height; hitY++)
+        {
+            Reset(); Place(type, 100, 100, width, height);
+            if (type == TileID.Bottles) Place(TileID.WorkBenches, 100, 101, 2, 1);
+            Check(DollTileBreaker.CanDamageTile(Host.player[0], 100 + hitX, 100 + hitY, 35), $"{type}: basic pick can damage furniture");
+            List<(int Type, int Stack)> drops = [];
+            Check(DollTileBreaker.BreakTile(100 + hitX, 100 + hitY, drops, collect), $"{type}: break from cell {hitX},{hitY}");
+            for (int x = 0; x < width; x++) for (int y = 0; y < height; y++)
+                Check(!Host.tile[100 + x, 100 + y].HasTile, $"{type}: whole object disappears");
+            CheckDrops(drops, collect, (item, 1));
+            Check(!DollLootCapture.Capturing, "Capture ends after breaking");
+            Check(!DollTileBreaker.BreakTile(100 + hitX, 100 + hitY, drops, collect) && drops.Count == 0,
+                "A stale furniture mark cannot produce another drop");
+        }
+        foreach (bool collect in new[] { true, false })
+        {
+            Reset(); Place(TileID.Tables, 100, 100, 3, 2); Place(TileID.Bottles, 101, 99, 1, 1, support: false);
+            List<(int Type, int Stack)> drops = [];
+            Check(DollTileBreaker.BreakTile(101, 99, drops, collect), "Bottle on table can be removed independently");
+            Check(Host.tile[100, 100].HasTile && Host.tile[102, 101].HasTile, "Removing bottle preserves table");
+            CheckDrops(drops, collect, (ItemID.Bottle, 1));
+            Reset(); Place(TileID.Tables, 100, 100, 3, 2); Place(TileID.Bottles, 101, 99, 1, 1, support: false);
+            Check(DollTileBreaker.BreakTile(101, 100, drops, collect), "Table can be removed with bottle on top");
+            Check(!Host.tile[101, 99].HasTile, "Unsupported bottle is removed by native framing");
+            CheckDrops(drops, collect, (ItemID.WoodenTable, 1), (ItemID.Bottle, 1));
+        }
+        Console.WriteLine($"PASS: {passed} native furniture mining checks (real WorldGen, framing, pickaxe damage and captured/world drops).");
+        CheckNetwork();
+    }
+    private static void Reset()
+    {
+        for (int x = 90; x < 115; x++) for (int y = 90; y < 115; y++) Host.tile[x, y].ClearEverything();
+        foreach (Item item in Host.item) { item.TurnToAir(); item.active = false; }
+    }
+    private static void Place(int type, int left, int top, int width, int height, bool support = true)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            if (support) { Tile floor = Host.tile[left + x, top + height]; floor.HasTile = true; floor.TileType = TileID.Stone; }
+            for (int y = 0; y < height; y++)
+            {
+                Tile tile = Host.tile[left + x, top + y]; tile.ClearEverything(); tile.HasTile = true;
+                tile.TileType = (ushort)type; tile.TileFrameX = (short)(x * 18); tile.TileFrameY = (short)(y * 18);
+            }
+        }
+    }
+    private static void CheckDrops(List<(int Type, int Stack)> drops, bool collect, params (int Type, int Stack)[] expected)
+    {
+        var world = Host.item.Take(Host.maxItems).Where(i => i.active && !i.IsAir).Select(i => (Type: i.type, Stack: i.stack)).ToArray();
+        var actual = collect ? drops.ToArray() : world;
+        Check((collect ? world.Length : drops.Count) == 0, "Drops only exist in the chosen destination");
+        Check(actual.OrderBy(i => i.Type).SequenceEqual(expected.OrderBy(i => i.Type)),
+            $"Exactly one item per object: expected {string.Join(',', expected)}, got {string.Join(',', actual)}");
+    }
+}

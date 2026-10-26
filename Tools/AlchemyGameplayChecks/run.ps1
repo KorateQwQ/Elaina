@@ -18,6 +18,7 @@ $null = Add-CheckItem 'Compile' "$repo/Localization/UIText.cs"
 $null = Add-CheckItem 'Compile' "$PSScriptRoot/SkillFixture.cs.txt"
 $null = Add-CheckItem 'Compile' "$PSScriptRoot/BrewingHost.cs.txt"
 $null = Add-CheckItem 'Compile' "$PSScriptRoot/BrewingChecks.cs.txt"
+$null = Add-CheckItem 'Compile' "$PSScriptRoot/StageProgressionChecks.cs.txt"
 foreach ($relative in @('AlchemyRecipe.cs','AlchemyIngredient.cs','UI/AlchemyCatalog.cs','UI/AlchemyNotebookSnapshot.cs','UI/AlchemyNotebookState.cs','item/AlchemyItem.cs','item/Recipes/*.cs','item/Curios/AshenFacsimileDust.cs','Gameplay/*.cs','Crafting/*.cs')) {
     $source = Add-CheckItem 'Compile' "$repo/ElainaModAlchemy/$relative"
     # The isolated crafting harness does not load food items, player Buffs or ImproveGame hooks.

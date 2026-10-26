@@ -50,13 +50,13 @@ static partial class Checks
                 doll = Reset(level); owner = World.player[0];
                 var commands = owner.GetModPlayer<DollCommandPlayer>();
                 Point target = new(8, 6);
-                if (kind == 0) commands.PlanterTargets.Add(target);
+                if (kind == 0) commands.PlacementTargets.Add(target);
                 else if (kind == 1) commands.PreviewGardenTarget = target;
                 else { commands.PreviewChestTarget = target; commands.PreviewChestHelper = doll; }
                 doll.Projectile.Center = target.ToWorldCoordinates() + new Vector2(-22, -6)
                     + (kind == 1 ? new Vector2(0, -16) : kind == 2 ? new Vector2(8, 8) : Vector2.Zero);
                 int ticks = 0;
-                while (commands.PlacedPlanters + commands.GardenActions + commands.PreviewChestOpened == 0 && ticks < 60)
+                while (commands.PlacedBlocks + commands.GardenActions + commands.PreviewChestOpened == 0 && ticks < 60)
                 { doll.AI(); ticks++; }
                 int expected = (int)Math.Ceiling(2400d / (100 + bonuses[level - 1]));
                 Check(ticks == expected, $"Lv{level} use action {kind}: expected {expected}, got {ticks}");
@@ -64,11 +64,11 @@ static partial class Checks
                 var remote = new KumaPetProjectile(); remote.SetDefaults(); remote.Projectile.owner = 0; remote.Projectile.active = true;
                 remote.Projectile.Center = doll.Projectile.Center; remote.ReceiveExtraAI(new BinaryReader(stream));
                 Check(remote.SkillLevel == level, $"Lv{level} synchronizes work speed to remote/late-join projectile");
-                int actions = commands.PlacedPlanters + commands.GardenActions + commands.PreviewChestOpened;
+                int actions = commands.PlacedBlocks + commands.GardenActions + commands.PreviewChestOpened;
                 World.myPlayer = 1;
                 for (int tick = 0; tick < 60; tick++) remote.AI();
                 World.myPlayer = 0;
-                Check(actions == commands.PlacedPlanters + commands.GardenActions + commands.PreviewChestOpened,
+                Check(actions == commands.PlacedBlocks + commands.GardenActions + commands.PreviewChestOpened,
                     $"Lv{level} remote use action {kind} never executes work");
             }
             // A low-level summon needs only its actual number of free slots.

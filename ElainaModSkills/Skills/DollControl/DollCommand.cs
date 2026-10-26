@@ -7,17 +7,16 @@ public enum DollCommand
     MineChain,
     BreakWall,
     BreakWallChain,
-    Attack,
-    Cancel,
+    // 保留既有指令编号；原编号 4 的攻击占位与编号 7 的放置种植盆已移除（改由远程放置物块完成）。
+    Cancel = 5,
     Dismiss,
-    PlacePlanters,
 }
 
 internal static class DollCommands
 {
-    public const int Count = 6;
+    public const int Count = 4;
     private static readonly DollCommand[] WheelCommands =
-        [DollCommand.Mine, DollCommand.BreakWall, DollCommand.Attack, DollCommand.Cancel, DollCommand.Dismiss, DollCommand.PlacePlanters];
+        [DollCommand.Mine, DollCommand.BreakWall, DollCommand.Cancel, DollCommand.Dismiss];
 
     public static DollCommand AtSlot(int slot) => WheelCommands[slot];
     public static DollCommand BaseCommand(DollCommand command) => command switch
@@ -31,8 +30,7 @@ internal static class DollCommands
     public static string IconPath(DollCommand command) => IconPrefix + command;
 
     /// <summary>选中后进入世界标记状态的指令；其余指令在确认时立即生效。</summary>
-    public static bool IsMarkingTool(DollCommand command) => command <= DollCommand.BreakWallChain
-        || command == DollCommand.PlacePlanters;
+    public static bool IsMarkingTool(DollCommand command) => command <= DollCommand.BreakWallChain;
 
     public static bool TargetsWalls(DollCommand command) =>
         command is DollCommand.BreakWall or DollCommand.BreakWallChain;

@@ -10,7 +10,7 @@ using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 internal sealed class SelectionPreview : Game
 {
     private readonly string root, output;
-    private Texture2D pixel, mine, wall, planters, stars;
+    private Texture2D pixel, mine, wall, stars;
     private DynamicSpriteFont serif, sans;
     private ContentManager fonts;
     private bool done;
@@ -29,7 +29,7 @@ internal sealed class SelectionPreview : Game
         sans = fonts.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC");
         // 与游戏的 TextureAssets.MagicPixel 同为 1×1000，绘制必须只取 (0,0,1,1)，否则预览也会出现满屏拉伸线。
         pixel = new Texture2D(GraphicsDevice, 1, 1000); pixel.SetData(Enumerable.Repeat(Color.White, 1000).ToArray());
-        mine = Icon("Mine"); wall = Icon("BreakWall"); planters = Icon("PlacePlanters");
+        mine = Icon("Mine"); wall = Icon("BreakWall");
         // tML 加载 PNG 时预乘 alpha；FromStream 不会，这里补上以匹配游戏内绘制。
         using (var stream = File.OpenRead(Path.Combine(root, "ElainaModAlchemy/UI/Assets/NotebookStars.png")))
             stars = Texture2D.FromStream(GraphicsDevice, stream);
@@ -48,6 +48,7 @@ internal sealed class SelectionPreview : Game
         SDL.SDL_HideWindow(Window.Handle);
         Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(GraphicsDevice);
+        DrawFurniture(batch);
         var cases = new[] {
             ("ready", "zh-Hans", 1f, 1280, 800, false, 126, true),
             ("empty", "zh-Hans", 1f, 1280, 800, false, 0, false),
@@ -95,88 +96,50 @@ internal sealed class SelectionPreview : Game
             using var stream = File.Create(Path.Combine(output, "selection-states.png")); sheet.SaveAsPng(stream, sheet.Width, sheet.Height);
         }
         foreach (var crop in crops) crop.Dispose();
-        DrawPlanters(batch);
-        DrawMaterialMenus(batch);
         Console.WriteLine("PASS: shared FNA renderer, real Noto Serif SC / HarmonyOS Sans SC fonts, NotebookStars and localized labels; ready/disabled/hover/walls/English/compact at 100% and 150% UI scale.");
         Console.WriteLine(Path.Combine(output, "selection-states.png"));
         Exit();
     }
-    protected override void UnloadContent() { pixel?.Dispose(); mine?.Dispose(); wall?.Dispose(); planters?.Dispose(); stars?.Dispose(); fonts?.Dispose(); }
-    private void DrawPlanters(SpriteBatch batch)
+    protected override void UnloadContent() { pixel?.Dispose(); mine?.Dispose(); wall?.Dispose(); stars?.Dispose(); fonts?.Dispose(); }
+    private void DrawFurniture(SpriteBatch batch)
     {
-        foreach (var (name, language, scale, width, height, count) in new[] {
-            ("planters", "zh-Hans", 1f, 1280, 800, 120),
-            ("planters-150", "zh-Hans", 1.5f, 1280, 800, 120),
-            ("planters-en-compact", "en-US", 1.5f, 800, 600, 120),
-            ("planters-empty", "zh-Hans", 1f, 1280, 800, 0) })
+        Terraria.GameContent.TextureAssets.MagicPixel.Value = pixel;
+        Terraria.Main.screenPosition = Vector2.Zero;
+        foreach (float zoom in new[] { 2f, 3f })
         {
-            Language.Load(root, language);
-            string Text(string key) => Language.GetTextValue("Mods.伊蕾娜.UI." + key);
-            var layout = DollSelectionBarDrawing.GetLayout(new Vector2(width, height) / scale, true);
-            using var target = new RenderTarget2D(GraphicsDevice, width, height);
-            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(42, 70, 75));
+            using var target = new RenderTarget2D(GraphicsDevice, 640, (int)(230 * zoom));
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(30, 41, 48));
             batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
-                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
-            for (int y = 0; y < (count > 0 ? 3 : 0); y++) for (int x = 0; x < 12; x++)
-                DollPlanterDrawing.Draw(batch, pixel, new Vector2(70 + x * 16, 60 + y * 32), x == 10, .9f);
-            batch.End();
-            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
-                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
-            string Option(string label, string item, int owned) => string.Format(Text("DollMaterialOption"), Text(label), item, owned, count);
-            bool en = language == "en-US";
-            DollSelectionBarDrawing.Draw(batch, new(pixel, stars, serif, sans), planters, layout,
-                new Vector2(layout.Planter.Center.X, layout.Planter.Center.Y), scale,
-                Text("DollCommandPlacePlanters"), Text("DollSelectionPlanters"), count, Text("DollSelectionEmptyPlanters"),
-                Text("DollPlanterHint"), Text("DollSelectionStartPlanters"), Text("DollSelectionExit"),
-                new(planters, planters.Bounds, Option("DollPlanterLabel", en ? "Deathweed Planter Box" : "死亡草种植盆", 80), 80 >= count));
-            batch.End(); GraphicsDevice.SetRenderTarget(null);
-            using var stream = File.Create(Path.Combine(output, name + ".png")); target.SaveAsPng(stream, width, height);
-        }
-        Console.WriteLine("PASS: planter bar + shared 2-layer world markers, Chinese/English, 100%/150%, empty/short supply/compact.");
-    }
-    private void DrawMaterialMenus(SpriteBatch batch)
-    {
-        foreach (var (name, language, scale, width, height, total, offset) in new[] {
-            ("material-menu-planters", "zh-Hans", 1f, 1280, 800, 3, 0),
-            ("material-menu-planters-150", "zh-Hans", 1.5f, 1280, 800, 8, 0),
-            ("material-menu-en-compact", "en-US", 1.5f, 800, 600, 8, 3),
-            ("material-menu-empty", "zh-Hans", 1f, 1280, 800, 0, 0) })
-        {
-            Language.Load(root, language);
-            string Text(string key) => Language.GetTextValue("Mods.伊蕾娜.UI." + key);
-            bool english = language == "en-US";
-            var bar = DollSelectionBarDrawing.GetLayout(new Vector2(width, height) / scale, true);
-            var popup = DollSelectionBarDrawing.GetMaterialMenuLayout(bar, total, offset);
-            string[] zh = ["太阳花种植盆", "月光草种植盆", "闪耀根种植盆", "死亡草种植盆", "血腥死亡草种植盆", "寒颤棘种植盆", "火焰花种植盆", "水叶草种植盆"];
-            string[] en = ["Daybloom Planter Box", "Moonglow Planter Box", "Blinkroot Planter Box", "Deathweed Planter Box", "Crimson Planter Box", "Shiverthorn Planter Box", "Fireblossom Planter Box", "Waterleaf Planter Box"];
-            var entries = new List<DollSelectionBarDrawing.MaterialMenuEntry>();
-            for (int i = 0; i < total; i++)
+                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(zoom));
+            foreach (var (type, width, height, y, label) in new[] {
+                (18, 2, 1, 3, "工作台"), (79, 4, 2, 7, "床"), (14, 3, 2, 11, "桌子") })
             {
-                var texture = planters;
-                string label = string.Format(Text("DollMaterialListOption"), english ? en[i % en.Length] : zh[i % zh.Length], 999 - i * 73);
-                entries.Add(new(new(texture, texture.Bounds, label, true), i == (offset > 0 ? offset + 1 : 1)));
+                Terraria.ObjectData.TileObjectData.Fixtures[type] = new() { Width = width, Height = height };
+                Terraria.Main.tileFrameImportant[type] = true;
+                // Two touching identical objects; clicking the rightmost cell of the first must select just that object.
+                for (int objectIndex = 0; objectIndex < 2; objectIndex++)
+                for (int x = 0; x < width; x++) for (int row = 0; row < height; row++)
+                {
+                    int column = 2 + objectIndex * width + x;
+                    Terraria.Main.tile[column, y + row] = new Tile { HasTile = true, TileType = (ushort)type,
+                        TileFrameX = (short)(x * 18), TileFrameY = (short)(row * 18) };
+                    batch.Draw(pixel, new Rectangle(column * 16 + 2, (y + row) * 16 + 3, 12, 11), new Color(112, 85, 65));
+                }
+                Point clicked = new(2 + width - 1, y + height - 1);
+                var cells = DollTileSelection.RectangleCells(clicked, clicked, false);
+                FurnitureMarkPreview.DrawMarks(batch, cells, new Color(150, 235, 160), new Rectangle(0, 0, 50, 40), .5f);
+                batch.Draw(pixel, new Rectangle(clicked.X * 16 + 6, clicked.Y * 16 + 6, 4, 4), Color.White);
+                batch.DrawString(sans, label, new Vector2(32, y * 16 - 24), Color.White, 0, Vector2.Zero, .25f, SpriteEffects.None, 0);
             }
-            using var target = new RenderTarget2D(GraphicsDevice, width, height);
-            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(42, 70, 75));
-            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
-                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
-            string Option(string key, string item, int owned) => string.Format(Text("DollMaterialOption"), Text(key), item, owned, 120);
-            DollSelectionBarDrawing.Draw(batch, new(pixel, stars, serif, sans), planters, bar,
-                new Vector2(popup.Row(0).Center.X, popup.Row(0).Center.Y), scale,
-                Text("DollCommandPlacePlanters"), Text("DollSelectionPlanters"), 120, Text("DollSelectionEmptyPlanters"),
-                Text("DollPlanterHint"), Text("DollSelectionStartPlanters"), Text("DollSelectionExit"),
-                new(planters, planters.Bounds, Option("DollPlanterLabel", total == 0 ? Text("DollMaterialNone") : english ? "Moonglow Planter Box" : "月光草种植盆", total == 0 ? 0 : 926), total > 0),
-                total > 0, new(popup, entries, Text("DollChoosePlanter"), Text("DollMaterialNone")), true);
             batch.End(); GraphicsDevice.SetRenderTarget(null);
-            using var stream = File.Create(Path.Combine(output, name + ".png")); target.SaveAsPng(stream, width, height);
+            using var stream = File.Create(Path.Combine(output, $"furniture-selection-{zoom:0}.png"));
+            target.SaveAsPng(stream, target.Width, target.Height);
         }
-        Console.WriteLine("PASS: production material popup renderer, choices/selected/hover/empty/paged, Chinese/English, compact and 150% UI.");
     }
     [STAThread]
     private static void Main(string[] args)
     {
         SelectionChecks.Run();
-        PlanterSelectionChecks.Run();
         using var game = new SelectionPreview(args[0], args[1]); game.Run();
     }
 }

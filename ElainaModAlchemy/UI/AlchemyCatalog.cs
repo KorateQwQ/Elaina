@@ -134,7 +134,7 @@ public static class AlchemyCatalog
         new("aetherblock", "Catalog.AetherBlock", "Aether Block", "Catalog.ObtainedFromShimmer", 3, null, null),
         new("obsidian", "Catalog.Obsidian", "Obsidian", "Catalog.WaterTouchingLava", 6, null, null),
         new("bone", "Catalog.Bone", "Bone", "Catalog.DroppedByDungeonEnemies", 15, null, null),
-        new("cloud", "Catalog.Cloud", "Cloud", "Catalog.FloatingIslands", 30, null, null),
+        new("raincloud", "Catalog.RainCloud", "Rain Cloud", "Catalog.FloatingIslands", 30, null, null),
         new("waterleaf", "Catalog.Waterleaf", "Waterleaf", "Catalog.DesertBloomsInRain", 4, null, null),
         new("honey", "Catalog.BottledHoney", "Bottled Honey", "Catalog.GlassBottleHoney", 4, null, null),
         new("wood", "Catalog.Wood", "Wood", "Catalog.ChopDownTrees", 60, null, null),
@@ -369,7 +369,7 @@ public static class AlchemyCatalog
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "moondew"),
-                new(10, "cloud"),
+                new(1, "raincloud"),
                 new(1, "waterleaf"),
             },
             Effects = new AlchemyCatalogEffect[]

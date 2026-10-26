@@ -12,21 +12,17 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
     {
         public const float WorkRange = 2400;
         internal readonly HashSet<Point> TileMarks = [];
-        internal readonly Dictionary<Point, int> PlanterMarks = [];
         private readonly Dictionary<int, int> loot = [];
         private readonly List<(int Type, int Stack)> captured = [];
         private bool InRange(Point p) => Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) <= WorkRange * WorkRange;
         public int LootCount(int type) => loot.GetValueOrDefault(type);
         public bool HasLoot => loot.Count > 0;
-        public bool HasTask => TileMarks.Count > 0 || PlanterMarks.Count > 0 || HasGardenTask;
+        public bool HasTask => TileMarks.Count > 0 || Placements.Count > 0 || HasGardenTask;
         public int Delivered;
         public void DeliverLoot(Vector2 from, Terraria.DataStructures.IEntitySource source)
         { Delivered += loot.Values.Sum(); loot.Clear(); }
-        internal bool TrySelectPlanterTarget(Vector2 from, Point current, out Point target, DollPetProjectile worker = null)
-        { target = new(-1, -1); return false; }
         internal bool TrySelectTarget(Vector2 from, Point current, bool currentWall, out Point target, out bool wall, DollPetProjectile worker = null)
         { target = new(-1, -1); wall = false; return false; }
-        internal void PlacePlanter(Point point) => throw new Exception("Construction outside garden fixture");
         internal void Hit(Point point, bool walls) => throw new Exception("Mining outside garden fixture");
         internal int HitInterval(bool walls) => 6;
         public override void SaveData(TagCompound tag) => SaveGardenOwner(tag);

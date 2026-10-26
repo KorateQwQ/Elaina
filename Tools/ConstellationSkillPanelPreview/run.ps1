@@ -73,6 +73,7 @@ $members = @{
     '// LIVE_SKILL_MAX_LEVEL' = [regex]::Match($skillSource, '(?m)^    public int MaxLevel =>[^\r\n]+').Value
     '// LIVE_UNLOCK_SKILL' = [regex]::Match($playerSource, '(?s)    public virtual void UnlockSkill\(Skill skill\)\s*\{.*?\n    \}').Value
     '// LIVE_NORMALIZE_LEVEL' = [regex]::Match($stateSource, '(?s)    private void NormalizeLevel\(\)\s*\{.*?\n    \}').Value
+    '// LIVE_GRANT_LEVEL_STUDY_POINTS' = [regex]::Match($stateSource, '(?s)    private void GrantLevelStudyPoints\(int previousLevel, int reachedLevel\)\s*\{.*?\n    \}').Value
     '// LIVE_DEBUG_MAX_LEVEL' = [regex]::Match($stateSource, '(?s)    public bool DebugMaxLevel\(\)\s*\{.*?\n    \}').Value
 }
 $stubs = [IO.File]::ReadAllText((Join-Path $out 'Stubs.cs'))

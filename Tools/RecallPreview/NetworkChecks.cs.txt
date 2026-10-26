@@ -71,6 +71,8 @@ static class NetworkChecks
             using var reader = new BinaryReader(new MemoryStream(message.Packet));
             reader.ReadByte(); int who = reader.ReadInt32();
             RecallPortalSystem.HandlePacket(reader, message.Sender, who);
+            if (reader.BaseStream.Position != reader.BaseStream.Length)
+                throw new IOException($"Read underflow {reader.BaseStream.Position} of {reader.BaseStream.Length} bytes in recall packet");
             return;
         }
         var state = message.Projectile;
@@ -123,7 +125,30 @@ static class NetworkChecks
     public static void Run(Action<bool, string> assertion)
     {
         check = assertion;
-        ReproduceOldOwnerBug(); SoloSelection(); CastAndTravel(); SpawnBroadcast(); Spoofing(); RecastIsolation(); SharedHome(); AtSpawn();
+        JoinBeforeActivation(); ReproduceOldOwnerBug(); SoloSelection(); CastAndTravel(); SpawnBroadcast(); Spoofing(); RecastIsolation(); SharedHome(); AtSpawn();
+    }
+    static void JoinBeforeActivation()
+    {
+        Setup(); server.Players[0].active = false;
+        a.Players[0].SpawnX = 320; a.Players[0].SpawnY = 220;
+        Enter(a); a.Players[0].GetModPlayer<RecallPortalPlayer>().SyncPlayer(-1, -1, true);
+        check(Wire.Queue.Peek().Packet.Length == 14, "Initial SyncPlayer sends the reported 14-byte spawn packet");
+        Pump();
+        check(!server.Players[0].active && server.Players[0].SpawnX == 320 && server.Players[0].SpawnY == 220,
+            "Joining player synchronizes its bed before server activation without activating the player");
+        check(b.Players[0].SpawnX == 320 && b.Players[0].SpawnY == 220,
+            "Initial bed synchronization reaches existing clients");
+
+        // A server snapshot addressed to the owner must be consumed but must not overwrite its current bed.
+        Enter(server); server.Players[0].SpawnX = 400; server.Players[0].SpawnY = 300;
+        server.Players[0].GetModPlayer<RecallPortalPlayer>().SyncPlayer(0, -1, false); Pump();
+        check(a.Players[0].SpawnX == 320 && a.Players[0].SpawnY == 220,
+            "Owner consumes its server snapshot while preserving the locally authoritative bed");
+
+        Enter(a); var packet = RecallPortalSystem.Packet(RecallPortalSystem.Operation.Travel, 0);
+        packet.Write(0); packet.Write(1); packet.Write(0); packet.Send(); Pump();
+        check(server.Players[0].Teleports == 0 && Wire.Queue.Count == 0,
+            "Inactive player travel is fully consumed and rejected");
     }
     static void AtSpawn()
     {

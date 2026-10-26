@@ -10,7 +10,7 @@ const helper=base.match(/    protected static SkillUnlockCondition RequireConfig
 assert.ok(helper,'Configured cap helper is missing');
 const declarations=skills.map(([file,fallback])=>{
  const source=fs.readFileSync(path.join(root,`ElainaModSkills/Skills/${file}.cs`),'utf8');
- const condition=source.match(/public override SkillUnlockCondition UnlockCondition \{ get; set; \} =\s*new CompositeSkillUnlockCondition\(DefaultUnlockCost, RequireConfiguredCharacterLevelCap\(nameof\((\w+)\), (\d+)\)[\s\S]*?;/);
+ const condition=source.match(/public override SkillUnlockCondition UnlockCondition \{ get; set; \} =\s*new CompositeSkillUnlockCondition\((?:DefaultUnlockCost|SkillUnlockCondition\.BySkillPoint\(\d+\)), RequireConfiguredCharacterLevelCap\(nameof\((\w+)\), (\d+)\)[\s\S]*?;/);
  assert.ok(condition,`${file} must combine default cost with configured stage cap`);
  const name=file.split('/').at(-1);
  assert.equal(condition[1],name,'Each condition must use its own JSON ID');
@@ -20,7 +20,7 @@ const declarations=skills.map(([file,fallback])=>{
 const scratch=fs.mkdtempSync(path.join(os.tmpdir(),'mage-balance-unlocks-'));
 const xml=s=>s.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 try{
- fs.writeFileSync(path.join(scratch,'Checks.csproj'),`<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><LangVersion>latest</LangVersion></PropertyGroup><ItemGroup><Compile Include="${xml(path.join(root,'ElainaModSkills/SkillBalanceConfig.cs'))}" Link="SkillBalanceConfig.cs" /></ItemGroup></Project>`);
+ fs.writeFileSync(path.join(scratch,'Checks.csproj'),`<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><LangVersion>latest</LangVersion></PropertyGroup><ItemGroup><Compile Include="${xml(path.join(root,'ElainaModSkills/SkillBalanceConfig.cs'))}" Link="SkillBalanceConfig.cs" /><Compile Include="${xml(path.join(root,'ElainaModSkills/SkillStageGate.cs'))}" Link="SkillStageGate.cs" /></ItemGroup></Project>`);
  fs.writeFileSync(path.join(scratch,'Program.cs'),String.raw`
 using System.Text.Json.Nodes;
 using KL.SkillSystem;
@@ -44,7 +44,7 @@ foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(
  Check(condition.CanUnlock(player,skill),id+": stage cap at threshold unlocks even at character level 1");
  Check(condition.GetDescription(player,skill).Contains("Lv."+cap),id+": description uses configured cap");
  player.HasCost=false;
- Check(!condition.CanUnlock(player,skill),id+": stage readiness does not remove default material/point cost");
+ Check(!condition.CanUnlock(player,skill),id+": stage readiness does not remove research point cost");
  player.HasCost=true;
  if(id=="IceConeSkill"){
   player.HasFrostCore=false;
@@ -70,6 +70,7 @@ foreach(var (skill,fallback) in new (UnlockBase,int)[]{(new IceConeSkill(),25),(
 Console.WriteLine($"{passed} stage-unlock checks passed.");
 public abstract class UnlockBase : ModSkill {
  public virtual SkillUnlockCondition UnlockCondition {get;set;}
+ private static int CharacterLevelCap(KLSkillModPlayer p)=>p?.Player.State.GetMaxLevel()??0;
  protected static SkillUnlockCondition DefaultUnlockCost=>SkillUnlockCondition.Custom((p,_)=>p?.HasCost==true,description:(_,_)=>"cost");
 `+helper+String.raw`
 }
@@ -97,6 +98,7 @@ namespace KL.SkillSystem {
   private Func<KLSkillModPlayer,ModSkill,bool> predicate;
   private Func<KLSkillModPlayer,ModSkill,string> describe;
   public static SkillUnlockCondition Custom(Func<KLSkillModPlayer,ModSkill,bool> canUnlock,Func<KLSkillModPlayer,ModSkill,string> description)=>new(){predicate=canUnlock,describe=description};
+  public static SkillUnlockCondition BySkillPoint(int amount)=>Custom((p,_)=>p?.HasCost==true,(_,_)=>"cost "+amount);
   public static SkillUnlockCondition ByItems(params SkillUnlockItem[] items){
    if(items.Length!=1||items[0].ItemType!=ItemID.FrostCore||items[0].Stack!=1)throw new Exception("Expected exactly one Frost Core");
    return Custom((p,_)=>p?.HasFrostCore==true,(_,_)=>"Frost Core x1");
@@ -106,6 +108,7 @@ namespace KL.SkillSystem {
  }
  public sealed class CompositeSkillUnlockCondition : SkillUnlockCondition {
   private readonly SkillUnlockCondition[] conditions;
+  public IReadOnlyList<SkillUnlockCondition> Conditions=>conditions;
   public CompositeSkillUnlockCondition(params SkillUnlockCondition[] rules){conditions=rules;}
   public override bool CanUnlock(KLSkillModPlayer player,ModSkill skill)=>conditions.All(c=>c.CanUnlock(player,skill));
   public override string GetDescription(KLSkillModPlayer player,ModSkill skill)=>string.Join(" / ",conditions.Select(c=>c.GetDescription(player,skill)));

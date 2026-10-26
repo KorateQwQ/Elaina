@@ -21,50 +21,29 @@ internal static class DollSelectionBarDrawing
     private static readonly Rectangle Unit = new(0, 0, 1, 1);
 
     internal readonly record struct Layout(Rectangle Panel, Rectangle Start, Rectangle Exit,
-        Rectangle Planter = default, Rectangle BringBack = default, Rectangle Chain = default);
-    internal readonly record struct MaterialOption(Texture2D Icon, Rectangle Source, string Label, bool Available);
-    internal readonly record struct MaterialMenuLayout(Rectangle Panel, Rectangle Previous, Rectangle Next,
-        int VisibleRows, int Offset)
-    {
-        internal Rectangle Row(int index) => new(Panel.X + 8, Panel.Y + 32 + index * 32, Panel.Width - 24, 30);
-    }
-    internal readonly record struct MaterialMenuEntry(MaterialOption Item, bool Selected);
-    internal readonly record struct MaterialMenuView(MaterialMenuLayout Layout,
-        IReadOnlyList<MaterialMenuEntry> Entries, string Title, string Empty);
-
-    internal static MaterialMenuLayout GetMaterialMenuLayout(Layout bar, int count, int offset)
-    {
-        int rows = Math.Min(Math.Max(1, count), Math.Clamp((bar.Panel.Top - 54) / 32, 1, 6));
-        int height = 40 + rows * 32;
-        var panel = new Rectangle(bar.Planter.X, Math.Max(8, bar.Panel.Top - height - 6), bar.Planter.Width, height);
-        return new(panel, new(panel.Right - 64, panel.Y + 5, 24, 22),
-            new(panel.Right - 34, panel.Y + 5, 24, 22), rows, Math.Clamp(offset, 0, Math.Max(0, count - rows)));
-    }
+        Rectangle BringBack = default, Rectangle Chain = default);
 
     /// <summary>Stars 为炼金手记的 NotebookStars 图集（预乘 alpha）。</summary>
     internal readonly record struct Art(Texture2D Pixel, Texture2D Stars, DynamicSpriteFont Serif, DynamicSpriteFont Sans);
 
-    internal static Layout GetLayout(Vector2 viewport, bool planting = false)
+    internal static Layout GetLayout(Vector2 viewport)
     {
-        int width = Math.Clamp((int)viewport.X - 24, 320, planting ? 560 : 432);
-        int height = planting ? 108 : Height + 30;
+        int width = Math.Clamp((int)viewport.X - 24, 320, 432);
+        int height = Height + 30;
         int x = (int)(viewport.X - width) / 2;
         int y = Math.Max(12, (int)viewport.Y - 50 - height);
         int startWidth = width >= 400 ? 148 : 124, exitWidth = 64;
         var start = new Rectangle(x + width - 12 - startWidth, y + 11, startWidth, 28);
         return new(new(x, y, width, height), start, new(start.X - 8 - exitWidth, y + 12, exitWidth, 26),
-            planting ? new(x + 12, y + 49, width - 24, 30) : default,
-            planting ? default : new(x + 16 + (width - 32) / 2, y + 49, (width - 32) / 2, 24),
-            planting ? default : new(x + 12, y + 49, (width - 32) / 2, 24));
+            new(x + 16 + (width - 32) / 2, y + 49, (width - 32) / 2, 24),
+            new(x + 12, y + 49, (width - 32) / 2, 24));
     }
 
     /// <param name="countFormat">含 {0} 的数量文案；数字单独以衬线大字绘制。</param>
     /// <param name="uiScale">UI 缩放，用于挑选四芒星图集的预过滤层级。</param>
     internal static void Draw(SpriteBatch batch, Art art, Texture2D icon, Layout layout, Vector2 pointer, float uiScale,
         string title, string countFormat, int count, string empty, string hint, string start, string exit,
-        MaterialOption? planter = null, bool canStart = true,
-        MaterialMenuView? materialMenu = null, bool openMaterialMenu = false,
-        string bringBackLabel = null, bool bringBackItems = true,
+        bool canStart = true, string bringBackLabel = null, bool bringBackItems = true,
         string chainLabel = null, bool chain = false, string onLabel = null, string offLabel = null, string warning = null)
     {
         Rectangle panel = layout.Panel;
@@ -124,14 +103,12 @@ internal static class DollSelectionBarDrawing
         Fitted(art.Serif, start, startRect.Center.X, sparkY, 13, startRect.Width - 52, Gold * alpha, .5f, 1);
 
         // 虚线分隔与一行操作说明。
-        if (planter is { } planterOption) MaterialRow(layout.Planter, planterOption, openMaterialMenu);
         if (bringBackLabel != null && layout.BringBack.Width > 0) Toggle(layout.BringBack, bringBackLabel, bringBackItems);
         if (chainLabel != null && layout.Chain.Width > 0) Toggle(layout.Chain, chainLabel, chain);
         float ruleY = panel.Bottom - (Height - RowHeight);
         for (int x = panel.X + 12; x < panel.Right - 12; x += 4) Box(x, ruleY, Math.Min(2, panel.Right - 12 - x), 1, Ink * .14f);
         Fitted(art.Sans, warning ?? hint, panel.Center.X, ruleY + (Height - RowHeight) / 2f + .5f,
             10, panel.Width - 24, warning != null ? new Color(240, 165, 176) : Muted * .85f, .5f);
-        if (materialMenu is { } menu) DrawMenu(menu);
 
         void Toggle(Rectangle rect, string label, bool active)
         {
@@ -144,80 +121,6 @@ internal static class DollSelectionBarDrawing
             Fitted(art.Sans, label, rect.X + 12, rect.Center.Y, 11, rect.Width - stateWidth - 34,
                 active ? Gold : hover ? Ink : Muted, 0);
             Text(art.Sans, state, rect.Right - 12, rect.Center.Y, 9, active ? Gold : Muted * .7f, 1);
-        }
-
-        void MaterialRow(Rectangle rect, MaterialOption option, bool expanded)
-        {
-            bool hover = Contains(rect);
-            RoundRect(rect, Lavender * (hover ? .1f : .035f), Lavender * (hover ? .5f : .2f));
-            if (option.Icon != null)
-            {
-                float scale = 22f / Math.Max(option.Source.Width, option.Source.Height);
-                batch.Draw(option.Icon, new Vector2(rect.X + 20, rect.Center.Y), option.Source,
-                    Color.White, 0, new Vector2(option.Source.Width, option.Source.Height) / 2, scale, SpriteEffects.None, 0);
-            }
-            Fitted(art.Sans, option.Label, rect.X + 40, rect.Center.Y, 12, rect.Width - 64,
-                option.Available ? Ink : new Color(240, 165, 176), 0);
-            Chevron(new(rect.Right - 16, rect.Center.Y), expanded, Lavender);
-        }
-
-        void Chevron(Vector2 center, bool up, Color color)
-        {
-            float sign = up ? -1 : 1;
-            Line(center + new Vector2(-4, -2 * sign), center + new Vector2(0, 2 * sign), color);
-            Line(center + new Vector2(0, 2 * sign), center + new Vector2(4, -2 * sign), color);
-        }
-
-        void DrawMenu(MaterialMenuView menu)
-        {
-            var list = menu.Layout;
-            Rectangle r = list.Panel;
-            int total = menu.Entries.Count;
-            Box(r.X + 3, r.Y + 3, r.Width, r.Height, Color.Black * .35f);
-            for (int y = 0; y < r.Height; y++) Box(r.X, r.Y + y, r.Width, 1, Color.Lerp(Top, Bottom, y / (float)r.Height));
-            Frame(r.X, r.Y, r.Width, r.Height, Lavender * .5f);
-            Corners(r.X + 3, r.Y + 3, r.Width - 6, r.Height - 6, Lavender * .35f);
-            Fitted(art.Serif, menu.Title, r.X + 12, r.Y + 16, 13, r.Width - 154, Ink, 0);
-            if (total > 0)
-                Text(art.Sans, $"{list.Offset + 1}–{Math.Min(total, list.Offset + list.VisibleRows)}/{total}",
-                    r.Right - 76, r.Y + 16, 10, Muted, 1);
-            Navigation(list.Previous, true, list.Offset > 0);
-            Navigation(list.Next, false, list.Offset + list.VisibleRows < total);
-            if (total == 0)
-                Fitted(art.Sans, menu.Empty, r.Center.X, list.Row(0).Center.Y, 12, r.Width - 24, Muted, .5f);
-            for (int row = 0; row < list.VisibleRows && list.Offset + row < total; row++)
-            {
-                var entry = menu.Entries[list.Offset + row];
-                Rectangle cell = list.Row(row);
-                bool hover = Contains(cell);
-                RoundRect(cell, (entry.Selected ? Gold : Lavender) * (hover ? .16f : entry.Selected ? .09f : .025f),
-                    (entry.Selected ? Gold : Lavender) * (entry.Selected ? .6f : hover ? .4f : .12f));
-                var item = entry.Item;
-                if (item.Icon != null)
-                    batch.Draw(item.Icon, new Vector2(cell.X + 19, cell.Center.Y), item.Source, Color.White,
-                        0, new Vector2(item.Source.Width, item.Source.Height) / 2,
-                        22f / Math.Max(item.Source.Width, item.Source.Height), SpriteEffects.None, 0);
-                Fitted(art.Sans, item.Label, cell.X + 38, cell.Center.Y, 12, cell.Width - 70,
-                    entry.Selected ? Gold : Ink, 0);
-                if (entry.Selected)
-                {
-                    Vector2 at = new(cell.Right - 18, cell.Center.Y);
-                    Line(at + new Vector2(-4, 0), at + new Vector2(-1, 3), Gold);
-                    Line(at + new Vector2(-1, 3), at + new Vector2(5, -4), Gold);
-                }
-            }
-            if (total > list.VisibleRows)
-            {
-                float track = list.VisibleRows * 32 - 2, thumb = track * list.VisibleRows / total;
-                float y = r.Y + 32 + (track - thumb) * list.Offset / (total - list.VisibleRows);
-                Box(r.Right - 10, r.Y + 32, 3, track, Lavender * .12f);
-                Box(r.Right - 10, y, 3, thumb, Lavender * .65f);
-            }
-            void Navigation(Rectangle rect, bool up, bool active)
-            {
-                RoundRect(rect, Lavender * (active && Contains(rect) ? .15f : .035f), Lavender * (active ? .35f : .1f));
-                Chevron(new(rect.Center.X, rect.Center.Y), up, Lavender * (active ? .9f : .25f));
-            }
         }
 
         bool Contains(Rectangle rect) => rect.Contains(new Point((int)pointer.X, (int)pointer.Y));

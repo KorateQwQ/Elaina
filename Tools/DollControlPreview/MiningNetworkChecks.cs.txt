@@ -1,0 +1,241 @@
+using System.Reflection;
+using MonoMod.RuntimeDetour;
+using Terraria.ID;
+using Terraria.Localization;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class FurnitureMiningChecks
+{
+    private static DollMiningNetwork network;
+    private static FurnitureFixture furniture;
+    private sealed class ReservedFixture : ModTile { }
+    private sealed class FurnitureFixture : ModTile
+    {
+        internal static bool Protected;
+        internal static int DropCount = 1;
+        public override bool CanKillTile(int i, int j, ref bool blockDamaged) => !Protected;
+        public override IEnumerable<Item> GetItemDrops(int i, int j)
+        {
+            for (int n = 0; n < DropCount; n++) yield return new Item(ItemID.Bed);
+        }
+    }
+    private static readonly List<(byte[] Bytes, int Recipient)> packets = [];
+    private static readonly List<(int Message, int Number, float N2, float N3, float N4)> vanilla = [];
+
+    private static void SetupNetwork(Mod mod)
+    {
+        ((ILoadable)new BoolTagSerializer()).Load(mod);
+        // tML reserves the first mod tile slot for its own content before user mods load.
+        var reserved = new ReservedFixture(); ((ILoadable)reserved).Load(mod); ContentInstance.Register(reserved);
+        furniture = new FurnitureFixture(); ((ILoadable)furniture).Load(mod); ContentInstance.Register(furniture);
+        // Observe transport below the production suppression hook.
+        On_NetMessage.SendData += CaptureVanilla;
+        typeof(Mod).GetField("netID", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(mod, (short)0);
+        typeof(Mod).Assembly.GetType("Terraria.ModLoader.ModNet")!.GetField("netMods", BindingFlags.Static | BindingFlags.NonPublic)!
+            .SetValue(null, new Mod[] { mod });
+        var commands = new DollCommandPlayer(); ((ILoadable)commands).Load(mod); ContentInstance.Register(commands);
+        network = new DollMiningNetwork(); ((ILoadable)network).Load(mod); ContentInstance.Register(network);
+    }
+
+    private static void CaptureVanilla(On_NetMessage.orig_SendData orig, int message, int remote, int ignore,
+        NetworkText text, int number, float n2, float n3, float n4, int n5, int n6, int n7)
+        => vanilla.Add((message, number, n2, n3, n4));
+
+    private static void CapturePacket(ModPacket packet, int to, int ignore)
+        => packets.Add((((MemoryStream)packet.BaseStream).ToArray(), to));
+
+    private static void Dispatch(byte[] packet, int sender)
+    {
+        using var reader = new BinaryReader(new MemoryStream(packet));
+        reader.ReadUInt16(); Check(reader.ReadByte() == MessageID.ModPacket, "ModPacket transport header");
+        reader.ReadByte();
+        Check(reader.ReadByte() == (byte)global::伊蕾娜.伊蕾娜.MessageType.DollMining, "Mining packet discriminator");
+        int player = reader.ReadInt32();
+        DollMiningNetwork.HandlePacket(reader, sender, player);
+    }
+
+    private static void Client(int player = 0) { Host.netMode = NetmodeID.MultiplayerClient; Host.myPlayer = player; }
+    private static void Server() { Host.netMode = NetmodeID.Server; Host.myPlayer = 255; }
+
+    private static void CheckNetwork()
+    {
+        int before = passed;
+        using var sendHook = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!, (Action<ModPacket, int, int>)CapturePacket);
+        Player player = Host.player[0];
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        Host.tileFrameImportant[furniture.Type] = true;
+        Terraria.ObjectData.TileObjectData.newTile.CopyFrom(Terraria.ObjectData.TileObjectData.Style2x2);
+        Terraria.ObjectData.TileObjectData.addTile(furniture.Type);
+        player.inventory[0] = new Item(ItemID.CopperPickaxe); player.inventory[0].pick = 500;
+        void Fresh()
+        {
+            Reset(); network.ClearWorld(); packets.Clear(); vanilla.Clear(); commands.ResetLoot(); commands.TileMarks.Clear();
+            Client(); player.active = true; player.dead = player.noBuilding = false; player.Center = new(1600, 1600);
+            player.inventory[0].pick = 500; DollPetProjectile.Present = true;
+        }
+        foreach (var (type, width, height, item) in new[] {
+            (TileID.Beds, 4, 2, ItemID.Bed), (TileID.WorkBenches, 2, 1, ItemID.WorkBench),
+            (TileID.Tables, 3, 2, ItemID.WoodenTable), (TileID.Chairs, 1, 2, ItemID.WoodenChair),
+            (TileID.Bottles, 1, 1, ItemID.Bottle), (TileID.Stone, 1, 1, ItemID.StoneBlock) })
+        for (int hitX = 0; hitX < width; hitX++) for (int hitY = 0; hitY < height; hitY++)
+        {
+            Fresh(); Place(type, 100, 100, width, height);
+            if (type == TileID.Bottles) Place(TileID.WorkBenches, 100, 101, 2, 1);
+            Point target = new(100 + hitX, 100 + hitY); commands.TileMarks.Add(target);
+            commands.Hit(target, false);
+            Check(packets.Count == 1 && !commands.TileMarks.Contains(target), "Production Hit queues one server transaction");
+            Check(Host.tile[target.X, target.Y].HasTile && commands.Count(item) == 0, "Client neither removes furniture nor invents loot before server reply");
+            byte[] request = packets[0].Bytes; packets.Clear();
+            Server(); Dispatch(request, 0);
+            Check(packets.Count == 1 && packets[0].Recipient == 0, "Server sends receipt only to the owner");
+            for (int x = 0; x < width; x++) for (int y = 0; y < height; y++)
+            {
+                Check(!Host.tile[100 + x, 100 + y].HasTile, "Server removes complete furniture");
+                Check(vanilla.Any(p => p.Message == MessageID.TileSquare && 100 + x >= p.Number && 100 + x < p.Number + p.N3
+                    && 100 + y >= p.N2 && 100 + y < p.N2 + p.N4), "Every removed cell is included in authoritative tile sync");
+            }
+            Check(!vanilla.Any(p => p.Message == MessageID.SyncItem), "Captured items are never broadcast as world drops");
+            Check(!Host.item.Any(i => i.active && !i.IsAir), "No duplicate item remains on server");
+            byte[] receipt = packets[0].Bytes;
+            Client(1); Dispatch(receipt, 256);
+            Check(Host.player[1].GetModPlayer<DollCommandPlayer>().Count(item) == 0, "Other clients cannot claim the owner's drops");
+            Client(); Dispatch(receipt, 256); Dispatch(receipt, 256);
+            Check(commands.Count(item) == 1, "Owner accepts exactly one item, including duplicate receipt delivery");
+            var saved = new TagCompound(); commands.SaveData(saved); commands.ResetLoot(); commands.LoadData(saved);
+            Check(commands.Count(item) == 1, "Received furniture survives existing player inventory save/load");
+            ContentSamples.ItemsByType[item] = new Item(item);
+            vanilla.Clear(); commands.DeliverLoot(player.Center, player.GetSource_Misc("MiningFixture"));
+            Check(commands.Count(item) == 0 && Host.item[Host.maxItems].type == item && Host.item[Host.maxItems].stack == 1
+                && vanilla.Count(p => p.Message == MessageID.SyncItem) == 1,
+                "Production return routine releases one furniture item to the owner and clears the saved cargo");
+            Server(); packets.Clear(); Dispatch(request, 0);
+            Check(packets.Count == 0, "Duplicate mining request is ignored");
+        }
+
+        Fresh(); Place(TileID.Tables, 100, 100, 3, 2); Place(TileID.Bottles, 101, 99, 1, 1, support: false);
+        Check(DollMiningNetwork.Request(player, new(101, 100)), "Request table with bottle");
+        byte[] tableRequest = packets[0].Bytes; packets.Clear(); Server(); Dispatch(tableRequest, 0);
+        Client(); Dispatch(packets[0].Bytes, 256);
+        Check(commands.Count(ItemID.WoodenTable) == 1 && commands.Count(ItemID.Bottle) == 1, "Server captures table and unsupported bottle together");
+        Check(!vanilla.Any(p => p.Message == MessageID.SyncItem), "Neither chained drop leaks to clients");
+
+        Fresh(); Place(TileID.Beds, 100, 100, 4, 2);
+        DollMiningNetwork.Request(player, new(100, 100)); DollMiningNetwork.Request(player, new(103, 101));
+        var requests = packets.ToArray(); packets.Clear(); Server();
+        foreach (var request in requests) Dispatch(request.Bytes, 0);
+        var replies = packets.ToArray(); Client();
+        foreach (var reply in replies) Dispatch(reply.Bytes, 256);
+        Check(commands.Count(ItemID.Bed) == 1, "Two in-flight requests against different bed cells collect one bed");
+
+        Fresh(); Place(furniture.Type, 100, 100, 2, 2); FurnitureFixture.DropCount = 140;
+        DollMiningNetwork.Request(player, new(101, 101)); byte[] modRequest = packets[0].Bytes; packets.Clear();
+        Server(); Dispatch(modRequest, 0); var chunks = packets.ToArray();
+        Check(chunks.Length == 2 && !Host.tile[100, 100].HasTile && !Host.tile[101, 101].HasTile,
+            $"ModTile framing removes the entire furniture and batches large drop lists: chunks={chunks.Length}, cells={Host.tile[100, 100].HasTile}/{Host.tile[101, 101].HasTile}, damage={DollTileBreaker.CanDamageTile(player, 100, 100, 500)}");
+        Client(); foreach (var chunk in chunks) { Dispatch(chunk.Bytes, 256); Dispatch(chunk.Bytes, 256); }
+        Check(commands.Count(ItemID.Bed) == 140 && !vanilla.Any(p => p.Message == MessageID.SyncItem),
+            "Every modded drop is collected once across duplicate chunks, without world copies");
+        FurnitureFixture.DropCount = 1;
+
+        Fresh(); Place(furniture.Type, 100, 100, 2, 2); FurnitureFixture.Protected = true;
+        DollMiningNetwork.Request(player, new(101, 101)); byte[] protectedRequest = packets[0].Bytes; packets.Clear();
+        Server(); Dispatch(protectedRequest, 0); Client(); Dispatch(packets[0].Bytes, 256);
+        Check(Host.tile[101, 101].HasTile && commands.Count(ItemID.Bed) == 0, "ModTile.CanKillTile protection is enforced on server");
+        FurnitureFixture.Protected = false;
+
+        foreach (string rejection in new[] { "sender", "dead", "range", "no doll", "weak pick", "changed type", "changed frame", "empty", "no building" })
+        {
+            Fresh(); Place(TileID.Beds, 100, 100, 4, 2);
+            if (rejection == "weak pick") { Reset(); Place(TileID.LihzahrdBrick, 100, 100, 1, 1); }
+            DollMiningNetwork.Request(player, new(100, 100)); byte[] request = packets[0].Bytes; packets.Clear();
+            Server();
+            switch (rejection)
+            {
+                case "dead": player.dead = true; break;
+                case "range": player.Center = new(10000, 10000); break;
+                case "no doll": DollPetProjectile.Present = false; break;
+                case "weak pick": player.inventory[0].pick = 35; break;
+                case "changed type": Host.tile[100, 100].TileType = TileID.Stone; break;
+                case "changed frame": Tile changed = Host.tile[100, 100]; changed.TileFrameX += 72; break;
+                case "empty": Tile empty = Host.tile[100, 100]; empty.HasTile = false; break;
+                case "no building": player.noBuilding = true; break;
+            }
+            Dispatch(request, rejection == "sender" ? 1 : 0);
+            if (rejection != "empty") Check(Host.tile[100, 100].HasTile, $"Rejected {rejection} does not break target");
+            Check(!Host.item.Any(i => i.active && !i.IsAir), $"Rejected {rejection} produces no item");
+            Client(); foreach (var receipt in packets) Dispatch(receipt.Bytes, 256);
+            Check(commands.Count(ItemID.Bed) == 0, $"Rejected {rejection} gives no client loot");
+        }
+
+        Fresh(); Place(TileID.Beds, 100, 100, 4, 2);
+        DollMiningNetwork.Request(player, new(100, 100)); byte[] lateRequest = packets[0].Bytes; packets.Clear();
+        Server(); Dispatch(lateRequest, 0); byte[] lateReceipt = packets[0].Bytes;
+        Client(); commands.TileMarks.Clear(); DollPetProjectile.Present = false; Dispatch(lateReceipt, 256);
+        Check(commands.Count(ItemID.Bed) == 1, "A delayed valid receipt is preserved even after marks and dolls disappear");
+        network.ClearWorld(); commands.ResetLoot(); Dispatch(lateReceipt, 256);
+        Check(commands.Count(ItemID.Bed) == 0, "Receipts from a previous world are ignored");
+
+        DollPetProjectile Worker(Vector2 position)
+        {
+            var projectile = new Projectile { active = true, owner = 0, Center = position };
+            var worker = (DollPetProjectile)new DollPetProjectile().NewInstance(projectile);
+            typeof(Projectile).GetProperty("ModProjectile")!.SetValue(projectile, worker);
+            return worker;
+        }
+        Fresh(); Place(TileID.Beds, 100, 100, 4, 2);
+        var miner = Worker(new(1600, 1550)); var idle = Worker(player.Center);
+        commands.Hit(new(100, 100), false, miner);
+        byte[] carriedRequest = packets[0].Bytes; packets.Clear(); Server(); Dispatch(carriedRequest, 0);
+        Client(); Dispatch(packets[0].Bytes, 256); vanilla.Clear();
+        commands.DeliverLoot(idle.Projectile.Center, player.GetSource_Misc("Idle"), idle);
+        Check(commands.Count(ItemID.Bed) == 1 && !vanilla.Any(p => p.Message == MessageID.SyncItem)
+            && commands.HasMiningCargo(miner) && !commands.HasMiningCargo(idle),
+            "A nearby idle doll cannot release a distant miner's receipt");
+        miner.Projectile.Center = player.Center + new Vector2(-48, -24);
+        commands.DeliverLoot(miner.Projectile.Center, player.GetSource_Misc("ReturnedMiner"), miner);
+        Check(commands.Count(ItemID.Bed) == 0 && !commands.HasMiningCargo(miner)
+            && Vector2.Distance(Host.item[Host.maxItems].Center, miner.Projectile.Center) < 1,
+            "Returned miner releases its own cargo from its visible position");
+        commands.ReceiveMiningLoot([(ItemID.Bed, 1)], miner);
+        commands.ReceiveMiningLoot([(ItemID.Bed, 2)], idle);
+        commands.DeliverLoot(idle.Projectile.Center, player.GetSource_Misc("OtherMiner"), idle);
+        Check(commands.Count(ItemID.Bed) == 1 && Host.item[Host.maxItems].stack == 2,
+            "Two miners carrying the same item release only their own quantities");
+        miner.Projectile.active = false;
+        commands.DeliverLoot(idle.Projectile.Center, player.GetSource_Misc("Recovery"), idle);
+        Check(commands.Count(ItemID.Bed) == 0, "Destroyed carrier's cargo can be recovered by another doll");
+        commands.ReceiveMiningLoot([(ItemID.Bed, 1)], idle);
+        idle.IsDismissing = true;
+        commands.DeliverLoot(miner.Projectile.Center, player.GetSource_Misc("DismissRecovery"), miner);
+        Check(commands.Count(ItemID.Bed) == 0, "Dismissing carriers do not strand delayed cargo");
+
+        foreach (var (type, width, height) in new[] { (TileID.Beds, 4, 2), (TileID.Tables, 3, 2), (TileID.WorkBenches, 2, 1), (TileID.Chairs, 1, 2) })
+        foreach (int style in new[] { 0, 1 })
+        {
+            Reset(); Place(type, 100, 100, width, height); Place(type, 100 + width, 100, width, height);
+            var data = Terraria.ObjectData.TileObjectData.GetTileData(type, 0);
+            for (int x = 0; x < width; x++) for (int y = 0; y < height; y++)
+            { Tile part = Host.tile[100 + x, 100 + y]; part.TileFrameX += (short)(style * data.CoordinateFullWidth); }
+            for (int x = 0; x < width; x++) for (int y = 0; y < height; y++)
+            {
+                Point cell = new(100 + x, 100 + y);
+                Check(DollTileSelection.Bounds(cell) == new Rectangle(100, 100, width, height), "Native styled furniture resolves its complete bounds from every cell");
+                Check(DollTileSelection.RectangleCells(cell, cell, false).Count == width * height,
+                    "Single-cell rectangle expands to exactly one object, excluding adjacent identical furniture");
+                Check(DollTileSelection.Bounds(cell, true).Width == 1, "Wall selection stays per-cell behind furniture");
+            }
+        }
+
+        Fresh(); Place(TileID.Beds, 100, 100, 4, 2); commands.BringBackItems = false;
+        commands.Hit(new(100, 100), false);
+        Check(packets.Count == 0 && vanilla.Any(p => p.Message == MessageID.TileManipulation && p.Number == 0),
+            "Collection off keeps the vanilla server drop request");
+        commands.BringBackItems = true;
+        Server(); vanilla.Clear(); Item.NewItem(WorldGen.GetItemSource_FromTileBreak(100, 100), 1600, 1600, 16, 16, ItemID.Bed);
+        Check(vanilla.Any(p => p.Message == MessageID.SyncItem), "Ordinary item synchronization still works after capture");
+        Host.netMode = NetmodeID.SinglePlayer; Host.myPlayer = 0;
+        Console.WriteLine($"PASS: {passed - before} multiplayer mining assertions; real packets, server framing/capture, owner receipts and production Hit/save methods; transport intercepted (no socket connection).");
+    }
+}

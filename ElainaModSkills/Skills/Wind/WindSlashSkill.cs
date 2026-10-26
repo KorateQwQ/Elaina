@@ -13,6 +13,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 public class WindSlashSkill : ElainaSkill
 {
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(5);
+
     // 默认世吞／克脑后开放（角色等级上限 20）；具体门槛读取 JSON，不要求实际等级达到上限。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(WindSlashSkill), 20));

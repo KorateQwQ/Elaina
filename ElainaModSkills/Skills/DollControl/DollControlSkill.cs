@@ -24,8 +24,10 @@ public class DollControlSkill : ElainaSkill
             RequireConfiguredCharacterLevelCap(nameof(DollControlSkill), 10),
             RequireConfiguredCharacterLevel(nameof(DollControlSkill), 6));
 
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
+
     protected override object[] SkillDescriptionArgs =>
-        [DollControlProgression.DollCount(Level), DollControlProgression.ActionSpeedBonusPercent(Level)];
+        [DollControlProgression.DollCount(Level)];
 
     private static string CountLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.DollStats.Count");
     private static string SpeedLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.DollStats.ActionSpeed");

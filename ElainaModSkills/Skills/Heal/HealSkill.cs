@@ -11,6 +11,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Heal;
 [SkillUIInfo(State = 3, Pixels = 0)]
 public partial class HealSkill : ElainaSkill
 {
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
+
     private const float TargetSearchRadius = 3000f;
     private const int InvalidTargetIndex = -1;
 

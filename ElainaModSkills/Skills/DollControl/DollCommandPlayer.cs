@@ -12,7 +12,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
 /// 玩偶的指令、标记与收集物都记在主人身上：弹幕被顶掉或重新召唤时任务与物品不会丢失。
-/// 标记只在本地客户端存在、仅自己可见；挖掘由主人客户端执行，物块变化走原版同步。
+/// 标记只在本地客户端存在、仅自己可见；主人端推进挖掘，联机收集的拆除和掉落由服务器确认。
 /// </summary>
 public sealed partial class DollCommandPlayer : ModPlayer
 {
@@ -37,8 +37,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
     private bool lastLeft;
     private int validateTimer;
 
-    /// <summary>挖掘、敲墙、放置种植盆等指令任务；照料种植盆是自发行为，不算在内。</summary>
-    public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlanterMarks.Count > 0;
+    /// <summary>挖掘、敲墙与远程放置任务；照料种植盆是自发行为，不算在内。</summary>
+    public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || Placements.Count > 0;
     public bool HasLoot => loot.Count > 0;
     /// <summary>挖掘与敲墙是否收集掉落；随角色保存，后续敲击立即使用当前选择。</summary>
     public bool BringBackItems { get; private set; } = true;
@@ -47,6 +47,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
 
     public override void OnEnterWorld()
     {
+        miningCarriers.Clear();
         // 标记属于这个世界；同一角色换世界时不能带过去。
         ClearTasks();
         DollGardenSystem.Join(Player);
@@ -99,18 +100,15 @@ public sealed partial class DollCommandPlayer : ModPlayer
         }
 
         bool walls = DollCommands.TargetsWalls(tool);
-        bool planting = tool == DollCommand.PlacePlanters;
         if (Main.GameUpdateCount % 15 == 0)
-            DraftMarks.RemoveWhere(p => planting ? !CanDraftPlanter(p) : !IsMarkable(p.X, p.Y, walls));
-        if (!planting && Main.GameUpdateCount - draftCheckedAt >= 15) RefreshDraftStatus();
+            DraftMarks.RemoveWhere(p => !IsMarkable(p.X, p.Y, walls));
+        if (Main.GameUpdateCount - draftCheckedAt >= 15) RefreshDraftStatus();
 
         // 使用原始屏幕坐标，避免世界缩放影响固定 UI 的按钮命中。
-        var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale, planting);
+        var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale);
         Vector2 pointer = new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale;
         bool uiBlocked = Main.blockMouse || Main.mapFullscreen || Main.drawingPlayerChat
             || Main.editSign || Main.editChest || Main.inFancyUI;
-        if (uiBlocked) CloseMaterialMenu();
-        if (planting && !uiBlocked && HandleMaterialMenu(layout, pointer, leftPressed)) return;
         if (!uiBlocked && layout.Panel.Contains(pointer.ToPoint()))
         {
             Player.mouseInterface = true;
@@ -125,19 +123,17 @@ public sealed partial class DollCommandPlayer : ModPlayer
                     SoundEngine.PlaySound(SoundID.MenuClose);
                 }
                 else if (layout.Start.Contains(pointer.ToPoint())) CommitDraft();
-                else if (!planting && layout.BringBack.Contains(pointer.ToPoint()))
+                else if (layout.BringBack.Contains(pointer.ToPoint()))
                 {
                     BringBackItems = !BringBackItems;
                     SoundEngine.PlaySound(SoundID.MenuTick);
                 }
-                else if (!planting && layout.Chain.Contains(pointer.ToPoint()))
+                else if (layout.Chain.Contains(pointer.ToPoint()))
                 {
                     Tool = DollCommands.IsChain(tool) ? DollCommands.BaseCommand(tool)
                         : walls ? DollCommand.BreakWallChain : DollCommand.MineChain;
                     SoundEngine.PlaySound(SoundID.MenuTick);
                 }
-                else if (planting && layout.Planter.Contains(pointer.ToPoint())) ToggleMaterialMenu();
-                else if (planting) CloseMaterialMenu();
             }
             return;
         }
@@ -156,8 +152,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
         if (DragStart is { } start && !left)
         {
             DragStart = null;
-            if (planting) TogglePlanterRect(start, HoverTile);
-            else ToggleRect(start, HoverTile, walls);
+            ToggleRect(start, HoverTile, walls);
         }
     }
 
@@ -165,13 +160,6 @@ public sealed partial class DollCommandPlayer : ModPlayer
     {
         switch (command)
         {
-            case DollCommand.PlacePlanters:
-                SelectDefaultMaterials();
-                Tool = command;
-                DragStart = null;
-                DraftMarks.Clear();
-                RefreshDraftStatus();
-                break;
             case DollCommand.Cancel:
                 ClearTasks();
                 Notify("DollCommandCancelled", new Color(200, 187, 218));
@@ -179,9 +167,6 @@ public sealed partial class DollCommandPlayer : ModPlayer
             case DollCommand.Dismiss:
                 ClearTasks();
                 DollPetProjectile.DismissAll(Player);
-                break;
-            case DollCommand.Attack:
-                Notify("DollCommandUnavailable", new Color(189, 176, 206));
                 break;
             default:
                 bool walls = DollCommands.TargetsWalls(command);
@@ -200,7 +185,6 @@ public sealed partial class DollCommandPlayer : ModPlayer
 
     private void ExitTool()
     {
-        CloseMaterialMenu();
         Tool = null;
         DragStart = null;
         DraftMarks.Clear();
@@ -211,7 +195,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
     {
         draftCheckedAt = Main.GameUpdateCount;
         DraftBlockReason = null;
-        if (Tool is not { } tool || tool == DollCommand.PlacePlanters) return;
+        if (Tool is not { } tool) return;
         bool walls = DollCommands.TargetsWalls(tool);
         Item item = walls ? BestHammer() : Player.GetBestPickaxe();
         foreach (Point point in DraftMarks)
@@ -225,11 +209,6 @@ public sealed partial class DollCommandPlayer : ModPlayer
     private void CommitDraft()
     {
         if (Tool is not { } tool) return;
-        if (tool == DollCommand.PlacePlanters)
-        {
-            CommitPlanters();
-            return;
-        }
         bool walls = DollCommands.TargetsWalls(tool);
         DraftMarks.RemoveWhere(p => !IsMarkable(p.X, p.Y, walls));
         RefreshDraftStatus();
@@ -255,29 +234,33 @@ public sealed partial class DollCommandPlayer : ModPlayer
     {
         if (!WorldGen.InWorld(x, y, 1)) return false;
         Tile tile = Main.tile[x, y];
-        // 平台和种植盆同时属于 tileSolid 与 tileSolidTop，不能按碰撞判定将其排除。
+        // 家具、瓶子等可用镐拆除的物件不一定实心；碰撞属性不能作为选区条件。
+        // 树木与祭坛等需要斧/锤的目标不属于当前镐子任务。
         return walls ? tile.WallType > 0
-            : tile.HasTile && Main.tileSolid[tile.TileType];
+            : tile.HasTile && !Main.tileAxe[tile.TileType] && !Main.tileHammer[tile.TileType];
     }
 
-    /// <summary>区域内每个实心物块（或墙）的标记状态取反：未标记的标上，已标记的擦除。</summary>
+    /// <summary>区域触及家具任意一格即整件反选；同一笔经过多格也只处理一次。</summary>
     private void ToggleRect(Point a, Point b, bool walls)
     {
         HashSet<Point> marks = DraftMarks;
-        int left = Math.Clamp(Math.Min(a.X, b.X), 1, Main.maxTilesX - 2);
-        int right = Math.Clamp(Math.Max(a.X, b.X), 1, Main.maxTilesX - 2);
-        int top = Math.Clamp(Math.Min(a.Y, b.Y), 1, Main.maxTilesY - 2);
-        int bottom = Math.Clamp(Math.Max(a.Y, b.Y), 1, Main.maxTilesY - 2);
-        bool changed = false;
-        for (int x = left; x <= right; x++)
-            for (int y = top; y <= bottom; y++)
+        HashSet<Point> cells = DollTileSelection.RectangleCells(a, b, walls);
+        HashSet<Point> visited = [];
+        foreach (Point point in cells)
+        {
+            if (visited.Contains(point)) continue;
+            HashSet<Point> furniture = [];
+            DollTileSelection.AddObject(furniture, point, walls);
+            bool remove = true;
+            foreach (Point cell in furniture) remove &= marks.Contains(cell);
+            foreach (Point cell in furniture)
             {
-                if (!IsMarkable(x, y, walls)) continue;
-                Point point = new(x, y);
-                if (!marks.Remove(point)) marks.Add(point);
-                changed = true;
+                visited.Add(cell);
+                if (remove) marks.Remove(cell);
+                else marks.Add(cell);
             }
-        if (changed)
+        }
+        if (cells.Count > 0)
         {
             RefreshDraftStatus();
             SoundEngine.PlaySound(SoundID.MenuTick);
@@ -300,7 +283,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
         SoundEngine.PlaySound(SoundID.MenuTick);
     }
 
-    /// <summary>从起点按四邻接广度优先找同种类相连的物块（或墙），离起点近的优先，最多 <see cref="ChainLimit"/> 个。</summary>
+    /// <summary>从起点按四邻接找相连同类，最多搜索 <see cref="ChainLimit"/> 格，再补齐边界处家具。</summary>
     public static List<Point> FindChain(Point start, bool walls)
     {
         List<Point> group = [];
@@ -322,15 +305,18 @@ public sealed partial class DollCommandPlayer : ModPlayer
                 if ((walls ? tile.WallType : tile.TileType) == type) queue.Enqueue(neighbor);
             }
         }
-        return group;
+        // 连锁上限不能把最后一件家具切成半件；最多补齐边界处的整件家具。
+        HashSet<Point> complete = new(group);
+        foreach (Point point in group) DollTileSelection.AddObject(complete, point, walls);
+        return new List<Point>(complete);
     }
 
-    /// <summary>取消任务：清空全部标记并退出标记工具，玩偶随之回到跟随状态；空闲后仍会自发照料种植盆。</summary>
+    /// <summary>取消任务：清空全部标记与待放置（远程放置带走的物品还给主人）并退出标记工具，玩偶随之回到跟随状态；空闲后仍会自发照料种植盆。</summary>
     public void ClearTasks()
     {
         TileMarks.Clear();
         WallMarks.Clear();
-        PlanterMarks.Clear();
+        ReleasePlacements();
         workClaims.Clear();
         ResetGarden();
         ReleaseRemoteChest(true);
@@ -458,7 +444,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
     }
 
     /// <summary>按原版 PickTile / PickWall 的流程敲一下；伤害共用主人的 hitTile，裂纹由原版绘制。</summary>
-    internal void Hit(Point point, bool walls)
+    internal void Hit(Point point, bool walls, DollPetProjectile worker = null)
     {
         int x = point.X, y = point.Y;
         if (!IsMarkable(x, y, walls)) return;
@@ -472,7 +458,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
             {
                 hitTile.Clear(id);
                 // 拆除被其他规则拦下时放弃这格，免得玩偶反复敲同一处。
-                if (DollTileBreaker.BreakWall(x, y, captured, BringBackItems)) Collect(point, WallMarks);
+                if (DollTileBreaker.BreakWall(x, y, captured, BringBackItems)) Collect(point, WallMarks, worker);
                 else WallMarks.Remove(point);
             }
             else
@@ -497,7 +483,12 @@ public sealed partial class DollCommandPlayer : ModPlayer
         if (hitTile.AddDamage(index, damage) >= 100)
         {
             hitTile.TryClearingAndPruning(x, y, 1);
-            if (DollTileBreaker.BreakTile(x, y, captured, BringBackItems)) Collect(point, TileMarks);
+            if (Main.netMode == NetmodeID.MultiplayerClient && BringBackItems)
+            {
+                // 收集由服务器执行；收到回执后才入库，不能先在客户端拆家具或预造掉落。
+                if (DollMiningNetwork.Request(Player, point, worker)) TileMarks.Remove(point);
+            }
+            else if (DollTileBreaker.BreakTile(x, y, captured, BringBackItems)) Collect(point, TileMarks, worker);
             else TileMarks.Remove(point);
         }
         else
@@ -509,15 +500,23 @@ public sealed partial class DollCommandPlayer : ModPlayer
         if (damage != 0) hitTile.Prune();
     }
 
-    private void Collect(Point point, HashSet<Point> marks)
+    private void Collect(Point point, HashSet<Point> marks, DollPetProjectile worker)
     {
         marks.Remove(point);
-        foreach (var (type, stack) in captured)
+        ReceiveMiningLoot(captured, worker);
+        captured.Clear();
+    }
+
+    /// <summary>单机拆除或服务器确认的掉落进入同一份可保存的玩偶背包。</summary>
+    internal void ReceiveMiningLoot(IEnumerable<(int Type, int Stack)> drops, DollPetProjectile worker = null)
+    {
+        foreach (var (type, stack) in drops)
         {
+            if (type <= ItemID.None || type >= ItemLoader.ItemCount || stack <= 0) continue;
             loot.TryGetValue(type, out int total);
             loot[type] = (int)Math.Min(int.MaxValue, (long)total + stack);
+            AssignMiningCargo(worker, type, loot[type] - total);
         }
-        captured.Clear();
     }
 
     #endregion
@@ -525,23 +524,32 @@ public sealed partial class DollCommandPlayer : ModPlayer
     #region 收集物
 
     /// <summary>把玩偶收集的物品从 <paramref name="from"/> 抛向主人；只在主人端调用。</summary>
-    public void DeliverLoot(Vector2 from, IEntitySource source)
+    public void DeliverLoot(Vector2 from, IEntitySource source, DollPetProjectile worker = null)
     {
         if (Player.whoAmI != Main.myPlayer || loot.Count == 0) return;
         from = ClearDropPoint(from);
-        foreach (var (type, total) in loot)
+        bool delivered = false;
+        foreach (var (type, total) in new List<KeyValuePair<int, int>>(loot))
         {
             if (type <= ItemID.None || type >= ItemLoader.ItemCount) continue;
+            int amount = DeliverableMiningLoot(type, total, worker);
+            if (amount <= 0) continue;
+            delivered = true;
             int maxStack = Math.Max(1, ContentSamples.ItemsByType[type].maxStack);
-            for (int remaining = total; remaining > 0;)
+            for (int remaining = amount; remaining > 0;)
             {
                 int stack = Math.Min(remaining, maxStack);
                 remaining -= stack;
                 ThrowToOwner(Item.NewItem(source, (int)from.X - 8, (int)from.Y - 8, 16, 16, type, stack, noGrabDelay: true), from);
             }
+            if (amount == total) loot.Remove(type);
+            else loot[type] = total - amount;
         }
-        loot.Clear();
-        SoundEngine.PlaySound(SoundID.Grab, from);
+        if (worker == null) miningCarriers.Clear();
+        else miningCarriers.Remove(worker);
+        foreach (var carrier in new List<DollPetProjectile>(miningCarriers.Keys))
+            if (!LiveCarrier(carrier)) miningCarriers.Remove(carrier);
+        if (delivered) SoundEngine.PlaySound(SoundID.Grab, from);
     }
 
     /// <summary>刚生成的掉落物从 <paramref name="from"/> 抛向主人，并同步给其他端。</summary>
@@ -583,6 +591,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
 
     public override void LoadData(TagCompound tag)
     {
+        miningCarriers.Clear();
         LoadGardenOwner(tag);
         LoadChestCargo(tag);
         BringBackItems = !tag.ContainsKey("DollBringBackItems") || tag.GetBool("DollBringBackItems");

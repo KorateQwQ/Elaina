@@ -18,7 +18,7 @@ public sealed partial class DollCommandPlayer
     private ulong gardenTick = ulong.MaxValue;
 
     /// <summary>
-    /// 照料种植盆不是任务，而是优先级最低的自发行为：只在没有挖掘或放置任务、也没有远程开箱时进行。
+    /// 照料种植盆不是任务，而是优先级最低的自发行为：只在没有挖掘或远程放置任务、也没有远程开箱时进行。
     /// 一旦有指令交给玩偶，照料中的玩偶当场放下手头的照料。
     /// </summary>
     internal bool GardenIdle => !HasTask && remoteChestOrigin == null;
@@ -60,9 +60,9 @@ public sealed partial class DollCommandPlayer
             || !DollGardenSystem.Beds.TryGetValue(p, out var bed)
             || bed.Owner != GardenOwner || !DollGardenSystem.Exists(p, bed)) return false;
         if (gardenRetry.TryGetValue(p, out ulong retry) && Main.GameUpdateCount < retry) return false;
-        // 手动拆除任务优先，尤其不能在正在挖走的种植盆上重新种植。
+        // 手动拆除与远程放置优先，尤其不能在正在挖走的种植盆上重新种植，也不能占住即将放下物块的生长格。
         for (int dy = -1; dy <= 0; dy++)
-            if (TileMarks.Contains(new(p.X, p.Y + dy)) || PlanterMarks.ContainsKey(new(p.X, p.Y + dy))) return false;
+            if (TileMarks.Contains(new(p.X, p.Y + dy)) || PlacementCovers(new(p.X, p.Y + dy))) return false;
         Tile pot = Main.tile[p.X, p.Y];
         if (pot.IsActuated || pot.IsHalfBlock || pot.Slope != SlopeType.Solid) return false;
         if (DollHerbPlanting.CanClearWeed(p.X, p.Y - 1))

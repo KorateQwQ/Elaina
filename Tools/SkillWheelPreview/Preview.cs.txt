@@ -82,17 +82,16 @@ internal sealed class PreviewGame : Game
 
         if (dollCommands)
         {
-            int planterSlot = 0;
-            while (DollCommands.AtSlot(planterSlot) != DollCommand.PlacePlanters) planterSlot++;
+            int mineSlot = 0;
+            while (DollCommands.AtSlot(mineSlot) != DollCommand.Mine) mineSlot++;
             foreach (float scale in new[] { 1f, 1.5f })
                 Render("doll-idle-chest-reach", scale, v => {
-                    Fill(v, DollCommands.Count, 1, planterSlot, planterSlot);
+                    Fill(v, DollCommands.Count, 1, mineSlot, mineSlot);
                     v.ShowNumber = false;
                     for (int i = 0; i < v.Count; i++)
                     {
                         v.Items[i].Cooldown = v.Items[i].Remaining = 0;
                         v.Items[i].Stack = v.Items[i].MaxStack = 1;
-                        v.Items[i].Sealed = DollCommands.AtSlot(i) == DollCommand.Attack;
                         v.Items[i].SealDeniedAge = 9;
                     }
                 });

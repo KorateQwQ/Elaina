@@ -5,7 +5,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 public sealed partial class DollCommandPlayer
 {
-    // 同一目标只能被一只玩偶认领；物块、墙、放盆各自独立，(true,true) 留给照料花盆。认领仅在主人端维护。
+    // 同一目标只能被一只玩偶认领；物块、墙、远程放置各自独立，(true,true) 留给照料花盆。认领仅在主人端维护。
     private readonly Dictionary<(Point Point, bool Wall, bool Planter), DollPetProjectile> workClaims = [];
 
     private bool IsClaimed(Point point, bool wall, bool planter, DollPetProjectile worker)

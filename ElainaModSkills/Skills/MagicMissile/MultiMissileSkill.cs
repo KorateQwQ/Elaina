@@ -28,7 +28,7 @@ public class MultiMissileSkill : ElainaSkill
 
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel)
     {
-        return base.GetConstellationUpgradeCondition(nextLevel);
+        return SkillUnlockCondition.BySkillPoint(15);
     }
 
     public override Type[] PrerequisiteSkills =>new[] { typeof(MagicMissileSkill)};

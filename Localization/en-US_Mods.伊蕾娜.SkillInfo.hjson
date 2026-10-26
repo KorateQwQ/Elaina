@@ -47,10 +47,15 @@ SkillDesc: {
 		'''
 	DollControlSkill:
 		'''
-		Consumes 20 [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] to summon {0} dolls that stay until dismissed. Their work actions are {1}% faster.
-		While it is out, hold left-click to open the command wheel: Mine Blocks and Break Walls let you select areas, and their chain versions select connected matches with a click. Select again to erase. Click Start Mining or Start Breaking to submit; Exit discards this selection without affecting existing tasks.
-		The dolls claim separate targets to mine blocks, break walls or place planters together. They use the best pickaxe or hammer in your inventory, then return to hand over their collected items when the work is done. Cancel Tasks clears all marks; Dismiss Dolls recalls the whole team.
-		With at least one idle doll, right-click a distant chest on screen to send it over. It interacts after arriving and completing its opening gesture, using the chest's usual keys and conditions. It waits beside the open chest and returns when you close it. Ordinary nearby opening is unchanged.
+		Consumes 20 [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] to summon {0} dolls that follow you until dismissed.
+		While they are out, hold left-click to open the command wheel:
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Mine][c/FFD27A:Mine Blocks]: mines the selected blocks and brings back the drops.
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_BreakWall][c/FFD27A:Break Walls]: breaks the selected walls.
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Cancel][c/FFD27A:Cancel Tasks]: clears all tasks.
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Dismiss][c/FFD27A:Dismiss Dolls]: recalls the whole team.
+		While dolls are out, these work without the wheel:
+		[klicon/16,0:伊蕾娜/Snippets/RightClickIcon]Right-click a distant chest to have a doll open it and fetch items for you.
+		Click or drag a block beyond your reach to have a doll place it. Dolls tend, plant, and harvest planters placed while they are out.
 		'''
 	RecallSkill:
 		'''
@@ -76,8 +81,8 @@ SkillDesc: {
 		'''
 	WaterLaserSKill:
 		'''
-		Hold to channel a water beam. Every {0} seconds, consumes {3} Magic Power and deals {1} Water damage, splashing enemies near the end of the beam for {2}%.
-		Deals only {4:0.#}% damage to targets not on [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown.
+		Hold to channel a water beam. Every {0:0.##} seconds, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {1} Water damage, plus {2:0.#}% splash damage to enemies near the end of the beam.
+		Deals {4:0.#}% increased damage to enemies on [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown.
 		On hit, reduces the target's [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown by 0.5 seconds and {5}'s cooldown by 0.3 seconds.
 		'''
 	MagicMissileSkill:

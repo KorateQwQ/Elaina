@@ -1,10 +1,8 @@
-﻿using System.Reflection;
+using System.Reflection;
 using KL.Configs;
 using KL.Utils;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using Terraria.ModLoader.IO;
-using Terraria.ModLoader.Config;
 
 namespace 伊蕾娜.Config
 {
@@ -12,12 +10,9 @@ namespace 伊蕾娜.Config
     {
         public static ModKeybind BroomAcceleration { get; private set; }
         public static ModKeybind OpenSkillPanel { get; private set; }
-        
-        public static ModKeybind SwitchNextSkill { get; private set; }
-        
-        public static ModKeybind SwitchPreviousSkill { get; private set; }
-
+#if DEBUG
         public static ModKeybind OpenLoadoutPanel { get; private set; }
+#endif
 
         public static ModKeybind OpenSkillWheel { get; private set; }
 
@@ -25,9 +20,9 @@ namespace 伊蕾娜.Config
         {
             BroomAcceleration = KeybindLoader.RegisterKeybind(Mod, "BroomAcceleration", "Space");
             OpenSkillPanel = KeybindLoader.RegisterKeybind(Mod, "OpenSkillPanel", "V");
-            SwitchNextSkill = KeybindLoader.RegisterKeybind(Mod, "SwitchNextSkill", "E");
-            SwitchPreviousSkill = KeybindLoader.RegisterKeybind(Mod, "SwitchLastSkill", "Q");
+#if DEBUG
             OpenLoadoutPanel = KeybindLoader.RegisterKeybind(Mod, "OpenLoadoutPanel", "L");
+#endif
             OpenSkillWheel = KeybindLoader.RegisterKeybind(Mod, "OpenSkillWheel", "Mouse2");
         }
 
@@ -35,9 +30,9 @@ namespace 伊蕾娜.Config
         {
             BroomAcceleration = null;
             OpenSkillPanel = null;
-            SwitchNextSkill = null;
-            SwitchPreviousSkill = null;
+#if DEBUG
             OpenLoadoutPanel = null;
+#endif
             OpenSkillWheel = null;
         }
 
@@ -45,9 +40,9 @@ namespace 伊蕾娜.Config
         {
             BroomAcceleration.BindKey(BroomAcceleration.GetKeyDefaultName());
             OpenSkillPanel.BindKey(OpenSkillPanel.GetKeyDefaultName());
-            SwitchNextSkill.BindKey(SwitchNextSkill.GetKeyDefaultName());
-            SwitchPreviousSkill.BindKey(SwitchPreviousSkill.GetKeyDefaultName());
+#if DEBUG
             OpenLoadoutPanel.BindKey(OpenLoadoutPanel.GetKeyDefaultName());
+#endif
             OpenSkillWheel.BindKey(OpenSkillWheel.GetKeyDefaultName());
         }
         
@@ -82,8 +77,9 @@ namespace 伊蕾娜.Config
                 {
                     if (prop.PropertyType != typeof(ModKeybind)) continue;
                     ModKeybind keybind = (ModKeybind)prop.GetValue(null);
+                    if (keybind == null) continue;
                     string keybindFullName = keybind.GetKeybindFullName();
-                    if (keybind == null || KeyInitSystem.KeyList.Contains(keybindFullName)) continue;
+                    if (KeyInitSystem.KeyList.Contains(keybindFullName)) continue;
                     
                     keybind.BindKey(keybind.GetKeyDefaultName());
                     KeyInitSystem.KeyList.Add(keybindFullName);

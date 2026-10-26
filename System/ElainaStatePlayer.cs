@@ -4,6 +4,7 @@ using KL.Utils.Net;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.System.Experience;
 
 namespace 伊蕾娜.System;
@@ -17,6 +18,8 @@ public class ElainaStatePlayer : KLModPlayer
     public int CurrentLevel = 1;
 
     public int Experience;
+    // 调试可提前领取到新上限；实际升级只结算超过此等级的部分。
+    private int studyPointRewardLevel = 1;
     private HashSet<string> bossExperienceClaims = new(StringComparer.Ordinal);
     // 奖励金额在击杀前的上限上取快照；光球抵达的服务器确认才允许消费一次。
     private readonly Dictionary<string, int> pendingBossExperience = new(StringComparer.Ordinal);
@@ -37,6 +40,7 @@ public class ElainaStatePlayer : KLModPlayer
         tag["progress"] = Progress;
         tag["currentLevel"] = CurrentLevel;
         tag["experience"] = Experience;
+        tag["studyPointRewardLevel"] = studyPointRewardLevel;
         tag["progressSet"] = ProgressSet ?? [];
         tag["bossExperienceClaims"] = new List<string>(bossExperienceClaims);
         tag["legacyBossExperienceProgress"] = legacyBossExperienceProgress;
@@ -58,7 +62,10 @@ public class ElainaStatePlayer : KLModPlayer
         legacyBossExperienceProgress = tag.ContainsKey("bossExperienceClaims")
             ? tag.TryGet("legacyBossExperienceProgress", out List<float> legacy) ? legacy : []
             : new List<float>(ProgressSet ?? []);
-        NormalizeLevel();
+        // 加载期间不依赖技能组件的加载顺序；旧存档不追补历史等级或余经验转换。
+        ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
+        studyPointRewardLevel = tag.TryGet("studyPointRewardLevel", out int rewardedLevel)
+            ? Math.Max(CurrentLevel, Math.Max(1, rewardedLevel)) : CurrentLevel;
         base.LoadData(tag);
     }
     
@@ -150,12 +157,27 @@ public class ElainaStatePlayer : KLModPlayer
     {
         if (Main.netMode == Terraria.ID.NetmodeID.Server || Player.whoAmI != Main.myPlayer || amount <= 0)
             return 0;
-        return ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), amount);
+        int previousLevel = CurrentLevel;
+        int accepted = ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), amount);
+        GrantLevelStudyPoints(previousLevel, CurrentLevel);
+        return accepted;
     }
 
     private void NormalizeLevel()
     {
+        int previousLevel = CurrentLevel;
         ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
+        GrantLevelStudyPoints(previousLevel, CurrentLevel);
+    }
+
+    private void GrantLevelStudyPoints(int previousLevel, int reachedLevel)
+    {
+        if (Player == null || Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer) return;
+        long reward = ExperienceRules.StudyPointsForLevels(Math.Max(previousLevel, studyPointRewardLevel), reachedLevel);
+        if (reward <= 0) return;
+        var skills = Player.GetModPlayer<ElainaSkillModPlayer>();
+        skills.SkillPoint = (int)Math.Min(int.MaxValue, (long)skills.SkillPoint + reward);
+        studyPointRewardLevel = reachedLevel;
     }
 
 #if DEBUG
@@ -168,6 +190,7 @@ public class ElainaStatePlayer : KLModPlayer
         bossExperienceClaims.Clear();
         pendingBossExperience.Clear();
         legacyBossExperienceProgress.Clear();
+        // 研习点余额与已领取等级一起保留，重新练级不会重复领取。
         // 不重置本世界击杀序号，与服务器保持一致；重置后可以重新领首杀。
     }
 
@@ -176,6 +199,7 @@ public class ElainaStatePlayer : KLModPlayer
         NormalizeLevel();
         if (CurrentLevel >= GetMaxLevel()) return false;
         CurrentLevel++;
+        GrantLevelStudyPoints(CurrentLevel - 1, CurrentLevel);
         Experience = 0;
         return true;
     }
@@ -185,7 +209,9 @@ public class ElainaStatePlayer : KLModPlayer
         NormalizeLevel();
         int cap = GetMaxLevel();
         if (CurrentLevel >= cap) return false;
+        int previousLevel = CurrentLevel;
         CurrentLevel = cap;
+        GrantLevelStudyPoints(previousLevel, CurrentLevel);
         Experience = 0;
         return true;
     }
@@ -200,8 +226,12 @@ public class ElainaStatePlayer : KLModPlayer
         if (!DebugGetNextBoss(out string bossName, out float bossState))
             return $"角色 Progress {Progress:0.##} · 当前 Boss 列表中没有更高进度的 Boss";
 
+        int currentCap = GetMaxLevel(), nextCap = KLGameStateManager.GetLevelCap(bossState);
+        long reward = nextCap > currentCap
+            ? ExperienceRules.StudyPointsForLevels(Math.Max(CurrentLevel, studyPointRewardLevel), nextCap) : 0;
         return $"下一个 Boss：{bossName} · 角色 Progress {Progress:0.##} → {bossState:0.##}"
-            + $"\n等级上限 Lv. {GetMaxLevel()} → Lv. {KLGameStateManager.GetLevelCap(bossState)}"
+            + $"\n等级上限 Lv. {currentCap} → Lv. {nextCap}"
+            + $"\n补发 {reward} 研习点（提前结算至新上限）"
             + "\n仅推进当前角色，不改变世界 Boss 击杀状态";
     }
 
@@ -209,7 +239,10 @@ public class ElainaStatePlayer : KLModPlayer
     {
         if (!DebugGetNextBoss(out bossName, out bossState)) return false;
 
+        int previousLevel = CurrentLevel;
+        int previousCap = GetMaxLevel();
         UpdateProgress(bossState);
+        if (GetMaxLevel() > previousCap) GrantLevelStudyPoints(previousLevel, GetMaxLevel());
         ProgressSet ??= [];
         if (!ProgressSet.Contains(bossState)) ProgressSet.Add(bossState);
         return true;

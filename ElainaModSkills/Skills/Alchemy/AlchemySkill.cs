@@ -15,9 +15,11 @@ public partial class AlchemySkill : ElainaSkill
     protected override bool UsesLiveBalance => false;
 
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost,
+        new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(10),
             RequireConfiguredCharacterLevelCap(nameof(AlchemySkill), 10),
             RequireConfiguredCharacterLevel(nameof(AlchemySkill), 6));
+
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
 
     public override int MaxLevel => Player != null && !Main.gameMenu
         && SkillBalanceSystem.TryGetSkill(nameof(AlchemySkill), out var entry)

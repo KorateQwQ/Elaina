@@ -1,0 +1,44 @@
+// Remote placement fixture: real DollPlacementSystem hooks, DollPlacementTask queue and vanilla Player.PlaceThing.
+// Only the doll projectile, chest reach/cursor helpers and garden registry are replaced by recorders.
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
+{
+    public sealed partial class DollCommandPlayer : ModPlayer
+    {
+        public const float WorkRange = 2400;
+        private bool InRange(Point p) => Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) <= WorkRange * WorkRange;
+        // Production ClearTasks (Cancel / Dismiss) calls the same release.
+        internal void CancelPlacements() => ReleasePlacements();
+    }
+
+    public abstract class DollPetProjectile : ModProjectile
+    {
+        internal static DollPetProjectile Owned;
+        public static DollPetProjectile FindOwned(Player owner) => Owned;
+    }
+
+    internal sealed class FixtureDoll : DollPetProjectile { }
+
+    internal static class DollChestReachSystem
+    {
+        // Same formula as production; this fixture does not load the chest IL edits.
+        internal static bool TileOnScreen(int x, int y, float margin = 0)
+        {
+            Vector2 screen = Vector2.Transform(new Vector2(x * 16 + 8, y * 16 + 8) - Main.screenPosition,
+                Main.GameViewMatrix.TransformationMatrix);
+            return screen.X >= -margin && screen.Y >= -margin
+                && screen.X < Main.screenWidth + margin && screen.Y < Main.screenHeight + margin;
+        }
+    }
+
+    internal static class DollChestCursorSystem
+    {
+        internal static int Hovers;
+        internal static void CapturePlacementHover(Player player) => Hovers++;
+    }
+
+    internal static class DollGardenSystem
+    {
+        internal static readonly List<(Point Point, int Planter)> Registered = [];
+        internal static void Register(Player player, Point point, int planter) => Registered.Add((point, planter));
+    }
+}

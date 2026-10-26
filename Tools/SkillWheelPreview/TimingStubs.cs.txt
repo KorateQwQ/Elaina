@@ -12,6 +12,7 @@ namespace Terraria
     {
         public static bool dedServ, gameMenu, drawingPlayerChat, ingameOptionsWindow, inFancyUI, editSign, editChest;
         public static bool hasFocus = true;
+        public static bool mouseRight, playerInventory;
         public static int myPlayer;
         public static Vector2 MouseScreen = new(500, 400);
         public static Player LocalPlayer = new();
@@ -21,6 +22,8 @@ namespace Terraria
     {
         public bool active = true, dead, mouseInterface;
         public int whoAmI;
+        public bool tileInteractionHappened;
+        public int talkNPC = -1, chest = -1;
         public Item HeldItem = new();
     }
     public sealed class Item { public object ModItem = new 伊蕾娜.Items.ElainaWand(); }
@@ -33,13 +36,29 @@ namespace Terraria.ModLoader
         public Terraria.Player Player = Terraria.Main.LocalPlayer;
         public virtual void ProcessTriggers(Terraria.GameInput.TriggersSet triggersSet) { }
     }
-    public sealed class ModKeybind { public bool Current, JustPressed; }
+    public sealed class ModKeybind
+    {
+        public bool Current, JustPressed;
+        public List<string> Keys = [];
+        public List<string> GetAssignedKeys(Terraria.GameInput.InputMode mode) => Keys;
+    }
     public static class ModContent
     {
         public static Asset<T> Request<T>(string path, AssetRequestMode mode) where T : class => throw new NotSupportedException();
     }
 }
-namespace Terraria.GameInput { public sealed class TriggersSet { } }
+namespace Terraria.GameInput
+{
+    public sealed class TriggersSet { }
+    public enum InputMode { Keyboard, XBoxGamepad, XBoxGamepadUI }
+    public static class PlayerInput
+    {
+        public static InputMode CurrentInputMode;
+        public static KeyProfile CurrentProfile;
+    }
+    public sealed class KeyProfile { public Dictionary<InputMode, KeyConfiguration> InputModes = []; }
+    public sealed class KeyConfiguration { public Dictionary<string, List<string>> KeyStatus = []; }
+}
 namespace Terraria.Audio { public static class SoundEngine { public static void PlaySound(int sound) { } } }
 namespace Terraria.ID { public static class SoundID { public const int MenuTick = 1; } }
 namespace KL.SkillSystem
@@ -118,7 +137,7 @@ namespace SilkyUIFramework.Elements
     }
 }
 namespace 伊蕾娜.Items { public sealed class ElainaWand { } }
-namespace 伊蕾娜.Config { public enum SkillSelectionMode { Wheel, Bar } }
+namespace 伊蕾娜.Config { }
 namespace 伊蕾娜.ElainaModSkills
 {
     public static class KeyBind { public static ModKeybind OpenSkillWheel = new(); }
@@ -126,7 +145,6 @@ namespace 伊蕾娜.ElainaModSkills
     {
         public static float WheelScale = 1;
         public static bool ShowCD;
-        public static Config.SkillSelectionMode SelectionMode = Config.SkillSelectionMode.Wheel;
     }
     public static class ElainaSkillModPlayer
     {
@@ -152,4 +170,13 @@ namespace 伊蕾娜.ElainaModSkills.UICore
         public static Texture2D Pixel, GlowDot, DiamondFill;
         public static ReLogic.Graphics.DynamicSpriteFont NumberFont;
     }
+}
+
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
+{
+    public static class DollCommandWheel { public static bool IsShowing; }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Recall
+{
+    public static class RecallPortalPlayer { public static object FindHovered(Player player) => null; }
 }

@@ -3,12 +3,17 @@ using 伊蕾娜.ElainaModAlchemy.UI;
 
 namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
 
-/// <summary>Provisional balance values. Replace these functions when final progression is designed.</summary>
+/// <summary>Alchemy progression baseline: routine preparation within each unlocked skill tier.</summary>
 public static class AlchemyProgressionRules
 {
     public const int MaximumLevel = 20;
-    public static int ExperienceToNextLevel(int level) => level >= MaximumLevel ? 0 : 100 + 50 * (Math.Clamp(level, 1, MaximumLevel) - 1);
-    public static int ExperiencePerBatch(string entryId) => 10 + 5 * AlchemyCatalog.GetRecipe(entryId).Rarity;
+    public const int InitialLevelExperience = 100, ExperienceIncreasePerLevel = 50;
+    public const int BaseBatchExperience = 10, BatchExperiencePerRarity = 5;
+
+    public static int ExperienceToNextLevel(int level) => level >= MaximumLevel ? 0
+        : InitialLevelExperience + ExperienceIncreasePerLevel * (Math.Clamp(level, 1, MaximumLevel) - 1);
+    public static int ExperiencePerBatch(string entryId) => BaseBatchExperience
+        + BatchExperiencePerRarity * AlchemyCatalog.GetRecipe(entryId).Rarity;
     public static int RequiredLevel(string entryId) => entryId switch
     {
         "rain" => 1,

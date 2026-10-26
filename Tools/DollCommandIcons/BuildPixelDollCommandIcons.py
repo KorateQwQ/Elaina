@@ -304,29 +304,6 @@ def leaf(layer, base, tip, half_w, bend):
     layer.each(color)
 
 
-def icon_place_planters():
-    pot, plant = Layer(), Layer()
-    # 盆身：上宽下窄，左亮右暗
-    for y in range(13, 19):
-        inset = (y - 13) // 3
-        x0, x1 = 5 + inset, 14 - inset
-        pot.rect(x0, y, x1, y, "u")
-        pot.set(x0, y, "a")
-        pot.set(x0 + 1, y, "A")
-        pot.rect(x1 - 1, y, x1, y, "U")
-    # 盆沿
-    pot.rect(3, 10, 16, 12, "A")
-    pot.rect(3, 10, 16, 10, "a")
-    pot.rect(3, 12, 16, 12, "u")
-    pot.rect(15, 11, 16, 12, "U")
-    # 泥土
-    pot.rect(5, 9, 14, 9, "x")
-    plant.rect(9, 5, 9, 9, "G")  # 细茎
-    leaf(plant, (8.6, 6.4), (1.8, 3.6), 2.3, .6)
-    leaf(plant, (9.8, 5.0), (17.4, 1.4), 2.4, .6)
-    return compose(pot, plant)
-
-
 ICONS = {
     "DollCommand_Attack": icon_attack,
     "DollCommand_Mine": icon_mine,
@@ -334,7 +311,6 @@ ICONS = {
     "DollCommand_MineChain": icon_mine_chain,
     "DollCommand_BreakWallChain": icon_wall_chain,
     "DollCommand_Cancel": icon_cancel,
-    "DollCommand_PlacePlanters": icon_place_planters,
 }
 
 

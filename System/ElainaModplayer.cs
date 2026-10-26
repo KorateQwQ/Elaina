@@ -36,7 +36,6 @@ namespace 伊蕾娜
         public float 掉落帽子 = 0;
         public static bool water = true;
         public static bool MissileCamera = true;
-        public static float LongPress = 20;
         private int test = 10086;
         float testrotation = 0;
         public bool sittingmount = false;
@@ -164,8 +163,7 @@ namespace 伊蕾娜
                     new Item(ModContent.ItemType<ElainaHat>()),
                     new Item(ModContent.ItemType<ElainaHat>()),
                     new Item(ModContent.ItemType<ElainaWand>()),
-                    new Item(ItemID.Book),
-                    new Item(ModContent.ItemType<妮可的冒险谭>()),
+                    new Item(ModContent.ItemType<扫帚坐骑>()),
                 ];
             }
             return [];
@@ -375,21 +373,6 @@ namespace 伊蕾娜
                 }
             }
         }
-        public override void ProcessTriggers(TriggersSet triggersSet)
-        {
-            /*if (Config.KeyBind.技能栏.JustPressed)
-            {
-                var skp = Player.SKP();
-                if (SkillUI.Ins.IsVisible)
-                {
-                    skp.CloseUI();
-                }
-                else if (Player.HeldItem.type == ModContent.ItemType<ElainaWand>())
-                {
-                    skp.OpenUI();
-                }
-            }*/
-        }
         public override void DrawEffects(PlayerDrawSet drawInfo, ref float r, ref float g, ref float b, ref float a, ref bool fullBright)
         {
             if (!Main.gamePaused && !Main.gameMenu && drawInfo.shadow == 0)
@@ -402,11 +385,6 @@ namespace 伊蕾娜
                         Projectile proj = Projectile.NewProjectileDirect(Entity.GetSource_FromThis(), Player.Center, Vector2.Zero,
                         ModContent.ProjectileType<Projectiles.小动物药水射弹>(), 1, 0, Player.whoAmI, CritterType, 1);
                         NeedToBeCritter = false;
-                    }
-                    if (!GiveNikehBookToOldPlayer && Elaina)
-                    {
-                        Player.QuickSpawnItem(null, ModContent.ItemType<妮可的冒险谭>(), 1);
-                        GiveNikehBookToOldPlayer = true;
                     }
                 }
             }

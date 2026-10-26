@@ -7,6 +7,8 @@ global using PlainSnippet = Terraria.GameContent.UI.Chat.PlainTagHandler.PlainSn
 global using Terraria;
 global using Terraria.Localization;
 using 伊蕾娜.System.Experience;
+using 伊蕾娜.ElainaModSkills;
+using Terraria.ID;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using ReLogic.Content;
@@ -73,7 +75,7 @@ namespace Terraria
         public static bool gameMenu;
         public static bool mouseLeft;
         public static Player LocalPlayer;
-        public static int myPlayer;
+        public static int myPlayer, netMode;
         public static Item mouseItem = new();
         public static Vector2 MouseScreen => new(-100);
     }
@@ -84,10 +86,12 @@ namespace Terraria
         public Chest bank = new(), bank2 = new(), bank3 = new(), bank4 = new();
         public Item[] inventory = Enumerable.Range(0, 58).Select(_ => new Item()).ToArray();
         private readonly Dictionary<Type, object> _modPlayers = [];
+        public void SetModPlayer<T>(T value) => _modPlayers[typeof(T)] = value;
         public T GetModPlayer<T>() where T : new()
         {
             if (!_modPlayers.TryGetValue(typeof(T), out var value)) _modPlayers[typeof(T)] = value = new T();
             if (value is Terraria.ModLoader.ModPlayer modPlayer) modPlayer.Player = this;
+            if (value is KL.SkillSystem.KLSkillModPlayer skillPlayer) skillPlayer.Player = this;
             return (T)value;
         }
     }
@@ -97,20 +101,26 @@ namespace Terraria
 }
 namespace 伊蕾娜.System
 {
-    public sealed class ElainaStatePlayer
+    public sealed class ElainaStatePlayer : Terraria.ModLoader.ModPlayer
     {
         public int CurrentLevel = 1, Experience, Cap = 10;
+        private int studyPointRewardLevel = 1;
         public const int ExperiencePerLevel = 100;
         public int GetMaxLevel() => Cap;
         public int GetLevel() => CurrentLevel;
         // LIVE_NORMALIZE_LEVEL
+        // LIVE_GRANT_LEVEL_STUDY_POINTS
 #if DEBUG
         // LIVE_DEBUG_MAX_LEVEL
         public void DebugResetProgress() { CurrentLevel = 1; Experience = 0; }
 #endif
     }
 }
-namespace Terraria.ID { public static class ItemID { public const int Wood = 9, RecallPotion = 2350, PotionOfReturn = 4870; } }
+namespace Terraria.ID
+{
+    public static class NetmodeID { public const int SinglePlayer = 0, MultiplayerClient = 1, Server = 2; }
+    public static class ItemID { public const int Wood = 9, RecallPotion = 2350, PotionOfReturn = 4870; }
+}
 namespace Terraria.ModLoader.IO
 {
     public sealed class TagCompound : Dictionary<string, object>

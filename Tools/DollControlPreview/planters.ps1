@@ -3,11 +3,18 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/doll-planter-checks'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
-$project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
+$project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><DefineConstants>PLACEMENT</DefineConstants><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
 foreach ($entry in @(
     @('Reference', "$Tml/tModLoader.dll"),
     @('Reference', "$Tml/Libraries/**/*.dll"),
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlanterBuilding.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlacementSystem.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlacementTask.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlacementGhost.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollWorkAssignments.cs"),
+    @('Compile', "$PSScriptRoot/PlacementNativeHost.cs.txt"),
+    @('Compile', "$PSScriptRoot/PlacementNativeChecks.cs.txt"),
+    @('Compile', "$PSScriptRoot/PlanterFixture.cs.txt"),
     @('Compile', "$PSScriptRoot/PlanterNativeChecks.cs.txt"))) {
     $node = $project.CreateElement($entry[0]); $node.SetAttribute('Include', $entry[1])
     if ($entry[1].EndsWith('**/*.dll')) {

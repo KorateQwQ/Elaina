@@ -1,0 +1,133 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.Graphics.Renderers;
+using Terraria.ModLoader;
+using 伊蕾娜.System;
+
+sealed partial class PosePreview
+{
+    void CheckSleepPortrait(SpriteBatch batch)
+    {
+        var sleepLayer = new SleepLayer();
+        using var sleepTexture = Load("Items/Armors/sleep");
+        // HeadOnlySetup leaves the default glow slot at zero; the game already
+        // loads this asset, while this isolated host must supply it explicitly.
+        Terraria.GameContent.TextureAssets.GlowMask[0] = Asset(Content.Load<Texture2D>("Images/Glow_0"));
+        typeof(SleepLayer).GetField("ElainaHatTexture", Hidden)!.SetValue(sleepLayer, Asset(sleepTexture));
+        var reset = typeof(PlayerDrawLayer).GetMethod("ResetVisibility", Hidden)!;
+        var children = (List<PlayerDrawLayer>)typeof(PlayerDrawLayer).GetField("_childrenAfter", Hidden)!.GetValue(PlayerDrawLayers.Head)!;
+        children.Add(sleepLayer); // Same AfterParent(Head) relationship as production.
+        var originalFrame = player.bodyFrame;
+        var originalLegFrame = player.legFrame;
+        var originalHeadFrame = player.headFrame;
+        var originalSleeping = player.sleeping;
+        var owner = player.GetModPlayer<global::伊蕾娜.ElainaModplayer>();
+        bool originalIdentity = owner.Elaina;
+        var sleepingFrame = new Rectangle(40, 1064, 40, 56);
+
+        List<DrawData> DrawHeadTree(bool reproduceOld)
+        {
+            var draw = Prepare(true);
+            reset.Invoke(PlayerDrawLayers.Head, new object[] { draw });
+            if (reproduceOld)
+            {
+                var worldVisibility = draw;
+                worldVisibility.headOnlyRender = false;
+                reset.Invoke(sleepLayer, new object[] { worldVisibility });
+            }
+            PlayerDrawLayers.Head.DrawWithTransformationAndChildren(ref draw);
+            return draw.DrawDataCache;
+        }
+
+        List<DrawData> FixedPortrait()
+        {
+            List<DrawData> result = null;
+            On_LegacyPlayerRenderer.orig_DrawPlayerHead render = (_, _, p, _, _, _, _) =>
+            {
+                Check(p.bodyFrame.X == 0 && p.bodyFrame.Y == 0, "Sleeping portrait selects the normal head frame");
+                result = DrawHeadTree(false);
+            };
+            typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
+                new object[] { render, null, null, player, player.position, 1f, 1f, Color.Transparent });
+            return result;
+        }
+
+        try
+        {
+            owner.Elaina = true;
+            player.sleeping.isSleeping = true;
+            player.headFrame = player.bodyFrame = sleepingFrame;
+            player.legFrame = new Rectangle(40, 56, 40, 56);
+            foreach (float scale in new[] { 4f, 1.25f })
+            {
+                using var target = new RenderTarget2D(GraphicsDevice, (int)(240 * scale), (int)(210 * scale));
+                GraphicsDevice.SetRenderTarget(target);
+                GraphicsDevice.Clear(new Color(115, 145, 245));
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+                for (int row = 0; row < 3; row++)
+                for (int column = 0; column < 2; column++)
+                {
+                    player.direction = column == 0 ? 1 : -1;
+                    player.position = new Vector2(60 + column * 120, 18 + row * 60);
+                    List<DrawData> data;
+                    if (row == 0)
+                    {
+                        using var appearance = new ElainaAppearanceSystem.AppearanceScope(player, 1, 1, 1);
+                        data = DrawHeadTree(true);
+                        Check(data.Any(d => d.texture == sleepTexture), "Old head-child traversal reproduces the whole sleeping sprite");
+                    }
+                    else if (row == 1)
+                    {
+                        data = FixedPortrait();
+                        Check(data.Count > 0 && data.All(d => d.texture != sleepTexture), "Fixed portrait has a head and no sleeping body");
+                        Check(data.Any(d => d.texture == head && d.sourceRect!.Value.X == 0 && d.sourceRect.Value.Y == 0), "Fixed portrait uses the real normal head asset frame");
+                        Check(player.bodyFrame == sleepingFrame && player.sleeping.isSleeping, "Portrait preserves world sleep state and empty frame");
+                    }
+                    else
+                    {
+                        var world = Prepare();
+                        reset.Invoke(sleepLayer, new object[] { world });
+                        sleepLayer.DrawWithTransformationAndChildren(ref world);
+                        data = world.DrawDataCache;
+                        Check(data.Count == 1 && data[0].texture == sleepTexture, "World sleep sprite remains visible");
+                    }
+                    foreach (var item in data) item.Draw(batch);
+                }
+                batch.End();
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(output, $"sleep-portrait-{scale:0.00}.png"));
+                target.SaveAsPng(file, target.Width, target.Height);
+            }
+            On_LegacyPlayerRenderer.orig_DrawPlayerHead fail = (_, _, _, _, _, _, _) => throw new InvalidOperationException("sleep fixture");
+            try
+            {
+                typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
+                    new object[] { fail, null, null, player, player.position, 1f, 1f, Color.Transparent });
+            }
+            catch (System.Reflection.TargetInvocationException e) when (e.InnerException is InvalidOperationException) { }
+            Check(player.bodyFrame == sleepingFrame, "Failed portrait restores the sleeping frame");
+            owner.Elaina = false;
+            On_LegacyPlayerRenderer.orig_DrawPlayerHead other = (_, _, p, _, _, _, _) =>
+                Check(p.bodyFrame == sleepingFrame, "Non-Elaina portraits retain their frame");
+            typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
+                new object[] { other, null, null, player, player.position, 1f, 1f, Color.Transparent });
+            Check(!sleepLayer.GetDefaultVisibility(Prepare()), "Other characters never use Elaina's sleep sprite");
+            owner.Elaina = true;
+            player.sleeping.isSleeping = false;
+            Check(!sleepLayer.GetDefaultVisibility(Prepare()), "Waking hides the sleep sprite");
+            Console.WriteLine("Sleep portraits: native head-child traversal, both directions, both scales, world sleep and state restoration passed.");
+        }
+        finally
+        {
+            children.Remove(sleepLayer);
+            player.bodyFrame = originalFrame;
+            player.headFrame = originalHeadFrame;
+            player.legFrame = originalLegFrame;
+            player.sleeping = originalSleeping;
+            owner.Elaina = originalIdentity;
+        }
+    }
+}

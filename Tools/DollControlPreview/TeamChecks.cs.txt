@@ -20,7 +20,7 @@ static partial class Checks
         }
     }
 
-    static (Point Point, bool Wall, bool Planter) Target(DollPetProjectile doll)
+    static (Point Point, bool Wall, bool Place) Target(DollPetProjectile doll)
     {
         using var stream = new MemoryStream();
         doll.SendExtraAI(new BinaryWriter(stream));
@@ -102,13 +102,13 @@ static partial class Checks
             for (int x = 0; x < 8; x++)
             {
                 Point p = new(x + 2, 4);
-                if (kind == 2) c.PlanterTargets.Add(p);
+                if (kind == 2) c.PlacementTargets.Add(p);
                 else (kind == 1 ? c.WallMarks : c.TileMarks).Add(p);
             }
             TickTeam();
             Check(team.All(d => d.HasWork) && team.Select(Target).Distinct().Count() == 4, $"Four distinct targets for task kind {kind}");
             for (int tick = 0; tick < 1500 && c.HasTask; tick++) TickTeam();
-            Check(!c.HasTask && (kind == 2 ? c.PlacedPlanters == 8 && c.Hits == 0 : c.Loot == 8 && c.Hits == 24),
+            Check(!c.HasTask && (kind == 2 ? c.PlacedBlocks == 8 && c.Hits == 0 : c.Loot == 8 && c.Hits == 24),
                 $"Every task is completed exactly once for kind {kind}");
             for (int tick = 0; tick < 300; tick++) TickTeam();
             Check(team.All(d => !d.HasWork && !d.IsMining), "Finished team returns to follow");
@@ -160,10 +160,10 @@ static partial class Checks
         Check(team.Any(d => d != working && d.Projectile.active && d.HasWork), "Reused projectile slot cannot hold a stale claim");
 
         Reset(); team = Team(); commands = World.player[0].GetModPlayer<DollCommandPlayer>();
-        commands.TileMarks.Add(edge); commands.WallMarks.Add(edge); commands.PlanterTargets.Add(inner);
+        commands.TileMarks.Add(edge); commands.WallMarks.Add(edge); commands.PlacementTargets.Add(inner);
         TickTeam();
         Check(team.Count(d => d.HasWork) == 3 && team.Where(d => d.HasWork).Select(Target).Distinct().Count() == 3,
-            "Mixed block, wall and planter tasks are assigned independently, including a block and wall at one coordinate");
+            "Mixed block, wall and placement tasks are assigned independently, including a block and wall at one coordinate");
         commands.ClearTasks(); TickTeam();
         Check(team.All(d => !d.HasWork), "Cancel removes all three task kinds and their assignments");
         commands.TileMarks.Add(edge); TickTeam();

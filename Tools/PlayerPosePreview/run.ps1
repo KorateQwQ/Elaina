@@ -12,12 +12,14 @@ function Add-Item([string]$kind, [string]$path) {
 $null = Add-Item Reference "$Tml/tModLoader.dll"
 $reference = Add-Item Reference "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
-foreach ($relative in @('System/ElainaDrawAlignment.cs','System/ElainaAppearanceSystem.cs','Items/Armors/新版身体/ElainaNewBodyLayer.cs','Items/accessories/ElainaHatLayer.cs','ElainaModAlchemy/UI/AlchemyBrewAnimation.cs','ElainaModAlchemy/Gameplay/AlchemyBrewSession.cs')) {
+foreach ($relative in @('System/ElainaDrawAlignment.cs','System/ElainaAppearanceSystem.cs','System/SleepLayer.cs','Items/Armors/新版身体/ElainaNewBodyLayer.cs','Items/accessories/ElainaHatLayer.cs','ElainaModAlchemy/UI/AlchemyBrewAnimation.cs','ElainaModAlchemy/Gameplay/AlchemyBrewSession.cs')) {
     $null = Add-Item Compile "$repo/$relative"
 }
 $null = Add-Item Compile "$PSScriptRoot/Host.cs.txt"
+$null = Add-Item Compile "$repo/ElainaModAlchemy/Gameplay/AlchemyEfficiency.cs"
 $null = Add-Item Compile "$PSScriptRoot/Preview.cs.txt"
 $null = Add-Item Compile "$PSScriptRoot/AppearanceChecks.cs.txt"
+$null = Add-Item Compile "$PSScriptRoot/SleepPortraitChecks.cs.txt"
 $native = Add-Item None "$Tml/Libraries/Native/Windows/*.dll"
 $native.SetAttribute('Link', '%(Filename)%(Extension)'); $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')
 $path = Join-Path $output 'Preview.csproj'; $project.Save($path)

@@ -1,5 +1,9 @@
 # 炼金手记 FNA 离线预览
 
+## 瓶中雨改用雨云（2026-10-27）
+
+瓶中雨每批材料改为月露 ×1、雨云 ×1、幌菊 ×1。雨云使用本机 `ItemID.RainCloud`（765）和原版名称本地化引用；正式描边为 `UI/Assets/Outlines/Item_765.png`，已同步清单。依次运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -ExportMaterials`、`python Tools/AlchemyPreview/bake_redesign.py`、`python Tools/AlchemyPreview/bake_redesign.py --check` 和 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene curio-rain` 可复现。65 张描边及正式目录资源检查通过，已打开本次 `output/zh-Hans/curio-rain-1600x1000-1.00.png` 和 `curio-rain-1600x1000-1.25.png`，确认雨云图标、数量、材料行与制作底栏正常。预览链接正式目录和绘制源码；实际游戏内炼制与背包扣料尚未验证。
+
 ## 素材精简与月露文案（2026-10-23）
 
 温香树脂已从正式物品、素材目录、配方、物品映射、中英文本地化及专属贴图移除；目录现有 22 项，其中素材 7 项，正式描边 64 张。月露描述改为“用瓶装水与月光草制成的药液基底，可用于各种药水。”，物品提示同步。`pwsh -File Tools/AlchemyPreview/run.ps1 -Scene material-initial` 已检查默认与 125% FNA 离线截图；旧存档中过期研究 ID 会先过滤再限制数量，避免条目减少后截断有效研究。完整编译、资源检查及制作集成检查通过；完整物品检查仍受 `RevealingDust` 贴图与目录尺寸不匹配阻断，尚未游戏内验证。

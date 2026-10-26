@@ -56,6 +56,6 @@ public override LocalizedText RecipeUnlockHint => this.GetLocalization("RecipeUn
 
 上述代码使用 `Terraria`、`Terraria.ID`、`Terraria.Localization`、`Terraria.ModLoader` 和 `伊蕾娜.ElainaModAlchemy` 命名空间。
 
-当前手记使用真实材料，研究条件由 `ResearchRequirement` 配置；等级、经验和研究存档位于 `Gameplay/`，具体接口与暂定数值见 `UI/README.md`。
+当前手记使用真实材料，研究条件由 `ResearchRequirement` 配置；等级、经验和研究存档位于 `Gameplay/`，具体接口与首版经验方案见 `UI/README.md`。
 
 `CanCraft(player, materials)` 同时检查解锁状态和材料数量，即使材料齐全，未解锁时也返回 false。材料槽由调用方提供（例如未来炼金容器中的槽位），每个槽位只传一次。此方法只做判断；手记的正式入口通过 `AlchemyVanillaRecipes` 复用原版材料收集与 `Main.CraftItem`，产物放背包，满包落地。右键大锅进入手记，搅拌结束时才检查、扣料并产出；关闭手记继续搅拌，受伤或死亡取消且不扣料。联机仅额外同步姿势与计时，材料与成品沿用原版同步。

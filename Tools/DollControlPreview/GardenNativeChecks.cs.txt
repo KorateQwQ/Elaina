@@ -50,8 +50,8 @@ internal static partial class PlanterNativeChecks
         {
             Point p = new(pot.X + i * 2, pot.Y);
             player.inventory[0] = new(ItemID.WoodPlatform, 2); player.inventory[1] = new(pots[i], 2);
-            var placeResult = DollPlanterBuilding.Place(player, p, pots[i]);
-            Check(placeResult == DollPlanterBuilding.Result.Placed, "Garden native support placement");
+            var placeResult = PlanterFixture.Place(player, p, pots[i]);
+            Check(placeResult == PlanterFixture.Result.Placed, "Garden native support placement");
             DollGardenSystem.Register(player, p, pots[i]);
             Check(DollGardenSystem.Beds[p].Seed.Type == seeds[i], "Planter maps to its corresponding herb");
             player.inventory[2] = new(seeds[i], 2);
@@ -71,11 +71,11 @@ internal static partial class PlanterNativeChecks
         Check(DollHerbPlanting.CanHarvest(ItemID.DaybloomSeeds, day.X, day.Y - 1), "Engine daytime flowering rule is used, even before tile changes to BloomingHerbs");
         Check(!DollHerbPlanting.CanHarvest(ItemID.MoonglowSeeds, day.X, day.Y - 1), "Different herb is never harvested as corresponding seed");
         Check(commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out Point selected) && selected == day, "Production task selects owned flowering plant");
-        int stock = DollPlanterBuilding.Count(player, ItemID.DaybloomSeeds);
+        int stock = PlanterFixture.Count(player, ItemID.DaybloomSeeds);
         commands.TendGarden(day);
         Check(!Host.tile[day.X, day.Y - 1].HasTile && Host.tile[day.X, day.Y].HasTile, "Harvest removes only plant, keeps the pot");
         Check(commands.LootCount(ItemID.Daybloom) > 0, "Actual harvest drop is collected");
-        Check(DollPlanterBuilding.Count(player, ItemID.DaybloomSeeds) > stock, "Actual harvest seeds enter owner's inventory");
+        Check(PlanterFixture.Count(player, ItemID.DaybloomSeeds) > stock, "Actual harvest seeds enter owner's inventory");
         commands.TendGarden(day);
         Check(Host.tile[day.X, day.Y - 1].TileType == TileID.ImmatureHerbs && Host.tile[day.X, day.Y - 1].HasTile, "Automatic resow uses returned seed");
 
@@ -118,7 +118,7 @@ internal static partial class PlanterNativeChecks
         Host.tile[retired.X, retired.Y - 1].ClearTile(); Host.tile[retired.X, retired.Y].ClearTile();
         Point planter = new(125, 130);
         player.inventory[1] = new(ItemID.WaterleafPlanterBox, 2);
-        Check(DollPlanterBuilding.Place(player, planter, ItemID.WaterleafPlanterBox) == DollPlanterBuilding.Result.Placed, "Unsupported waterleaf planter");
+        Check(PlanterFixture.Place(player, planter, ItemID.WaterleafPlanterBox) == PlanterFixture.Result.Placed, "Unsupported waterleaf planter");
         for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
         player.inventory[2] = new(ItemID.WaterleafSeeds, 2);
         Check(!DollGardenSystem.Beds.ContainsKey(planter), "Ordinary hand-placed planter is not automatically managed");
@@ -272,7 +272,7 @@ internal static partial class PlanterNativeChecks
         player.inventory[2] = new(ItemID.DaybloomSeeds, 4);
         foreach (var p in pots)
         {
-            Check(DollPlanterBuilding.Place(player, p, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed, "AI garden bed placed");
+            Check(PlanterFixture.Place(player, p, ItemID.DayBloomPlanterBox) == PlanterFixture.Result.Placed, "AI garden bed placed");
             DollGardenSystem.Register(player, p, ItemID.DayBloomPlanterBox);
         }
         KumaPetProjectile Worker(int slot)
@@ -320,7 +320,7 @@ internal static partial class PlanterNativeChecks
         }
         Check(harvested && pots.All(p => Host.tile[p.X, p.Y - 1].HasTile && Host.tile[p.X, p.Y - 1].TileType == TileID.ImmatureHerbs),
             "Real AI completes flowering -> harvest -> inventory -> resow cycle");
-        Check(DollPlanterBuilding.Count(player, ItemID.DaybloomSeeds) >= 0 && pots.All(p => Host.tile[p.X, p.Y].HasTile),
+        Check(PlanterFixture.Count(player, ItemID.DaybloomSeeds) >= 0 && pots.All(p => Host.tile[p.X, p.Y].HasTile),
             "Automatic harvest keeps all four supports");
         for (int i = 0; i < 300; i++) Tick();
         Check(team.All(d => !d.HasWork && !d.IsUsing) && commands.Delivered > 0, "Waiting for growth releases team to follow and deliver loot");
@@ -339,7 +339,7 @@ internal static partial class PlanterNativeChecks
         player.inventory[0] = new(ItemID.WoodPlatform, 2);
         player.inventory[1] = new(ItemID.DayBloomPlanterBox, 2);
         player.inventory[2] = new(ItemID.DaybloomSeeds, 2);
-        Check(DollPlanterBuilding.Place(player, pot, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed,
+        Check(PlanterFixture.Place(player, pot, ItemID.DayBloomPlanterBox) == PlanterFixture.Result.Placed,
             "Weed fixture has an unsupported planter");
         Tile crop = Host.tile[pot.X, pot.Y - 1];
         foreach (int type in new[] { TileID.Plants, TileID.Plants2 })

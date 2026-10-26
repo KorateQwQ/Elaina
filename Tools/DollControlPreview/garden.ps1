@@ -22,12 +22,15 @@ foreach ($entry in @(
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollChestCursorSystem.cs"),
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollChestCursorDrawing.cs"),
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/KumaPetProjectile.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlacementTask.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollPlacementSystem.cs"),
     @('Compile', "$PSScriptRoot/GardenNativeHost.cs.txt"),
     @('Compile', "$PSScriptRoot/GardenNativeChecks.cs.txt"),
     @('Compile', "$PSScriptRoot/LootNativeChecks.cs.txt"),
     @('Compile', "$PSScriptRoot/ChestNativeChecks.cs.txt"),
     @('Compile', "$PSScriptRoot/ChestCursorNativeChecks.cs.txt"),
     @('Compile', "$PSScriptRoot/MiningNativeChecks.cs.txt"),
+    @('Compile', "$PSScriptRoot/PlanterFixture.cs.txt"),
     @('Compile', "$PSScriptRoot/PlanterNativeChecks.cs.txt"))) {
     $node = $project.CreateElement($entry[0]); $node.SetAttribute('Include', $entry[1])
     if ($entry[1].EndsWith('**/*.dll')) {

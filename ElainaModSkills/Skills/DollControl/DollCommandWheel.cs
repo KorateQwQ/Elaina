@@ -290,7 +290,6 @@ public sealed class DollCommandWheel : BaseBody
             var (extent, opacity) = _open
                 ? (OpeningExtent(_time, i), OpeningOpacity(_time, i))
                 : ClosingMotion(_closeTime, i == _chosen, _extentAtClose[i], _opacityAtClose[i]);
-            bool attack = DollCommands.AtSlot(i) == DollCommand.Attack;
             view.Items[i] = new SkillWheelDrawing.WheelItem
             {
                 Position = view.Center + Direction(AngleOf(i, Count)) * (radius * extent + 4 * _hover[i]),
@@ -302,9 +301,6 @@ public sealed class DollCommandWheel : BaseBody
                 Stack = 1,
                 MaxStack = 1,
                 Icon = _icons[i].Value,
-                // 攻击指令尚未实装，借用封印外观表示不可用；仍可选中，确认后不产生效果。
-                Sealed = attack,
-                SealDeniedAge = 9,
             };
         }
     }

@@ -10,7 +10,7 @@ using Terraria.ModLoader;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 浮游玩偶共用的跟随、传送、挖掘、放置和药草照料。
+/// 浮游玩偶共用的跟随、传送、挖掘、远程放置物块和药草照料。
 /// 子类提供 TexturePrefix 和各动作帧数，可覆写移动参数或在 base.AI() 后添加功能。
 /// 资源为 &lt;prefix&gt;_Idle_N、_Move_N、_Mine_N、_Use_N、_Hammer_N（N 从 1 开始），各帧以贴图中心对齐，尺寸可以不同。
 /// ai[0]：浮动周期；ai[1]：待机 0 / 移动 1 / 挖矿 2 / 通用动作 3 / 敲墙 4 / 收回中 5；ai[2]：动画（收回时为收回）计时。三项随弹幕同步。
@@ -66,7 +66,7 @@ public abstract class DollPetProjectile : ModProjectile
     private Asset<Texture2D>[] idleTextures, moveTextures, mineTextures, useTextures, hammerTextures;
     private Point workTile = new(-1, -1);
     private bool workWall;
-    private bool workPlanter;
+    private bool workPlace;
     private bool workGarden;
     private bool workChest, chestWaiting;
     /// <summary>主人端头顶显示的箱子携带物类型；不同步，其他端只看到玩偶停在箱子旁。</summary>
@@ -223,12 +223,12 @@ public abstract class DollPetProjectile : ModProjectile
     {
         if (Projectile.owner != Main.myPlayer || IsDismissing) return;
         DollCommandPlayer commands = Main.player[Projectile.owner].GetModPlayer<DollCommandPlayer>();
-        commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis());
+        commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis(), this);
         // 玩偶可能还远在箱子旁，箱子物品直接从主人身上交还。
         commands.DeliverChestCargo(this, Main.player[Projectile.owner].Center, Projectile.GetSource_FromThis());
-        commands.ReleaseTarget(workTile, workWall || workGarden, workPlanter || workGarden, this);
+        commands.ReleaseTarget(workTile, workWall || workGarden, workPlace || workGarden, this);
         workTile = new Point(-1, -1);
-        workWall = workPlanter = workGarden = workChest = chestWaiting = false;
+        workWall = workPlace = workGarden = workChest = chestWaiting = false;
         SetState(DismissState);
     }
 
@@ -273,7 +273,7 @@ public abstract class DollPetProjectile : ModProjectile
         }
         if (Projectile.owner == Main.myPlayer && Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers)
             Main.player[Projectile.owner].GetModPlayer<DollCommandPlayer>()
-                .ReleaseTarget(workTile, workWall || workGarden, workPlanter || workGarden, this);
+                .ReleaseTarget(workTile, workWall || workGarden, workPlace || workGarden, this);
     }
 
     public override void SendExtraAI(BinaryWriter writer)
@@ -281,7 +281,7 @@ public abstract class DollPetProjectile : ModProjectile
         writer.Write((short)workTile.X);
         writer.Write((short)workTile.Y);
         writer.Write(workWall);
-        writer.Write(workPlanter);
+        writer.Write(workPlace);
         writer.Write(workGarden);
         writer.Write(workChest);
         writer.Write(chestWaiting);
@@ -292,7 +292,7 @@ public abstract class DollPetProjectile : ModProjectile
     {
         workTile = new Point(reader.ReadInt16(), reader.ReadInt16());
         workWall = reader.ReadBoolean();
-        workPlanter = reader.ReadBoolean();
+        workPlace = reader.ReadBoolean();
         workGarden = reader.ReadBoolean();
         workChest = reader.ReadBoolean();
         chestWaiting = reader.ReadBoolean();
@@ -338,7 +338,7 @@ public abstract class DollPetProjectile : ModProjectile
         // 任务全部结束、回到主人身边后，把挖到的物品从玩偶身上抛给主人。
         if (isOwner && commands.HasLoot && !commands.HasTask &&
             Vector2.DistanceSquared(Projectile.Center, owner.Center) < DeliverDistance * DeliverDistance)
-            commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis());
+            commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis(), this);
         // 从箱子取回的物品不必等其他任务结束，带货玩偶一回来就交还。
         if (isOwner && commands.CanDeliverCargo(this) &&
             Vector2.DistanceSquared(Projectile.Center, owner.Center) < DeliverDistance * DeliverDistance)
@@ -378,10 +378,10 @@ public abstract class DollPetProjectile : ModProjectile
     {
         Point previous = workTile;
         bool previousWall = workWall;
-        bool previousPlanter = workPlanter;
+        bool previousPlace = workPlace;
         bool previousGarden = workGarden;
         bool previousChest = workChest, previousWaiting = chestWaiting;
-        commands.ReleaseTarget(previous, previousWall || previousGarden, previousPlanter || previousGarden, this);
+        commands.ReleaseTarget(previous, previousWall || previousGarden, previousPlace || previousGarden, this);
         workGarden = false;
         workChest = commands.TrySelectRemoteChest(this, out Point chestTarget);
         chestWaiting = workChest && commands.RemoteChestActionFinished;
@@ -389,20 +389,20 @@ public abstract class DollPetProjectile : ModProjectile
         if (workChest)
         {
             workTile = chestTarget;
-            workWall = workPlanter = false;
+            workWall = workPlace = false;
         }
-        else if (carryType > 0)
+        else if (carryType > 0 || commands.HasMiningCargo(this) && !commands.HasTask)
         {
-            // 带着箱子里的物品时先回主人身边交还，不接新的挖掘或种植任务。
+            // 带着箱子里的物品时先回主人身边交还，不接新的挖掘或放置任务。
             workTile = new Point(-1, -1);
-            workWall = workPlanter = false;
+            workWall = workPlace = false;
         }
         else
         {
-            workPlanter = commands.TrySelectPlanterTarget(Projectile.Center,
-                previousPlanter ? previous : new Point(-1, -1), out workTile, this);
-            if (workPlanter) workWall = false;
-            else if (!commands.TrySelectTarget(Projectile.Center, previousPlanter || previousGarden ? new Point(-1, -1) : previous,
+            workPlace = commands.TrySelectPlacementTarget(Projectile.Center,
+                previousPlace ? previous : new Point(-1, -1), out workTile, this);
+            if (workPlace) workWall = false;
+            else if (!commands.TrySelectTarget(Projectile.Center, previousPlace || previousGarden ? new Point(-1, -1) : previous,
                 previousWall, out workTile, out workWall, this))
             {
                 workGarden = commands.TrySelectGardenTarget(Projectile.Center, previousGarden ? previous : new Point(-1, -1), out workTile, this);
@@ -410,7 +410,7 @@ public abstract class DollPetProjectile : ModProjectile
                 if (!workGarden) workTile = new Point(-1, -1);
             }
         }
-        if (workTile != previous || workWall != previousWall || workPlanter != previousPlanter || workGarden != previousGarden
+        if (workTile != previous || workWall != previousWall || workPlace != previousPlace || workGarden != previousGarden
             || workChest != previousChest || chestWaiting != previousWaiting)
         {
             hitTimer = 0;
@@ -438,7 +438,7 @@ public abstract class DollPetProjectile : ModProjectile
             Projectile.direction = Projectile.spriteDirection = Math.Sign(Projectile.velocity.X);
 
         int previousState = (int)Projectile.ai[1];
-        SetState(!arrived ? MoveState : chestWaiting ? IdleState : workPlanter || workGarden || workChest
+        SetState(!arrived ? MoveState : chestWaiting ? IdleState : workPlace || workGarden || workChest
             ? UseFrameCount > 0 ? UseState : IdleState
             : workWall && HammerFrameCount > 0 ? HammerState
             : MineFrameCount > 0 ? MineState : IdleState);
@@ -452,7 +452,7 @@ public abstract class DollPetProjectile : ModProjectile
             return;
         }
         if (chestWaiting) { hitTimer = 0; return; }
-        int interval = (workPlanter || workGarden || workChest
+        int interval = (workPlace || workGarden || workChest
             ? Math.Max(12, UseFrameCount * TicksPerUseFrame) : commands.HitInterval(workWall)) * 100;
         // 使用百分比整数累计工作量，保留余量；+50% 速度即原用时 / 1.5。
         hitTimer += ActionSpeedPercent;
@@ -461,8 +461,8 @@ public abstract class DollPetProjectile : ModProjectile
             hitTimer -= interval;
             if (workChest) commands.CompleteRemoteChestGesture(this);
             else if (workGarden) commands.TendGarden(workTile);
-            else if (workPlanter) commands.PlacePlanter(workTile);
-            else commands.Hit(workTile, workWall);
+            else if (workPlace) commands.CompletePlacement(workTile);
+            else commands.Hit(workTile, workWall, this);
         }
     }
 

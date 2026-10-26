@@ -11,7 +11,9 @@ namespace 伊蕾娜.System
     {
         private Asset<Texture2D> ElainaHatTexture;
         public override void Load() => ElainaHatTexture = Mod.Assets.Request<Texture2D>("Items/Armors/sleep");
-        public override bool GetDefaultVisibility(PlayerDrawSet drawInfo) => drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().Elaina && drawInfo.drawPlayer.sleeping.isSleeping;
+        // Head children are drawn recursively, without checking their IsHeadLayer flag.
+        public override bool GetDefaultVisibility(PlayerDrawSet drawInfo) => !drawInfo.headOnlyRender
+            && drawInfo.drawPlayer.GetModPlayer<ElainaModplayer>().Elaina && drawInfo.drawPlayer.sleeping.isSleeping;
         public override Position GetDefaultPosition() => new AfterParent(PlayerDrawLayers.Head);
         protected override void Draw(ref PlayerDrawSet drawInfo)
         {

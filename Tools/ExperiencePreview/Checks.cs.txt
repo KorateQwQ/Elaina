@@ -105,11 +105,17 @@ var state = solo.GetModPlayer<ElainaStatePlayer>();
 Check(state.Experience == 10 && ModPacket.Sent.Count == 0, "Single player absorption credits experience directly");
 state.AddExperience(245);
 Check(state.CurrentLevel == 3 && state.Experience == 45, "A large award handles variable-cost level-ups and preserves the remainder");
+Check(solo.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint == 20,
+    "Normal multi-level experience pays ten study points per new level");
 state.AddExperience(int.MaxValue);
 Check(state.CurrentLevel == 10 && state.Experience == 190, "Boss level cap banks its current 190-XP bar without integer overflow");
+Check(solo.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint == 110,
+    "Reaching Lv10 includes the Lv5 and Lv10 study-point bonuses");
 state.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
 Check(state.CurrentLevel == 11 && state.Experience == 0
     && state.HasPendingBossExperience("Terraria/50#1"), "Higher cap consumes the banked bar immediately, with Boss XP still pending pickup");
+Check(solo.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint == 120,
+    "Consuming a banked level when a real Boss raises the cap pays that level once");
 DropBoss(new NPC { boss = true, type = NPCID.KingSlime }); Tick(160);
 Check(state.Experience == 47, "Boss orb pickup pays 25% of the previous cap's requirement after unlocking");
 var saved = new TagCompound(); state.SaveData(saved);

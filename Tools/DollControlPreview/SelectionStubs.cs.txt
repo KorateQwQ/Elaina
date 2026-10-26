@@ -16,13 +16,15 @@ namespace Terraria
         public static float UIScale = 1;
         public static uint GameUpdateCount = 1;
         public static Vector2 MouseWorld;
+        public static Vector2 screenPosition;
         public static bool[] tileSolid = [true, true, true], tileSolidTop = [false, false, false];
         public static bool[] tileFrameImportant = new bool[700], tileAlch = new bool[700];
+        public static bool[] tileAxe = new bool[700], tileHammer = new bool[700];
         public static bool[] wallDungeon = new bool[400];
         public static Tile[,] tile = new Tile[maxTilesX, maxTilesY];
     }
     public class NPC { public static bool downedBoss3, downedGolemBoss; }
-    public class Tile { public int RequiredPick; public bool HasTile, IsActuated, IsHalfBlock; public ushort TileType, WallType; public short TileFrameY; public byte LiquidAmount; public Terraria.ID.SlopeType Slope; }
+    public class Tile { public int RequiredPick; public bool HasTile, IsActuated, IsHalfBlock; public ushort TileType, WallType; public short TileFrameX, TileFrameY; public byte LiquidAmount; public Terraria.ID.SlopeType Slope; }
     public class Item
     {
         public Item() { }
@@ -78,6 +80,14 @@ namespace Terraria
     public static class CombatText { public static string Last; public static void NewText(Rectangle area, Color color, string text, bool dot) => Last = text; }
 }
 namespace Terraria.Audio { public static class SoundEngine { public static void PlaySound(int sound, Vector2? position = null) { } } }
+namespace Terraria.GameContent
+{
+    public static class TextureAssets
+    {
+        public sealed class Texture { public Texture2D Value; }
+        public static Texture MagicPixel = new();
+    }
+}
 namespace Terraria.ID
 {
     public static class SoundID { public const int MenuTick = 1, MenuOpen = 2, MenuClose = 3, Dig = 4; }
@@ -92,6 +102,12 @@ namespace Terraria.ObjectData
 {
     public class TileObjectData
     {
+        public static Dictionary<int, TileObjectData> Fixtures = [];
+        public static TileObjectData GetTileData(Tile tile) => Fixtures.GetValueOrDefault(tile.TileType);
+        public int CoordinateWidth = 16, CoordinatePadding = 2;
+        public int[] CoordinateHeights = [16, 16];
+        public int CoordinateFullWidth => Width * 18;
+        public int CoordinateFullHeight => CoordinateHeights.Take(Height).Sum(h => h + 2);
         public int Width = 1, Height = 1;
         public Point Origin;
         public (Terraria.Enums.AnchorType type, int tileCount) AnchorBottom, AnchorTop, AnchorLeft, AnchorRight;
@@ -178,7 +194,15 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl {
  public sealed partial class DollCommandPlayer {
+    private readonly Dictionary<int, int> miningCarriers = [];
     internal void ReleaseRemoteChest(bool close) { }
+    // 花园及宝箱货物由各自的真实引擎专项验证；此宿主只验证选区与操作条。
+    internal void ResetGarden() { }
+    // 远程放置由真实引擎夹具（PlacementNativeChecks）验证；选区只需要队列的计数与清空。
+    internal readonly List<Point> Placements = [];
+    private void ReleasePlacements() => Placements.Clear();
+    private void SaveChestCargo(Terraria.ModLoader.IO.TagCompound tag) { }
+    private void LoadChestCargo(Terraria.ModLoader.IO.TagCompound tag) { }
  }
  public sealed partial class DollCommandPlayer { internal bool HasGardenTask => false; internal void PauseGarden() { } internal void ResumeGarden() { } private void SaveGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { } private void LoadGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { } }
  internal static class DollGardenSystem { internal static void Join(Player player) { } internal static void Register(Player player, Point p, int pot) { } }

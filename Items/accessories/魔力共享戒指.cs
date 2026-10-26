@@ -62,7 +62,6 @@ namespace 伊蕾娜.Items.accessories
         }
         public override void AddRecipes()
         {
-            
             Condition NearElaina = new("RecipeConditions.NearElaina", ()=> Main.LocalPlayer.GetModPlayer<ElainaModplayer>().Elaina);
             Recipe recipe = CreateRecipe();
             //recipe.AddRecipeGroup(RecipeGroupID.Wood, 1);//任意木头1
@@ -70,10 +69,7 @@ namespace 伊蕾娜.Items.accessories
             recipe.AddIngredient(ItemID.ManaRegenerationBand);
             recipe.AddCondition(NearElaina);
             recipe.Register();
-
-
         }
-
     }
 
     public class 蓝量共享 : ModPlayer

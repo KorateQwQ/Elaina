@@ -1,0 +1,47 @@
+using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+/// <summary>
+/// 夹具专用：按格摆放种植盆以搭建花园场景。正式的「放置种植盆」指令已由远程放置物块取代，
+/// 这里只保留以前的检查用法；实际放置仍调用正式 <see cref="DollPlanterBuilding.PlaceOne"/> 与 IsMaterial。
+/// </summary>
+internal static class PlanterFixture
+{
+    internal enum Result { Placed, Blocked, MissingPlanter }
+
+    internal static bool CanBuild(Point p)
+    {
+        if (!WorldGen.InWorld(p.X, p.Y - 1, 1) || !WorldGen.InWorld(p.X, p.Y, 1)) return false;
+        for (int y = p.Y - 1; y <= p.Y; y++)
+            if (Host.tile[p.X, y].LiquidAmount > 0 || Host.tile[p.X, y].HasTile) return false;
+        return true;
+    }
+
+    internal static Result Place(Player player, Point p, int planter)
+    {
+        if (player.whoAmI != Host.myPlayer || !CanBuild(p)) return Result.Blocked;
+        Item pot = null;
+        for (int i = 0; i < 50 && pot == null; i++)
+            if (!player.inventory[i].IsAir && player.inventory[i].type == planter) pot = player.inventory[i];
+        if (!DollPlanterBuilding.IsMaterial(pot)) return Result.MissingPlanter;
+        return DollPlanterBuilding.PlaceOne(player, p, pot) ? Result.Placed : Result.Blocked;
+    }
+
+    internal static int Count(Player player, int type)
+    {
+        int count = 0;
+        for (int i = 0; i < 50; i++)
+            if (type > 0 && player.inventory[i].type == type) count += player.inventory[i].stack;
+        return count;
+    }
+
+    internal static List<int> Options(Player player)
+    {
+        List<int> result = [];
+        for (int i = 0; i < 50; i++)
+            if (DollPlanterBuilding.IsMaterial(player.inventory[i]) && !result.Contains(player.inventory[i].type))
+                result.Add(player.inventory[i].type);
+        return result;
+    }
+}

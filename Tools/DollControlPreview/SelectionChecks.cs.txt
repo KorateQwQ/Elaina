@@ -80,6 +80,7 @@ internal static class SelectionChecks
         Tick(draft, true, p); draft.Player.mouseInterface = true; Host.mouseLeft = false; draft.ProcessTriggers(new());
         Check(draft.DragStart == null && draft.DraftMarks.Count == 0, "Release over other UI must not select world tiles");
         CheckPlatformsAndPlanterBoxes();
+        CheckFurniture();
         CheckModesAndRestrictions();
         Console.WriteLine($"PASS: {assertions} selection assertions; 4 tools at 3 UI scales, draft/queue isolation, exit, start, cancel, input capture, stale targets, platforms and planter boxes.");
     }
@@ -107,11 +108,12 @@ internal static class SelectionChecks
                     Tick(c, true, plant); Tick(c, false, b);
                 }
                 else Select(c, a);
-                Check(c.DraftMarks.SetEquals([a, b]), $"{type}/{tool}: select both target tiles without plants or adjacent different types");
+                Point[] expected = tool == DollCommand.Mine ? [a, b, plant] : [a, b];
+                Check(c.DraftMarks.SetEquals(expected), $"{type}/{tool}: rectangle includes plants; chain only follows the matching type");
                 Host.GameUpdateCount = 15; Tick(c, false, b); Host.GameUpdateCount = 1;
-                Check(c.DraftMarks.SetEquals([a, b]), $"{type}/{tool}: periodic validation must retain platforms and planter boxes");
+                Check(c.DraftMarks.SetEquals(expected), $"{type}/{tool}: periodic validation retains selected objects");
                 Button(c, DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize).Start);
-                Check(c.TileMarks.SetEquals([a, b]) && c.Tool == null, $"{type}/{tool}: submit both tiles to the mining queue");
+                Check(c.TileMarks.SetEquals(expected) && c.Tool == null, $"{type}/{tool}: submit selected objects to the mining queue");
             }
             Host.tile[a.X, a.Y].HasTile = false;
             Check(!DollCommandPlayer.IsMarkable(a.X, a.Y, false), $"{type}: removed tiles must not remain markable");
@@ -119,11 +121,54 @@ internal static class SelectionChecks
         }
     }
 
+    private static void CheckFurniture()
+    {
+        foreach (var (type, width, height) in new[] { (79, 4, 2), (18, 2, 1), (14, 3, 2), (13, 1, 1), (4, 1, 1), (15, 1, 2) })
+        foreach (DollCommand tool in new[] { DollCommand.Mine, DollCommand.MineChain })
+        {
+            Host.tileFrameImportant[type] = true;
+            Terraria.ObjectData.TileObjectData.Fixtures[type] = new() { Width = width, Height = height };
+            for (int x = 90; x < 100; x++) for (int y = 30; y < 40; y++) Host.tile[x, y] = new Tile();
+            List<Point> cells = [];
+            for (int x = 0; x < width; x++) for (int y = 0; y < height; y++)
+            {
+                Point p = new(90 + x, 30 + y); cells.Add(p);
+                Host.tile[p.X, p.Y] = new Tile { HasTile = true, TileType = (ushort)type, TileFrameX = (short)(x * 18), TileFrameY = (short)(y * 18) };
+            }
+            var c = new DollCommandPlayer(); Begin(c, tool);
+            Select(c, cells[^1]);
+            Check(c.DraftMarks.SetEquals(cells), $"{type}: clicking one cell selects the complete furniture");
+            Select(c, cells[^1]);
+            Check(c.DraftMarks.Count == 0, $"{type}: furniture selection can be erased");
+            if (tool == DollCommand.Mine && cells.Count > 1)
+            {
+                c.DraftMarks.Add(cells[0]);
+                Select(c, cells[^1]);
+                Check(c.DraftMarks.SetEquals(cells), "A preexisting partial selection is completed, not inverted into another partial object");
+                Select(c, cells[0]);
+                Check(c.DraftMarks.Count == 0, "Clicking a different cell removes the whole selected object");
+            }
+            if (tool == DollCommand.Mine) { Tick(c, true, cells[0]); Tick(c, false, cells[^1]); }
+            else Select(c, cells[^1]);
+            Host.GameUpdateCount = 15; Tick(c, false, cells[0]); Host.GameUpdateCount = 1;
+            Check(c.DraftMarks.SetEquals(cells), $"{type}: complete furniture survives periodic validation");
+            Button(c, DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize).Start);
+            Check(c.TileMarks.SetEquals(cells), $"{type}: furniture reaches mining queue");
+        }
+        Host.tileAxe[5] = true; Host.tileHammer[26] = true;
+        foreach (ushort type in new ushort[] { 5, 26 })
+        {
+            Host.tile[100, 40] = new Tile { HasTile = true, TileType = type };
+            Check(!DollCommandPlayer.IsMarkable(100, 40, false), "Pickaxe selection excludes axe/hammer targets");
+        }
+        Check(!DollCommandPlayer.IsMarkable(0, 0, false), "World boundary is excluded");
+    }
+
     private static void CheckModesAndRestrictions()
     {
-        Check(DollCommands.Count == 6, "Chest uses right-click; wheel retains six task commands");
+        Check(DollCommands.Count == 4, "Wheel exposes four implemented task commands (planters moved to remote placement)");
         Check(Enumerable.Range(0, DollCommands.Count).Select(DollCommands.AtSlot).SequenceEqual(new[] {
-            DollCommand.Mine, DollCommand.BreakWall, DollCommand.Attack, DollCommand.Cancel, DollCommand.Dismiss, DollCommand.PlacePlanters }),
+            DollCommand.Mine, DollCommand.BreakWall, DollCommand.Cancel, DollCommand.Dismiss }),
             "Wheel slots preserve every command after merging chain entries");
         foreach (float scale in new[] { 1f, 1.5f, 2f })
         foreach (bool walls in new[] { false, true })

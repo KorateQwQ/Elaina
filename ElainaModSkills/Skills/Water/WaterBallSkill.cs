@@ -14,7 +14,9 @@ public class WaterBallSkill: ElainaSkill
 {
     // 学习门槛读取配置中的角色等级上限，默认至少达到 30。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30));
+        new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(25), RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30));
+
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
 
     protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(), Ice.ShardbindSkill.NameFor(Player)];
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)

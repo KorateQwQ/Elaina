@@ -86,7 +86,7 @@ public sealed class ElainaSkillWheel : BaseBody
     private static bool CanStayOpen => HoldingWand && Main.hasFocus && !Main.gameMenu && !Main.drawingPlayerChat
         && !Main.ingameOptionsWindow && !Main.inFancyUI
         && Main.LocalPlayer is { active: true, dead: false }
-        && ElainaSkillManager.SelectionMode == SkillSelectionMode.Wheel && !ElainaHealingWheel.IsShowing
+        && !ElainaHealingWheel.IsShowing
         && !Skills.DollControl.DollCommandWheel.IsShowing;
 
     private static bool CanOpen => CanStayOpen && !Main.editSign && !Main.editChest && !Main.LocalPlayer.mouseInterface

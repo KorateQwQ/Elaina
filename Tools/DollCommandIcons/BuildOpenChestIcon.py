@@ -73,7 +73,7 @@ def preview(icon):
     draw.text((250, 52), "1x", fill="#a3a9bd")
     sheet.alpha_composite(icon, (250, 76))
     draw.text((250, 140), "EXISTING ICONS", fill="#a3a9bd")
-    for i, name in enumerate(("PlacePlanters", "Mine", "BreakWall")):
+    for i, name in enumerate(("Cancel", "Mine", "BreakWall")):
         with Image.open(Path(APPLY_DIR) / f"DollCommand_{name}.png") as existing:
             sheet.alpha_composite(existing.convert("RGBA"), (250 + i * 60, 166))
     return sheet

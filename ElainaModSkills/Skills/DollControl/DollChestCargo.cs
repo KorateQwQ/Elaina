@@ -119,11 +119,12 @@ public sealed partial class DollCommandPlayer
 
     private void SaveChestCargo(TagCompound tag)
     {
-        if (chestCargo.Count == 0) return;
         List<TagCompound> list = [];
         foreach (var (item, _) in chestCargo)
             if (!item.IsAir) list.Add(ItemIO.Save(item));
-        tag["DollChestCargo"] = list;
+        // 远程放置带走但尚未放下的物品同样是玩家的真实物品，存为携带物，下次进入时由玩偶交还。
+        foreach (Item item in CarriedPlacementItems()) list.Add(ItemIO.Save(item));
+        if (list.Count > 0) tag["DollChestCargo"] = list;
     }
 
     private void LoadChestCargo(TagCompound tag)

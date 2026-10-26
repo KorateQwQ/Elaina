@@ -1,18 +1,16 @@
+using 伊蕾娜.Config;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using KL.SkillSystem;
 using KL.AttributeSystem;
 using Terraria.DataStructures;
-using Terraria.GameInput;
 using Terraria.ModLoader.IO;
-using 伊蕾娜.Config;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
-using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using 伊蕾娜.ElainaModSkills.Skills.Fire;
 using 伊蕾娜.ElainaModSkills.Skills.Lightning;
 using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
 using 伊蕾娜.ElainaModSkills.Skills.Wind;
 using 伊蕾娜.Projectiles.MagicMissile;
-using System.Linq;
 using Terraria.ID;
 using 伊蕾娜.ElainaAttribute;
 
@@ -77,33 +75,6 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
         }
     }
 
-    public override void Load()
-    {
-        On_Player.QuickGrapple += On_PlayerOnQuickGrapple;
-        base.Load();
-    }
-
-    private void On_PlayerOnQuickGrapple(On_Player.orig_QuickGrapple orig, Player self)
-    {
-        if (ElainaSkillManager.SelectionMode != SkillSelectionMode.Slide)
-        {
-            orig(self);
-            return;
-        }
-        List<string> skillButton = new List<string>(2);
-        if(KeyBind.SwitchNextSkill.GetAssignedKeys().Count > 0) skillButton.Add(KeyBind.SwitchNextSkill.GetAssignedKeys()[0]);
-        if(KeyBind.SwitchPreviousSkill.GetAssignedKeys().Count > 0) skillButton.Add(KeyBind.SwitchPreviousSkill.GetAssignedKeys()[0]);
-
-        List<string> grappleButton = PlayerInput.CurrentProfile.InputModes[InputMode.Keyboard].KeyStatus["Grapple"];
-        // 检查skillButton和grappleButton是否有重复的按键
-        var duplicateKeys = skillButton.Intersect(grappleButton).ToList();
-        if (duplicateKeys.Count > 0)
-        {
-            return;
-        }
-        orig(self);
-    }
-
     public override void SaveData(TagCompound tag)
     {
         base.SaveData(tag);
@@ -121,73 +92,16 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     public override void PostUpdate()
     {
-        if (Main.netMode != NetmodeID.Server)
-        {
-            HandleOpenCloseSkillPanel();
-            if (ElainaSkillManager.SelectionMode == SkillSelectionMode.Slide)
-            {
-                HandleSwitchNextSkill();
-                HandleSwitchPreviousSkill();
-            }
-        }
-        base.PostUpdate();
-    }
-
-    void HandleOpenCloseSkillPanel()
-    {
-        // The legacy panel remains registered; the hotkey now opens the live constellation.
-        if (KeyBind.OpenSkillPanel?.JustPressed == true && Main.myPlayer == Player.whoAmI)
-        {
+        if (Main.netMode != NetmodeID.Server && Player.whoAmI == Main.myPlayer
+            && KeyBind.OpenSkillPanel?.JustPressed == true)
             ConstellationSkillPanel.TogglePanel();
-        }
-    }
-
-    void HandleSwitchNextSkill()
-    {
-        if (KeyBind.SwitchNextSkill.JustPressed&&Main.myPlayer==Player.whoAmI)
-        {
-            SwitchNextSkill();
-        }
-    }
-
-    void HandleSwitchPreviousSkill()
-    {
-        if (KeyBind.SwitchPreviousSkill.JustPressed&&Main.myPlayer==Player.whoAmI)
-        {
-            SwitchPreviousSkill();
-        }
+        base.PostUpdate();
     }
     public ElainaSkill GetCurrentSkill()
     {
         return null;
     }
 
-    public static void SwitchNextSkill()
-    {
-        int startIndex = CurrentSkillIndex;
-        for (int i = 1; i < GetActiveSkill.Count; i++)
-        {
-            int index = startIndex - i;
-            if (index < 0) index += GetActiveSkill.Count;
-            if (GetActiveSkill[index] != null) CurrentSkillIndex = index;
-        }
-
-        
-        PrintText($"SwitchNextSkill {CurrentSkillIndex}");
-    }
-
-    public static void SwitchPreviousSkill()
-    {
-        int startIndex = CurrentSkillIndex;
-        for (int i = 1; i < GetActiveSkill.Count; i++)
-        {
-            int index = startIndex + i;
-            if (index >= GetActiveSkill.Count) index -= GetActiveSkill.Count;
-            if (GetActiveSkill[index] != null) CurrentSkillIndex = index;
-        }
-        PrintText($"SwitchPreviousSkill {CurrentSkillIndex}");
-    }
-    
     //技能信息更新时，如果当前技能index为空，试图重新选择第一个有效的技能。
     public override void OnSkillsUpdated()
     {

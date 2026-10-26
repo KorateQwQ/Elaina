@@ -1,0 +1,30 @@
+// Real engine, production network/capture and freshly extracted Hit/loot/save methods.
+// Unrelated character systems and the presence of an owned doll are the only gameplay substitutes.
+namespace 伊蕾娜
+{
+    public class 伊蕾娜 { internal enum MessageType : byte { DollMining = 17 } }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
+{
+    public sealed partial class DollCommandPlayer : ModPlayer
+    {
+        public const float WorkRange = 2400f;
+        private readonly Dictionary<int, int> loot = [];
+        private readonly List<(int Type, int Stack)> captured = [];
+        internal readonly HashSet<Point> TileMarks = [], WallMarks = [];
+        internal bool BringBackItems { get; set; } = true;
+        internal int Count(int type) => loot.GetValueOrDefault(type);
+        internal void ResetLoot() => loot.Clear();
+        private Item BestHammer() => null;
+        private void SaveGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { }
+        private void LoadGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { }
+        private void SaveChestCargo(Terraria.ModLoader.IO.TagCompound tag) { }
+        private void LoadChestCargo(Terraria.ModLoader.IO.TagCompound tag) { }
+    }
+    public sealed class DollPetProjectile : ModProjectile
+    {
+        internal bool IsDismissing;
+        internal static bool Present = true;
+        internal static DollPetProjectile FindOwned(Player player) => Present ? new() : null;
+    }
+}

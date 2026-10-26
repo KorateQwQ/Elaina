@@ -256,6 +256,7 @@ internal static partial class VanillaChecks
         Check(new[] { "DebugMaxLevel", "DebugUnlockAll" }.All(name => typeof(AlchemyProgressPlayer).GetMethod(name) == null
             && typeof(AlchemyNotebookState).GetMethod(name) == null), "Release excludes the new debug entry points");
 #endif
+        CheckStageProgression();
         CheckBrewing();
         Console.WriteLine($"Alchemy vanilla integration: {passed} checks passed.");
         facsimile.Unload(); bridge.Unload();

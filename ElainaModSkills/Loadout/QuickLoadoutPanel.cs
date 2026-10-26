@@ -22,6 +22,7 @@ using 伊蕾娜.Config;
 
 namespace 伊蕾娜.ElainaModSkills.Loadout;
 
+#if DEBUG
 /// <summary>快捷配装：列出 SkillBalance.json 的 19 个阶段推荐配装，一键换上并把魔力与生命设为该阶段数值。</summary>
 [RegisterUI("Vanilla: Radial Hotbars", "Elaina: Quick Loadout", 1001)]
 public sealed class QuickLoadoutPanel : BaseBody
@@ -357,3 +358,4 @@ public sealed class QuickLoadoutInput : ModPlayer
             QuickLoadoutPanel.TogglePanel();
     }
 }
+#endif

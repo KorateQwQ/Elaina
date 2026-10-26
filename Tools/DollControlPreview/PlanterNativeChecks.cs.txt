@@ -28,6 +28,9 @@ internal static partial class PlanterNativeChecks
 #if GARDEN
         GardenSetup(mod);
 #endif
+#if PLACEMENT
+        PlacementSetup(mod);
+#endif
         var fixtures = new[] { "Planter", "Soil", "OrdinaryPlatform", "LargePlanter", "StylePlanter", "Herb", "AlternatePlanter", "UnlistedTop", "InvalidPlanter" }
             .Select(name => new FixtureTile(name)).ToArray();
         foreach (var tile in fixtures) { ((ILoadable)tile).Load(mod); ContentInstance.Register(tile); }
@@ -59,42 +62,45 @@ internal static partial class PlanterNativeChecks
             player.inventory[1] = new Item(pot, 5);
             ContentSamples.ItemsByType[pot] = new Item(pot);
             Point p = new(column++, 60);
-            var result = DollPlanterBuilding.Place(player, p, pot);
-            Check(result == DollPlanterBuilding.Result.Placed, $"Native unsupported planter {pot}: {result}");
+            var result = PlanterFixture.Place(player, p, pot);
+            Check(result == PlanterFixture.Result.Placed, $"Native unsupported planter {pot}: {result}");
             Check(Host.tile[p.X, p.Y].HasTile && Host.tile[p.X, p.Y].TileType == player.inventory[1].createTile,
                 "Real planter remains after tile framing without a supporting tile");
             Check(!Host.tile[p.X, p.Y - 1].HasTile && !Host.tile[p.X, p.Y + 1].HasTile && player.inventory[1].stack == 4,
                 "Only one planter is consumed; cells above and below remain empty");
-            Check(DollPlanterBuilding.Place(player, p, pot) == DollPlanterBuilding.Result.Blocked
+            Check(PlanterFixture.Place(player, p, pot) == PlanterFixture.Result.Blocked
                 && player.inventory[1].stack == 4, "Replaying work cannot duplicate or consume again");
         }
         var target = new Point(90, 90);
         for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
         player.inventory[0] = new Item(ItemID.WoodPlatform, 1);
-        Check(DollPlanterBuilding.Place(player, target, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.MissingPlanter
+        Check(PlanterFixture.Place(player, target, ItemID.DayBloomPlanterBox) == PlanterFixture.Result.MissingPlanter
             && !Host.tile[90, 91].HasTile && player.inventory[0].stack == 1, "Missing planter does not touch platforms");
         player.inventory[1] = new Item(ItemID.DayBloomPlanterBox, 1);
-        Check(DollPlanterBuilding.Place(player, target, ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed
+        Check(PlanterFixture.Place(player, target, ItemID.DayBloomPlanterBox) == PlanterFixture.Result.Placed
             && player.inventory[1].IsAir && player.inventory[0].stack == 1, "Last planter consumed, platform unchanged");
-        Check(DollPlanterBuilding.Place(player, new(91, 90), ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.MissingPlanter,
+        Check(PlanterFixture.Place(player, new(91, 90), ItemID.DayBloomPlanterBox) == PlanterFixture.Result.MissingPlanter,
             "Native material lookup detects planter exhaustion");
         player.inventory[1] = new Item(ItemID.ClayPot, 2);
-        Check(!DollPlanterBuilding.IsMaterial(player.inventory[1]) && DollPlanterBuilding.Options(player).Count == 0,
+        Check(!DollPlanterBuilding.IsMaterial(player.inventory[1]) && PlanterFixture.Options(player).Count == 0,
             "Clay pots and ordinary platforms are excluded from choices");
         Tile below = Host.tile[91, 91]; below.HasTile = true; below.TileType = TileID.Dirt;
-        Check(DollPlanterBuilding.Place(player, new(91, 90), ItemID.ClayPot) == DollPlanterBuilding.Result.MissingPlanter
+        Check(PlanterFixture.Place(player, new(91, 90), ItemID.ClayPot) == PlanterFixture.Result.MissingPlanter
             && player.inventory[1].stack == 2 && !Host.tile[91, 90].HasTile, "Clay pots rejected even with solid support");
         player.inventory[1] = new Item(ItemID.DayBloomPlanterBox, 2);
-        Check(DollPlanterBuilding.Place(player, new(91, 90), ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Placed
+        Check(PlanterFixture.Place(player, new(91, 90), ItemID.DayBloomPlanterBox) == PlanterFixture.Result.Placed
             && Host.tile[91, 91].TileType == TileID.Dirt, "Existing tile below a planter is preserved and does not block it");
         CheckCompatibility(player, fixtures);
+#if PLACEMENT
+        CheckPlacement(player);
+#endif
 #if GARDEN
         CheckGarden(player, fixtures);
         CheckMiningRules(player, fixtures[0]);
         CheckChests(player);
 #endif
         Host.myPlayer = 1;
-        Check(DollPlanterBuilding.Place(player, new(92, 90), ItemID.DayBloomPlanterBox) == DollPlanterBuilding.Result.Blocked,
+        Check(PlanterFixture.Place(player, new(92, 90), ItemID.DayBloomPlanterBox) == PlanterFixture.Result.Blocked,
             "Remote owners cannot place or consume");
         Console.WriteLine($"PASS: {passed} native tML placement checks; {planters.Length} unsupported planter styles, framing, consumption, exhaustion, owner authority.");
     }
@@ -158,9 +164,9 @@ internal static partial class PlanterNativeChecks
         player.inventory[0] = new Item(ItemID.WoodPlatform, 3);
         player.inventory[1] = potItem;
         ContentSamples.ItemsByType[60001] = Material(pot);
-        Check(DollPlanterBuilding.Options(player).Exists(o => o.Type == 60001), "Recognized mod planter reaches inventory menu");
+        Check(PlanterFixture.Options(player).Contains(60001), "Recognized mod planter reaches inventory menu");
         var p = new Point(120, 100);
-        Check(DollPlanterBuilding.Place(player, p, 60001) == DollPlanterBuilding.Result.Placed,
+        Check(PlanterFixture.Place(player, p, 60001) == PlanterFixture.Result.Placed,
             "Real TileObject placement supports registered mod planter");
         Check(Host.tile[p.X, p.Y].TileType == pot && player.inventory[0].stack == 3 && potItem.stack == 2
             && !Host.tile[p.X, p.Y - 1].HasTile && !Host.tile[p.X, p.Y + 1].HasTile, "Mod planter needs no support and consumes only itself");

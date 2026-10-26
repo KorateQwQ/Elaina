@@ -110,6 +110,7 @@ sealed partial class PosePreview
         CheckRendererEntryPoints(outfits[1]);
         CheckPausedHat();
         RenderAppearance(batch, outfits);
+        CheckSleepPortrait(batch);
         Console.WriteLine($"Native appearance setup: {appearanceChecks} checks passed; all {ArmorIDs.Head.Count} helmet slots covered.");
         Host.gamePaused = Host.gameMenu = false;
     }

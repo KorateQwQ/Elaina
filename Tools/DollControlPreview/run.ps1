@@ -12,14 +12,15 @@ $entries += ,@('Compile', (Join-Path $repo 'ElainaModSkills/SkillBalanceConfig.c
 # Link freshly extracted production target selectors; only world/tool readiness is stubbed.
 $production = Join-Path $repo 'ElainaModSkills/Skills/DollControl'
 $mining = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $production 'DollCommandPlayer.cs')
-$planting = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $production 'DollPlanterTask.cs')
+$placing = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $production 'DollPlacementTask.cs')
 $mineStart = $mining.IndexOf('    internal bool TrySelectTarget(')
 $mineEnd = $mining.IndexOf('    private bool InRange(', $mineStart)
-$plantStart = $planting.IndexOf('    internal bool TrySelectPlanterTarget(')
-$plantEnd = $planting.IndexOf('    internal void PlacePlanter(', $plantStart)
-if ($mineStart -lt 0 -or $mineEnd -lt 0 -or $plantStart -lt 0 -or $plantEnd -lt 0) { throw 'Production selectors were not found.' }
+$placeStart = $placing.IndexOf('    internal bool TrySelectPlacementTarget(')
+# Stop before CompletePlacement's doc comment; replaying vanilla placement needs the real engine (garden.ps1).
+$placeEnd = $placing.LastIndexOf('    ///', $placing.IndexOf('    internal void CompletePlacement(', $placeStart))
+if ($mineStart -lt 0 -or $mineEnd -lt 0 -or $placeStart -lt 0 -or $placeEnd -lt $placeStart) { throw 'Production selectors were not found.' }
 $selectors = "using System;`nusing System.Collections.Generic;`nnamespace " + [char]0x4F0A + [char]0x857E + [char]0x5A1C + ".ElainaModSkills.Skills.DollControl;`npublic sealed partial class DollCommandPlayer {`n" +
-    $mining.Substring($mineStart, $mineEnd - $mineStart) + $planting.Substring($plantStart, $plantEnd - $plantStart) + "`n}"
+    $mining.Substring($mineStart, $mineEnd - $mineStart) + $placing.Substring($placeStart, $placeEnd - $placeStart) + "`n}"
 $selectorPath = Join-Path $output 'TargetSelectors.cs'
 Set-Content -LiteralPath $selectorPath -Value $selectors -Encoding utf8
 $entries += ,@('Compile', $selectorPath)

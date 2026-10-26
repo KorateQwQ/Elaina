@@ -20,7 +20,8 @@ public class WaterLaser : ElainaBasicProjectile
 {
     public static float SplashRadius => 230f;
     public const float SplashDamageMultiplier = 0.5f;
-    public const float OutsideFreezeCooldownDamageMultiplier = 0.7f / 0.9f;
+    public const float FreezeCooldownDamageBonus = 0.3f;
+    public const float OutsideFreezeCooldownDamageMultiplier = 1f / (1f + FreezeCooldownDamageBonus);
     private const float BeamWidth = 50f;
 
     private float maxDistance;

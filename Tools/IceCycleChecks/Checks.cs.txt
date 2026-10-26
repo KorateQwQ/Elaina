@@ -12,6 +12,7 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
 using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Items;
@@ -198,8 +199,33 @@ static class Checks
         Near(entry.BaseCooldown, 60, "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
         Near(config.GetSkillDamage(1, entry, 95), 12, "Lock burst reduced to twelve baseline seconds; cooldown and mana preserved");
         Check(entry.InitialCharges == 1 && entry.MaxCharges == 1, "One opening charge, no stockpile");
+        var stream = config.Skills[nameof(WaterLaserSKill)];
+        foreach (var (level, ratio) in new[] { (26, 1d), (35, 1d), (40, .9), (50, .82), (65, .7), (95, .7) })
+            Near(config.GetSkillDps(1, stream, level), ratio, $"Water Stream DPS at character level {level}");
+        CheckWaterDamage();
         foreach (string culture in new[] { "zh-Hans", "en-US" }) Hjson.HjsonValue.Parse(File.ReadAllText(Path.Combine(root, $"Localization/{culture}_Mods.伊蕾娜.SkillInfo.hjson")));
         Console.WriteLine($"Ice cycle integration: {passed} checks passed against compiled KL/Elaina and real tML entities. Both HJSON files parsed. No renderer or live multiplayer sockets exercised.");
+    }
+
+    static void CheckWaterDamage()
+    {
+        // 槽位复用检查会替换先前的 NPC；这里使用独立实体，确保共享锚点仍指向当前目标。
+        var target = NpcFixture(170); var part = NpcFixture(171, 170); var other = NpcFixture(172);
+        var beam = Attach(new WaterLaser());
+        typeof(WaterLaser).GetField("primaryTarget", All)!.SetValue(beam, target.whoAmI);
+        foreach (int cooldown in new[] { 0, 1, 600 }) {
+            FreezeCD(target, cooldown); FreezeCD(other, cooldown);
+            float expected = cooldown > 0 ? 1f : 1f / 1.3f;
+            foreach (var npc in new[] { target, part, other }) {
+                var modifiers = new NPC.HitModifiers();
+                beam.ModifyHitNPC(npc, ref modifiers);
+                Near(modifiers.SourceDamage.ApplyTo(1), expected * (npc == target ? 1 : .5f),
+                    "Water Stream retains per-target freeze-CD multiplier and half splash damage");
+            }
+        }
+        float ordinary = WaterLaser.OutsideFreezeCooldownDamageMultiplier;
+        Near(WaterLaser.FreezeCooldownDamageBonus, .3, "Description displays a 30 percent freeze-CD bonus");
+        Near(1f / ordinary - 1f, .3, "Actual freeze-CD damage is 30 percent above ordinary damage");
     }
 
     static Skill Owned(ElainaSkill modSkill)

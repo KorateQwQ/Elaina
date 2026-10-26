@@ -16,8 +16,9 @@ public class FlightSkill : ElainaSkill
     // 扫帚加速与冲刺扣魔力时不转换生命（见 扫帚.cs），描述据此追加通用警告。
     public override bool AllowsLifeConversion => false;
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireConfiguredCharacterLevelCap(nameof(FlightSkill), 15),
+        new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(15), RequireConfiguredCharacterLevelCap(nameof(FlightSkill), 15),
             RequireConfiguredCharacterLevel(nameof(FlightSkill), 11));
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(10);
     public override void Initialize()
     {
         base.Initialize();

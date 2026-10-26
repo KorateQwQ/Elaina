@@ -5,20 +5,53 @@ using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
 using Terraria.ModLoader.IO;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModSkills;
 using 伊蕾娜.System;
+using 伊蕾娜.System.Experience;
+using GameMain = Terraria.Main;
+using KL.SkillSystem;
+using 伊蕾娜.ElainaModSkills.Skills.Alchemy;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using 伊蕾娜.ElainaModSkills.Skills.Flight;
+using 伊蕾娜.ElainaModSkills.Skills.Heal;
+using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
+using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
+using 伊蕾娜.ElainaModSkills.Skills.Recall;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+using 伊蕾娜.ElainaModSkills.Skills.Wind;
 
 static class Checks
 {
     static int passed;
+    static bool registeredPlayers;
     static void Check(bool value, string reason)
     {
         if (!value) throw new Exception(reason);
         passed++;
     }
 
+    static (ElainaStatePlayer State, ElainaSkillModPlayer Skills) CharacterFixture(int index = 0)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+        var entity = new Player { active = true, whoAmI = index };
+        var state = new ElainaStatePlayer(); var skills = new ElainaSkillModPlayer();
+        ModPlayer[] components = [state, skills];
+        for (ushort i = 0; i < components.Length; i++) {
+            typeof(ModPlayer).GetProperty("Entity", flags)!.SetValue(components[i], entity);
+            typeof(ModPlayer).GetProperty("Index", flags)!.SetValue(components[i], i);
+            if (!registeredPlayers) ContentInstance.Register(components[i]);
+        }
+        registeredPlayers = true;
+        typeof(Player).GetField("modPlayers", flags)!.SetValue(entity, components);
+        return (state, skills);
+    }
+
     static void Main()
     {
         Terraria.Program.SavePath = Path.GetTempPath();
+        GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
         var manager = typeof(KLGameStateManager);
         const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
         var originals = (IDictionary)manager.GetField("origBossInfos", flags)!.GetValue(null)!;
@@ -43,7 +76,7 @@ static class Checks
             return info;
         }
 
-        var player = new ElainaStatePlayer();
+        var (player, skills) = CharacterFixture();
         player.DebugResetProgress();
         Check(!player.DebugGetNextBoss(out _, out _), "Uninitialized lists have no next stage.");
         Original(NPCID.KingSlime, 1);
@@ -61,6 +94,7 @@ static class Checks
         player.Experience = 65;
         Check(player.DebugMaxLevel() && player.CurrentLevel == 5 && player.Experience == 0,
             "Max level reaches the initial cap and clears XP.");
+        Check(skills.SkillPoint == 50, "Debug max level grants the initial four levels and Lv5 bonus.");
         Check(player.Progress == 0 && player.ProgressSet.Count == 0 && !player.DebugMaxLevel(),
             "Max level is repeatable without advancing progress or recording bosses.");
         player.CurrentLevel = 5;
@@ -68,15 +102,19 @@ static class Checks
         Check(player.DebugAdvanceMaxLevel(out _, out state) && state == 1, "Advance to King Slime.");
         Check(player.Progress == 1 && player.GetMaxLevel() == 10 && player.ProgressSet.SequenceEqual(new[] { 1f }), "Advance progress, record and cap together.");
         Check(player.CurrentLevel == 5 && player.Experience == 42, "Raising cap does not grant levels or erase XP.");
+        Check(skills.SkillPoint == 110, "Cap 5 to 10 grants sixty study points in advance.");
         Check(player.DebugMaxLevel() && player.CurrentLevel == 10 && player.Experience == 0
             && player.Progress == 1 && player.ProgressSet.SequenceEqual(new[] { 1f }),
             "Max level reevaluates the raised cap and preserves boss history.");
+        Check(skills.SkillPoint == 110, "Max level does not repeat prepaid study points.");
         Check(player.DebugGetNextBossTooltip().Contains("NPC4"), "Tooltip immediately moves on to Eye.");
         player.DebugAdvanceMaxLevel(out _, out _);
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 3 && name.Contains(" / "), "Evil bosses share one stage.");
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 9 && name.Contains(" / "), "Segments and equal states are skipped; twins share a stage.");
         player.DebugAdvanceMaxLevel(out _, out _);
-        Check(!player.DebugAdvanceMaxLevel(out _, out _) && player.Progress == 18, "Final boss is a non-mutating no-op.");
+        int finalPoints = skills.SkillPoint;
+        Check(!player.DebugAdvanceMaxLevel(out _, out _) && player.Progress == 18 && skills.SkillPoint == finalPoints,
+            "Final boss is a non-mutating no-op without repeated points.");
         player.DebugResetProgress();
         Check(player.DebugGetNextBoss(out _, out state) && state == 1 && player.CurrentLevel == 1 && player.Experience == 0, "Reset returns to first boss.");
 
@@ -86,6 +124,7 @@ static class Checks
         Boss("SameStage", .5f);
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == .5f && name == "First", "External bosses use sorted character progress and stable ties, not events or world state.");
         Check(player.GetMaxLevel() == KLGameStateManager.GetLevelCap(.5f), "Fractional progression obeys KL cap mapping even when unchanged.");
+        Check(skills.SkillPoint == finalPoints, "Reset preserves claim history and equal-cap bosses do not grant points.");
         Check(player.DebugGetNextBoss(out name, out state) && name == "Later" && state == 2, "Equal progression is not advanced twice.");
         player.DebugAdvanceMaxLevel(out _, out _);
         Check(!player.DebugGetNextBoss(out _, out _), "Do not mix vanilla fallback states into an active external list.");
@@ -108,6 +147,105 @@ static class Checks
         legacyRemainder.LoadData(converted);
         Check(legacyRemainder.CurrentLevel == 12 && legacyRemainder.Experience == 50,
             "Converted remainder survives actual TagCompound save/load without repeated level grants.");
+        bosses.Clear();
+        CheckStudyPoints();
+        CheckStudyCosts();
         Console.WriteLine($"PASS: {passed} character progress checks against production assemblies.");
+    }
+
+    static void CheckStudyPoints()
+    {
+        var (state, skills) = CharacterFixture();
+        Check(ExperienceRules.StudyPointsForLevels(1, 1) == 0
+            && ExperienceRules.StudyPointsForLevels(1, 35) == 410
+            && ExperienceRules.StudyPointsForLevels(4, 5) == 20
+            && ExperienceRules.StudyPointsForLevels(10, 5) == 0
+            && ExperienceRules.StudyPointsForLevels(1, int.MaxValue) > int.MaxValue,
+            "Study-point totals cover milestones, backwards bounds and large values.");
+        state.AddExperience(100);
+        Check(state.CurrentLevel == 2 && skills.SkillPoint == 10, "Normal experience grants ten study points per level.");
+        state.AddExperience(int.MaxValue);
+        Check(state.CurrentLevel == 5 && skills.SkillPoint == 50, "Multi-level normal awards include the Lv5 bonus.");
+        state.AddExperience(1000); state.GetLevel(); state.GetLevel();
+        Check(skills.SkillPoint == 50, "Banked experience and repeated level reads do not pay at the cap.");
+        // Simulate a real Boss unlocking a new cap, without the debug prepayment.
+        state.Progress = 1;
+        Check(state.GetLevel() == 6 && skills.SkillPoint == 60, "A banked level consumed after a Boss pays once.");
+        state.AddExperience(int.MaxValue);
+        Check(state.CurrentLevel == 10 && skills.SkillPoint == 110, "Normal Lv10 total is 110 study points.");
+        var (prepaid, prepaidSkills) = CharacterFixture();
+        prepaid.DebugMaxLevel();
+        Check(prepaid.DebugGetNextBossTooltip().Contains("补发 60 研习点"), "Cap tooltip predicts the unpaid reward.");
+        prepaid.DebugAdvanceMaxLevel(out _, out _);
+        Check(prepaid.CurrentLevel == 5 && prepaidSkills.SkillPoint == 110, "Debug cap advance prepays without increasing current level.");
+        var save = new TagCompound(); prepaid.SaveData(save);
+        var pointsSave = new TagCompound(); prepaidSkills.SaveData(pointsSave);
+        var (loaded, loadedSkills) = CharacterFixture();
+        loaded.LoadData(save); loadedSkills.LoadData(pointsSave);
+        loaded.AddExperience(int.MaxValue);
+        Check(loaded.CurrentLevel == 10 && loadedSkills.SkillPoint == 110, "Prepaid claim history and balance survive save/load without double payment.");
+        loaded.DebugResetProgress(); loaded.DebugMaxLevel(); loaded.DebugAdvanceMaxLevel(out _, out _);
+        Check(loadedSkills.SkillPoint == 110, "Resetting progress preserves paid levels and cannot repeat them.");
+        var (legacy, legacySkills) = CharacterFixture();
+        legacySkills.SkillPoint = 37;
+        legacy.LoadData(new TagCompound { ["progress"] = 1f, ["currentLevel"] = 8, ["experience"] = 0 });
+        Check(legacySkills.SkillPoint == 37, "Old saved levels are not retroactively paid.");
+        legacy.AddExperience(ExperienceRules.RequiredForLevel(8));
+        Check(legacy.CurrentLevel == 9 && legacySkills.SkillPoint == 47, "Old saves receive study points for their next actual level.");
+        legacySkills.SkillPoint = int.MaxValue - 5;
+        legacy.AddExperience(ExperienceRules.RequiredForLevel(9));
+        Check(legacySkills.SkillPoint == int.MaxValue, "Study-point awards saturate instead of overflowing.");
+        var (remote, remoteSkills) = CharacterFixture(1);
+        Check(remote.AddExperience(100) == 0 && remoteSkills.SkillPoint == 0, "Remote characters cannot receive local rewards.");
+        GameMain.netMode = NetmodeID.Server;
+        var (server, serverSkills) = CharacterFixture();
+        Check(server.AddExperience(100) == 0 && serverSkills.SkillPoint == 0, "Server does not write client-owned study points.");
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        var (fresh, freshSkills) = CharacterFixture();
+        fresh.DebugAdvanceMaxLevel(out _, out _);
+        Check(fresh.CurrentLevel == 1 && freshSkills.SkillPoint == 110, "First debug cap grant includes unpaid initial levels.");
+    }
+
+    static IEnumerable<SkillUnlockCondition> Leaves(SkillUnlockCondition condition) =>
+        condition is CompositeSkillUnlockCondition group ? group.Conditions.SelectMany(Leaves) : [condition];
+
+    static void CheckStudyCosts()
+    {
+        var (_, skills) = CharacterFixture();
+        Check(SkillBalanceConfig.TryParse(File.ReadAllText(SkillBalanceConfig.ResourcePath), out var config, out var error), error);
+        int total = 0;
+        foreach (var (skill, unlock, upgrade, level) in new (ElainaSkill, int, int, int)[] {
+            (new AshenWitchSkill(), 0, 0, 1), (new MagicMissileSkill(), 0, 5, 15),
+            (new MagicBarrierSkill(), 10, 0, 1), (new MultiMissileSkill(), 20, 15, 7),
+            (new AlchemySkill(), 10, 15, 7), (new DollControlSkill(), 20, 15, 7),
+            (new FlightSkill(), 15, 10, 3), (new WindSlashSkill(), 20, 5, 9),
+            (new HealSkill(), 20, 15, 2), (new WaterLaserSKill(), 25, 5, 5),
+            (new WaterBallSkill(), 25, 15, 3), (new RecallSkill(), 20, 0, 1) }) {
+            string id = skill.GetType().Name;
+            var leaves = Leaves(skill.UnlockCondition).ToArray();
+            Check(leaves.OfType<SkillPointUnlockCondition>().Sum(c => c.SkillPointCost) == unlock, id + " planned unlock cost");
+            var items = leaves.OfType<ItemSkillUnlockCondition>().SelectMany(c => c.Items).ToArray();
+            Check(skill is RecallSkill ? items.Length == 1 && items[0].ItemType == ItemID.PotionOfReturn && items[0].Stack == 1
+                : items.Length == 0, id + " no placeholder materials; only Recall consumes a return potion");
+            if (level > 1) {
+                Check(config.GetSkillLevelCap(config.Skills[id], 35) == level, id + " meat-pre progression nodes match budget");
+                var owned = new Skill();
+                typeof(Skill).GetProperty("ModSkill", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(owned, skill);
+                skill.Skill = owned;
+                for (int next = 2; next <= level; next++) {
+                    var cost = skill.GetConstellationUpgradeCondition(next);
+                    Check(cost is SkillPointUnlockCondition p && p.SkillPointCost == upgrade, id + " point-only upgrade at " + next);
+                    skills.SkillPoint = upgrade - 1;
+                    Check(!cost.TryUnlock(skills, skill) && skills.SkillPoint == upgrade - 1, id + " shortage cannot spend");
+                    skills.SkillPoint = upgrade;
+                    Check(cost.TryUnlock(skills, skill) && skills.SkillPoint == 0, id + " exact upgrade points consumed");
+                }
+            }
+            total += unlock + (level - 1) * upgrade;
+        }
+        Check(total == 650, "All planned pre-Hardmode skills at Lv35 cost 650 points including Recall");
+        Check(!Enum.GetNames<DollCommand>().Contains("Attack") && !Enum.GetNames<DollCommand>().Contains("PlacePlanters")
+            && (int)DollCommand.Cancel == 5 && (int)DollCommand.Dismiss == 6,
+            "Attack and Place Planters removed without changing existing command IDs");
     }
 }

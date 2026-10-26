@@ -3,6 +3,16 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/doll-selection'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
+# Refresh the real world-selection renderer for a furniture-only FNA scene.
+$drawing = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollMarkSystem.cs')
+$drawStart = $drawing.IndexOf('    private static void DrawMarks(')
+$drawEnd = $drawing.IndexOf('    private readonly Dictionary', $drawStart)
+$cellStart = $drawing.IndexOf('    private static Rectangle Cell(')
+$cellEnd = $drawing.IndexOf('    public override void ModifyInterfaceLayers', $cellStart)
+"using Terraria.GameContent;`nnamespace 伊蕾娜.ElainaModSkills.Skills.DollControl;`ninternal static class FurnitureMarkPreview {`n" +
+    $drawing.Substring($drawStart, $drawEnd - $drawStart).Replace('private static void DrawMarks', 'internal static void DrawMarks') +
+    $drawing.Substring($cellStart, $cellEnd - $cellStart) + "`n}" |
+    Set-Content -LiteralPath (Join-Path $output 'FurnitureMarkPreview.cs') -Encoding utf8
 # Refresh actual input/selection and character persistence every run. WorldGen/network behavior is outside this harness.
 $source = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollCommandPlayer.cs')
 $end = $source.IndexOf('    #region 挖掘')
@@ -18,14 +28,12 @@ foreach ($entry in @(
     @('Reference', (Join-Path $Tml 'Libraries/ReLogic/1.0.0/ReLogic.dll')),
     @('Reference', (Join-Path $Tml 'Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll')),
     @('Compile', (Join-Path $output 'SelectionPlayer.cs')),
+    @('Compile', (Join-Path $output 'FurnitureMarkPreview.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollCommand.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollMiningRules.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollTileSelection.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollSelectionBarDrawing.cs')),
-    @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollPlanterBuilding.cs')),
-    @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollPlanterTask.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollWorkAssignments.cs')),
-    @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/DollControl/DollPlanterDrawing.cs')),
-    @('Compile', (Join-Path $PSScriptRoot 'PlanterSelectionChecks.cs.txt')),
     @('Compile', (Join-Path $PSScriptRoot 'SelectionStubs.cs.txt')),
     @('Compile', (Join-Path $PSScriptRoot 'SelectionChecks.cs.txt')),
     @('Compile', (Join-Path $PSScriptRoot 'SelectionPreview.cs.txt')),

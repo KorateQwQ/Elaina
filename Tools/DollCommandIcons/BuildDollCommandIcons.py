@@ -315,24 +315,6 @@ def icon_dismiss():
     return doc(body, "#ff6070")
 
 
-def icon_place_planters():
-    # 宽盆沿、收窄的陶土盆与两片嫩叶，在 40px 下保持清楚的种植轮廓。
-    body = f'''<path d="M9 23 L12 35 L27 35 L30 23 Z" fill="#bb6947" stroke="{OL}" stroke-width="2"/>
-<path d="M11 24 L13.5 33 L17 33 L15.5 24 Z" fill="#e69a68"/>
-<path d="M25 24 L23.5 33 L13.5 33 L14 35 L27 35 L30 23 Z" fill="#874633"/>
-<rect x="7" y="19" width="25" height="7" rx="1.4" fill="#d88456" stroke="{OL}" stroke-width="2"/>
-<path d="M9 20.5 H30" stroke="#f3b880" stroke-width="1.4"/>
-<path d="M9 24.5 H30" stroke="#a9553b" stroke-width="1.3"/>
-<path d="M11 19.5 Q19.5 16.5 28 19.5" fill="#51352d" stroke="{OL}" stroke-width="1.4"/>
-<path d="M19.5 20 L19.5 11" stroke="{OL}" stroke-width="4"/>
-<path d="M19.5 20 L19.5 11" stroke="#7eaa59" stroke-width="2"/>
-<path d="M19.5 14 C13 15 8 11 9 6 C15 5 20 8 19.5 14 Z" fill="#72a957" stroke="{OL}" stroke-width="2"/>
-<path d="M19.5 11 C19 6 23 3 30 4 C30 10 25 13 19.5 11 Z" fill="#91be65" stroke="{OL}" stroke-width="2"/>
-<path d="M11 7.5 Q15 8 17.5 11.5 M22 8.5 L27 5.5" fill="none" stroke="#c3df8c" stroke-width="1.3"/>
-'''
-    return doc(body, "#a8c879")
-
-
 ICONS = {
     "DollCommand_Attack": icon_attack,
     "DollCommand_Mine": icon_mine,
@@ -341,7 +323,6 @@ ICONS = {
     "DollCommand_BreakWallChain": icon_wall_chain,
     "DollCommand_Cancel": icon_cancel,
     "DollCommand_Dismiss": icon_dismiss,
-    "DollCommand_PlacePlanters": icon_place_planters,
 }
 
 

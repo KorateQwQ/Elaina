@@ -293,6 +293,7 @@ namespace 伊蕾娜
             PurificationDew,
             PurificationDewMap,
             PurificationDewProtection,
+            DollMining,
         }
 
 
@@ -312,6 +313,9 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
+                case MessageType.DollMining:
+                    ElainaModSkills.Skills.DollControl.DollMiningNetwork.HandlePacket(reader, whoAmI, playernumber);
+                    break;
                 case MessageType.PurificationDewProtection:
                     ElainaModAlchemy.Purification.PurificationProtectionSystem.HandlePacket(reader, whoAmI, playernumber);
                     break;

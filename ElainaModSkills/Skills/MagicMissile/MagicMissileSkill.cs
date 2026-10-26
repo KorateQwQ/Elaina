@@ -25,6 +25,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 [SkillUIInfo(State = 0, Pixels = 200)]
 public class MagicMissileSkill : ElainaSkill
 {
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(5);
+
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         SkillUnlockCondition.None;
 

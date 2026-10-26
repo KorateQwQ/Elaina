@@ -1,0 +1,338 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria.GameInput;
+using Terraria.ID;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+// Real vanilla Player.PlaceThing / PlaceThing_Tiles / TileObject placement with the production DollPlacementSystem hooks.
+internal static partial class PlanterNativeChecks
+{
+    private static void PlacementSetup(Mod mod)
+    {
+        var commands = new DollCommandPlayer(); ((ILoadable)commands).Load(mod); ContentInstance.Register(commands);
+    }
+
+    private static void CheckPlacement(Player player)
+    {
+        int before = passed;
+        Host.myPlayer = 0; Host.netMode = NetmodeID.SinglePlayer;
+        Host.gameMenu = Host.mapFullscreen = Host.blockMouse = Host.gamePaused = false;
+        Host.drawingPlayerChat = Host.editSign = Host.inFancyUI = false;
+        Host.instance ??= (Host)RuntimeHelpers.GetUninitializedObject(typeof(Host));
+        PlayerInput.Triggers.Initialize();
+        var profile = new PlayerInputProfile("PlacementFixture");
+        foreach (var config in profile.InputModes.Values) config.SetupKeys();
+        typeof(PlayerInput).GetField("_currentProfile", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, profile);
+        Host.screenWidth = 1280; Host.screenHeight = 720;
+        Host.GameViewMatrix = new Terraria.Graphics.SpriteViewMatrix(null);
+        Host.GameViewMatrix.SetViewportOverride(new Viewport(0, 0, 1280, 720));
+        Host.GameViewMatrix.Zoom = Vector2.One;
+        Host.dust = Enumerable.Range(0, Host.dust.Length).Select(_ => new Dust()).ToArray();
+        // Returning carried items goes through the real Player.GetItem, which refreshes recipes.
+        Host.guideItem = new Item();
+        Host.recipe[0] = (Recipe)Activator.CreateInstance(typeof(Recipe), BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { null }, null)!;
+        Host.tileSolid[TileID.Dirt] = Host.tileSolid[TileID.LivingWood] = true;
+        Host.tileBlockLight[TileID.Dirt] = true;
+
+        // Ground row y = 160 from x = 20..200; everything above is empty air.
+        for (int x = 20; x <= 200; x++)
+            for (int y = 140; y <= 162; y++)
+            {
+                Tile tile = Host.tile[x, y];
+                tile.ClearEverything();
+                if (y >= 160) { tile.HasTile = true; tile.TileType = TileID.Dirt; }
+            }
+        player.active = true; player.dead = player.mouseInterface = player.noBuilding = false;
+        player.position = new Vector2(60 * 16, 157 * 16);
+        player.direction = 1;
+        Host.screenPosition = new Vector2(40 * 16, 120 * 16); // tiles 40..119 x 120..164 are on screen
+        for (int i = 0; i < 59; i++) player.inventory[i] = new Item();
+        player.inventory[0] = new Item(ItemID.DirtBlock, 2);
+        player.inventory[1] = new Item(ItemID.WorkBench, 2);
+        player.inventory[2] = new Item(ItemID.DayBloomPlanterBox, 1);
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        commands.Placements.Clear();
+        DollGardenSystem.Registered.Clear();
+        DollChestCursorSystem.Hovers = 0;
+
+        var system = new DollPlacementSystem(); system.Load();
+        try
+        {
+            DollPetProjectile.Owned = new FixtureDoll();
+            Check(!DollPlacementSystem.InVanillaRange(player, player.inventory[0], 90, 159)
+                && DollPlacementSystem.InVanillaRange(player, player.inventory[0], 63, 159), "Fixture targets straddle vanilla reach");
+
+            Use(0, 90, 159, out var context);
+            Check(commands.Placements.Count == 1 && !Host.tile[90, 159].HasTile && context.SkipItemConsumption
+                && player.itemTime == 0 && player.inventory[0].stack == 1,
+                "Out-of-reach click queues through vanilla checks; the doll carries one block off immediately");
+            Check(commands.Placements[0].Target == new Point(90, 159) && commands.Placements[0].Area == new Rectangle(90, 159, 1, 1),
+                "Queued block records target and single-cell footprint");
+            Check(commands.Placements[0].TileType == TileID.Dirt && !commands.Placements[0].IsObject,
+                "Queued block records the tile it will become for the ghost preview");
+            Check(DollChestCursorSystem.Hovers > 0, "Remote branch reports the bear-badge hover");
+
+            Use(0, 90, 159, out context);
+            Check(commands.Placements.Count == 1 && player.itemTime == 0 && !context.SkipItemConsumption,
+                "A spot already reserved by a pending placement is rejected");
+            Use(0, 91, 159, out _);
+            Use(0, 92, 159, out _);
+            Check(commands.Placements.Count == 2 && player.inventory[0].IsAir, "Two dirt blocks are carried off; the empty hand queues nothing more");
+            player.inventory[0] = new Item(ItemID.DirtBlock, 5);
+            Use(0, 90, 150, out _);
+            Check(commands.Placements.Count == 2, "Vanilla adjacency still applies to remote targets (floating block rejected)");
+            Use(0, 130, 159, out _);
+            Check(commands.Placements.Count == 2 && !Host.tile[130, 159].HasTile, "Off-screen targets are not queued");
+
+            DollPetProjectile.Owned = null;
+            Use(0, 93, 159, out _);
+            Check(commands.Placements.Count == 2, "Without a doll, an out-of-reach click stays a vanilla no-op");
+            DollPetProjectile.Owned = new FixtureDoll();
+
+            // Replay: player is busy with another slot and aims elsewhere; everything is restored afterwards.
+            player.selectedItem = 5; player.itemTime = 3; player.itemAnimation = 0; player.controlUseItem = false;
+            bool swap = player.TileReplacementEnabled;
+            Player.tileTargetX = 42; Player.tileTargetY = 130;
+            commands.CompletePlacement(new Point(90, 159));
+            Check(Host.tile[90, 159].HasTile && Host.tile[90, 159].TileType == TileID.Dirt && player.inventory[0].stack == 5,
+                "Doll replay places the carried block without touching the inventory again");
+            Check(player.selectedItem == 5 && player.itemTime == 3 && player.itemAnimation == 0 && !player.controlUseItem
+                && Player.tileTargetX == 42 && Player.tileTargetY == 130 && player.blockRange == 0 && player.TileReplacementEnabled == swap,
+                "Replay restores the owner's selection, target, use state, reach and block swap");
+            Check(commands.Placements.Count == 1 && commands.Placements[0].Target == new Point(91, 159), "Completed placement leaves the queue");
+
+            Tile blocker = Host.tile[91, 159]; blocker.HasTile = true; blocker.TileType = TileID.Dirt;
+            commands.CompletePlacement(new Point(91, 159));
+            Check(commands.Placements.Count == 0 && player.inventory[0].stack == 6, "Blocked replay is dropped and the carried block returns");
+            blocker.ClearTile();
+
+            Use(1, 70, 159, out _);
+            Check(commands.Placements.Count == 1 && commands.Placements[0].Area.Width == 2 && commands.Placements[0].Area.Height == 1,
+                "Furniture reserves its full TileObjectData footprint");
+            Check(player.inventory[1].stack == 1, "Queued furniture is carried off at once");
+            Check(commands.Placements[0].IsObject && commands.Placements[0].TileType == TileID.WorkBenches,
+                "Queued furniture keeps its TileObject type for the vanilla placement preview");
+            Use(1, 71, 159, out _);
+            Check(commands.Placements.Count == 1, "Overlapping furniture footprint is rejected");
+            commands.CompletePlacement(commands.Placements[0].Target);
+            Check(Host.tile[70, 159].HasTile && Host.tile[70, 159].TileType == TileID.WorkBenches
+                && Host.tile[71, 159].TileType == TileID.WorkBenches && player.inventory[1].stack == 1,
+                "Replayed furniture is placed by TileObject without a second deduction");
+
+            Use(2, 80, 159, out _);
+            Check(player.inventory[2].IsAir && commands.Placements.Count == 1, "The last planter leaves the inventory when queued");
+            commands.CompletePlacement(new Point(80, 159));
+            Check(Host.tile[80, 159].TileType == TileID.PlanterBox && player.inventory[2].IsAir
+                && DollGardenSystem.Registered.Contains((new Point(80, 159), ItemID.DayBloomPlanterBox)),
+                "Doll-placed planter is registered for tending");
+            player.inventory[2] = new Item(ItemID.DayBloomPlanterBox, 1);
+            Use(2, 63, 159, out context);
+            Check(Host.tile[63, 159].TileType == TileID.PlanterBox && commands.Placements.Count == 0 && !context.SkipItemConsumption
+                && DollGardenSystem.Registered.Contains((new Point(63, 159), ItemID.DayBloomPlanterBox)),
+                "In-reach placement stays vanilla and still registers the planter while dolls are out");
+
+            player.inventory[0] = new Item(ItemID.DirtBlock, 3);
+            Use(0, 100, 159, out _); Use(0, 101, 159, out _);
+            Check(player.inventory[0].stack == 1 && commands.Placements.Count == 2, "Each queued cell takes one block");
+            commands.CancelPlacements();
+            Check(player.inventory[0].stack == 3 && commands.Placements.Count == 0, "Cancelling returns every carried block");
+
+            // Held on the mouse cursor: slot 58 is rebuilt from Main.mouseItem every frame, so the cursor stack itself must shrink.
+            Host.mouseItem = new Item(ItemID.DirtBlock, 3);
+            player.inventory[58] = Host.mouseItem.Clone();
+            Use(58, 95, 159, out _);
+            Check(commands.Placements.Count == 1 && Host.mouseItem.stack == 2 && player.inventory[58].stack == 2,
+                "A block held on the cursor is carried off from the cursor stack");
+            commands.CompletePlacement(new Point(95, 159));
+            Check(Host.tile[95, 159].TileType == TileID.Dirt && Host.mouseItem.stack == 2 && player.inventory[58].stack == 2,
+                "Placing the cursor block does not deduct again");
+            Host.mouseItem = new Item(ItemID.DirtBlock, 1);
+            player.inventory[58] = Host.mouseItem.Clone();
+            Use(58, 96, 159, out _);
+            Check(Host.mouseItem.IsAir && commands.Placements.Count == 1, "The last cursor block empties the cursor");
+            commands.CancelPlacements();
+            Host.mouseItem = new Item();
+            player.inventory[58] = new Item();
+            Check(player.inventory[0].stack == 4, "A cancelled cursor block goes back into the inventory");
+
+            // Tile wands carry one unit of material; the replay no longer needs material in the inventory.
+            player.inventory[4] = new Item(ItemID.LivingWoodWand);
+            player.inventory[6] = new Item(ItemID.Wood, 1);
+            Use(4, 97, 159, out _);
+            Check(commands.Placements.Count == 1 && player.inventory[6].IsAir && player.inventory[4].type == ItemID.LivingWoodWand,
+                "A wand placement carries one material, not the wand");
+            commands.CompletePlacement(new Point(97, 159));
+            Check(Host.tile[97, 159].HasTile && Host.tile[97, 159].TileType == TileID.LivingWood && player.inventory[6].IsAir,
+                "The wand replay places with the carried material");
+
+            // Smart cursor: with dolls out its reach covers the screen, so line/fill placement keeps working far away.
+            commands.Placements.Clear();
+            player.selectedItem = 0; player.inventory[0] = new Item(ItemID.DirtBlock, 10);
+            bool smartBlocks = Player.SmartCursorSettings.SmartBlocksEnabled;
+            Host.SmartCursorWanted_Mouse = Host.SmartCursorWanted_GamePad = true;
+            Player.SmartCursorSettings.SmartBlocksEnabled = true;
+            try
+            {
+                Point Smart(Point mouse)
+                {
+                    Host.mouseX = mouse.X * 16 + 8 - (int)Host.screenPosition.X;
+                    Host.mouseY = mouse.Y * 16 + 8 - (int)Host.screenPosition.Y;
+                    Player.tileTargetX = mouse.X; Player.tileTargetY = mouse.Y;
+                    Host.SmartCursorShowing = false;
+                    Terraria.GameContent.SmartCursorHelper.SmartCursorLookup(player);
+                    return Host.SmartCursorShowing ? new(Player.tileTargetX, Player.tileTargetY) : new(-1, -1);
+                }
+                Point far = Smart(new Point(95, 157));
+                Check(far.X >= 93 && far.X <= 97 && far.Y >= 157 && far.Y <= 159 && Player.tileRangeX == 5 && Player.tileRangeY == 4,
+                    $"Smart cursor finds a block spot beside the far mouse and restores vanilla reach (got {far})");
+                Use(0, far.X, far.Y, out _);
+                Check(commands.Placements.Count == 1 && commands.Placements[0].Target == far, "Smart-cursor target is queued for a doll");
+                DollPetProjectile.Owned = null;
+                Point vanilla = Smart(new Point(95, 157));
+                Check(vanilla.X < 70, $"Without dolls smart cursor keeps vanilla reach (got {vanilla})");
+                DollPetProjectile.Owned = new FixtureDoll();
+            }
+            finally
+            {
+                Host.SmartCursorWanted_Mouse = Host.SmartCursorWanted_GamePad = false;
+                Player.SmartCursorSettings.SmartBlocksEnabled = smartBlocks;
+            }
+
+            // Platforms and planter boxes need no neighbour when placed remotely, in the queue and in the replay.
+            commands.Placements.Clear();
+            player.inventory[3] = new Item(ItemID.WoodPlatform, 5);
+            player.inventory[2] = new Item(ItemID.DayBloomPlanterBox, 2);
+            Use(3, 100, 140, out _);
+            Use(2, 104, 140, out _);
+            Use(0, 108, 140, out _);
+            Check(commands.Placements.Count == 2 && commands.Placements.Exists(p => p.Target == new Point(100, 140))
+                && commands.Placements.Exists(p => p.Target == new Point(104, 140)),
+                "Floating platform and planter queue remotely; a floating dirt block is still rejected");
+            Check(commands.Placements.Exists(p => p.Target == new Point(100, 140) && TileID.Sets.Platforms[p.TileType] && !p.IsObject)
+                && commands.Placements.Exists(p => p.Target == new Point(104, 140) && p.TileType == TileID.PlanterBox),
+                "Platform and planter ghosts use their legacy tile types");
+            commands.CompletePlacement(new Point(100, 140));
+            commands.CompletePlacement(new Point(104, 140));
+            Check(Host.tile[100, 140].HasTile && TileID.Sets.Platforms[Host.tile[100, 140].TileType] && player.inventory[3].stack == 4
+                && Host.tile[104, 140].TileType == TileID.PlanterBox && player.inventory[2].stack == 1
+                && DollGardenSystem.Registered.Contains((new Point(104, 140), ItemID.DayBloomPlanterBox)),
+                "Doll replay places the floating platform and planter, consuming one each and registering the planter");
+            Use(3, 62, 154, out _);
+            Check(!Host.tile[62, 154].HasTile && commands.Placements.Count == 0, "In-reach floating platform keeps vanilla adjacency rules");
+
+            // Pending cells support plain blocks: a column grown upward from one grounded block queues fully.
+            player.inventory[0] = new Item(ItemID.DirtBlock, 40);
+            Use(0, 110, 159, out _); Use(0, 110, 158, out _); Use(0, 110, 157, out _);
+            Check(commands.Placements.Count == 3, "Plain blocks may lean on adjacent pending placements");
+            commands.CompletePlacement(new Point(110, 157));
+            Check(Host.tile[110, 157].TileType == TileID.Dirt && commands.Placements.Count == 2,
+                "Replay honours pending support even before the lower cells exist");
+            commands.Placements.Clear();
+
+            // Fast drag: every cell the cursor crossed between frames is queued, without item-time throttling.
+            Release();
+            Drag(0, 112, 159);
+            Drag(0, 118, 159);
+            Check(Enumerable.Range(112, 7).All(x => commands.Placements.Exists(p => p.Target == new Point(x, 159))),
+                $"A six-cell jump along the ground fills every crossed cell (queued {commands.Placements.Count})");
+            Drag(0, 118, 154);
+            Check(Enumerable.Range(154, 5).All(y => commands.Placements.Exists(p => p.Target == new Point(118, y))),
+                "Dragging up into the air keeps the column connected through pending support");
+            int count = commands.Placements.Count;
+            Drag(0, 114, 150);
+            Check(commands.Placements.Count == count + 8 && commands.Placements.Exists(p => p.Target == new Point(114, 150)),
+                "A diagonal drag queues a 4-connected staircase");
+            Release();
+            Drag(0, 106, 150);
+            Check(commands.Placements.Count == count + 8, "A new press does not connect to the previous stroke");
+            int beforePlatforms = commands.Placements.Count;
+            player.inventory[3] = new Item(ItemID.WoodPlatform, 50);
+            Release();
+            Drag(3, 70, 130); Drag(3, 79, 130);
+            Check(commands.Placements.Count == beforePlatforms + 10, "Platforms drag into a floating line");
+            CheckGhostFrames();
+        }
+        finally
+        {
+            system.Unload();
+            DollPetProjectile.Owned = null;
+            commands.Placements.Clear();
+        }
+        Console.WriteLine($"PASS: {passed - before} native remote placement checks.");
+
+        // Ghost frames must match what vanilla WorldGen.TileFrame gives the same layout once it is really placed.
+        void CheckGhostFrames()
+        {
+            for (int x = 140; x <= 199; x++) for (int y = 140; y <= 158; y++) Host.tile[x, y].ClearEverything();
+            var cells = new List<(int X, int Y, int Type)>();
+            // Dirt: 3x3 block with arms, a horizontal bar, a vertical bar and an isolated cell cover all 16 neighbour masks.
+            foreach (var (x, y) in new[] { (150, 143), (151, 143), (152, 143), (150, 144), (151, 144), (152, 144), (150, 145), (151, 145),
+                (152, 145), (151, 142), (149, 144), (153, 144), (151, 146), (151, 147), (156, 143), (157, 143), (158, 143), (160, 142),
+                (160, 143), (160, 144), (163, 146), (148, 147), (147, 147), (147, 148), (165, 142), (165, 143), (166, 143) })
+                cells.Add((x, y, TileID.Dirt));
+            foreach (int x in new[] { 150, 151, 152, 153, 157 }) cells.Add((x, 152, TileID.Platforms));
+            cells.Add((154, 152, TileID.Dirt)); cells.Add((159, 152, TileID.Dirt)); cells.Add((160, 152, TileID.Platforms));
+            cells.Add((162, 152, TileID.Dirt)); cells.Add((161, 152, TileID.Platforms)); cells.Add((149, 152, TileID.Dirt)); cells.Add((148, 152, TileID.Platforms));
+            foreach (int x in new[] { 150, 151, 152, 153, 156 }) cells.Add((x, 155, TileID.PlanterBox));
+            foreach (var (x, y, type) in cells) { Tile t = Host.tile[x, y]; t.HasTile = true; t.TileType = (ushort)type; t.TileFrameX = t.TileFrameY = 0; }
+            foreach (var (x, y, _) in cells) WorldGen.TileFrame(x, y, resetFrame: true);
+            int World(Point p) => Host.tile[p.X, p.Y].HasTile ? Host.tile[p.X, p.Y].TileType : -1;
+            int mismatches = 0;
+            foreach (var (x, y, type) in cells)
+            {
+                if (type == TileID.Dirt && (World(new(x - 1, y)) is var l && l >= 0 && l != type || World(new(x + 1, y)) is var r && r >= 0 && r != type))
+                    continue; // dirt touching a platform blends with it; ghosts only model same-type seams
+                Tile t = Host.tile[x, y];
+                bool match = Enumerable.Range(0, 3).Any(variant =>
+                {
+                    Rectangle? frame = DollPlacementGhost.LegacyFrame(type, 0, new(x, y), World);
+                    if (frame == null) return false;
+                    if (type != TileID.Dirt) return frame.Value.X == t.TileFrameX && frame.Value.Y == t.TileFrameY;
+                    bool Same(int dx, int dy) => World(new(x + dx, y + dy)) == type;
+                    var f = DollPlacementGhost.BlockFrame(Same(0, -1), Same(0, 1), Same(-1, 0), Same(1, 0),
+                        Same(-1, -1), Same(1, -1), Same(-1, 1), Same(1, 1), variant);
+                    return f.X == t.TileFrameX && f.Y == t.TileFrameY;
+                });
+                if (!match)
+                {
+                    mismatches++;
+                    Console.WriteLine($"  frame mismatch {type} at {x},{y}: vanilla {t.TileFrameX},{t.TileFrameY} ghost {DollPlacementGhost.LegacyFrame(type, 0, new(x, y), World)}");
+                }
+            }
+            Check(mismatches == 0, $"Ghost frames for dirt, platforms and planters match vanilla TileFrame ({cells.Count} cells)");
+            foreach (var (x, y, _) in cells) Host.tile[x, y].ClearEverything();
+        }
+
+        // A separate click: release the button for one frame so no drag path connects to the previous click.
+        void Use(int slot, int x, int y, out Player.ItemCheckContext context)
+        {
+            Release();
+            player.selectedItem = slot;
+            player.itemTime = 0; player.itemAnimation = 10; player.controlUseItem = true;
+            Player.tileTargetX = x; Player.tileTargetY = y;
+            context = new Player.ItemCheckContext();
+            player.PlaceThing(ref context);
+        }
+        // One frame of a held drag at (x, y).
+        void Drag(int slot, int x, int y)
+        {
+            Tick();
+            player.selectedItem = slot;
+            player.itemAnimation = 10; player.controlUseItem = true;
+            Player.tileTargetX = x; Player.tileTargetY = y;
+            var context = new Player.ItemCheckContext();
+            player.PlaceThing(ref context);
+        }
+        void Release()
+        {
+            Tick();
+            player.itemAnimation = 0; player.controlUseItem = false;
+            var context = new Player.ItemCheckContext();
+            player.PlaceThing(ref context);
+        }
+        void Tick() => typeof(Host).GetField("_gameUpdateCount", BindingFlags.Static | BindingFlags.NonPublic)!
+            .SetValue(null, Host.GameUpdateCount + 1);
+    }
+}

@@ -1,6 +1,6 @@
 # 正式技能面板离线验证
 
-`pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、50 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。
+`pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、20 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。
 
 `-DiscoveryOnly` 链接正式 `StageGateUnlockCondition`、`ConstellationState` 与 `ConstellationDiscovery`，检查已习得/待研习/待启封/未显现四态、不可达门槛与其子技能未显现、未显现不能研习、可达门槛和未学前置列为缺口、依赖成环、追踪器的显现/启封判定与静默首次观察、共享新标记，以及提示队列的合并、淡入淡出、悬停保持和清空。随后导出显现、问号显现、多项合并、启封四种横幅的入场/停留/悬停帧（100%、125%），位于 `output/<culture>/discovery`。实际 SUI 点击、存档往返和真实 Boss 进度仍需游戏内验证。
 
@@ -56,7 +56,7 @@
 
 正式详情链接 `ConstellationRichText`，使用实际 KL 富文本与图标片段、项目字体，按参考的 20/21 像素行距排版。`growth` / `growth-poor` / `growth-long` 是隔离的视觉夹具，用示例值检查五行成长对比、消耗、资金不足与滚动裁剪；它们不为正式技能添加演示伤害或升级规则。常规 `active` / `passive` 等场景仍检查未提供成长对比时的实际界面行为。
 
-`-RequirementsOnly` 专项导出研习、进修、需求满足、边缘多行提示和长材料名称，包含小屏与 UI 缩放。状态检查链接正式需求解析器和 KL 消耗规则，覆盖跨背包槽统计、嵌套组合需求、红绿状态、部分材料增加后的刷新、动态研习费用传递、失败时不扣费以及自定义说明中的“研习点”命名。免费进修测试使用显式返回 None 的夹具，默认费用测试保留项目当前的木材×10＋研习点×20。
+`-RequirementsOnly` 专项导出研习、进修、需求满足、边缘多行提示和长材料名称，包含小屏与 UI 缩放。状态检查链接正式需求解析器和 KL 消耗规则，覆盖跨背包槽统计、嵌套组合需求、红绿状态、部分材料增加后的刷新、动态研习费用传递、失败时不扣费以及自定义说明中的“研习点”命名。免费进修测试使用显式返回 None 的夹具，通用材料需求使用隔离测试技能，正式默认进修只消耗研习点；肉前技能费用由 CharacterProgressChecks 对实际程序集逐项检查。
 
 ## 标题栏角色成长（2026-10-08）
 

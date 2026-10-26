@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 
 namespace 伊蕾娜.System.Experience;
 
-/// <summary>角色经验规则；光球数量不影响奖励，研习点另行结算。</summary>
+/// <summary>角色经验与升级研习点规则；光球数量不影响奖励。</summary>
 public static class ExperienceRules
 {
     public const float DistributionRadius = 1200f;
@@ -11,6 +11,9 @@ public static class ExperienceRules
     public const int FirstBossRewardDivisor = 4;
     public const int RepeatBossLifePerExperience = 200;
     public const int RepeatBossBarDivisor = 20;
+    public const int StudyPointsPerLevel = 10;
+    public const int StudyPointBonusInterval = 5;
+    public const int StudyPointBonus = 10;
     public const int FloatTicks = 30;
     public const int Lifetime = 900;
     public const float PickupRadius = 18f;
@@ -24,6 +27,14 @@ public static class ExperienceRules
     public static int ForEnemyLife(int baseLife) => baseLife <= 0 ? 0 : Math.Max(1, baseLife / EnemyLifePerExperience);
 
     public static int ForFirstBoss(int previousLevelCap) => RequiredForLevel(previousLevelCap) / FirstBossRewardDivisor;
+
+    /// <summary>从 previousLevel 升到 reachedLevel 的研习点总额；Lv1 无初始奖励。</summary>
+    public static long StudyPointsForLevels(int previousLevel, int reachedLevel)
+    {
+        int from = Math.Max(1, previousLevel), to = Math.Max(from, reachedLevel);
+        return (long)(to - from) * StudyPointsPerLevel
+            + (long)(to / StudyPointBonusInterval - from / StudyPointBonusInterval) * StudyPointBonus;
+    }
 
     // 补偿而非主要升级来源：KL 血条总生命的 0.5%，至多当前等级一条经验的 5%。
     public static int ForRepeatBoss(int realMaxHp, int level) => realMaxHp <= 0 ? 0

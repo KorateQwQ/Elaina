@@ -1,0 +1,82 @@
+using Terraria.ModLoader.IO;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModSkills.Skills.Alchemy;
+
+internal static partial class VanillaChecks
+{
+    private static void CheckStageProgression()
+    {
+        int previousCap = AlchemySkill.NotebookMaximumLevel;
+        try
+        {
+            int[] requirements = [100, 150, 200, 250, 300, 350, 400];
+            for (int target = 2; target <= 8; target++)
+            {
+                int current = target - 1, needed = requirements[target - 2];
+                AlchemySkill.NotebookMaximumLevel = current;
+                Progress.LoadData(new TagCompound
+                {
+                    ["Level"] = current, ["Experience"] = 0, ["Unlocked"] = new List<string>()
+                });
+                Check(Progress.Level == current && Progress.AddCraftExperience("moondew", 99) == 0
+                    && Progress.Experience == 0, $"Tier {current} does not bank crafting XP at its skill cap");
+
+                AlchemySkill.NotebookMaximumLevel = target;
+                Check(Progress.Level == current && Progress.Experience == 0 && Progress.ExperienceToNextLevel == needed,
+                    $"Opening tier {target} requires {needed} fresh crafting XP and does not auto-level");
+                int batches = needed / AlchemyProgressionRules.ExperiencePerBatch("moondew");
+                Check(Progress.AddCraftExperience("moondew", batches - 1) == needed - 10
+                    && Progress.Level == current && Progress.Experience == needed - 10,
+                    $"Tier {target} cannot advance before its final crafting batch");
+
+                var save = new TagCompound();
+                Progress.SaveData(save);
+                Progress.ResetProgress();
+                Progress.LoadData(save);
+                Check(Progress.Level == current && Progress.Experience == needed - 10,
+                    $"Tier {target} keeps partial crafting progress through save/load");
+                Check(Progress.AddCraftExperience("moondew", 3) == 10 && Progress.Level == target
+                    && Progress.Experience == 0 && Progress.ExperienceToNextLevel == 0,
+                    $"Tier {target} awards only the XP still needed and discards capped overflow");
+                Check(Progress.AddCraftExperience("mana", int.MaxValue) == 0 && Progress.Level == target
+                    && Progress.Experience == 0, $"Tier {target} continues refusing XP at the new cap");
+            }
+
+            // Consumable counts do not change per-batch XP; these include all discussion examples.
+            foreach (var (id, expected) in new (string, int)[]
+            {
+                ("moondew", 10), ("mana", 15), ("bread", 15), ("rain", 15),
+                ("featherlight", 15), ("painkiller", 15), ("trace", 20),
+                ("dropper", 20), ("mimic", 20), ("starpower", 20)
+            })
+                Check(AlchemyProgressionRules.ExperiencePerBatch(id) == expected,
+                    $"Recipe {id} retains its agreed per-batch XP");
+
+            AlchemySkill.NotebookMaximumLevel = 8;
+            foreach (var (id, required) in new (string, int)[]
+            {
+                ("trace", 2), ("dropper", 3), ("mimic", 3), ("featherlight", 4),
+                ("painkiller", 5), ("bloodlust", 8), ("starpower", 8), ("focus", 8), ("resonance", 8)
+            })
+            {
+                Progress.LoadData(new TagCompound
+                {
+                    ["Level"] = required - 1, ["Experience"] = 0, ["Unlocked"] = new List<string>()
+                });
+                Check(!Progress.ResearchStatus(id).CanResearch,
+                    $"Recipe {id} cannot support the XP climb to its own required tier");
+                Progress.LoadData(new TagCompound
+                {
+                    ["Level"] = required, ["Experience"] = 0, ["Unlocked"] = new List<string>()
+                });
+                Check(Progress.ResearchStatus(id).CanResearch,
+                    $"Recipe {id} becomes level-eligible at tier {required} in the crafting fixture");
+            }
+        }
+        finally
+        {
+            AlchemySkill.NotebookMaximumLevel = previousCap;
+            Progress.ResetProgress();
+        }
+    }
+}

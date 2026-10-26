@@ -145,8 +145,7 @@ public abstract partial class ElainaSkill : ModSkill
     public override SkillUnlockCondition UnlockCondition { get; set; } = DefaultUnlockCost;
 
     /// <summary>首次习得的默认消耗。</summary>
-    protected static SkillUnlockCondition DefaultUnlockCost => SkillUnlockCondition.
-        ByItemsAndSkillPoint(20,[new SkillUnlockItem(ItemID.Wood,10)]);// SkillUnlockCondition.ByItemsAndSkillPoint(10,[new SkillUnlockItem(ItemID.Wood,10),new SkillUnlockItem(ItemID.IronBar,10)]);
+    protected static SkillUnlockCondition DefaultUnlockCost => SkillUnlockCondition.BySkillPoint(20);
 
     private static int CharacterLevel(KLSkillModPlayer skillPlayer) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetLevel() ?? 0;
     private static int CharacterLevelCap(KLSkillModPlayer skillPlayer) => skillPlayer?.Player.GetModPlayer<ElainaStatePlayer>().GetMaxLevel() ?? 0;

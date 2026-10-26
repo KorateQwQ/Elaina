@@ -24,7 +24,9 @@ dotnet msbuild 伊蕾娜.csproj -t:Compile -p:BuildProjectReferences=false -v:qu
 
 检查直接链接实际 `ElainaGameStateSystem` 回调、Boss 发球逻辑、死亡钩子、光球 AI、网络处理、经验规则及 `ElainaStatePlayer`。引擎、KL 已确认事件投递和传输使用确定性桩，覆盖多人各得一份、参与资格、远距离参与、距离边界、接收者失效、槽位复用、吸收与过期、客户端拒绝结算、升级上限与存档。不能替代真实 tModLoader 双客户端联机测试。
 
-阶段测算运行 `pwsh -NoProfile -File Tools/ExperienceBalance/run.ps1`，直接链接正式规则和基础血量读取逻辑，从真实 tModLoader 默认值生成 `Tools/ExperienceBalance/REPORT.md`、`levels.csv`、`phases.csv`、`npc-defaults.json`。报告同时给出只升一级、整个阶段、已有一条封顶存储的口径；每个阶段只扣一次打开该阶段的 Boss 首杀奖励。研习点产出及技能费用尚未接入。
+阶段测算运行 `pwsh -NoProfile -File Tools/ExperienceBalance/run.ps1`，直接链接正式规则和基础血量读取逻辑，从真实 tModLoader 默认值生成 `Tools/ExperienceBalance/REPORT.md`、`levels.csv`、`phases.csv`、`npc-defaults.json`。报告同时给出只升一级、整个阶段、已有一条封顶存储的口径；每个阶段只扣一次打开该阶段的 Boss 首杀奖励。技能费用调整仍未接入。
+
+2026-10-27：角色升级已接入研习点：每级 10 点，每到 5 的倍数等级额外 10 点；跨级一次结算，Lv1→5 总计 50 点，Lv1→10 总计 110 点。真实 Boss 只解锁上限，封顶储存经验真正转为等级时才发点。调试增加上限提前结算至新上限，后续正常升级与重登不重复领取；旧存档的历史等级与载入时余经验转换不追补，后续新等级正常领取。
 
 2026-10-26：69 项经验流程检查、25 项正式程序集角色进度回归、2,721 项真实引擎默认值检查及正式源码编译通过。本次只调整经验、进度与奖励资格，没有修改光球绘制；未替代游戏内新角色流程和真实双客户端联机测试。
 

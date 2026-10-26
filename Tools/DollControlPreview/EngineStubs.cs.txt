@@ -22,6 +22,15 @@ namespace Terraria
         public static SpriteBatch spriteBatch;
         public static Vector2 screenPosition;
         public static bool dedServ;
+        public static readonly ItemLoaderBoundary instance = new();
+        public static readonly ItemAnimationBoundary[] itemAnimations = new ItemAnimationBoundary[1];
+    }
+    public sealed class ItemLoaderBoundary { public void LoadItem(int type) { } }
+    public sealed class ItemAnimationBoundary { public Rectangle GetFrame(Texture2D texture) => texture.Bounds; }
+    public static class ItemFrameBoundary
+    {
+        public static Rectangle Frame(this Texture2D texture) => texture.Bounds;
+        public static Vector2 Size(this Rectangle frame) => new(frame.Width, frame.Height);
     }
     public class Player
     {
@@ -77,7 +86,7 @@ namespace Terraria.Localization { public static class Language { public static s
 namespace KL.SkillSystem
 {
     // Unlock-condition host is not executed by this projectile fixture.
-    public class SkillUnlockCondition { }
+    public class SkillUnlockCondition { public static SkillUnlockCondition BySkillPoint(int points) => new(); }
     public class CompositeSkillUnlockCondition(params SkillUnlockCondition[] conditions) : SkillUnlockCondition { }
 }
 namespace Terraria.ModLoader
@@ -118,7 +127,10 @@ namespace ReLogic.Content
 }
 namespace Terraria.GameContent
 {
-    public static class TextureAssets { public static Asset<Texture2D>[] Projectile = new Asset<Texture2D>[1]; }
+    public static class TextureAssets {
+        public static Asset<Texture2D>[] Projectile = new Asset<Texture2D>[1];
+        public static Asset<Texture2D>[] Item = new Asset<Texture2D>[1];
+    }
 }
 namespace KL.SkillSystem.SilkyUI
 {
@@ -147,6 +159,7 @@ namespace 伊蕾娜.ElainaModSkills
             ? Math.Max(1, Configuration.GetSkillLevelCap(Configuration.Skills[GetType().Name], Player.CharacterLevel)) : 5;
         public virtual KL.SkillSystem.SkillUnlockCondition UnlockCondition { get; set; }
         protected static KL.SkillSystem.SkillUnlockCondition DefaultUnlockCost => new();
+        public virtual KL.SkillSystem.SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => new();
         protected static KL.SkillSystem.SkillUnlockCondition RequireConfiguredCharacterLevelCap(string id, int level) => new();
         protected static KL.SkillSystem.SkillUnlockCondition RequireConfiguredCharacterLevel(string id, int level) => new();
         protected virtual object[] SkillDescriptionArgs => [];
@@ -174,21 +187,28 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
     public sealed partial class DollCommandPlayer
     {
         public Player Player;
+        // Cargo inventory is covered by ChestNativeChecks; these team/animation fixtures carry no cargo.
+        internal int CarryType(DollPetProjectile worker) => 0;
+        internal bool CanDeliverCargo(DollPetProjectile worker) => false;
+        internal void DeliverChestCargo(DollPetProjectile worker, Vector2 from, Terraria.DataStructures.IEntitySource source) { }
         public sealed class MarkSet : HashSet<Point>
         {
             public void AddRange(IEnumerable<Point> points) => UnionWith(points);
             public Point this[int index] => this.ElementAt(index);
         }
-        public sealed class PlanterSet : Dictionary<Point, int>
+        internal readonly record struct PendingPlacement(Point Target, Rectangle Area, int ItemType, int SupplyType, int Direction);
+        internal sealed class PlacementList : List<PendingPlacement>
         {
-            public void Add(Point p) => this[p] = 1;
+            public void Add(Point p) => Add(new PendingPlacement(p, new Rectangle(p.X, p.Y, 1, 1), 1, 0, 1));
             public void AddRange(IEnumerable<Point> points) { foreach (Point p in points) Add(p); }
+            public bool Remove(Point p) => RemoveAll(x => x.Target == p) > 0;
         }
         public readonly MarkSet TileMarks = [], WallMarks = [];
         public MarkSet Targets => TargetsWalls ? WallMarks : TileMarks;
-        public readonly PlanterSet PlanterMarks = [];
-        public PlanterSet PlanterTargets => PlanterMarks;
-        public readonly HashSet<Point> BlockedTiles = [], BlockedWalls = [], InvalidTiles = [], InvalidWalls = [], BlockedPlanters = [];
+        // 正式 TrySelectPlacementTarget 由 run.ps1 提取；放置本身（原版回放与扣料）由 PlacementNativeChecks 用真实引擎验证。
+        internal readonly PlacementList Placements = [];
+        internal PlacementList PlacementTargets => Placements;
+        public readonly HashSet<Point> BlockedTiles = [], BlockedWalls = [], InvalidTiles = [], InvalidWalls = [];
         public readonly Dictionary<Point, Point> UnlockWallsAfterRemoval = [];
         private int validateTimer;
         private enum Work { Ready, Later, Never }
@@ -196,8 +216,9 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
             : (wall ? BlockedWalls : BlockedTiles).Contains(p) ? Work.Later : Work.Ready;
         private bool IsMarkable(int x, int y, bool wall) => !(wall ? InvalidWalls : InvalidTiles).Contains(new(x, y));
         private bool InRange(Point p) => Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) <= 2400f * 2400f;
-        private bool CanBuild(Point p) => !BlockedPlanters.Contains(p);
-        public void ClearTasks() { TileMarks.Clear(); WallMarks.Clear(); PlanterMarks.Clear(); workClaims.Clear(); }
+        private int PlacementAt(Point target) => Placements.FindIndex(p => p.Target == target);
+        private void ValidatePlacements() { }
+        public void ClearTasks() { TileMarks.Clear(); WallMarks.Clear(); Placements.Clear(); workClaims.Clear(); }
         public void ResumeGarden() { }
         public Point? PreviewChestTarget;
         public DollPetProjectile PreviewChestHelper;
@@ -213,16 +234,18 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         internal bool TrySelectGardenTarget(Vector2 from, Point current, out Point target, DollPetProjectile worker = null)
         { target = PreviewGardenTarget ?? new(-1, -1); return PreviewGardenTarget != null; }
         internal void TendGarden(Point point) { GardenActions++; }
-        public int PlacedPlanters;
+        public int PlacedBlocks;
         public bool TargetsWalls;
         public int HitsPerTile = 3, Interval = 6, Hits, Loot, Delivered;
         public Vector2 DeliveredAt;
-        public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlanterTargets.Count > 0;
+        public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlacementTargets.Count > 0;
         public bool HasLoot => Loot > 0;
-        internal void PlacePlanter(Point point) { if (PlanterTargets.Remove(point)) PlacedPlanters++; }
+        internal void CompletePlacement(Point point) { if (PlacementTargets.Remove(point)) PlacedBlocks++; }
         internal int HitInterval(bool walls) => Interval;
         readonly Dictionary<(Point, bool), int> damage = [];
-        internal void Hit(Point point, bool walls)
+        internal DollPetProjectile MiningCarrier;
+        internal bool HasMiningCargo(DollPetProjectile worker) => Loot > 0 && worker == MiningCarrier;
+        internal void Hit(Point point, bool walls, DollPetProjectile worker = null)
         {
             var marks = walls ? WallMarks : TileMarks;
             if (!marks.Contains(point)) throw new Exception("Duplicate or stale hit");
@@ -236,11 +259,13 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
             if (walls && UnlockWallsAfterRemoval.TryGetValue(point, out Point exposed)) BlockedWalls.Remove(exposed);
             Loot++;
         }
-        public void DeliverLoot(Vector2 from, Terraria.DataStructures.IEntitySource source)
+        public void DeliverLoot(Vector2 from, Terraria.DataStructures.IEntitySource source, DollPetProjectile worker = null)
         {
             if (Loot == 0) return;
+            if (worker != null && MiningCarrier != null && worker != MiningCarrier) return;
             Delivered += Loot;
             Loot = 0;
+            MiningCarrier = null;
             DeliveredAt = from;
         }
     }

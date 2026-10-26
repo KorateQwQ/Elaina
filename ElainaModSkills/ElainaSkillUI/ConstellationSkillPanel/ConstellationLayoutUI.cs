@@ -113,6 +113,7 @@ public sealed partial class ConstellationSkillPanel
                 Notify($"当前等级已达到上限 Lv. {playerState.GetMaxLevel()}");
                 return;
             }
+            InvalidateDetail(false);
             Notify($"角色等级提升至 Lv. {playerState.GetLevel()}");
         }, h => DrawDebugButton("level", h), "提升角色当前等级", () => !Editing);
         Button(ToolButton("max-level", false), () =>
@@ -126,14 +127,16 @@ public sealed partial class ConstellationSkillPanel
         }, h => DrawDebugButton("max-level", h), "角色等级升至当前上限，经验归零，不推进 Boss 进度", () => !Editing);
         Button(ToolButton("cap", false), () =>
         {
-            if (Editing) return;
+            if (Editing || !_state.IsCurrentPlayer) return;
             var playerState = Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>();
+            int pointsBefore = _state.Points;
             if (!playerState.DebugAdvanceMaxLevel(out string bossName, out float bossState))
             {
                 Notify($"角色 Progress {playerState.Progress:0.##} · 当前 Boss 列表中没有更高进度的 Boss");
                 return;
             }
-            Notify($"角色进度推进至 {bossName} · Progress {bossState:0.##} · 等级上限 Lv. {playerState.GetMaxLevel()}");
+            InvalidateDetail(false);
+            Notify($"角色进度推进至 {bossName} · 等级上限 Lv. {playerState.GetMaxLevel()} · 研习点 +{_state.Points - pointsBefore}");
         }, h => DrawDebugButton("cap", h), visible: () => !Editing,
             dynamicTooltip: () => Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().DebugGetNextBossTooltip());
         Button(ToolButton("master-skills", false), () =>

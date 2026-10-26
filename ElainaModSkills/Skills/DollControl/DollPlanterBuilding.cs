@@ -5,9 +5,10 @@ using Terraria.Enums;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
-/// <summary>一组为上方生长空格与下方种植盆；只使用主背包中的种植盆。</summary>
+/// <summary>种植盆识别（远程或亲手放下时据此登记照料），以及药草种植共用的单格放置。</summary>
 internal static class DollPlanterBuilding
 {
+    /// <summary>每名主人最多登记照料的种植盆数。</summary>
     internal const int Limit = 10000;
 
     private static readonly HashSet<int> herbSupports = [];
@@ -85,69 +86,6 @@ internal static class DollPlanterBuilding
                 foreach (int type in valid)
                     if (data.isValidTileAnchor(type)) herbSupports.Add(type);
         }
-    }
-
-    internal static List<(int Type, int Count)> Options(Player player)
-    {
-        Dictionary<int, int> counts = [];
-        for (int i = 0; i < 50; i++)
-        {
-            Item item = player.inventory[i];
-            if (IsMaterial(item)) counts[item.type] = counts.GetValueOrDefault(item.type) + item.stack;
-        }
-        List<(int Type, int Count)> result = [];
-        foreach (var pair in counts) result.Add((pair.Key, pair.Value));
-        result.Sort((a, b) => a.Count != b.Count ? b.Count.CompareTo(a.Count) : a.Type.CompareTo(b.Type));
-        return result;
-    }
-
-    internal static int Count(Player player, int type)
-    {
-        if (type <= 0) return 0;
-        int count = 0;
-        for (int i = 0; i < 50; i++)
-            if (player.inventory[i].type == type) count += player.inventory[i].stack;
-        return count;
-    }
-
-    private static Item Find(Player player, int type)
-    {
-        for (int i = 0; i < 50; i++)
-            if (!player.inventory[i].IsAir && player.inventory[i].type == type) return player.inventory[i];
-        return null;
-    }
-
-    internal static Rectangle Area(Point a, Point b)
-    {
-        int left = Math.Clamp(Math.Min(a.X, b.X), 1, Main.maxTilesX - 2);
-        int right = Math.Clamp(Math.Max(a.X, b.X), 1, Main.maxTilesX - 2);
-        int top = Math.Clamp(Math.Min(a.Y, b.Y), 1, Main.maxTilesY - 3);
-        int bottom = Math.Clamp(Math.Max(a.Y, b.Y), top, Main.maxTilesY - 2);
-        // 不完整的一行向下补齐；世界边界只保留完整的两层。
-        int rows = Math.Min((bottom - top + 2) / 2, (Main.maxTilesY - 1 - top) / 2);
-        return new(left, top, right - left + 1, rows * 2);
-    }
-
-    internal static bool CanBuild(Point p)
-    {
-        if (!WorldGen.InWorld(p.X, p.Y - 1, 1) || !WorldGen.InWorld(p.X, p.Y, 1)) return false;
-        for (int y = p.Y - 1; y <= p.Y; y++)
-        {
-            Tile tile = Main.tile[p.X, y];
-            // 不覆盖任何物块或植物，也不在液体里预留生长空间。
-            if (tile.LiquidAmount > 0 || tile.HasTile) return false;
-        }
-        return true;
-    }
-
-    internal enum Result { Placed, Blocked, MissingPlanter }
-
-    internal static Result Place(Player player, Point p, int planter)
-    {
-        if (player.whoAmI != Main.myPlayer || !CanBuild(p)) return Result.Blocked;
-        Item pot = Find(player, planter);
-        if (!IsMaterial(pot)) return Result.MissingPlanter;
-        return PlaceOne(player, p, pot) ? Result.Placed : Result.Blocked;
     }
 
     internal static bool PlaceOne(Player player, Point p, Item item, bool useLegacyPlacement = false)

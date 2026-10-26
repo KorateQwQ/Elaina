@@ -44,7 +44,7 @@ public sealed class AlchemyCatalogItemTypes : ModSystem
         "obsidian" => ItemID.Obsidian,
         "pixiedust" => ItemID.PixieDust,
         "bone" => ItemID.Bone,
-        "cloud" => ItemID.Cloud,
+        "raincloud" => ItemID.RainCloud,
         "waterleaf" => ItemID.Waterleaf,
         "honey" => ItemID.BottledHoney,
         "wood" => ItemID.Wood,

@@ -92,7 +92,7 @@ static partial class Checks
         commands.Targets.Clear();
         for (int i = 0; i < 300; i++) Tick(doll);
         Check(!doll.HasWork && !doll.IsMining, "Cleared tasks send the doll back to following");
-        commands.PlanterTargets.AddRange(new[] { first, second });
+        commands.PlacementTargets.AddRange(new[] { first, second });
         int priorHits = commands.Hits;
         doll.AI();
         using (var plantStream = new MemoryStream())
@@ -103,13 +103,13 @@ static partial class Checks
             World.myPlayer = 1;
             for (int i = 0; i < 240; i++) Tick(remote);
             World.myPlayer = 0;
-            Check(remote.IsUsing && commands.PlacedPlanters == 0 && commands.PlanterTargets.Count == 2,
+            Check(remote.IsUsing && commands.PlacedBlocks == 0 && commands.PlacementTargets.Count == 2,
                 "Synced placement targets animate remotely without consuming or placing");
         }
         for (int i = 0; i < 900 && commands.HasTask; i++) Tick(doll);
-        Check(commands.PlacedPlanters == 2 && commands.Hits == priorHits && !commands.HasTask,
+        Check(commands.PlacedBlocks == 2 && commands.Hits == priorHits && !commands.HasTask,
             "Owner flies to placement targets and calls placement, never mining");
-        commands.PlanterTargets.Add(first); Tick(doll); commands.PlanterTargets.Clear(); Tick(doll);
+        commands.PlacementTargets.Add(first); Tick(doll); commands.PlacementTargets.Clear(); Tick(doll);
         Check(!doll.HasWork, "Cancel a placement task immediately restores following");
         foreach (float speed in new[] { 3f, 12f, 30f })
         {
@@ -185,6 +185,16 @@ static partial class Checks
         skill.DeserializeData(new Terraria.ModLoader.IO.TagCompound());
         Check(skill.MaxCD == 1f && skill.MagicPointCost == 20f, "Old skill saves must restore current cost/cooldown");
         RunTeamChecks();
+        doll = Reset(); owner = World.player[0]; commands = owner.GetModPlayer<DollCommandPlayer>();
+        doll.Projectile.Center = owner.Center + new Vector2(500, 0);
+        commands.Loot = 1; commands.MiningCarrier = doll;
+        commands.PreviewGardenTarget = new Point(40, 20);
+        Tick(doll);
+        Check(Target(doll).Point.X < 0 && commands.Delivered == 0,
+            "Miner carrying confirmed loot returns instead of taking a garden job or delivering remotely");
+        for (int i = 0; i < 300 && commands.Delivered == 0; i++) Tick(doll);
+        Check(commands.Delivered == 1 && Vector2.Distance(commands.DeliveredAt, owner.Center) < 120f,
+            "Actual carrier AI flies back before releasing confirmed cargo");
         RunProgressionChecks();
         Console.WriteLine($"PASS: {assertions} production skill/AI/target assignment assertions (world/resource host is stubbed).");
     }

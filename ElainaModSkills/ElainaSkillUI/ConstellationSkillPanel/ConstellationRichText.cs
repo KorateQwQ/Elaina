@@ -71,7 +71,7 @@ internal sealed class ConstellationRichText
                 if (token == "\n") { Commit(); continue; }
                 if (line.Count == 0 && string.IsNullOrWhiteSpace(token)) continue;
                 int next = match.Index + match.Length;
-                float reserve = next < snippet.Text.Length && "，。！？；：、”」）".Contains(snippet.Text[next])
+                float reserve = next < snippet.Text.Length && "，。！？；：、”」）%".Contains(snippet.Text[next])
                     ? (font.MeasureString(snippet.Text[next].ToString()).X + font.CharacterSpacing) * _scale : 0;
                 var part = snippet.Copy(token);
                 if (part.GetStringLength(font) * _scale <= width) Add(part, reserve);

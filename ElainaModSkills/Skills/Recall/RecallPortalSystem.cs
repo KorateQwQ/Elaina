@@ -100,32 +100,43 @@ public sealed class RecallPortalSystem : ModSystem
     internal static void HandlePacket(BinaryReader reader, int sender, int playerIndex)
     {
         Operation operation = (Operation)reader.ReadByte();
-        if (Main.netMode == NetmodeID.Server)
+        bool validPlayer = playerIndex >= 0 && playerIndex < Main.maxPlayers;
+        // 从连接确定操作者；不接受客户端指定其他玩家或目的坐标。
+        bool fromOwner = Main.netMode == NetmodeID.Server && validPlayer && playerIndex == sender;
+        bool onClient = Main.netMode == NetmodeID.MultiplayerClient && validPlayer;
+        // 先完整读取对应操作的字段，再决定是否应用；被拒绝或忽略的包也不能留下未读数据。
+        switch (operation)
         {
-            // 从连接确定操作者；不接受客户端指定其他玩家或目的坐标。
-            if (sender < 0 || sender >= Main.maxPlayers || playerIndex != sender || !Main.player[sender].active) return;
-            switch (operation)
+            case Operation.Travel:
             {
-                case Operation.Travel: Travel(sender, reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()); break;
-                case Operation.SpawnPoint:
-                    ApplySpawnPoint(Main.player[sender], reader.ReadInt32(), reader.ReadInt32());
+                int caster = reader.ReadInt32(), pairId = reader.ReadInt32(), side = reader.ReadInt32();
+                if (fromOwner && Main.player[sender].active) Travel(sender, caster, pairId, side);
+                break;
+            }
+            case Operation.SpawnPoint:
+            {
+                int x = reader.ReadInt32(), y = reader.ReadInt32();
+                if (fromOwner)
+                {
+                    // SyncPlayer 在入服握手阶段就会发送出生点，此时玩家尚未 active。
+                    ApplySpawnPoint(Main.player[sender], x, y);
                     // 转发给其他客户端：施法者需要知道所选友军的家在哪里才能打开出口。
                     SendSpawnPoint(Main.player[sender], ignoreClient: sender);
-                    break;
+                }
+                else if (onClient && playerIndex != Main.myPlayer) ApplySpawnPoint(Main.player[playerIndex], x, y);
+                break;
             }
-        }
-        else if (Main.netMode == NetmodeID.MultiplayerClient && playerIndex >= 0 && playerIndex < Main.maxPlayers)
-        {
-            switch (operation)
+            case Operation.Teleport:
             {
-                case Operation.Teleport:
-                    Vector2 position = new(reader.ReadSingle(), reader.ReadSingle());
-                    if (float.IsFinite(position.X) && float.IsFinite(position.Y)) ApplyTeleport(Main.player[playerIndex], position);
-                    break;
-                case Operation.SpawnPoint:
-                    if (playerIndex != Main.myPlayer) ApplySpawnPoint(Main.player[playerIndex], reader.ReadInt32(), reader.ReadInt32());
-                    break;
-                case Operation.Flash: FlashPair(playerIndex, reader.ReadInt32()); break;
+                Vector2 position = new(reader.ReadSingle(), reader.ReadSingle());
+                if (onClient && float.IsFinite(position.X) && float.IsFinite(position.Y)) ApplyTeleport(Main.player[playerIndex], position);
+                break;
+            }
+            case Operation.Flash:
+            {
+                int pairId = reader.ReadInt32();
+                if (onClient) FlashPair(playerIndex, pairId);
+                break;
             }
         }
     }

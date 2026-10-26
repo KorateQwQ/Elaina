@@ -22,6 +22,7 @@ internal static class Fixtures
         Skill.RegisterSkill.Clear();
         foreach (var type in Types.Concat(extras)) Skill.RegisterSkill.Add(type.FullName, Skill.NewSkill(type));
         var player = new ElainaSkillModPlayer();
+        player.Player.SetModPlayer(player);
         Terraria.Main.LocalPlayer = player.Player;
         Terraria.Main.gameMenu = false;
         ElainaSkillModPlayer.SkillModPlayer = player;
@@ -333,6 +334,7 @@ internal static class PanelChecks
         character.CurrentLevel = 2; character.Experience = 80;
         Check(character.DebugMaxLevel() && character.CurrentLevel == 10 && character.Experience == 0 && character.Cap == 10,
             "max level reaches current cap and resets XP without advancing cap");
+        Check(player.SkillPoint == 100, "max level awards each new level and both five-level study bonuses");
         Check(!character.DebugMaxLevel(), "max level is idempotent");
         character.CurrentLevel = 2; character.Experience = 80;
         Skill.RegisterSkill[nameof(MagicBarrierSkill)].BasicStatus = Skill.SKillBasicStatus.Hide;
@@ -374,6 +376,7 @@ internal static class PanelChecks
         Check(state.DebugMasterSkills(out learned, out levels) && character.CurrentLevel == 20
             && state.Level(nameof(MasterBaseSkill)) == 10 && state.Level(nameof(FireLaserSkill)) == 0 && state.Level(nameof(WaterBallSkill)) == 0
             && learned == 0, "master reevaluates dynamic caps without relearning skills");
+        Check(player.SkillPoint == 120, "master grants new character level study points without charging for skills");
         foreach (int cap in new[] { 35, 36, 39 })
         {
             character.Cap = cap;
