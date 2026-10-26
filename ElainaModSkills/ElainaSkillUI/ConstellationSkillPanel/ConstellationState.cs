@@ -193,6 +193,7 @@ internal sealed class ConstellationState
         var hash = new HashCode();
         hash.Add(LocalizeUI("NotebookTitle"));
         hash.Add(Selected); hash.Add(Filter); hash.Add(Points); hash.Add(CanUnlock);
+        hash.Add(ForgetArmed); hash.Add(ForgetBooks);
         foreach (var node in Skills)
         {
             hash.Add(Status(node)); hash.Add(Level(node.id)); hash.Add(node.ModSkill.IsEnabled);
@@ -294,6 +295,21 @@ internal sealed class ConstellationState
         Refresh();
         return true;
     }
+    /// <summary>已点“忘却”、等待确认的技能；改选或关闭手札时取消。</summary>
+    internal string ForgetArmed;
+    internal int ForgetBooks => SkillForgetting.Books(_player);
+    internal bool CanForget(string id) => IsCurrentPlayer && IsLearned(id) && SkillForgetting.CanForget(_player, Resolve(id));
+    internal int ForgetRefund(string id) => IsLearned(id) && Resolve(id).ModSkill is ElainaSkill skill ? SkillForgetting.Refund(skill, Level(id)) : 0;
+    internal bool Forget(string id, out int refund)
+    {
+        refund = 0;
+        ForgetArmed = null;
+        Refresh();
+        if (!CanForget(id) || !SkillForgetting.TryForget(_player, Resolve(id), out refund)) return false;
+        _player.OnSkillsUpdated();
+        Refresh();
+        return true;
+    }
     internal bool Toggle(string id)
     {
         Refresh();
@@ -364,6 +380,7 @@ internal sealed class ConstellationState
     internal void Select(string id)
     {
         if (Find(id) == null) return;
+        if (Selected != id) ForgetArmed = null;
         Selected = id;
         Filter = Status(Current);
     }

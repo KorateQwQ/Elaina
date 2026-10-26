@@ -53,6 +53,9 @@ internal static partial class VanillaChecks
         Check(!brew.Enter(50, 50), "Cannot enter a distant cauldron");
         Prepare(); Player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = false;
         Check(!brew.Enter(50, 50), "Only Elaina enters the custom pose");
+        Prepare(); 伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill.Learned = false;
+        Check(!brew.Enter(50, 50) && !brew.Active, "Elaina cannot use the cauldron before learning alchemy");
+        伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill.Learned = true;
         Prepare();
         Check(source.Request(AlchemyNotebookAction.Craft, "moondew") && !source.LastResult.Success && Untouched(),
             "Crafting without entering a cauldron is rejected");
@@ -62,7 +65,7 @@ internal static partial class VanillaChecks
         Tick(100); brew.CloseNotebook();
         Check(brew.IsBrewing && Untouched(), "Closing notebook mid-stir does not cancel or consume stock");
         Check(brew.Enter(50, 50) && brew.Session.Ticks == 100 && brew.IsBrewing, "Reopen preserves elapsed time and active job");
-        Tick(AlchemyBrewSession.DurationTicks - 101);
+        Tick(brew.Session.DurationTicks - 101);
         Check(Untouched(), "No materials or output change on the penultimate tick");
         Tick(1);
         Check(source.LastResult is { Success: true, Pending: false, OutputCount: 6 } && brew.IsReading &&
@@ -74,7 +77,7 @@ internal static partial class VanillaChecks
 
         foreach (string interruption in new[] { "hurt", "death", "kill", "pot", "teleport", "character", "world" })
         {
-            Prepare(); Start(); Tick(AlchemyBrewSession.DurationTicks - 1);
+            Prepare(); Start(); Tick(brew.Session.DurationTicks - 1);
             switch (interruption)
             {
                 case "hurt": brew.OnHurt(new Player.HurtInfo { Damage = 1 }); break;
@@ -85,18 +88,18 @@ internal static partial class VanillaChecks
                 case "character": Player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = false; break;
                 case "world": brew.Cancel(false); break;
             }
-            Tick(AlchemyBrewSession.DurationTicks + 1);
+            Tick(brew.Session.DurationTicks + 1);
             Check(!brew.Active && Untouched() && !source.LastResult.Success, $"{interruption} on final boundary cancels without loss or later output");
         }
         Prepare(); Start(); Tick(100); Player.inventory[1].TurnToAir();
-        Tick(AlchemyBrewSession.DurationTicks - 100);
+        Tick(brew.Session.DurationTicks - 100);
         Check(!source.LastResult.Success && Count(ItemID.BottledWater) == 6 && Count(ItemID.LesserManaPotion) == 0 && Progress.Experience == 0,
             "Missing material at completion cannot consume the other ingredient or award items");
         Prepare(); Start(); Tick(100); Player.inventory[1].stack = 1;
-        Tick(AlchemyBrewSession.DurationTicks - 100);
+        Tick(brew.Session.DurationTicks - 100);
         Check(source.LastResult.OutputCount == 3 && Count(ItemID.BottledWater) == 5 && Progress.Experience == 10,
             "Changed batch capacity only charges and rewards batches that actually complete");
-        Prepare(); Start(); brew.CloseNotebook(); Tick(AlchemyBrewSession.DurationTicks);
+        Prepare(); Start(); brew.CloseNotebook(); Tick(brew.Session.DurationTicks);
         Check(!brew.Active && source.LastResult.OutputCount == 6, "Closed notebook completes and releases the pose without reopening");
         Prepare();
 
@@ -106,7 +109,7 @@ internal static partial class VanillaChecks
             using var stream = new MemoryStream();
             using var writer = new BinaryWriter(stream);
             writer.Write((byte)phase); writer.Write(origin.X); writer.Write(origin.Y);
-            writer.Write(AlchemyBrewSession.DurationTicks - 1); writer.Flush(); stream.Position = 0;
+            writer.Write(59); writer.Write(60); writer.Flush(); stream.Position = 0;
             AlchemyBrewingPlayer.Receive(new BinaryReader(stream), sender, player);
         }
         GameMain.netMode = NetmodeID.Server;
@@ -117,7 +120,7 @@ internal static partial class VanillaChecks
         GameMain.netMode = NetmodeID.MultiplayerClient;
         Receive(AlchemyBrewPhase.Stirring, 0, 1, new Point(50, 50));
         remote.PostUpdate();
-        Check(remote.IsBrewing && !brew.Active && Untouched(), "Remote animation cannot consume the local player's stock or finish a craft");
+        Check(remote.IsBrewing && remote.Session.DurationTicks == 60 && remote.Session.Ticks == 60 && !brew.Active && Untouched(), "Remote animation receives the shortened duration without consuming local stock");
         Receive(AlchemyBrewPhase.Idle, 0, 1, new Point(50, 50));
         Check(!remote.Active, "Remote cancellation clears its pose");
         Receive(AlchemyBrewPhase.Stirring, 0, 1, new Point(-1, -1));
@@ -126,5 +129,70 @@ internal static partial class VanillaChecks
         Check(!remote.Active, "Invalid tile, phase and player index cannot create a session");
         GameMain.netMode = NetmodeID.SinglePlayer;
         GameMain.player[1].active = false;
+        CheckEfficiency();
+    }
+
+    private static void CheckEfficiency()
+    {
+        var timer = new AlchemyBrewSession();
+        timer.Open();
+        for (int level = 1; level <= 8; level++)
+        {
+            Check(timer.Start(level), "Each tier can start brewing");
+            int duration = timer.DurationTicks;
+            Check(duration == new[] { 240, 214, 189, 163, 137, 111, 86, 60 }[level - 1], "Linear duration uses game ticks");
+            for (int i = 0; i < duration - 1; i++) Check(!timer.Tick(), "Cannot finish before the tier duration");
+            Check(timer.Tick(), "Tier completes on its exact final tick");
+            timer.Complete();
+        }
+        var random = GameMain.rand;
+        var brew = Player.GetModPlayer<AlchemyBrewingPlayer>();
+        try
+        {
+            foreach (int roll in new[] { 34, 35 })
+            {
+                Clear(); Progress.LoadData(new Terraria.ModLoader.IO.TagCompound
+                { ["Level"] = 8, ["Experience"] = 0, ["Unlocked"] = new List<string>() });
+                Player.inventory[0] = new Item(ItemID.BottledWater, 3);
+                Player.inventory[1] = new Item(ItemID.Moonglow, 3);
+                GameMain.rand = new YieldRoll(roll);
+                var result = AlchemyCraftingService.CompleteCraft(Player, "moondew", 3, 1);
+                int expected = roll == 34 ? 18 : 9;
+                Check(result.Success && result.OutputCount == expected && Count(ItemID.LesserManaPotion) == expected,
+                    "35 percent boundary grants one base yield per successful batch");
+                Check(Count(ItemID.BottledWater) == 0 && Count(ItemID.Moonglow) == 0 && Progress.Experience == 30,
+                    "Bonus yield consumes no extra ingredients and grants no extra XP");
+            }
+            Clear(); Progress.ResetProgress();
+            Player.inventory[0] = new Item(ItemID.BottledWater);
+            Player.inventory[1] = new Item(ItemID.Moonglow);
+            GameMain.rand = new YieldRoll(0);
+            var first = AlchemyCraftingService.CompleteCraft(Player, "moondew", 1, 1);
+            Check(first.OutputCount == 3, "Level one never grants bonus yield even with a zero roll");
+            Clear(); Progress.LoadData(new Terraria.ModLoader.IO.TagCompound
+            { ["Level"] = 1, ["Experience"] = 90, ["Unlocked"] = new List<string>() });
+            Player.inventory[0] = new Item(ItemID.BottledWater, 3);
+            Player.inventory[1] = new Item(ItemID.Moonglow, 3);
+            var crossing = AlchemyCraftingService.CompleteCraft(Player, "moondew", 3, 1);
+            Check(crossing.OutputCount == 9 && Progress.Level == 2 && Progress.Experience == 20,
+                "Level gained during a multi-batch operation does not change its bonus chance");
+            Progress.LoadData(new Terraria.ModLoader.IO.TagCompound
+            { ["Level"] = 8, ["Experience"] = 0, ["Unlocked"] = new List<string>() });
+            Player.inventory[0] = new Item(ItemID.BottledWater);
+            Player.inventory[1] = new Item(ItemID.Moonglow);
+            Check(brew.Enter(50, 50) && brew.StartBrew("moondew", 1, 1).Pending && brew.Session.DurationTicks == 60,
+                "Production brew starts with actual level eight's one-second duration");
+            brew.Cancel(false);
+            var trace = AlchemyVanillaRecipes.Get("trace");
+            Check(trace.createItem.stack == 3 && trace.requiredItem.Any(i => i.type == ItemID.Lens && i.stack == 1)
+                && trace.requiredItem.Any(i => i.type == ItemID.Blinkroot && i.stack == 1)
+                && trace.requiredItem.All(i => i.type != ItemID.Bone), "Trace recipe uses blinkroot and lens without dungeon bones");
+        }
+        finally { GameMain.rand = random; brew.Cancel(false); Clear(); Progress.ResetProgress(); }
+    }
+
+    private sealed class YieldRoll(int roll) : Terraria.Utilities.UnifiedRandom(1)
+    {
+        public override int Next(int maxValue) => maxValue == 100 ? roll : base.Next(maxValue);
     }
 }

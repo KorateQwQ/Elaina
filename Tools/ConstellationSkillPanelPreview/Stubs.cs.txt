@@ -6,6 +6,7 @@ global using SilkyUIFramework.Helper;
 global using PlainSnippet = Terraria.GameContent.UI.Chat.PlainTagHandler.PlainSnippet;
 global using Terraria;
 global using Terraria.Localization;
+using 伊蕾娜.System.Experience;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using ReLogic.Content;
@@ -32,6 +33,8 @@ namespace Terraria.ModLoader
     public static class ModContent
     {
         public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(object)PanelGame.Texture(path));
+        // Only the Book of Oblivion is resolved by type in the preview.
+        public static int ItemType<T>() => 90001;
         internal static int OptionalRequests;
         public static bool RequestIfExists<T>(string path, out Asset<T> asset, AssetRequestMode mode)
         {
@@ -40,6 +43,26 @@ namespace Terraria.ModLoader
             asset = exists ? Request<T>(path, mode) : null;
             return exists;
         }
+    }
+}
+namespace 伊蕾娜.Items.消耗品 { public sealed class BookOfOblivion { } }
+namespace 伊蕾娜.ElainaModAlchemy.Gameplay
+{
+    public sealed class AlchemyProgressPlayer
+    {
+        public int Level = 1, MaximumLevel = 8, Experience;
+        public int ExperienceToNextLevel => 100 + (Level - 1) * 50;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Alchemy
+{
+    [KL.SkillSystem.SilkyUI.SkillUIInfo(State = 4, Pixels = 100)]
+    public partial class AlchemySkill : global::伊蕾娜.ElainaModSkills.ElainaSkill
+    {
+        public Terraria.Player Player => Terraria.Main.LocalPlayer;
+        private static int NotebookLevelLimit => 8;
+        public override int MaxLevel => 8;
+        public override bool IsPassiveSkill => true;
     }
 }
 namespace Terraria

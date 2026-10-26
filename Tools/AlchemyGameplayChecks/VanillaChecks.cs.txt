@@ -191,6 +191,8 @@ internal static partial class VanillaChecks
         ScrollItem.ScrollType = ItemID.Wood; Clear(); Player.inventory[0] = new Item(ItemID.Wood, 2);
         Check(Progress.TryResearch("painkiller", out _) && Player.inventory[0].stack == 1, "Future recipe item is consumed by vanilla ConsumeItem");
         Check(!Progress.TryResearch("painkiller", out _) && Player.inventory[0].stack == 1, "Research cannot consume the same recipe twice");
+        Check(AlchemyProgressionRules.RequiredLevel("painkiller") == 5, "Painkiller research needs alchemy Lv.5, positioned after Queen Bee");
+        Check(AlchemyProgressionRules.RequiredLevel("featherlight") == 4, "Featherlight research needs alchemy Lv.4, positioned after the World Evil boss");
         ids["painkiller"] = ItemID.ManaPotion;
         Clear(); result = AlchemyCraftingService.Execute(Player, AlchemyNotebookAction.DebugRestock, "moondew", 99, 9);
 #if DEBUG

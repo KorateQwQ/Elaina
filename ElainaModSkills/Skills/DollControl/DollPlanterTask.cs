@@ -153,7 +153,6 @@ public sealed partial class DollCommandPlayer
             return;
         }
         foreach (Point p in DraftMarks) PlanterMarks[p] = SelectedPlanter;
-        ResumeGarden();
         ExitTool();
         SoundEngine.PlaySound(SoundID.MenuOpen);
     }

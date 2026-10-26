@@ -172,6 +172,39 @@ internal sealed class ConstellationDetail
             DotRule();
             Relations(LocalizeUI("Prerequisites"), node.prereqs);
         }
+        // Only shown while a Book of Oblivion is carried; the two-step confirm lives in the state.
+        if (Owned && state.ForgetBooks > 0)
+        {
+            DotRule();
+            int books = state.ForgetBooks;
+            Add(21, (d, _) =>
+            {
+                HeadingText(d, LocalizeUI("Forget"));
+                d.Text(LocalizeUI("ForgetBooks", books), Width, 1, 10, Muted2, 1, 1.5f);
+            });
+            bool armed = state.ForgetArmed == node.id, possible = state.CanForget(node.id);
+            Paragraph(!possible ? LocalizeUI("ForgetAtFirstLevel")
+                : armed ? LocalizeUI("ForgetConfirmPrompt", node.name)
+                : LocalizeUI("ForgetSummary", state.ForgetRefund(node.id)), armed ? new Color(214, 177, 155) : DetailText);
+            if (possible)
+            {
+                const int buttonWidth = 64, gap = 8;
+                var main = new Rectangle(Width - buttonWidth, 0, buttonWidth, 26);
+                if (!armed)
+                    Add(30, (d, hover) => d.GhostButton(main.X, 2, main.Width, LocalizeUI("Forget"), hover == "forget"),
+                        new ConstellationDetailAction(main, "forget", node.id, LocalizeUI("ForgetTooltip")));
+                else
+                {
+                    var cancel = new Rectangle(main.X - gap - buttonWidth, 0, buttonWidth, 26);
+                    Add(30, (d, hover) =>
+                    {
+                        d.GhostButton(cancel.X, 2, cancel.Width, LocalizeUI("ForgetCancel"), hover == "forget-cancel");
+                        d.GhostButton(main.X, 2, main.Width, LocalizeUI("ForgetConfirm"), hover == "forget-confirm", true);
+                    }, new ConstellationDetailAction(cancel, "forget-cancel", node.id, null),
+                        new ConstellationDetailAction(main, "forget-confirm", node.id, null));
+                }
+            }
+        }
 
         void Add(float height, Action<ConstellationDrawing, string> paint, params ConstellationDetailAction[] actions)
             => Rows.Add(new(height, paint, actions));

@@ -8,27 +8,33 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 public sealed partial class DollCommandPlayer
 {
+    /// <summary>主人离种植盆多近时玩偶才会去照料（50 格）。</summary>
+    public const float GardenRange = 800f;
     internal Guid GardenOwner = Guid.NewGuid();
-    private bool gardenPaused;
     private readonly HashSet<Point> gardenReady = [];
     private readonly Dictionary<Point, ulong> gardenRetry = [];
     private Point[] gardenSweep = [];
     private int gardenCursor, gardenRevision = -1;
     private ulong gardenTick = ulong.MaxValue;
-    internal bool HasGardenTask => !gardenPaused && gardenReady.Count > 0;
 
-    internal void PauseGarden()
+    /// <summary>
+    /// 照料种植盆不是任务，而是优先级最低的自发行为：只在没有挖掘或放置任务、也没有远程开箱时进行。
+    /// 一旦有指令交给玩偶，照料中的玩偶当场放下手头的照料。
+    /// </summary>
+    internal bool GardenIdle => !HasTask && remoteChestOrigin == null;
+
+    /// <summary>清空扫描缓存（换世界、取消任务时）；只要条件满足，玩偶随后会重新开始照料。</summary>
+    internal void ResetGarden()
     {
-        gardenPaused = true;
         gardenReady.Clear(); gardenRetry.Clear();
         gardenSweep = []; gardenRevision = -1; gardenCursor = 0;
+        gardenTick = ulong.MaxValue;
     }
-    internal void ResumeGarden() { gardenPaused = false; gardenTick = ulong.MaxValue; }
 
     // 每个主人每帧最多检查 64 个花盆，四只玩偶共享结果；不扫描整个世界。
     private void RefreshGarden()
     {
-        if (gardenPaused || gardenTick == Main.GameUpdateCount) return;
+        if (gardenTick == Main.GameUpdateCount) return;
         gardenTick = Main.GameUpdateCount;
         if (gardenRevision != DollGardenSystem.Revision)
         {
@@ -50,7 +56,8 @@ public sealed partial class DollCommandPlayer
     private bool GardenAction(Point p, out Item seed, out GardenWork action)
     {
         seed = null; action = GardenWork.None;
-        if (gardenPaused || !InRange(p) || !DollGardenSystem.Beds.TryGetValue(p, out var bed)
+        if (Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) > GardenRange * GardenRange
+            || !DollGardenSystem.Beds.TryGetValue(p, out var bed)
             || bed.Owner != GardenOwner || !DollGardenSystem.Exists(p, bed)) return false;
         if (gardenRetry.TryGetValue(p, out ulong retry) && Main.GameUpdateCount < retry) return false;
         // 手动拆除任务优先，尤其不能在正在挖走的种植盆上重新种植。
@@ -85,8 +92,9 @@ public sealed partial class DollCommandPlayer
 
     internal bool TrySelectGardenTarget(Vector2 from, Point current, out Point target, DollPetProjectile worker = null)
     {
-        RefreshGarden();
         target = new(-1, -1);
+        if (!GardenIdle) return false;
+        RefreshGarden();
         if (GardenAction(current, out _, out _) && !IsClaimed(current, true, true, worker)) target = current;
         else
         {
@@ -105,7 +113,7 @@ public sealed partial class DollCommandPlayer
 
     internal void TendGarden(Point p)
     {
-        if (Player.whoAmI != Main.myPlayer || !GardenAction(p, out Item seed, out GardenWork action)) return;
+        if (Player.whoAmI != Main.myPlayer || !GardenIdle || !GardenAction(p, out Item seed, out GardenWork action)) return;
         bool success;
         if (action == GardenWork.ClearWeed)
         {
@@ -146,6 +154,6 @@ public sealed partial class DollCommandPlayer
     private void LoadGardenOwner(TagCompound tag)
     {
         GardenOwner = Guid.TryParse(tag.GetString("DollGardenOwner"), out Guid owner) && owner != Guid.Empty ? owner : Guid.NewGuid();
-        PauseGarden();
+        ResetGarden();
     }
 }

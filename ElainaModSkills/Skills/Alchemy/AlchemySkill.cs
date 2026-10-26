@@ -8,7 +8,7 @@ using static 伊蕾娜.Localization.UIText;
 namespace 伊蕾娜.ElainaModSkills.Skills.Alchemy;
 
 [SkillUIInfo(State = 4, Pixels = 100)]
-public class AlchemySkill : ElainaSkill
+public partial class AlchemySkill : ElainaSkill
 {
     public override bool IsPassiveSkill => true;
     // JSON supplies growth only; a passive has no casting cost, cooldown or charges.
@@ -43,22 +43,12 @@ public class AlchemySkill : ElainaSkill
     private static int NotebookLevelLimit => SkillBalanceSystem.TryGetSkill(nameof(AlchemySkill), out var entry)
         && entry.MaxLevel > 0 ? Math.Min(entry.MaxLevel, AlchemyProgressionRules.MaximumLevel) : AlchemyProgressionRules.MaximumLevel;
 
+    /// <summary>The cauldron and notebook research belong to Elaina after she learns this skill.</summary>
+    public static bool IsLearned(Player player) => player != null && player.GetModPlayer<ElainaModplayer>().Elaina
+        && player.GetModPlayer<ElainaSkillModPlayer>().HasUnlockedSkill<AlchemySkill>();
+
     public static int GetNotebookMaximumLevel(Player player) => player != null
         && player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill(out AlchemySkill skill)
         ? Math.Clamp(skill.Level, 1, NotebookLevelLimit) : 1;
 
-    private static string CapLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.AlchemyLevelCap");
-    // Mirrors the notebook header: current alchemy level against the cap this skill grants, then EXP.
-    public override (string Label, string Value, string Unit)[] GetConstellationStats(int level)
-    {
-        var player = Player ?? (Main.gameMenu ? null : Main.LocalPlayer);
-        if (player == null) return [(CapLabel, Math.Clamp(level, 1, NotebookLevelLimit).ToString(), "")];
-        var progress = player.GetModPlayer<AlchemyProgressPlayer>();
-        bool full = progress.Level >= progress.MaximumLevel;
-        return [(LocalizeUI("AlchemyLevelTitle"), progress.Level.ToString(), $"/ {progress.MaximumLevel}"),
-            (LocalizeUI("AlchemyExpLabel"), full ? "MAX" : progress.Experience.ToString(), full ? "" : $"/ {progress.ExperienceToNextLevel}")];
-    }
-    public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel) =>
-        [(CapLabel, Math.Clamp(Level, 1, NotebookLevelLimit).ToString(),
-            Math.Clamp(nextLevel, 1, NotebookLevelLimit).ToString(), "")];
 }

@@ -134,7 +134,6 @@ public class DollControlSkill : ElainaSkill
             !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 
-        Player.GetModPlayer<DollCommandPlayer>().ResumeGarden();
         int level = DollControlProgression.ClampLevel(Level);
         for (int slot = 0; slot < DollControlProgression.DollCount(level); slot++)
             SpawnDoll(Player, slot, level, source ?? Player.GetSource_Misc(nameof(DollControlSkill)));

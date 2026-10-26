@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('zh-Hans','en-US')][string]$Culture = 'zh-Hans',
     [switch]$LocalizationOnly,
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
@@ -17,8 +17,10 @@ param(
     [switch]$DebugToolsOnly,
     [switch]$RecallResearchOnly,
     [switch]$HealingOnly,
+    [switch]$AlchemyOnly,
     [switch]$DiscoveryOnly,
     [switch]$TermsOnly,
+    [switch]$ForgetOnly,
     [switch]$SkipChecks,
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug'
 )
@@ -98,8 +100,12 @@ foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','Const
 foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants','ConstellationDiscovery')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Heal/HealSkill.Values.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Alchemy/AlchemySkill.Values.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyEfficiency.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillBalanceConfig.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillStageGate.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillForgetting.cs"
+$null = Add-Item 'Compile' "$repo/System/Experience/ExperienceRules.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallSkill.Research.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallDiscoveryPlayer.cs"
 $null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
@@ -131,8 +137,10 @@ if ($ScrollOnly) { $previewArgs += '--scroll-only' }
 if ($DebugToolsOnly) { $previewArgs += '--debug-tools-only' }
 if ($RecallResearchOnly) { $previewArgs += '--recall-research-only' }
 if ($HealingOnly) { $previewArgs += '--healing-only' }
+if ($AlchemyOnly) { $previewArgs += '--alchemy-only' }
 if ($DiscoveryOnly) { $previewArgs += '--discovery-only' }
 if ($TermsOnly) { $previewArgs += '--terms-only' }
+if ($ForgetOnly) { $previewArgs += '--forget-only' }
 if ($SkipChecks) { $previewArgs += '--skip-checks' }
 dotnet run --project (Join-Path $out 'Preview.csproj') --configuration $Configuration -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Constellation checks or FNA rendering failed.' }

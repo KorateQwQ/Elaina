@@ -29,8 +29,32 @@ internal static class ExperienceNetwork
     {
         int amount = reader.ReadInt32();
         // 只有服务器能确认吸收。客户端不能发送“加经验”请求给服务器或其他玩家。
-        if (Main.netMode != NetmodeID.MultiplayerClient || playerIndex != Main.myPlayer || amount <= 0) return;
-        Receive(Main.LocalPlayer, amount);
+        if (Main.netMode != NetmodeID.MultiplayerClient || playerIndex != Main.myPlayer || amount < 0) return;
+        if (amount > 0) Receive(Main.LocalPlayer, amount);
+        else ReceiveBoss(Main.LocalPlayer, reader.ReadString());
+    }
+
+    internal static void AwardBoss(Player target, string key)
+    {
+        if (Main.netMode == NetmodeID.MultiplayerClient) return;
+        if (Main.netMode == NetmodeID.SinglePlayer)
+        {
+            ReceiveBoss(target, key);
+            return;
+        }
+        ModPacket packet = ModContent.GetInstance<ExperienceDropNPC>().Mod.GetPacket();
+        packet.Write((byte)global::伊蕾娜.伊蕾娜.MessageType.Experience);
+        packet.Write(target.whoAmI);
+        packet.Write(0); // Boss 确认只携带身份，不接受客户端提供奖励金额。
+        packet.Write(key);
+        packet.Send(target.whoAmI);
+    }
+
+    private static void ReceiveBoss(Player player, string key)
+    {
+        if (!player.active || !player.GetModPlayer<ElainaModplayer>().Elaina) return;
+        int amount = player.GetModPlayer<ElainaStatePlayer>().TakePendingBossExperience(key);
+        if (amount > 0) Receive(player, amount);
     }
 
     private static void Receive(Player player, int amount)

@@ -48,7 +48,7 @@ public sealed class DollChestCursorSystem : ModSystem
         && player.whoAmI == Main.myPlayer && player.active && !player.dead
         && !Main.gameMenu && !Main.mapFullscreen && !Main.HoveringOverAnNPC && !player.mouseInterface
         && player.cursorItemIconEnabled && player.cursorItemIconID == hoverIcon && hoverIcon > 0
-        && player.GetModPlayer<DollCommandPlayer>().FindIdleChestHelper() != null;
+        && player.GetModPlayer<DollCommandPlayer>().FindChestHelper() != null;
 
     private static void DrawBadge(On_Main.orig_DrawInterface_40_InteractItemIcon orig, Main self)
     {

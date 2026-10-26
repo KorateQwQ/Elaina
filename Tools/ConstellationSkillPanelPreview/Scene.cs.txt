@@ -149,12 +149,36 @@ internal sealed class PanelScene
             _state.Current.Skill.MaxCD = 8;
             if (scenario == "growth-maxed") for (int i = 0; i < 10; i++) _state.Current.ModSkill.TryLevelUp();
         }
+        if (scenario.StartsWith("forget"))
+        {
+            var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
+            player.Player.inventory[49] = new Item { type = 伊蕾娜.ElainaModSkills.SkillForgetting.BookType, stack = 2 };
+            _state.Select(nameof(MagicMissileSkill));
+            player.SkillPoint = scenario == "forget-lv1" ? 0 : 40;
+            if (scenario != "forget-lv1" && !(_state.Upgrade(_state.Selected) && _state.Upgrade(_state.Selected)))
+                throw new Exception("Forget preview could not reach Lv.3.");
+            if (scenario == "forget-armed") _state.ForgetArmed = _state.Selected;
+            if (_state.CanForget(_state.Selected) != (scenario != "forget-lv1")) throw new Exception("Forget preview availability mismatch.");
+        }
         if (scenario.StartsWith("terms-"))
         {
             var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
             var type = scenario == "terms-freeze" ? typeof(IceConeSkill) : typeof(AshenWitchSkill);
             player.UnlockSkill(KL.SkillSystem.Skill.NewSkill(type));
             _state.Refresh(); _state.Select(type.Name);
+        }
+        if (scenario.StartsWith("alchemy-"))
+        {
+            var type = typeof(伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill);
+            var player = Fixtures.Player(type);
+            player.SkillPoint = 100;
+            var skill = KL.SkillSystem.Skill.NewSkill(type);
+            player.UnlockSkill(skill);
+            skill.Level = scenario == "alchemy-max" ? 8 : 5;
+            var progress = player.Player.GetModPlayer<伊蕾娜.ElainaModAlchemy.Gameplay.AlchemyProgressPlayer>();
+            progress.Level = scenario == "alchemy-max" ? 8 : 3;
+            progress.MaximumLevel = skill.Level;
+            _state = new(player); _state.Select(type.FullName);
         }
         if (scenario.StartsWith("healing-"))
         {
@@ -246,7 +270,7 @@ internal sealed class PanelScene
         batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
         float offset = scrollPosition?.Invoke(detail) ??
-            (scenario is "bottom" or "growth-long" or "healing-growth" ? Math.Max(0, detail.ContentHeight - detail.Height)
+            (scenario is "bottom" or "growth-long" or "healing-growth" or "alchemy-growth" or "alchemy-max" or "forget" or "forget-armed" or "forget-lv1" ? Math.Max(0, detail.ContentHeight - detail.Height)
                 : scenario == "healing-description" ? 120 : 0);
         float y = detail.Top - offset;
         // Term scenes hover the first registered term, as the panel does under the pointer.

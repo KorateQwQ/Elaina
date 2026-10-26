@@ -2,6 +2,7 @@ using System;
 using KL.Utils;
 using KL.Utils.Net;
 using Terraria;
+using Terraria.ID;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.System.Experience;
 
@@ -15,9 +16,13 @@ public class ElainaStatePlayer : KLModPlayer
     //当前角色等级。最大等级由 GetMaxLevel() 根据 boss 进度决定。
     public int CurrentLevel = 1;
 
-    // 暂用固定升级经验，正式数值统一从 ExperienceRules 调整。
-    public const int ExperiencePerLevel = ExperienceRules.ExperiencePerLevel;
     public int Experience;
+    private HashSet<string> bossExperienceClaims = new(StringComparer.Ordinal);
+    // 奖励金额在击杀前的上限上取快照；光球抵达的服务器确认才允许消费一次。
+    private readonly Dictionary<string, int> pendingBossExperience = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> bossKillNumbers = new(StringComparer.Ordinal);
+    // 旧存档只记录浮点进度，保守视为这些历史阶段已经结算，防止更新后重复领首杀。
+    private List<float> legacyBossExperienceProgress = new();
     
     //已经获取的进度
     public List<float> ProgressSet = new ();
@@ -33,48 +38,80 @@ public class ElainaStatePlayer : KLModPlayer
         tag["currentLevel"] = CurrentLevel;
         tag["experience"] = Experience;
         tag["progressSet"] = ProgressSet ?? [];
+        tag["bossExperienceClaims"] = new List<string>(bossExperienceClaims);
+        tag["legacyBossExperienceProgress"] = legacyBossExperienceProgress;
         base.SaveData(tag);
     }
 
     public override void LoadData(TagCompound tag)
     {
+        pendingBossExperience.Clear();
+        bossKillNumbers.Clear();
         tag.TryGet("progress", out Progress);
         if (tag.ContainsKey("currentLevel")) tag.TryGet("currentLevel", out CurrentLevel);
         // 兼容旧存档：旧版 GetLevel() 就是最大等级，已有进度的存档按当时的满级状态迁移。
         else CurrentLevel = tag.ContainsKey("progress") ? GetMaxLevel() : 1;
         tag.TryGet("experience", out Experience);
         tag.TryGet("progressSet", out ProgressSet);
+        bossExperienceClaims = tag.TryGet("bossExperienceClaims", out List<string> claims)
+            ? new HashSet<string>(claims, StringComparer.Ordinal) : new(StringComparer.Ordinal);
+        legacyBossExperienceProgress = tag.ContainsKey("bossExperienceClaims")
+            ? tag.TryGet("legacyBossExperienceProgress", out List<float> legacy) ? legacy : []
+            : new List<float>(ProgressSet ?? []);
         NormalizeLevel();
         base.LoadData(tag);
     }
     
     //仅本地触发，所有参与boss击杀的伊蕾娜（的客户端）都会接收此事件。
-    public void OnKillBoss(NPC boss)
+    public void OnKillBoss(NPC boss, int realMaxHp = 0)
     {
-        if (Main.LocalPlayer.GetModPlayer<ElainaModplayer>().Elaina)
+        if (Main.netMode != NetmodeID.Server && Player.whoAmI == Main.myPlayer
+            && Player.GetModPlayer<ElainaModplayer>().Elaina && !boss.SpawnedFromStatue)
         {
             float bossProgress = KLGameStateManager.GetBossState(boss);
+            string key = ExperienceNpcRules.BossKey(boss);
+            int number = bossKillNumbers.GetValueOrDefault(key) + 1;
+            bossKillNumbers[key] = number;
+            bool firstReward = bossExperienceClaims.Add(key)
+                && !legacyBossExperienceProgress.Contains(bossProgress);
+            int reward = firstReward ? ExperienceRules.ForFirstBoss(GetMaxLevel())
+                : ExperienceRules.ForRepeatBoss(realMaxHp, GetLevel());
             if (bossProgress > Progress)
             {
                 UpdateProgress(bossProgress);
             }
 
             ProgressSet??= [];
-            if (!ProgressSet.Contains(bossProgress))
+            if (bossProgress >= 0 && !ProgressSet.Contains(bossProgress))
             {
                 OnFirstKillBoss(boss);
                 ProgressSet.Add(bossProgress);
             }
+            // 此处只开上限并预留奖励；经验由服务器确认光球抵达后入账。
+            if (reward > 0) pendingBossExperience[ExperienceNpcRules.BossRewardKey(key, number)] = reward;
         
             // 纯净基石玩法尚未完成，暂不在击败 Boss 时掉落。
         }
+    }
+
+    public override void OnEnterWorld()
+    {
+        pendingBossExperience.Clear();
+        bossKillNumbers.Clear();
+    }
+
+    internal bool HasPendingBossExperience(string key) => pendingBossExperience.ContainsKey(key);
+
+    internal int TakePendingBossExperience(string key)
+    {
+        if (Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer) return 0;
+        return pendingBossExperience.Remove(key, out int amount) ? amount : 0;
     }
 
     void UpdateProgress(float bossProgress)
     {
         Progress = bossProgress;
         NormalizeLevel();
-        ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
         //PrintText("Elaina: Progress Updated: " + bossProgress);
     }
 
@@ -104,9 +141,9 @@ public class ElainaStatePlayer : KLModPlayer
         return Math.Max(1, KLGameStateManager.GetLevelCap(Progress));
     }
 
-    public int GetExperience() => Math.Clamp(Experience, 0, ExperiencePerLevel);
+    public int GetExperience() => Math.Clamp(Experience, 0, GetExperienceToNextLevel());
 
-    public int GetExperienceToNextLevel() => ExperiencePerLevel;
+    public int GetExperienceToNextLevel() => ExperienceRules.RequiredForLevel(CurrentLevel);
 
     /// <summary>经验由角色拥有端保存；联机光球奖励只能通过服务器确认包进入这里。</summary>
     public int AddExperience(int amount)
@@ -118,8 +155,7 @@ public class ElainaStatePlayer : KLModPlayer
 
     private void NormalizeLevel()
     {
-        CurrentLevel = Math.Clamp(CurrentLevel, 1, GetMaxLevel());
-        Experience = Math.Clamp(Experience, 0, ExperiencePerLevel);
+        ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
     }
 
 #if DEBUG
@@ -129,6 +165,10 @@ public class ElainaStatePlayer : KLModPlayer
         ProgressSet = [];
         CurrentLevel = 1;
         Experience = 0;
+        bossExperienceClaims.Clear();
+        pendingBossExperience.Clear();
+        legacyBossExperienceProgress.Clear();
+        // 不重置本世界击杀序号，与服务器保持一致；重置后可以重新领首杀。
     }
 
     public bool DebugLevelUp()

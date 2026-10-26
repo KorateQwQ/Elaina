@@ -91,14 +91,27 @@ public static class AlchemyCraftingService
         var progress = player.GetModPlayer<AlchemyProgressPlayer>();
         if (!progress.IsUnlocked(id)) return Fail(LocalizeUI("ResearchFirst"));
         int completed = 0, output = 0, experience = 0;
+        // A multi-batch operation uses the level it had before its crafting XP is awarded.
+        int bonusChance = AlchemyEfficiency.BonusYieldChancePercent(progress.Level);
         for (int i = 0; i < batches; i++)
         {
             // Vanilla recollects current materials and consumes a batch through CraftItem.
             // Recheck every batch, including external material-provider callbacks.
             Item item = AlchemyVanillaRecipes.CraftOne(player, id);
             if (item == null || item.IsAir) break;
+            Item bonus = null;
+            if (bonusChance > 0 && Main.rand.Next(100) < bonusChance)
+            {
+                bonus = item.Clone();
+                bonus.stack = entry.Yield;
+            }
             output += item.stack;
             AlchemyInventory.Give(player, item, new EntitySource_Misc("ElainaAlchemy"));
+            if (bonus != null)
+            {
+                output += bonus.stack;
+                AlchemyInventory.Give(player, bonus, new EntitySource_Misc("ElainaAlchemyBonus"));
+            }
             experience += progress.AddCraftExperience(id, 1);
             completed++;
         }

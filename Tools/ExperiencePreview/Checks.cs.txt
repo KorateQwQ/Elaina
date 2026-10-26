@@ -15,6 +15,10 @@ void Reset(int mode = NetmodeID.Server)
     TMain.netMode = mode; TMain.myPlayer = mode == NetmodeID.Server ? 255 : 0;
     TMain.player = Enumerable.Range(0, TMain.maxPlayers).Select(i => new Player { whoAmI = i }).ToArray();
     TMain.projectile = Enumerable.Range(0, TMain.maxProjectiles).Select(_ => new Projectile()).ToArray();
+    TMain.npc = [];
+    NPC.DefaultLife.Clear();
+    new ExperienceNpcRules().OnWorldLoad();
+    new BossExperienceDrop().OnWorldLoad();
     ModPacket.Sent.Clear();
 }
 Player Activate(int index, Vector2 center, bool elaina = true)
@@ -38,6 +42,7 @@ void Receive((int Target, byte[] Data) packet)
     using var reader = new BinaryReader(new MemoryStream(packet.Data)); reader.ReadByte();
     ExperienceNetwork.HandlePacket(reader, reader.ReadInt32());
 }
+void DropBoss(NPC boss) => BossExperienceDrop.Spawn(boss, [TMain.myPlayer]);
 var hook = new ExperienceDropNPC();
 Reset();
 Activate(0, new Vector2(-120, 0)); Activate(1, new Vector2(360, 0));
@@ -99,16 +104,270 @@ hook.OnKill(new NPC()); Tick(160);
 var state = solo.GetModPlayer<ElainaStatePlayer>();
 Check(state.Experience == 10 && ModPacket.Sent.Count == 0, "Single player absorption credits experience directly");
 state.AddExperience(245);
-Check(state.CurrentLevel == 3 && state.Experience == 55, "A large award handles multiple level-ups and preserves the remainder");
+Check(state.CurrentLevel == 3 && state.Experience == 45, "A large award handles variable-cost level-ups and preserves the remainder");
 state.AddExperience(int.MaxValue);
-Check(state.CurrentLevel == 10 && state.Experience == 100, "Boss level cap safely banks at most one bar without integer overflow");
-state.OnKillBoss(new NPC());
-Check(state.CurrentLevel == 11 && state.Experience == 0, "Unlocking a higher Boss cap consumes the banked bar");
+Check(state.CurrentLevel == 10 && state.Experience == 190, "Boss level cap banks its current 190-XP bar without integer overflow");
+state.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
+Check(state.CurrentLevel == 11 && state.Experience == 0
+    && state.HasPendingBossExperience("Terraria/50#1"), "Higher cap consumes the banked bar immediately, with Boss XP still pending pickup");
+DropBoss(new NPC { boss = true, type = NPCID.KingSlime }); Tick(160);
+Check(state.Experience == 47, "Boss orb pickup pays 25% of the previous cap's requirement after unlocking");
 var saved = new TagCompound(); state.SaveData(saved);
 var restored = new ElainaStatePlayer { Player = solo }; restored.LoadData(saved);
-Check(restored.CurrentLevel == 11 && restored.Experience == 0 && restored.Progress == 1, "Progress, level and experience round-trip through character saves");
+Check(restored.CurrentLevel == 11 && restored.Experience == 47 && restored.Progress == 1, "Progress, level and experience round-trip through character saves");
 int before = state.CurrentLevel; state.AddExperience(-100);
-Check(state.CurrentLevel == before && state.Experience == 0, "Negative experience is ignored");
+Check(state.CurrentLevel == before && state.Experience == 47, "Negative experience is ignored");
 TMain.netMode = NetmodeID.Server; state.AddExperience(100);
 Check(state.CurrentLevel == before, "Server cannot mutate the client-owned saved progression");
+
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+Check(ExperienceRules.ForEnemyLife(0) == 0 && ExperienceRules.ForEnemyLife(1) == 1
+    && ExperienceRules.ForEnemyLife(9) == 1 && ExperienceRules.ForEnemyLife(59) == 5
+    && ExperienceRules.ForEnemyLife(200) == 20, "Enemy life formula floors at 10 life per XP with minimum one for living enemies");
+NPC.DefaultLife[700] = 250;
+hook.OnKill(new NPC { type = 700, netID = 700, lifeMax = 2500 });
+Check(Orbs().Single().ai[1] == 25, "Unlisted mod NPC rewards base 250 life, ignoring a live 2500-life difficulty/multiplayer value");
+Check(ReferenceEquals(NPC.LastSpawnParams.gameModeData, TMain.RegisteredGameModes[0])
+    && NPC.LastSpawnParams.playerCountForMultiplayerDifficultyOverride == 1
+    && NPC.LastSpawnParams.strengthMultiplierOverride == 1f, "Base defaults explicitly use normal difficulty, one player, and unit strength");
+new ExperienceNpcRules().OnWorldUnload(); NPC.DefaultLife[700] = 350;
+Check(ExperienceNpcRules.GetBaseLife(new NPC { netID = 700 }) == 350, "Changing worlds clears cached defaults");
+NPC.DefaultLife[-1] = 25;
+Check(ExperienceNpcRules.GetBaseLife(new NPC { type = 1, netID = -1, lifeMax = 250 }) == 25,
+    "Negative net-ID variants retain their own base life instead of using the positive NPC type");
+
+foreach (int type in new[] { NPCID.KingSlime, NPCID.Creeper, NPCID.SkeletronHand,
+    NPCID.TheHungry, NPCID.WallofFleshEye, NPCID.EaterofWorldsBody })
+{
+    Reset(); Activate(0, Vector2.Zero);
+    hook.OnKill(new NPC { type = type, boss = type == NPCID.KingSlime });
+    Check(Orbs().Length == 0, "Boss or encounter part never also gives life-based XP: " + type);
+}
+Reset(); Activate(0, Vector2.Zero);
+var parentBoss = new NPC { boss = true };
+var summoned = new NPC(); var summonedHook = summoned.GetGlobalNPC<ExperienceDropNPC>();
+summonedHook.OnSpawn(summoned, new Terraria.DataStructures.EntitySource_Parent { Entity = parentBoss });
+summonedHook.OnKill(summoned);
+var descendant = new NPC(); var descendantHook = descendant.GetGlobalNPC<ExperienceDropNPC>();
+descendantHook.OnSpawn(descendant, new Terraria.DataStructures.EntitySource_Parent { Entity = summoned });
+descendantHook.OnKill(descendant);
+Check(Orbs().Length == 0, "Boss-generated enemies and their descendants do not farm life-based XP");
+
+long total = 0;
+var checkpoints = new Dictionary<int, int> { [5] = 460, [10] = 1260, [15] = 2310,
+    [20] = 3610, [25] = 5160, [30] = 6960, [35] = 9010 };
+for (int level = 1; level < 35; level++)
+{
+    total += ExperienceRules.RequiredForLevel(level);
+    if (checkpoints.TryGetValue(level + 1, out int expected))
+        Check(total == expected, "Production curve matches reduced cumulative XP at level " + (level + 1));
+}
+int rawLevel = 1, rawExperience = 0;
+Check(ExperienceRules.Add(ref rawLevel, ref rawExperience, 35, 9027) == 9027
+    && rawLevel == 35 && rawExperience == 17, "One award can cross every pre-hardmode level and preserve remainder");
+ExperienceRules.Add(ref rawLevel, ref rawExperience, 35, int.MaxValue);
+Check(rawLevel == 35 && rawExperience == 440, "Level-35 bank is exactly one 440-XP bar");
+Check(ExperienceRules.Add(ref rawLevel, ref rawExperience, 40, 0) == 0
+    && rawLevel == 36 && rawExperience == 0, "Zero-XP cap increase consumes bank without creating XP");
+rawLevel = 5; rawExperience = 130;
+Check(ExperienceRules.Add(ref rawLevel, ref rawExperience, 5, 50) == 10 && rawExperience == 140,
+    "Return value reports accepted XP after saturating a nearly-full cap bank");
+Check(ExperienceRules.RequiredForLevel(int.MaxValue) == int.MaxValue, "Extreme level input saturates without arithmetic overflow");
+rawLevel = 10; rawExperience = 440;
+Check(ExperienceRules.Add(ref rawLevel, ref rawExperience, 20, 0) == 0
+    && rawLevel == 12 && rawExperience == 50,
+    "Old 440-XP remainder advances through the reduced curve without clipping earned XP before leveling");
+rawLevel = 10; rawExperience = 440;
+Check(ExperienceRules.Add(ref rawLevel, ref rawExperience, 10, 0) == 0
+    && rawLevel == 10 && rawExperience == 190,
+    "Legacy overflow at an unchanged Boss cap keeps one new bar and never reports negative accepted XP");
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero);
+var migrated = solo.GetModPlayer<ElainaStatePlayer>();
+migrated.LoadData(new TagCompound { ["progress"] = 1f, ["currentLevel"] = 10, ["experience"] = 440,
+    ["progressSet"] = new List<float>() });
+Check(migrated.CurrentLevel == 12 && migrated.Experience == 50,
+    "Character load consumes old saved remainder using new requirements within its existing cap");
+var migratedSave = new TagCompound(); migrated.SaveData(migratedSave);
+migrated.LoadData(migratedSave);
+Check(migrated.CurrentLevel == 12 && migrated.Experience == 50,
+    "Reloading an already-converted save cannot grant additional levels");
+
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+state.CurrentLevel = 10; state.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
+Check(state.CurrentLevel == 10 && state.Experience == 0 && state.Progress == 1,
+    "First Boss opens cap immediately while its experience remains in the orb");
+DropBoss(new NPC { boss = true, type = NPCID.KingSlime }); Tick(160);
+Check(state.Experience == 47, "Boss orb retains the old-cap snapshot after opening the new cap");
+state.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
+Check(state.Experience == 47, "Repeated Boss kill never pays twice");
+saved = new TagCompound(); state.SaveData(saved);
+restored = new ElainaStatePlayer { Player = solo }; restored.LoadData(saved);
+solo.SetModPlayer(restored);
+restored.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
+Check(restored.Experience == 47, "Boss claim survives save/load");
+restored.OnKillBoss(new NPC { boss = true, type = NPCID.EyeofCthulhu });
+DropBoss(new NPC { boss = true, type = NPCID.EyeofCthulhu }); Tick(160);
+Check(restored.Experience == 119, "Different Boss with equal progress has a separate identity and awards 25% of cap 20 under the reduced curve");
+var oldSave = new TagCompound { ["progress"] = 1f, ["currentLevel"] = 10,
+    ["experience"] = 75, ["progressSet"] = new List<float> { 1f } };
+restored = new ElainaStatePlayer { Player = solo }; restored.LoadData(oldSave);
+solo.SetModPlayer(restored);
+restored.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
+Check(restored.Experience == 75, "Legacy progress records do not retroactively pay Boss claims");
+saved = new TagCompound(); restored.SaveData(saved);
+restored = new ElainaStatePlayer { Player = solo }; restored.LoadData(saved);
+solo.SetModPlayer(restored);
+restored.OnKillBoss(new NPC { boss = true, type = NPCID.EyeofCthulhu });
+Check(restored.Experience == 75, "Conservative legacy suppression survives subsequent saves");
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+state.CurrentLevel = 10;
+TMain.npc = [new NPC { type = NPCID.Spazmatism, whoAmI = 2, active = true, boss = true }];
+var confirmedTwin = new NPC { type = NPCID.Retinazer, whoAmI = 1, boss = true };
+new TestGameState().Kill(confirmedTwin, [0]);
+Check(state.Progress == 1 && state.Experience == 0 && Orbs().Length == 1,
+    "KL-confirmed Twin event is accepted without independently scanning active Boss NPCs");
+Tick(160);
+int twinExperience = state.Experience;
+state.OnKillBoss(new NPC { type = NPCID.Spazmatism, whoAmI = 2, boss = true });
+Check(state.Progress == 1 && twinExperience == 47 && state.Experience == twinExperience,
+    "KL-confirmed Twins share one persistent first-kill claim across either NPC type");
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+state.CurrentLevel = 10;
+state.OnKillBoss(new NPC { boss = true, type = 700, ModNPC = new ModNPC { FullName = "Example/BossA" } });
+DropBoss(new NPC { boss = true, type = 700, ModNPC = new ModNPC { FullName = "Example/BossA" } }); Tick(160);
+int modBossExperience = state.Experience;
+state.OnKillBoss(new NPC { boss = true, type = 701, ModNPC = new ModNPC { FullName = "Example/BossA" } });
+Check(modBossExperience == 47 && state.Experience == modBossExperience,
+    "Stable mod NPC names retain Boss claims if numeric type IDs change");
+TMain.netMode = NetmodeID.Server;
+state.OnKillBoss(new NPC { boss = true, type = 702, ModNPC = new ModNPC { FullName = "Example/BossB" } });
+Check(state.Experience == modBossExperience, "Server Boss callbacks cannot mutate local-owned progression");
+TMain.netMode = NetmodeID.SinglePlayer;
+var secondPlayer = Activate(1, Vector2.Zero); TMain.myPlayer = 1;
+var secondState = secondPlayer.GetModPlayer<ElainaStatePlayer>(); secondState.CurrentLevel = 10;
+secondState.OnKillBoss(new NPC { boss = true, type = 700, ModNPC = new ModNPC { FullName = "Example/BossA" } });
+DropBoss(new NPC { boss = true, type = 700, ModNPC = new ModNPC { FullName = "Example/BossA" } }); Tick(160);
+Check(secondState.Experience == 47 && state.Experience == modBossExperience,
+    "Boss claim ownership is isolated between players");
+
+// Integrate the actual ElainaGameStateSystem override; KL's confirmed event/transport is the fixture boundary.
+var bossSystem = new TestGameState();
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+state.CurrentLevel = 10;
+var king = new NPC { boss = true, type = NPCID.KingSlime, Center = new Vector2(200, 0) };
+bossSystem.Kill(king, [0]);
+Check(state.Progress == 1 && state.GetMaxLevel() == 20 && state.Experience == 0 && Orbs().Length == 1,
+    "KL GameState callback opens cap and spawns exactly one Boss orb without instant XP");
+Check(Orbs()[0].Center == king.Center && Orbs()[0].ai[0] == 0 && Orbs()[0].ai[1] == 0,
+    "Boss orb starts at the kill position and carries recipient rather than a fabricated reward amount");
+Tick(29); Check(state.Experience == 0 && Orbs().Length == 1, "Boss reward waits through the floating phase");
+Tick(160); Check(state.Experience == 47 && Orbs().Length == 0, "Boss reward arrives only after flying to its owner");
+ExperienceNetwork.AwardBoss(solo, "Terraria/50#1");
+Check(state.Experience == 47, "Repeated absorption confirmation cannot consume a Boss snapshot twice");
+bossSystem.Kill(king, [0], 2000);
+Check(Orbs().Length == 1 && state.Experience == 47,
+    "Repeat Boss kill spawns compensation orb and never pays immediately");
+Tick(160);
+Check(state.Experience == 56, "Repeat Boss compensation uses KL's supplied 2000 HP at 0.5%, limited to the reduced 9-XP per-kill cap");
+ExperienceNetwork.AwardBoss(solo, "Terraria/50#2");
+Check(state.Experience == 56, "Repeat compensation pickup confirmation is also single use");
+bossSystem.Kill(king, [0], 2000); bossSystem.Kill(king, [0], 1000);
+Check(Orbs().Length == 2, "Separate repeat Boss kills can have independent reward orbs in flight");
+Tick(160);
+Check(state.Experience == 70, "In-flight repeated kills retain independent 9-XP and 5-XP snapshots");
+Check(ExperienceRules.ForRepeatBoss(1000000, 10) == 9
+    && ExperienceRules.ForRepeatBoss(int.MaxValue, 35) == 22
+    && ExperienceRules.ForRepeatBoss(0, 10) == 0 && ExperienceRules.ForRepeatBoss(-100, 10) == 0,
+    "Repeat reward is capped at 5% of the current level requirement, rejects missing HP, and cannot overflow");
+Check(ExperienceRules.ForRepeatBoss(2000, 35) == 10
+    && ExperienceRules.ForRepeatBoss(2000, 35) == ExperienceRules.ForEnemyLife(2000) / 20,
+    "Uncapped repeat coefficient is one twentieth of ordinary enemy HP rewards");
+
+Reset(); var first = Activate(0, Vector2.Zero); var second = Activate(1, new Vector2(2000, 0));
+Activate(2, Vector2.Zero, false); Activate(3, Vector2.Zero);
+bossSystem.Kill(king, [0, 1, 1, 2, -1, 255]);
+Check(Orbs().Length == 2 && Orbs().Select(p => (int)p.ai[0]).SequenceEqual(new[] { 0, 1 }),
+    "Server uses KL participation list once per Elaina, including participants outside normal enemy radius");
+Check(Orbs().All(p => p.owner == 255 && p.netUpdate),
+    "Server owns Boss orbs and explicitly schedules ExtraAI synchronization after reward identity binding");
+Check(first.GetModPlayer<ElainaStatePlayer>().Progress == 0 && ModPacket.Sent.Count == 0,
+    "Server callback only spawns orbs and does not mutate client-owned progress or grant XP");
+using (var stream = new MemoryStream())
+{
+    using var writer = new BinaryWriter(stream, global::System.Text.Encoding.UTF8, true);
+    Orbs()[0].ModProjectile.SendExtraAI(writer); writer.Flush(); stream.Position = 0;
+    var copy = new ExperienceOrb { Projectile = new Projectile { ai = [0, 0, 0] } };
+    using var reader = new BinaryReader(stream); copy.ReceiveExtraAI(reader);
+    using var roundTrip = new MemoryStream(); using var secondWriter = new BinaryWriter(roundTrip);
+    copy.SendExtraAI(secondWriter); secondWriter.Flush();
+    Check(stream.ToArray().SequenceEqual(roundTrip.ToArray()), "Boss reward identity round-trips through projectile ExtraAI");
+}
+Tick(200);
+Check(Orbs().Length == 0 && ModPacket.Sent.Count == 2, "Server confirms each Boss orb exactly once after arrival");
+var bossPackets = ModPacket.Sent.ToArray();
+Receive(bossPackets[0]);
+Check(first.GetModPlayer<ElainaStatePlayer>().Experience == 0, "Server rejects client-sent Boss absorption packet");
+TMain.netMode = NetmodeID.MultiplayerClient; TMain.myPlayer = 0;
+var firstState = first.GetModPlayer<ElainaStatePlayer>(); firstState.CurrentLevel = 10;
+bossSystem.Kill(king, [0, 1]);
+Check(Orbs().Length == 0 && firstState.Progress == 1 && firstState.Experience == 0,
+    "Client KL event captures its old cap and updates progress without spawning duplicate projectiles");
+Receive(bossPackets.Single(p => p.Target == 1));
+Check(firstState.Experience == 0, "Another player's Boss confirmation cannot pay this client");
+Receive(bossPackets.Single(p => p.Target == 0));
+Receive(bossPackets.Single(p => p.Target == 0));
+Check(firstState.Experience == 47, "Only addressed server-confirmed Boss pickup pays, once");
+TMain.myPlayer = 1;
+var secondProgress = second.GetModPlayer<ElainaStatePlayer>(); secondProgress.CurrentLevel = 5;
+bossSystem.Kill(king, [0, 1]); Receive(bossPackets.Single(p => p.Target == 1));
+Check(secondProgress.Experience == 47 && secondProgress.Progress == 1 && firstState.Experience == 47,
+    "Each participant consumes its own saved-cap reward snapshot independently");
+TMain.myPlayer = 3;
+bossSystem.Kill(king, [0, 1]);
+Check(TMain.LocalPlayer.GetModPlayer<ElainaStatePlayer>().Progress == 0,
+    "Player absent from KL participation list receives neither cap progress nor Boss reward");
+
+foreach (bool disconnect in new[] { false, true })
+{
+    Reset(); first = Activate(0, Vector2.Zero); bossSystem.Kill(king, [0]);
+    if (disconnect) first.active = false; else first.dead = true;
+    Tick(100);
+    Check(Orbs().Length == 0 && ModPacket.Sent.Count == 0,
+        "Invalid Boss orb recipient cannot settle: " + (disconnect ? "disconnect" : "death"));
+}
+Reset(); first = Activate(0, Vector2.Zero); bossSystem.Kill(king, [0]);
+first.active = false;
+TMain.player[0] = new Player { whoAmI = 0 }; var replacement = Activate(0, Vector2.Zero);
+bossSystem.Kill(king, [0]); Tick(1);
+Check(Orbs().Length == 1 && Orbs()[0].ai[0] == 0 && ModPacket.Sent.Count == 0,
+    "Reused player slot clears stale spawn ownership and the departed player's orb cannot pay its replacement");
+
+// Mixed first/repeat eligibility in the same server-confirmed kill, across a save boundary.
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+state.CurrentLevel = 10; bossSystem.Kill(king, [0], 2000); Tick(160);
+saved = new TagCompound(); state.SaveData(saved);
+Reset(); first = Activate(0, Vector2.Zero); second = Activate(1, Vector2.Zero);
+bossSystem.Kill(king, [0, 1], 2000); Tick(160);
+bossPackets = ModPacket.Sent.ToArray();
+TMain.netMode = NetmodeID.MultiplayerClient; TMain.myPlayer = 0;
+var veteran = first.GetModPlayer<ElainaStatePlayer>(); veteran.LoadData(saved);
+bossSystem.Kill(king, [0, 1], 2000); Receive(bossPackets.Single(p => p.Target == 0));
+Check(veteran.Experience == 56, "Saved veteran receives blood-based compensation instead of another first-kill reward");
+TMain.myPlayer = 1;
+var newcomer = second.GetModPlayer<ElainaStatePlayer>(); newcomer.CurrentLevel = 10;
+bossSystem.Kill(king, [0, 1], 2000); Receive(bossPackets.Single(p => p.Target == 1));
+Check(newcomer.Experience == 47 && veteran.Experience == 56,
+    "Same multiplayer kill independently awards 25% first kill to newcomer and 0.5% HP compensation to veteran");
+
+// A dead participant still observes the confirmed event, so subsequent reward tokens must stay aligned.
+Reset(NetmodeID.SinglePlayer); solo = Activate(0, Vector2.Zero); state = solo.GetModPlayer<ElainaStatePlayer>();
+state.CurrentLevel = 10; solo.dead = true; bossSystem.Kill(king, [0], 2000);
+Check(Orbs().Length == 0 && state.Experience == 0, "Dead Boss participant cannot receive an instant or physical reward");
+solo.dead = false; bossSystem.Kill(king, [0], 2000); Tick(160);
+Check(state.Experience == 9, "Kill numbering stays aligned after a death and repeat compensation can be collected");
 Console.WriteLine($"{passed} checks passed.");
+
+sealed class TestGameState : ElainaGameStateSystem
+{
+    public void Kill(NPC boss, List<int> killers, int realMaxHp = 100) => OnKillBoss(boss, killers, realMaxHp);
+}

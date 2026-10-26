@@ -11,7 +11,7 @@ internal static class Fixtures
         {
             "AshenWitchSkill" => "AshenWitch", "MagicBarrierSkill" => "MagicBarrier", "WindBladeSkill" => "Wind",
             "HealSkill" => "Heal", "WaterLaserSKill" or "WaterBallSkill" => "Water", "FireLaserSkill" or "FireBurstSkill" => "Fire",
-            "IceConeSkill" => "Ice", "RecallSkill" => "Recall", _ => "MagicMissile"
+            "IceConeSkill" => "Ice", "RecallSkill" => "Recall", "AlchemySkill" => "Alchemy", _ => "MagicMissile"
         };
         string asset = name == "WindBladeSkill" ? "WindSlashSkill" : name;
         return $"伊蕾娜/ElainaModSkills/Skills/{folder}/{asset}";
@@ -125,6 +125,24 @@ internal static class PanelChecks
         Check(state.Upgrade(nameof(UpgradeSkill)) && !state.Upgrade(nameof(UpgradeSkill)) && player.SkillPoint == 0, "max level enforced");
         state.Current.ModSkill.TryLevelUp();
         Check(state.Level(nameof(UpgradeSkill)) == 3, "overridden cap also guards direct base upgrade");
+        string forgetId = nameof(UpgradeSkill);
+        var books = player.Player.inventory[50];
+        Check(state.ForgetBooks == 0 && !state.CanForget(forgetId) && !state.Forget(forgetId, out _) && state.Level(forgetId) == 3, "forgetting requires a book");
+        books.type = 伊蕾娜.ElainaModSkills.SkillForgetting.BookType; books.stack = 2;
+        int pointsBeforeForget = player.SkillPoint, forgetStamp = state.DetailStamp();
+        Check(state.ForgetBooks == 2 && state.CanForget(forgetId) && state.ForgetRefund(forgetId) == 4, "refund sums the paid upgrades");
+        state.ForgetArmed = forgetId;
+        Check(state.DetailStamp() != forgetStamp, "arming forget rebuilds the detail");
+        Check(state.Forget(forgetId, out int forgetRefund) && forgetRefund == 4 && player.SkillPoint == pointsBeforeForget + 4
+            && state.Level(forgetId) == 1 && state.Status(state.Current) == "learned" && books.stack == 1 && state.ForgetArmed == null,
+            "forget resets to Lv.1, stays learned, refunds points and consumes one book");
+        Check(!state.CanForget(forgetId) && !state.Forget(forgetId, out _) && books.stack == 1 && player.SkillPoint == pointsBeforeForget + 4,
+            "Lv.1 cannot be forgotten and consumes nothing");
+        state.ForgetArmed = forgetId; state.Select(nameof(WindBladeSkill));
+        Check(state.ForgetArmed == null, "changing selection cancels a pending forget");
+        state.Select(forgetId);
+        Check(state.Upgrade(forgetId) && state.Upgrade(forgetId) && state.Level(forgetId) == 3 && player.SkillPoint == pointsBeforeForget, "forgotten skill can be studied again");
+        books.TurnToAir();
         state.SelectFilter("hidden"); Check(state.EmptyFilter, "empty filter");
         state.Select(nameof(HealSkill));
         Check(state.Current.name == nameof(HealSkill) && state.Current.ModSkill.GetConstellationDescription().Contains("待补充"), "missing localization fallback");

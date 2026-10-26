@@ -1,0 +1,231 @@
+using System.Text;
+using System.Text.Json;
+using Terraria;
+using Terraria.ID;
+using 伊蕾娜.System.Experience;
+
+Terraria.Program.SavePath = AppContext.BaseDirectory;
+Main.dedServ = true;
+Main.netMode = 0;
+Main.hardMode = false;
+string output = args[0];
+int assertions = 0;
+void Check(bool condition, string message)
+{
+    if (!condition) throw new Exception(message);
+    assertions++;
+}
+
+// Read defaults from the installed engine. No mod loader setup, game, or character save is opened.
+var rows = new List<NpcRow>();
+for (int mode = 0; mode <= 2; mode++)
+{
+    Main.GameMode = mode;
+    for (int type = 1; type < NPCID.Count; type++)
+    {
+        var npc = new NPC(); npc.SetDefaults(type);
+        int baseLife = ExperienceNpcRules.GetBaseLife(npc);
+        if (mode == 0) Check(baseLife == npc.lifeMax, "Normal defaults mismatch: " + type);
+        else Check(baseLife == rows[type - 1].BaseLife, "Base life depends on difficulty: " + type);
+        rows.Add(new(mode, type, NPCID.Search.GetName(type), npc.lifeMax, baseLife,
+            ExperienceRules.ForEnemyLife(baseLife), npc.boss, npc.friendly));
+    }
+}
+// Clear the cache and first sample under Master, proving invariance is not merely a cached Normal result.
+new ExperienceNpcRules().OnWorldUnload();
+foreach (var normal in rows.Where(n => n.Mode == 0))
+{
+    if (normal.Friendly) continue; // e.g. Eternia Crystal reads Main.masterMode directly but cannot reward XP.
+    var npc = new NPC(); npc.SetDefaults(normal.Type);
+    Check(ExperienceNpcRules.GetBaseLife(npc) == normal.BaseLife, "Cold Master default mismatch: " + normal.Name);
+}
+var normalNpcs = rows.Where(n => n.Mode == 0).ToDictionary(n => n.Name);
+int Kills(int xp, double enemyXp) => (int)Math.Ceiling(Math.Max(0, xp) / enemyXp);
+int Sum(int from, int to) => Enumerable.Range(from, to - from).Sum(ExperienceRules.RequiredForLevel);
+
+var stages = new List<StageRow>();
+string[] bosses = ["开局", "史莱姆王", "克苏鲁之眼", "世吞／克脑", "蜂王", "骷髅王", "独眼巨鹿", "血肉墙",
+    "史莱姆皇后", "双子魔眼", "毁灭者", "机械骷髅王", "世纪之花", "石巨人", "猪龙鱼公爵", "光之女皇", "拜月教邪教徒", "月亮领主"];
+int[] progressions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18];
+for (int i = 0; i < bosses.Length; i++)
+{
+    int from = i == 0 ? 1 : stages[^1].To, to = progressions[i] * 5 + 5;
+    int reward = i == 0 ? 0 : ExperienceRules.ForFirstBoss(from);
+    int xp = Sum(from, to), need = xp - reward;
+    stages.Add(new(bosses[i], from, to, xp, reward, need,
+        i == 0 ? need : Math.Max(0, need - ExperienceRules.RequiredForLevel(from))));
+}
+string[] labels = ["蓝史莱姆", "僵尸", "恶魔眼", "骷髅", "洞穴蝙蝠", "黄蜂", "食人怪", "抓人草",
+    "花岗精", "愤怒骷髅", "诅咒骷髅头", "黑暗法师", "地牢史莱姆", "地狱蝙蝠", "火焰小鬼", "恶魔", "骨蛇（整只）", "蒂姆（稀有）", "宁芙（稀有）", "装甲幻影", "幻灵", "混沌精", "巨型蝙蝠"];
+string[] names = ["BlueSlime", "Zombie", "DemonEye", "Skeleton", "CaveBat", "Hornet", "ManEater", "Snatcher",
+    "GraniteGolem", "AngryBones", "CursedSkull", "DarkCaster", "DungeonSlime", "Hellbat", "FireImp", "Demon", "BoneSerpentHead", "Tim", "Nymph", "PossessedArmor", "Wraith", "ChaosElemental", "GiantBat"];
+for (int i = 0; i < names.Length; i++) Check(normalNpcs.ContainsKey(names[i]), "Missing representative NPC: " + names[i]);
+var report = new StringBuilder();
+void Line(string line = "") => report.AppendLine(line);
+Line("# 基础血量经验与 Boss 首杀：阶段测算");
+Line();
+Line("运行 `pwsh -NoProfile -File Tools/ExperienceBalance/run.ps1` 重算。本报告直接链接正式经验规则和基础血量读取代码，从本机 tModLoader.dll 读取原版默认值，不启动游戏、不读写角色存档、不加载第三方模组。");
+Line();
+Line("## 口径");
+Line();
+Line("- 小怪：`max(1, floor(普通难度单人默认最大生命 / 10))`。表中的默认血量不是专家／大师显示血量；正式游戏也不叠加这些倍率。");
+Line("- 升级需求已降低为线性：`100 + 10 × (L−1)`。Lv1→2 仍需 100，之后每级增加 10；取消原二次项，怪物经验系数不变。");
+Line("- Boss 首杀：`floor(击杀前等级上限对应的升级需求 / 4)`。复用 KL GameState 参与击杀回调立即提高上限，服务器生成光球，吸收确认后入账；金额按击杀前上限锁定。Boss 本体、部件及来源可识别的 Boss 召唤物不另外按小怪规则发经验。");
+Line("- 重复击杀：`min(max(1, floor(KL真实总血量 / 200)), max(1, floor(当前等级升级需求 / 20)))`，无有效血量时为 0。即 0.5% 血量、至多一条经验的 5%；首杀和补偿二选一，每次有效击杀一颗奖励球。本阶段主表仍只计一次首杀，不额外假设刷 Boss。");
+Line("- 每行从旧等级上限、零余经验开始，计入打开该阶段的一次 Boss 首杀；例如史莱姆王行是击杀它后从 Lv5 升到 Lv10，不包含随后克眼的奖励。开局到 Lv5 尚无打开该阶段的 Boss。");
+Line("- 走 KL 原版备用进度路线；Boss Checklist／其他模组可能改变上限与路线。可选 Boss 可以跳过，跳关应直接按跨越的等级重算。");
+Line("- 按每只目标怪都完整结算、没有光球丢失计算；不是生成密度或游玩分钟数预测。未计入随机精英、混合怪物、事件及其他模组的额外产出。");
+Line("- 封顶已存满一条时可以减少下一阶段的新增击杀，但这一条已在前阶段付出成本，不是免费经验。");
+Line("- 本轮按肉前五级阶段约 100–250 只常见混合遭遇调整；Lv35–95 暂沿用线性公式，尚未完成肉后平衡。研习点收入／技能费用不在此次接入范围内。");
+Line("- 旧角色已获得的等级保留，余经验加载时先按新需求消化，再受原有 Boss 上限及一条封顶存储限制；不追补重算历史升级总经验。");
+Line();
+Line("## 降低前后对照");
+Line();
+Line("两版均扣除该版本一次打开阶段的 Boss 首杀奖励，从旧上限、零余经验开始；代表怪物的奖励相同。骨蛇等强怪只是另一种换算，不要求专刷。");
+Line();
+Line("| 等级 | 代表怪物 | 旧版剩余经验 | 新版剩余经验 | 旧版只数 | 新版只数 |");
+Line("| --- | --- | ---: | ---: | ---: | ---: |");
+int OldRequirement(int level) => 10 * (int)Math.Floor((100d + 20d * (level - 1) + 2d * (level - 1) * (level - 1)) / 10d + .5d);
+int[] compareNpc = [1, 3, 3, 6, 7, 9, 15, 19];
+for (int i = 0; i < compareNpc.Length; i++)
+{
+    var s = stages[i]; var n = normalNpcs[names[compareNpc[i]]];
+    int oldXp = Enumerable.Range(s.From, s.To - s.From).Sum(OldRequirement)
+        - (i == 0 ? 0 : OldRequirement(s.From) / 4);
+    Line($"| {s.From}→{s.To} | {labels[compareNpc[i]]} | {oldXp:N0} | {s.EnemyXp:N0} | {Kills(oldXp, n.Experience):N0} | {Kills(s.EnemyXp, n.Experience):N0} |");
+}
+Line();
+Line("## 常见混合遭遇的校准示例");
+Line();
+Line("下列权重是用于评估的假设击杀构成，不是引擎生成概率或实测频率；用于避免只挑高血量强怪得出过于乐观的结论。每个五级阶段计一次 Boss 首杀，开局计零次。");
+Line();
+Line("| 等级 | 假设击杀构成 | 平均每只经验 | 预计只数 |");
+Line("| --- | --- | ---: | ---: |");
+(int Npc, double Weight)[][] mixes = [
+    [(0, .35), (1, .40), (2, .25)],
+    [(1, .40), (2, .30), (3, .30)],
+    [(3, .40), (5, .30), (8, .30)],
+    [(5, .30), (6, .40), (7, .30)],
+    [(5, .30), (6, .40), (7, .30)],
+    [(9, .60), (11, .30), (12, .10)],
+    [(13, .30), (14, .30), (15, .30), (16, .10)],
+    [(19, .40), (20, .30), (22, .30)]
+];
+for (int i = 0; i < mixes.Length; i++)
+{
+    double average = mixes[i].Sum(x => normalNpcs[names[x.Npc]].Experience * x.Weight);
+    int kills = Kills(stages[i].EnemyXp, average);
+    Check(kills >= 100 && kills <= 250, "Reduced stage fits 100-250 kills in declared mixture: " + stages[i].From);
+    string composition = string.Join("、", mixes[i].Select(x => $"{labels[x.Npc]} {100 * x.Weight:0}%"));
+    Line($"| {stages[i].From}→{stages[i].To} | {composition} | {average:0.0} | {kills} |");
+}
+Line();
+Line("## 肉前及进入困难模式");
+Line();
+Line("| 打开阶段的 Boss | 等级 | 五级原需 | 本次 Boss 奖励 | 还需小怪经验 | 50 血／5 经验 | 100 血／10 经验 | 200 血／20 经验 | 500 血／50 经验 |");
+Line("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+foreach (var s in stages.Take(8))
+    Line($"| {s.Boss} | {s.From}→{s.To} | {s.TotalXp:N0} | {s.BossXp:N0} | {s.EnemyXp:N0} | {Kills(s.EnemyXp, 5):N0} | {Kills(s.EnemyXp, 10):N0} | {Kills(s.EnemyXp, 20):N0} | {Kills(s.EnemyXp, 50):N0} |");
+Line();
+Line("## 原版怪物实际默认值");
+Line();
+Line("普通血量只代表此次奖励采用的强度指标，不能完全表示 AI、弹幕、地形或生成密度。稀有怪不能当稳定刷取来源；骨蛇按共享生命的一整只计算。");
+Line();
+Line("| 怪物 | 默认血量 | 每只经验 |");
+Line("| --- | ---: | ---: |");
+for (int i = 0; i < names.Length; i++)
+{
+    var n = normalNpcs[names[i]];
+    Line($"| {labels[i]} | {n.BaseLife} | {n.Experience} |");
+}
+Line();
+Line("## 按各阶段可遇见的怪物换算");
+Line();
+Line("“下一等级”只从本阶段起始等级升一级，并计入该次 Boss 奖励；“整个阶段”升到新的等级上限。每个示例都独立计算，不能把不同示例数量相加。");
+Line();
+Line("| 阶段 | 目标怪物 | 基础血量／经验 | 下一等级所需只数 | 整个阶段所需只数 |");
+Line("| --- | --- | --- | ---: | ---: |");
+int[][] examples = [[0, 1, 2], [1, 2, 3], [3, 5, 8], [5, 6, 7], [6, 7, 8], [9, 11, 12], [13, 14, 15, 16], [19, 20, 21]];
+for (int i = 0; i < examples.Length; i++)
+{
+    var s = stages[i];
+    foreach (int index in examples[i])
+    {
+        var n = normalNpcs[names[index]];
+        int first = ExperienceRules.RequiredForLevel(s.From) - s.BossXp;
+        string stageName = i == 0 ? "开局" : s.Boss + "后";
+        Line($"| {stageName} {s.From}→{s.To} | {labels[index]} | {n.BaseLife}／{n.Experience} | {Kills(first, n.Experience):N0} | {Kills(s.EnemyXp, n.Experience):N0} |");
+    }
+}
+Line();
+Line("## 封顶已经存满一条的情况");
+Line();
+Line("| 阶段 | 本阶段开头可带入的经验 | Boss 奖励 | 到新上限仍需的小怪经验 | 100 血怪 | 200 血怪 |");
+Line("| --- | ---: | ---: | ---: | ---: | ---: |");
+foreach (var s in stages.Skip(1).Take(7))
+    Line($"| {s.From}→{s.To} | {ExperienceRules.RequiredForLevel(s.From):N0} | {s.BossXp:N0} | {s.WithFullBank:N0} | {Kills(s.WithFullBank, 10):N0} | {Kills(s.WithFullBank, 20):N0} |");
+Line();
+Line("## 肉后外推（未校准）");
+Line();
+Line("下表展示保留同一曲线的后果，不表示已完成肉后设计。KL 备用 Boss 表在光之女皇之后直接到拜月，故对应 Lv80→90，并只计一次 Boss 首杀奖励。");
+Line();
+Line("| Boss／阶段 | 等级 | 假设一次首杀奖励 | 还需经验 | 500 血怪 | 1000 血怪 | 2000 血怪 |");
+Line("| --- | --- | ---: | ---: | ---: | ---: | ---: |");
+foreach (var s in stages.Skip(8))
+    Line($"| {s.Boss} | {s.From}→{s.To} | {s.BossXp:N0} | {s.EnemyXp:N0} | {Kills(s.EnemyXp, 50):N0} | {Kills(s.EnemyXp, 100):N0} | {Kills(s.EnemyXp, 200):N0} |");
+Line();
+Line("## 结论与验证边界");
+Line();
+Line("### 重复击杀补偿量级");
+Line();
+Line("正式奖励直接使用 KL `OnKillBoss` 的第三个参数 `realMaxHp`，它来自服务器的 `self.GetRealMaxHP()`，包含 KL 对 Boss 血条的处理。下表仅选单主体 Boss，用本机引擎普通难度、单人默认生命作量级示例；多体 Boss 和模组 Boss 以 KL 传入的总血量为准，不自行按部件求和。专家／大师／多人可能改变 KL 总血量，但每次奖励始终受角色当前等级一条经验的 5% 限制。");
+Line();
+Line("| Boss 示例 | 角色等级 | 单主体普通默认血量 | 重复经验 | 一条升级经验 | 单次占比 | 从空条升级至少击杀次数 |");
+Line("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
+var repeatNames = new[] { ("KingSlime", "史莱姆王", 10), ("EyeofCthulhu", "克苏鲁之眼", 15),
+    ("QueenBee", "蜂王", 25), ("SkeletronHead", "骷髅王", 30), ("Deerclops", "独眼巨鹿", 35),
+    ("WallofFlesh", "血肉墙", 40) };
+var repeatCsv = new StringBuilder("boss,level,normal_default_life,repeat_xp,level_xp,kills_per_level\n");
+foreach (var (name, label, level) in repeatNames)
+{
+    int life = normalNpcs[name].BaseLife, xp = ExperienceRules.ForRepeatBoss(life, level);
+    int required = ExperienceRules.RequiredForLevel(level);
+    Line($"| {label} | {level} | {life:N0} | {xp} | {required:N0} | {100d * xp / required:0.00}% | {Kills(required, xp)} |");
+    repeatCsv.AppendLine($"{name},{level},{life},{xp},{required},{Kills(required, xp)}");
+}
+Line();
+Line("上表的单级击杀次数不含召唤材料、等待、生成与光球飞行耗时。5% 上限意味着固定在该等级从空条补满至少要 20 次有效击杀；死亡、过期、离开世界导致未吸收的奖励不入账。首杀预算与主表不变。");
+Line();
+Line("已将二次需求改为 `100 + 10 × (L−1)`；到 Lv35 的累计原始升级需求从 39,680 降为 9,010。假设的常见混合击杀示例约每阶段 100–250 只，实际刷低血量怪会更多、偏向强怪会更少。首杀的 25% 与重复击杀的 5% 上限随新需求同步降低，补偿仍不能靠几次击杀直接升一级。肉后沿用线性曲线后面对高血量怪可能升级较快，尚需实际流程校准；该轮没有提高怪物奖励或研习点产出。");
+Line();
+Line($"引擎：`{typeof(NPC).Assembly.Location}`；程序集版本 `{typeof(NPC).Assembly.GetName().Version}`。完成 {assertions} 项引擎默认值与预算检查，包含 8 项声明混合构成的阶段预算检查；默认值覆盖普通／专家／大师及清空缓存后从大师模式首次读取敌对 NPC。友好的永恒水晶直接读取全局难度，已按正式奖励资格排除。未覆盖其他模组绕过标准难度参数、特殊种子、自定义多形态 Boss 首杀身份或真实多人 RPC 时序。");
+
+var utf8 = new UTF8Encoding(false);
+File.WriteAllText(Path.Combine(output, "REPORT.md"), report.ToString(), utf8);
+File.WriteAllText(Path.Combine(output, "repeat-bosses.csv"), repeatCsv.ToString(), utf8);
+File.WriteAllText(Path.Combine(output, "npc-defaults.json"), JsonSerializer.Serialize(new
+{
+    assembly = typeof(NPC).Assembly.Location,
+    version = typeof(NPC).Assembly.GetName().Version?.ToString(),
+    assertions,
+    rows
+}, new JsonSerializerOptions { WriteIndented = true }), utf8);
+var phasesCsv = new StringBuilder("boss,from,to,total_xp,boss_xp,enemy_xp,full_bank_enemy_xp,kills_hp50,kills_hp100,kills_hp200,kills_hp500\n");
+foreach (var s in stages)
+    phasesCsv.AppendLine($"{s.Boss},{s.From},{s.To},{s.TotalXp},{s.BossXp},{s.EnemyXp},{s.WithFullBank},{Kills(s.EnemyXp, 5)},{Kills(s.EnemyXp, 10)},{Kills(s.EnemyXp, 20)},{Kills(s.EnemyXp, 50)}");
+File.WriteAllText(Path.Combine(output, "phases.csv"), phasesCsv.ToString(), utf8);
+var levelsCsv = new StringBuilder("from_level,to_level,required_xp,boss_xp,enemy_xp,kills_hp50,kills_hp100,kills_hp200,kills_hp500,kills_hp1000\n");
+var stageStarts = stages.Skip(1).Select(s => s.From).ToHashSet();
+for (int level = 1; level < 95; level++)
+{
+    int required = ExperienceRules.RequiredForLevel(level);
+    int reward = stageStarts.Contains(level) ? ExperienceRules.ForFirstBoss(level) : 0;
+    int need = required - reward;
+    levelsCsv.AppendLine($"{level},{level + 1},{required},{reward},{need},{Kills(need, 5)},{Kills(need, 10)},{Kills(need, 20)},{Kills(need, 50)},{Kills(need, 100)}");
+}
+File.WriteAllText(Path.Combine(output, "levels.csv"), levelsCsv.ToString(), utf8);
+Console.WriteLine($"PASS: {assertions} real-engine default and budget checks. Wrote REPORT.md, npc-defaults.json, phases.csv, levels.csv and repeat-bosses.csv to {output}");
+foreach (var s in stages.Take(8)) Console.WriteLine($"{s.Boss}: Lv{s.From}->{s.To}; Boss +{s.BossXp}; enemies {s.EnemyXp} XP");
+
+record NpcRow(int Mode, int Type, string Name, int LiveLife, int BaseLife, int Experience, bool Boss, bool Friendly);
+record StageRow(string Boss, int From, int To, int TotalXp, int BossXp, int EnemyXp, int WithFullBank);

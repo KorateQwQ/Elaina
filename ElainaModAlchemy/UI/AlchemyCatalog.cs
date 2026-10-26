@@ -351,7 +351,7 @@ public static class AlchemyCatalog
             Ingredients = new AlchemyCatalogIngredient[]
             {
                 new(1, "blinkroot"),
-                new(3, "bone"),
+                new(1, "lens"),
             },
             Effects = new AlchemyCatalogEffect[]
             {

@@ -54,6 +54,7 @@ foreach ($name in @('AlchemyDrawing','AlchemyNotebookSkin','AlchemyNotebookRedes
 }
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyProgressionRules.cs"
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyBrewSession.cs"
+$null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyEfficiency.cs"
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/UI/AlchemyBrewAnimation.cs"
 $null = Add-PreviewItem 'Compile' "$PSScriptRoot/BrewingPreview.cs.txt"
 $null = Add-PreviewItem 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"

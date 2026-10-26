@@ -1,0 +1,179 @@
+'use strict';
+// Discussion-budget simulation; does not change gameplay settings.
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '../../../..');
+const html = fs.readFileSync(path.join(root, 'Tools/MageBalance/index.html'), 'utf8');
+const context = { module: { exports: {} } };
+vm.runInNewContext(html.match(/<script id="balance-engine">([\s\S]*?)<\/script>/)[1], context);
+const B = context.module.exports;
+const config = JSON.parse(fs.readFileSync(path.join(root, 'ElainaModSkills/Data/SkillBalance.json'), 'utf8')).configuration;
+const entries = [...config.basicAttacks, ...config.skills];
+// Columns: key, runtime id, display name, proposed learn cost, proposed upgrade cost.
+const skills = [
+  ['missile', 'MagicMissileSkill', '飞弹', 0, 5],
+  ['barrier', 'MagicBarrierSkill', '护盾', 10, 0],
+  ['multi', 'MultiMissileSkill', '多重', 20, 15],
+  ['alchemy', 'AlchemySkill', '炼金', 10, 15],
+  ['doll', 'DollControlSkill', '人偶', 20, 15],
+  ['flight', 'FlightSkill', '飞行', 15, 10],
+  ['wind', 'WindSlashSkill', '风刃', 20, 5],
+  ['heal', 'HealSkill', '治疗', 20, 15],
+  ['stream', 'WaterLaserSKill', '水流', 25, 5],
+  ['ball', 'WaterBallSkill', '水球', 25, 15],
+  ['recall', 'RecallSkill', '回城', 20, 0],
+];
+const stages = [5, 10, 15, 20, 25, 30, 35];
+const incomes = [50, 120, 190, 280, 380, 550, 680];
+function cap(key, level) {
+  if (key === 'barrier') return level >= 5 ? 1 : 0;
+  // Conditional availability: assumes a Return Potion has been discovered.
+  if (key === 'recall') return 1;
+  if (key === 'multi' && level < 10) return 0;
+  const row = entries.find(x => x.id === skills.find(s => s[0] === key)[1]);
+  assert(row, `Missing configuration: ${key}`);
+  return B.progressionNodes(row, config.progression.phaseSize, level).length;
+}
+function cost(levels) {
+  return skills.reduce((sum, [key, , , learn, upgrade]) =>
+    sum + (levels[key] > 0 ? learn + (levels[key] - 1) * upgrade : 0), 0);
+}
+function describe(levels) {
+  return skills.filter(([key]) => levels[key]).map(([key, , name]) => `${name}${levels[key]}`).join('、');
+}
+const all = stages.map(level => Object.fromEntries(skills.map(([key]) => [key, cap(key, level)])));
+const useful = all.map(levels => ({ ...levels, alchemy: Math.min(3, levels.alchemy) }));
+const combat = [
+  {missile:3,barrier:1},
+  {missile:5,barrier:1,multi:2,alchemy:2,doll:1},
+  {missile:7,barrier:1,multi:3,alchemy:2,doll:3,flight:1},
+  {...useful[3],recall:0},
+  {...useful[4]}, {...useful[5]}, {...useful[6]},
+];
+const utility = [
+  {missile:3,barrier:1},
+  {missile:5,barrier:1,alchemy:2,doll:2,recall:1},
+  {missile:5,barrier:1,multi:2,alchemy:3,doll:3,flight:1,recall:1},
+  {...useful[3],wind:2},
+  {...useful[4]}, {...useful[5]}, {...useful[6]},
+];
+for (const route of [combat, utility]) {
+  route.forEach((levels, i) => {
+    assert(cost(levels) <= incomes[i], `Over budget at ${stages[i]}`);
+    for (const [key] of skills) {
+      assert((levels[key] || 0) <= all[i][key], `Unavailable ${key} at ${stages[i]}`);
+      if (i) assert((levels[key] || 0) >= (route[i-1][key] || 0), `Respec needed: ${key}`);
+    }
+    assert(!levels.multi || levels.missile >= 5, 'Multi requires missile level 5');
+  });
+}
+function damage(key, skillLevel) {
+  const row = entries.find(x => x.id === skills.find(s => s[0] === key)[1]);
+  const node = B.progressionNodes(row, config.progression.phaseSize)[skillLevel - 1];
+  return B.progressionBudget(config, row, node).integerHit;
+}
+const results = stages.map((level, i) => ({level, income:incomes[i], all:all[i], allCost:cost(all[i]),
+  usefulCost:cost(useful[i]), combat:{levels:combat[i], cost:cost(combat[i]), left:incomes[i]-cost(combat[i])},
+  utility:{levels:utility[i],cost:cost(utility[i]),left:incomes[i]-cost(utility[i])}}));
+const damageExamples = {
+  missile5:damage('missile',5),missile7:damage('missile',7),
+  multi1:damage('multi',1),multi2:damage('multi',2),multi3:damage('multi',3),
+  wind2:damage('wind',2),wind3:damage('wind',3),wind9:damage('wind',9),
+  waterBall1:damage('ball',1),waterBall2:damage('ball',2),waterBall3:damage('ball',3),
+  stream3:damage('stream',3),stream5:damage('stream',5),
+};
+fs.writeFileSync(path.join(__dirname,'results.json'),JSON.stringify({date:'2026-10-26',status:'proposal, not runtime economy',results,damageExamples},null,2)+'\n');
+const table = (headers, rows) => [headers, headers.map(()=>'---'), ...rows].map(r=>'| '+r.join(' | ')+' |').join('\n');
+const out = `# 肉前研习点：加点选择与实际收益模拟
+
+2026-10-26。研习点收入与价格采用本轮讨论预算，尚未接入游戏；技能成长和效果读取当前正式配置与代码。角色等级、技能等级、炼金制作等级是三套不同概念。本文只分析，不调整技能或配方。
+
+## 范围与假设
+
+- 累计点数为角色 Lv5/10/15/20/25/30/35 对应 50/120/190/280/380/550/680。旧 PROGRESSION-PLAN.md 的 410 点方案不用于本次测算。
+- 采用该计划的单技能建议价格；灰之魔女、初始飞弹免费。只定义阶段末预算，不假造阶段内每级发点曲线。
+- 阶段标签使用 KL 原版备用上限：开局5、史王10、克眼15、邪恶Boss20、蜂王25、骷髅王30、独眼巨鹿35。Boss击杀只抬高上限，必须实际升级才取得对应预算；跳过可选Boss、安装Boss Checklist的流程可能不同。
+- 沿用此前讨论的角色解锁节点，假设补齐风刃、治疗、水系首次学习的角色等级要求；这些要求与点数预算均不能冒充已上线设置。
+- 回城以已发现并有一瓶返回药水为条件。未获得则从需求减20，含回城路线也减20，其他配置仍成立。
+- 炼金2/3收益以实际制作等级练到2/3、取得配方和材料为条件。只花研习点不会直接获得药剂。
+- 以Lv35覆盖肉前全部技能节点；不是强迫所有玩家打肉山前升至35。Lv30的飞行、人偶等仍受等级门槛限制，有钱也不能提前买下一档。
+
+## 阶段预算
+
+“炼金暂留3”仅剔除4～7级的升级费，仍含全部战斗技能、便利技能和回城。它不是所有玩法的最优消费上限；玩家仍可选择预练炼金。
+
+${table(['角色等级','累计点数','当前全部点满','点满后余额','炼金暂留3的需求','对应余额'],results.map(x=>[x.level,x.income,x.allCost,x.income-x.allCost,x.usefulCost,x.income-x.usefulCost]))}
+
+## 两条连续路线
+
+下表全部是累计技能等级、累计花费，未列的技能未学；灰之魔女默认已学。脚本检查每阶段预算、等级上限、飞弹前置和等级不倒退，不使用洗点。
+
+${table(['路线','角色等级','累计配置','花费','剩余'],results.flatMap(x=>[['战斗优先',x.level,describe(x.combat.levels),x.combat.cost,x.combat.left],['探索便利优先',x.level,describe(x.utility.levels),x.utility.cost,x.utility.left]]))}
+
+### 玩家实际拿什么交换
+
+- Lv5：飞弹3＋护盾只花20，留30。护盾用共享魔力抵伤，不能把它当作凭空增加一条免费血条。已发现返回药水可用20点学回城。
+- Lv10：战斗路线花110，取得多重2，但人偶只有1只、无回城。便利路线同样花110，暂不学多重，取得人偶2（仍1只、动作速度+10%）与回城往返功能。二者都能把炼金上限提高至2；轻羽药水实际+20%旅行速度，但要先练级、拿卷轴和羽毛。
+- Lv15：战斗路线花180，飞弹7、多重3、人偶3、飞行1，炼金停2；便利路线花190，飞弹5、多重2，换来炼金3和回城。两条都有2只人偶、+10%动作速度，也都能使用扫帚加速与冲刺。
+- 这次取舍的数值代价：飞弹基础单发从${damageExamples.missile5}到${damageExamples.missile7}，多重单发从${damageExamples.multi2}到${damageExamples.multi3}。两种技能攻击频率和耗魔不因这次升级改变。便利路线用这部分输出成长换灰赝尘材料替代、微光采集及往返运输。
+- Lv20：战斗路线花265，除回城和炼金4外全满；便利路线花280，保留回城，仅风刃2代替3（基础单发${damageExamples.wind2}而非${damageExamples.wind3}）。已经不需要舍弃整条技能线。
+- Lv25：两路线均可用365买齐除炼金4/5以外的全部已开放技能，余15。飞行2提高扫帚基础速度，治疗1提供10秒100生命，人偶5达到3只、+20%动作速度。
+- Lv30：同样原则花490，余60；水流3、水球2均可买满，人偶6为3只、+30%动作速度。即使连炼金6也买满，总价535仍低于550，阶段末已没有点数竞争。
+- Lv35：炼金留3花590，余90；炼金升至7共花650，余30。人偶7为4只、+30%动作速度，飞行3为+20%基础扫帚速度，治疗2为10秒120生命。
+
+## 炼金等级与可兑现的收益
+
+用户校正（2026-10-26）：按“学会炼金才能点击大锅”的实际使用规则计算，炼金1应计入开启制作功能和一级配方的收益。此前仅凭未学习时制作上限返回1，以及部分入口未见技能检查，就推断未学习也能使用，证据不完整；该结论撤回。本次未在游戏内复现点击条件，不把局部源码观察当作完整交互结论。
+
+${table(['实际炼金等级','技能最早节点 / 累计建议点数','新增物品与收益','兑现条件'],[
+ ['1','角色6 / 10点，开启大锅制作','月露合剂：每秒恢复独特魔力上限1%，4分钟；止痛剂：每秒恢复生命上限1%，60秒；瓶中雨用于种植','先学会炼金；月露合剂初始配方；止痛剂要丛林宝箱卷轴；瓶中雨需云块等'],
+ ['2','角色10 / 25点','轻羽药水：移动、翅膀和扫帚速度+20%，4分钟；显迹之尘：固定区域显敌与陷阱5分钟','制作经验100；轻羽要地下金箱卷轴和羽毛；显迹之尘需骨头'],
+ ['3','角色15 / 40点','微光滴管：单次收集一格微光；灰赝尘：保留每种原料至少1件，以粉尘补足配方数量','再150制作经验；找到微光、取得微光块和黑曜石；仍受配方与工作台规则限制'],
+ ['4～7','角色20/25/30/35 / 55/70/85/100点','没有新配方，没有已实现的通用药效/产量/制作速度提升；能继续积累制作等级','当前属于提前为8级准备，不能算即刻战斗收益'],
+ ['8','角色40 / 115点，已是肉后','星力、嗜血、专注、共鸣等职业药水及净化露','各自还有卷轴/商店/掉落条件，不能计入肉前收益'],
+])}
+
+- 月露合剂每批：月露1＋坠落之星1＋发光蘑菇1 → 3瓶。月露本身为瓶装水1＋月光草1 → 3份。最大独特魔力200时额外恢复2/秒、300时3/秒，同时支持攻击和护盾消耗；满魔时不产生可储存的额外资源。
+- 止痛剂每批：月露1＋弱效治疗药水1＋太阳花1 → 3瓶。以灰之魔女转换后实际最大生命200为例，恢复2/秒；持续缺血60秒才可能吃满120治疗，不能按转换前的生命上限计算。
+- 轻羽每批：月露1＋羽毛1＋太阳花1 → 3瓶。飞行1自身速度为基础的1.10倍，轻羽额外乘1.20，合计1.32倍；不是两者二选一。早期是否拿到配方卷轴，会改变优先买炼金2还是飞行1的决定。
+- 显迹之尘每批：闪耀根1＋骨头3 → 3份。等级2只是研发门槛，骨头来源可能让实际使用晚于角色10。
+- 微光滴管每批：玻璃10＋微光块3 → 1件；灰赝尘每批：瓶装微光1＋黑曜石1 → 50份。例：符合替代规则的配方需要20份同种材料，可以消耗1份真材料＋19份粉尘，减少重复采集；没有该材料样本不能凭空跳过首次取得。
+- 炼金经验按批而不是成品瓶数：月露合剂每批15经验，1→2需100、2→3需150。若只靠合剂且分阶段封顶，为7批＋10批；制作月露中间材料等也会给经验，实际流程不必照这个批数刷。到技能上限后不继续存经验。
+- 炼金4～7并非完全无价值：可提前完成3→7共1100制作经验，减少肉后练级；但这是未来收益，不能与当下多一只人偶等量比较。
+
+## 其他关键收益与限制
+
+- 多重射击每次召唤一枚法球，场上至多5枚；每枚找到目标后发射一次飞弹并退场。技能升级主要加单发伤害，不是升级增加法球上限，也不是永久自动炮台。
+- 人偶技能1/2/3/4/5/6/7对应数量1/1/2/2/3/3/4，额外动作速度0/10/10/20/20/30/30%。可协作挖掘、敲墙、放花盆和远处宝箱交互；真实吞吐还受移动、工具和任务分配影响，不直接许诺四倍采矿效率。
+- 飞行1/2/3在角色11/21/31可学，基础扫帚速度8→8.8/9.2/9.6；技能1就有长按1.5倍加速（12魔力/秒）及短按冲刺（25魔力、冷却1秒）。后续升级主要加基础速度，不是每级再解锁新移动动作。
+- 治疗1/2在角色21/31可学：10秒恢复100/120生命，一次120魔力、冷却60秒，不能以生命转换支付。它是可控自身/队友治疗；止痛剂是持续补给，两者用途和成本不同。
+- 风刃贯穿并击退弱敌。角色20的风刃3基础单发${damageExamples.wind3}、35的风刃9为${damageExamples.wind9}，每0.4秒2.5魔力，收益更偏沿线多目标。
+- 水球1/2/3基础整次伤害${damageExamples.waterBall1}/${damageExamples.waterBall2}/${damageExamples.waterBall3}，一次100魔力、冷却15秒，提供范围爆炸。缩短冻结及冰凌锁冷却的收益不能当作当前肉前单人技能组的完整收益。
+- 水流3/5面板基础每跳${damageExamples.stream3}/${damageExamples.stream5}，每0.2秒1.5魔力。目标没有冻结冷却时还乘0.7/0.9，即约${(damageExamples.stream3*0.7/0.9).toFixed(1)}/${(damageExamples.stream5*0.7/0.9).toFixed(1)}，末端溅射再乘50%。这些是命中修正前后示意，最终扣血还受防御等影响。当前自身冰锥要角色36才能学，肉前不能按冰水完整循环评价水流。
+- 所有伤害示例均不含装备、暴击、命中率、防御与持续供魔约束，是配置数值对比，不是Boss击杀时间模拟。
+
+## 设计判断
+
+680足够实现肉前点满650的目标，但当前实际有意义的取舍主要集中在10～15级。20级只剩很小的补齐顺序差异，25级可买齐除空档炼金等级外的全部内容，30级甚至连空档等级都能买齐。这个结果比“肉前最后点满、此前有取舍”的目标更宽松。
+
+炼金1按用户确认作为学习奖励。优先明确炼金4～7的阶段收益，再调整点数节奏。可以把现有适合肉前的配方分到中间等级，或设计明确的制作收益；具体改动需继续讨论。也可以保留提前练熟练度的用途，但应在说明中讲清。
+
+若只调整收入，把更多点数留给肉前后段可延长取舍；不过降低到需要玩家舍弃常用技能、只为购买没有即时收益的等级，会形成假取舍。先确定收益再定价更合适。
+
+## 复现与代码依据
+
+运行：\`node Tools/MageBalance/experiments/study-choices-2026-10-26/run.cjs\`。成长与伤害复用现有MageBalance引擎，输入为正式SkillBalance.json；建议点数与路线明列于脚本，结果另存results.json。
+
+- ElainaModSkills/Data/SkillBalance.json；SkillBalanceConfig.cs；SkillBalanceSystem.cs
+- ElainaModSkills/Skills/Alchemy/AlchemySkill.cs
+- ElainaModAlchemy/Gameplay/AlchemyProgressionRules.cs；AlchemyProgressPlayer.cs；AlchemyBrewingPlayer.cs；AlchemyBrewSession.cs
+- ElainaModAlchemy/UI/AlchemyCatalog.cs；AlchemyNotebookPanel.cs
+- ElainaModAlchemy/Buffs/AlchemyBuffPlayer.cs；ElainaAttribute/ElainaManaElixirPlayer.cs
+- ElainaModAlchemy/Crafting/FacsimileMaterialRule.cs
+- ElainaModSkills/Skills/DollControl/DollControlProgression.cs；Flight/FlightSkill.cs；Heal/HealSkill.Values.cs
+- ElainaModSkills/Skills/MagicMissile/MagicMissleSpawner.cs；Water/WaterLaser.cs
+`;
+fs.writeFileSync(path.join(__dirname,'REPORT.md'),out);
+console.log(JSON.stringify({stages:results.map(x=>({level:x.level,income:x.income,allCost:x.allCost,usefulCost:x.usefulCost,combat:x.combat.cost,utility:x.utility.cost})),damageExamples},null,2));

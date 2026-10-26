@@ -23,8 +23,10 @@ internal sealed class PanelGame : Game
     private static bool DebugToolsOnly;
     private static bool RecallResearchOnly;
     private static bool HealingOnly;
+    private static bool AlchemyOnly;
     private static bool DiscoveryOnly;
     private static bool TermsOnly;
+    private static bool ForgetOnly;
     private PanelGame()
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
@@ -88,7 +90,9 @@ internal sealed class PanelGame : Game
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
-        string[] scenes = TermsOnly ? ["terms-freeze", "terms-magic"]
+        string[] scenes = AlchemyOnly ? ["alchemy-stats", "alchemy-growth", "alchemy-max"]
+            : ForgetOnly ? ["forget", "forget-armed", "forget-lv1"]
+            : TermsOnly ? ["terms-freeze", "terms-magic"]
             : HealingOnly ? ["healing-new", "healing-level1", "healing-growth", "healing-level8", "healing-description"]
             : RecallResearchOnly ? ["recall-sealed", "recall-revealed-missing", "recall-ready", "recall-learned"]
             : OrnamentsOnly ? ["camera-350", "empty", "editor"]
@@ -140,8 +144,10 @@ internal sealed class PanelGame : Game
         DebugToolsOnly = args.Contains("--debug-tools-only");
         RecallResearchOnly = args.Contains("--recall-research-only");
         HealingOnly = args.Contains("--healing-only");
+        AlchemyOnly = args.Contains("--alchemy-only");
         DiscoveryOnly = args.Contains("--discovery-only");
         TermsOnly = args.Contains("--terms-only");
+        ForgetOnly = args.Contains("--forget-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
         Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
         Fixtures.Text();

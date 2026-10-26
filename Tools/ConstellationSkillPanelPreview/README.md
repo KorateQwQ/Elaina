@@ -69,3 +69,5 @@
 ## 专有名词悬停说明（2026-10-26）
 
 `-TermsOnly -SkipChecks`（英文加 `-Culture en-US`）导出 `terms-freeze`（冰锥术）与 `terms-magic`（灰之魔女）在 720p、默认和 125% UI 下的详情页，悬停首个已注册名词：重放正式 `ConstellationRichText` 命中区域、`ConstellationDetail` 下划线与锚点、`ConstellationDrawing.TermTooltip` 说明卡（2026-10-26 定稿为“手札便签”款：书页点线内框加四角星、衬线名称、可选的大号数值两栏；曾对比书签夹页、星注两款）。名词注册在 `Program` 中按正式路径、本地化键与冻结常量复刻（正式注册位于 KL `ElementBuildUpSystem` 与 `Localization/ElainaTerms.cs`），并额外加载 KL 的 HJSON；`KL/` 开头的贴图从相邻 KL 目录读取。冰锥术的伤害/积累参数是夹具值。实际 SUI 悬停派发、提示延迟和滚动中的命中需游戏内验证。
+
+`-ForgetOnly -SkipChecks`（英文加 `-Culture en-US`）导出魔法飞弹 Lv.3 持有 2 本忘却之书时的 `forget`（未确认）、`forget-armed`（等待确认）和 `forget-lv1`（已是 Lv.1）详情页，滚动到详情底部，覆盖 720p、默认和 125% UI。正式结算位于 `ElainaModSkills/SkillForgetting.cs`，预览中 `BookOfOblivion` 物品 ID 为桩值；默认检查覆盖无书不可忘却、返还等于进修研习点之和、只扣 1 本、退回 Lv.1 仍习得、Lv.1 不扣书、改选取消确认、忘却后可再次进修。实际点击、背包变化和存档需游戏内验证。

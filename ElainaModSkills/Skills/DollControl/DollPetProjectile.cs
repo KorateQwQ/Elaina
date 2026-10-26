@@ -69,6 +69,8 @@ public abstract class DollPetProjectile : ModProjectile
     private bool workPlanter;
     private bool workGarden;
     private bool workChest, chestWaiting;
+    /// <summary>主人端头顶显示的箱子携带物类型；不同步，其他端只看到玩偶停在箱子旁。</summary>
+    private int carryType;
     private int hitTimer;
     private byte skillLevel = 1;
     internal int SkillLevel => skillLevel;
@@ -93,6 +95,8 @@ public abstract class DollPetProjectile : ModProjectile
     public bool IsHammering => Projectile.ai[1] == HammerState;
     public bool IsUsing => Projectile.ai[1] == UseState;
     public bool HasWork => workTile.X >= 0;
+    /// <summary>空闲或只在照料种植盆：照料优先级最低，可以随时被开箱等指令叫走。</summary>
+    internal bool IsInterruptible => !HasWork || workGarden;
     public bool IsDismissing => Projectile.ai[1] == DismissState;
     private float AppearAge => Projectile.localAI[0] - FormationSlot * DollSummonVisuals.StaggerTicks;
     /// <summary>收回时后排先走：编号越大越早开始。</summary>
@@ -220,6 +224,8 @@ public abstract class DollPetProjectile : ModProjectile
         if (Projectile.owner != Main.myPlayer || IsDismissing) return;
         DollCommandPlayer commands = Main.player[Projectile.owner].GetModPlayer<DollCommandPlayer>();
         commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis());
+        // 玩偶可能还远在箱子旁，箱子物品直接从主人身上交还。
+        commands.DeliverChestCargo(this, Main.player[Projectile.owner].Center, Projectile.GetSource_FromThis());
         commands.ReleaseTarget(workTile, workWall || workGarden, workPlanter || workGarden, this);
         workTile = new Point(-1, -1);
         workWall = workPlanter = workGarden = workChest = chestWaiting = false;
@@ -333,6 +339,10 @@ public abstract class DollPetProjectile : ModProjectile
         if (isOwner && commands.HasLoot && !commands.HasTask &&
             Vector2.DistanceSquared(Projectile.Center, owner.Center) < DeliverDistance * DeliverDistance)
             commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis());
+        // 从箱子取回的物品不必等其他任务结束，带货玩偶一回来就交还。
+        if (isOwner && commands.CanDeliverCargo(this) &&
+            Vector2.DistanceSquared(Projectile.Center, owner.Center) < DeliverDistance * DeliverDistance)
+            commands.DeliverChestCargo(this, Projectile.Center, Projectile.GetSource_FromThis());
 
         UpdateFollowMotion(owner);
         Vector2 anchor = GetFollowAnchor(owner);
@@ -375,9 +385,16 @@ public abstract class DollPetProjectile : ModProjectile
         workGarden = false;
         workChest = commands.TrySelectRemoteChest(this, out Point chestTarget);
         chestWaiting = workChest && commands.RemoteChestActionFinished;
+        carryType = commands.CarryType(this);
         if (workChest)
         {
             workTile = chestTarget;
+            workWall = workPlanter = false;
+        }
+        else if (carryType > 0)
+        {
+            // 带着箱子里的物品时先回主人身边交还，不接新的挖掘或种植任务。
+            workTile = new Point(-1, -1);
             workWall = workPlanter = false;
         }
         else
@@ -500,7 +517,24 @@ public abstract class DollPetProjectile : ModProjectile
         // 出现/收回时叠加同一帧，让玩偶泛白发光；tint alpha=0 在 AlphaBlend 中为叠加。
         if (flash > 0)
             DrawFrame(Main.spriteBatch, texture, at, new Color(255, 226, 255, 0) * (flash * alpha), Projectile.rotation, scale, effects);
+        if (Projectile.owner == Main.myPlayer && carryType > 0 && !IsDismissing)
+            DrawCarriedItem(at - new Vector2(0f, (texture.Height * 0.5f * scale.Y + 10f) * GravDir), lightColor, alpha);
         return false;
+    }
+
+    /// <summary>头顶小图标表示正带着箱子里的物品，使用原版物品贴图。</summary>
+    private void DrawCarriedItem(Vector2 center, Color lightColor, float alpha)
+    {
+        if (carryType >= TextureAssets.Item.Length) return;
+        Main.instance.LoadItem(carryType);
+        Texture2D icon = TextureAssets.Item[carryType].Value;
+        Rectangle frame = Main.itemAnimations[carryType] != null
+            ? Main.itemAnimations[carryType].GetFrame(icon) : icon.Frame();
+        float size = Math.Max(frame.Width, frame.Height);
+        float scale = size > 20f ? 20f / size : 1f;
+        float bob = MathF.Sin(Projectile.ai[0] / Math.Max(1, BobPeriod) * MathHelper.TwoPi) * 1.5f;
+        Main.spriteBatch.Draw(icon, new Vector2(MathF.Round(center.X), MathF.Round(center.Y + bob)), frame,
+            Color.Lerp(lightColor, Color.White, 0.35f) * alpha, 0f, frame.Size() * 0.5f, scale, SpriteEffects.None, 0f);
     }
 
     private Asset<Texture2D>[] GetFrames(ref Asset<Texture2D>[] cache, string action, int count)

@@ -7,5 +7,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Alchemy;
 internal static class AlchemySkill
 {
     internal static int NotebookMaximumLevel = 20;
+    internal static bool Learned = true;
     public static int GetNotebookMaximumLevel(Player player) => NotebookMaximumLevel;
+    public static bool IsLearned(Player player) => Learned && player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina;
 }

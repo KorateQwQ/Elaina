@@ -13,6 +13,9 @@ namespace Terraria
         public static bool dedServ => netMode == 2;
         public static Player[] player = [];
         public static Projectile[] projectile = [];
+        public static NPC[] npc = [];
+        public static IEnumerable<NPC> ActiveNPCs => npc.Where(n => n.active);
+        public static Dictionary<int, object> RegisteredGameModes = new() { [0] = new() };
         public static Player LocalPlayer => player[myPlayer];
         public static IEnumerable<Player> ActivePlayers => player.Where(p => p.active);
         public static SpriteBatch spriteBatch;
@@ -30,11 +33,28 @@ namespace Terraria
                 components[typeof(T)] = value = new T { Player = this };
             return (T)value;
         }
+        public void SetModPlayer<T>(T value) where T : ModPlayer => components[typeof(T)] = value;
     }
     public sealed class NPC
     {
-        public int type = 1, whoAmI = 10, lifeMax = 100, realLife = -1;
-        public bool friendly, townNPC, SpawnedFromStatue;
+        public int type = 1, netID = 1, whoAmI = 10, lifeMax = 100, life = 100, realLife = -1;
+        public bool friendly, townNPC, SpawnedFromStatue, boss, active;
+        public float BossProgress = 1;
+        public ModNPC ModNPC;
+        public static Dictionary<int, int> DefaultLife = new();
+        public static Terraria.DataStructures.NPCSpawnParams LastSpawnParams;
+        readonly Dictionary<Type, object> globals = new();
+        public T GetGlobalNPC<T>() where T : new()
+        {
+            if (!globals.TryGetValue(typeof(T), out var value)) globals[typeof(T)] = value = new T();
+            return (T)value;
+        }
+        public void SetDefaults(int id, Terraria.DataStructures.NPCSpawnParams spawnparams)
+        {
+            type = netID = id;
+            lifeMax = life = DefaultLife.GetValueOrDefault(id, 100);
+            LastSpawnParams = spawnparams;
+        }
         public Vector2 Center;
         public string FullName => "Test enemy";
         public object GetSource_Loot() => this;
@@ -78,8 +98,15 @@ namespace Terraria.ID
     public static class NetmodeID { public const int SinglePlayer = 0, MultiplayerClient = 1, Server = 2; }
     public static class NPCID
     {
-        public const int TargetDummy = 488;
-        public static class Sets { public static bool[] CountsAsCritter = new bool[1000], ProjectileNPC = new bool[1000]; }
+        public const int TargetDummy = 488, KingSlime = 50, EyeofCthulhu = 4, EaterofWorldsHead = 13,
+            EaterofWorldsBody = 14, EaterofWorldsTail = 15, SkeletronHand = 36, WallofFlesh = 113,
+            WallofFleshEye = 114, TheHungry = 115, TheHungryII = 116, LeechHead = 117,
+            LeechBody = 118, LeechTail = 119, Creeper = 267, ServantofCthulhu = 5, Probe = 139,
+            PrimeCannon = 128, PrimeSaw = 129, PrimeVice = 130, PrimeLaser = 131,
+            MoonLordHead = 396, MoonLordHand = 397, MoonLordCore = 398,
+            MoonLordFreeEye = 400, MoonLordLeechBlob = 401, Retinazer = 125, Spazmatism = 126;
+        public static class Sets { public static bool[] CountsAsCritter = new bool[1000], ProjectileNPC = new bool[1000], ShouldBeCountedAsBoss = new bool[1000]; }
+        public static class Search { public static string GetName(int type) => type.ToString(); }
     }
     public static class DustID { public const int Enchanted_Pink = 1; }
     public static class SoundID { public static Terraria.Audio.SoundStyle Grab => new(); }
@@ -96,6 +123,14 @@ namespace Terraria.GameContent
 }
 namespace Terraria.ModLoader
 {
+    public class ModNPC { public string FullName; }
+    public class ModSystem
+    {
+        public virtual void Load() {}
+        public virtual void OnWorldLoad() {}
+        public virtual void OnWorldUnload() {}
+        public virtual void Unload() {}
+    }
     public class Mod { public ModPacket GetPacket() => new(); }
     public sealed class ModPacket : BinaryWriter
     {
@@ -110,8 +145,16 @@ namespace Terraria.ModLoader
         public virtual void SaveData(IO.TagCompound tag) {}
         public virtual void LoadData(IO.TagCompound tag) {}
         public virtual void FrameEffects() {}
+        public virtual void OnEnterWorld() {}
     }
-    public class GlobalNPC { public Mod Mod = new(); public virtual void OnKill(Terraria.NPC npc) {} }
+    public class GlobalNPC
+    {
+        public Mod Mod = new();
+        public virtual bool InstancePerEntity => false;
+        public virtual void SetDefaults(Terraria.NPC npc) {}
+        public virtual void OnSpawn(Terraria.NPC npc, Terraria.DataStructures.IEntitySource source) {}
+        public virtual void OnKill(Terraria.NPC npc) {}
+    }
     public class ModProjectile
     {
         public Terraria.Projectile Projectile;
@@ -121,6 +164,8 @@ namespace Terraria.ModLoader
         public virtual bool? CanCutTiles() => null;
         public virtual void AI() {}
         public virtual bool PreDraw(ref Color color) => true;
+        public virtual void SendExtraAI(BinaryWriter writer) {}
+        public virtual void ReceiveExtraAI(BinaryReader reader) {}
     }
     public static class ModContent
     {
@@ -139,10 +184,22 @@ namespace Terraria.ModLoader.IO
 namespace KL.Utils.Net { public class KLModPlayer : ModPlayer {} }
 namespace KL.Utils
 {
-    public static class KLGameStateManager
+    public class KLGameStateManager : ModSystem
     {
-        public static float GetBossState(Terraria.NPC npc) => 1;
+        protected virtual void OnKillBoss(Terraria.NPC self, List<int> killers, int damage) {}
+        public static float GetBossState(Terraria.NPC npc) => npc.boss ? npc.BossProgress : -1;
         public static int GetLevelCap(float progress) => progress >= 1 ? 20 : 10;
+    }
+}
+namespace Terraria.DataStructures
+{
+    public interface IEntitySource {}
+    public class EntitySource_Parent : IEntitySource { public object Entity; }
+    public struct NPCSpawnParams
+    {
+        public object gameModeData;
+        public int? playerCountForMultiplayerDifficultyOverride;
+        public float? strengthMultiplierOverride;
     }
 }
 namespace 伊蕾娜

@@ -22,9 +22,10 @@ public sealed partial class DollCommandPlayer
     internal bool RemoteChestActionFinished => !remoteChestTravelling;
 
     internal bool IsRemoteChestHelper(DollPetProjectile worker) => worker == remoteChestHelper && RemoteHelperAlive();
+    // 开箱优先于一切工作：被选中的玩偶下一帧就放下手头任务赶去箱子，所以这里不看它当前在做什么。
     private bool RemoteHelperAlive() => remoteChestHelper?.Projectile is { active: true } projectile
         && projectile.owner == Player.whoAmI && projectile.ModProjectile == remoteChestHelper
-        && (!remoteChestHelper.HasWork || remoteChestHelper.IsOpeningChest);
+        && !remoteChestHelper.IsDismissing;
 
     internal bool TrySelectRemoteChest(DollPetProjectile worker, out Point target)
     {
@@ -32,23 +33,36 @@ public sealed partial class DollCommandPlayer
         return IsRemoteChestHelper(worker);
     }
 
-    internal DollPetProjectile FindIdleChestHelper()
+    /// <summary>
+    /// 派一只玩偶去开箱，依次优先：空闲 → 照料种植盆 → 带着货（继续带着去下一个箱子）→ 正在做任务的。
+    /// 正在做任务的被叫走后，开箱结束（带了货就先交还）会自动回去继续任务；同档里离箱子近的优先。
+    /// </summary>
+    internal DollPetProjectile FindChestHelper(Point? chest = null)
     {
         if (RemoteHelperAlive()) return remoteChestHelper;
+        DollPetProjectile best = null;
+        int bestRank = int.MaxValue;
+        float bestDistance = float.MaxValue;
         for (int i = 0; i < Main.maxProjectiles; i++)
         {
             Projectile projectile = Main.projectile[i];
-            if (projectile.active && projectile.owner == Player.whoAmI && projectile.ModProjectile is DollPetProjectile doll && !doll.HasWork && !doll.IsDismissing)
-                return doll;
+            if (!projectile.active || projectile.owner != Player.whoAmI || projectile.ModProjectile is not DollPetProjectile doll
+                || doll.IsDismissing) continue;
+            int rank = !doll.IsInterruptible ? 3 : IsCarryingCargo(doll) ? 2 : doll.HasWork ? 1 : 0;
+            float distance = chest is { } p ? Vector2.DistanceSquared(projectile.Center, p.ToWorldCoordinates(16, 16)) : 0f;
+            if (rank > bestRank || rank == bestRank && distance >= bestDistance) continue;
+            best = doll;
+            bestRank = rank;
+            bestDistance = distance;
         }
-        return null;
+        return best;
     }
 
     internal void BeginRemoteChest(Point origin, Point clickedTile, On_Player.orig_TileInteractionsUse action)
     {
         // Holding/repeatedly pressing right-click on the same pending target cannot restart its animation.
         if (remoteChestTravelling && remoteChestOrigin == origin && RemoteHelperAlive()) return;
-        var helper = FindIdleChestHelper();
+        var helper = FindChestHelper(origin);
         ReleaseRemoteChest(false);
         if (helper == null) return;
         remoteChestHelper = helper;

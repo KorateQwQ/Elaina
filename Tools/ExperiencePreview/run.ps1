@@ -8,12 +8,15 @@ $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramewor
 $sources = @('ExperienceRules', 'ExperienceOrbDrawing')
 $harness = @('Preview.cs.txt')
 if ($Checks) {
-    $sources += @('ExperienceDropNPC', 'ExperienceOrb', 'ExperienceNetwork')
+    $sources += @('ExperienceDropNPC', 'ExperienceOrb', 'ExperienceNetwork', 'ExperienceNpcRules', 'BossExperienceDrop')
     $harness = @('Checks.cs.txt', 'EngineStubs.cs.txt')
 }
 $entries = ,@('Reference', (Join-Path $Tml 'Libraries/FNA/1.0.0/FNA.dll'))
 foreach ($name in $sources) { $entries += ,@('Compile', (Join-Path $repo "System/Experience/$name.cs")) }
-if ($Checks) { $entries += ,@('Compile', (Join-Path $repo 'System/ElainaStatePlayer.cs')) }
+if ($Checks) {
+    $entries += ,@('Compile', (Join-Path $repo 'System/ElainaStatePlayer.cs'))
+    $entries += ,@('Compile', (Join-Path $repo 'System/ElainaGameStateSystem.cs'))
+}
 foreach ($name in $harness) { $entries += ,@('Compile', (Join-Path $PSScriptRoot $name)) }
 $entries += ,@('None', (Join-Path $Tml 'Libraries/Native/Windows/*.dll'))
 foreach ($entry in $entries) {

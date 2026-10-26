@@ -49,7 +49,7 @@ public sealed class DollChestReachSystem : ModSystem
             && !Main.gameMenu && !Main.mapFullscreen && !Main.blockMouse && !player.mouseInterface
             && !Main.drawingPlayerChat && !Main.editSign && !Main.inFancyUI
             && TryChestOrigin(x, y, out _) && TileOnScreen(x, y)
-            && player.GetModPlayer<DollCommandPlayer>().FindIdleChestHelper() != null;
+            && player.GetModPlayer<DollCommandPlayer>().FindChestHelper() != null;
 
     internal static bool TileOnScreen(int x, int y, float margin = 0)
     {

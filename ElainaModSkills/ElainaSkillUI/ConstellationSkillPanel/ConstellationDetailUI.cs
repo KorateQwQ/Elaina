@@ -96,6 +96,20 @@ public sealed partial class ConstellationSkillPanel
                     InvalidateDetail(false);
                     Notify(_state.Find(action.Id).name + (_state.Disabled.Contains(action.Id) ? LocalizeUI("DisabledSuffix") : LocalizeUI("EnabledSuffix")));
                 }
+                else if (action.Kind is "forget" or "forget-cancel")
+                {
+                    _state.ForgetArmed = action.Kind == "forget" ? action.Id : null;
+                    InvalidateDetail(false);
+                }
+                else if (action.Kind == "forget-confirm" && _state.ForgetArmed == action.Id)
+                {
+                    if (_state.Forget(action.Id, out int refund))
+                    {
+                        _flash = 1;
+                        Notify(LocalizeUI("SkillForgotten", _state.Find(action.Id).name, refund));
+                    }
+                    InvalidateDetail(false);
+                }
             };
             _detailRows.Add((view, null));
         }

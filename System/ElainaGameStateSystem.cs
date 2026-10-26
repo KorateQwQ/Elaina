@@ -1,6 +1,7 @@
 using KL.Utils;
-using KL.Utils.Net;
-using NotImplementedException = System.NotImplementedException;
+using Terraria;
+using Terraria.ID;
+using 伊蕾娜.System.Experience;
 
 namespace 伊蕾娜.System;
 
@@ -13,14 +14,17 @@ public class ElainaGameStateSystem : KLGameStateManager
         base.Load();
     }
 
-    protected override void OnKillBoss(NPC self, List<int> killers, int damage)
+    protected override void OnKillBoss(NPC self, List<int> killers, int realMaxHp)
     {
-        //本地玩家接受boss击杀事件。
-        if (killers.Contains(Main.myPlayer))
+        // 战斗结束与参与名单直接采用 KL 的回调结果；拥有端先开上限，服务器再生成光球。
+        if (!self.SpawnedFromStatue)
         {
-            Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().OnKillBoss(self);
+            if (Main.netMode != NetmodeID.Server && killers.Contains(Main.myPlayer))
+                Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().OnKillBoss(self, realMaxHp);
+            if (Main.netMode != NetmodeID.MultiplayerClient)
+                BossExperienceDrop.Spawn(self, killers);
         }
-        base.OnKillBoss(self, killers, damage);
+        base.OnKillBoss(self, killers, realMaxHp);
     }
     
 }

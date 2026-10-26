@@ -37,7 +37,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
     private bool lastLeft;
     private int validateTimer;
 
-    public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlanterMarks.Count > 0 || HasGardenTask;
+    /// <summary>挖掘、敲墙、放置种植盆等指令任务；照料种植盆是自发行为，不算在内。</summary>
+    public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlanterMarks.Count > 0;
     public bool HasLoot => loot.Count > 0;
     /// <summary>挖掘与敲墙是否收集掉落；随角色保存，后续敲击立即使用当前选择。</summary>
     public bool BringBackItems { get; private set; } = true;
@@ -324,14 +325,14 @@ public sealed partial class DollCommandPlayer : ModPlayer
         return group;
     }
 
-    /// <summary>取消任务：清空全部标记并退出标记工具，玩偶随之回到跟随状态。</summary>
+    /// <summary>取消任务：清空全部标记并退出标记工具，玩偶随之回到跟随状态；空闲后仍会自发照料种植盆。</summary>
     public void ClearTasks()
     {
         TileMarks.Clear();
         WallMarks.Clear();
         PlanterMarks.Clear();
         workClaims.Clear();
-        PauseGarden();
+        ResetGarden();
         ReleaseRemoteChest(true);
         ExitTool();
     }
@@ -536,18 +537,23 @@ public sealed partial class DollCommandPlayer : ModPlayer
             {
                 int stack = Math.Min(remaining, maxStack);
                 remaining -= stack;
-                int index = Item.NewItem(source, (int)from.X - 8, (int)from.Y - 8, 16, 16, type, stack, noGrabDelay: true);
-                if (index < 0 || index > Main.maxItems) continue;
-                Item item = Main.item[index];
-                Vector2 toward = Player.Center - from;
-                item.velocity = toward.SafeNormalize(Vector2.UnitY) * Math.Min(7f, toward.Length() / 14f + 2f)
-                    + new Vector2(Main.rand.NextFloat(-1.2f, 1.2f), -2.5f);
-                if (Main.netMode == NetmodeID.MultiplayerClient)
-                    NetMessage.SendData(MessageID.SyncItem, -1, -1, null, index, 1f);
+                ThrowToOwner(Item.NewItem(source, (int)from.X - 8, (int)from.Y - 8, 16, 16, type, stack, noGrabDelay: true), from);
             }
         }
         loot.Clear();
         SoundEngine.PlaySound(SoundID.Grab, from);
+    }
+
+    /// <summary>刚生成的掉落物从 <paramref name="from"/> 抛向主人，并同步给其他端。</summary>
+    private void ThrowToOwner(int index, Vector2 from)
+    {
+        if (index < 0 || index > Main.maxItems) return;
+        Item item = Main.item[index];
+        Vector2 toward = Player.Center - from;
+        item.velocity = toward.SafeNormalize(Vector2.UnitY) * Math.Min(7f, toward.Length() / 14f + 2f)
+            + new Vector2(Main.rand.NextFloat(-1.2f, 1.2f), -2.5f);
+        if (Main.netMode == NetmodeID.MultiplayerClient)
+            NetMessage.SendData(MessageID.SyncItem, -1, -1, null, index, 1f);
     }
 
     /// <summary>玩偶能穿墙，可能停在方块里：沿玩偶到主人的连线找第一个不压实心物块的抛出点，都不行就从主人身上抛出。</summary>
@@ -566,6 +572,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
     public override void SaveData(TagCompound tag)
     {
         SaveGardenOwner(tag);
+        SaveChestCargo(tag);
         tag["DollBringBackItems"] = BringBackItems;
         if (loot.Count == 0) return;
         List<TagCompound> list = [];
@@ -577,6 +584,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
     public override void LoadData(TagCompound tag)
     {
         LoadGardenOwner(tag);
+        LoadChestCargo(tag);
         BringBackItems = !tag.ContainsKey("DollBringBackItems") || tag.GetBool("DollBringBackItems");
         loot.Clear();
         foreach (TagCompound entry in tag.GetList<TagCompound>("DollLoot"))

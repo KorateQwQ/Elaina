@@ -5,6 +5,7 @@ using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaModAlchemy.UI;
+using 伊蕾娜.ElainaModSkills.Skills.Alchemy;
 using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
@@ -47,7 +48,7 @@ public sealed class AlchemyBrewingPlayer : ModPlayer
 
     public bool Enter(int i, int j)
     {
-        if (Main.dedServ || Player.whoAmI != Main.myPlayer || !CanUse ||
+        if (Main.dedServ || Player.whoAmI != Main.myPlayer || !CanUse || !AlchemySkill.IsLearned(Player) ||
             !Player.IsInTileInteractionRange(i, j, TileReachCheckSettings.Simple) ||
             !TryGetCauldron(i, j, out var origin) || IsBrewing && origin != Cauldron) return false;
         var position = new Vector2(origin.X * 16 - 8, origin.Y * 16 - 10);
@@ -88,10 +89,10 @@ public sealed class AlchemyBrewingPlayer : ModPlayer
     internal AlchemyNotebookResult StartBrew(string id, int batches, int sequence)
     {
         AlchemyNotebookResult Fail(string key) => new(sequence, AlchemyNotebookAction.Craft, id, false, LocalizeUI(key));
-        if (!CanUse || !Active || !StationValid) return Fail("AlchemyNeedCauldron");
+        if (!CanUse || !AlchemySkill.IsLearned(Player) || !Active || !StationValid) return Fail("AlchemyNeedCauldron");
         if (!AlchemyVanillaRecipes.CanCraft(Player, id) || AlchemyVanillaRecipes.MaxBatches(Player, id) < batches)
             return Fail("CannotCraft");
-        if (!Session.Start()) return Fail("CannotAlchemy");
+        if (!Session.Start(Player.GetModPlayer<AlchemyProgressPlayer>().Level)) return Fail("CannotAlchemy");
         _recipe = id;
         _batches = batches;
         SendState();
@@ -179,6 +180,7 @@ public sealed class AlchemyBrewingPlayer : ModPlayer
         packet.Write(Cauldron.X);
         packet.Write(Cauldron.Y);
         packet.Write(Session.Ticks);
+        packet.Write(Session.DurationTicks);
         packet.Send(toWho, ignore);
     }
 
@@ -187,6 +189,7 @@ public sealed class AlchemyBrewingPlayer : ModPlayer
         var phase = (AlchemyBrewPhase)reader.ReadByte();
         var origin = new Point(reader.ReadInt32(), reader.ReadInt32());
         int ticks = reader.ReadInt32();
+        int durationTicks = reader.ReadInt32();
         if (playerIndex < 0 || playerIndex >= Main.maxPlayers || phase > AlchemyBrewPhase.Stirring) return;
         if (Main.netMode == NetmodeID.Server && sender != playerIndex) return;
         var player = Main.player[playerIndex];
@@ -196,7 +199,7 @@ public sealed class AlchemyBrewingPlayer : ModPlayer
             !player.IsInTileInteractionRange(origin.X, origin.Y, TileReachCheckSettings.Simple))) return;
         if (phase == AlchemyBrewPhase.Idle) brewing.Cancel(false);
         brewing.Cauldron = origin;
-        brewing.Session.ApplyVisualState(phase, ticks);
+        brewing.Session.ApplyVisualState(phase, ticks, durationTicks);
         if (Main.netMode == NetmodeID.Server) brewing.SendState(-1, sender);
     }
 }

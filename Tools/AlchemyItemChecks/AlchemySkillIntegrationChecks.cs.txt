@@ -58,6 +58,14 @@ internal static class AlchemySkillIntegrationChecks
         for (int i = 0; i < 20; i++) alchemy.TryLevelUp();
         Check(alchemy.Level == 8 && alchemy.MaxLevel == 8 && progress.MaximumLevel == 8 && progress.Level == 1,
             "Skill upgrades cap at eight and raise the notebook cap without granting crafting levels");
+        var stats = alchemy.GetConstellationStats(8);
+        Check(stats.Length == 4 && stats[2].Value == "+0" && stats[2].Unit == "%" && stats[3].Value == "0",
+            "Efficiency stats use actual crafting level, not the purchased level cap");
+        var growth = alchemy.GetConstellationUpgradePreview(6);
+        Check(growth.Length == 3 && growth[0].Current == "5" && growth[0].Next == "6"
+            && growth[1].Current == "+75" && growth[1].Next == "+116" && growth[1].Unit == "%"
+            && growth[2].Current == "20" && growth[2].Next == "25",
+            "Upgrade preview shows speed percentages and bonus chance at the next proficiency caps");
         Check(other.GetModPlayer<AlchemyProgressPlayer>().MaximumLevel == 1, "Notebook cap belongs to its owner, not Main.LocalPlayer");
         alchemy.DeserializeData(new TagCompound { ["Level"] = 8, ["MaxCD"] = 60f, ["CurrentCD"] = 10f });
         Check(alchemy.MaxCD < 0 && alchemy.CurrentCD == 0 && alchemy.Level == 8, "Old skill save cannot restore an active cooldown");
@@ -65,6 +73,9 @@ internal static class AlchemySkillIntegrationChecks
         int gained = progress.AddCraftExperience("moondew", int.MaxValue);
         Check(gained == 1750 && progress.Level == 8 && progress.Experience == 0 && progress.ExperienceToNextLevel == 0
             && progress.AddCraftExperience("moondew", 1) == 0, "Crafting stops exactly at the owned skill cap without banking excess XP");
+        stats = alchemy.GetConstellationStats(8);
+        Check(stats[2].Value == "+300" && stats[2].Unit == "%" && stats[3].Value == "35",
+            "Max proficiency shows 300 percent faster brewing and 35 percent bonus yield");
         Check(new[] { "bloodlust", "starpower", "focus", "resonance" }.All(id => AlchemyProgressionRules.RequiredLevel(id) == 8),
             "All four combat recipes require level eight");
         foreach (int characterLevel in new[] { 45, 95, 1000 })

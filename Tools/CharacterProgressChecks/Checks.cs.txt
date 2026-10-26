@@ -99,6 +99,15 @@ static class Checks
         loaded.DebugResetProgress();
         Check(loaded.DebugGetNextBoss(out _, out state) && state == .5f, "Reset on external list starts at character zero.");
         Check(player.Progress == 2, "Resetting another character does not change this one.");
+        var legacyRemainder = new ElainaStatePlayer();
+        legacyRemainder.LoadData(new TagCompound { ["progress"] = 2f, ["currentLevel"] = 10,
+            ["experience"] = 440, ["progressSet"] = new List<float>() });
+        Check(legacyRemainder.CurrentLevel == 12 && legacyRemainder.Experience == 50,
+            "Reduced XP requirements consume the old saved remainder before clamping.");
+        var converted = new TagCompound(); legacyRemainder.SaveData(converted);
+        legacyRemainder.LoadData(converted);
+        Check(legacyRemainder.CurrentLevel == 12 && legacyRemainder.Experience == 50,
+            "Converted remainder survives actual TagCompound save/load without repeated level grants.");
         Console.WriteLine($"PASS: {passed} character progress checks against production assemblies.");
     }
 }

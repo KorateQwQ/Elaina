@@ -3,27 +3,49 @@ using Microsoft.Xna.Framework;
 
 namespace 伊蕾娜.System.Experience;
 
-/// <summary>第一版占位数值集中在这里，经验数量与光球数量无关。</summary>
+/// <summary>角色经验规则；光球数量不影响奖励，研习点另行结算。</summary>
 public static class ExperienceRules
 {
     public const float DistributionRadius = 1200f;
-    public const int ExperiencePerEnemy = 10;
-    public const int ExperiencePerLevel = 100;
+    public const int EnemyLifePerExperience = 10;
+    public const int FirstBossRewardDivisor = 4;
+    public const int RepeatBossLifePerExperience = 200;
+    public const int RepeatBossBarDivisor = 20;
     public const int FloatTicks = 30;
     public const int Lifetime = 900;
     public const float PickupRadius = 18f;
 
-    // 等级上限仍由 Boss 进度决定；到达上限时最多暂存一条经验，解锁后可继续使用。
+    // 每级增加 10：肉前常见混合遭遇每五级约 100–250 只；肉后暂沿用，另行校准。
+    public static int RequiredForLevel(int level)
+    {
+        return (int)Math.Min(int.MaxValue, 100L + 10L * (Math.Max(1, level) - 1L));
+    }
+
+    public static int ForEnemyLife(int baseLife) => baseLife <= 0 ? 0 : Math.Max(1, baseLife / EnemyLifePerExperience);
+
+    public static int ForFirstBoss(int previousLevelCap) => RequiredForLevel(previousLevelCap) / FirstBossRewardDivisor;
+
+    // 补偿而非主要升级来源：KL 血条总生命的 0.5%，至多当前等级一条经验的 5%。
+    public static int ForRepeatBoss(int realMaxHp, int level) => realMaxHp <= 0 ? 0
+        : Math.Min(Math.Max(1, realMaxHp / RepeatBossLifePerExperience),
+            Math.Max(1, RequiredForLevel(level) / RepeatBossBarDivisor));
+
+    // 到达 Boss 上限时最多暂存该等级的一条经验；提高上限后按真实等级逐级消化。
     public static int Add(ref int level, ref int experience, int maximumLevel, int amount)
     {
         maximumLevel = Math.Max(1, maximumLevel);
         level = Math.Clamp(level, 1, maximumLevel);
-        experience = Math.Clamp(experience, 0, ExperiencePerLevel);
-        long previous = (long)(level - 1) * ExperiencePerLevel + experience;
-        long total = Math.Min((long)maximumLevel * ExperiencePerLevel, previous + Math.Max(0, amount));
-        level = (int)Math.Min(maximumLevel, total / ExperiencePerLevel + 1);
-        experience = (int)(total - (long)(level - 1) * ExperiencePerLevel);
-        return (int)(total - previous);
+        // 降低曲线后，旧存档的余经验可能超过新的一条；先用于升级，再按当前上限封顶。
+        experience = Math.Max(0, experience);
+        amount = Math.Max(0, amount);
+        long remaining = (long)experience + amount;
+        while (level < maximumLevel && remaining >= RequiredForLevel(level))
+        {
+            remaining -= RequiredForLevel(level);
+            level++;
+        }
+        experience = (int)Math.Min(remaining, RequiredForLevel(level));
+        return (int)Math.Max(0L, (long)amount - (remaining - experience));
     }
 
     public static Vector2 NextVelocity(Vector2 position, Vector2 velocity, Vector2 target, float age)

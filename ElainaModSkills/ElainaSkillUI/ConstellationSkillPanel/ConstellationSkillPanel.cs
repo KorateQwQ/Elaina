@@ -440,6 +440,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     }
     private void Close()
     {
+        if (_state != null) _state.ForgetArmed = null;
         _layoutEditor?.Cancel();
         StopDragging();
         _tooltipDelay.Reset();
@@ -449,6 +450,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
 
     private void CloseImmediately()
     {
+        if (_state != null) _state.ForgetArmed = null;
         _layoutEditor?.Cancel();
         _draw?.ClearToggleAnimations();
         _butterfly.Reset();

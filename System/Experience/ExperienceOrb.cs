@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.GameContent;
@@ -11,9 +12,22 @@ public sealed class ExperienceOrb : ModProjectile
     private Player recipient;
     private bool settled;
     private ExperienceOrbTrail trail;
+    private string bossKey;
     public override string Texture => "Terraria/Images/Projectile_0";
 
-    internal void BindRecipient(Player player) => recipient = player;
+    internal void BindRecipient(Player player, string rewardKey = null)
+    {
+        recipient = player;
+        bossKey = rewardKey;
+    }
+
+    public override void SendExtraAI(BinaryWriter writer)
+    {
+        writer.Write(bossKey != null);
+        if (bossKey != null) writer.Write(bossKey);
+    }
+
+    public override void ReceiveExtraAI(BinaryReader reader) => bossKey = reader.ReadBoolean() ? reader.ReadString() : null;
 
     public override void SetDefaults()
     {
@@ -61,7 +75,8 @@ public sealed class ExperienceOrb : ModProjectile
             && Vector2.DistanceSquared(Projectile.Center, target.Center) <= ExperienceRules.PickupRadius * ExperienceRules.PickupRadius)
         {
             settled = true;
-            ExperienceNetwork.Award(target, (int)Projectile.ai[1]);
+            if (bossKey != null) ExperienceNetwork.AwardBoss(target, bossKey);
+            else ExperienceNetwork.Award(target, (int)Projectile.ai[1]);
             Projectile.Kill();
             return;
         }
@@ -72,6 +87,9 @@ public sealed class ExperienceOrb : ModProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
+        // 奖励金额归拥有端保存：只显示自己的待领取 Boss 球（首杀和重复击杀均适用）。
+        if (bossKey != null && ((int)Projectile.ai[0] != Main.myPlayer
+            || !Main.LocalPlayer.GetModPlayer<ElainaStatePlayer>().HasPendingBossExperience(bossKey))) return false;
         ExperienceOrbDrawing.Draw(Main.spriteBatch, TextureAssets.MagicPixel.Value,
             Projectile.Center, Projectile.ai[2], trail, Main.screenPosition);
         return false;
