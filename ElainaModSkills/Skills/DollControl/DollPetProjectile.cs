@@ -69,6 +69,8 @@ public abstract class DollPetProjectile : ModProjectile
     private bool workPlace;
     private bool workGarden;
     private bool workChest, chestWaiting;
+    /// <summary>送货：把主人放入的物品送进另一只玩偶开着的箱子。</summary>
+    private bool workDeposit;
     /// <summary>主人端头顶显示的箱子携带物类型；不同步，其他端只看到玩偶停在箱子旁。</summary>
     private int carryType;
     private int hitTimer;
@@ -224,11 +226,12 @@ public abstract class DollPetProjectile : ModProjectile
         if (Projectile.owner != Main.myPlayer || IsDismissing) return;
         DollCommandPlayer commands = Main.player[Projectile.owner].GetModPlayer<DollCommandPlayer>();
         commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis(), this);
-        // 玩偶可能还远在箱子旁，箱子物品直接从主人身上交还。
+        // 玩偶可能还远在箱子旁，箱子物品与未送达的放入物直接从主人身上交还。
+        commands.ReturnDeposits(this);
         commands.DeliverChestCargo(this, Main.player[Projectile.owner].Center, Projectile.GetSource_FromThis());
         commands.ReleaseTarget(workTile, workWall || workGarden, workPlace || workGarden, this);
         workTile = new Point(-1, -1);
-        workWall = workPlace = workGarden = workChest = chestWaiting = false;
+        workWall = workPlace = workGarden = workChest = chestWaiting = workDeposit = false;
         SetState(DismissState);
     }
 
@@ -285,6 +288,7 @@ public abstract class DollPetProjectile : ModProjectile
         writer.Write(workGarden);
         writer.Write(workChest);
         writer.Write(chestWaiting);
+        writer.Write(workDeposit);
         writer.Write(skillLevel);
     }
 
@@ -296,6 +300,7 @@ public abstract class DollPetProjectile : ModProjectile
         workGarden = reader.ReadBoolean();
         workChest = reader.ReadBoolean();
         chestWaiting = reader.ReadBoolean();
+        workDeposit = reader.ReadBoolean();
         // 远端没有主人的技能存档，工作动画使用弹幕同步来的等级。
         skillLevel = (byte)DollControlProgression.ClampLevel(reader.ReadByte());
     }
@@ -380,13 +385,14 @@ public abstract class DollPetProjectile : ModProjectile
         bool previousWall = workWall;
         bool previousPlace = workPlace;
         bool previousGarden = workGarden;
-        bool previousChest = workChest, previousWaiting = chestWaiting;
+        bool previousChest = workChest, previousWaiting = chestWaiting, previousDeposit = workDeposit;
         commands.ReleaseTarget(previous, previousWall || previousGarden, previousPlace || previousGarden, this);
         workGarden = false;
         workChest = commands.TrySelectRemoteChest(this, out Point chestTarget);
         chestWaiting = workChest && commands.RemoteChestActionFinished;
+        workDeposit = !workChest && commands.TrySelectChestDeposit(this, out chestTarget);
         carryType = commands.CarryType(this);
-        if (workChest)
+        if (workChest || workDeposit)
         {
             workTile = chestTarget;
             workWall = workPlace = false;
@@ -411,7 +417,7 @@ public abstract class DollPetProjectile : ModProjectile
             }
         }
         if (workTile != previous || workWall != previousWall || workPlace != previousPlace || workGarden != previousGarden
-            || workChest != previousChest || chestWaiting != previousWaiting)
+            || workChest != previousChest || chestWaiting != previousWaiting || workDeposit != previousDeposit)
         {
             hitTimer = 0;
             Projectile.netUpdate = true;
@@ -422,8 +428,10 @@ public abstract class DollPetProjectile : ModProjectile
     private void WorkAI(Player owner, DollCommandPlayer commands, bool isOwner)
     {
         Vector2 tileCenter = workTile.ToWorldCoordinates() - (workGarden ? new Vector2(0, 16) : Vector2.Zero)
-            + (workChest ? new Vector2(8, 8) : Vector2.Zero);
+            + (workChest || workDeposit ? new Vector2(8, 8) : Vector2.Zero);
         float side = tileCenter.X > owner.Center.X ? -1f : 1f;
+        // 开箱玩偶守在朝向主人的一侧，送货玩偶停在另一侧，两只不叠在一起。
+        if (workDeposit) side = -side;
         Vector2 spot = tileCenter + new Vector2(side * WorkOffset.X, WorkOffset.Y * owner.gravDir);
         Vector2 toSpot = spot - Projectile.Center;
         float distance = toSpot.Length();
@@ -438,11 +446,11 @@ public abstract class DollPetProjectile : ModProjectile
             Projectile.direction = Projectile.spriteDirection = Math.Sign(Projectile.velocity.X);
 
         int previousState = (int)Projectile.ai[1];
-        SetState(!arrived ? MoveState : chestWaiting ? IdleState : workPlace || workGarden || workChest
+        SetState(!arrived ? MoveState : chestWaiting ? IdleState : workPlace || workGarden || workChest || workDeposit
             ? UseFrameCount > 0 ? UseState : IdleState
             : workWall && HammerFrameCount > 0 ? HammerState
             : MineFrameCount > 0 ? MineState : IdleState);
-        if (workChest && isOwner && previousState != (int)Projectile.ai[1]) Projectile.netUpdate = true;
+        if ((workChest || workDeposit) && isOwner && previousState != (int)Projectile.ai[1]) Projectile.netUpdate = true;
         Animate();
 
         if (!isOwner) return;
@@ -452,7 +460,7 @@ public abstract class DollPetProjectile : ModProjectile
             return;
         }
         if (chestWaiting) { hitTimer = 0; return; }
-        int interval = (workPlace || workGarden || workChest
+        int interval = (workPlace || workGarden || workChest || workDeposit
             ? Math.Max(12, UseFrameCount * TicksPerUseFrame) : commands.HitInterval(workWall)) * 100;
         // 使用百分比整数累计工作量，保留余量；+50% 速度即原用时 / 1.5。
         hitTimer += ActionSpeedPercent;
@@ -460,6 +468,7 @@ public abstract class DollPetProjectile : ModProjectile
         {
             hitTimer -= interval;
             if (workChest) commands.CompleteRemoteChestGesture(this);
+            else if (workDeposit) commands.CompleteChestDeposit(this);
             else if (workGarden) commands.TendGarden(workTile);
             else if (workPlace) commands.CompletePlacement(workTile);
             else commands.Hit(workTile, workWall, this);

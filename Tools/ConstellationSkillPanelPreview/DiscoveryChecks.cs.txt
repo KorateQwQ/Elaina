@@ -137,14 +137,14 @@ internal static class DiscoveryPreview
         {
             var toast = new ConstellationToast(c.Kind) { Age = age };
             toast.Ids.AddRange(c.Ids);
-            int w = (int)Math.Ceiling(300 * scale), h = (int)Math.Ceiling(110 * scale);
+            int w = (int)Math.Ceiling(330 * scale), h = (int)Math.Ceiling(130 * scale);
             using var target = new RenderTarget2D(device, w, h);
             device.SetRenderTarget(target); device.Clear(new Color(58, 74, 66));
             batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
             // A world-like backdrop and the skill bar edge under the toast's anchor.
-            batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(0, (int)(84 * scale), w, h), new Color(24, 22, 33));
+            batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, new Rectangle(0, (int)(104 * scale), w, h), new Color(24, 22, 33));
             var drawing = new ConstellationDrawing(new()) { Batch = batch, Scale = scale, Origin = new Vector2(32, 24) * scale };
-            ConstellationToastPainter.Paint(drawing, state, toast, "V", hover);
+            ConstellationToastPainter.Paint(drawing, state, toast, hover);
             batch.End(); device.SetRenderTarget(null);
             using var file = File.Create(Path.Combine(dir, $"{c.Name}-{frame}-{scale:0.00}.png"));
             target.SaveAsPng(file, w, h);

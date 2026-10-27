@@ -8,7 +8,7 @@ using static 伊蕾娜.Localization.UIText;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 远程开箱时箱子只出不进：取出的物品先放在开箱玩偶身上，等它回到主人身边再抛还。
+/// 远程开箱时取出的物品先放在开箱玩偶身上，等它回到主人身边再抛还；放入见 DollChestDeposit。
 /// 携带物保存完整物品实例（前缀、Mod 数据），记在主人身上并随角色存档，玩偶消失也不会丢；
 /// 携带者失效后由任意回到主人身边的玩偶交还。携带只在主人端，其他客户端只看到箱子同步变化。
 /// </summary>
@@ -17,7 +17,7 @@ public sealed partial class DollCommandPlayer
     private readonly List<(Item Item, DollPetProjectile Carrier)> chestCargo = [];
     private uint depositHintAt;
 
-    /// <summary>当前箱子由玩偶远程打开且主人本人够不着：拿取交给玩偶，存入被禁止。主人走近后恢复原版。</summary>
+    /// <summary>当前箱子由玩偶远程打开且主人本人够不着：拿取交给开箱玩偶，放入交给另一只送货玩偶。主人走近后恢复原版。</summary>
     internal bool RemoteChestTransferActive => Player.whoAmI == Main.myPlayer && !remoteChestTravelling
         && remoteChestIndex >= 0 && remoteChestOrigin is { } origin && RemoteHelperAlive() && ObserveOpenedChest()
         && !Player.IsInInteractionRangeToMultiTileHitbox(origin.X, origin.Y);
@@ -32,9 +32,11 @@ public sealed partial class DollCommandPlayer
         return false;
     }
 
-    /// <summary>玩偶头顶显示的携带物：该玩偶携带的第一件物品，没有时为 0。</summary>
+    /// <summary>玩偶头顶显示的携带物：该玩偶要送进箱子或带回的第一件物品，没有时为 0。</summary>
     internal int CarryType(DollPetProjectile worker)
     {
+        foreach (var (item, courier, _) in chestDeposits)
+            if (courier == worker) return item.type;
         foreach (var (item, carrier) in chestCargo)
             if (carrier == worker) return item.type;
         return 0;
@@ -86,7 +88,7 @@ public sealed partial class DollCommandPlayer
         chestCargo.Add((item, carrier));
     }
 
-    /// <summary>远程状态下的存入操作被拦下时给一次提示，按住或连点不刷屏。</summary>
+    /// <summary>没有能送货的空闲玩偶、放入被拦下时给一次提示，按住或连点不刷屏。</summary>
     internal void NotifyNoDeposit()
     {
         if (Main.GameUpdateCount - depositHintAt < 60) return;
@@ -122,6 +124,9 @@ public sealed partial class DollCommandPlayer
         List<TagCompound> list = [];
         foreach (var (item, _) in chestCargo)
             if (!item.IsAir) list.Add(ItemIO.Save(item));
+        // 还没送进箱子的物品同样存为携带物。
+        foreach (var (item, _, _) in chestDeposits)
+            if (!item.IsAir) list.Add(ItemIO.Save(item));
         // 远程放置带走但尚未放下的物品同样是玩家的真实物品，存为携带物，下次进入时由玩偶交还。
         foreach (Item item in CarriedPlacementItems()) list.Add(ItemIO.Save(item));
         if (list.Count > 0) tag["DollChestCargo"] = list;
@@ -130,6 +135,7 @@ public sealed partial class DollCommandPlayer
     private void LoadChestCargo(TagCompound tag)
     {
         chestCargo.Clear();
+        chestDeposits.Clear();
         // 未加载 Mod 的物品也原样保留（UnloadedItem 带着原数据），这些是玩家的真实物品。
         foreach (TagCompound entry in tag.GetList<TagCompound>("DollChestCargo"))
         {

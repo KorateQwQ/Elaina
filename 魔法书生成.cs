@@ -2,7 +2,6 @@
 using Microsoft.Xna.Framework;
 using Terraria;
 using 伊蕾娜.Items.魔法书;
-using 伊蕾娜.Projectiles;
 
 namespace 伊蕾娜
 {

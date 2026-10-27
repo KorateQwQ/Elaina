@@ -149,14 +149,15 @@ internal sealed class PanelGame : Game
         TermsOnly = args.Contains("--terms-only");
         ForgetOnly = args.Contains("--forget-only");
         if (args.Contains("--book-checks-only")) { BookPreview.CheckMotion(); return; }
-        Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true);
+        string tml = args.FirstOrDefault(a => a.StartsWith("--tml=", StringComparison.Ordinal))?[6..];
+        Terraria.Localization.Language.Load(Repo, "zh-Hans", uiOnly: true, tml: tml);
         Fixtures.Text();
         if (DiscoveryOnly) DiscoveryChecks.Run();
         else if (RecallResearchOnly) RecallResearchChecks.Run();
         else if (DebugToolsOnly) PanelChecks.RunDebugTools();
         else if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
         Terraria.Localization.Language.Text.Clear();
-        Terraria.Localization.Language.Load(Repo, args[2]);
+        Terraria.Localization.Language.Load(Repo, args[2], tml: tml);
         Terraria.Localization.Language.Load(Path.Combine(Repo, "../KL"), args[2]);
         // The mods register these in KL ElementBuildUpSystem and 伊蕾娜 ElainaTerms; same paths, keys and freeze constants.
         KL.Drawing.Snippets.KLTerms.Register(new("KL/Drawing/Snippets/Icons/IceIcon", new Color(143, 227, 255),

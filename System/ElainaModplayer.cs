@@ -19,7 +19,6 @@ using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 using 伊蕾娜.ElainaModSkills.Skills.MagicBarrier;
 using 伊蕾娜.Items;
 using 伊蕾娜.Items.accessories;
-using 伊蕾娜.Projectiles.MagicBarrier;
 using 伊蕾娜.ReProjs;
 
 namespace 伊蕾娜
@@ -46,13 +45,6 @@ namespace 伊蕾娜
         public int CritterType = NPCID.Bunny;
         public bool NeedToBeCritter = false;
         
-        public bool SayoNecklace = false;
-        public int SayoProtectCD = 0;
-        internal bool SayoNecklaceVisual = false;
-        public bool Nikeh = false;
-        public string TheBossJustDefeat = "";
-        public int ExtraBossDamage = 0;
-        public bool GiveNikehBookToOldPlayer = false;
         //public int butterflychance = 0;
         //public bool origin = true;
         SoundStyle 死亡1 = (new SoundStyle($"伊蕾娜/Sounds/死亡_1", 1, SoundType.Sound)) with
@@ -153,7 +145,6 @@ namespace 伊蕾娜
         {
             if (Elaina)
             {
-                GiveNikehBookToOldPlayer = true;
                 Player.ConsumedManaCrystals = 4;
                 Player.GetModPlayer<ElainaModplayer>().Elaina = true;
                 Player.GetModPlayer<EXPmodplayer>().Reset();
@@ -170,7 +161,6 @@ namespace 伊蕾娜
         }
         public override void OnEnterWorld()
         {
-            MissileSpawner.Reset();
             if (Elaina&&Main.myPlayer==Player.whoAmI)
             {
                 if (!Main.dedServ&&Platform.IsWindows)
@@ -218,11 +208,6 @@ namespace 伊蕾娜
             //Console.WriteLine("WhoAmI"+Main.myPlayer+ " ProjectileCount " + ProjectileLoader.ProjectileCount +" ItemCount "+ItemLoader.ItemCount);
             
             
-            if (SayoProtectCD > 0 && SayoNecklace)
-                SayoProtectCD--;
-            Nikeh = false;
-            SayoNecklace = false;
-            SayoNecklaceVisual = false;
             if (isACritter)
             {
                 动物状态();
@@ -281,14 +266,12 @@ namespace 伊蕾娜
             tag["Elaina"] = Elaina;
             tag["isACritter"] = isACritter;
             tag["CritterType"] = CritterType;
-            tag["Nikeh"] = GiveNikehBookToOldPlayer;
         }
         public override void LoadData(TagCompound tag)
         {
             Elaina = tag.GetBool("Elaina");
             isACritter = tag.GetBool("isACritter");
             CritterType = tag.GetInt("CritterType");
-            GiveNikehBookToOldPlayer = tag.GetBool("Nikeh");
         }
 
         public override void ModifyHurt(ref Player.HurtModifiers modifiers)
@@ -302,21 +285,11 @@ namespace 伊蕾娜
             if (Elaina)
             {
                 info.SoundDisabled = true;
-                if (!Player.GetModPlayer<护盾modplayer>().护盾)
-                {
-                    SoundEngine.PlaySound(受伤, Player.Center);
-                }
+                SoundEngine.PlaySound(受伤, Player.Center);
             }
         }
         public override bool PreKill(double damage, int hitDirection, bool pvp, ref bool playSound, ref bool genGore, ref PlayerDeathReason damageSource)
         {
-            if (SayoProtectCD <= 0 && SayoNecklace)
-            {
-                Player.HealEffect(Player.statLifeMax2);//回血数字
-                Player.statLife += Player.statLifeMax2;
-                SayoProtectCD = 18000;
-                return false;
-            }
             if (Elaina)
             {
                 playSound = false;
@@ -375,19 +348,6 @@ namespace 伊蕾娜
         }
         public override void DrawEffects(PlayerDrawSet drawInfo, ref float r, ref float g, ref float b, ref float a, ref bool fullBright)
         {
-            if (!Main.gamePaused && !Main.gameMenu && drawInfo.shadow == 0)
-            {
-                if (Player.whoAmI == Main.myPlayer && Player.active)
-                {
-
-                    if (NeedToBeCritter)
-                    {
-                        Projectile proj = Projectile.NewProjectileDirect(Entity.GetSource_FromThis(), Player.Center, Vector2.Zero,
-                        ModContent.ProjectileType<Projectiles.小动物药水射弹>(), 1, 0, Player.whoAmI, CritterType, 1);
-                        NeedToBeCritter = false;
-                    }
-                }
-            }
             if (Player.HasBuff<Buffs.小动物>())
             {
                 r = 0;

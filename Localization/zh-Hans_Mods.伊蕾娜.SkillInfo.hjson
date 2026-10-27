@@ -54,7 +54,7 @@ SkillDesc: {
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Cancel][c/FFD27A:取消任务]：清除所有任务。
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Dismiss][c/FFD27A:收回玩偶]：收回整队玩偶。
 		玩偶在场时无需指令盘可执行的操作：
-		[klicon/16,0:伊蕾娜/Snippets/RightClickIcon]右键远处的宝箱，让玩偶替你开箱取物。
+		[klicon/16,0:伊蕾娜/Snippets/RightClickIcon]右键远处的宝箱，让玩偶替你开箱：取出的物品由开箱玩偶带回，放入的物品由另一只空闲玩偶送过去。
 		手持物块点击或拖过够不着的位置，玩偶会替你放下物块。玩偶在场时放下的种植盆，会由它们照料、种植和收获。
 		'''
 	RecallSkill:
@@ -122,7 +122,7 @@ DollStats: {
 }
 
 UnlockConditions: {
-	ObtainedReturnPotion: 获得过返回药水
+	ObtainedReturnPotion: 获得过{$ItemName.PotionOfReturn}
 	IceQueen: 在霜月事件中击败霜月女王
 	ShardbindReveal: 经历某个冬季夜间事件
 	CharacterLevel: 角色等级达到 Lv.{0}

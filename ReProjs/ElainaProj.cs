@@ -31,23 +31,5 @@ namespace 伊蕾娜.ReProjs
         public Color Ice => new Color(178, 234, 255, 100);
         public Color Lightning => new Color(107, 250, 232, 255);
 
-        public SoundStyle 飞弹 = (new SoundStyle($"伊蕾娜/Projectiles/MagicMissile/飞弹")) with
-        {
-            Volume = 0.1f,
-            MaxInstances = 15,
-            Pitch = 0,
-            PitchVariance = 0.3f,
-            SoundLimitBehavior = SoundLimitBehavior.ReplaceOldest,
-            PlayOnlyIfFocused = true,
-        };
-        public SoundStyle 生成 = (new SoundStyle($"伊蕾娜/Projectiles/MagicMissile/生成", 1, SoundType.Sound)) with
-        {
-            Volume = 0.1f,
-            MaxInstances = 5,
-            Pitch = 0,
-            PitchVariance = 0.3f,
-            SoundLimitBehavior = SoundLimitBehavior.ReplaceOldest,
-            PlayOnlyIfFocused = true,
-        };
     }
 }

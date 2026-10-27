@@ -106,11 +106,13 @@ internal sealed class ConstellationToastQueue
 
 internal static class ConstellationToastPainter
 {
-    internal const int Width = 236, Height = 50;
+    internal const int Width = 264, Height = 70;
+    private const float Pad = 14, IconSize = 40;
 
     internal static Rectangle Bounds(Rectangle dock) => new(dock.Right - Width, dock.Bottom - Height, Width, Height);
 
-    internal static void Paint(ConstellationDrawing d, ConstellationState state, ConstellationToast toast, string key, bool hover)
+    // Matches the term tooltip's notebook note: dotted inner frame with corner stars, serif heading.
+    internal static void Paint(ConstellationDrawing d, ConstellationState state, ConstellationToast toast, bool hover)
     {
         var nodes = toast.Ids.Select(state.Find).Where(n => n != null).ToArray();
         if (nodes.Length == 0) return;
@@ -119,39 +121,56 @@ internal static class ConstellationToastPainter
         d.Origin += new Vector2(0, ConstellationToastQueue.Rise(toast) * d.Scale);
         try
         {
-            d.Image("Glow", -20, -16, Width + 40, Height + 32, ConstellationDrawing.Lavender * (.2f * a));
-            d.Box(0, 0, Width, Height, (hover ? new Color(52, 42, 64) : new Color(29, 25, 40)) * (.93f * a));
-            d.Frame(0, 0, Width, Height, ConstellationDrawing.Lavender * ((hover ? .8f : .5f) * a));
-            d.Box(0, 0, 2, Height, ConstellationDrawing.Gold * (.85f * a));
+            d.Shadow(0, 6, Width, Height, 4, Color.Black * (.5f * a), 12);
+            d.RoundRect(0, 0, Width, Height, 3, (hover ? new Color(40, 33, 52) : new Color(26, 22, 36)) * (.97f * a),
+                ConstellationDrawing.Lavender * ((hover ? .55f : .3f) * a), 1);
+            float l = 5.5f, r = Width - 5.5f, t = 5.5f, b = Height - 5.5f;
+            Color dots = ConstellationDrawing.DotColor * (.8f * a);
+            d.Dots(l + 8, t, r - 8, t, dots); d.Dots(l + 8, b, r - 8, b, dots);
+            d.Dots(l, t + 8, l, b - 8, dots); d.Dots(r, t + 8, r, b - 8, dots);
+            foreach (var corner in new[] { new Vector2(l, t), new Vector2(r, t), new Vector2(r, b), new Vector2(l, b) })
+                d.CrossStar(corner, new Vector2(6 * .976f, 6), ConstellationDrawing.Lavender * (.8f * a), .28f);
 
             // Up to three icons fanned to the left; the first is drawn last, on top.
             int shown = Math.Min(3, nodes.Length);
-            float size = shown == 1 ? 34 : 28, step = 13, iconsWidth = size + step * (shown - 1);
+            float size = shown == 1 ? IconSize : 32, step = 12, iconsWidth = size + step * (shown - 1);
+            var firstCenter = new Vector2(Pad + 2 + size / 2, Height / 2f);
+            // A brief halo while the toast enters, settling to a faint glow.
+            float halo = .18f + .5f * Math.Clamp(1 - toast.Age / 1.2f, 0, 1);
+            d.Image("Glow", firstCenter.X - size, firstCenter.Y - size, size * 2, size * 2, ConstellationDrawing.Gold * (halo * a));
             for (int i = shown - 1; i >= 0; i--)
-                Icon(d, state, nodes[i], new Vector2(12 + size / 2 + step * i, Height / 2f), size, a);
+                Icon(d, state, nodes[i], firstCenter + new Vector2(step * i, 0), size, a);
 
-            float x = 12 + iconsWidth + 10, width = Width - x - 10;
+            float x = Pad + 2 + iconsWidth + 12, width = Width - Pad - x;
             string title = LocalizeUI(toast.Kind == ConstellationDiscoveryKind.Appeared ? "DiscoveryAppeared" : "DiscoveryUnsealed");
-            string hint = LocalizeUI("DiscoveryOpen", key);
-            float hintWidth = d.Measure(hint, 9);
-            d.Spark(new Vector2(x + 4, 15), 8, ConstellationDrawing.Gold * a);
-            d.FittedText(title, x + 12, 8, width - hintWidth - 18, 12, ConstellationDrawing.Gold * a, serif: true, spacing: 1.5f);
-            d.Text(hint, Width - 10, 10, 9, ConstellationDrawing.Muted2 * a, 1);
+            d.Spark(new Vector2(x + 4, 18), 8, ConstellationDrawing.Gold * a);
+            d.FittedText(title, x + 12, 11, width - 12, 12, ConstellationDrawing.Gold * a, serif: true, spacing: 1.5f);
+            d.Dots(x, 30, Width - Pad, 30, ConstellationDrawing.DotColor * a);
 
             var first = nodes[0];
-            string subtitle = nodes.Length == 1
-                ? $"{state.Name(first)} · {ConstellationState.StatusName(state.Status(first))}"
-                : LocalizeUI("DiscoveryMany", state.Name(first), nodes.Length);
-            d.FittedText(subtitle, x, 28, width, 12, ConstellationDrawing.Ink * a);
+            if (nodes.Length == 1)
+            {
+                d.FittedText(state.Name(first), x, 35, width, 14, ConstellationDrawing.Ink * a, serif: true, spacing: .5f);
+                d.FittedText(StatusLine(state, first), x, 52, width, 9.5f, ConstellationDrawing.Muted * a, spacing: .5f);
+            }
+            else d.FittedText(LocalizeUI("DiscoveryMany", state.Name(first), nodes.Length), x, 41, width, 13,
+                ConstellationDrawing.Ink * a, serif: true, spacing: .5f);
         }
         finally { d.Origin = old; }
     }
+
+    private static string StatusLine(ConstellationState state, ConstellationNode node) => state.Status(node) switch
+    {
+        "locked" => LocalizeUI("DiscoveryLocked"),
+        "ready" => LocalizeUI("DiscoveryReady"),
+        var status => ConstellationState.StatusName(status)
+    };
 
     private static void Icon(ConstellationDrawing d, ConstellationState state, ConstellationNode node, Vector2 center, float size, float a)
     {
         d.Dot(center, size / 2, ConstellationDrawing.NodePlate * a);
         if (state.Discovered(node)) d.SkillIcon(node, center, size, Color.White * a, round: true);
         else d.Text("?", center.X, center.Y - size * .36f, size * .62f, ConstellationDrawing.Lavender * a, .5f);
-        d.Ring(center, size / 2, size / 2, ConstellationDrawing.Gold * (.7f * a), 1.2f);
+        d.Ring(center, size / 2, size / 2, ConstellationDrawing.Gold * (.75f * a), 1.2f);
     }
 }

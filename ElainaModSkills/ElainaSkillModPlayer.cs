@@ -10,7 +10,6 @@ using 伊蕾娜.ElainaModSkills.Skills.Lightning;
 using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
 using 伊蕾娜.ElainaModSkills.Skills.Wind;
-using 伊蕾娜.Projectiles.MagicMissile;
 using Terraria.ID;
 using 伊蕾娜.ElainaAttribute;
 

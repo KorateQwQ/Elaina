@@ -8,7 +8,6 @@ using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria;
 using Terraria.ModLoader;
-using 伊蕾娜.Config;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
@@ -79,7 +78,6 @@ public sealed class ConstellationDiscoveryToastUI : BaseBody
         _state.Refresh();
         _drawing.Batch = spriteBatch; _drawing.Transform = SilkyUI.TransformMatrix;
         _drawing.Origin = Bounds.Position; _drawing.Scale = 1;
-        string key = KeyBind.OpenSkillPanel?.GetAssignedKeys().FirstOrDefault() ?? "—";
-        ConstellationToastPainter.Paint(_drawing, _state, toast, key, IsInteractable && IsMouseHovering);
+        ConstellationToastPainter.Paint(_drawing, _state, toast, IsInteractable && IsMouseHovering);
     }
 }

@@ -18,6 +18,17 @@
 
 `Tools/ConstellationSkillPanelPreview/run.ps1 -Culture en-US -LocalizationOnly` 与 `Tools/AlchemyPreview/run.ps1 -Culture en-US` 使用实际 HJSON 和正式绘制代码生成英文 FNA 离线预览；中文使用 `-Culture zh-Hans`。`LocalizationOnly` 跳过原有玩法/图标检查，仅用于文本布局检查。
 
+## 原版物品名称引用
+
+玩家可见文本中出现原版物品名称时，必须引用游戏本地化，不手写中文译名或英文名称。把名称写进模组自己的 HJSON 仍然属于硬编码；中英文文件都必须使用原版引用。此约定适用于炼金材料列表、物品 Tooltip、配方说明、材料来源、技能启封条件和材料不足提示等。
+
+- HJSON 使用 `{$ItemName.<原版键>}`，例如 `获得过{$ItemName.PotionOfReturn}`；英文使用 `Obtain a {$ItemName.PotionOfReturn} at least once`。纯名称或以引用开头的单行值加双引号，例如 `Waterleaf: "{$ItemName.Waterleaf}"`。
+- C# 已有物品 ID 时，用 `Lang.GetItemNameValue(itemType)` 按当前语言取得名称，再传入完整句子的格式参数。不要在静态初始化时缓存显示名称。
+- 根据真实 ItemID 和本机游戏资源确认引用键，不从模组目录键或手写译名猜测。例如炼金 `Catalog.AetherBlock` 实际映射 `ItemID.ShimmerBlock`，应引用 `{$ItemName.ShimmerBlock}`。键保持稳定，显示名称由当前游戏版本和语言决定。
+- 同一说明用于手记和物品 Tooltip 时，复用同一模组本地化键；例如月露 Tooltip 引用 `{$Mods.伊蕾娜.UI.Catalog.ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy}`，该说明内部再引用原版材料名。普通叙述中的水、蜂蜜等环境或液体概念不强行替换为物品名称。
+
+修改后运行 `pwsh -File Tools/LocalizationChecks/parse.ps1` 和 `python Tools/LocalizationChecks/check.py`；新增或变更的原版引用还应核对本机游戏中对应键存在。涉及界面显示时，使用加载本机原版本地化资源的 FNA 离线预览检查中英文及缩放，确认没有显示未解析的 `{$...}`。新增炼金材料仍须遵守 `ElainaModAlchemy/AGENTS.md` 的资源与预览检查要求。
+
 ## 效果描述
 
 游戏内的技能、物品、Buff 和其他效果描述，应使用玩家能够轻易理解的游戏逻辑，简洁说明使用条件、操作方式、实际效果和必要消耗。保留影响玩家选择的关键数值，不追溯实现原理，也不逐一解释细枝末节或边界情况。

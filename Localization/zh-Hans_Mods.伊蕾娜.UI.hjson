@@ -55,7 +55,7 @@ DollSelectionTiles: 已选 {0} 个物块
 DollSelectionWalls: 已选 {0} 面墙
 DollSelectionEmptyTiles: 未选中可挖掘物块
 DollSelectionEmptyWalls: 未选中可敲除墙壁
-DollChestNoDeposit: 玩偶开的箱子只能取出物品
+DollChestNoDeposit: 需要另一只空闲的玩偶帮忙放入
 AccessorySlots: 饰品 · 推荐 {0} 槽（当前可用 {1} 槽）
 Acquirable: 可取得
 Acquisition: 获取方式
@@ -69,7 +69,7 @@ AlchemyExpFull: 炼金经验已满
 AlchemyExperience: 炼金经验 {0} / {1}
 AlchemyHelpBrowse: 全部物品连续排列，滚动即可浏览。点击分类可跳到对应区域；问号条目满足条件后即可研究。
 AlchemyHelpControls: P 打开或合上手记 · Esc 返回 · 方向键选择条目。
-AlchemyHelpMaterials: 制作沿用原版合成材料规则，包括背包、打开的箱子、个人容器、虚空袋及模组提供的材料。
+AlchemyHelpMaterials: 制作沿用原版合成材料规则，包括背包、打开的箱子、个人容器、{$ItemName.VoidLens}及模组提供的材料。
 AlchemyHelpProgress: 制作成功后获得产物与炼金经验。研究记录、等级和经验随角色保存；灰赝尘默认不参与炼金。
 AlchemyLevel: 炼金术 Lv.{0}
 AlchemyLevelRequirement: 炼金等级  {0} / {1}
@@ -106,13 +106,13 @@ Catalog: {
 	3S: 3 秒
 	1OfMaximumMagicPower: 最大[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]的1%
 	60S: 60 秒
-	ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy: 用瓶装水与月光草制成的药液基底，可用于各种药水。
+	ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy: 用{$ItemName.BottledWater}与{$ItemName.Moonglow}制成的药液基底，可用于各种药水。
 	ABasicIngredientForCookingAndBaking: 料理与烘焙的基础食材。
 	HowToUse: 使用方式
 	MoonDewElixirDescription: 融合了月光与星尘的药剂。
 	BottledShimmerDescription: 用以太滴管提取的瓶装微光。可以倒出少量微光。
 	AWarmingBeefAndPotatoStewThatElainaMakesWellThoughItIsNotHerFavo: 比起炖菜，我还是更期待甜点。
-	AetherBlock: 以太块
+	AetherBlock: "{$ItemName.ShimmerBlock}"
 	AetherDropper: 以太滴管
 	AetherDropperCollectFromShimmer: 以太滴管 · 从微光中取得
 	All: 全部
@@ -128,13 +128,13 @@ Catalog: {
 	Beef: 牛肉
 	BeefStew: 炖菜
 	BeefSuitedToSlowCooking: 适合长时间炖煮的牛肉。
-	Blinkroot: 闪耀根
+	Blinkroot: "{$ItemName.Blinkroot}"
 	BloodthirstPotion: 嗜血药水
-	Bone: 骨头
+	Bone: "{$ItemName.Bone}"
 	BottleShimmerSummonRainAndRevealDangersLurkingInTheDark: 盛住微光，唤来细雨，也让暗处的危险显形。
-	BottledHoney: 蜂蜜瓶
+	BottledHoney: "{$ItemName.BottledHoney}"
 	BottledRain: 瓶中雨
-	BottledWater: 瓶装水
+	BottledWater: "{$ItemName.BottledWater}"
 	BottledWater1Moonglow1MoonDew3: "{$ItemName.BottledWater}×1＋{$ItemName.Moonglow}×1 → 月露×3"
 	BrewBasicMixturesInTheCauldronAndBuyEverydayIngredientsFromMerch: 基础药液在锅中调制，日常食材向商人购入。
 	CUISINE: 料理
@@ -154,8 +154,8 @@ Catalog: {
 	CuriosOfTheJourney: 旅途中的奇物
 	DamageBonus: 伤害增幅
 	DamageTaken: 受到的伤害
-	Daybloom: 太阳花
-	Deathweed: 死亡草
+	Daybloom: "{$ItemName.Daybloom}"
+	Deathweed: "{$ItemName.Deathweed}"
 	DesertBloomsInRain: 沙漠 · 雨天开花
 	DroppedByDemonEyes: 恶魔眼掉落
 	DroppedByDungeonEnemies: 地牢敌怪掉落
@@ -167,10 +167,10 @@ Catalog: {
 	PlentySatisfiedAndHappy: 很满意 · 开心
 	4Min: 4 分钟
 	5Min: 5 分钟
-	FallenStar: 坠落之星
+	FallenStar: "{$ItemName.FallenStar}"
 	FallsFromTheNightSky: 夜空坠落
 	FallsThroughBlocks: 下落时穿透物块
-	Feather: 羽毛
+	Feather: "{$ItemName.Feather}"
 	FeatherlightPotion: 轻羽药水
 	Fine: 精良
 	FineWhiteBakingFlourPerfectForSweetDough: 细白的烘焙用面粉，适合揉成甜面团。
@@ -178,15 +178,15 @@ Catalog: {
 	Flour: 面粉
 	FoodEffect: 食用效果
 	FoodSupport: 料理 · 辅助
-	FurnaceSand: 熔炉 · 沙块
-	Gel: 凝胶
-	Glass: 玻璃
-	GlassBottleHoney: 玻璃瓶 · 蜂蜜
-	GlassBottleWater: 玻璃瓶 · 水源
-	GlowingMushroom: 发光蘑菇
+	FurnaceSand: "{$ItemName.Furnace} · {$ItemName.SandBlock}"
+	Gel: "{$ItemName.Gel}"
+	Glass: "{$ItemName.Glass}"
+	GlassBottleHoney: "{$ItemName.Bottle} · 蜂蜜"
+	GlassBottleWater: "{$ItemName.Bottle} · 水源"
+	GlowingMushroom: "{$ItemName.GlowingMushroom}"
 	GlowingMushroomBiome: 发光蘑菇生物群落
 	HardmodeBloodMoonEnemyDrop: 困难模式血月战斗敌人掉落配方
-	HoneyBlock: 蜂蜜块
+	HoneyBlock: "{$ItemName.HoneyBlock}"
 	HoneyBread: 蜂蜜面包
 	HoneyBreadCaramelBrulee: 蜂蜜面包、焦糖布蕾
 	HoneyDrizzledBreadOneOfElainaSFavoriteSweetProvisionsItsEffectsV: 嗯，甜度刚刚好。不愧是我。
@@ -199,13 +199,13 @@ Catalog: {
 	JungleGatherAtNight: 丛林 · 夜间采集
 	JungleHornetsAndSpikedJungleSlimes: 丛林 · 蜜蜂与尖刺史莱姆
 	KeepTrackOfWhereEachIngredientComesFromAndSpareYourselfTheNextRu: 把每一种材料的来处记清楚，下一次就不用翻遍行囊了。
-	Lens: 晶状体
-	LesserHealingPotion: 弱效治疗药水
-	RegenerationPotion: 再生药水
-	MagicPowerPotion: 魔能药水
-	ArcheryPotion: 箭术药水
+	Lens: "{$ItemName.Lens}"
+	LesserHealingPotion: "{$ItemName.LesserHealingPotion}"
+	RegenerationPotion: "{$ItemName.RegenerationPotion}"
+	MagicPowerPotion: "{$ItemName.MagicPowerPotion}"
+	ArcheryPotion: "{$ItemName.ArcheryPotion}"
 	RightClickSelectedRecipeToCraftWithDust: 选中配方后右键制作
-	SummoningPotion: 召唤药水
+	SummoningPotion: "{$ItemName.SummoningPotion}"
 	VanillaPotionCrafting: 使用原版药水配方制作
 	MakesYouLightAsAFeatherIncreasingMovementFlightAndBroomSpeed: 使你变得身轻如燕，移动速度、飞行速度和扫帚速度增加。
 	MarkDuration: 标记时间
@@ -219,8 +219,8 @@ Catalog: {
 	MinionDamage: 召唤物伤害
 	MoonDew: 月露
 	MoonDewElixir: 月露合剂
-	Moonglow: 月光草
-	Obsidian: 黑曜石
+	Moonglow: "{$ItemName.Moonglow}"
+	Obsidian: "{$ItemName.Obsidian}"
 	ObtainedFromShimmer: 微光中取得
 	OtherCharacters: 其他角色
 	OwnAtLeast1OfEachRequiredMaterial: 每种所需材料至少持有 1 件
@@ -237,7 +237,7 @@ Catalog: {
 	ProvidesContinuousLifeRegeneration: 提供持续的生命恢复。
 	PurchaseFromTheMerchant: 向商人购买。
 	PurificationDew: 净土露滴
-	PurificationPowder: 净化粉
+	PurificationPowder: "{$ItemName.PurificationPowder}"
 	Rare: 稀有
 	RecipeSoldByTheArmsDealerAtNight: 夜晚军火商出售配方
 	RecipeSoldByTheDryadInHardmode: 困难模式树妖出售配方
@@ -264,7 +264,7 @@ Catalog: {
 	SoldByTheMerchant: 商人出售
 	SpeedBonus: 速度增幅
 	StarPowerPotion: 星力药水
-	Stinger: 毒刺
+	Stinger: "{$ItemName.Stinger}"
 	Sugar: 糖
 	SurfaceForestDaytime: 森林地表 · 白昼
 	SweetensDoughAndFormsACaramelCrustWhenCooked: 给面团带来甜味，熬煮后也能形成焦糖外壳。
@@ -287,14 +287,14 @@ Catalog: {
 	WellFed: 吃得好
 	WellFedDoesNotRestoreLife: 吃得好 · 不回复生命
 	WhipHitsMarkEnemiesWithResonanceYourMinionsDealIncreasedDamageTo: 鞭子命中敌人后赋予共鸣标记，你的召唤物攻击被共鸣的敌人时伤害增加。
-	Wood: 木材
+	Wood: "{$ItemName.Wood}"
 	YourRangedAttacksDealMoreDamageTheCloserYouAimToTheTargetSCenter: 你的远程攻击方向距离目标中心越近，造成的伤害就越高。
 }
 
 CenterMap: 星图归位
 CharacterLevel: 角色等级
 CloseMap: 关闭星图
-Collection: 星图收录
+Collection: 已收录
 ConditionsNotMet: 条件未满足
 ConfigureLoadouts: 在 Tools/MageBalance 的“配装与属性”页保存后重新加载模组。
 ConsumeRecipe: 研究时消耗所需配方。
@@ -311,10 +311,11 @@ DefaultLayoutFailed: 默认布局读取失败，已使用技能默认位置
 Disable: 关闭
 Disabled: 已关闭
 DisabledSuffix: " · 已关闭"
-DiscoveryAppeared: 星图显现
-DiscoveryMany: "{0} 等 {1} 项"
-DiscoveryOpen: "{0} 查看"
-DiscoveryUnsealed: 星图启封
+DiscoveryAppeared: 领悟新魔法
+DiscoveryLocked: 尚待启封
+DiscoveryMany: "{0} 等 {1} 个魔法"
+DiscoveryReady: 可在手札中研习
+DiscoveryUnsealed: 魔法启封
 DroppedEquipment: 背包已满，换下的装备掉在脚下
 DropperSource: 以太滴管取得
 ElainaLoadout: 只有伊蕾娜可以使用快捷配装
@@ -420,7 +421,7 @@ MissingUnlockCondition: 解锁条件待补充。
 MoreRequirements: …其余需求见详情
 TermTag: 名词
 NeedAlchemyLevel: 需要炼金等级 {0}
-NeedObsidian: 黑曜石不足
+NeedObsidian: "{$ItemName.Obsidian}不足"
 NeedRecipe: 需要 {0} × {1}
 NextLevel: 下一级
 CurrentLevel: 当前等级

@@ -122,7 +122,7 @@ $native = Add-Item 'None' "$Tml/Libraries/Native/Windows/*.dll"
 $native.SetAttribute('Link', '%(Filename)%(Extension)')
 $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')
 $project.Save((Join-Path $out 'Preview.csproj'))
-$previewArgs = @($repo, (Join-Path $Tml '../Terraria/Content'), $Culture)
+$previewArgs = @($repo, (Join-Path $Tml '../Terraria/Content'), $Culture, "--tml=$Tml")
 if ($LocalizationOnly) { $previewArgs += '--localization-only' }
 if ($IconsOnly) { $previewArgs += '--icons-only' }
 if ($HeadersOnly) { $previewArgs += '--headers-only' }

@@ -54,7 +54,7 @@ SkillDesc: {
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Cancel][c/FFD27A:Cancel Tasks]: clears all tasks.
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Dismiss][c/FFD27A:Dismiss Dolls]: recalls the whole team.
 		While dolls are out, these work without the wheel:
-		[klicon/16,0:伊蕾娜/Snippets/RightClickIcon]Right-click a distant chest to have a doll open it and fetch items for you.
+		[klicon/16,0:伊蕾娜/Snippets/RightClickIcon]Right-click a distant chest to have a doll open it: that doll brings back items you take out, and another idle doll delivers items you put in.
 		Click or drag a block beyond your reach to have a doll place it. Dolls tend, plant, and harvest planters placed while they are out.
 		'''
 	RecallSkill:
@@ -122,7 +122,7 @@ DollStats: {
 }
 
 UnlockConditions: {
-	ObtainedReturnPotion: Obtain a Potion of Return at least once
+	ObtainedReturnPotion: Obtain a {$ItemName.PotionOfReturn} at least once
 	IceQueen: Defeat the Ice Queen during the Frost Moon
 	ShardbindReveal: Experience a certain winter night event
 	CharacterLevel: Reach character Lv.{0}

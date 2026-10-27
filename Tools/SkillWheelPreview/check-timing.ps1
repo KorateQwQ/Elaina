@@ -8,8 +8,11 @@ foreach ($entry in @(
     @('Reference', "$Tml/Libraries/FNA/1.0.0/FNA.dll"),
     @('Reference', "$Tml/Libraries/ReLogic/1.0.0/ReLogic.dll"),
     @('Compile', "$PSScriptRoot/TimingChecks.cs.txt"),
+    @('Compile', "$PSScriptRoot/DollTimingChecks.cs.txt"),
     @('Compile', "$PSScriptRoot/TimingStubs.cs.txt"),
     @('Compile', "$repo/ElainaModSkills/ElainaSkillUI/ElainaSkillWheel.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollCommandWheel.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollCommand.cs"),
     @('Compile', "$repo/ElainaModSkills/ElainaSkillUI/SkillWheelDrawing.cs"),
     @('Compile', "$repo/ElainaModSkills/ElainaSkillUI/SkillBarDrawing.cs"),
     @('Compile', "$repo/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/ConstellationUIClock.cs"))) {

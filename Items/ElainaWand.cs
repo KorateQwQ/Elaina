@@ -20,9 +20,6 @@ using 伊蕾娜.ElainaModSkills.Skills.Fire;
 using 伊蕾娜.ElainaModSkills.Skills.Lightning;
 using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
-using 伊蕾娜.Projectiles.Flame;
-using 伊蕾娜.Projectiles.MagicBarrier;
-using 伊蕾娜.Projectiles.MagicMissile;
 using 伊蕾娜.ReProjs;
 using 伊蕾娜.ReProjs.Water;
 
@@ -30,33 +27,11 @@ namespace 伊蕾娜.Items
 {
     public class ElainaWand : ModItem
     {
-        private static SoundStyle 飞弹, 生成;
         private static int iceCount = 0;
         private static int windCount = 0;
         
         //TODO: 把技能不同的基础伤害写出来，控制武器显示当前武器的百分比数值
         public override string Texture => base.Texture.Replace(GetType().Name, "魔杖");
-        public override void Load()
-        {
-            飞弹 = (new SoundStyle($"伊蕾娜/Projectiles/MagicMissile/飞弹", 1, SoundType.Sound)
-            {
-                Volume = 0.1f,
-                MaxInstances = 5,
-                Pitch = 0,
-                PitchVariance = 0.3f,
-                SoundLimitBehavior = SoundLimitBehavior.ReplaceOldest,
-                PlayOnlyIfFocused = true,
-            });
-            生成 = (new SoundStyle($"伊蕾娜/Projectiles/MagicMissile/生成", 1, SoundType.Sound)
-            {
-                Volume = 0.1f,
-                MaxInstances = 5,
-                Pitch = 0,
-                PitchVariance = 0.3f,
-                SoundLimitBehavior = SoundLimitBehavior.ReplaceOldest,
-                PlayOnlyIfFocused = true,
-            });
-        }
         public override void SetStaticDefaults()
         {
             ItemID.Sets.ItemsThatAllowRepeatedRightClick[Type] = true;

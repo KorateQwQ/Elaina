@@ -256,7 +256,7 @@ FNA 离线预览已检查 `planters-150.png`、`material-menu-planters-150.png` 
 
 `run.ps1 -Checks` 253 条（提取正式 `TrySelectPlacementTarget`，放置动作由替身计数）、`selection.ps1` 313 条选区断言均通过；原 `PlanterSelectionChecks.cs.txt` 与种植盆/材料菜单 FNA 预览删除。四项轮盘 FNA 预览 `.vissandbox/skillwheel-preview/output/doll-idle-chest-reach-1.0.png` 已查看。
 
-`garden.ps1` 在本次改动前已无法编译：夹具仍调用正式代码中已不存在的 `PauseGarden` / `ResumeGarden` / `HasGardenTask`，宿主也缺少箱子货物成员（`CarryType`、`CanDeliverCargo`、`DeliverChestCargo`、`IsCarryingCargo`）。本次只把其中的放置相关引用换成新接口并链接正式放置文件，未修复上述既有问题。游戏内输入、连续拖动手感与真实多人连接未在本轮实机验证。
+游戏内输入、连续拖动手感与真实多人连接未在本轮实机验证。（当时 `garden.ps1` 无法编译的问题已在下文「远程箱子放入」一节修复。）
 
 ### 拖动连续放置与悬空（2026-10-27 补充）
 
@@ -277,3 +277,13 @@ FNA 离线预览已检查 `planters-150.png`、`material-menu-planters-150.png` 
 现在登记待放置的瞬间，玩偶就从背包带走一份（`DollCommandPlayer.TryCarry`，经过 `ItemLoader.ConsumeItem`）：消耗品取手上的这一个，抓在鼠标上时同步写回 `Main.mouseItem`；魔杖取一份材料，魔杖本身不动；钩子不允许消耗或物品本不消耗时什么也不带。待放置记下所放物品的单个副本与带走的那一份。玩偶到位后，回放时把手上临时换成这件物品，放置本身不再扣背包；魔杖回放时不再要求背包里仍有材料（`PlaceThing_Tiles_CheckWandUsability` 在回放时放行）。取消任务、收回玩偶（两者都走 `ClearTasks`）、目标放不下、主人走出 2400 像素时，带走的物品放回背包，装不下的掉在主人脚下。存档时尚未放下的物品并入玩偶携带物（`DollChestCargo`），下次召唤后由玩偶交还；不再按库存计算排队上限，手上没有物品后自然无法继续登记。
 
 `planters.ps1` 的远程放置检查增至 45 条，新增登记即扣、放下不再扣、放不下归还、取消归还、鼠标抓取（含最后一个清空鼠标与取消后归还）、魔杖带走材料并在材料已空时完成回放。连同原有检查共 103 条；`run.ps1 -Checks` 253 条、`selection.ps1` 选区断言、主项目编译均通过。
+
+## 远程箱子放入（送货玩偶）
+
+玩偶远程打开的箱子（主人本人够不着时）现在也能放入，需要至少两只玩偶：开箱玩偶守着箱子，另一只空闲或只在照料种植盆的玩偶当送货员（`DollChestDeposit.cs`）。鼠标物品点箱子格、Shift 点击背包物品、存入全部、快速堆叠都不直接写箱子：放得下的部分（按原版 `TryPlacingInChest` 的顺序对“箱子现状 + 在途放入”预先计算）立刻从背包/鼠标交到送货玩偶手上，它飞到箱子另一侧、播完 Use 动作后才真正放入并发原版 `SyncChestItem`。途中再放入的物品由同一只玩偶一起送；箱子已关闭、被替换或放不下的部分转为它的携带物，回到主人身边抛还；送货玩偶失效、收回或主人死亡时同样转为携带物，存档时并入 `DollChestCargo`。没有能送货的玩偶时拦下并提示。快速补货属于取出，由开箱玩偶按原版补货结果（补满背包已有的可堆叠种类、弹药在有空格时整组带走，扣掉玩偶已带着的同类）带回。存入全部、快速堆叠、补货三个按钮在远程状态下恢复显示。
+
+`garden.ps1` 恢复可编译：宿主 `GardenNativeHost.cs.txt` 只保留挖掘目标与登记的桩，箱子货物、送货、挖掘搬运和本地化改为链接正式 `DollChestCargo` / `DollChestDeposit` / `DollChestTransferSystem` / `DollMiningCargo` / `UIText`，收集物交还与存档从 `DollCommandPlayer.cs` 的「收集物」region 每次提取生成，不再手写替身。离线宿主补注册 tML 内置的 bool / Point / Vector2 存档序列化器（正式加载时自动完成）。照料夹具按现行语义改写：挂起的任务（`HoldGardenForTask` 登记一个占位标记）暂停自主照料，任务清空后恢复；跟随交还改为检查收集物已清空。宝箱夹具按现行 `FindChestHelper` 改写：四只都在工作时仍借一只开箱，有空闲时优先空闲。
+
+`ChestDepositNativeChecks.cs.txt` 在同一真实引擎夹具中调用原版 `ItemSlot.LeftClick`、`ChestUI.TryPlacingInChest` / `DepositAll` / `QuickStack` / `Restock`，经正式钩子与玩偶 AI 运行。37 条断言覆盖：只有开箱玩偶时拦下、物品留在鼠标且提示不刷屏；挖掘中的玩偶不当送货员；点击格后物品立即交给另一只玩偶、箱子不变；飞行途中不放入；远端副本只播动画；Use 动作后在箱子另一侧放进点击的格子；Shift 悬停与放入、后续放入并入同一只、前缀保持、同类先堆叠；存入全部跳过快捷栏/收藏/弹药栏；快速堆叠只放已有种类、不放钱币；补货由开箱玩偶带回且只补到满；满箱只带走放得下的部分且计入在途放入；多人发 `SyncChestItem`；途中关箱、送货玩偶失效、收回、存档往返后物品各交还一次且不进箱。变异验证：把放入改成交接时立即完成，检查即失败。
+
+本次验证：`garden.ps1` 全部通过（掉落 26、照料 139、挖掘 23、角标 14、送货 37、宝箱 48；宝箱一行输出的 99 条已含角标与送货，连同花盆放置检查合计 345 条）；`planters.ps1` 45 + 103 条；`run.ps1 -Checks` 255 条；Mod 编译 0 错误。存档往返用无前缀物品，因为离线宿主未初始化前缀集合，`ItemIO.Load` 无法还原前缀；前缀保持由放入流程本身的断言覆盖。未建立实际多人连接，也未实机验证。

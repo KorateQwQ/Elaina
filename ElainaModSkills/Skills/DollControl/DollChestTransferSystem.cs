@@ -1,18 +1,15 @@
-using Microsoft.Xna.Framework.Graphics;
 using Terraria.DataStructures;
 using Terraria.UI;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 玩偶远程打开的箱子只出不进：点击箱内物品或一键夺取都交给开箱玩偶携带，存入、快速堆叠、补货与放入均被拦下。
+/// 玩偶远程打开的箱子：取出（点击箱内物品、一键夺取、快速补货）交给开箱玩偶携带；
+/// 放入（鼠标物品点箱子格、Shift 点击背包物品、存入全部、快速堆叠）交给另一只空闲玩偶送过去，没有空闲玩偶时拦下并提示。
 /// 只在 <see cref="DollCommandPlayer.RemoteChestTransferActive"/> 时生效，其余情况完全走原版。
 /// </summary>
 public sealed class DollChestTransferSystem : ModSystem
 {
-    /// <summary>存入全部、快速堆叠、补货三个按钮隐藏后，下方按钮上移的距离（原版按钮行距 26）。</summary>
-    private const int HiddenButtonsHeight = 3 * 26;
-
     public override void Load()
     {
         On_ItemSlot.LeftClick_ItemArray_int_int += LeftClick;
@@ -22,7 +19,6 @@ public sealed class DollChestTransferSystem : ModSystem
         On_ChestUI.QuickStack += QuickStack;
         On_ChestUI.Restock += Restock;
         On_ChestUI.TryPlacingInChest += TryPlacingInChest;
-        On_ChestUI.DrawButton += DrawButton;
     }
 
     public override void Unload()
@@ -34,7 +30,6 @@ public sealed class DollChestTransferSystem : ModSystem
         On_ChestUI.QuickStack -= QuickStack;
         On_ChestUI.Restock -= Restock;
         On_ChestUI.TryPlacingInChest -= TryPlacingInChest;
-        On_ChestUI.DrawButton -= DrawButton;
     }
 
     private static DollCommandPlayer RemoteTransfer()
@@ -53,8 +48,8 @@ public sealed class DollChestTransferSystem : ModSystem
             return;
         }
         if (!Main.mouseLeft || !Main.mouseLeftRelease || Main.LocalPlayer.itemAnimation != 0) return;
-        // 普通左键、Shift 与 Ctrl 点击都由玩偶取走整组；鼠标上有物品时不能放入或交换。
-        if (!Main.mouseItem.IsAir) commands.NotifyNoDeposit();
+        // 空手时普通左键、Shift 与 Ctrl 点击都由开箱玩偶取走整组；鼠标上有物品时交给送货玩偶，优先放进点击的格子。
+        if (!Main.mouseItem.IsAir) commands.DepositToRemoteChest(Main.mouseItem, slot);
         else commands.TakeFromRemoteChest(slot, inv[slot].stack);
     }
 
@@ -66,8 +61,8 @@ public sealed class DollChestTransferSystem : ModSystem
             return;
         }
         if (!Main.mouseRight || !Main.mouseRightRelease || Main.LocalPlayer.itemAnimation != 0) return;
-        if (!Main.mouseItem.IsAir) commands.NotifyNoDeposit();
-        else commands.TakeFromRemoteChest(slot, 1);
+        // 右键只取不放：物品由玩偶带回，不经过鼠标，所以鼠标上拿着什么都不影响。
+        commands.TakeFromRemoteChest(slot, 1);
     }
 
     private static void LootAll(On_ChestUI.orig_LootAll orig)
@@ -78,42 +73,27 @@ public sealed class DollChestTransferSystem : ModSystem
 
     private static void DepositAll(On_ChestUI.orig_DepositAll orig, ContainerTransferContext context)
     {
-        if (RemoteTransfer() == null) orig(context);
+        if (RemoteTransfer() is { } commands) commands.DepositAllIntoDoll();
+        else orig(context);
     }
 
     private static void QuickStack(On_ChestUI.orig_QuickStack orig, ContainerTransferContext context, bool voidStack)
     {
-        if (RemoteTransfer() == null) orig(context, voidStack);
+        // 按钮只发起背包的快速堆叠；虚空袋那一遍只来自“堆叠到附近箱子”，那时打开的不是远程箱子。
+        if (RemoteTransfer() is not { } commands) orig(context, voidStack);
+        else if (!voidStack) commands.QuickStackIntoDoll();
     }
 
     private static void Restock(On_ChestUI.orig_Restock orig)
     {
-        if (RemoteTransfer() == null) orig();
+        if (RemoteTransfer() is { } commands) commands.RestockIntoDoll();
+        else orig();
     }
 
+    /// <summary>Shift 点击背包物品：悬停判断返回是否有送货玩偶且放得下，点击时交给送货玩偶。</summary>
     private static bool TryPlacingInChest(On_ChestUI.orig_TryPlacingInChest orig, Item item, bool justCheck, int itemSlotContext)
-        => RemoteTransfer() == null && orig(item, justCheck, itemSlotContext);
-
-    private static void DrawButton(On_ChestUI.orig_DrawButton orig, SpriteBatch spriteBatch, int id, int x, int y)
     {
-        if (RemoteTransfer() == null)
-        {
-            orig(spriteBatch, id, x, y);
-            return;
-        }
-        switch (id)
-        {
-            case ChestUI.ButtonID.DepositAll:
-            case ChestUI.ButtonID.QuickStack:
-            case ChestUI.ButtonID.Restock:
-                ChestUI.UpdateHover(id, hovering: false);
-                return;
-            case >= ChestUI.ButtonID.Sort:
-                orig(spriteBatch, id, x, y - HiddenButtonsHeight);
-                return;
-            default:
-                orig(spriteBatch, id, x, y);
-                return;
-        }
+        if (RemoteTransfer() is not { } commands) return orig(item, justCheck, itemSlotContext);
+        return justCheck ? commands.CanQueueDeposit(item) : commands.DepositToRemoteChest(item);
     }
 }

@@ -61,7 +61,7 @@ internal static partial class PlanterNativeChecks
         for (int i = 0; i < 58; i++) player.inventory[i] = new Item();
         for (int i = 0; i < Host.maxPlayers; i++) Host.player[i].chest = -1;
         for (int i = 0; i < Host.maxProjectiles; i++) Host.projectile[i].active = false;
-        var commands = player.GetModPlayer<DollCommandPlayer>(); commands.PauseGarden();
+        var commands = player.GetModPlayer<DollCommandPlayer>(); commands.HoldGardenForTask();
         var team = new KumaPetProjectile[4];
         for (int i = 0; i < 4; i++)
         {
@@ -164,9 +164,11 @@ internal static partial class PlanterNativeChecks
                 "Closing restores visible movement back toward the owner");
             var work = typeof(DollPetProjectile).GetField("workTile", BindingFlags.Instance | BindingFlags.NonPublic)!;
             foreach (var worker in team) work.SetValue(worker, new Point(45, 55));
-            ClickAndWait(); Check(player.chest == -1, "All four dolls busy means no extended reach");
+            ClickAndWait(); Check(player.chest == index && team.Count(commands.IsRemoteChestHelper) == 1,
+                "All four dolls busy still borrows exactly one working doll"); Close();
+            foreach (var worker in team) work.SetValue(worker, new Point(45, 55));
             work.SetValue(team[2], new Point(-1, -1));
-            ClickAndWait(); Check(player.chest == index && commands.IsRemoteChestHelper(team[2]), "One idle doll suffices while three work");
+            ClickAndWait(); Check(player.chest == index && commands.IsRemoteChestHelper(team[2]), "An idle doll is preferred over working ones");
             Close(); foreach (var worker in team) work.SetValue(worker, new Point(-1, -1));
             Host.mapFullscreen = true; ClickAndWait(); Check(player.chest == -1, "Fullscreen map cannot open remote chests"); Host.mapFullscreen = false;
             Host.screenPosition = new(2200, 600); ClickAndWait(); Check(player.chest == -1, "Offscreen chest keeps vanilla range"); Host.screenPosition = new(600, 600);
@@ -177,8 +179,8 @@ internal static partial class PlanterNativeChecks
                 Tiles(type);
                 Check(!DollChestReachSystem.InteractionGate(player, p.X, p.Y, TileReachCheckSettings.Simple), "Only chests receive extra distance: " + type);
             }
-            Tiles(); ClickAndWait(); team[0].Projectile.active = false; commands.PostUpdate();
-            Check(player.chest == -1, "Losing the reserved doll closes distant chest"); team[0].Projectile.active = true;
+            Tiles(); ClickAndWait(); var lost = team.First(commands.IsRemoteChestHelper); lost.Projectile.active = false; commands.PostUpdate();
+            Check(player.chest == -1, "Losing the reserved doll closes distant chest"); lost.Projectile.active = true;
             ClickAndWait(); player.dead = true; commands.UpdateDead(); Check(player.chest == -1, "Death revokes access"); player.dead = false;
             ClickAndWait(); Host.screenPosition = new(2200); commands.PostUpdate(); Check(player.chest == -1, "Leaving screen plus margin releases distant chest"); Host.screenPosition = new(600, 600);
             Tiles(); Click();
@@ -205,6 +207,7 @@ internal static partial class PlanterNativeChecks
             ClickAndWait(); Check(player.chest == index && player.inventory[1].stack == 1, "Next right-click opens without another key consumption"); Close();
             CheckModChest();
             Tiles(); CheckMultiplayer();
+            CheckChestDeposits(player, p, index, team, () => { Tiles(); ClickAndWait(); }, Tick, Close, messages);
             Vector2 saved = player.Center; player.Center = p.ToWorldCoordinates();
             foreach (var worker in team) work.SetValue(worker, new Point(45, 55));
             ClickAndWait(); Check(player.chest == index, "Ordinary close-range opening still works with every doll busy"); Close(); player.Center = saved;

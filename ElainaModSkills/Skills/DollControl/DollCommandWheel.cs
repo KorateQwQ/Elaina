@@ -8,6 +8,7 @@ using SilkyUIFramework.Layout;
 using Terraria.Audio;
 using Terraria.ID;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using 伊蕾娜.ElainaModSkills.UICore;
 using 伊蕾娜.Items;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
@@ -29,6 +30,7 @@ public sealed class DollCommandWheel : BaseBody
     private readonly float[] _extentAtClose = new float[Count];
     private readonly float[] _opacityAtClose = new float[Count];
     private readonly SkillWheelDrawing.View _view = new();
+    private readonly ConstellationUIClock _animationClock = new();
     private Func<bool> _validSource;
     private Action<DollCommand> _confirmed;
     private DollCommand? _current;
@@ -45,7 +47,11 @@ public sealed class DollCommandWheel : BaseBody
     public static bool OwnsPointer => TryGet(out var wheel) && (wheel._open || wheel._closing);
 
     private bool Fading => _closeTime >= 0;
-    private void SyncEnabled() => Enabled = _open || _closing || Fading;
+    private void SyncEnabled()
+    {
+        Enabled = _open || _closing || Fading;
+        if (!Enabled) _animationClock.Stop();
+    }
 
     private static bool TryGet(out DollCommandWheel wheel)
     {
@@ -68,6 +74,7 @@ public sealed class DollCommandWheel : BaseBody
         wheel._time = wheel._presence = wheel._focusAge = 0;
         wheel._hovered = wheel._focus = wheel._chosen = -1;
         Array.Clear(wheel._hover);
+        wheel._animationClock.Restart();
         wheel.SyncEnabled();
         return true;
     }
@@ -93,6 +100,7 @@ public sealed class DollCommandWheel : BaseBody
                 _opacityAtClose[i] = OpeningOpacity(_time, i);
             }
             _closeTime = 0;
+            _animationClock.Restart();
         }
         _open = false;
         // 与治疗盘相同：保留透明根节点吃掉确认/取消这次按键，直到松开。
@@ -172,7 +180,10 @@ public sealed class DollCommandWheel : BaseBody
     protected override void UpdateStatus(GameTime gameTime)
     {
         base.UpdateStatus(gameTime);
-        float dt = Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f);
+        // SUI 在绘制阶段调用这里；微妙跳帧的缓存游戏时间可能接近零。
+        // 与技能轮盘共用独立时钟，让透明度、展开和淡出按真实经过时间推进。
+        float dt = _animationClock.Sample();
+        bool wasFading = Fading;
         if (_open)
         {
             if (CanStayOpen) Track(dt);
@@ -181,6 +192,8 @@ public sealed class DollCommandWheel : BaseBody
 
         if (Fading)
         {
+            // Track 可能在本次松键时刚启动淡出，不应把之前的展开间隔算入关闭。
+            if (!wasFading) dt = 0;
             _closeTime += dt;
             _presence = Math.Max(0, _presence - dt / FadeOut);
             if (_closeTime >= (_chosen >= 0 ? ChosenClose : Math.Max(FadeOut, ItemClose)))

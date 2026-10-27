@@ -1,7 +1,6 @@
 using System;
-using Terraria.ModLoader.IO;
 
-// Only UI, projectiles and unrelated mining fields are omitted. Garden logic and tML engine are real.
+// Only UI, input and unrelated mining fields are omitted. Garden, chest, cargo, loot delivery and tML engine are real.
 namespace 伊蕾娜
 {
     public class 伊蕾娜 : Mod { internal enum MessageType : byte { DollGarden } }
@@ -11,22 +10,25 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
     public sealed partial class DollCommandPlayer : ModPlayer
     {
         public const float WorkRange = 2400;
-        internal readonly HashSet<Point> TileMarks = [];
+        internal readonly HashSet<Point> TileMarks = [], WallMarks = [];
         private readonly Dictionary<int, int> loot = [];
         private readonly List<(int Type, int Stack)> captured = [];
         private bool InRange(Point p) => Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) <= WorkRange * WorkRange;
         public int LootCount(int type) => loot.GetValueOrDefault(type);
+        // Same definition as production DollCommandPlayer.HasTask; gardening is not a task.
+        public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || Placements.Count > 0;
         public bool HasLoot => loot.Count > 0;
-        public bool HasTask => TileMarks.Count > 0 || Placements.Count > 0 || HasGardenTask;
-        public int Delivered;
-        public void DeliverLoot(Vector2 from, Terraria.DataStructures.IEntitySource source)
-        { Delivered += loot.Values.Sum(); loot.Clear(); }
+        public bool BringBackItems { get; private set; } = true;
         internal bool TrySelectTarget(Vector2 from, Point current, bool currentWall, out Point target, out bool wall, DollPetProjectile worker = null)
         { target = new(-1, -1); wall = false; return false; }
-        internal void Hit(Point point, bool walls) => throw new Exception("Mining outside garden fixture");
+        internal void Hit(Point point, bool walls, DollPetProjectile worker = null) => throw new Exception("Mining outside garden fixture");
         internal int HitInterval(bool walls) => 6;
-        public override void SaveData(TagCompound tag) => SaveGardenOwner(tag);
-        public override void LoadData(TagCompound tag) => LoadGardenOwner(tag);
+
+        // Gardening only runs while idle. Fixtures hold it with a pending mark far from every pot (TrySelectTarget never
+        // picks it here), and release it the way finishing that task would.
+        private static readonly Point GardenHoldMark = new(5, 5);
+        internal void HoldGardenForTask() => TileMarks.Add(GardenHoldMark);
+        internal void ReleaseGardenHold() { TileMarks.Remove(GardenHoldMark); ResetGarden(); }
     }
     public static class DollControlSkill { public const int TeamSize = 4; }
 }

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using Terraria.ID;
 using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 using Host = Terraria.Main;
@@ -39,7 +39,7 @@ internal static partial class PlanterNativeChecks
             Check(!DollChestCursorSystem.HasBadge(player), "Fullscreen map hides the badge"); Host.mapFullscreen = false;
             foreach (var worker in team) work.SetValue(worker, new Point(20, 20));
             Capture(ItemID.Chest);
-            Check(!DollChestCursorSystem.HasBadge(player), "All dolls busy means no help badge");
+            Check(DollChestCursorSystem.HasBadge(player), "All dolls busy still offers a working doll as last-resort helper");
             foreach (var worker in team) work.SetValue(worker, new Point(-1, -1));
             Capture(ItemID.Chest);
             DollChestCursorSystem.CaptureHover(player, 5, 5);

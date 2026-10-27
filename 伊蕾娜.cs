@@ -1,4 +1,3 @@
-global using 伊蕾娜.Projectiles;
 global using KL.Projectiles;
 global using static KL.Drawing.DrawHelper;
 global using static KL.Extensions.GamePlayStatic;
@@ -18,8 +17,6 @@ using Terraria.ModLoader;
 using Terraria.UI;
 using 伊蕾娜.Buffs;
 using 伊蕾娜.ElainaAttribute;
-using 伊蕾娜.Items.accessories;
-using 伊蕾娜.Projectiles.Lightning;
 using 伊蕾娜.ElainaModAlchemy.Gameplay;
 
 
@@ -137,7 +134,7 @@ namespace 伊蕾娜
         }
         static public bool NpcIsOnFire(NPC npc)
         {
-            if (npc.HasBuff(BuffID.OnFire) || npc.HasBuff(BuffID.OnFire3) || npc.HasBuff(ModContent.BuffType<Buffs.灼烧>()))
+            if (npc.HasBuff(BuffID.OnFire) || npc.HasBuff(BuffID.OnFire3))
             {
                 return true;
             }
@@ -145,7 +142,7 @@ namespace 伊蕾娜
         }
         static public bool NpcIsOnFire(Player npc)
         {
-            if (npc.HasBuff(BuffID.OnFire) || npc.HasBuff(BuffID.OnFire3) || npc.HasBuff(ModContent.BuffType<Buffs.灼烧>()))
+            if (npc.HasBuff(BuffID.OnFire) || npc.HasBuff(BuffID.OnFire3))
             {
                 return true;
             }
@@ -161,10 +158,6 @@ namespace 伊蕾娜
             {
                 npc.DelBuff(npc.FindBuffIndex(BuffID.OnFire3));
             }
-            if (npc.HasBuff(ModContent.BuffType<灼烧>()))
-            {
-                npc.DelBuff(npc.FindBuffIndex(ModContent.BuffType<灼烧>()));
-            }
         }
         static public void ClearNpcFire(Player npc)
         {
@@ -175,10 +168,6 @@ namespace 伊蕾娜
             if (npc.HasBuff(BuffID.OnFire3))
             {
                 npc.DelBuff(npc.FindBuffIndex(BuffID.OnFire3));
-            }
-            if (npc.HasBuff(ModContent.BuffType<灼烧>()))
-            {
-                npc.DelBuff(npc.FindBuffIndex(ModContent.BuffType<灼烧>()));
             }
         }
         private void Elaina_NewTransform(Terraria.On_NPC.orig_Transform orig, NPC self, int newType)
@@ -403,16 +392,7 @@ namespace 伊蕾娜
                                 packet.Write("Send");
                                 packet.Send(-1, whoAmI);
                             }
-                            foreach (NPC npc in Main.npc)
-                            {
-                                if (npc.active)
-                                {
-                                    if (npc.GetGlobalNPC<Count>().parentid >= 0 || npc.GetGlobalNPC<Count>().childamount > 0)
-                                    {//此npc具有父子关系
-                                        npc.GetGlobalNPC<Count>().Sync = true;
-                                    }
-                                }
-                            }
+
 
                         }
                         else
@@ -441,117 +421,10 @@ namespace 伊蕾娜
                     }
                     break;
                 case MessageType.魔力共享:
-                    {
-                        int targetid = reader.ReadInt32();
-                        int typeid = reader.ReadInt32();
-                        if (Main.netMode == NetmodeID.Server)
-                        {
-                            bool 蓝量不足 = reader.ReadBoolean();
-                            int 试图扣蓝 = reader.ReadInt32();
-                            if (typeid == 1)
-                            {
-                                蓝量共享 examplePlayer = Main.player[playernumber].GetModPlayer<蓝量共享>();
-                                ModPacket packet = GetPacket();
-                                packet.Write((byte)MessageType.魔力共享);
-                                packet.Write(playernumber);
-                                packet.Write(targetid);
-                                packet.Write(typeid);
-                                packet.Write(蓝量不足);
-                                packet.Write(试图扣蓝);
-                                packet.Send(-1, whoAmI);
-                            }
-                            if (typeid == 2)
-                            {
-                                蓝量共享 examplePlayer = Main.player[targetid].GetModPlayer<蓝量共享>();
-                                examplePlayer.客机蓝量不足 = true;
-                                ModPacket packet = GetPacket();
-                                packet.Write((byte)MessageType.魔力共享);
-                                packet.Write(playernumber);
-                                packet.Write(targetid);
-                                packet.Write(typeid);
-                                packet.Write(蓝量不足);
-                                packet.Write(试图扣蓝);
-                                packet.Send(-1, whoAmI);
-                            }
-                            if (typeid == 3)
-                            {
-                                ModPacket packet = GetPacket();
-                                packet.Write((byte)MessageType.魔力共享);
-                                packet.Write(playernumber);
-                                packet.Write(targetid);
-                                packet.Write(typeid);
-                                packet.Write(蓝量不足);
-                                packet.Write(试图扣蓝);
-                                packet.Send(-1, whoAmI);
-                            }
-
-                        }
-                        else
-                        {
-
-                            bool 蓝量不足 = reader.ReadBoolean();
-                            int 试图扣蓝 = reader.ReadInt32();
-                            if (Main.myPlayer == targetid)
-                            {
-                                if (typeid == 1)
-                                {
-                                    //Main.NewText("试图扣篮");
-                                    蓝量共享 examplePlayer = Main.player[playernumber].GetModPlayer<蓝量共享>();
-                                    if (!Main.player[targetid].CheckMana(试图扣蓝, true))
-                                    {
-                                        examplePlayer.客机蓝量不足 = true;
-                                        Main.player[targetid].GetModPlayer<蓝量共享>().蓝量不足 = true;
-                                        ModPacket packet = GetPacket();
-                                        packet.Write((byte)MessageType.魔力共享);
-                                        packet.Write(targetid);
-                                        packet.Write(playernumber);
-                                        packet.Write(2);
-                                        packet.Write(蓝量不足);
-                                        packet.Write(试图扣蓝);
-                                        packet.Send(-1, whoAmI);
-                                    }
-                                }
-
-                                if (typeid == 2)
-                                {
-                                    蓝量共享 examplePlayer = Main.player[targetid].GetModPlayer<蓝量共享>();
-                                    examplePlayer.客机蓝量不足 = true;
-
-                                }
-                            }
-                            if (typeid == 3)
-                            {
-                                蓝量共享 examplePlayer = Main.player[Main.myPlayer].GetModPlayer<蓝量共享>();
-                                examplePlayer.客机蓝量不足 = false;
-                            }
-
-                            //ElainaModplayer examplePlayer = Main.player[playernumber].GetModPlayer<ElainaModplayer>();
-                            //examplePlayer.Elaina = reader.ReadBoolean();
-                            //Main.NewText(examplePlayer.Elaina);
-                        }
-                    }
+                    // Retired legacy packet; keep its enum value reserved.
                     break;
                 case MessageType.雷云:
-                    int startDark = reader.ReadInt32();
-                    int endDark = reader.ReadInt32();
-                    bool ifc = reader.ReadBoolean();
-                    if (Main.netMode == NetmodeID.Server)
-                    {
-                        Main.player[playernumber].GetModPlayer<天雷modplayer>().雷云 = ifc;
-                        {
-                            ModPacket packet = GetPacket();
-                            packet.Write((byte)MessageType.雷云);
-                            packet.Write(playernumber);//告诉他我是谁
-                            packet.Write(startDark);
-                            packet.Write(endDark);
-                            packet.Write(ifc);
-                            packet.Send(-1, whoAmI);
-                        }
-                    }
-                    else
-                    {
-                        Main.player[Main.myPlayer].GetModPlayer<天雷modplayer>().雷云 = ifc;
-                    }
+                    // Retired legacy packet; keep its enum value reserved.
                     break;
                 case MessageType.小动物ai0:
                     {
@@ -587,63 +460,10 @@ namespace 伊蕾娜
 
                     break;
                 case MessageType.父子关系同步:
-                    {
-                        int i;
-                        int npcId = reader.ReadInt32();
-                        int parentid = reader.ReadInt32();
-                        int childamount = reader.ReadInt32();
-                        int[] child = new int[201];
-                        if (childamount > 0)
-                        {
-                            for (i = 0; i < childamount; i++)
-                            {
-                                child[i] = reader.ReadInt32();
-                                //Console.WriteLine("parentid " + parentid + " amount: " + childamount+" childname: " + Main.npc[child[i]].FullName);
-                            }
-                        }
-                        //Console.WriteLine("parentid "+parentid+" amount: "+ childamount);
-                        NPC npc = Main.npc[npcId];
-                        if (npc.active && Main.player[Main.myPlayer].active)
-                        {
-                            npc.GetGlobalNPC<Count>().parentid = parentid;
-                            npc.GetGlobalNPC<Count>().childamount = childamount;
-                            if (childamount > 0)
-                            {
-                                for (i = 0; i < childamount; i++)
-                                {
-                                    //Main.NewText(npc.FullName + " parent: " + parentid + " childamount " + childamount + "child " + Main.npc[child[i]].FullName);
-
-                                    npc.GetGlobalNPC<Count>().childid[i] = child[i];
-                                    NPC Children = Main.npc[child[i]];
-                                    if (Children.active)
-                                        Children.GetGlobalNPC<Count>().parentid = npc.whoAmI;
-                                }
-                            }
-
-                        }
-
-                    }
+                    // Retired legacy packet; keep its enum value reserved.
                     break;
                 case MessageType.妮可名单:
-                    {
-                        string NpcFullName = reader.ReadString();
-                        {
-                            foreach (Player player in Main.player)
-                            {
-                                if (player.GetModPlayer<ElainaModplayer>().Nikeh)
-                                {
-                                    foreach (Item item in player.armor)
-                                    {
-                                        if (item.type == ModContent.ItemType<妮可的冒险谭>())
-                                        {
-                                            player.GetModPlayer<ElainaModplayer>().TheBossJustDefeat = NpcFullName;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                    }
+                    // Retired legacy packet; keep its enum value reserved.
                     break;
                 default:
                     break;

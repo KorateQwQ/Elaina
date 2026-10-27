@@ -1,7 +1,6 @@
 ﻿global using Microsoft.Xna.Framework;
 global using Terraria;
 global using Terraria.Localization;
-global using 伊蕾娜.Projectiles;
 global using 伊蕾娜.System;
 global using static 伊蕾娜.MiscHelper;
 using System;

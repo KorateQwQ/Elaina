@@ -149,7 +149,9 @@ public sealed partial class DollCommandPlayer
 
     public override void PostUpdate()
     {
-        if (Player.whoAmI != Main.myPlayer || remoteChestOrigin is not { } origin) return;
+        if (Player.whoAmI != Main.myPlayer) return;
+        if (chestDeposits.Count > 0) ReturnDeposits(lostOnly: true);
+        if (remoteChestOrigin is not { } origin) return;
         if (!Player.active || Player.dead || !RemoteHelperAlive()
             || !DollChestReachSystem.TryChestOrigin(origin.X, origin.Y, out var current) || current != origin
             || !DollChestReachSystem.TileOnScreen(origin.X, origin.Y, 64))
@@ -174,6 +176,8 @@ public sealed partial class DollCommandPlayer
 
     internal void ReleaseRemoteChest(bool close)
     {
+        // 箱子不再由玩偶开着，还没送到的物品带回主人身边。
+        ReturnDeposits();
         int index = remoteChestIndex;
         Point? origin = remoteChestOrigin;
         remoteChestHelper = null;

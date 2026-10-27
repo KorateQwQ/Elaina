@@ -191,6 +191,9 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         internal int CarryType(DollPetProjectile worker) => 0;
         internal bool CanDeliverCargo(DollPetProjectile worker) => false;
         internal void DeliverChestCargo(DollPetProjectile worker, Vector2 from, Terraria.DataStructures.IEntitySource source) { }
+        internal bool TrySelectChestDeposit(DollPetProjectile worker, out Point target) { target = new(-1, -1); return false; }
+        internal void CompleteChestDeposit(DollPetProjectile courier) { }
+        internal void ReturnDeposits(DollPetProjectile courier = null, bool lostOnly = false) { }
         public sealed class MarkSet : HashSet<Point>
         {
             public void AddRange(IEnumerable<Point> points) => UnionWith(points);
