@@ -88,30 +88,50 @@ internal static class DiscoveryChecks
     private static void LevelUpQueueChecks()
     {
         var queue = new LevelUpToastQueue();
-        queue.Show(3, 3, 10);
-        Check(queue.Current == null, "no toast without a level gained");
-        queue.Show(3, 4, 20);
+        queue.Show(3, 3, 10); queue.Advance(0, false);
+        Check(queue.Current == null && queue.Waiting == null, "no toast without a level gained");
+        queue.Show(3, 4, 20); queue.Advance(0, false);
         Check(queue.Current is { From: 3, To: 4, Points: 20 } && LevelUpToastQueue.Alpha(queue.Current) == 0
             && Math.Abs(LevelUpToastQueue.PopScale(queue.Current) - .86f) < .001f, "level-up toast starts transparent and small");
-        queue.Advance(LevelUpToastQueue.Pop / 2);
+        queue.Advance(LevelUpToastQueue.Pop / 2, false);
         Check(Math.Abs(LevelUpToastQueue.Alpha(queue.Current) - .5f) < .001f && LevelUpToastQueue.Rise(queue.Current) > 0
             && LevelUpToastQueue.PopScale(queue.Current) is > 1 and < 1.05f, "pops in from below with a slight overshoot");
-        queue.Advance(LevelUpToastQueue.Pop / 2 + 1f);
+        queue.Advance(LevelUpToastQueue.Pop / 2 + 1f, false);
         Check(LevelUpToastQueue.Alpha(queue.Current) == 1 && LevelUpToastQueue.Rise(queue.Current) == 0
             && LevelUpToastQueue.PopScale(queue.Current) == 1, "fully shown while holding");
-        queue.Show(4, 6, 50);
+        queue.Show(4, 6, 50); queue.Advance(0, false);
         Check(queue.Current is { From: 3, To: 6, Points: 70 } && Math.Abs(queue.Current.Age - LevelUpToastQueue.Pop) < .001f,
             "another level while holding merges and restarts the hold");
-        queue.Advance(LevelUpToastQueue.Hold + LevelUpToastQueue.Fade / 2);
+        queue.Advance(LevelUpToastQueue.Hold + LevelUpToastQueue.Fade / 2, false);
         float fading = LevelUpToastQueue.Alpha(queue.Current);
         Check(fading is > 0 and < 1 && LevelUpToastQueue.Rise(queue.Current) < 0, "fades out while rising, in place");
-        queue.Show(6, 7, 20);
+        queue.Show(6, 7, 20); queue.Advance(0, false);
         Check(queue.Current.To == 7 && Math.Abs(LevelUpToastQueue.Alpha(queue.Current) - fading) < .001f, "a level during the fade continues from the current opacity");
         queue.Clear(); queue.Show(1, 2, 20);
         int steps = 0;
-        while (queue.Current != null && steps++ < 1000) queue.Advance(1 / 60f);
+        while ((queue.Current != null || queue.Waiting != null) && steps++ < 1000) queue.Advance(1 / 60f, false);
         float total = LevelUpToastQueue.Pop + LevelUpToastQueue.Hold + LevelUpToastQueue.Fade;
         Check(Math.Abs(steps / 60f - total) < .02f && total < 2.2f, "toast is gone after about two seconds and never docks");
+
+        // Boss fights: levels wait, then merge with the Boss reward level into one card after the fight.
+        queue.Clear();
+        queue.Show(3, 4, 20);
+        for (int i = 0; i < 600; i++) queue.Advance(1 / 60f, true);
+        Check(queue.Current == null && queue.Waiting is { From: 3, To: 4 }, "a level during a Boss fight waits off screen");
+        queue.Show(4, 5, 40);
+        queue.Advance(1 / 60f, true);
+        Check(queue.Current == null && queue.Waiting is { From: 3, To: 5, Points: 60 }, "further levels in the fight merge while waiting");
+        queue.Show(5, 6, 20);
+        queue.Advance(0, false);
+        Check(queue.Current is { From: 3, To: 6, Points: 80 } && queue.Waiting == null && LevelUpToastQueue.Alpha(queue.Current) == 0,
+            "after the fight one summary card pops in, including the Boss reward level");
+        queue.Clear(); queue.Show(1, 2, 20); queue.Advance(LevelUpToastQueue.Pop + .5f, false);
+        queue.Advance(.5f, true);
+        Check(queue.Current?.To == 2 && LevelUpToastQueue.Alpha(queue.Current) == 1, "a card already on screen when a Boss appears finishes normally");
+        queue.Show(2, 3, 20); queue.Advance(.1f, true);
+        Check(queue.Current.To == 2 && queue.Waiting?.To == 3, "a level in the fight does not extend the card on screen");
+        queue.Clear();
+        Check(queue.Current == null && queue.Waiting == null, "clear drops both cards");
     }
 
     private static void QueueChecks()

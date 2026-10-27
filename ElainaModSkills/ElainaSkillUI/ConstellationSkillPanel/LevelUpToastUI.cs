@@ -11,6 +11,7 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 /// <summary>
 /// 人物头顶上方的升级提示。只显示不接收鼠标，不打断操作；停留结束后原地淡出，不进入技能栏旁的停靠位。
+/// Boss 战期间不弹出新的提示，战斗结束后合并显示。
 /// </summary>
 [RegisterUI("Vanilla: Radial Hotbars", "Elaina: Level Up Toast", 998)]
 public sealed class LevelUpToastUI : BaseBody
@@ -49,7 +50,8 @@ public sealed class LevelUpToastUI : BaseBody
         Position();
         float seconds = _clock.Sample();
         if (Main.gameMenu) Toasts.Clear();
-        else if (Main.hasFocus) Toasts.Advance(seconds);
+        // Boss 战期间新升级先暂存，战斗结束后合并弹出，避免战斗中遮挡视线。
+        else if (Main.hasFocus) Toasts.Advance(seconds, Main.CurrentFrameFlags.AnyActiveBossNPC);
         base.UpdateStatus(gameTime);
     }
 

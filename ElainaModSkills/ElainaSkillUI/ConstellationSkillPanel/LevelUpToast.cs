@@ -14,6 +14,8 @@ internal sealed class LevelUpToast
 /// <summary>
 /// 角色升级提示：在人物头顶上方弹出（0.22 秒），停留 1.4 秒后原地上浮淡出（0.45 秒），不进入技能栏旁的停靠位，
 /// 因此不与显现/启封提示排队或重叠。停留期间再次升级会合并为一条，并重新计时。
+/// 升级先记入等待卡片，Boss 战期间（deferred）不弹出，战斗结束后与 Boss 奖励带来的升级合并为一张结算卡；
+/// 升级特效不受影响，始终即时播放。已在屏幕上的卡片照常播完。
 /// </summary>
 internal sealed class LevelUpToastQueue
 {
@@ -21,21 +23,37 @@ internal sealed class LevelUpToastQueue
     /// <summary>屏幕中的放大倍数，以及卡片中心距屏幕顶部的比例（人物位于 50%）。</summary>
     internal const float CenterScale = 1.35f, CenterY = .28f;
     internal LevelUpToast Current { get; private set; }
+    /// <summary>尚未显示的升级（Boss 战期间累积）。</summary>
+    internal LevelUpToast Waiting { get; private set; }
 
     internal void Show(int from, int to, long points)
     {
         if (to <= from) return;
-        if (Current == null) { Current = new LevelUpToast { From = from, To = to, Points = Math.Max(0, points) }; return; }
-        Current.To = Math.Max(Current.To, to);
-        Current.Points += Math.Max(0, points);
-        // 停留中回到停留起点；淡入或淡出中按当前透明度续接，避免闪跳。
-        Current.Age = Pop * Alpha(Current);
+        if (Waiting == null) Waiting = new LevelUpToast { From = from, To = to, Points = Math.Max(0, points) };
+        else Merge(Waiting, to, points);
     }
 
-    internal void Clear() => Current = null;
-
-    internal void Advance(float seconds)
+    private static void Merge(LevelUpToast toast, int to, long points)
     {
+        toast.To = Math.Max(toast.To, to);
+        toast.Points += Math.Max(0, points);
+    }
+
+    internal void Clear() => Current = Waiting = null;
+
+    internal void Advance(float seconds, bool deferred)
+    {
+        if (Waiting != null && !deferred)
+        {
+            if (Current == null) Current = Waiting;
+            else
+            {
+                Merge(Current, Waiting.To, Waiting.Points);
+                // 停留中回到停留起点；淡入或淡出中按当前透明度续接，避免闪跳。
+                Current.Age = Pop * Alpha(Current);
+            }
+            Waiting = null;
+        }
         if (Current == null) return;
         Current.Age += Math.Max(0, seconds);
         if (Current.Age >= Pop + Hold + Fade) Current = null;
