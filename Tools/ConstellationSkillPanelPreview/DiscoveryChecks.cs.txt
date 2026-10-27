@@ -53,6 +53,7 @@ internal static class DiscoveryChecks
 
         TrackerChecks();
         QueueChecks();
+        LevelUpQueueChecks();
         Console.WriteLine($"PASS: {_count} discovery checks (isolated player boundary)");
     }
 
@@ -82,6 +83,35 @@ internal static class DiscoveryChecks
         Check(!state.IsFresh(nameof(AshenWitchSkill)), "learned skill no longer shows a fresh marker");
         state.MarkSeen(typeof(RecallSkill).FullName);
         Check(!tracker.Fresh.Contains(typeof(RecallSkill).FullName), "selecting marks the shared entry seen");
+    }
+
+    private static void LevelUpQueueChecks()
+    {
+        var queue = new LevelUpToastQueue();
+        queue.Show(3, 3, 10);
+        Check(queue.Current == null, "no toast without a level gained");
+        queue.Show(3, 4, 20);
+        Check(queue.Current is { From: 3, To: 4, Points: 20 } && LevelUpToastQueue.Alpha(queue.Current) == 0
+            && Math.Abs(LevelUpToastQueue.PopScale(queue.Current) - .86f) < .001f, "level-up toast starts transparent and small");
+        queue.Advance(LevelUpToastQueue.Pop / 2);
+        Check(Math.Abs(LevelUpToastQueue.Alpha(queue.Current) - .5f) < .001f && LevelUpToastQueue.Rise(queue.Current) > 0
+            && LevelUpToastQueue.PopScale(queue.Current) is > 1 and < 1.05f, "pops in from below with a slight overshoot");
+        queue.Advance(LevelUpToastQueue.Pop / 2 + 1f);
+        Check(LevelUpToastQueue.Alpha(queue.Current) == 1 && LevelUpToastQueue.Rise(queue.Current) == 0
+            && LevelUpToastQueue.PopScale(queue.Current) == 1, "fully shown while holding");
+        queue.Show(4, 6, 50);
+        Check(queue.Current is { From: 3, To: 6, Points: 70 } && Math.Abs(queue.Current.Age - LevelUpToastQueue.Pop) < .001f,
+            "another level while holding merges and restarts the hold");
+        queue.Advance(LevelUpToastQueue.Hold + LevelUpToastQueue.Fade / 2);
+        float fading = LevelUpToastQueue.Alpha(queue.Current);
+        Check(fading is > 0 and < 1 && LevelUpToastQueue.Rise(queue.Current) < 0, "fades out while rising, in place");
+        queue.Show(6, 7, 20);
+        Check(queue.Current.To == 7 && Math.Abs(LevelUpToastQueue.Alpha(queue.Current) - fading) < .001f, "a level during the fade continues from the current opacity");
+        queue.Clear(); queue.Show(1, 2, 20);
+        int steps = 0;
+        while (queue.Current != null && steps++ < 1000) queue.Advance(1 / 60f);
+        float total = LevelUpToastQueue.Pop + LevelUpToastQueue.Hold + LevelUpToastQueue.Fade;
+        Check(Math.Abs(steps / 60f - total) < .02f && total < 2.2f, "toast is gone after about two seconds and never docks");
     }
 
     private static void QueueChecks()
@@ -150,5 +180,26 @@ internal static class DiscoveryPreview
             target.SaveAsPng(file, w, h);
         }
         Console.WriteLine("FNA discovery toast: " + dir);
+
+        // Level-up toast at its in-game 1.35x, plus 1.25 UI scale; ages cover pop-in, hold and fade-out.
+        var levelCases = new (string Name, int From, int To, long Points)[] { ("level", 4, 5, 20), ("level-many", 3, 10, 180), ("level-nopoints", 7, 8, 0) };
+        foreach (float ui in new[] { 1f, 1.25f })
+        foreach (var c in levelCases)
+        foreach (var (frame, age) in new[] { ("in", .1f), ("hold", 1f), ("out", LevelUpToastQueue.Pop + LevelUpToastQueue.Hold + .25f) })
+        {
+            var toast = new LevelUpToast { From = c.From, To = c.To, Points = c.Points, Age = age };
+            float scale = ui * LevelUpToastQueue.CenterScale;
+            int w = (int)Math.Ceiling(420 * ui), h = (int)Math.Ceiling(150 * ui);
+            using var target = new RenderTarget2D(device, w, h);
+            device.SetRenderTarget(target); device.Clear(new Color(76, 112, 150));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            float s = scale * LevelUpToastQueue.PopScale(toast);
+            var drawing = new ConstellationDrawing(new()) { Batch = batch, Scale = s,
+                Origin = new Vector2((w - LevelUpToastPainter.Width * s) / 2, (h - LevelUpToastPainter.Height * s) / 2 + LevelUpToastQueue.Rise(toast) * scale) };
+            LevelUpToastPainter.Paint(drawing, toast);
+            batch.End(); device.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(dir, $"{c.Name}-{frame}-{ui:0.00}.png"));
+            target.SaveAsPng(file, w, h);
+        }
     }
 }

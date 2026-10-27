@@ -13,8 +13,30 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "ElainaModSkills" / "Data" / "SkillBalance.json"
 HTML_PATH = Path(__file__).with_name("index.html")
+DPS_SOURCE_PATH = ROOT.parent / "KL" / "Utils" / "KLDpsHelper.cs"
 SCHEMA = "elaina-mage-balance-v2"
 MAX_BYTES = 64 * 1024
+
+def read_dps_curve(path=DPS_SOURCE_PATH):
+    """Read literal KL nodes without evaluating C# or maintaining a second live table."""
+    source = Path(path).read_text(encoding="utf-8-sig")
+    source = re.sub(r"/\*.*?\*/|//[^\r\n]*", "", source, flags=re.S)
+    match = re.search(r"\bfloat\s*\[\s*\]\s+stateDps\s*=\s*\[([^\]]*)\]\s*;", source)
+    if match is None:
+        raise ValueError("未找到 KL 的 float[] stateDps 数组；需要保留数值字面量数组格式。")
+    tokens = match[1].strip().rstrip(",").split(",")
+    if len(tokens) != 20:
+        raise ValueError("KL DPS 曲线需要 20 个节点（初始值及 19 个阶段）。")
+    values = []
+    for token in tokens:
+        token = token.strip()
+        if not re.fullmatch(r"\+?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[fF]?", token):
+            raise ValueError("KL DPS 节点必须是正数常量，不能包含表达式。")
+        value = float(token.rstrip("fF"))
+        if not math.isfinite(value) or not 1 <= value <= 1000000 or (values and value <= values[-1]):
+            raise ValueError("KL DPS 节点必须在 1..1000000 内严格递增，以便页面反推等级。")
+        values.append(value)
+    return {"path": str(path), "values": values}
 
 def number(obj, key, lo, hi, integer=False):
     value = obj.get(key)
@@ -105,6 +127,8 @@ def validate_payload(payload):
     c = payload.get("configuration")
     if not isinstance(c, dict) or c.get("version") != 2:
         raise ValueError("配置版本无效。")
+    if "baseDpsMode" in c and c["baseDpsMode"] not in ("stage", "manual"):
+        raise ValueError("baseDpsMode 必须是 stage 或 manual。")
     number(c, "rate", 0, 20)
     if "occupyRatio" not in c:
         c["occupyRatio"] = 0
@@ -228,7 +252,12 @@ class Handler(BaseHTTPRequestHandler):
         elif route == "/favicon.ico":
             self.reply(204, b"", "image/x-icon")
         elif route == "/api/info":
-            self.reply(200, {"tool": "elaina-mage-balance", "schema": SCHEMA, "path": str(self.server.config_path)})
+            self.reply(200, {"tool": "elaina-mage-balance", "schema": SCHEMA, "path": str(self.server.config_path), "dpsSource": str(self.server.dps_source_path)})
+        elif route == "/api/dps-curve":
+            try:
+                self.reply(200, read_dps_curve(self.server.dps_source_path))
+            except (OSError, ValueError) as error:
+                self.reply(422, {"error": str(error)})
         elif route == "/api/skill-balance":
             try:
                 if self.server.config_path.stat().st_size > MAX_BYTES: raise ValueError("配置超过 64 KiB。")
@@ -257,9 +286,10 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         print(format % args, flush=True)
 
-def make_server(port=8768, config_path=CONFIG_PATH):
+def make_server(port=8768, config_path=CONFIG_PATH, dps_source_path=DPS_SOURCE_PATH):
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.config_path = Path(config_path).resolve()
+    server.dps_source_path = Path(dps_source_path).resolve()
     server.daemon_threads = True
     return server
 

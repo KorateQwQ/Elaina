@@ -11,11 +11,15 @@ const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const ctx = {module:{exports:{}}};
 vm.runInNewContext(html.match(/<script id="balance-engine">([\s\S]*?)<\/script>/)[1], ctx);
 const B = ctx.module.exports;
+// The HTML contains an offline snapshot; runtime checks must use the current KL source.
+const curveRead=spawnSync('python',['-c','import json,server; print(json.dumps(server.read_dps_curve()["values"]))'],{cwd:__dirname,encoding:'utf8'});
+assert.equal(curveRead.status,0,curveRead.stderr);
+B.setDpsCurve(JSON.parse(curveRead.stdout));
 function fixture(s) {
  const phaseSize = s.progression.phaseSize;
  const expected = [...s.basicAttacks,...s.skills].flatMap(row => B.progressionNodes(row,phaseSize).slice(0,20).map((characterLevel,i) => {
   const r = B.progressionBudget(s,row,characterLevel);
-  return {id:row.id,skillLevel:i+1,characterLevel,dps:r.dps,total:r.total,hit:r.integerHit};
+  return {id:row.id,skillLevel:i+1,characterLevel,dps:r.dps,total:r.total,hit:r.integerHit,manaCost:row.cost,cooldown:row.interval??row.cd};
  }));
  return {json:JSON.stringify({schema:'elaina-mage-balance-v2',configuration:s}),expected};
 }
@@ -93,6 +97,8 @@ foreach (var fixture in fixtures.EnumerateArray())
             string id = row.GetProperty("id").GetString();
             int level = row.GetProperty("skillLevel").GetInt32(), node = row.GetProperty("characterLevel").GetInt32();
             var entry = config.Skills[id];
+            Near(entry.ManaCost, row.GetProperty("manaCost").GetDouble());
+            Near(entry.BaseCooldown, row.GetProperty("cooldown").GetDouble());
             Check(config.GetSkillCharacterLevel(entry, level) == node, "Incorrect mapped character level");
             Check(config.GetSkillLevelCap(entry, node) == level, "Incorrect cap at upgrade gate");
             Check(config.GetSkillLevelCap(entry, node-1) == level-1, "Cap advanced before gate");

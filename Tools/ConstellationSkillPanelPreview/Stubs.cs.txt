@@ -110,9 +110,11 @@ namespace 伊蕾娜.System
         public int GetLevel() => CurrentLevel;
         // LIVE_NORMALIZE_LEVEL
         // LIVE_GRANT_LEVEL_STUDY_POINTS
+        // Level-up effect and toast are game-only feedback; the panel checks only need the level and study points.
+        private void Celebrate(int previousLevel, long studyPoints) { }
 #if DEBUG
         // LIVE_DEBUG_MAX_LEVEL
-        public void DebugResetProgress() { CurrentLevel = 1; Experience = 0; }
+        public void DebugResetProgress() { CurrentLevel = 1; Experience = 0; studyPointRewardLevel = 1; Player.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint = 0; }
 #endif
     }
 }

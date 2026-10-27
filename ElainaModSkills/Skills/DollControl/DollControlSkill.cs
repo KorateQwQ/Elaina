@@ -10,13 +10,13 @@ using 伊蕾娜.ElainaAttribute;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 玩偶不在场时按技能等级召唤一至四只玩偶；玩偶在场时左键改由 <see cref="DollCommandPlayer"/> 打开指令盘或标记挖掘区域，
+/// 玩偶不在场时召唤四只玩偶；玩偶在场时左键改由 <see cref="DollCommandPlayer"/> 打开指令盘或标记挖掘区域，
 /// 不再挥杖、不扣魔力。玩偶持续存在，直到“收回玩偶”指令、主人死亡或离开世界。
 /// </summary>
 [SkillUIInfo(State = 2, Pixels = 400)]
 public class DollControlSkill : ElainaSkill
 {
-    public const int TeamSize = 4;
+    public const int TeamSize = DollControlProgression.TeamSize;
     private int appliedLevel;
     public override int MaxLevel => Math.Min(DollControlProgression.MaximumLevel, base.MaxLevel);
     public override SkillUnlockCondition UnlockCondition { get; set; } =
@@ -24,10 +24,10 @@ public class DollControlSkill : ElainaSkill
             RequireConfiguredCharacterLevelCap(nameof(DollControlSkill), 10),
             RequireConfiguredCharacterLevel(nameof(DollControlSkill), 6));
 
-    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
+    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(DollControlProgression.UpgradeCost);
 
     protected override object[] SkillDescriptionArgs =>
-        [DollControlProgression.DollCount(Level)];
+        [DollControlProgression.DollCount(Level), DollControlProgression.UpgradeCost];
 
     private static string CountLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.DollStats.Count");
     private static string SpeedLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.DollStats.ActionSpeed");
@@ -36,9 +36,7 @@ public class DollControlSkill : ElainaSkill
          (SpeedLabel, DollControlProgression.ActionSpeedBonusPercent(level).ToString(), "%")];
 
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel) =>
-        [(CountLabel, DollControlProgression.DollCount(nextLevel - 1).ToString(),
-            DollControlProgression.DollCount(nextLevel).ToString(), ""),
-         (SpeedLabel, DollControlProgression.ActionSpeedBonusPercent(nextLevel - 1).ToString(),
+        [(SpeedLabel, DollControlProgression.ActionSpeedBonusPercent(nextLevel - 1).ToString(),
             DollControlProgression.ActionSpeedBonusPercent(nextLevel).ToString(), "%")];
 
     public override void Initialize()

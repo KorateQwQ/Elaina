@@ -1,0 +1,173 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.GameContent.UI.ResourceSets;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using 伊蕾娜;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using GameMain = Terraria.Main;
+
+static class Checks
+{
+    const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    static int passed;
+    static bool registered;
+    static readonly ElainaSkillManager System = new();
+    static string ElainaKey;
+
+    static void Check(bool value, string reason)
+    {
+        if (!value) throw new Exception(reason);
+        passed++;
+    }
+
+    static ElainaModplayer Character(bool elaina, int index = 0)
+    {
+        var entity = new Player { active = true, whoAmI = index };
+        var player = new ElainaModplayer { Elaina = elaina };
+        typeof(ModPlayer).GetProperty("Entity", Instance)!.SetValue(player, entity);
+        typeof(ModPlayer).GetProperty("Index", Instance)!.SetValue(player, (ushort)0);
+        typeof(Player).GetField("modPlayers", Instance)!.SetValue(entity, new ModPlayer[] { player });
+        if (!registered) { ContentInstance.Register(player); registered = true; }
+        return player;
+    }
+
+    static void Enter(ElainaModplayer player)
+    {
+        GameMain.player[0] = player.Player;
+        GameMain.gameMenu = false;
+        Restore(player);
+    }
+
+    static void Restore(ElainaModplayer player) => typeof(ElainaSkillManager)
+        .GetMethod("RestoreResourceDisplay", BindingFlags.Static | BindingFlags.NonPublic)!
+        .Invoke(null, [player]);
+
+    static void Select(string key) => typeof(PlayerResourceSetsManager)
+        .GetMethod("SetActive", Instance)!.Invoke(GameMain.ResourceSetsManager, [key]);
+
+    static string Selected => GameMain.ResourceSetsManager.ActiveSet.ConfigKey;
+    static TagCompound Save(ElainaModplayer player)
+    {
+        var tag = new TagCompound();
+        player.SaveData(tag);
+        return tag;
+    }
+
+    static void Main()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        ((ILoadable)new BoolTagSerializer()).Load(null!);
+        GameMain.myPlayer = 0;
+        GameMain.netMode = 0;
+        var display = new ElainaPlayerResourceDisplaySet();
+        ContentInstance.Register(display);
+        ElainaKey = display.ConfigKey;
+        // Use the real tML cycling API, with texture-free stand-ins for display rendering.
+        var manager = GameMain.ResourceSetsManager = new PlayerResourceSetsManager();
+        var keys = (List<string>)typeof(PlayerResourceSetsManager).GetField("accessKeys", Instance)!.GetValue(manager)!;
+        var sets = (Dictionary<string, IPlayerResourcesDisplaySet>)typeof(PlayerResourceSetsManager)
+            .GetField("_sets", Instance)!.GetValue(manager)!;
+        keys.Add(ElainaKey);
+        foreach (string key in keys) sets[key] = new Display(key);
+        Select("Default");
+
+        var a = Character(true);
+        Enter(a);
+        Check(Selected == ElainaKey, "First entry selects Elaina resources.");
+        Select("HorizontalBars");
+        System.UpdateUI(new GameTime());
+        Check(Selected == "HorizontalBars" && !a.UseElainaResourceDisplay, "Manual changes stay selected and update the character bool.");
+        var savedA = Save(a);
+        System.OnWorldUnload();
+        a = Character(true);
+        a.LoadData(savedA);
+        Enter(a);
+        Check(!a.UseElainaResourceDisplay && Selected == "HorizontalBars", "Opt-out survives save/load and re-entry.");
+
+        Select(ElainaKey);
+        // Save immediately, before another UI update, exactly as SaveAndQuit sets gameMenu first.
+        GameMain.gameMenu = true;
+        savedA = Save(a);
+        Check(a.UseElainaResourceDisplay && savedA.GetBool(nameof(a.UseElainaResourceDisplay)), "Exit save captures a last-moment switch back even in menu state.");
+        System.OnWorldUnload();
+
+        var ordinary = Character(false);
+        Enter(ordinary);
+        Check(Selected != ElainaKey, "An ordinary character leaves the inherited Elaina resource style.");
+        Select("Default");
+        Save(ordinary);
+        System.OnWorldUnload();
+        a = Character(true);
+        a.LoadData(savedA);
+        Enter(a);
+        Check(Selected == ElainaKey, "Elaina preference restores after another character changes global style.");
+
+        var optedOut = Character(true);
+        optedOut.LoadData(new TagCompound { ["Elaina"] = true, [nameof(a.UseElainaResourceDisplay)] = false });
+        System.OnWorldUnload();
+        Enter(optedOut);
+        Check(Selected != ElainaKey && !optedOut.UseElainaResourceDisplay, "A second Elaina character's opt-out does not inherit the first one's style.");
+        Select(ElainaKey);
+        System.UpdateUI(new GameTime());
+        Check(optedOut.UseElainaResourceDisplay, "Manually selecting Elaina again re-enables restoration.");
+        Select("NewWithText");
+        GameMain.gameMenu = true;
+        var savedOptOut = Save(optedOut);
+        Check(!savedOptOut.GetBool(nameof(a.UseElainaResourceDisplay)), "Exit save also captures a last-moment opt-out.");
+        System.OnWorldUnload();
+        Select(ElainaKey);
+        Save(optedOut);
+        Check(!optedOut.UseElainaResourceDisplay, "Saving outside the world cannot overwrite the recorded choice.");
+
+        var legacy = Character(true);
+        legacy.LoadData(new TagCompound { ["Elaina"] = true });
+        Check(legacy.UseElainaResourceDisplay, "Old saves retain the previous Elaina default.");
+        Enter(legacy);
+        var remote = Character(true, 1);
+        remote.UseElainaResourceDisplay = false;
+        Restore(remote);
+        Save(remote);
+        Check(Selected == ElainaKey && !remote.UseElainaResourceDisplay, "Remote players cannot change local selection or preferences.");
+        Select("Default");
+        Save(legacy);
+        Check(!legacy.UseElainaResourceDisplay, "Remote entry does not replace the local preference owner.");
+        var menuCharacter = Character(true);
+        Save(menuCharacter);
+        Check(menuCharacter.UseElainaResourceDisplay, "Creating or serializing another character does not read local preferences.");
+
+        // No graphics device is needed to check the actual SUI visibility/input gates.
+        var bar = (ElainaSkillBar)RuntimeHelpers.GetUninitializedObject(typeof(ElainaSkillBar));
+        bar.Enabled = true;
+        Check(bar.Enabled, "The skill bar is enabled for an active Elaina character.");
+        GameMain.player[0] = ordinary.Player;
+        Check(!bar.Enabled && !bar.IsInteractable, "Ordinary characters cannot draw or interact with the skill bar.");
+        Select(ElainaKey);
+        System.UpdateUI(new GameTime());
+        Check(Selected != ElainaKey, "Ordinary characters still skip Elaina resources when cycling settings.");
+        GameMain.player[0] = legacy.Player;
+        GameMain.gameMenu = true;
+        Check(!bar.Enabled && !bar.IsInteractable, "Menus cannot draw or interact with the skill bar.");
+        GameMain.gameMenu = false;
+        legacy.Player.active = false;
+        Check(!bar.Enabled, "Inactive players cannot show the skill bar.");
+        legacy.Player.active = true;
+        Check(bar.Enabled, "Returning to Elaina re-enables the existing UI instance.");
+        bar.Enabled = false;
+        Check(!bar.Enabled, "The base UI enable switch remains respected.");
+        Console.WriteLine($"PASS: {passed} resource preference and skill-bar checks (real tModLoader APIs and production code).");
+    }
+
+    sealed class Display(string key) : IPlayerResourcesDisplaySet
+    {
+        public string ConfigKey => key;
+        public string NameKey => key;
+        public string DisplayedName => key;
+        public void Draw() { }
+        public void TryToHover() { }
+    }
+}

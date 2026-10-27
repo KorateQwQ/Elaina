@@ -77,3 +77,13 @@ ImproveGame 的 `ApplyBuffItem.GetItemBuffTypes`（旧版为单数 `GetItemBuffT
 ### 显迹尘（2026-10-24）
 
 新增 -RevealingOnly 入口，通过 31 项真实引擎检查。完整炼金检查现通过 482 项物品/本地化、67 项药剂、128 项配方、113 项微光和 40 项瓶中雨检查；显迹尘目录尺寸已修正为正式 PNG 的 32×32，历史记录中的图像尺寸阻塞已解除。行为、压测范围与 FNA 预览说明见 Tools/RevealingDustPreview/README.md。
+
+## 肉前食材商店（2026-10-27）
+
+`AlchemyIngredientSources` 接入普通商人的面粉、糖、鸡蛋，以及旅商每次到访固定携带的牛肉、土豆；均无肉后、昼夜或研究条件。基础购买价分别为 1、1、2、5、1 银币，最终成交价沿用原版商店计算。旅商库存生成由服务器/单人端处理；旧存档中已经生成的旅商库存，在打开商店时仅向未使用槽位补齐缺少的食材，不重复添加，不覆盖已有商品、条件保留空槽或末尾回购槽。商店已满时保留其他商品。
+
+运行 `pwsh -File Tools/AlchemyItemChecks/run-integration.ps1` 会编译正式模组并运行 `IngredientShopChecks.cs.txt`。本轮 30 项食材商店检查通过，覆盖真实物品默认值、普通商店填充、肉前/肉后昼夜、旅商每次生成、重复调用、旧存档补货、满店和其他 NPC 隔离。现有 8 项角色、99 项扫帚、51 项药剂、92 项食物和 32 项技能检查同时通过。
+
+`python Tools/AlchemyPreview/bake_redesign.py --check` 通过 65 张正式描边检查；复用了已有五种食材贴图及清单，无新增资源。执行 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene food`、`-Scene stew`、`-Scene brulee`，已查看默认与 125% 缩放的 FNA 离线截图，确认五种食材图标、材料行及底栏正常。实际游戏商店购买和多人端到端尚未验证；需要在 tModLoader 中构建并重新加载模组后生效。
+
+独立的 `run.ps1` 本轮仍受既有测试宿主编译问题阻断：缺少 KL 绘制引用，以及角色、手记面板和 Main 上下文缺失；没有用该入口声称全量物品检查通过。本次商店行为使用可正常运行的完整程序集集成入口验证。

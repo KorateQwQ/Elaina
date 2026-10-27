@@ -157,8 +157,8 @@ public sealed partial class ConstellationSkillPanel
             _ancestors = _state.Ancestors();
             CenterOn(_state.Current);
             InvalidateDetail(true);
-            Notify("技能与角色进度已重置 · 等级 1 · 经验 0");
-        }, h => DrawDebugButton("reset-skills", h), "清除技能、装配及角色保存的 Progress／进度记录；角色等级回到 1、经验归零，不改变世界 Boss 击杀状态", () => !Editing);
+            Notify("技能与角色进度已重置 · 等级 1 · 经验 0 · 研习点 0");
+        }, h => DrawDebugButton("reset-skills", h), "清除技能、装配及角色保存的 Progress／进度记录；角色等级回到 1，经验、研习点及等级奖励领取记录归零，不改变世界 Boss 击杀状态", () => !Editing);
 #endif
     }
 

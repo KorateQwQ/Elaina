@@ -91,6 +91,21 @@
       ],
       "port": 5571,
       "url": "http://localhost:5571"
+    },
+    {
+      "name": "升级特效预览",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5583",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "Tools/LevelUpPreview"
+      ],
+      "port": 5583,
+      "url": "http://localhost:5583"
     }
   ]
 }

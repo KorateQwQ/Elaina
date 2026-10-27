@@ -5,7 +5,7 @@
     "loadoutRevision": 2,
     "progression": {
       "phaseSize": 5,
-      "previewLevel": 50
+      "previewLevel": 5
     },
     "basicAttacks": [
       {
@@ -58,9 +58,9 @@
         "unlockStageCap": 20,
         "unlockLevel": 16,
         "levelsPerPhase": 2,
-        "ratio": 0.5,
+        "ratio": 0.4,
         "ratioCurve": [],
-        "cost": 2.5,
+        "cost": 5,
         "interval": 0.4,
         "shots": 1,
         "freezeBuildup": 0
@@ -76,10 +76,22 @@
         "levelsPerPhase": 2,
         "ratio": 1,
         "ratioCurve": [
-          [1, 1],
-          [35, 1],
-          [40, 0.9],
-          [65, 0.7]
+          [
+            1,
+            1
+          ],
+          [
+            35,
+            1
+          ],
+          [
+            40,
+            0.9
+          ],
+          [
+            65,
+            0.7
+          ]
         ],
         "cost": 1.5,
         "interval": 0.2,
@@ -103,13 +115,14 @@
         "freezeBuildup": 0
       }
     ],
-    "selectedBasicAttackId": "IceConeSkill",
-    "stage": 10,
-    "baseDps": 450,
+    "selectedBasicAttackId": "MagicMissileSkill",
+    "stage": 1,
+    "baseDpsMode": "stage",
+    "baseDps": 50,
     "baseCrit": 4,
-    "slots": 7,
+    "slots": 6,
     "v": {
-      "armor": "hallowed",
+      "armor": "amethystWood",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -124,33 +137,33 @@
           "prefix": "none"
         },
         {
-          "id": "sorcerer",
-          "prefix": "lucky"
+          "id": "regenLife",
+          "prefix": "none"
         },
         {
-          "id": "regen",
-          "prefix": "lucky"
+          "id": "shackle",
+          "prefix": "none"
         },
         {
-          "id": "wormScarf",
-          "prefix": "lucky"
+          "id": "empty",
+          "prefix": "none"
         },
         {
-          "id": "ankhShield",
-          "prefix": "menacing"
+          "id": "empty",
+          "prefix": "none"
         },
         {
-          "id": "charmMyths",
-          "prefix": "lucky"
+          "id": "empty",
+          "prefix": "none"
         },
         {
-          "id": "sharkTooth",
-          "prefix": "menacing"
+          "id": "empty",
+          "prefix": "none"
         }
       ]
     },
     "e": {
-      "armor": "hallowed",
+      "armor": "amethystWood",
       "damage": 0,
       "crit": 0,
       "proc": 0,
@@ -162,36 +175,36 @@
       "items": [
         {
           "id": "elainaHat",
-          "prefix": "arcane"
+          "prefix": "none"
         },
         {
-          "id": "sorcerer",
-          "prefix": "arcane"
+          "id": "regenLife",
+          "prefix": "none"
         },
         {
-          "id": "regen",
-          "prefix": "arcane"
+          "id": "shackle",
+          "prefix": "none"
         },
         {
-          "id": "wormScarf",
-          "prefix": "arcane"
+          "id": "empty",
+          "prefix": "none"
         },
         {
-          "id": "ankhShield",
-          "prefix": "arcane"
+          "id": "empty",
+          "prefix": "none"
         },
         {
-          "id": "charmMyths",
-          "prefix": "arcane"
+          "id": "empty",
+          "prefix": "none"
         },
         {
-          "id": "sharkTooth",
-          "prefix": "arcane"
+          "id": "empty",
+          "prefix": "none"
         }
       ]
     },
-    "baseMana": 200,
-    "maxLife": 400,
+    "baseMana": 100,
+    "maxLife": 100,
     "ashenWitch": true,
     "extraMana": 0,
     "rate": 4,
@@ -225,9 +238,9 @@
         "shots": 1,
         "id": "WaterBallSkill",
         "name": "水球魔法",
-        "enabled": true,
+        "enabled": false,
         "cost": 100,
-        "k": 2.25,
+        "k": 1.5,
         "cd": 15,
         "cdRatio": 1,
         "cast": 1,
@@ -300,7 +313,7 @@
         "shots": 1,
         "id": "ShardbindSkill",
         "name": "冰凌锁",
-        "enabled": true,
+        "enabled": false,
         "cost": 250,
         "k": 0.4,
         "cd": 60,
@@ -425,7 +438,7 @@
         "shots": 1,
         "id": "MultiMissileSkill",
         "name": "多重射击",
-        "enabled": true,
+        "enabled": false,
         "cost": 8,
         "k": 130,
         "cd": 0.16,

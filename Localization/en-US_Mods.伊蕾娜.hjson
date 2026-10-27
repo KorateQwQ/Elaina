@@ -28,8 +28,8 @@ Buffs: {
 	}
 
 	扫帚buff: {
-		DisplayName: Broom
-		Description: Ride on broom
+		DisplayName: Broom Journey
+		Description: Off to the next country on your broom
 	}
 
 	潋滟buff: {
@@ -70,7 +70,7 @@ Items: {
 			'''
 			10% increased magic damage
 			5% increased magic critical strike chance
-			Increases Elaina's maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] by 20 (does not increase vanilla maximum mana)
+			Increases Elaina's maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] by 20
 			'''
 	}
 
@@ -112,8 +112,13 @@ Items: {
 	}
 
 	扫帚坐骑: {
-		DisplayName: Broom
-		Tooltip: Summons a broom. For Elaina only.
+		DisplayName: Traveling Witch's Broom
+		Tooltip:
+			'''
+			Summons a rideable broom
+			After learning [c/8FD3FF:Flight Magic], hold the Broom Acceleration key to boost or tap it to dash
+			'Who is that witch soaring across the sky on a broom? That's right, it's me.'
+			'''
 	}
 
 	寒霜药水: {
@@ -289,6 +294,7 @@ Projectiles: {
 	RevealingDustArea.DisplayName: Revealing Dust Area
 	PurificationDewDrop.DisplayName: Purification Dew Drop
 	BroomDashWind.DisplayName: Broom Dash Wind
+	LevelUpEffect.DisplayName: Level Up Effect
 }
 
 Configs: {
@@ -381,6 +387,7 @@ Keybinds: {
 	BroomAcceleration.DisplayName: Broom Acceleration
 	OpenLoadoutPanel.DisplayName: Open Quick Loadout
 	OpenSkillWheel.DisplayName: Open Skill Wheel (Hold)
+	MoveSkillBar.DisplayName: Move Skill Bar (Hold; follows the cursor, shared by all characters)
 }
 
 Conditions: {
@@ -399,6 +406,7 @@ Wand: {
 	Damage: Total magic damage bonus {0}%
 }
 
+Broom.CantUse: An ordinary broom
 IsElaina: Mods.伊蕾娜.IsElaina
 DamageClasses.ElainaBasicDamage.DisplayName: "[c/ff16e5:Elaina's Basic Attack Power] "
 

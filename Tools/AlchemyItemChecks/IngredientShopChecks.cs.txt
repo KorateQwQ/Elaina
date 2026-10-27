@@ -1,0 +1,88 @@
+using System.Reflection;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.item.Materials;
+
+internal static class IngredientShopChecks
+{
+    private static int passed;
+    private static void Check(bool condition, string message)
+    { if (!condition) throw new Exception(message); passed++; }
+
+    public static void Run(Mod mod)
+    {
+        bool oldHardmode = Main.hardMode, oldDaytime = Main.dayTime;
+        bool oldDedicated = Main.dedServ;
+        try
+        {
+            Main.dedServ = true;
+            foreach (ModItem ingredient in new ModItem[] { new Flour(), new Sugar(), new Egg(), new Beef(), new Potato() })
+            {
+                ((ILoadable)ingredient).Load(mod);
+                ContentInstance.Register(ingredient);
+                ingredient.SetDefaults();
+            }
+            SetFactory.ResizeArrays(false);
+            typeof(ItemLoader).GetMethod("ResizeArrays", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [false]);
+            var sources = new AlchemyIngredientSources();
+            int flour = ModContent.ItemType<Flour>(), sugar = ModContent.ItemType<Sugar>(),
+                egg = ModContent.ItemType<Egg>(), beef = ModContent.ItemType<Beef>(), potato = ModContent.ItemType<Potato>();
+            int[] merchantTypes = [flour, sugar, egg];
+            foreach (var (type, silver) in new[] { (flour, 1), (sugar, 1), (egg, 2), (beef, 5), (potato, 1) })
+            {
+                var item = new Item(type);
+                Check(item.value == Item.buyPrice(silver: silver) && item.maxStack == Item.CommonMaxStack,
+                    $"Ingredient {type} has its intended nonzero price and stacks normally");
+            }
+            var merchant = new NPCShop(NPCID.Merchant);
+            sources.ModifyShop(merchant);
+            Check(merchant.Entries.Select(e => e.Item.type).SequenceEqual(merchantTypes), "Merchant stocks all three common ingredients");
+            foreach (bool hardmode in new[] { false, true })
+            foreach (bool daytime in new[] { false, true })
+            {
+                Main.hardMode = hardmode; Main.dayTime = daytime;
+                var inventory = new Item[40];
+                merchant.FillShop(inventory, new NPC { type = NPCID.Merchant }, out bool overflow);
+                Check(!overflow && inventory.Where(i => i != null).Select(i => i.type).SequenceEqual(merchantTypes),
+                    $"Merchant ingredients available with hardmode={hardmode}, daytime={daytime}");
+                Check(inventory[^1] == null, "Merchant preserves the buyback slot");
+
+                int[] travel = new int[40]; travel[0] = ItemID.Torch; int next = 1;
+                sources.SetupTravelShop(travel, ref next);
+                Check(next == 3 && travel[0] == ItemID.Torch && travel[1] == beef && travel[2] == potato,
+                    "Every visit retains vanilla stock and adds both ingredients without a progression or random gate");
+                sources.SetupTravelShop(travel, ref next);
+                Check(next == 3, "Repeated travel setup does not duplicate ingredients");
+            }
+            var unrelated = new NPCShop(NPCID.Dryad); sources.ModifyShop(unrelated);
+            Check(unrelated.Entries.Count == 0, "Other NPC shops receive no ingredients");
+            int[] full = [ItemID.Torch, ItemID.Rope]; int fullNext = full.Length;
+            sources.SetupTravelShop(full, ref fullNext);
+            Check(fullNext == full.Length && full.SequenceEqual(new int[] { ItemID.Torch, ItemID.Rope }), "Full travel stock is neither overwritten nor overrun");
+            int[] oneSlot = [beef, 0]; int oneNext = 1;
+            sources.SetupTravelShop(oneSlot, ref oneNext);
+            Check(oneNext == 2 && oneSlot[1] == potato, "Existing beef leaves the remaining slot for potato");
+
+            var npc = new NPC { type = NPCID.TravellingMerchant };
+            var legacy = new Item[40];
+            var vanilla = new Item(ItemID.Torch); var reserved = new Item();
+            legacy[0] = vanilla; legacy[1] = reserved;
+            sources.ModifyActiveShop(npc, "Shop", legacy);
+            Check(ReferenceEquals(legacy[0], vanilla) && ReferenceEquals(legacy[1], reserved), "Old visits retain vanilla items and reserved air slots");
+            Check(legacy[2]?.type == beef && legacy[3]?.type == potato && legacy[^1] == null, "Old saved visits receive both ingredients while preserving buyback");
+            sources.ModifyActiveShop(npc, "Shop", legacy);
+            Check(legacy.Count(i => i?.type == beef) == 1 && legacy.Count(i => i?.type == potato) == 1, "Reopening does not duplicate stock");
+            var crowded = Enumerable.Range(0, 40).Select(_ => new Item(ItemID.Torch)).ToArray();
+            crowded[^1] = null;
+            sources.ModifyActiveShop(npc, "Shop", crowded);
+            Check(crowded.Take(39).All(i => i.type == ItemID.Torch) && crowded[^1] == null, "Full shops retain all stock and their buyback slot");
+            var other = new Item[40];
+            sources.ModifyActiveShop(new NPC { type = NPCID.Merchant }, "Shop", other);
+            Check(other.All(i => i == null), "Travel fallback does not modify other shops");
+            Console.WriteLine($"Ingredient shops: {passed} checks passed using real tML shop filling and item defaults.");
+        }
+        finally { Main.hardMode = oldHardmode; Main.dayTime = oldDaytime; Main.dedServ = oldDedicated; }
+    }
+}

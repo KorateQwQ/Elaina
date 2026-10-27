@@ -16,6 +16,9 @@ namespace 伊蕾娜.Config
 
         public static ModKeybind OpenSkillWheel { get; private set; }
 
+        /// <summary>按住时技能栏跟随鼠标，松开后保存位置（模组全局，所有角色共用）。技能栏本身不响应鼠标。</summary>
+        public static ModKeybind MoveSkillBar { get; private set; }
+
         public override void Load()
         {
             BroomAcceleration = KeybindLoader.RegisterKeybind(Mod, "BroomAcceleration", "Space");
@@ -24,6 +27,7 @@ namespace 伊蕾娜.Config
             OpenLoadoutPanel = KeybindLoader.RegisterKeybind(Mod, "OpenLoadoutPanel", "L");
 #endif
             OpenSkillWheel = KeybindLoader.RegisterKeybind(Mod, "OpenSkillWheel", "Mouse2");
+            MoveSkillBar = KeybindLoader.RegisterKeybind(Mod, "MoveSkillBar", "K");
         }
 
         public override void Unload()
@@ -34,6 +38,7 @@ namespace 伊蕾娜.Config
             OpenLoadoutPanel = null;
 #endif
             OpenSkillWheel = null;
+            MoveSkillBar = null;
         }
 
         public static void InitAllKeybinds()
@@ -44,6 +49,7 @@ namespace 伊蕾娜.Config
             OpenLoadoutPanel.BindKey(OpenLoadoutPanel.GetKeyDefaultName());
 #endif
             OpenSkillWheel.BindKey(OpenSkillWheel.GetKeyDefaultName());
+            MoveSkillBar.BindKey(MoveSkillBar.GetKeyDefaultName());
         }
         
         class KeyInitSystem : ClientSaveLoadSystem

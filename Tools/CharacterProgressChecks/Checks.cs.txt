@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Reflection;
 using KL.Utils;
 using Terraria;
@@ -94,7 +94,7 @@ static class Checks
         player.Experience = 65;
         Check(player.DebugMaxLevel() && player.CurrentLevel == 5 && player.Experience == 0,
             "Max level reaches the initial cap and clears XP.");
-        Check(skills.SkillPoint == 50, "Debug max level grants the initial four levels and Lv5 bonus.");
+        Check(skills.SkillPoint == 100, "Debug max level grants the initial four levels and Lv5 bonus.");
         Check(player.Progress == 0 && player.ProgressSet.Count == 0 && !player.DebugMaxLevel(),
             "Max level is repeatable without advancing progress or recording bosses.");
         player.CurrentLevel = 5;
@@ -102,11 +102,11 @@ static class Checks
         Check(player.DebugAdvanceMaxLevel(out _, out state) && state == 1, "Advance to King Slime.");
         Check(player.Progress == 1 && player.GetMaxLevel() == 10 && player.ProgressSet.SequenceEqual(new[] { 1f }), "Advance progress, record and cap together.");
         Check(player.CurrentLevel == 5 && player.Experience == 42, "Raising cap does not grant levels or erase XP.");
-        Check(skills.SkillPoint == 110, "Cap 5 to 10 grants sixty study points in advance.");
+        Check(skills.SkillPoint == 220, "Cap 5 to 10 grants 120 study points in advance.");
         Check(player.DebugMaxLevel() && player.CurrentLevel == 10 && player.Experience == 0
             && player.Progress == 1 && player.ProgressSet.SequenceEqual(new[] { 1f }),
             "Max level reevaluates the raised cap and preserves boss history.");
-        Check(skills.SkillPoint == 110, "Max level does not repeat prepaid study points.");
+        Check(skills.SkillPoint == 220, "Max level does not repeat prepaid study points.");
         Check(player.DebugGetNextBossTooltip().Contains("NPC4"), "Tooltip immediately moves on to Eye.");
         player.DebugAdvanceMaxLevel(out _, out _);
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 3 && name.Contains(" / "), "Evil bosses share one stage.");
@@ -124,14 +124,14 @@ static class Checks
         Boss("SameStage", .5f);
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == .5f && name == "First", "External bosses use sorted character progress and stable ties, not events or world state.");
         Check(player.GetMaxLevel() == KLGameStateManager.GetLevelCap(.5f), "Fractional progression obeys KL cap mapping even when unchanged.");
-        Check(skills.SkillPoint == finalPoints, "Reset preserves claim history and equal-cap bosses do not grant points.");
+        Check(skills.SkillPoint == 0, "Reset clears points and equal-cap bosses do not grant points.");
         Check(player.DebugGetNextBoss(out name, out state) && name == "Later" && state == 2, "Equal progression is not advanced twice.");
         player.DebugAdvanceMaxLevel(out _, out _);
         Check(!player.DebugGetNextBoss(out _, out _), "Do not mix vanilla fallback states into an active external list.");
         Check(player.DebugMaxLevel() && player.CurrentLevel == player.GetMaxLevel(), "Max level follows the external progression cap.");
         var save = new TagCompound();
         player.SaveData(save);
-        var loaded = new ElainaStatePlayer();
+        var (loaded, _) = CharacterFixture();
         loaded.LoadData(save);
         Check(loaded.Progress == player.Progress && loaded.GetMaxLevel() == player.GetMaxLevel() && loaded.ProgressSet.SequenceEqual(player.ProgressSet), "Save/load retains advanced progress and cap.");
         Check(loaded.CurrentLevel == loaded.GetMaxLevel() && loaded.Experience == 0, "Save/load retains max level and XP.");
@@ -150,6 +150,7 @@ static class Checks
         bosses.Clear();
         CheckStudyPoints();
         CheckStudyCosts();
+        CheckBalanceMigration();
         Console.WriteLine($"PASS: {passed} character progress checks against production assemblies.");
     }
 
@@ -157,41 +158,56 @@ static class Checks
     {
         var (state, skills) = CharacterFixture();
         Check(ExperienceRules.StudyPointsForLevels(1, 1) == 0
-            && ExperienceRules.StudyPointsForLevels(1, 35) == 410
-            && ExperienceRules.StudyPointsForLevels(4, 5) == 20
+            && ExperienceRules.StudyPointsForLevels(1, 35) == 820
+            && ExperienceRules.StudyPointsForLevels(4, 5) == 40
             && ExperienceRules.StudyPointsForLevels(10, 5) == 0
             && ExperienceRules.StudyPointsForLevels(1, int.MaxValue) > int.MaxValue,
             "Study-point totals cover milestones, backwards bounds and large values.");
         state.AddExperience(100);
-        Check(state.CurrentLevel == 2 && skills.SkillPoint == 10, "Normal experience grants ten study points per level.");
+        Check(state.CurrentLevel == 2 && skills.SkillPoint == 20, "Normal experience grants twenty study points per level.");
         state.AddExperience(int.MaxValue);
-        Check(state.CurrentLevel == 5 && skills.SkillPoint == 50, "Multi-level normal awards include the Lv5 bonus.");
+        Check(state.CurrentLevel == 5 && skills.SkillPoint == 100, "Multi-level normal awards include the Lv5 bonus.");
         state.AddExperience(1000); state.GetLevel(); state.GetLevel();
-        Check(skills.SkillPoint == 50, "Banked experience and repeated level reads do not pay at the cap.");
+        Check(skills.SkillPoint == 100, "Banked experience and repeated level reads do not pay at the cap.");
         // Simulate a real Boss unlocking a new cap, without the debug prepayment.
         state.Progress = 1;
-        Check(state.GetLevel() == 6 && skills.SkillPoint == 60, "A banked level consumed after a Boss pays once.");
+        Check(state.GetLevel() == 6 && skills.SkillPoint == 120, "A banked level consumed after a Boss pays once.");
         state.AddExperience(int.MaxValue);
-        Check(state.CurrentLevel == 10 && skills.SkillPoint == 110, "Normal Lv10 total is 110 study points.");
+        Check(state.CurrentLevel == 10 && skills.SkillPoint == 220, "Normal Lv10 total is 220 study points.");
         var (prepaid, prepaidSkills) = CharacterFixture();
         prepaid.DebugMaxLevel();
-        Check(prepaid.DebugGetNextBossTooltip().Contains("补发 60 研习点"), "Cap tooltip predicts the unpaid reward.");
+        Check(prepaid.DebugGetNextBossTooltip().Contains("补发 120 研习点"), "Cap tooltip predicts the unpaid reward.");
         prepaid.DebugAdvanceMaxLevel(out _, out _);
-        Check(prepaid.CurrentLevel == 5 && prepaidSkills.SkillPoint == 110, "Debug cap advance prepays without increasing current level.");
+        Check(prepaid.CurrentLevel == 5 && prepaidSkills.SkillPoint == 220, "Debug cap advance prepays without increasing current level.");
         var save = new TagCompound(); prepaid.SaveData(save);
         var pointsSave = new TagCompound(); prepaidSkills.SaveData(pointsSave);
         var (loaded, loadedSkills) = CharacterFixture();
         loaded.LoadData(save); loadedSkills.LoadData(pointsSave);
         loaded.AddExperience(int.MaxValue);
-        Check(loaded.CurrentLevel == 10 && loadedSkills.SkillPoint == 110, "Prepaid claim history and balance survive save/load without double payment.");
-        loaded.DebugResetProgress(); loaded.DebugMaxLevel(); loaded.DebugAdvanceMaxLevel(out _, out _);
-        Check(loadedSkills.SkillPoint == 110, "Resetting progress preserves paid levels and cannot repeat them.");
+        Check(loaded.CurrentLevel == 10 && loadedSkills.SkillPoint == 220, "Prepaid claim history and balance survive save/load without double payment.");
+        loadedSkills.SkillPoint = 85;
+        loaded.DebugResetProgress();
+        Check(loadedSkills.SkillPoint == 0 && loaded.CurrentLevel == 1 && loaded.Experience == 0,
+            "Reset clears study points together with level and experience.");
+        loaded.DebugResetProgress();
+        var resetSave = new TagCompound(); loaded.SaveData(resetSave);
+        var resetPointsSave = new TagCompound(); loadedSkills.SaveData(resetPointsSave);
+        loaded.LoadData(resetSave); loadedSkills.LoadData(resetPointsSave);
+        Check(loadedSkills.SkillPoint == 0 && resetSave.GetInt("studyPointRewardLevel") == 1,
+            "Repeated reset and save/load preserve zero balance and reset reward history.");
+        loaded.AddExperience(100);
+        Check(loaded.CurrentLevel == 2 && loadedSkills.SkillPoint == 20,
+            "Leveling after reset grants study points again.");
+        loaded.DebugMaxLevel(); loaded.DebugAdvanceMaxLevel(out _, out _);
+        Check(loadedSkills.SkillPoint == 220, "Debug leveling after reset pays each level once.");
+        loaded.DebugMaxLevel();
+        Check(loadedSkills.SkillPoint == 220, "Reset does not disable prepaid reward deduplication.");
         var (legacy, legacySkills) = CharacterFixture();
         legacySkills.SkillPoint = 37;
         legacy.LoadData(new TagCompound { ["progress"] = 1f, ["currentLevel"] = 8, ["experience"] = 0 });
         Check(legacySkills.SkillPoint == 37, "Old saved levels are not retroactively paid.");
         legacy.AddExperience(ExperienceRules.RequiredForLevel(8));
-        Check(legacy.CurrentLevel == 9 && legacySkills.SkillPoint == 47, "Old saves receive study points for their next actual level.");
+        Check(legacy.CurrentLevel == 9 && legacySkills.SkillPoint == 57, "Old saves receive study points for their next actual level.");
         legacySkills.SkillPoint = int.MaxValue - 5;
         legacy.AddExperience(ExperienceRules.RequiredForLevel(9));
         Check(legacySkills.SkillPoint == int.MaxValue, "Study-point awards saturate instead of overflowing.");
@@ -203,7 +219,62 @@ static class Checks
         GameMain.netMode = NetmodeID.SinglePlayer;
         var (fresh, freshSkills) = CharacterFixture();
         fresh.DebugAdvanceMaxLevel(out _, out _);
-        Check(fresh.CurrentLevel == 1 && freshSkills.SkillPoint == 110, "First debug cap grant includes unpaid initial levels.");
+        Check(fresh.CurrentLevel == 1 && freshSkills.SkillPoint == 220, "First debug cap grant includes unpaid initial levels.");
+    }
+
+    static void CheckBalanceMigration()
+    {
+        var oldSave = new TagCompound { ["progress"] = 6f, ["currentLevel"] = 35,
+            ["studyPointRewardLevel"] = 35, ["experience"] = 0 };
+        var (state, skills) = CharacterFixture();
+        state.LoadData(oldSave);
+        // Simulate the skill component loading later, with previously spent points.
+        skills.SkillPoint = 13;
+        var ownedDoll = new Skill();
+        typeof(Skill).GetProperty("ModSkill", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .SetValue(ownedDoll, new DollControlSkill { Level = 7 });
+        skills.UnlockedSkill[nameof(DollControlSkill)] = ownedDoll;
+        Check(skills.SkillPoint == 13, "Loading state cannot pay before the skill balance has loaded");
+        state.OnEnterWorld();
+        Check(skills.SkillPoint == 483, "Lv35 migration pays 410 income difference and 60 doll upgrade refund");
+        state.OnEnterWorld();
+        Check(skills.SkillPoint == 483, "Entering another world cannot repeat migration");
+        var save = new TagCompound(); state.SaveData(save);
+        var (loaded, loadedSkills) = CharacterFixture();
+        loaded.LoadData(save); loadedSkills.SkillPoint = 483; loaded.OnEnterWorld();
+        Check(loadedSkills.SkillPoint == 483, "Migration version survives save/load without paying again");
+
+        var (prepaid, prepaidSkills) = CharacterFixture();
+        prepaid.LoadData(new TagCompound { ["progress"] = 1f, ["currentLevel"] = 5, ["studyPointRewardLevel"] = 10 });
+        prepaidSkills.SkillPoint = 7; prepaid.OnEnterWorld();
+        Check(prepaidSkills.SkillPoint == 117, "Migration includes previously prepaid levels");
+        prepaid.AddExperience(int.MaxValue);
+        Check(prepaidSkills.SkillPoint == 117 && prepaid.CurrentLevel == 10, "Normal leveling cannot repeat migrated prepaid rewards");
+
+        var (legacy, legacySkills) = CharacterFixture();
+        legacy.LoadData(new TagCompound { ["progress"] = 1f, ["currentLevel"] = 8 });
+        legacySkills.SkillPoint = 37; legacy.OnEnterWorld();
+        Check(legacySkills.SkillPoint == 117, "Old saves without reward history receive only the balance increase");
+        legacy.AddExperience(ExperienceRules.RequiredForLevel(8));
+        Check(legacySkills.SkillPoint == 137, "First new level after migration earns the new reward once");
+
+        var (pending, pendingSkills) = CharacterFixture(); pending.LoadData(oldSave);
+        var pendingSave = new TagCompound(); pending.SaveData(pendingSave);
+        pending.LoadData(pendingSave); pending.OnEnterWorld();
+        Check(pendingSkills.SkillPoint == 410, "Saving before world entry preserves the pending migration");
+        var (saturated, saturatedSkills) = CharacterFixture(); saturated.LoadData(oldSave);
+        saturatedSkills.SkillPoint = int.MaxValue - 1; saturated.OnEnterWorld();
+        Check(saturatedSkills.SkillPoint == int.MaxValue, "Migration saturates without integer overflow");
+        var (remote, remoteSkills) = CharacterFixture(1); remote.LoadData(oldSave); remote.OnEnterWorld();
+        Check(remoteSkills.SkillPoint == 0, "Migration never writes another client's balance");
+        GameMain.netMode = NetmodeID.Server;
+        var (server, serverSkills) = CharacterFixture(); server.LoadData(oldSave); server.OnEnterWorld();
+        Check(serverSkills.SkillPoint == 0, "Server cannot migrate client-owned points");
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        var (fresh, freshSkills) = CharacterFixture(); fresh.OnEnterWorld();
+        Check(freshSkills.SkillPoint == 0, "New characters have no legacy bonus");
+        fresh.LoadData(oldSave); fresh.DebugResetProgress(); fresh.OnEnterWorld();
+        Check(freshSkills.SkillPoint == 0, "Debug reset cancels a pending legacy refund");
     }
 
     static IEnumerable<SkillUnlockCondition> Leaves(SkillUnlockCondition condition) =>
@@ -214,13 +285,14 @@ static class Checks
         var (_, skills) = CharacterFixture();
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(SkillBalanceConfig.ResourcePath), out var config, out var error), error);
         int total = 0;
-        foreach (var (skill, unlock, upgrade, level) in new (ElainaSkill, int, int, int)[] {
+        var plan = new (ElainaSkill Skill, int Unlock, int Upgrade, int Level)[] {
             (new AshenWitchSkill(), 0, 0, 1), (new MagicMissileSkill(), 0, 5, 15),
             (new MagicBarrierSkill(), 10, 0, 1), (new MultiMissileSkill(), 20, 15, 7),
-            (new AlchemySkill(), 10, 15, 7), (new DollControlSkill(), 20, 15, 7),
+            (new AlchemySkill(), 10, 15, 7), (new DollControlSkill(), 20, 5, 7),
             (new FlightSkill(), 15, 10, 3), (new WindSlashSkill(), 20, 5, 9),
             (new HealSkill(), 20, 15, 2), (new WaterLaserSKill(), 25, 5, 5),
-            (new WaterBallSkill(), 25, 15, 3), (new RecallSkill(), 20, 0, 1) }) {
+            (new WaterBallSkill(), 25, 15, 3), (new RecallSkill(), 20, 0, 1) };
+        foreach (var (skill, unlock, upgrade, level) in plan) {
             string id = skill.GetType().Name;
             var leaves = Leaves(skill.UnlockCondition).ToArray();
             Check(leaves.OfType<SkillPointUnlockCondition>().Sum(c => c.SkillPointCost) == unlock, id + " planned unlock cost");
@@ -243,7 +315,19 @@ static class Checks
             }
             total += unlock + (level - 1) * upgrade;
         }
-        Check(total == 650, "All planned pre-Hardmode skills at Lv35 cost 650 points including Recall");
+        Check(total == 590, "All planned pre-Hardmode skills at Lv35 cost 590 points including Recall");
+        foreach (int characterLevel in Enumerable.Range(5, 31)) {
+            int budget = 0;
+            foreach (var (skill, unlock, upgrade, _) in plan) {
+                if (config.Skills.TryGetValue(skill.GetType().Name, out var entry)) {
+                    if (characterLevel < entry.UnlockLevel) continue;
+                    budget += unlock + (config.GetSkillLevelCap(entry, characterLevel) - 1) * upgrade;
+                } else budget += unlock;
+            }
+            long earned = ExperienceRules.StudyPointsForLevels(1, characterLevel);
+            Check(earned >= budget, $"Lv{characterLevel}: {earned} points cover all available skills ({budget}), including Recall");
+            Console.WriteLine($"Study budget Lv{characterLevel}: earned {earned}, all available skills {budget}, spare {earned - budget}.");
+        }
         Check(!Enum.GetNames<DollCommand>().Contains("Attack") && !Enum.GetNames<DollCommand>().Contains("PlacePlanters")
             && (int)DollCommand.Cancel == 5 && (int)DollCommand.Dismiss == 6,
             "Attack and Place Planters removed without changing existing command IDs");

@@ -27,6 +27,7 @@ foreach (var entry in OriginalFixedTextures.UiMasks())
     int size = entry.Key == "DiamondFill" ? 64 : 128;
     Export("ElainaModSkills/UICore/Assets/" + entry.Key, size, size, entry.Value);
 }
+Export("ElainaModSkills/UICore/Assets/ThinRing", 256, 256, ThinRing());
 Export("ElainaModSkills/Skills/Recall/Assets/PortalLine", 1, 32, OriginalFixedTextures.PortalLine());
 Export("ElainaModSkills/Skills/Ice/Assets/ReticleNoise", 512, 512, OriginalFixedTextures.IceNoise());
 File.WriteAllText(Path.Combine(output, "pixels.json"), JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true }));
@@ -41,3 +42,20 @@ internal static class RainCloudBakedData
     [
 """ + "\n        " + literals + "\n    ];\n}\n");
 Console.WriteLine($"Exported {entries.Count} exact RGBA buffers and {thresholds.Length} cloud reveal thresholds.");
+
+// Hairline ring for the level-up rune circle (drawn squashed, so SoftRing's band is too heavy).
+// Radius 120 of 128, Gaussian cross-section with sigma 2 px; premultiplied (a, a, a, a) like the other UI masks.
+static Color[] ThinRing()
+{
+    const int size = 256;
+    var pixels = new Color[size * size];
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float dx = x + .5f - size / 2f, dy = y + .5f - size / 2f;
+            float d = (MathF.Sqrt(dx * dx + dy * dy) - 120f) / 2f;
+            int a = (int)MathF.Round(255 * MathF.Exp(-d * d));
+            pixels[y * size + x] = new Color(a, a, a, a);
+        }
+    return pixels;
+}

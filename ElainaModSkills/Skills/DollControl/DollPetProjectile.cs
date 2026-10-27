@@ -462,7 +462,7 @@ public abstract class DollPetProjectile : ModProjectile
         if (chestWaiting) { hitTimer = 0; return; }
         int interval = (workPlace || workGarden || workChest || workDeposit
             ? Math.Max(12, UseFrameCount * TicksPerUseFrame) : commands.HitInterval(workWall)) * 100;
-        // 使用百分比整数累计工作量，保留余量；+50% 速度即原用时 / 1.5。
+        // 使用百分比整数累计工作量，保留余量；满级 +200% 速度即原用时 / 3。
         hitTimer += ActionSpeedPercent;
         if (hitTimer >= interval)
         {

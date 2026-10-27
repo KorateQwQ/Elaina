@@ -1,0 +1,157 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.Graphics;
+using Terraria.Graphics.Renderers;
+using Terraria.ModLoader;
+using 伊蕾娜.System;
+using Host = Terraria.Main;
+using ForeignPlayer = ImproveGameFixture.TranslucentInvisPotion;
+using ForeignConfig = ImproveGameFixture.UIConfigs;
+
+sealed partial class PosePreview
+{
+    void CheckImproveGame(SpriteBatch batch)
+    {
+        // This is the installed renderer and MonoMod chain, with the foreign
+        // ModPlayer freshly extracted from ImproveGame's source by run.ps1.
+        // The terminal hook replaces only the final draw with the native setup
+        // and selected production layers, avoiding a complete game host.
+        var appearance = new ElainaAppearanceSystem();
+        var renderer = new LegacyPlayerRenderer();
+        var camera = new Camera();
+        var internalMethod = typeof(LegacyPlayerRenderer).GetMethod("DrawPlayerInternal", Hidden)!;
+        var foreignTemplate = ModContent.GetInstance<ForeignPlayer>();
+        var foreignHook = (On_LegacyPlayerRenderer.hook_DrawPlayerFull)typeof(ForeignPlayer)
+            .GetMethod("PatchDrawPlayerFull", Hidden)!.CreateDelegate(typeof(On_LegacyPlayerRenderer.hook_DrawPlayerFull), foreignTemplate);
+        var owner = player.GetModPlayer<global::伊蕾娜.ElainaModplayer>();
+        var originalEquipment = Equipment(player);
+        var originalFrame = player.bodyFrame;
+        Host.spriteBatch = batch;
+        Host.GameViewMatrix = new SpriteViewMatrix(GraphicsDevice);
+        Host.screenPosition = Vector2.Zero;
+        Host.myPlayer = 0;
+        Host.gamePaused = Host.gameMenu = false;
+        player.position = new Vector2(25, 32);
+        player.bodyFrame = player.legFrame = new Rectangle(0, 0, 40, 56);
+        player.head = player.body = player.legs = 0;
+        player.skinVariant = 0;
+        player.wearsRobe = false;
+        var original = Equipment(player);
+        var armor = player.armor.ToArray();
+        int calls = 0;
+        bool sawElaina = false, paint = false;
+        float seenOpacity = 1;
+        On_LegacyPlayerRenderer.hook_DrawPlayerInternal terminal = (_, _, _, p, position, rotation, origin, shadow, alpha, scale, headOnly) =>
+        {
+            calls++;
+            sawElaina = p.head == 1 && p.body == 1 && p.legs == 1;
+            var draw = new PlayerDrawSet();
+            if (headOnly) draw.HeadOnlySetup(p, new(), new(), new(), position.X, position.Y, alpha, scale);
+            else draw.BoringSetup(p, new(), new(), new(), position, shadow, rotation, origin);
+            float r = 1, g = 1, b = 1, a = 1; bool bright = false;
+            p.GetModPlayer<ForeignPlayer>().DrawEffects(draw, ref r, ref g, ref b, ref a, ref bright);
+            seenOpacity = a;
+            if (!paint) return;
+            Check(sawElaina, "Rendered compatibility frame uses Elaina equipment");
+            draw.colorArmorHead *= a; draw.colorArmorBody *= a; draw.colorArmorLegs *= a;
+            alignment.ModifyDrawInfo(ref draw);
+            bodyLayer.DrawWithTransformationAndChildren(ref draw);
+            PlayerDrawLayers.DrawPlayer_13_Leggings(ref draw);
+            PlayerDrawLayers.DrawPlayer_21_Head(ref draw);
+            hatLayer.DrawWithTransformationAndChildren(ref draw);
+            foreach (var data in draw.DrawDataCache) data.Draw(batch);
+        };
+        // Retain the former production entry only as a regression control.
+        On_LegacyPlayerRenderer.hook_DrawPlayer legacy = (orig, self, cam, p, pos, rotation, origin, shadow, scale) =>
+        {
+            using var scope = new ElainaAppearanceSystem.AppearanceScope(p, 1, 1, 1);
+            orig(self, cam, p, pos, rotation, origin, shadow, scale);
+        };
+        bool loaded = false;
+        On_LegacyPlayerRenderer.DrawPlayerInternal += terminal;
+        try
+        {
+            On_LegacyPlayerRenderer.DrawPlayer += legacy;
+            try
+            {
+                calls = 0;
+                renderer.DrawPlayers(camera, new[] { player });
+                Check(calls > 0, "Real world renderer reaches shared implementation");
+                Console.WriteLine($"ImproveGame legacy control: world appearance {(sawElaina ? "reached (runtime did not reproduce bypass)" : "BYPASSED (reported failure reproduced)")}.");
+                internalMethod.Invoke(renderer, new object[] { camera, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, false });
+                Check(!sawElaina, "Old forwarding-only hook cannot cover a direct internal call");
+            }
+            finally { On_LegacyPlayerRenderer.DrawPlayer -= legacy; }
+
+            // Both relative hook orders, plus absence of the foreign hook.
+            foreach (string order in new[] { "ImproveGame first", "Elaina first", "Elaina alone" })
+            {
+                On_LegacyPlayerRenderer.DrawPlayerFull -= foreignHook;
+                if (order == "ImproveGame first") foreignTemplate.Load();
+                foreach (string field in new[] { "_head", "_body", "_legs" })
+                    typeof(ElainaAppearanceSystem).GetField(field, Hidden)!.SetValue(null, 1);
+                appearance.Load(); loaded = true;
+                if (order == "Elaina first") foreignTemplate.Load();
+                foreach (bool isElaina in new[] { true, false })
+                foreach (bool local in new[] { true, false })
+                foreach (float opacity in new[] { 0f, .5f, 1f })
+                foreach (bool invisible in new[] { false, true })
+                {
+                    owner.Elaina = isElaina; player.whoAmI = local ? 0 : 1;
+                    player.invis = invisible;
+                    ForeignConfig.Instance.InvisibleTransparency = opacity;
+                    calls = 0;
+                    renderer.DrawPlayers(camera, new[] { player });
+                    Check(calls > 0 && sawElaina == isElaina, "World identity: " + order);
+                    float expectedOpacity = order != "Elaina alone" && local && invisible && opacity != 0 ? opacity : 1;
+                    Check(seenOpacity == expectedOpacity, "Foreign invisibility opacity is preserved: " + order);
+                    Check(player.invis == invisible && Equipment(player) == original && player.armor.SequenceEqual(armor),
+                        "World draw restores invisibility, equipment and inventory: " + order);
+                }
+                owner.Elaina = true; player.whoAmI = 0; player.invis = false;
+                foreach (string entry in new[] { "menu", "portrait", "internal" })
+                {
+                    calls = 0;
+                    if (entry == "menu") ((IPlayerRenderer)renderer).DrawPlayer(camera, player, player.position, 0, Vector2.Zero);
+                    else if (entry == "portrait") renderer.DrawPlayerHead(camera, player, player.position);
+                    else internalMethod.Invoke(renderer, new object[] { camera, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, false });
+                    Check(calls == 1 && sawElaina && Equipment(player) == original, "Shared entry coverage: " + entry + ", " + order);
+                }
+                if (order == "ImproveGame first")
+                {
+                    paint = true; ForeignConfig.Instance.InvisibleTransparency = .5f;
+                    using var target = new RenderTarget2D(GraphicsDevice, 600, 360);
+                    GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(55, 83, 91));
+                    Host.GameViewMatrix.Zoom = new Vector2(4);
+                    for (int column = 0; column < 2; column++)
+                    {
+                        player.position = Host.GameViewMatrix.Translation + new Vector2(25 + column * 75, 32);
+                        player.invis = column == 1;
+                        renderer.DrawPlayers(camera, new[] { player });
+                    }
+                    GraphicsDevice.SetRenderTarget(null);
+                    using var file = File.Create(Path.Combine(output, "improvegame-compat-4.00.png"));
+                    target.SaveAsPng(file, target.Width, target.Height);
+                    Host.GameViewMatrix.Zoom = Vector2.One;
+                    paint = false; player.invis = false;
+                }
+                appearance.Unload(); loaded = false;
+                renderer.DrawPlayers(camera, new[] { player });
+                Check(!sawElaina && Equipment(player) == original, "Unloading removes the appearance hook: " + order);
+            }
+            Console.WriteLine($"ImproveGame integration and appearance checks: {appearanceChecks} total passed (real hooks, both load orders, opacity, local/remote, ordinary players, unload/reload).");
+        }
+        finally
+        {
+            if (loaded) appearance.Unload();
+            On_LegacyPlayerRenderer.DrawPlayerInternal -= terminal;
+            On_LegacyPlayerRenderer.DrawPlayerFull -= foreignHook;
+            (player.head, player.body, player.legs, player.skinVariant, player.wearsRobe) = originalEquipment;
+            player.bodyFrame = originalFrame; player.invis = false; player.whoAmI = 0;
+            owner.Elaina = true;
+        }
+    }
+}

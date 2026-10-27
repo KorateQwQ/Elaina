@@ -27,6 +27,8 @@ namespace 伊蕾娜
     public partial class ElainaModplayer : KLModPlayer
     {
         public bool Elaina = false;
+        // 旧角色沿用原先的专属资源槽；此后按该角色保存时的实际选择恢复。
+        public bool UseElainaResourceDisplay = true;
         public bool hide = false;
         public bool hat = false;
         public bool onLight = false;
@@ -145,6 +147,7 @@ namespace 伊蕾娜
         {
             if (Elaina)
             {
+                if (!mediumCoreDeath) UseElainaResourceDisplay = true;
                 Player.ConsumedManaCrystals = 4;
                 Player.GetModPlayer<ElainaModplayer>().Elaina = true;
                 Player.GetModPlayer<EXPmodplayer>().Reset();
@@ -161,6 +164,7 @@ namespace 伊蕾娜
         }
         public override void OnEnterWorld()
         {
+            ElainaSkillManager.RestoreResourceDisplay(this);
             if (Elaina&&Main.myPlayer==Player.whoAmI)
             {
                 if (!Main.dedServ&&Platform.IsWindows)
@@ -263,12 +267,16 @@ namespace 伊蕾娜
 
         public override void SaveData(TagCompound tag)
         {
+            ElainaSkillManager.RecordResourceDisplayChoice(this);
+            tag[nameof(UseElainaResourceDisplay)] = UseElainaResourceDisplay;
             tag["Elaina"] = Elaina;
             tag["isACritter"] = isACritter;
             tag["CritterType"] = CritterType;
         }
         public override void LoadData(TagCompound tag)
         {
+            UseElainaResourceDisplay = !tag.ContainsKey(nameof(UseElainaResourceDisplay))
+                || tag.GetBool(nameof(UseElainaResourceDisplay));
             Elaina = tag.GetBool("Elaina");
             isACritter = tag.GetBool("isACritter");
             CritterType = tag.GetInt("CritterType");

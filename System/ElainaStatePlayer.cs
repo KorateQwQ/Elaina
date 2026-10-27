@@ -5,6 +5,8 @@ using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 using 伊蕾娜.System.Experience;
 
 namespace 伊蕾娜.System;
@@ -20,6 +22,8 @@ public class ElainaStatePlayer : KLModPlayer
     public int Experience;
     // 调试可提前领取到新上限；实际升级只结算超过此等级的部分。
     private int studyPointRewardLevel = 1;
+    private const int CurrentStudyPointBalanceVersion = 2;
+    private int studyPointBalanceVersion = CurrentStudyPointBalanceVersion;
     private HashSet<string> bossExperienceClaims = new(StringComparer.Ordinal);
     // 奖励金额在击杀前的上限上取快照；光球抵达的服务器确认才允许消费一次。
     private readonly Dictionary<string, int> pendingBossExperience = new(StringComparer.Ordinal);
@@ -41,6 +45,7 @@ public class ElainaStatePlayer : KLModPlayer
         tag["currentLevel"] = CurrentLevel;
         tag["experience"] = Experience;
         tag["studyPointRewardLevel"] = studyPointRewardLevel;
+        tag["studyPointBalanceVersion"] = studyPointBalanceVersion;
         tag["progressSet"] = ProgressSet ?? [];
         tag["bossExperienceClaims"] = new List<string>(bossExperienceClaims);
         tag["legacyBossExperienceProgress"] = legacyBossExperienceProgress;
@@ -62,10 +67,11 @@ public class ElainaStatePlayer : KLModPlayer
         legacyBossExperienceProgress = tag.ContainsKey("bossExperienceClaims")
             ? tag.TryGet("legacyBossExperienceProgress", out List<float> legacy) ? legacy : []
             : new List<float>(ProgressSet ?? []);
-        // 加载期间不依赖技能组件的加载顺序；旧存档不追补历史等级或余经验转换。
+        // 差额留到进入世界后结算，不依赖技能组件的加载顺序。
         ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
         studyPointRewardLevel = tag.TryGet("studyPointRewardLevel", out int rewardedLevel)
             ? Math.Max(CurrentLevel, Math.Max(1, rewardedLevel)) : CurrentLevel;
+        studyPointBalanceVersion = tag.TryGet("studyPointBalanceVersion", out int balanceVersion) ? balanceVersion : 1;
         base.LoadData(tag);
     }
     
@@ -103,8 +109,22 @@ public class ElainaStatePlayer : KLModPlayer
 
     public override void OnEnterWorld()
     {
+        LevelUpToastUI.Toasts.Clear();
         pendingBossExperience.Clear();
         bossKillNumbers.Clear();
+        ApplyStudyPointBalanceUpdate();
+    }
+
+    private void ApplyStudyPointBalanceUpdate()
+    {
+        if (studyPointBalanceVersion >= CurrentStudyPointBalanceVersion || Player == null
+            || Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer) return;
+        var skills = Player.GetModPlayer<ElainaSkillModPlayer>();
+        long refund = ExperienceRules.LegacyStudyPointIncrease(studyPointRewardLevel);
+        if (skills.TryGetUnlockedSkill<DollControlSkill>(out var doll))
+            refund += (DollControlProgression.ClampLevel(doll.Level) - 1L) * (15 - DollControlProgression.UpgradeCost);
+        skills.SkillPoint = (int)Math.Min(int.MaxValue, (long)skills.SkillPoint + refund);
+        studyPointBalanceVersion = CurrentStudyPointBalanceVersion;
     }
 
     internal bool HasPendingBossExperience(string key) => pendingBossExperience.ContainsKey(key);
@@ -159,7 +179,7 @@ public class ElainaStatePlayer : KLModPlayer
             return 0;
         int previousLevel = CurrentLevel;
         int accepted = ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), amount);
-        GrantLevelStudyPoints(previousLevel, CurrentLevel);
+        Celebrate(previousLevel, GrantLevelStudyPoints(previousLevel, CurrentLevel));
         return accepted;
     }
 
@@ -167,17 +187,28 @@ public class ElainaStatePlayer : KLModPlayer
     {
         int previousLevel = CurrentLevel;
         ExperienceRules.Add(ref CurrentLevel, ref Experience, GetMaxLevel(), 0);
-        GrantLevelStudyPoints(previousLevel, CurrentLevel);
+        Celebrate(previousLevel, GrantLevelStudyPoints(previousLevel, CurrentLevel));
     }
 
-    private void GrantLevelStudyPoints(int previousLevel, int reachedLevel)
+    /// <summary>返回本次实际发放的研习点。</summary>
+    private long GrantLevelStudyPoints(int previousLevel, int reachedLevel)
     {
-        if (Player == null || Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer) return;
+        if (Player == null || Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer) return 0;
         long reward = ExperienceRules.StudyPointsForLevels(Math.Max(previousLevel, studyPointRewardLevel), reachedLevel);
-        if (reward <= 0) return;
+        if (reward <= 0) return 0;
         var skills = Player.GetModPlayer<ElainaSkillModPlayer>();
         skills.SkillPoint = (int)Math.Min(int.MaxValue, (long)skills.SkillPoint + reward);
         studyPointRewardLevel = reachedLevel;
+        return reward;
+    }
+
+    /// <summary>当前等级高于 previousLevel 时播放升级特效（随弹幕同步）并在头顶上方提示。仅本地玩家、游戏内。</summary>
+    private void Celebrate(int previousLevel, long studyPoints)
+    {
+        if (CurrentLevel <= previousLevel || Player == null || Main.gameMenu
+            || Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer) return;
+        LevelUpEffect.Spawn(Player);
+        LevelUpToastUI.Toasts.Show(previousLevel, CurrentLevel, studyPoints);
     }
 
 #if DEBUG
@@ -190,7 +221,9 @@ public class ElainaStatePlayer : KLModPlayer
         bossExperienceClaims.Clear();
         pendingBossExperience.Clear();
         legacyBossExperienceProgress.Clear();
-        // 研习点余额与已领取等级一起保留，重新练级不会重复领取。
+        Player.GetModPlayer<ElainaSkillModPlayer>().SkillPoint = 0;
+        studyPointRewardLevel = 1;
+        studyPointBalanceVersion = CurrentStudyPointBalanceVersion;
         // 不重置本世界击杀序号，与服务器保持一致；重置后可以重新领首杀。
     }
 
@@ -199,7 +232,7 @@ public class ElainaStatePlayer : KLModPlayer
         NormalizeLevel();
         if (CurrentLevel >= GetMaxLevel()) return false;
         CurrentLevel++;
-        GrantLevelStudyPoints(CurrentLevel - 1, CurrentLevel);
+        Celebrate(CurrentLevel - 1, GrantLevelStudyPoints(CurrentLevel - 1, CurrentLevel));
         Experience = 0;
         return true;
     }
@@ -211,7 +244,7 @@ public class ElainaStatePlayer : KLModPlayer
         if (CurrentLevel >= cap) return false;
         int previousLevel = CurrentLevel;
         CurrentLevel = cap;
-        GrantLevelStudyPoints(previousLevel, CurrentLevel);
+        Celebrate(previousLevel, GrantLevelStudyPoints(previousLevel, CurrentLevel));
         Experience = 0;
         return true;
     }

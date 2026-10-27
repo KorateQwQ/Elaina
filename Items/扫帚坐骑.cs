@@ -1,4 +1,5 @@
-﻿using Terraria;
+﻿using System.Collections.Generic;
+using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
 using Terraria.ModLoader;
@@ -17,6 +18,14 @@ namespace 伊蕾娜.Items
             Item.height = 34;
             Item.rare = ItemRarityID.Pink;
             Item.mountType = ModContent.MountType<扫帚>();
+        }
+        public override void ModifyTooltips(List<TooltipLine> tooltips)
+        {
+            // 与魔杖一致：非伊蕾娜只看到另一个名字。
+            if (Main.LocalPlayer.EMP().Elaina) return;
+            tooltips.RemoveAll(line => line.Mod == "Terraria" && line.Name.StartsWith("Tooltip"));
+            TooltipLine name = tooltips.Find(line => line.Mod == "Terraria" && line.Name == "ItemName");
+            if (name != null) name.Text = GTV("Broom.CantUse");
         }
         public override bool CanEquipAccessory(Player player, int slot, bool modded) => player.EMP().Elaina;
         public override void AddRecipes()

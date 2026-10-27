@@ -103,7 +103,11 @@ Reset(NetmodeID.SinglePlayer); Player solo = Activate(0, new Vector2(100, 0));
 hook.OnKill(new NPC()); Tick(160);
 var state = solo.GetModPlayer<ElainaStatePlayer>();
 Check(state.Experience == 10 && ModPacket.Sent.Count == 0, "Single player absorption credits experience directly");
+var toasts = 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.LevelUpToastUI.Toasts.Shown;
+Check(toasts.Count == 0 && LevelUpEffect.Spawned == 0, "Experience without a new level shows no level-up feedback");
 state.AddExperience(245);
+Check(toasts.Count == 1 && toasts[0] == (1, 3, ExperienceRules.StudyPointsForLevels(1, 3)) && LevelUpEffect.Spawned == 1,
+    "A multi-level award plays one effect and one toast covering Lv1 to Lv3 with the paid study points");
 Check(state.CurrentLevel == 3 && state.Experience == 45, "A large award handles variable-cost level-ups and preserves the remainder");
 Check(solo.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint == 20,
     "Normal multi-level experience pays ten study points per new level");
@@ -111,7 +115,12 @@ state.AddExperience(int.MaxValue);
 Check(state.CurrentLevel == 10 && state.Experience == 190, "Boss level cap banks its current 190-XP bar without integer overflow");
 Check(solo.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint == 110,
     "Reaching Lv10 includes the Lv5 and Lv10 study-point bonuses");
+Check(toasts.Count == 2 && toasts[1] == (3, 10, ExperienceRules.StudyPointsForLevels(3, 10)) && LevelUpEffect.Spawned == 2, "Banking at the cap reports only the levels actually gained");
+state.AddExperience(50);
+Check(toasts.Count == 2 && LevelUpEffect.Spawned == 2, "Capped experience shows no level-up feedback");
 state.OnKillBoss(new NPC { boss = true, type = NPCID.KingSlime });
+Check(toasts.Count == 3 && toasts[2] == (10, 11, ExperienceRules.StudyPointsForLevels(10, 11)) && LevelUpEffect.Spawned == 3,
+    "Consuming the banked bar after a Boss raises the cap celebrates that level once");
 Check(state.CurrentLevel == 11 && state.Experience == 0
     && state.HasPendingBossExperience("Terraria/50#1"), "Higher cap consumes the banked bar immediately, with Boss XP still pending pickup");
 Check(solo.GetModPlayer<伊蕾娜.ElainaModSkills.ElainaSkillModPlayer>().SkillPoint == 120,

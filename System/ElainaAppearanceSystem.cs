@@ -16,8 +16,11 @@ public sealed class ElainaAppearanceSystem : ModSystem
     public override void Load()
     {
         if (Main.dedServ) return;
-        On_LegacyPlayerRenderer.DrawPlayer += DrawPlayer;
-        On_LegacyPlayerRenderer.DrawPlayerHead += DrawHead;
+        // ImproveGame hooks DrawPlayerFull before this mod loads. Its compiled
+        // original can inline the tiny DrawPlayer forwarding method, bypassing a
+        // later hook there. Hook the shared implementation instead, before it
+        // prepares any equipment-dependent draw state (including portraits).
+        On_LegacyPlayerRenderer.DrawPlayerInternal += DrawPlayerInternal;
     }
 
     public override void PostSetupContent()
@@ -34,28 +37,21 @@ public sealed class ElainaAppearanceSystem : ModSystem
 
     public override void Unload()
     {
-        On_LegacyPlayerRenderer.DrawPlayer -= DrawPlayer;
-        On_LegacyPlayerRenderer.DrawPlayerHead -= DrawHead;
+        On_LegacyPlayerRenderer.DrawPlayerInternal -= DrawPlayerInternal;
         _head = _body = _legs = -1;
     }
 
     private static AppearanceScope Begin(Player player) => _head < 0 ||
         !player.GetModPlayer<ElainaModplayer>().Elaina ? default : new(player, _head, _body, _legs);
 
-    private static void DrawPlayer(On_LegacyPlayerRenderer.orig_DrawPlayer orig, LegacyPlayerRenderer renderer,
-        Camera camera, Player player, Vector2 position, float rotation, Vector2 rotationOrigin, float shadow, float scale)
+    private static void DrawPlayerInternal(On_LegacyPlayerRenderer.orig_DrawPlayerInternal orig, LegacyPlayerRenderer renderer,
+        Camera camera, Player player, Vector2 position, float rotation, Vector2 rotationOrigin,
+        float shadow, float alpha, float scale, bool headOnly)
     {
         using var appearance = Begin(player);
-        orig(renderer, camera, player, position, rotation, rotationOrigin, shadow, scale);
-    }
-
-    private static void DrawHead(On_LegacyPlayerRenderer.orig_DrawPlayerHead orig, LegacyPlayerRenderer renderer,
-        Camera camera, Player player, Vector2 position, float alpha, float scale, Color borderColor)
-    {
-        using var appearance = Begin(player);
-        if (!player.GetModPlayer<ElainaModplayer>().Elaina || !player.sleeping.isSleeping)
+        if (!headOnly || !player.GetModPlayer<ElainaModplayer>().Elaina || !player.sleeping.isSleeping)
         {
-            orig(renderer, camera, player, position, alpha, scale, borderColor);
+            orig(renderer, camera, player, position, rotation, rotationOrigin, shadow, alpha, scale, headOnly);
             return;
         }
 
@@ -65,7 +61,7 @@ public sealed class ElainaAppearanceSystem : ModSystem
         try
         {
             player.bodyFrame = new Rectangle(0, 0, bodyFrame.Width, bodyFrame.Height);
-            orig(renderer, camera, player, position, alpha, scale, borderColor);
+            orig(renderer, camera, player, position, rotation, rotationOrigin, shadow, alpha, scale, headOnly);
         }
         finally
         {

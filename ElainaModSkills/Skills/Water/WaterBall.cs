@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using KL;
 using KL.ActionsSystem;
+using KL.DamageSystem;
 using KL.Drawing;
 using KL.Dusts;
 using KL.Dusts.Water;
@@ -81,6 +82,7 @@ public class WaterBall : ElainaBasicProjectile
     public override void SetDefaults()
     {
         HoldDistance = 150;
+        InfusionElement = ElementType.Water;
         state = State.Hold;
         TrailLength = 30;
         time2 = 60;

@@ -121,33 +121,32 @@ sealed partial class PosePreview
         var original = Equipment(player);
         var armor = player.armor.ToArray();
         bool enabled = true;
-        On_LegacyPlayerRenderer.orig_DrawPlayer draw = (renderer,camera,p,position,rotation,origin,shadow,scale) =>
+        On_LegacyPlayerRenderer.orig_DrawPlayerInternal draw = (renderer,camera,p,position,rotation,origin,shadow,alpha,scale,headOnly) =>
         {
-            Check(p.head == (enabled ? 1 : outfit.Head), "Full renderer selects appearance before its original method");
-            Check(Prepare().headGlowMask == (enabled ? -1 : 16), "Full renderer's original native setup sees the selected equipment");
-        };
-        On_LegacyPlayerRenderer.orig_DrawPlayerHead headDraw = (renderer,camera,p,position,alpha,scale,border) =>
-        {
-            Check(p.head == (enabled ? 1 : outfit.Head), "Portrait renderer selects appearance before its original method");
-            Check(Prepare(true).drawPlayer.head == p.head, "Portrait uses native HeadOnlySetup");
+            Check(p.head == (enabled ? 1 : outfit.Head), "Shared renderer selects appearance before its original method");
+            if (headOnly)
+                Check(Prepare(true).drawPlayer.head == p.head, "Portrait uses native HeadOnlySetup");
+            else
+                Check(Prepare().headGlowMask == (enabled ? -1 : 16), "Full renderer's original native setup sees the selected equipment");
+            Check(position == player.position && rotation == .25f && origin == new Vector2(3,4) &&
+                shadow == .2f && alpha == .6f && scale == 1.25f, "Shared renderer forwards every rendering parameter");
         };
         foreach (string mode in new[] { "running", "paused", "menu" })
         foreach (bool elaina in new[] { true, false })
         {
             Host.gamePaused = mode == "paused"; Host.gameMenu = mode == "menu";
             enabled = elaina; player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = elaina;
-            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayer", Hidden)!.Invoke(null,
-                new object[] { draw, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f });
-            typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
-                new object[] { headDraw, null, null, player, player.position, 1f, 1f, Color.Transparent });
-            Check(Equipment(player) == original && player.armor.SequenceEqual(armor), "Both renderer wrappers restore equipment and leave inventory slots alone");
+            foreach (bool portrait in new[] { false, true })
+                typeof(ElainaAppearanceSystem).GetMethod("DrawPlayerInternal", Hidden)!.Invoke(null,
+                    new object[] { draw, null, null, player, player.position, .25f, new Vector2(3,4), .2f, .6f, 1.25f, portrait });
+            Check(Equipment(player) == original && player.armor.SequenceEqual(armor), "Shared renderer restores equipment and leaves inventory slots alone");
         }
         player.GetModPlayer<global::伊蕾娜.ElainaModplayer>().Elaina = true;
-        On_LegacyPlayerRenderer.orig_DrawPlayer failing = (_,_,_,_,_,_,_,_) => throw new InvalidOperationException("draw fixture");
+        On_LegacyPlayerRenderer.orig_DrawPlayerInternal failing = (_,_,_,_,_,_,_,_,_,_) => throw new InvalidOperationException("draw fixture");
         try
         {
-            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayer", Hidden)!.Invoke(null,
-                new object[] { failing, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f });
+            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayerInternal", Hidden)!.Invoke(null,
+                new object[] { failing, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, false });
         }
         catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { }
         Check(Equipment(player) == original, "A failed original renderer still restores the player's state");

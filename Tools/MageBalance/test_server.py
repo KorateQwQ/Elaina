@@ -6,7 +6,60 @@ import tempfile
 import unittest
 import threading
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 import server
+
+
+class DpsCurveTests(unittest.TestCase):
+    # Controlled fixtures: users can change the real KL nodes without invalidating these tests.
+    VALUES = [20, 30, 50, 80, 110, 150, 200, 250, 350, 400, 450, 500, 650, 900, 1100, 1200, 1300, 1550, 1800, 3500]
+    SOURCE = "float[] stateDps = [\n20f, //initial\n30f,   //升级\n" + ",".join(str(v) + "f" for v in VALUES[2:]) + "];"
+
+    def test_source_literals_and_comments(self):
+        original = self.VALUES
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "KLDpsHelper.cs"
+            source = self.SOURCE
+            path.write_text(source.replace("20f,", "2.5e1F, /* ignore 999 */"), encoding="utf-8")
+            self.assertEqual(server.read_dps_curve(path)["values"], [25] + original[1:])
+            for replacement in ["30f,", "0f,", "20f + 1f,", "float.NaN,", "1e999f,"]:
+                with self.subTest(replacement=replacement):
+                    path.write_text(source.replace("20f,", replacement), encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        server.read_dps_curve(path)
+
+    def test_http_reads_edits_and_reports_invalid_source_without_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "KLDpsHelper.cs"
+            source = self.SOURCE
+            path.write_text(source, encoding="utf-8")
+            http = server.make_server(0, dps_source_path=path)
+            worker = threading.Thread(target=http.serve_forever, daemon=True)
+            worker.start()
+            url = f"http://127.0.0.1:{http.server_port}/api/dps-curve"
+            try:
+                with urlopen(url) as response:
+                    self.assertEqual(json.load(response)["values"][0:2], [20, 30])
+                    self.assertEqual(response.headers["Cache-Control"], "no-store")
+                path.write_text(source.replace("20f,", "30f,").replace("30f,   //升级", "40f,   //升级"), encoding="utf-8")
+                with urlopen(url) as response:
+                    self.assertEqual(json.load(response)["values"][0:2], [30, 40])
+                path.write_text("invalid", encoding="utf-8")
+                with self.assertRaises(HTTPError) as error:
+                    urlopen(url)
+                self.assertEqual(error.exception.code, 422)
+                self.assertIn("error", json.load(error.exception))
+                path.write_text(source, encoding="utf-8")
+                with urlopen(url) as response:
+                    self.assertEqual(json.load(response)["values"][0:2], [20, 30])
+                path.unlink()
+                with self.assertRaises(HTTPError) as error:
+                    urlopen(url)
+                self.assertEqual(error.exception.code, 422)
+            finally:
+                http.shutdown()
+                http.server_close()
+                worker.join()
 
 
 class BasicDesignTests(unittest.TestCase):

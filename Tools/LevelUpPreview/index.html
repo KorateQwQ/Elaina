@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>角色升级特效与提示预览</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px 20px; background: #10141d; color: #d8dde8; font: 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .group { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-right: 10px; margin-right: 2px; border-right: 1px solid #2a3345; }
+  .group:last-child { border-right: 0; }
+  .label { color: #7d89a0; font-size: 12px; margin-right: 2px; }
+  button { background: #222a38; color: inherit; border: 1px solid #344055; border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: #5b6b88; }
+  button.on { background: #3b4a66; border-color: #7f93b8; }
+  .row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  #stage { width: 1100px; max-width: 100%; height: auto; border: 1px solid #2a3345; }
+  #zoom { width: 330px; height: 330px; border: 1px solid #2a3345; image-rendering: pixelated; }
+  #scrub { width: 1100px; max-width: 100%; margin: 8px 0 2px; }
+  #info { font-variant-numeric: tabular-nums; color: #9aa6bb; }
+  .notes { color: #8d98ad; font-size: 13px; max-width: 1100px; }
+  .notes b { color: #dfe5f0; font-weight: 600; }
+  .side { width: 330px; font-size: 12px; color: #7d89a0; }
+</style>
+</head>
+<body>
+<h1>角色升级特效与提示预览 <span style="color:#6d7890;font-weight:400">（1920×1080 画面、UI 缩放 1、世界缩放 1；人物与地形为灰色参考）</span></h1>
+<div class="bar">
+  <span class="group"><span class="label">角色特效</span>
+    <button data-fx="A" class="on">A 星环升腾</button>
+    <button data-fx="B">B 光柱星屑</button>
+    <button data-fx="C">C 星座收束</button>
+  </span>
+  <span class="group"><span class="label">中央停留</span>
+    <button data-hold="1.0">1.0 秒</button>
+    <button data-hold="1.4" class="on">1.4 秒</button>
+    <button data-hold="1.8">1.8 秒</button>
+  </span>
+  <span class="group"><span class="label">中央位置</span>
+    <button data-pos="0.28" class="on">头顶上方（28%）</button>
+    <button data-pos="0.18">更靠上（18%）</button>
+  </span>
+  <span class="group"><span class="label">场景</span>
+    <button data-scene="level" class="on">升级</button>
+    <button data-scene="both">升级 + 新技能显现</button>
+  </span>
+  <span class="group"><span class="label">时间</span>
+    <button data-sky="day" class="on">白天</button>
+    <button data-sky="night">夜晚</button>
+  </span>
+  <span class="group">
+    <button id="play">▶ 播放</button>
+    <button id="pause">暂停</button>
+    <button id="slow">0.25× 慢放</button>
+  </span>
+</div>
+<input id="scrub" type="range" min="0" max="7" step="0.01" value="0">
+<div id="info"></div>
+<div class="row">
+  <canvas id="stage" width="1920" height="1080"></canvas>
+  <div>
+    <canvas id="zoom" width="330" height="330"></canvas>
+    <div class="side">右：人物周围 3 倍放大（游戏内不会放大，仅便于看清细节）。</div>
+  </div>
+</div>
+<div class="notes">
+  <p><b>提示流程</b>：升级提示以 1.35 倍出现在人物头顶上方（不压住人物，不接收鼠标，不打断操作），停留后原地上浮淡出，不进入右下角。
+  技能显现/启封提示保持原样，在技能栏右上方独立出现（约在升级后 0.5 秒），两者位置和队列互不影响。</p>
+  <p><b>角色特效</b>：做成跟随玩家的弹幕（只画本体光效），星屑用 KLBasicDust 独立生命周期、走 KL 同层 Bloom；贴图沿用/预烘焙成 PNG。联机时其他玩家也能看到你的升级特效（另行同步）。</p>
+</div>
+<script>
+const W = 1920, H = 1080;
+const cv = document.getElementById('stage'), c = cv.getContext('2d');
+const zv = document.getElementById('zoom'), z = zv.getContext('2d');
+const scrub = document.getElementById('scrub'), info = document.getElementById('info');
+const S = { sky: 'day', fx: 'A', hold: 1.4, pos: .28, scene: 'level', t: 0, playing: true, speed: 1 };
+const GOLD = [230, 206, 165], LAV = [202, 178, 237], INK = [238, 233, 245], MUTED = [178, 168, 195], PLATE = [39, 32, 51];
+const rgba = (k, a) => `rgba(${k[0]},${k[1]},${k[2]},${Math.max(0, Math.min(1, a))})`;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOut = t => 1 - (1 - t) ** 3;
+const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+const easeOutBack = t => { const k = 1.7; return 1 + (k + 1) * (t - 1) ** 3 + k * (t - 1) ** 2; };
+const SERIF = 'Georgia, "Noto Serif SC", "Source Han Serif SC", SimSun, serif';
+const SANS = '"Microsoft YaHei", system-ui, sans-serif';
+
+// Deterministic random so scrubbing shows the same particles.
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+
+// ---------- scene ----------
+const PLAYER = { x: W / 2, y: H / 2 + 21 }; // feet point; the camera centers the player like Terraria
+const RACK = { x: (W - 646) * .95, y: (H - 94) * .95 };
+const DOCK = { x: Math.min(RACK.x + 646 - 96, W - 104), y: RACK.y - 38, w: 96, h: 30 };
+const TW = 264, TH = 70;
+const TOAST_DOCK = { x: DOCK.x + DOCK.w - TW, y: DOCK.y + DOCK.h - TH };
+
+function drawWorld(g) {
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  if (S.sky === 'night') { sky.addColorStop(0, '#0b1024'); sky.addColorStop(.62, '#1c2442'); }
+  else { sky.addColorStop(0, '#3a5a8c'); sky.addColorStop(.62, '#7fa6cf'); } sky.addColorStop(.63, '#4b3a2e'); sky.addColorStop(1, '#2c221b');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  // ground blocks
+  g.fillStyle = '#5c8a3e'; g.fillRect(0, PLAYER.y, W, 10);
+  g.fillStyle = '#6a4d36'; g.fillRect(0, PLAYER.y + 10, W, H);
+  g.fillStyle = 'rgba(0,0,0,.12)';
+  for (let x = 0; x < W; x += 16) g.fillRect(x, PLAYER.y + 10, 1, H);
+  for (let y = PLAYER.y + 10; y < H; y += 16) g.fillRect(0, y, W, 1);
+  // trees for scale
+  for (const tx of [520, 760, 1290, 1530]) {
+    g.fillStyle = '#5a3f2b'; g.fillRect(tx, PLAYER.y - 140, 14, 140);
+    g.fillStyle = '#3f7a3a'; g.beginPath(); g.arc(tx + 7, PLAYER.y - 150, 38, 0, 7); g.fill();
+  }
+  // player 20x42 grey silhouette with witch hat
+  const px = PLAYER.x, py = PLAYER.y;
+  g.fillStyle = '#b9b4c4'; g.fillRect(px - 9, py - 30, 18, 30);
+  g.fillStyle = '#d8d3e0'; g.fillRect(px - 6, py - 38, 12, 10);
+  g.fillStyle = '#4a4258'; g.beginPath(); g.moveTo(px - 13, py - 36); g.lineTo(px + 13, py - 36); g.lineTo(px + 3, py - 54); g.closePath(); g.fill();
+  // portrait HUD placeholder (top-left) and skill bar placeholder
+  g.fillStyle = 'rgba(20,16,30,.85)'; g.beginPath(); g.arc(70, 70, 46, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(220,210,235,.7)'; g.lineWidth = 2; g.stroke();
+  g.fillStyle = 'rgba(20,16,30,.8)'; g.fillRect(120, 40, 260, 14); g.fillRect(120, 62, 220, 14);
+  g.fillStyle = 'rgba(26,22,36,.92)'; roundRect(g, RACK.x, RACK.y, 646, 94, 8); g.fill();
+  g.strokeStyle = 'rgba(202,178,237,.35)'; g.lineWidth = 1; g.stroke();
+  for (let i = 0; i < 8; i++) { g.fillStyle = 'rgba(60,50,78,.9)'; roundRect(g, RACK.x + 18 + i * 76, RACK.y + 16, 62, 62, 6); g.fill(); }
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.font = `14px ${SANS}`; g.textAlign = 'center';
+  g.fillText('技能栏（占位）', RACK.x + 323, RACK.y + 108 > H ? RACK.y - 6 : RACK.y + 52);
+}
+
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+
+// ---------- shared vfx primitives (additive) ----------
+function glow(g, x, y, r, col, a) {
+  if (a <= 0 || r <= 0) return;
+  const gr = g.createRadialGradient(x, y, 0, x, y, r);
+  gr.addColorStop(0, rgba(col, a)); gr.addColorStop(.35, rgba(col, a * .45)); gr.addColorStop(1, rgba(col, 0));
+  g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+}
+// Four-point cross star like ConstellationDrawing.CrossStar.
+function crossStar(g, x, y, size, col, a, rot = 0) {
+  if (a <= 0 || size <= 0) return;
+  g.save(); g.translate(x, y); g.rotate(rot);
+  g.fillStyle = rgba(col, a);
+  for (let i = 0; i < 2; i++) {
+    g.beginPath(); g.moveTo(-size, 0); g.quadraticCurveTo(0, size * .12, size, 0); g.quadraticCurveTo(0, -size * .12, -size, 0); g.fill();
+    g.rotate(Math.PI / 2);
+  }
+  g.restore();
+  glow(g, x, y, size * .5, [255, 250, 240], a * .9);
+}
+function ellipseRing(g, x, y, rx, ry, col, a, width) {
+  if (a <= 0 || rx <= 0) return;
+  g.strokeStyle = rgba(col, a); g.lineWidth = width;
+  g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.stroke();
+}
+function mote(g, x, y, s, col, a) { glow(g, x, y, s * 3.2, col, a * .55); g.fillStyle = rgba([255, 252, 245], a); g.fillRect(x - s / 2, y - s / 2, s, s); }
+
+// ---------- game textures (copies of the shipped PNGs, see tex/) ----------
+// In game: tint alpha = 0 inside an AlphaBlend batch adds tex.rgb * tint; canvas 'lighter' + multiply tint matches that.
+const TEX = {};
+for (const n of ['GlowDot', 'Star4', 'MarkGlow', 'StartFlare', 'ShotLine']) { const im = new Image(); im.src = `tex/${n}.png`; TEX[n] = im; }
+const tintCache = new Map();
+function tinted(name, col) {
+  const key = name + col.join(','); let t = tintCache.get(key);
+  if (t) return t;
+  const im = TEX[name]; if (!im.complete || !im.naturalWidth) return null;
+  t = document.createElement('canvas'); t.width = im.naturalWidth; t.height = im.naturalHeight;
+  const o = t.getContext('2d'); o.drawImage(im, 0, 0);
+  o.globalCompositeOperation = 'multiply'; o.fillStyle = `rgb(${col})`; o.fillRect(0, 0, t.width, t.height);
+  o.globalCompositeOperation = 'destination-in'; o.drawImage(im, 0, 0);
+  tintCache.set(key, t); return t;
+}
+// Same signature as RevealingDustDrawing.Draw: centered, rotated, stretched to size (w, h) in world pixels.
+function sprite(g, name, x, y, col, a, rot, w, h = w) {
+  if (a <= .002 || w <= 0 || h <= 0) return;
+  const t = tinted(name, col); if (!t) return;
+  g.save(); g.globalAlpha = Math.min(1, a); g.translate(x, y); g.rotate(rot); g.drawImage(t, -w / 2, -h / 2, w, h); g.restore();
+}
+// Revealing-dust style mote: soft GlowDot halo + bright core.
+function dotMote(g, x, y, s, col, a) {
+  sprite(g, 'GlowDot', x, y, col, a * .5, 0, s * 14);
+  sprite(g, 'GlowDot', x, y, [255, 244, 214], a, 0, s * 4.5);
+}
+// Wand-star flare: StartFlare + orthogonal ShotLines + diagonal Star4 + core.
+function flareStar(g, x, y, k, col, a) {
+  sprite(g, 'MarkGlow', x, y, col, .35 * a, 0, 60 * k);
+  sprite(g, 'StartFlare', x, y, col, a, 0, 74 * k, 56 * k);
+  sprite(g, 'ShotLine', x, y, col, .5 * a, 0, 64 * k, 18 * k);
+  sprite(g, 'ShotLine', x, y, col, .5 * a, Math.PI / 2, 36 * k, 18 * k);
+  sprite(g, 'Star4', x, y, [255, 236, 190], .55 * a, Math.PI / 4, 28 * k);
+  sprite(g, 'GlowDot', x, y, [255, 250, 230], a, 0, 12 * k);
+}
+
+// ---------- character VFX, origin at feet, t in seconds ----------
+const pillar = document.createElement('canvas');
+const FX = {
+  // A: a flat rune circle opens at the feet, a ring rises through the body, star motes float up.
+  A: { length: 1.5, draw(g, x, y, t) {
+    const open = easeOut(clamp(t / .28)), fade = 1 - clamp((t - .85) / .55);
+    const r = 34 * open;
+    const WARM = [255, 214, 140], PALE = [236, 214, 255];
+    // Soft squashed glow under the circle.
+    sprite(g, 'MarkGlow', x, y, LAV, .45 * fade, 0, 110 * open, 34 * open);
+    sprite(g, 'MarkGlow', x, y, WARM, .3 * fade, 0, 60 * open, 18 * open);
+    ellipseRing(g, x, y, r, r * .28, GOLD, .85 * fade, 1.2);
+    ellipseRing(g, x, y, r * .72, r * .2, LAV, .6 * fade, .8);
+    // Eight orbiting lights on the circle; alternate ones are twinkling Star4 sparkles.
+    for (let i = 0; i < 8; i++) {
+      const ang = i / 8 * Math.PI * 2 + t * 1.6;
+      const px = x + Math.cos(ang) * r * .86, py = y + Math.sin(ang) * r * .86 * .28;
+      const tw = Math.pow(.5 + .5 * Math.sin(t * 9 + i * 1.7), 3);
+      dotMote(g, px, py, .9, WARM, .9 * fade);
+      if (i % 2 === 0) sprite(g, 'Star4', px, py, [255, 230, 170], (.4 + .6 * tw) * fade, t * .8, 10 + 8 * tw);
+    }
+    // The ring rising through the body.
+    const up = clamp((t - .08) / .62);
+    if (up > 0 && up < 1) {
+      const ry = lerp(0, -62, easeInOut(up)), rr = lerp(30, 16, up), a = Math.sin(up * Math.PI);
+      sprite(g, 'MarkGlow', x, y + ry, WARM, .35 * a, 0, rr * 3, rr * 1.1);
+      ellipseRing(g, x, y + ry, rr, rr * .3, [255, 244, 222], .9 * a, 1.4);
+    }
+    // Line particles 1: thin streaks rushing up from the circle edge, stretched along their velocity.
+    let R = rng(11);
+    for (let i = 0; i < 14; i++) {
+      const born = .04 + R() * .5, life = .35 + R() * .3, age = t - born;
+      const ang = R() * Math.PI * 2, sx = Math.cos(ang) * 28, sy = Math.sin(ang) * 7;
+      const speed = 150 + R() * 110, len = 22 + R() * 22, col = R() < .6 ? WARM : PALE;
+      if (age < 0 || age > life) continue;
+      const k = age / life, dist = speed * life * (1 - (1 - k) ** 2) / 2;
+      const a = Math.sin(Math.min(1, k * 3) * Math.PI / 2) * (1 - k);
+      sprite(g, 'ShotLine', x + sx * (1 - k * .3), y + sy - dist, col, a, Math.PI / 2, len * (1 - k * .55), 10);
+    }
+    // Head flash: wand-style four-point flare.
+    const f = clamp((t - .62) / .45);
+    if (f > 0 && f < 1) {
+      const k = Math.sin(Math.min(1, f * 1.6) * Math.PI / 2) * (1 - f) ** .6;
+      flareStar(g, x, y - 62, .35 + .65 * easeOut(Math.min(1, f * 2.2)), WARM, k);
+    }
+    // Line particles 2: short radial rays thrown out by the flash.
+    R = rng(29);
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 10) * Math.PI * 2 + (R() - .5) * .4, speed = 70 + R() * 50, len = 14 + R() * 12;
+      const born = .64 + R() * .05, life = .3 + R() * .18, k = (t - born) / life;
+      if (k < 0 || k > 1) continue;
+      const d = 6 + speed * life * (1 - (1 - k) ** 2);
+      sprite(g, 'ShotLine', x + Math.cos(ang) * d, y - 62 + Math.sin(ang) * d, WARM, (1 - k) * .9, ang, len * (1 - k * .6), 9);
+    }
+    // Revealing-dust motes rising and drifting; every third one is a Star4 sparkle.
+    R = rng(7);
+    for (let i = 0; i < 24; i++) {
+      const born = .1 + R() * .55, life = .7 + R() * .55, age = t - born, ang = R() * Math.PI * 2;
+      const sx = Math.cos(ang) * 30, sy = Math.sin(ang) * 8, vy = -(36 + R() * 46), drift = (R() - .5) * 18, s = .7 + R() * .6;
+      const col = R() < .55 ? WARM : PALE, phase = R() * 6.28, spin = (R() - .5) * .6;
+      if (age < 0 || age > life) continue;
+      const k = age / life;
+      const px = x + sx + drift * age + Math.sin(age * 5 + phase) * 3, py = y + sy + vy * age * (1 - k * .35);
+      const a = Math.min(1, age / .08) * (1 - k * k) * (.75 + .25 * Math.sin(age * 12 + i));
+      dotMote(g, px, py, s, col, a);
+      if (i % 3 === 0) {
+        const tw = Math.pow(.5 + .5 * Math.sin(age * 10 + i * 1.7), 3);
+        sprite(g, 'Star4', px, py, [255, 228, 156], a * (.45 + .55 * tw), spin + age * .5, s * (20 + 14 * tw));
+      }
+    }
+  } },
+  // B: a narrow light pillar on the player with motes rushing up, a star at the head.
+  B: { length: 1.3, draw(g, x, y, t) {
+    const inA = clamp(t / .12), fade = 1 - clamp((t - .25) / .8), a = inA * fade;
+    const w = lerp(26, 8, clamp(t / 1));
+    const hgt = 120;
+    if (a > 0) {
+      // Vertical color ramp masked by a soft horizontal falloff (a baked pillar texture in game).
+      const o = pillar.getContext('2d'), pw = Math.ceil(w * 2);
+      pillar.width = pw; pillar.height = hgt;
+      const gr = o.createLinearGradient(0, 0, 0, hgt);
+      gr.addColorStop(0, rgba(LAV, 0)); gr.addColorStop(.55, rgba(LAV, .35 * a)); gr.addColorStop(1, rgba(GOLD, .7 * a));
+      o.fillStyle = gr; o.fillRect(0, 0, pw, hgt);
+      const gx = o.createLinearGradient(0, 0, pw, 0);
+      gx.addColorStop(0, 'rgba(0,0,0,0)'); gx.addColorStop(.5, 'rgba(0,0,0,1)'); gx.addColorStop(1, 'rgba(0,0,0,0)');
+      o.globalCompositeOperation = 'destination-in'; o.fillStyle = gx; o.fillRect(0, 0, pw, hgt);
+      g.drawImage(pillar, x - pw / 2, y - hgt);
+      glow(g, x, y - 2, 44, GOLD, .45 * a);
+      ellipseRing(g, x, y, 22 + 18 * clamp(t / .5), 6 + 4 * clamp(t / .5), GOLD, .7 * a, 1.2);
+    }
+    const f = clamp((t - .18) / .45);
+    if (f > 0 && f < 1) crossStar(g, x, y - 48, 22 * Math.sin(f * Math.PI), [255, 240, 210], Math.sin(f * Math.PI));
+    const R = rng(21);
+    for (let i = 0; i < 28; i++) {
+      const born = R() * .55, life = .5 + R() * .6, age = t - born;
+      const sx = (R() - .5) * 26, vy = -(110 + R() * 90), s = 1 + R() * 1.4;
+      if (age < 0 || age > life) continue;
+      const k = age / life, py = y - 4 + vy * (age - age * age * .5);
+      mote(g, x + sx * (1 + k * .6), py, s, R() < .55 ? GOLD : LAV, (1 - k) * .95);
+    }
+  } },
+  // C: six stars appear around the player and link into a constellation, then fold in with a flash ring.
+  C: { length: 1.5, draw(g, x, y, t) {
+    const cy = y - 22, R0 = 46;
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const ang = -Math.PI / 2 + i / 6 * Math.PI * 2 + (i % 2 ? .18 : -.1);
+      const rad = R0 * (i % 2 ? .82 : 1);
+      pts.push([Math.cos(ang) * rad, Math.sin(ang) * rad * .9]);
+    }
+    const collapse = easeInOut(clamp((t - .62) / .2));
+    const fade = 1 - clamp((t - .78) / .1);
+    for (let i = 0; i < 6; i++) {
+      const appear = clamp((t - i * .06) / .12);
+      const [px, py] = pts[i];
+      const sx = x + px * (1 - collapse), sy = cy + py * (1 - collapse);
+      if (i > 0) {
+        const link = clamp((t - .12 - i * .06) / .1);
+        const [qx, qy] = pts[i - 1];
+        const ax = x + qx * (1 - collapse), ay = cy + qy * (1 - collapse);
+        if (link > 0) { g.strokeStyle = rgba(LAV, .7 * fade); g.lineWidth = 1; g.beginPath(); g.moveTo(ax, ay); g.lineTo(lerp(ax, sx, link), lerp(ay, sy, link)); g.stroke(); }
+      }
+      if (i === 5) {
+        const link = clamp((t - .48) / .1), [qx, qy] = pts[0];
+        const ax = x + qx * (1 - collapse), ay = cy + qy * (1 - collapse);
+        if (link > 0) { g.strokeStyle = rgba(LAV, .7 * fade); g.beginPath(); g.moveTo(sx, sy); g.lineTo(lerp(sx, ax, link), lerp(sy, ay, link)); g.stroke(); }
+      }
+      crossStar(g, sx, sy, 6 * appear, GOLD, appear * fade, .2);
+    }
+    const burst = clamp((t - .8) / .55);
+    if (burst > 0 && burst < 1) {
+      const e = easeOut(burst), a = 1 - burst;
+      ellipseRing(g, x, cy, 10 + 52 * e, (10 + 52 * e) * .9, GOLD, .85 * a, 2 * (1 - e) + .6);
+      glow(g, x, cy, 50 * (1 - burst * .5), [255, 240, 210], .55 * a);
+      crossStar(g, x, cy, 30 * Math.sin(Math.min(1, burst * 2) * Math.PI), [255, 244, 225], a);
+      const R = rng(5);
+      for (let i = 0; i < 18; i++) {
+        const ang = R() * Math.PI * 2, sp = 50 + R() * 70, life = .4 + R() * .5, k = clamp((t - .8) / life);
+        if (k >= 1) continue;
+        const d = sp * (k - k * k * .45);
+        mote(g, x + Math.cos(ang) * d, cy + Math.sin(ang) * d * .9 - 12 * k, 1.2 + R(), R() < .5 ? GOLD : LAV, (1 - k));
+      }
+    }
+  } },
+};
+
+// ---------- toast ----------
+function dots(g, x1, y1, x2, y2, a) {
+  const len = Math.hypot(x2 - x1, y2 - y1), n = Math.floor(len / 4);
+  g.fillStyle = `rgba(236,229,247,${.32 * a})`;
+  for (let i = 0; i <= n; i++) { const k = n ? i / n : 0; g.fillRect(lerp(x1, x2, k) - .5, lerp(y1, y2, k) - .5, 1, 1); }
+}
+function paintToast(g, kind, level, a, hover) {
+  g.save();
+  g.shadowColor = `rgba(0,0,0,${.5 * a})`; g.shadowBlur = 12; g.shadowOffsetY = 6;
+  roundRect(g, 0, 0, TW, TH, 3); g.fillStyle = `rgba(26,22,36,${.97 * a})`; g.fill();
+  g.restore();
+  g.strokeStyle = rgba(LAV, .3 * a); g.lineWidth = 1; roundRect(g, .5, .5, TW - 1, TH - 1, 3); g.stroke();
+  const l = 5.5, r = TW - 5.5, t = 5.5, b = TH - 5.5;
+  dots(g, l + 8, t, r - 8, t, a); dots(g, l + 8, b, r - 8, b, a); dots(g, l, t + 8, l, b - 8, a); dots(g, r, t + 8, r, b - 8, a);
+  for (const [x, y] of [[l, t], [r, t], [r, b], [l, b]]) crossStar(g, x, y, 6, LAV, .8 * a);
+  const cx = 16 + 20, cy = TH / 2;
+  glow(g, cx, cy, 40, GOLD, .35 * a);
+  g.fillStyle = rgba(PLATE, a); g.beginPath(); g.arc(cx, cy, 20, 0, 7); g.fill();
+  g.strokeStyle = rgba(GOLD, .75 * a); g.lineWidth = 1.2; g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  if (kind === 'level') {
+    g.fillStyle = rgba(MUTED, a); g.font = `8px ${SERIF}`; g.fillText('Lv', cx, cy - 6);
+    g.fillStyle = rgba(INK, a); g.font = `bold 17px ${SERIF}`; g.fillText(String(level), cx, cy + 11);
+  } else {
+    g.fillStyle = rgba(LAV, a); g.font = `24px ${SERIF}`; g.fillText('?', cx, cy + 8);
+  }
+  const x = 16 + 40 + 12;
+  crossStar(g, x + 4, 18, 4, GOLD, a);
+  g.textAlign = 'left';
+  g.fillStyle = rgba(GOLD, a); g.font = `12px ${SERIF}`;
+  g.fillText(kind === 'level' ? '旅 程 等 级 提 升' : '新 的 魔 法 显 现', x + 12, 22);
+  dots(g, x, 30, TW - 14, 30, a);
+  if (kind === 'level') {
+    g.fillStyle = rgba(INK, a); g.font = `14px ${SERIF}`; g.fillText(`Lv. ${level - 1}  →  Lv. ${level}`, x, 48);
+    g.fillStyle = rgba(MUTED, a); g.font = `9.5px ${SANS}`; g.fillText(`获得研习点 +${level % 5 ? 10 : 20}`, x, 62);
+  } else {
+    g.fillStyle = rgba(INK, a); g.font = `14px ${SERIF}`; g.fillText('风之魔法', x, 48);
+    g.fillStyle = rgba(MUTED, a); g.font = `9.5px ${SANS}`; g.fillText('可以研习了', x, 62);
+  }
+  if (hover) { g.strokeStyle = rgba(LAV, .55 * a); roundRect(g, .5, .5, TW - 1, TH - 1, 3); g.stroke(); }
+}
+
+// Level toast: pop in above the player, hold, then fade out in place. It never docks,
+// so it cannot queue behind or collide with the discovery toast at the skill bar.
+const POP = .22, FADE = .45, CENTER_SCALE = 1.35;
+function toastState(t) {
+  const center = { x: W / 2 - TW * CENTER_SCALE / 2, y: H * S.pos - TH * CENTER_SCALE / 2 };
+  const t1 = POP, t2 = t1 + S.hold, t3 = t2 + FADE;
+  if (t < 0 || t >= t3) return null;
+  if (t < t1) { const k = t / t1; return { x: center.x, y: center.y + 10 * (1 - k) ** 2, s: CENTER_SCALE * lerp(.86, 1, easeOutBack(k)), a: k, phase: '中央出现' }; }
+  if (t < t2) return { x: center.x, y: center.y, s: CENTER_SCALE, a: 1, phase: '中央停留（不接收鼠标）' };
+  const k = (t - t2) / FADE;
+  return { x: center.x, y: center.y - 12 * easeOut(k), s: CENTER_SCALE, a: 1 - k, phase: '上浮淡出' };
+}
+function toastTotal() { return POP + S.hold + FADE; }
+
+// Discovery toast keeps its own dock and timing; the tracker polls every 30 ticks, so it shows ~0.5 s after the level-up.
+const DISCOVERY_DELAY = .5;
+function discoveryState(t) {
+  const k = t - DISCOVERY_DELAY, total = .25 + 2.6 + .4;
+  if (S.scene !== 'both' || k < 0 || k >= total) return null;
+  const a = k < .25 ? k / .25 : clamp(1 - (k - 2.85) / .4);
+  const rise = 10 * (1 - Math.min(1, k / .25)) ** 2;
+  return { x: TOAST_DOCK.x, y: TOAST_DOCK.y + rise, s: 1, a, phase: '显现提示（技能栏右上，原有行为）' };
+}
+
+function drawToast(g, st, kind, level) {
+  if (!st) return;
+  g.save(); g.translate(st.x, st.y); g.scale(st.s, st.s);
+  paintToast(g, kind, level, st.a, false);
+  g.restore();
+}
+
+// ---------- frame ----------
+const LEVEL = 5;
+function render() {
+  const t = S.t;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  drawWorld(c);
+  const fx = FX[S.fx];
+  c.save(); c.globalCompositeOperation = 'lighter'; fx.draw(c, PLAYER.x, PLAYER.y, t); c.restore();
+  // existing portrait HUD flash (top-left) for context
+  const flash = clamp(1 - t * 2.4);
+  if (flash > 0) { c.save(); c.globalCompositeOperation = 'lighter'; glow(c, 70, 70, 70, GOLD, .5 * flash); c.restore(); }
+  const ts = toastState(t);
+  drawToast(c, ts, 'level', LEVEL);
+  const ds = discoveryState(t);
+  drawToast(c, ds, 'discovery', LEVEL);
+
+  z.setTransform(1, 0, 0, 1, 0, 0); z.imageSmoothingEnabled = false;
+  z.drawImage(cv, PLAYER.x - 55, PLAYER.y - 85, 110, 110, 0, 0, 330, 330);
+
+  info.innerHTML = `t = ${t.toFixed(2)} s · 特效 ${fx.length.toFixed(1)} s · 升级提示：${ts ? ts.phase : '无'}${S.scene === 'both' ? ' · 显现提示：' + (ds ? ds.phase : '无') : ''} · 升级提示共 ${toastTotal().toFixed(2)} s`;
+  scrub.value = t;
+}
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (S.playing) {
+    S.t += dt * S.speed;
+    const end = Math.max(toastTotal(), FX[S.fx].length, S.scene === 'both' ? DISCOVERY_DELAY + 3.25 : 0) + .6;
+    scrub.max = end.toFixed(2);
+    if (S.t > end) S.t = 0;
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+function pick(attr, key, parse) {
+  document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
+    document.querySelectorAll(`[data-${attr}]`).forEach(o => o.classList.toggle('on', o === b));
+    S[key] = parse(b.dataset[attr]); S.t = 0; S.playing = true;
+  });
+}
+pick('fx', 'fx', v => v); pick('hold', 'hold', parseFloat); pick('pos', 'pos', parseFloat); pick('scene', 'scene', v => v); pick('sky', 'sky', v => v);
+document.getElementById('play').onclick = () => { S.playing = true; S.speed = 1; };
+document.getElementById('pause').onclick = () => S.playing = false;
+document.getElementById('slow').onclick = () => { S.playing = true; S.speed = .25; };
+scrub.oninput = () => { S.playing = false; S.t = parseFloat(scrub.value); };
+// ?t=0.5&fx=B for screenshots
+const q = new URLSearchParams(location.search);
+if (q.has('fx')) S.fx = q.get('fx');
+if (q.has('scene')) S.scene = q.get('scene');
+if (q.has('sky')) S.sky = q.get('sky');
+if (q.has('t')) { S.t = parseFloat(q.get('t')); S.playing = false; }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

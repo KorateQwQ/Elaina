@@ -121,15 +121,7 @@ internal static class ConstellationToastPainter
         d.Origin += new Vector2(0, ConstellationToastQueue.Rise(toast) * d.Scale);
         try
         {
-            d.Shadow(0, 6, Width, Height, 4, Color.Black * (.5f * a), 12);
-            d.RoundRect(0, 0, Width, Height, 3, (hover ? new Color(40, 33, 52) : new Color(26, 22, 36)) * (.97f * a),
-                ConstellationDrawing.Lavender * ((hover ? .55f : .3f) * a), 1);
-            float l = 5.5f, r = Width - 5.5f, t = 5.5f, b = Height - 5.5f;
-            Color dots = ConstellationDrawing.DotColor * (.8f * a);
-            d.Dots(l + 8, t, r - 8, t, dots); d.Dots(l + 8, b, r - 8, b, dots);
-            d.Dots(l, t + 8, l, b - 8, dots); d.Dots(r, t + 8, r, b - 8, dots);
-            foreach (var corner in new[] { new Vector2(l, t), new Vector2(r, t), new Vector2(r, b), new Vector2(l, b) })
-                d.CrossStar(corner, new Vector2(6 * .976f, 6), ConstellationDrawing.Lavender * (.8f * a), .28f);
+            Frame(d, a, hover);
 
             // Up to three icons fanned to the left; the first is drawn last, on top.
             int shown = Math.Min(3, nodes.Length);
@@ -157,6 +149,20 @@ internal static class ConstellationToastPainter
                 ConstellationDrawing.Ink * a, serif: true, spacing: .5f);
         }
         finally { d.Origin = old; }
+    }
+
+    /// <summary>提示卡片底板：阴影、圆角底、点线内框与四角星；升级提示共用。</summary>
+    internal static void Frame(ConstellationDrawing d, float a, bool hover)
+    {
+        d.Shadow(0, 6, Width, Height, 4, Color.Black * (.5f * a), 12);
+        d.RoundRect(0, 0, Width, Height, 3, (hover ? new Color(40, 33, 52) : new Color(26, 22, 36)) * (.97f * a),
+            ConstellationDrawing.Lavender * ((hover ? .55f : .3f) * a), 1);
+        float l = 5.5f, r = Width - 5.5f, t = 5.5f, b = Height - 5.5f;
+        Color dots = ConstellationDrawing.DotColor * (.8f * a);
+        d.Dots(l + 8, t, r - 8, t, dots); d.Dots(l + 8, b, r - 8, b, dots);
+        d.Dots(l, t + 8, l, b - 8, dots); d.Dots(r, t + 8, r, b - 8, dots);
+        foreach (var corner in new[] { new Vector2(l, t), new Vector2(r, t), new Vector2(r, b), new Vector2(l, b) })
+            d.CrossStar(corner, new Vector2(6 * .976f, 6), ConstellationDrawing.Lavender * (.8f * a), .28f);
     }
 
     private static string StatusLine(ConstellationState state, ConstellationNode node) => state.Status(node) switch

@@ -304,7 +304,7 @@ internal static class PanelChecks
         Check(owned.All(s => s.Level == 0 && s.SkillSlot == -1 && !s.ModSkill.IsEnabled && s.ModSkill.LockCalls == 1),
             "reset invokes lock hooks and clears old instance progression");
         Check(skill.CurrentCD == 0 && skill.Stack == skill.MaxStack, "reset clears old cooldown and stack state");
-        Check(player.SkillPoint == 125 && state.Find(nameof(MagicMissileSkill)).x == 543, "reset preserves points and map layout");
+        Check(player.SkillPoint == 0 && state.Points == 0 && state.Find(nameof(MagicMissileSkill)).x == 543, "reset clears points and preserves map layout");
         Check(ReferenceEquals(state.Find(nameof(MagicMissileSkill)).Skill, Skill.RegisterSkill[nameof(MagicMissileSkill)]),
             "unlearned nodes return to templates instead of stale owned objects");
         Check(state.Status(state.Find(nameof(MagicBarrierSkill))) == "hidden", "reset restores hidden template state");

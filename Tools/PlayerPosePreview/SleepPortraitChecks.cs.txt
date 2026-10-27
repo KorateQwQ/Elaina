@@ -44,13 +44,14 @@ sealed partial class PosePreview
         List<DrawData> FixedPortrait()
         {
             List<DrawData> result = null;
-            On_LegacyPlayerRenderer.orig_DrawPlayerHead render = (_, _, p, _, _, _, _) =>
+            On_LegacyPlayerRenderer.orig_DrawPlayerInternal render = (_, _, p, _, _, _, _, _, _, headOnly) =>
             {
+                Check(headOnly, "Sleeping portrait keeps the head-only rendering flag");
                 Check(p.bodyFrame.X == 0 && p.bodyFrame.Y == 0, "Sleeping portrait selects the normal head frame");
                 result = DrawHeadTree(false);
             };
-            typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
-                new object[] { render, null, null, player, player.position, 1f, 1f, Color.Transparent });
+            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayerInternal", Hidden)!.Invoke(null,
+                new object[] { render, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, true });
             return result;
         }
 
@@ -101,19 +102,23 @@ sealed partial class PosePreview
                 using var file = File.Create(Path.Combine(output, $"sleep-portrait-{scale:0.00}.png"));
                 target.SaveAsPng(file, target.Width, target.Height);
             }
-            On_LegacyPlayerRenderer.orig_DrawPlayerHead fail = (_, _, _, _, _, _, _) => throw new InvalidOperationException("sleep fixture");
+            On_LegacyPlayerRenderer.orig_DrawPlayerInternal worldRender = (_, _, p, _, _, _, _, _, _, headOnly) =>
+                Check(!headOnly && p.bodyFrame == sleepingFrame, "Shared world renderer preserves the sleeping equipment frame");
+            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayerInternal", Hidden)!.Invoke(null,
+                new object[] { worldRender, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, false });
+            On_LegacyPlayerRenderer.orig_DrawPlayerInternal fail = (_, _, _, _, _, _, _, _, _, _) => throw new InvalidOperationException("sleep fixture");
             try
             {
-                typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
-                    new object[] { fail, null, null, player, player.position, 1f, 1f, Color.Transparent });
+                typeof(ElainaAppearanceSystem).GetMethod("DrawPlayerInternal", Hidden)!.Invoke(null,
+                    new object[] { fail, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, true });
             }
             catch (System.Reflection.TargetInvocationException e) when (e.InnerException is InvalidOperationException) { }
             Check(player.bodyFrame == sleepingFrame, "Failed portrait restores the sleeping frame");
             owner.Elaina = false;
-            On_LegacyPlayerRenderer.orig_DrawPlayerHead other = (_, _, p, _, _, _, _) =>
+            On_LegacyPlayerRenderer.orig_DrawPlayerInternal other = (_, _, p, _, _, _, _, _, _, _) =>
                 Check(p.bodyFrame == sleepingFrame, "Non-Elaina portraits retain their frame");
-            typeof(ElainaAppearanceSystem).GetMethod("DrawHead", Hidden)!.Invoke(null,
-                new object[] { other, null, null, player, player.position, 1f, 1f, Color.Transparent });
+            typeof(ElainaAppearanceSystem).GetMethod("DrawPlayerInternal", Hidden)!.Invoke(null,
+                new object[] { other, null, null, player, player.position, 0f, Vector2.Zero, 0f, 1f, 1f, true });
             Check(!sleepLayer.GetDefaultVisibility(Prepare()), "Other characters never use Elaina's sleep sprite");
             owner.Elaina = true;
             player.sleeping.isSleeping = false;

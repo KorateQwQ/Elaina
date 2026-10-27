@@ -11,9 +11,9 @@ public static class ExperienceRules
     public const int FirstBossRewardDivisor = 4;
     public const int RepeatBossLifePerExperience = 200;
     public const int RepeatBossBarDivisor = 20;
-    public const int StudyPointsPerLevel = 10;
+    public const int StudyPointsPerLevel = 20;
     public const int StudyPointBonusInterval = 5;
-    public const int StudyPointBonus = 10;
+    public const int StudyPointBonus = 20;
     public const int FloatTicks = 30;
     public const int Lifetime = 900;
     public const float PickupRadius = 18f;
@@ -34,6 +34,14 @@ public static class ExperienceRules
         int from = Math.Max(1, previousLevel), to = Math.Max(from, reachedLevel);
         return (long)(to - from) * StudyPointsPerLevel
             + (long)(to / StudyPointBonusInterval - from / StudyPointBonusInterval) * StudyPointBonus;
+    }
+
+    /// <summary>旧版每级 10、每五级额外 10；仅补发新旧差额，包含调试提前结算的等级。</summary>
+    public static long LegacyStudyPointIncrease(int rewardedLevel)
+    {
+        int level = Math.Max(1, rewardedLevel);
+        long previousReward = (level - 1L) * 10 + (long)(level / 5) * 10;
+        return StudyPointsForLevels(1, level) - previousReward;
     }
 
     // 补偿而非主要升级来源：KL 血条总生命的 0.5%，至多当前等级一条经验的 5%。

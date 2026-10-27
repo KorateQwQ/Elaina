@@ -23,6 +23,7 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/PotionIntegrationChecks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/FoodIntegrationChecks.cs.txt"
 $check.SetAttribute('Link', 'FoodIntegrationChecks.cs')
+$null = Add-CheckItem 'Compile' "$PSScriptRoot/IngredientShopChecks.cs.txt"
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/AlchemySkillIntegrationChecks.cs.txt"
 $check.SetAttribute('Link', 'AlchemySkillIntegrationChecks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/ImproveGameIntegrationChecks.cs.txt"

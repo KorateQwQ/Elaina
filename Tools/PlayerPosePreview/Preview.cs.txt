@@ -49,7 +49,7 @@ sealed partial class PosePreview : Game
     {
         Terraria.Program.SavePath = Path.GetTempPath();
         var mod = new FixtureMod();
-        foreach (var mp in new ModPlayer[] { new global::伊蕾娜.ElainaModplayer(), new AlchemyBrewingPlayer() })
+        foreach (var mp in new ModPlayer[] { new global::伊蕾娜.ElainaModplayer(), new AlchemyBrewingPlayer(), new ImproveGameFixture.TranslucentInvisPotion() })
         { ((ILoadable)mp).Load(mod); ContentInstance.Register(mp); }
         typeof(PlayerLoader).GetMethod("ResizeArrays", Hidden)!.Invoke(null, null);
         player = new Player { active = true, whoAmI = 0, direction = 1, gravDir = 1, legs = 1, wearsRobe = true };
@@ -125,6 +125,7 @@ sealed partial class PosePreview : Game
         }
         Console.WriteLine("Native sole alignment and special-pose guards passed. " + output);
         CheckAppearance(batch);
+        CheckImproveGame(batch);
         Exit();
     }
 }

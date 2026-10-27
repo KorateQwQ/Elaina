@@ -119,7 +119,8 @@ internal static class Checks
                 continue;
             }
             Assert(item.Item.maxStack == Item.CommonMaxStack &&
-                item.Item.value == 0 && !item.Item.consumable && item.Item.useStyle == ItemUseStyleID.None,
+                (item.EntryId is "flour" or "sugar" or "egg" or "beef" or "potato" || item.Item.value == 0) &&
+                !item.Item.consumable && item.Item.useStyle == ItemUseStyleID.None,
                 item.Name + " presentation defaults do not consume items");
             Assert(item.GetType().BaseType == typeof(AlchemyItem), item.Name + " is a non-potion creation");
         }

@@ -7,6 +7,7 @@ using SilkyUIFramework.Attributes;
 using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria.ModLoader;
+using 伊蕾娜.Config;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -15,14 +16,22 @@ public class ElainaSkillBar : BasicSkillBar
 {
     internal const string ArtPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/BattleBar/";
     private Asset<Texture2D> _rack;
-    public override bool IsInteractable => Main.LocalPlayer.itemAnimation <= 0
-        && !ConstellationSkillPanel.ConstellationSkillPanel.BookMoving;
+    private bool _moving;
+
+    public override bool Enabled
+    {
+        get => base.Enabled && !Main.gameMenu && Main.LocalPlayer.active
+            && Main.LocalPlayer.GetModPlayer<ElainaModplayer>().Elaina;
+        set => base.Enabled = value;
+    }
+
+    // 技能栏完全不接收鼠标：战斗中点到它既不会被拦截，也不会误拖；位置只由快捷键调整。
+    public override bool IsInteractable => false;
     public override int MaxSkillSlot { get; set; } = 8;
 
     protected override void OnInitialize()
     {
-        SetLeft(alignment: 0.95f);
-        SetTop(alignment: 0.95f);
+        ApplyLayout();
         SetSize(SkillBarDrawing.Width, SkillBarDrawing.Height);
         FlexDirection = FlexDirection.Row;
         FitWidth = FitHeight = false;
@@ -63,11 +72,33 @@ public class ElainaSkillBar : BasicSkillBar
 
     protected override SkillSlot CreateSkillSlot(SkillIcon icon = null) => new ElainaSkillSlot(icon);
 
+    /// <summary>按住“调整技能栏位置”快捷键时，技能栏以鼠标为中心跟随；松开后保存为全局位置。</summary>
+    private void UpdateMoveKey()
+    {
+        bool held = KeyBind.MoveSkillBar?.Current == true && Main.hasFocus
+            && !Main.drawingPlayerChat && !Main.editSign && !Main.editChest && !Main.blockInput;
+        if (held)
+        {
+            var screen = GraphicsDeviceHelper.GetBackBufferSizeByUIScale();
+            var size = new Vector2(SkillBarDrawing.Width, SkillBarDrawing.Height);
+            SkillBarLayout.MoveTo(Main.MouseScreen - size / 2, new Vector2(screen.Width, screen.Height), size);
+        }
+        else if (_moving) SkillBarLayout.Save();
+        _moving = held;
+    }
+
     protected override void Update(GameTime gameTime)
     {
-        SetLeft(pixels: 0, alignment: 0.95f);
-        SetTop(pixels: 0, alignment: 0.95f);
+        UpdateMoveKey();
+        ApplyLayout();
         base.Update(gameTime);
+    }
+
+    private void ApplyLayout()
+    {
+        var anchor = SkillBarLayout.Anchor;
+        SetLeft(pixels: 0, alignment: anchor.X);
+        SetTop(pixels: 0, alignment: anchor.Y);
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)

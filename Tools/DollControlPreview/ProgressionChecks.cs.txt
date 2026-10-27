@@ -10,7 +10,7 @@ static partial class Checks
 {
     static void RunProgressionChecks()
     {
-        int[] counts = [1, 1, 2, 2, 3, 3, 4, 4], bonuses = [0, 10, 10, 20, 20, 30, 30, 50];
+        int[] counts = [4, 4, 4, 4, 4, 4, 4, 4], bonuses = [0, 25, 50, 75, 100, 125, 150, 200];
         var config = ElainaSkill.Configuration;
         var entry = config.Skills[nameof(DollControlSkill)];
         Check(config.GetSkillLevelNodes(entry).SequenceEqual(new[] { 6, 10, 15, 20, 25, 30, 35, 40 }),
@@ -27,8 +27,7 @@ static partial class Checks
             if (level < 8)
             {
                 var preview = skill.GetConstellationUpgradePreview(level + 1);
-                Check(preview[0].Current == counts[level - 1].ToString() && preview[0].Next == counts[level].ToString()
-                    && preview[1].Current == bonuses[level - 1].ToString() && preview[1].Next == bonuses[level].ToString(), $"Lv{level} upgrade comparison");
+                Check(preview.Length == 1 && preview[0].Current == bonuses[level - 1].ToString() && preview[0].Next == bonuses[level].ToString(), $"Lv{level} upgrade comparison");
             }
             owner.CharacterLevel = new[] { 6, 10, 15, 20, 25, 30, 35, 40 }[level - 1];
             Check(skill.MaxLevel == level, $"Lv{level} respects production growth nodes through the base skill host");
@@ -71,10 +70,14 @@ static partial class Checks
                 Check(actions == commands.PlacedBlocks + commands.GardenActions + commands.PreviewChestOpened,
                     $"Lv{level} remote use action {kind} never executes work");
             }
-            // A low-level summon needs only its actual number of free slots.
+            // Even Lv1 requires space for the full team; failure cannot consume mana or partially summon.
             Reset(level);
-            for (int i = 0; i < World.maxProjectiles; i++) { World.projectile[i].active = i >= counts[level - 1]; World.projectile[i].ModProjectile = null; }
+            for (int i = 0; i < World.maxProjectiles; i++) { World.projectile[i].active = i >= counts[level - 1] - 1; World.projectile[i].ModProjectile = null; }
             World.player[0].GetModPlayer<ElainaAttributeModPlayer>().MagicPoint = 100;
+            Check(!skill.PreUseSkill() && Team().Length == 0
+                && World.player[0].GetModPlayer<ElainaAttributeModPlayer>().MagicPoint == 100,
+                $"Lv{level} three free slots cannot pay for or partially summon the team");
+            World.projectile[counts[level - 1] - 1].active = false;
             Check(skill.PreUseSkill() && Team().Length == counts[level - 1], $"Lv{level} exact free-slot summon succeeds");
             DollPetProjectile.DismissAll(World.player[0]);
             int ticksToVanish = 0;
@@ -86,26 +89,29 @@ static partial class Checks
         Reset(1);
         var live = new DollControlSkill { Level = 1 }; live.Initialize(); live.UpdateEquips(World.player[0]);
         live.Level = 3; live.UpdateEquips(World.player[0]);
-        Check(Team().Length == 2 && Team().All(d => d.SkillLevel == 3), "Upgrade to Lv3 adds exactly one doll and accelerates both");
+        Check(Team().Length == 4 && Team().All(d => d.SkillLevel == 3), "Upgrade to Lv3 keeps all four dolls and accelerates their actions");
         live.Level = 8; live.UpdateEquips(World.player[0]);
         Check(Team().Length == 4 && Team().All(d => d.SkillLevel == 8)
             && World.player[0].GetModPlayer<ElainaAttributeModPlayer>().MagicPoint == 80,
             "Upgrade to Lv8 updates all four dolls without charging mana again");
         live.Level = 1; live.UpdateEquips(World.player[0]);
-        Check(Team().Count(d => !d.IsDismissing) == 1, "Downgrade dismisses only excess dolls");
+        Check(Team().Count(d => !d.IsDismissing) == 4 && Team().All(d => d.SkillLevel == 1), "Downgrade retains four dolls and restores base work speed");
 
         Reset(1); live = new DollControlSkill { Level = 1 }; live.Initialize(); live.UpdateEquips(World.player[0]);
+        World.projectile[1].ModProjectile = null; // Simulate a legacy incomplete team.
         foreach (var p in World.projectile) p.active = true;
         live.Level = 3; live.UpdateEquips(World.player[0]);
-        Check(Team().Length == 1 && Team()[0].SkillLevel == 3, "Pool-full upgrade preserves the existing worker and updates its speed");
+        Check(Team().Length == 3 && Team().All(d => d.SkillLevel == 3), "Pool-full upgrade preserves the existing worker and updates its speed");
         World.projectile[1].active = false; live.UpdateEquips(World.player[0]);
-        Check(Team().Length == 2, "Pending upgrade fills the new slot when the projectile pool has room");
+        Check(Team().Length == 4, "Pending upgrade fills the missing slot when the projectile pool has room");
         DollPetProjectile.DismissAll(World.player[0]); live.Level = 5; live.UpdateEquips(World.player[0]);
         Check(Team().All(d => d.IsDismissing), "An upgrade must not resummon a dismissed team");
         World.myPlayer = 1; live.Level = 8; live.UpdateEquips(World.player[0]); World.myPlayer = 0;
         Check(Team(1).Length == 0, "Another client must not create dolls for this owner");
-        Check(DollControlProgression.DollCount(99) == 4 && DollControlProgression.ActionSpeedBonusPercent(99) == 50,
+        Check(DollControlProgression.DollCount(99) == 4 && DollControlProgression.ActionSpeedBonusPercent(99) == 200,
             "Old overleveled saves cannot exceed the Lv8 effect");
+        Check(DollControlProgression.DollCount(0) == 4 && DollControlProgression.ActionSpeedBonusPercent(0) == 0,
+            "Invalid low levels use the full team and base action speed");
         Console.WriteLine("PASS: Lv1-8 count, work throughput, use actions, live upgrades, pool limits and synchronized level.");
     }
 }

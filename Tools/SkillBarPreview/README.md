@@ -18,6 +18,9 @@ also covers a sealed skill and its center display. Actual mouse routing and live
 sockets are not exercised by these visual fixtures.
 
 The live SUI bar uses `ElainaSkillBar.cs`, `ElainaSkillSlot.cs`, and `ElainaSkillIcon.cs`.
+The bar ignores the mouse entirely. Holding the `MoveSkillBar` keybind (default K) centers it
+on the cursor; the position is a mod-wide client preference (`SkillBarLayout.cs`, stored in
+`ModConfigs/伊蕾娜_SkillBarLayout.json`), not per player.
 `SkillBarDrawing.cs` is linked directly into the offline FNA host; it is not a copy.
 The reference is `ElainaModSkills/ElainaSkillUI/NewUIExample/elaina-battle-eight-skills.html`.
 

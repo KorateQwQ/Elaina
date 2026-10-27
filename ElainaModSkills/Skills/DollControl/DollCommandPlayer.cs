@@ -21,6 +21,9 @@ public sealed partial class DollCommandPlayer : ModPlayer
     /// <summary>离主人超过此距离的标记暂不处理，玩偶回到主人身边，主人走近后继续。</summary>
     public const float WorkRange = 2400f;
 
+    /// <summary>通过原版镐力判定后，每次敲击获得三倍挖掘进度，不提高工具镐力。</summary>
+    private const int MiningDamageMultiplier = 3;
+
     public readonly HashSet<Point> TileMarks = [];
     public readonly HashSet<Point> WallMarks = [];
     /// <summary>本次编辑的草稿，只有点击开始后才合并到任务队列。</summary>
@@ -478,6 +481,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
         int damage = DollTileBreaker.PickaxeDamage(Player, x, y, pickaxe.pick, index, tile);
         if (!WorldGen.CanKillTile(x, y)) damage = 0;
         if (Main.getGoodWorld) damage *= 2;
+        // 仅放大判定后的有效进度：镐力不足或禁止拆除时仍为 0，不能越级挖掘。
+        damage *= MiningDamageMultiplier;
         // 草、苔藓等先被敲成土或石头，下一次再挖掉。
         if (DollTileBreaker.TransformsOnKill(Player, hitTile, damage, x, y, pickaxe.pick, index, tile)) damage = 0;
         if (hitTile.AddDamage(index, damage) >= 100)

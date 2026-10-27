@@ -10,6 +10,7 @@ namespace Terraria
     {
         public const int maxPlayers = 255, maxProjectiles = 1000;
         public static int netMode, myPlayer;
+        public static bool gameMenu;
         public static bool dedServ => netMode == 2;
         public static Player[] player = [];
         public static Projectile[] projectile = [];
@@ -213,6 +214,21 @@ namespace 伊蕾娜
 namespace 伊蕾娜.System
 {
     public class ElainaModplayer : ModPlayer { public bool Elaina; }
+}
+// Level-up feedback boundary: records what production ElainaStatePlayer asks the effect and toast to show.
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel
+{
+    public sealed class LevelUpToastQueue
+    {
+        public readonly List<(int From, int To, long Points)> Shown = [];
+        public void Show(int from, int to, long points) => Shown.Add((from, to, points));
+        public void Clear() => Shown.Clear();
+    }
+    public static class LevelUpToastUI { public static readonly LevelUpToastQueue Toasts = new(); }
+}
+namespace 伊蕾娜.System.Experience
+{
+    public static class LevelUpEffect { public static int Spawned; public static void Spawn(Terraria.Player player) => Spawned++; }
 }
 namespace 伊蕾娜.System.EssenceSystemFolder
 {

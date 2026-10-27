@@ -206,6 +206,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  </div>
 </header>
 <p id="fileStatus" class="filestatus" role="status">首次保存或读取时选择模组 ElainaModSkills/Data/SkillBalance.json 并授权；关联后直接使用。</p>
+<p class="filestatus"><span id="dpsSourceStatus" role="status">正在连接 KL DPS 曲线…</span> <button id="followDps" type="button" class="smallbtn">跟随阶段基准</button></p>
 <div id="status" role="status"></div>
 <nav class="tabs" role="tablist" aria-label="页面">
  <button type="button" role="tab" id="tabLab" data-tab="lab" aria-controls="labPage" aria-selected="true">平衡实验室</button>
@@ -338,7 +339,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <li>同文件：巫师徽章 +15% 魔法伤害；复仇者徽章 +12% 伤害；天界徽章 +15% 魔法伤害；星力手环、魔力再生手环、魔法手铐、天界手铐均 +20 最大魔力。</li>
 <li>星云依据：Player.cs 11442–11456（装备），8514、8541（生命和伤害强化），16394–16407（星云魔力计数器每 6/层数 帧回 1 蓝），16281、16302（每 120 生命回复计数回 1 HP）。Item.cs 29649–29674：防御 14+18+14=46。</li>
 <li>同文件 GrantPrefixBenefits：险恶 +4% 伤害；幸运 +4 暴击；奥秘 +20 魔力；护佑 +4 防御（只显示，不直接换算生存 DPS）。</li>
-<li>KL/Utils/KLDpsHelper.cs：阶段基准预设。伊蕾娜/ElainaAttribute/ElainaMagicAttributes.cs：原版魔力 1:1 转换、战斗回复 5 + 最大魔力 × 可调百分比/秒（只展示，不加到 DPS）。</li>
+<li>KL/Utils/KLDpsHelper.cs：本地服务直接读取 stateDps 数组，每 2 秒同步；直接打开 HTML 时使用离线快照。伊蕾娜/ElainaAttribute/ElainaMagicAttributes.cs：原版魔力 1:1 转换、战斗回复 5 + 最大魔力 × 可调百分比/秒（只展示，不加到 DPS）。</li>
 <li>星云套静态 +26% 伤害、+16 暴击、+60 魔力；满层伤害强化 +45%（与装备加算），原版回蓝 +30/秒，生命回复 +9/秒。默认不桥接特殊魔力；可显式启用预览适配。幽灵追击仍需手填。</li>
 </ul><p class="note" id="sourcePath"></p></div></details>
 
@@ -490,6 +491,21 @@ function validBasics(s){
  return ids.has(s.selectedBasicAttackId)&&Array.isArray(s.skills)&&s.skills.every(r=>r&&!ids.has(r.id));
 }
 const stageDps=[20,30,50,80,110,150,200,250,350,400,450,500,650,900,1100,1200,1300,1550,1800,3500];
+// Offline snapshot only. The local server replaces these nodes from KL source.
+const offlineStageDps=stageDps.slice();
+function setDpsCurve(values){
+ if(!Array.isArray(values)||values.length!==periods.length+1||values.some((v,i)=>!Number.isFinite(v)||v<1||v>1000000||(i>0&&v<=values[i-1])))throw new Error('KL DPS 曲线需要 20 个严格递增的正数节点。');
+ const changed=values.some((v,i)=>v!==stageDps[i]);
+ stageDps.splice(0,stageDps.length,...values);
+ for(const p of Object.values(presets))p.base=stageDps[p.stage];
+ return changed;
+}
+function normalizeBaseDps(s){
+ // Legacy files have no mode. Preserve custom trials, migrate old stage values.
+ if(s.baseDpsMode==null)s.baseDpsMode=s.baseDps===offlineStageDps[s.stage]||s.baseDps===stageDps[s.stage]?'stage':'manual';
+ return s;
+}
+function syncBaseDps(s){if(s.baseDpsMode==='stage')s.baseDps=stageDps[s.stage];}
 for(const p of Object.values(presets))p.base=stageDps[p.stage];
 // 阶段推荐配装与属性：默认由 presets 生成，在“配装与属性配置”页编辑，随 JSON 保存并供游戏内快捷换装读取。
 // 基础魔力按魔力水晶 20 一档；最大生命 400 以内按生命水晶 20 一档，之后按生命果 5 一档。克眼后 200 生命可触发来袭事件。
@@ -560,7 +576,7 @@ function validLoadouts(list){
 // 读取阶段配装：双方换护甲、饰品和槽位，伊蕾娜用 prefix、原版用 vPrefix，写入基础魔力、最大生命与该阶段 B。
 function applyLoadout(s,stage,unlock=true){
  const l=s.loadouts[stage-1];
- s.stage=stage;s.baseDps=stageDps[stage];s.baseMana=l.baseMana;s.maxLife=l.maxLife;s.slots=l.slots;
+ s.stage=stage;s.baseDpsMode='stage';s.baseDps=stageDps[stage];s.baseMana=l.baseMana;s.maxLife=l.maxLife;s.slots=l.slots;
  for(const side of ['v','e']){s[side].armor=l.armor;l.items.forEach((item,i)=>{s[side].items[i].id=sideItem(item.id,side);s[side].items[i].prefix=side==='e'?item.prefix:item.vPrefix;});}
  return unlock?applyStageUnlocks(s,stage):null;
 }
@@ -614,7 +630,7 @@ function defaults(stage=13){
  stage=Math.round(clamp(stage,1,periods.length));
  const loadouts=loadoutDefaults(),l=loadouts[stage-1];
  const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map(item=>({id:sideItem(item.id,side),prefix:side==='e'?item.prefix:item.vPrefix}))});
- return {version:2,loadoutRevision:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
+ return {version:2,loadoutRevision:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDpsMode:'stage',baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
  {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
  {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
  {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
@@ -666,7 +682,7 @@ function calculate(s){
 function skillDamageBudget(s,skill,result=calculate(s)){
  return s.baseDps*(s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
 }
-return {levelDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,migrateLoadouts,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
+return {levelDps,setDpsCurve,normalizeBaseDps,syncBaseDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,migrateLoadouts,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
 })();
 if(typeof module!=='undefined')module.exports=Balance;
 </script>
@@ -872,6 +888,7 @@ if(typeof module!=='undefined')module.exports=Combat;
 const $=id=>document.getElementById(id),fmt=(n,d=0)=>Number.isFinite(n)?n.toLocaleString('zh-CN',{maximumFractionDigits:d}):'无法达到';
 const escapeHtml=value=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const key='elaina-mage-balance-v2';let s=Balance.defaults(),editRevision=0;
+let curveConnected=false,curveError='',curveRequest=null;
 try{const saved=normalizeProgression(JSON.parse(localStorage.getItem(key)));if(validSaved(saved))s=saved;}catch(_){}
 
 function normalizeProgression(value){
@@ -882,6 +899,7 @@ function normalizeProgression(value){
  if(value.extraMana==null)value.extraMana=0;
  // 旧版：preset 键名 → stage；快速预算字段不再使用，keepKnown 会丢弃。
  if(value.stage==null)value.stage=Balance.presets[value.preset]?.stage??13;
+ Balance.normalizeBaseDps(value);
  if(value.loadouts==null)value.loadouts=Balance.loadoutDefaults();
  Balance.migrateLoadouts(value);
  if(value.ashenWitch==null)value.ashenWitch=true;
@@ -903,6 +921,7 @@ function normalizeProgression(value){
 }
 function validSaved(x){
  if(!x||x.version!==2||typeof x.nebulaManaBridge!=='boolean'||typeof x.ashenWitch!=='boolean')return false;
+ if(!['stage','manual'].includes(x.baseDpsMode))return false;
  for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])]){
   if(!Object.hasOwn(row,'flight'))continue;
   const f=row.flight;if(!f||typeof f!=='object'||Array.isArray(f))return false;
@@ -1186,6 +1205,7 @@ for(const el of document.querySelectorAll('[data-nebula-side]'))el.addEventListe
 for(const button of document.querySelectorAll('[data-nebula-full]'))button.addEventListener('click',()=>{s[button.dataset.nebulaFull].nebula={damage:3,mana:3,life:3};syncNebula();update();});
 // 实验室页全部控件按 s 重绘；配装页单独由 renderLoadouts 负责，避免编辑配装时打断输入焦点。
 function syncLab(persist=false){
+ Balance.syncBaseDps(s);
  syncNebula();
  for(const side of ['v','e'])$(side+'PrefixStatus').textContent='仅修改当前启用的非空饰品槽，不更换装备。';
  stageOptions();$('progressionPhaseSize').value=s.progression.phaseSize;$('progressionPreviewLevel').value=s.progression.previewLevel;
@@ -1197,6 +1217,7 @@ function sync(){loadoutStage=s.stage;syncLab();renderLoadouts();}
 function duplicates(side){const items=s[side].items.slice(0,s.slots).map(x=>x.id).filter(x=>!['utility','empty'].includes(x));return [...new Set(items.filter((v,i)=>items.indexOf(v)!==i))].map(id=>Balance.accessories[id].name.split(' · ')[0]);}
 function update(persist=true){
  if(persist)editRevision++;
+ showDpsSource();
  updateBasicResults();
  updateProgression();
  const r=Balance.calculate(s),l=s.loadouts[s.stage-1];
@@ -1225,6 +1246,7 @@ for(const id of direct)$(id).addEventListener($(id).tagName==='SELECT'?'change':
  const el=$(id);if(el.type==='number'&&el.value==='')return;
  if(id==='slots'){resizeSlots(+el.value);slots();update();return;}
  s[id]=el.type==='checkbox'?el.checked:el.type==='number'||el.type==='range'?Balance.clamp(el.value,el.min===''?-Infinity:+el.min,el.max===''?Infinity:+el.max):el.value;
+ if(id==='baseDps')s.baseDpsMode='manual';
  update();
 });
 for(const side of ['v','e']){
@@ -1407,6 +1429,7 @@ $('linkMod').addEventListener('click',async()=>{
 async function loadMod(initial=false){
  const revision=editRevision;
  try{
+  await refreshDpsCurve();
   const result=await modRequest();
   if(result.data.schema!=='elaina-mage-balance-v2')throw new Error('模组配置版本不兼容。');
   const value=normalizeProgression(result.data.configuration);
@@ -1429,7 +1452,31 @@ $('saveMod').addEventListener('click',async()=>{
  finally{button.disabled=false;}
 });
 document.addEventListener('keydown',event=>{if((modConnected||isFilePage)&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();if(!$('saveMod').disabled)$('saveMod').click();}});
-if(location.protocol==='http:')loadMod(true);
+function showDpsSource(){
+ const mode=s.baseDpsMode==='manual'?'当前 B 为手动试算值；点击“跟随阶段基准”恢复同步。':'当前 B 跟随所选阶段。';
+ $('dpsSourceStatus').textContent=location.protocol==='file:'?'离线快照，未同步 KL；请通过 Tools/MageBalance/run.ps1 打开自动同步页面。':curveError?'KL 同步失败，保留上次曲线：'+curveError:curveConnected?'已同步 KL 源码，每 2 秒检查变化。'+mode:'正在连接 KL DPS 曲线…';
+}
+function refreshDpsCurve(){
+ if(location.protocol!=='http:'||!['127.0.0.1','localhost'].includes(location.hostname))return Promise.resolve();
+ if(curveRequest)return curveRequest;
+ curveRequest=(async()=>{
+  try{
+   const response=await fetch('/api/dps-curve',{cache:'no-store',signal:AbortSignal.timeout(5000)}),result=await response.json();
+   if(!response.ok)throw new Error(result.error||'请重启本地页面服务。');
+   const changed=Balance.setDpsCurve(result.values),first=!curveConnected;
+   curveConnected=true;curveError='';
+   if(changed||first){Balance.syncBaseDps(s);$('baseDps').value=s.baseDps;update(false);save();}
+  }catch(error){curveError=error.message;}
+  finally{curveRequest=null;showDpsSource();}
+ })();
+ return curveRequest;
+}
+$('followDps').addEventListener('click',()=>{s.baseDpsMode='stage';Balance.syncBaseDps(s);$('baseDps').value=s.baseDps;update();});
+if(location.protocol==='http:'){
+ loadMod(true);
+ setInterval(()=>{if(!document.hidden)refreshDpsCurve();},2000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDpsCurve();});
+}
 $('sourcePath').textContent='装备核验文件：C:/Users/korateleng/Downloads/tML 2025.06源码与ExampleMod/tModLoader/Terraria/Player.cs（护甲约 10819–11456 行；饰品约 12205–12660 行；前缀 GrantPrefixBenefits）。';
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{drawTimeline();updateBasicResults();},100);});
 showTab(location.hash==='#progression'?'progression':location.hash==='#loadouts'?'loadouts':'lab',false);sync();

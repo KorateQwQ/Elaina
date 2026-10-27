@@ -77,6 +77,7 @@ static class Checks
         Console.WriteLine($"Potion integration: {passed} checks passed against the compiled mod (broom, moon dew and star power).");
         FoodIntegrationChecks.Run(player, other);
         AlchemySkillIntegrationChecks.Run(player, other, args[0]);
+        IngredientShopChecks.Run(new CheckMod());
         if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
             ImproveGameIntegrationChecks.Run(player, other, args[1]);
     }

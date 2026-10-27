@@ -37,6 +37,7 @@ public partial class HealSkill : ElainaSkill
 
     public override bool PreUseSkill(IEntitySource source = null)
     {
+        PrintText(66);
         if (pendingTargetIndex != InvalidTargetIndex)
         {
             int targetIndex = pendingTargetIndex;

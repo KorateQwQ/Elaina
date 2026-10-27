@@ -28,8 +28,8 @@ Buffs: {
 	}
 
 	扫帚buff: {
-		DisplayName: 扫帚
-		Description: 骑在扫帚上飞行
+		DisplayName: 扫帚之旅
+		Description: 乘着扫帚，向下一个国度出发
 	}
 
 	潋滟buff: {
@@ -70,7 +70,7 @@ Items: {
 			'''
 			魔法伤害提高10%
 			魔法暴击率提高5%
-			伊蕾娜的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限增加20（不提高原版最大魔力）
+			伊蕾娜的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限增加20
 			'''
 	}
 
@@ -111,8 +111,13 @@ Items: {
 	}
 
 	扫帚坐骑: {
-		DisplayName: 扫帚
-		Tooltip: 普通的扫帚，仅供伊蕾娜使用
+		DisplayName: 旅行魔女的扫帚
+		Tooltip:
+			'''
+			召唤一把可以骑乘的扫帚
+			习得[c/8FD3FF:飞行魔法]后，可用扫帚加速键长按加速、短按冲刺
+			“骑着扫帚划过天空的魔女是谁呢？没错，就是我。”
+			'''
 	}
 
 	寒霜药水: {
@@ -288,6 +293,7 @@ Projectiles: {
 	// RevealingDustArea.DisplayName: Revealing Dust Area
 	// PurificationDewDrop.DisplayName: Purification Dew Drop
 	// BroomDashWind.DisplayName: Broom Dash Wind
+	// LevelUpEffect.DisplayName: Level Up Effect
 }
 
 Configs: {
@@ -380,6 +386,7 @@ Keybinds: {
 	BroomAcceleration.DisplayName: 扫帚加速
 	OpenLoadoutPanel.DisplayName: 打开快捷配装
 	OpenSkillWheel.DisplayName: 打开技能轮盘（按住）
+	MoveSkillBar.DisplayName: 调整技能栏位置（按住，技能栏跟随鼠标，所有角色共用）
 }
 
 Conditions: {
@@ -398,6 +405,7 @@ Wand: {
 	Damage: 总魔法伤害加成 {0}%
 }
 
+Broom.CantUse: 一把普通的扫帚
 // IsElaina: Mods.伊蕾娜.IsElaina
 DamageClasses.ElainaBasicDamage.DisplayName: "[c/ff16e5:伊蕾娜的基础攻击力] "
 
