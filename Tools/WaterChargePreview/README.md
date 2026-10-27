@@ -113,7 +113,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/WaterChargePreview/com
 
 预览帧条重点覆盖 0.2～0.87 秒，并保留 3 秒完整动画。
 额外像素检查覆盖四个种子：0.2 秒有水流，0.8/0.84/1/1.6/3/10 秒无水流残留。
-这些检查针对蓄力视觉，不改变实际从水域吸水的 WaterTrail 判定、伤害和发射逻辑。
+这些检查针对自身凝聚的蓄力视觉。场地取水、WaterTrail 汇流及额外充能测试逻辑已移除；水球成长不依赖场地水源或天气。
 
 ## 球面缠绕与融入
 

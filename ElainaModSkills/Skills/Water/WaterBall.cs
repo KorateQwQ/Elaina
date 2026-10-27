@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using KL;
 using KL.ActionsSystem;
 using KL.Drawing;
@@ -73,10 +72,8 @@ public class WaterBall : ElainaBasicProjectile
     private float drawHeight = 1;
 
     private Vector2[] windPoints;
-    //以魔力吸收的水，用于计算水球大小
+    //伊蕾娜以自身魔力凝聚的水，用于计算水球大小
     private int selfChargeWater = 0;
-    //从水域或者雨水中获取的水，用于计算水球大小
-    public float extraChargeWater = 0;
 
     private bool born = false;
     private int TotalWaterBallCount = 0;
@@ -186,10 +183,9 @@ public class WaterBall : ElainaBasicProjectile
     //测试多个水球的位置同步，
     //水球大小同步，
     //发射时机同步
-    //吸收水的判定同步
 
     //蓄力至少一秒后射出水球，水球在移动一定距离后会造成锥形范围伤害，否则造成圆形范围伤害
-    //水球自我成长有上限，通过吸收水可以额外成长至原大小以及伤害1.5倍
+    //水球仅靠自身凝聚成长，不受场地水源或天气影响
     public override void AI()
     {
         if(needShoot)OnShoot();
@@ -209,11 +205,6 @@ public class WaterBall : ElainaBasicProjectile
                     HeldInfo.IsControlling = false;
                     HeldInfo.IsHeld = false;
                     Projectile.netUpdate = true;
-                }
-                            
-                if (time % 5 == 0)
-                {
-                    GenerateWaterTrail();
                 }
             }
         }
@@ -268,7 +259,7 @@ public class WaterBall : ElainaBasicProjectile
         }
         
         time++;
-        WaterBallRadius = 50 + selfChargeWater + extraChargeWater;
+        WaterBallRadius = 50 + selfChargeWater;
         
         base.AI();
     }
@@ -322,25 +313,6 @@ public class WaterBall : ElainaBasicProjectile
 
     }
 
-
-    //指定位置生成水流，水流终点会根据水球的半径变化。
-    void GenerateWaterTrail()
-    {
-        Vector2 waterPosition = default;
-        if (GetWaterFromSurface(Main.MouseWorld, 15, ref waterPosition))
-        {
-            Projectile projectile = Projectile.NewProjectileDirect(Projectile.GetSource_FromThis(), waterPosition+new Vector2(0,10f), 
-                new Vector2(1), ModContent.ProjectileType<WaterTrail>(), 0, 0,0,Projectile.whoAmI);
-            if (projectile.ModProjectile is WaterTrail waterTrail)
-            {
-                Vector2 move = projectile.Center - Projectile.Center;
-                move.Normalize();
-                move = move.RotatedBy(Main.rand.NextFloat(-3.14f/4f,3.14f/4f));
-            
-                waterTrail.TargetCenter = Projectile.Center+move*WaterBallRadius*0.3f;
-            }
-        }
-    }
 
     public override bool PreDraw(ref Color lightColor)
     {
@@ -496,52 +468,6 @@ public class WaterBall : ElainaBasicProjectile
         overPlayers.Add(index);
 
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
-    }
-
-    /// <summary>
-    /// 从指定位置，判定边长为length的正方形，从中找到最上层的可用液体
-    /// </summary>
-    /// <param name="position"></param>
-    /// <param name="length"></param>
-    bool GetWaterFromSurface(Vector2 position, int length,ref Vector2 result)
-    {
-        int x = (int)(position.X / 16f);
-        int y = (int)(position.Y / 16f);
-        
-        // 使用字典存储每个x坐标对应的最上层液体瓦片
-        Dictionary<int, Vector2> results = new Dictionary<int, Vector2>();
-        
-        for (int j = y - length/2; j < y + length/2; j++)
-        {
-            for (int i = x - length/2; i < x + length/2; i++)
-            {
-                if (i > 0 && i < (int)(Main.rightWorld / 16f) && j > 0 && j < (int)(Main.bottomWorld / 16f))
-                {
-                    if (IsNormalWater(Main.tile[i, j]))
-                    {
-                        // 如果该x坐标还没有记录，或者当前瓦片比已记录的更靠上（y值更小）
-                        if (!results.ContainsKey(i))
-                        {
-                            results[i] = new Vector2(i, j) * 16;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (results.Count > 0)
-        {
-            result = results.ElementAt(Main.rand.Next(results.Count)).Value;
-            return true;
-        }
-        return false;
-
-    }
-
-    //判定是否为正常的水而非岩浆或蜂蜜
-    bool IsNormalWater(Tile t)
-    {
-        return t is { LiquidType: 0, LiquidAmount: > 0 };
     }
 
     public override void OnKill(int timeLeft)

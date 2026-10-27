@@ -139,7 +139,7 @@ public class MagicBarrierSkill : ElainaSkill
             double consumed = ConsumeAbsorption(requested);
             int remainingDamage = BarrierDamageMath.GetRemainingDamage(info.Damage, consumed);
             int absorbed = info.Damage - remainingDamage;
-            ReportReduction(info.Damage, consumed, absorbed);
+            ShowAbsorbedDamage(absorbed);
             if (remainingDamage == 0)
             {
                 // HurtInfo.Damage cannot be zero. Cancel sub-one damage after rounding
@@ -194,24 +194,6 @@ public class MagicBarrierSkill : ElainaSkill
         {
             // 受击方结算最终伤害与魔力消耗，远端只应用受伤包和生命同步。
             return Main.netMode != NetmodeID.Server && Player.whoAmI == Main.myPlayer;
-        }
-
-        private void ReportReduction(int incomingDamage, double paidDamage,
-            int absorbedDamage, bool dot = false)
-        {
-            if (Main.netMode == NetmodeID.Server || Player.whoAmI != Main.myPlayer || absorbedDamage <= 0)
-            {
-                return;
-            }
-
-            double roundingBonus = Math.Max(0d, absorbedDamage - paidDamage);
-            string extraInfo = roundingBonus > 0.00001d
-                ? $"，其中向下取整额外减伤：{roundingBonus:0.######}"
-                : "";
-            string source = dot ? "持续伤害" : "直接受击";
-            PrintText($"[魔力护盾/{source}] 本次实际减伤：{absorbedDamage}，"
-                + $"伤害 {incomingDamage} → {incomingDamage - absorbedDamage}{extraInfo}");
-            ShowAbsorbedDamage(absorbedDamage, dot);
         }
 
         private void ShowAbsorbedDamage(int amount, bool dot = false)

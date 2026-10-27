@@ -1,0 +1,100 @@
+using System.Diagnostics;
+using System.Reflection;
+using SilkyUIFramework;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
+
+internal static class DollTimingChecks
+{
+    private static readonly GameTime ZeroTime = new(TimeSpan.Zero, TimeSpan.Zero);
+    private static int checks;
+    private static void Require(bool condition, string reason)
+    {
+        checks++;
+        if (!condition) throw new InvalidOperationException(reason);
+    }
+    private static T Read<T>(DollCommandWheel wheel, string name) =>
+        (T)typeof(DollCommandWheel).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(wheel)!;
+
+    public static void Run()
+    {
+        var wheel = new DollCommandWheel();
+        SilkyUIRenderSystem.Instance.Body = wheel;
+        Main.hasFocus = true;
+        Main.mouseLeft = true;
+        Main.mouseRight = false;
+        Main.MouseScreen = new(500, 400);
+        DollCommand? chosen = null;
+        int confirmations = 0;
+        void Confirm(DollCommand command) { chosen = command; confirmations++; }
+        Require(DollCommandWheel.TryOpen(() => true, null, Confirm), "doll wheel opens");
+        wheel.Step(ZeroTime);
+        float before = Read<float>(wheel, "_time");
+        Thread.Sleep(55);
+        wheel.Step(ZeroTime);
+        Require(Read<float>(wheel, "_time") - before >= .04f, "zero game delta cannot stall doll opening");
+
+        before = Read<float>(wheel, "_time");
+        var wall = Stopwatch.StartNew();
+        Thread.Sleep(300);
+        wheel.Step(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks(10)));
+        float elapsed = Read<float>(wheel, "_time") - before;
+        Require(elapsed >= .28f && elapsed <= wall.Elapsed.TotalSeconds + .02,
+            "doll animation consumes full slow frame despite tiny cached delta");
+        float seconds = Read<float>(wheel, "_time");
+        Require(Read<float>(wheel, "_presence") == 1 && OpeningOpacity(seconds, DollCommands.Count - 1) == 1
+            && Math.Abs(OpeningExtent(seconds, DollCommands.Count - 1) - 1) < .00001f,
+            "all doll icons and panel finish opening");
+
+        before = seconds;
+        wall.Restart();
+        for (int i = 0; i < 100; i++) wheel.Step(new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(20)));
+        Require(Read<float>(wheel, "_time") - before <= wall.Elapsed.TotalSeconds + .02,
+            "repeated draws do not multiply stale game time");
+
+        Main.MouseScreen = new(500, 550);
+        Thread.Sleep(80);
+        Main.mouseLeft = false;
+        wheel.Step(ZeroTime);
+        Require(chosen == DollCommand.Cancel && confirmations == 1 && !DollCommandWheel.OwnsPointer,
+            "release over bottom sector confirms cancel exactly once");
+        Require(Read<float>(wheel, "_closeTime") < .02f, "release starts fade without inheriting opening interval");
+        Thread.Sleep(370);
+        wheel.Step(ZeroTime);
+        Require(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
+            "fade finishes and hidden clock stops");
+
+        Thread.Sleep(100);
+        Main.mouseLeft = true;
+        wall.Restart();
+        DollCommandWheel.TryOpen(() => true, null, Confirm);
+        wheel.Step(ZeroTime);
+        Require(Read<float>(wheel, "_time") <= wall.Elapsed.TotalSeconds + .02, "reopen excludes hidden time");
+        Main.mouseRight = true;
+        wheel.Tick(ZeroTime);
+        Require(!DollCommandWheel.IsShowing && DollCommandWheel.OwnsPointer && confirmations == 1,
+            "right cancel retains pointer until release without confirming");
+        Thread.Sleep(180);
+        wheel.Step(ZeroTime);
+        Main.mouseLeft = Main.mouseRight = false;
+        wheel.Tick(ZeroTime);
+        Require(!wheel.Enabled && !DollCommandWheel.OwnsPointer, "cancel fades and releases pointer");
+
+        Main.mouseLeft = true;
+        DollCommandWheel.TryOpen(() => true, null, Confirm);
+        wheel.Step(ZeroTime);
+        Main.hasFocus = false;
+        wheel.Tick(ZeroTime);
+        Require(!DollCommandWheel.OwnsPointer, "focus loss cancels without trapping pointer");
+        wheel.ExitTree();
+        Require(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
+            "tree exit clears animation clock");
+
+        Main.hasFocus = true;
+        DollCommandWheel.TryOpen(() => true, null, Confirm);
+        DollCommandWheel.ResetWorld();
+        Require(!wheel.Enabled && !DollCommandWheel.OwnsPointer, "world reset clears newly opened wheel");
+        Console.WriteLine($"PASS: {checks} production doll-wheel timing/input checks (isolated game/SUI boundary).");
+    }
+}

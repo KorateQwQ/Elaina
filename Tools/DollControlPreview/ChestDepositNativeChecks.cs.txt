@@ -1,0 +1,239 @@
+﻿using System.Reflection;
+using Terraria.DataStructures;
+using Terraria.ID;
+using Terraria.ModLoader.IO;
+using Terraria.UI;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class PlanterNativeChecks
+{
+    /// <summary>
+    /// 远程箱子的送货放入：真实 ItemSlot / ChestUI 入口经正式 DollChestTransferSystem 钩子转交送货玩偶，
+    /// 玩偶以正式 AI 飞到箱旁播完 Use 动作后才放入。夹具沿用 CheckChests 的箱子、四只玩偶与消息截获。
+    /// </summary>
+    private static void CheckChestDeposits(Player player, Point p, int index, KumaPetProjectile[] team,
+        Action open, Action tick, Action close, List<int> messages)
+    {
+        int before = passed;
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        var work = typeof(DollPetProjectile).GetField("workTile", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Chest chest = Host.chest[index];
+        Item[] savedChest = chest.item.Select(i => i.Clone()).ToArray();
+        Vector2 chestCenter = p.ToWorldCoordinates(16, 16);
+        var hints = new List<string>();
+        int Hint(On_CombatText.orig_NewText_Rectangle_Color_string_bool_bool orig, Rectangle location, Color color, string text,
+            bool dramatic, bool dot) { hints.Add(text); return 0; }
+        On_CombatText.NewText_Rectangle_Color_string_bool_bool += Hint;
+        var transfer = new DollChestTransferSystem(); transfer.Load();
+        var tickField = typeof(Host).GetField("_gameUpdateCount", BindingFlags.Static | BindingFlags.NonPublic)!;
+        uint oldTick = Host.GameUpdateCount; tickField.SetValue(null, oldTick + 1000);
+
+        void Reset()
+        {
+            for (int i = 0; i < chest.item.Length; i++) chest.item[i] = new Item();
+            for (int i = 0; i < 58; i++) player.inventory[i] = new Item();
+            for (int i = 0; i < Host.maxItems; i++) Host.item[i].active = false;
+            foreach (var worker in team)
+            {
+                worker.Projectile.active = true; worker.Projectile.ai[1] = 0;
+                work.SetValue(worker, new Point(-1, -1)); worker.Projectile.Center = player.Center;
+            }
+            Host.mouseItem = new Item(); Host.mouseLeft = Host.mouseLeftRelease = false; Host.cursorOverride = -1;
+            Host.netMode = NetmodeID.SinglePlayer; hints.Clear();
+        }
+        void Open()
+        {
+            open();
+            Host.playerInventory = true;
+        }
+        KumaPetProjectile Helper() => team.First(commands.IsRemoteChestHelper);
+        KumaPetProjectile Courier() => team.FirstOrDefault(d => commands.TrySelectChestDeposit(d, out _));
+        void LeftClickChest(int slot)
+        {
+            Host.mouseLeft = Host.mouseLeftRelease = true; player.itemAnimation = 0;
+            ItemSlot.LeftClick(chest.item, ItemSlot.Context.ChestItem, slot);
+            Host.mouseLeft = false;
+        }
+        int WorldStack(int type, int prefix = -1) => Host.item.Where(i => i.active && i.type == type && (prefix < 0 || i.prefix == prefix)).Sum(i => i.stack);
+        // 推进到送货玩偶清空送货单为止，记录它在放入那一刻的状态。
+        (bool Used, float Distance, float Side) Deliver(KumaPetProjectile courier)
+        {
+            bool used = false; float distance = float.MaxValue, side = 0;
+            for (int i = 0; i < 400 && commands.TrySelectChestDeposit(courier, out _); i++)
+            {
+                used |= courier.IsUsing;
+                distance = Vector2.Distance(courier.Projectile.Center, chestCenter);
+                side = Math.Sign(courier.Projectile.Center.X - chestCenter.X);
+                tick();
+            }
+            return (used, distance, side);
+        }
+
+        try
+        {
+            // 只有开箱玩偶：放入被拦下，物品留在鼠标上，箱子不变，并给出提示。
+            Reset(); Open();
+            Check(commands.RemoteChestTransferActive, "Remote chest opened by a doll enables doll transfers");
+            var helper = Helper();
+            foreach (var worker in team) if (worker != helper) worker.Projectile.active = false;
+            Host.mouseItem = new Item(ItemID.Wood, 20); LeftClickChest(3);
+            Check(Host.mouseItem.type == ItemID.Wood && Host.mouseItem.stack == 20 && chest.item.All(i => i.IsAir),
+                "With only the opening doll, a deposit is refused and the item stays on the cursor");
+            Check(hints.Count == 1, "Refused deposit shows one hint");
+            LeftClickChest(3); Check(hints.Count == 1, "Repeated refused clicks do not spam the hint");
+            Check(!ChestUI.TryPlacingInChest(Host.mouseItem, true, ItemSlot.Context.InventoryItem),
+                "Shift hover does not offer a deposit without a courier");
+            foreach (var worker in team) if (worker != helper) { worker.Projectile.active = true; work.SetValue(worker, new Point(45, 55)); }
+            LeftClickChest(3);
+            Check(Host.mouseItem.stack == 20 && Courier() == null, "Dolls busy with non-garden work are not taken as couriers");
+            foreach (var worker in team) work.SetValue(worker, new Point(-1, -1));
+
+            // 鼠标物品点箱子格：交到送货玩偶手上，箱子此刻不变；飞到另一侧播完 Use 后放进点击的格子。
+            chest.item[0] = new Item(ItemID.Wood, 10);
+            LeftClickChest(7);
+            var courier = Courier();
+            Check(Host.mouseItem.IsAir && courier != null && courier != helper && commands.CarryType(courier) == ItemID.Wood,
+                "Clicking a chest slot hands the cursor item to another doll");
+            Check(chest.item[0].stack == 10 && chest.item[7].IsAir, "The chest is unchanged when the item is handed over");
+            Check(commands.CarryType(helper) == 0 && !commands.TrySelectChestDeposit(helper, out _), "The opening doll keeps the chest open and carries nothing");
+            for (int i = 0; i < 3; i++) tick();
+            Check(chest.item[7].IsAir, "The courier is still flying, nothing has been placed");
+            using (var stream = new MemoryStream())
+            {
+                courier.SendExtraAI(new BinaryWriter(stream)); stream.Position = 0;
+                var projectile = new Projectile { owner = 0, active = true, whoAmI = 8 };
+                var remote = (KumaPetProjectile)new KumaPetProjectile().NewInstance(projectile);
+                typeof(Projectile).GetProperty("ModProjectile")!.SetValue(projectile, remote);
+                remote.SetDefaults(); projectile.Center = courier.Projectile.Center;
+                remote.ReceiveExtraAI(new BinaryReader(stream));
+                Host.myPlayer = 1; bool remoteUsed = false;
+                for (int i = 0; i < 180; i++) { remote.AI(); projectile.Center += projectile.velocity; remoteUsed |= remote.IsUsing; }
+                Host.myPlayer = 0;
+                Check(remoteUsed && chest.item[7].IsAir && commands.TrySelectChestDeposit(courier, out _),
+                    "Remote copy of the courier only animates and never places");
+            }
+            var (used, distance, side) = Deliver(courier);
+            Check(used && distance <= 80 && chest.item[7].type == ItemID.Wood && chest.item[7].stack == 20 && chest.item[0].stack == 10,
+                "Courier places only after its Use animation beside the chest, into the clicked slot");
+            Check(side != 0 && side != Math.Sign(helper.Projectile.Center.X - chestCenter.X), "Courier waits on the opposite side from the opening doll");
+            Check(commands.CarryType(courier) == 0 && !commands.IsCarryingCargo(courier), "Courier carries nothing after a complete deposit");
+
+            // Shift 点击：悬停判断与实际放入，前缀保持；同类先堆叠。
+            player.inventory[20] = new Item(ItemID.Muramasa) { prefix = PrefixID.Legendary };
+            player.inventory[21] = new Item(ItemID.Wood, 5);
+            Check(ChestUI.TryPlacingInChest(player.inventory[20], true, ItemSlot.Context.InventoryItem) && !player.inventory[20].IsAir,
+                "Shift hover offers a deposit without moving the item");
+            Check(ChestUI.TryPlacingInChest(player.inventory[20], false, ItemSlot.Context.InventoryItem) && player.inventory[20].IsAir,
+                "Shift click hands the inventory item to the courier");
+            ChestUI.TryPlacingInChest(player.inventory[21], false, ItemSlot.Context.InventoryItem);
+            Check(team.Count(d => commands.TrySelectChestDeposit(d, out _)) == 1, "Later deposits join the courier already on its way");
+            courier = Courier();
+            Check(chest.item.Count(i => !i.IsAir) == 2, "Nothing reaches the chest before the courier arrives");
+            Deliver(courier);
+            Check(chest.item[1].type == ItemID.Muramasa && chest.item[1].prefix == PrefixID.Legendary,
+                "Deposited item keeps its prefix and lands in the first empty slot");
+            Check(chest.item[0].stack == 15 && chest.item[7].stack == 20, "Stackable deposits fill the first matching stack first");
+
+            // 存入全部：只放背包第 10–49 格未收藏的物品。
+            player.inventory[0] = new Item(ItemID.Torch, 10);
+            player.inventory[12] = new Item(ItemID.Gel, 30) { favorited = true };
+            player.inventory[30] = new Item(ItemID.StoneBlock, 40);
+            player.inventory[54] = new Item(ItemID.WoodenArrow, 50);
+            ChestUI.DepositAll(ContainerTransferContext.FromUnknown(player));
+            Check(player.inventory[30].IsAir && player.inventory[0].stack == 10 && player.inventory[12].stack == 30 && player.inventory[54].stack == 50,
+                "Deposit all takes inventory rows only, skipping hotbar, favorites and ammo slots");
+            Check(!chest.item.Any(i => i.type == ItemID.StoneBlock), "Deposit all waits for the courier");
+            courier = Courier(); Deliver(courier);
+            Check(chest.item.Any(i => i.type == ItemID.StoneBlock && i.stack == 40), "Courier places the deposit-all items");
+
+            // 快速堆叠：只放箱子已有的种类，不放钱币与快捷栏。
+            chest.item[10] = new Item(ItemID.CopperCoin, 5);
+            player.inventory[1] = new Item(ItemID.Wood, 4);
+            player.inventory[15] = new Item(ItemID.Wood, 6);
+            player.inventory[16] = new Item(ItemID.DirtBlock, 9);
+            player.inventory[17] = new Item(ItemID.CopperCoin, 10);
+            ChestUI.QuickStack(ContainerTransferContext.FromUnknown(player));
+            Check(player.inventory[15].IsAir && player.inventory[1].stack == 4 && player.inventory[16].stack == 9 && player.inventory[17].stack == 10,
+                "Quick stack sends only kinds already in the chest, never coins or hotbar items");
+            courier = Courier(); Deliver(courier);
+            Check(chest.item[0].stack == 21 && chest.item[10].stack == 5, "Courier stacks the quick-stacked wood into the chest");
+
+            // 快速补货属于取出：开箱玩偶带回，背包同类补满为止，不派送货玩偶。
+            player.inventory[1].TurnToAir(); player.inventory[2] = new Item(ItemID.Wood, 9990);
+            ChestUI.Restock();
+            Check(chest.item[0].stack == 12 && chest.item[7].stack == 20 && commands.CarryType(helper) == ItemID.Wood && Courier() == null,
+                "Restock is carried by the opening doll and only fills the inventory stack");
+            player.inventory[2].TurnToAir();
+
+            // 箱子满：只带走放得下的部分，剩下的留在鼠标上。
+            for (int i = 0; i < chest.item.Length; i++) chest.item[i] = new Item(ItemID.DirtBlock, 9999);
+            chest.item[5] = new Item(ItemID.Wood, 9990);
+            Host.mouseItem = new Item(ItemID.Wood, 30); LeftClickChest(20);
+            courier = Courier();
+            Check(Host.mouseItem.stack == 21 && courier != null, "A nearly full chest takes only what fits");
+            Host.mouseItem = new Item(ItemID.Wood, 30) ; LeftClickChest(20);
+            Check(Host.mouseItem.stack == 30, "In-flight deposits count against the remaining room");
+            Host.netMode = NetmodeID.MultiplayerClient; messages.Clear();
+            Deliver(courier);
+            Check(chest.item[5].stack == 9999 && messages.Contains(MessageID.SyncChestItem),
+                "Multiplayer deposit syncs the changed chest slot with the vanilla message");
+            Host.netMode = NetmodeID.SinglePlayer;
+            close();
+            for (int i = 0; i < 400 && commands.IsCarryingCargo(helper); i++) tick();
+
+            // 途中关箱：送货单转为携带物，玩偶带回主人身边交还。
+            Reset(); Open(); helper = Helper();
+            Host.mouseItem = new Item(ItemID.Wood, 7); LeftClickChest(0);
+            courier = Courier();
+            for (int i = 0; i < 60 && Vector2.Distance(courier.Projectile.Center, player.Center) < 240; i++) tick();
+            close();
+            Check(chest.item[0].IsAir && courier != null && commands.IsCarryingCargo(courier) && !commands.TrySelectChestDeposit(courier, out _),
+                "Closing the chest mid-flight turns the deposit into carried cargo");
+            for (int i = 0; i < 400 && WorldStack(ItemID.Wood) == 0; i++) tick();
+            Check(WorldStack(ItemID.Wood) == 7 && chest.item[0].IsAir, "Carried deposit is returned to the owner instead of the chest");
+
+            // 送货玩偶失效：送货单转为无人携带的货，由其他玩偶交还。
+            Reset(); Open(); helper = Helper();
+            Host.mouseItem = new Item(ItemID.Gel, 12); LeftClickChest(0);
+            courier = Courier(); courier.Projectile.active = false; commands.PostUpdate();
+            Check(chest.item[0].IsAir && commands.CarryType(courier) == ItemID.Gel && !commands.TrySelectChestDeposit(courier, out _),
+                "Losing the courier converts its deposit to cargo");
+            for (int i = 0; i < 400 && WorldStack(ItemID.Gel) == 0; i++) tick();
+            Check(WorldStack(ItemID.Gel) == 12, "Another doll returns a lost courier's deposit");
+            courier.Projectile.active = true; close();
+
+            // 收回送货玩偶：物品立即在主人身边交还。
+            Reset(); Open();
+            Host.mouseItem = new Item(ItemID.StoneBlock, 3); LeftClickChest(0);
+            courier = Courier(); courier.Dismiss();
+            Check(WorldStack(ItemID.StoneBlock) == 3 && chest.item[0].IsAir && commands.CarryType(courier) == 0,
+                "Dismissing the courier returns its deposit at once");
+            courier.Projectile.ai[1] = 0; close();
+
+            // 存档往返：未送达的放入作为携带物保存，读档后不会重复也不会进箱。
+            Reset(); Open();
+            // 前缀已在上面的 Shift 放入中验证；离线宿主没有初始化前缀集合，ItemIO 读档时无法还原前缀，这里用无前缀物品。
+            Host.mouseItem = new Item(ItemID.LifeCrystal, 2); LeftClickChest(0);
+            courier = Courier();
+            var tag = new TagCompound(); commands.SaveData(tag);
+            Check(tag.GetList<TagCompound>("DollChestCargo").Count == 1, "Pending deposit is saved as carried cargo");
+            commands.LoadData(tag);
+            Check(!commands.TrySelectChestDeposit(courier, out _) && commands.CanDeliverCargo(team.First(d => !commands.IsRemoteChestHelper(d))),
+                "Loading drops the courier order and keeps one owner-held cargo entry");
+            close();
+            for (int i = 0; i < 400 && WorldStack(ItemID.LifeCrystal) == 0; i++) tick();
+            Check(WorldStack(ItemID.LifeCrystal) == 2 && chest.item[0].IsAir, "Saved deposit is returned exactly once, never into the chest");
+        }
+        finally
+        {
+            Host.myPlayer = 0; Host.netMode = NetmodeID.SinglePlayer; Host.mouseItem = new Item(); Host.mouseLeft = false;
+            transfer.Unload(); tickField.SetValue(null, oldTick); On_CombatText.NewText_Rectangle_Color_string_bool_bool -= Hint;
+            for (int i = 0; i < chest.item.Length; i++) chest.item[i] = savedChest[i];
+            for (int i = 0; i < 58; i++) player.inventory[i] = new Item();
+            for (int i = 0; i < Host.maxItems; i++) Host.item[i].active = false;
+            foreach (var worker in team) { worker.Projectile.active = true; worker.Projectile.ai[1] = 0; work.SetValue(worker, new Point(-1, -1)); }
+        }
+        Console.WriteLine($"PASS: {passed - before} native chest deposit checks; courier handoff, flight/Use timing, clicked slot, shift/deposit-all/quick-stack/restock, full chest, close/lost/dismiss/save, prefix, MP sync, remote animation.");
+    }
+}
