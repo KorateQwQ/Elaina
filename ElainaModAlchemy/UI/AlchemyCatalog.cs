@@ -227,7 +227,6 @@ public static class AlchemyCatalog
                 new("Catalog.Duration", "Catalog.4Min"),
                 new("Catalog.MaximumMana", "+40"),
                 new("Catalog.MaximumMagicDamageBonus", "+30%"),
-                new("Catalog.RequiredManaLifeDifference", "300"),
             },
         },
         new()
@@ -302,8 +301,7 @@ public static class AlchemyCatalog
             },
             Effects = new AlchemyCatalogEffect[]
             {
-                new("Catalog.AreaOfEffect", "Catalog.AllNearbyTiles"),
-                new("Catalog.Properties", "Catalog.FallsThroughBlocks"),
+                new("Catalog.Properties", "Catalog.PermanentlyResistsInfection"),
             },
         },
         new()

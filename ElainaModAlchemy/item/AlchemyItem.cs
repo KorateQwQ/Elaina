@@ -21,6 +21,13 @@ public abstract class AlchemyItem : ModItem
     public override string LocalizationCategory => "Alchemy.Items";
     public override string Texture => CatalogEntry?.PixelPath ?? base.Texture;
 
+    public override void SetStaticDefaults()
+    {
+        // 炼金配方不是原版 Recipe，原版不会自动标记；目录中的素材显示与原版一致的“材料”提示行。
+        if (CatalogEntry?.IsMaterial == true)
+            ItemID.Sets.IsAMaterial[Type] = true;
+    }
+
     public override void SetDefaults()
     {
         var entry = CatalogEntry;

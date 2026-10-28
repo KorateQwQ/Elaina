@@ -2,7 +2,6 @@
 	DisplayName: 灰赝尘
 	Tooltip:
 		'''
-		炼金造物
 		以微光嬗变之力补全不足的素材
 		每种所需材料至少持有1件即可使用
 		选中配方后左键按原版制作，右键使用灰赝尘制作
@@ -16,37 +15,37 @@ Painkiller: {
 
 PainkillerRecipe: {
 	DisplayName: 止痛药配方
-	Tooltip: 记载着持续恢复生命的炼制方法。
+	Tooltip: 记载着持续恢复生命的炼制方法
 }
 
 BloodthirstPotionRecipe: {
 	DisplayName: 嗜血药水配方
-	Tooltip: 记载着以血气激发近战潜能的炼制方法。
+	Tooltip: 记载着以血气激发近战潜能的炼制方法
 }
 
 StarPowerPotionRecipe: {
 	DisplayName: 星力药水配方
-	Tooltip: 记载着将星辰之力融入魔力的炼制方法。
+	Tooltip: 记载着将星辰之力融入魔力的炼制方法
 }
 
 ConcentrationPotionRecipe: {
 	DisplayName: 集中药水配方
-	Tooltip: 记载着凝聚心神、使瞄准更加致命的炼制方法。
+	Tooltip: 记载着凝聚心神、使瞄准更加致命的炼制方法
 }
 
 ResonancePotionRecipe: {
 	DisplayName: 共鸣药水配方
-	Tooltip: 记载着让鞭击与召唤物产生共鸣的炼制方法。
+	Tooltip: 记载着让鞭击与召唤物产生共鸣的炼制方法
 }
 
 PurificationDewRecipe: {
 	DisplayName: 净土露滴配方
-	Tooltip: 记载着净土露滴的炼制方法。
+	Tooltip: 记载着净土露滴的炼制方法
 }
 
 FeatherlightPotionRecipe: {
 	DisplayName: 轻羽药水配方
-	Tooltip: 记载着让步伐与飞行更加轻快的炼制方法。
+	Tooltip: 记载着让步伐与飞行更加轻快的炼制方法
 }
 
 BloodthirstPotion: {
@@ -65,7 +64,6 @@ StarPowerPotion: {
 		'''
 		最大魔力增加40
 		最大魔力或[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]越高于生命值，魔法伤害越高，最高提高30%
-		最大加成所需生命差值：300
 		'''
 }
 
@@ -82,10 +80,8 @@ ConcentrationPotion: {
 	DisplayName: 集中药水
 	Tooltip:
 		'''
-		魔药 · 战斗
-		你的远程攻击方向距离目标中心越近，造成的伤害就越高。
-		伤害增幅：+5% ~ +30%
-		最大判定角度：30 度
+		远程攻击方向越接近目标中心，伤害越高
+		在 30 度内，伤害从 5% 提高至 30%
 		'''
 }
 
@@ -93,31 +89,22 @@ ResonancePotion: {
 	DisplayName: 共鸣药水
 	Tooltip:
 		'''
-		魔药 · 战斗
-		鞭子命中敌人后赋予共鸣标记，你的召唤物攻击被共鸣的敌人时伤害增加。
-		标记时间：3 秒
-		召唤物伤害：+20%
+		鞭子命中敌人时施加 3 秒共鸣标记
+		你的召唤物对被标记的敌人伤害提高20%
 		'''
 }
 
 FeatherlightPotion: {
 	DisplayName: 轻羽药水
-	Tooltip:
-		'''
-		魔药 · 功能
-		使你变得身轻如燕，移动速度、飞行速度和扫帚速度增加。
-		速度增幅：+20%
-		'''
+	Tooltip: 移动、翅膀飞行和扫帚速度提高20%
 }
 
 PurificationDew: {
 	DisplayName: 净土露滴
 	Tooltip:
 		'''
-		在目标位置滴下一道彩虹露光，穿透物块并向下净化至世界底部
-		净化宽度为三格：目标列及左右各一列，不改变背景墙
-		经过的区域永久抵御腐化、猩红与神圣感染，阻止感染荆棘和藤蔓侵入
-		保护随世界保存，挖除后重新放置物块仍然有效
+		在目标位置滴下一道彩虹露光
+		经过的区域永久抵御感染
 		'''
 }
 
@@ -130,7 +117,6 @@ RevealingDust: {
 	DisplayName: 显迹尘
 	Tooltip:
 		'''
-		奇物 · 功能
 		洒下金尘，留下持续 5 分钟的显迹区域
 		高亮区域内的危险物块，并使敌人显形 5 分钟
 		'''
@@ -140,10 +126,8 @@ BottledRain: {
 	DisplayName: 瓶中雨
 	Tooltip:
 		'''
-		奇物 · 功能
-		投掷后释放一朵便携雨云，加速雨幕内植物生长，让成熟的{$ItemName.Waterleaf}开花。
-		雨幕宽约 20 格，受实心物块阻挡。
-		持续时间：60 秒
+		投掷后释放一朵持续 60 秒的便携雨云
+		加速雨幕内植物生长，让成熟的{$ItemName.Waterleaf}开花
 		'''
 }
 
@@ -177,71 +161,32 @@ CaramelBrulee: {
 
 MoonDew: {
 	DisplayName: 月露
-	Tooltip:
-		'''
-		{$Mods.伊蕾娜.UI.Catalog.INGREDIENTS}
-		{$Mods.伊蕾娜.UI.Catalog.ABaseMixtureMadeFromBottledWaterAndMoonglowReadyForAlchemy}
-		'''
+	Tooltip: 用{$ItemName.BottledWater}与{$ItemName.Moonglow}制成的药液基底，可用于各种药水
 }
 
 Flour: {
 	DisplayName: 面粉
-	Tooltip:
-		'''
-		新食材 · 商人售卖
-		细白的烘焙用面粉，适合揉成甜面团。
-		用于：蜂蜜面包
-		计划获取方式：向商人购买。
-		效果尚未实现
-		'''
+	Tooltip: 细白的烘焙用面粉，适合揉成甜面团
 }
 
 Sugar: {
 	DisplayName: 糖
-	Tooltip:
-		'''
-		新食材 · 商人售卖
-		给面团带来甜味，熬煮后也能形成焦糖外壳。
-		用于：蜂蜜面包、焦糖布蕾
-		计划获取方式：向商人购买。
-		效果尚未实现
-		'''
+	Tooltip: 给面团带来甜味，熬煮后也能形成焦糖外壳
 }
 
 Egg: {
 	DisplayName: 鸡蛋
-	Tooltip:
-		'''
-		新食材 · 商人售卖
-		料理与烘焙的基础食材。
-		用于：焦糖布蕾
-		计划获取方式：向商人购买。
-		效果尚未实现
-		'''
+	Tooltip: 料理与烘焙的基础食材
 }
 
 Beef: {
 	DisplayName: 牛肉
-	Tooltip:
-		'''
-		新食材 · 旅商固定售卖
-		适合长时间炖煮的牛肉。
-		用于：炖菜
-		计划获取方式：旅行商人到访时固定售卖。
-		效果尚未实现
-		'''
+	Tooltip: 适合长时间炖煮的牛肉
 }
 
 Potato: {
 	DisplayName: 土豆
-	Tooltip:
-		'''
-		新食材 · 旅商固定售卖
-		炖煮后软糯绵密，能吸足肉汤的味道。
-		用于：炖菜
-		计划获取方式：旅行商人到访时固定售卖。
-		效果尚未实现
-		'''
+	Tooltip: 炖煮后软糯绵密，能吸足肉汤的味道
 }
 
 BottledShimmer: {
