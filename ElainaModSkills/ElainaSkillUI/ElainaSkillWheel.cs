@@ -205,7 +205,13 @@ public sealed class ElainaSkillWheel : BaseBody
         // Start the closing interval at the displayed pose, just like reversing the skill book.
         _animationClock.Restart();
 
-        if (_chosen < 0 || _slots[_chosen] == ElainaSkillModPlayer.CurrentSkillIndex) return;
+        if (_chosen < 0) return;
+        if (_skills[_chosen].ModSkill is Skills.DollControl.DollControlSkill doll)
+        {
+            doll.OpenCommands();
+            return;
+        }
+        if (_slots[_chosen] == ElainaSkillModPlayer.CurrentSkillIndex) return;
         ElainaSkillModPlayer.CurrentSkillIndex = _slots[_chosen];
         ElainaSkillModPlayer.ElainaSkillBar?.UpdateSkillBar();
     }

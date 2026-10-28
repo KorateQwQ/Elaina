@@ -14,8 +14,10 @@ $markEnd = $source.IndexOf('    /// <summary>', $markStart)
 $deliverStart = $source.IndexOf('    public void DeliverLoot(')
 $deliverEnd = $source.IndexOf('    // 收集物存进角色存档', $deliverStart)
 if ($hitStart -lt 0 -or $hitEnd -lt 0 -or $saveStart -lt 0 -or $saveEnd -lt 0 -or $markStart -lt 0 -or $markEnd -lt 0) { throw 'Production mining methods not found.' }
+$damageMultiplier = [regex]::Match($source, '    private const int MiningDamageMultiplier = [^;]+;').Value
+if (!$damageMultiplier) { throw 'Production mining multiplier not found.' }
 $generated = "using System;`nusing Terraria.ID;`nusing Terraria.ModLoader.IO;`nusing Terraria.Audio;`nusing Terraria.DataStructures;`nnamespace 伊蕾娜.ElainaModSkills.Skills.DollControl;`npublic sealed partial class DollCommandPlayer {`n" +
-    $source.Substring($hitStart, $hitEnd - $hitStart) + $source.Substring($saveStart, $saveEnd - $saveStart) + $source.Substring($markStart, $markEnd - $markStart) + $source.Substring($deliverStart, $deliverEnd - $deliverStart) + "`n}"
+    $damageMultiplier + "`n" + $source.Substring($hitStart, $hitEnd - $hitStart) + $source.Substring($saveStart, $saveEnd - $saveStart) + $source.Substring($markStart, $markEnd - $markStart) + $source.Substring($deliverStart, $deliverEnd - $deliverStart) + "`n}"
 Set-Content -LiteralPath (Join-Path $output 'MiningPlayer.cs') -Value $generated -Encoding utf8
 $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
 foreach ($entry in @(
@@ -25,6 +27,7 @@ foreach ($entry in @(
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollMiningNetwork.cs"),
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollMiningCargo.cs"),
     @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollTileSelection.cs"),
+    @('Compile', "$repo/ElainaModSkills/Skills/DollControl/DollCommand.cs"),
     @('Compile', "$output/MiningPlayer.cs"),
     @('Compile', "$PSScriptRoot/MiningNetworkHost.cs.txt"),
     @('Compile', "$PSScriptRoot/MiningNetworkChecks.cs.txt"),

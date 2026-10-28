@@ -11,6 +11,7 @@ namespace Terraria
     public static class Main
     {
         public static bool dedServ, gameMenu, drawingPlayerChat, ingameOptionsWindow, inFancyUI, editSign, editChest;
+        public static bool mapFullscreen;
         public static bool hasFocus = true;
         public static bool mouseLeft, mouseRight, playerInventory, hideUI;
         public static Microsoft.Xna.Framework.Input.KeyboardState keyState, oldKeyState;
@@ -178,4 +179,13 @@ namespace 伊蕾娜.ElainaModSkills.UICore
 namespace 伊蕾娜.ElainaModSkills.Skills.Recall
 {
     public static class RecallPortalPlayer { public static object FindHovered(Player player) => null; }
+}
+
+namespace 伊蕾娜.ElainaModSkills.Skills.DollControl {
+    public sealed class DollControlSkill { public int Opens; public void OpenCommands() => Opens++; }
+}
+
+namespace 伊蕾娜.Localization
+{
+    internal static class UIText { internal static string LocalizeUI(string key, params object[] args) => key; }
 }

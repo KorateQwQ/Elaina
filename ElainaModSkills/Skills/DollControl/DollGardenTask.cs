@@ -17,11 +17,12 @@ public sealed partial class DollCommandPlayer
     private int gardenCursor, gardenRevision = -1;
     private ulong gardenTick = ulong.MaxValue;
 
-    /// <summary>
-    /// 照料种植盆不是任务，而是优先级最低的自发行为：只在没有挖掘或远程放置任务、也没有远程开箱时进行。
-    /// 一旦有指令交给玩偶，照料中的玩偶当场放下手头的照料。
-    /// </summary>
-    internal bool GardenIdle => !HasTask && remoteChestOrigin == null;
+    /// <summary>只计算工作范围内的任务；远处的标记保留，但不阻止交还物品和照料。</summary>
+    internal bool HasNearbyTask => TileMarks.Any(InRange) || WallMarks.Any(InRange)
+        || Placements.Any(p => InRange(p.Target));
+
+    /// <summary>附近没有人工任务或远程开箱时自动照料；走近待办任务后恢复人工任务优先级。</summary>
+    internal bool GardenIdle => !HasNearbyTask && remoteChestOrigin == null;
 
     /// <summary>清空扫描缓存（换世界、取消任务时）；只要条件满足，玩偶随后会重新开始照料。</summary>
     internal void ResetGarden()

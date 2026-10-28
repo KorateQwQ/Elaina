@@ -29,7 +29,7 @@
 
 ## 实体配方检查（2026-10-21）
 
-`pwsh -File Tools/AlchemyItemChecks/run.ps1 -PotionsOnly` 会运行 `RecipeScrollChecks.cs.txt`，通过真实 tML 类型验证六张配方的独立物品 ID、等级门槛（战斗药水 Lv.8、轻羽 Lv.2、止痛药 Lv.1）、对应关系、库存范围、单次消耗、重复研究保护、已掌握提示、存档兼容、商店昼夜条件及血月掉落限制。另用隔离的 Tilemap、真实 Chest 和固定种子调用轻羽的 `PostWorldGen`，检查投放率、箱型/深度限制、满箱/空箱保护和原有战利品保留，不读写世界存档。`-PotionsOnly` 只缩小既有像素尺寸检查的范围；这些配方行为检查仍全部执行。
+`pwsh -File Tools/AlchemyItemChecks/run.ps1 -PotionsOnly` 会运行 `RecipeScrollChecks.cs.txt`，通过真实 tML 类型验证七张配方的独立物品 ID、等级门槛（战斗药水 Lv.8、轻羽 Lv.4、止痛药 Lv.5）、对应关系、库存范围、单次消耗、重复研究保护、已掌握提示、存档兼容、商店昼夜条件及血月掉落限制。动态开箱、天然宝箱登记、概率保底与服务器初始内容发送顺序已迁入 `pwsh -File Tools/AlchemyChestChecks/run.ps1`，不再测试旧的世界生成时 10% 投放逻辑。`-PotionsOnly` 只缩小既有像素尺寸检查的范围；这些配方行为检查仍全部执行。
 
 ## 炼金术技能接入（2026-10-22）
 

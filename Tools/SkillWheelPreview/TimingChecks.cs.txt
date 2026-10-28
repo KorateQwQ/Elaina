@@ -99,6 +99,17 @@ internal static class TimingChecks
         Require(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
             "tree exit stops and clears animation");
 
+        Open(wheel);
+        var doll = new 伊蕾娜.ElainaModSkills.Skills.DollControl.DollControlSkill();
+        ElainaSkillModPlayer.GetActiveSkill[2].ModSkill = doll;
+        wheel.Step(ZeroTime);
+        Terraria.Main.MouseScreen = new(650, 400);
+        wheel.Step(ZeroTime);
+        ElainaSkillWheel.HandleInput(new() { Current = false });
+        Require(doll.Opens == 1 && ElainaSkillModPlayer.CurrentSkillIndex == 0,
+            "doll selection dispatches commands once and preserves attack spell");
+        wheel.ExitTree();
+
         Console.WriteLine($"PASS: {checks} production skill-wheel timing/input checks (isolated game/SUI boundary).");
         DollTimingChecks.Run();
     }

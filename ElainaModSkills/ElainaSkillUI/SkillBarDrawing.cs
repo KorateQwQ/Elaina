@@ -270,7 +270,7 @@ internal static class SkillBarDrawing
         OutlinedText(batch, font, text, center, new Color(248, 240, 255), 16f / 48f, new Vector2(.5f));
     }
 
-    private static void OutlinedText(SpriteBatch batch, DynamicSpriteFont font, string text,
+    internal static void OutlinedText(SpriteBatch batch, DynamicSpriteFont font, string text,
         Vector2 position, Color color, float scale, Vector2 anchor)
     {
         Vector2 origin = font.MeasureString(text) * anchor;

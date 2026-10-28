@@ -189,12 +189,35 @@ static partial class Checks
         doll.Projectile.Center = owner.Center + new Vector2(500, 0);
         commands.Loot = 1; commands.MiningCarrier = doll;
         commands.PreviewGardenTarget = new Point(40, 20);
+        commands.TileMarks.Add(new Point(300, 300));
         Tick(doll);
         Check(Target(doll).Point.X < 0 && commands.Delivered == 0,
             "Miner carrying confirmed loot returns instead of taking a garden job or delivering remotely");
         for (int i = 0; i < 300 && commands.Delivered == 0; i++) Tick(doll);
         Check(commands.Delivered == 1 && Vector2.Distance(commands.DeliveredAt, owner.Center) < 120f,
             "Actual carrier AI flies back before releasing confirmed cargo");
+        Check(commands.TileMarks.Contains(new Point(300, 300)), "Returning distant-task cargo preserves its queued work");
+        Tick(doll);
+        Check(Target(doll).Point == commands.PreviewGardenTarget, "After returning cargo the worker can tend a nearby planter");
+
+        Reset();
+        owner = World.player[0];
+        commands = owner.GetModPlayer<DollCommandPlayer>();
+        foreach (var p in World.projectile) p.active = false;
+        var commandSkill = new DollControlSkill(); commandSkill.Initialize();
+        伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.GetActiveSkill = [new() { ModSkill = commandSkill }];
+        mana = owner.GetModPlayer<ElainaAttributeModPlayer>(); mana.MagicPoint = 100;
+        commandSkill.OpenCommands();
+        Check(Team().Length == 4 && mana.MagicPoint == 80 && commands.CommandOpens == 1,
+            "Production command entry summons missing team, pays once, then opens commands");
+        mana.MagicPoint = 0;
+        commandSkill.OpenCommands();
+        Check(Team().Length == 4 && mana.MagicPoint == 0 && commands.CommandOpens == 2,
+            "Present dolls open commands without mana or duplicate summon");
+        foreach (var p in World.projectile) p.active = false;
+        commandSkill.OpenCommands();
+        Check(Team().Length == 0 && commands.CommandOpens == 2,
+            "Failed summon cannot open commands or spawn a partial team");
         RunProgressionChecks();
         Console.WriteLine($"PASS: {assertions} production skill/AI/target assignment assertions (world/resource host is stubbed).");
     }

@@ -79,6 +79,8 @@ public sealed partial class DollCommandPlayer
 
     private void AddCargo(Item item, DollPetProjectile carrier)
     {
+        if (Player.TryGetModPlayer<global::伊蕾娜.ElainaModAlchemy.Gameplay.AlchemyRecipeDiscoveryPlayer>(out var discovery))
+            discovery.Observe(item);
         foreach (var (held, heldCarrier) in chestCargo)
         {
             if (heldCarrier != carrier || held.type != item.type || held.stack >= held.maxStack) continue;

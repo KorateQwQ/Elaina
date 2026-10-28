@@ -8,6 +8,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
 {
     public sealed partial class DollCommandPlayer : ModPlayer
     {
+        public DollCommand MarkMode { get; private set; }
+
         public const float WorkRange = 2400f;
         private readonly Dictionary<int, int> loot = [];
         private readonly List<(int Type, int Stack)> captured = [];

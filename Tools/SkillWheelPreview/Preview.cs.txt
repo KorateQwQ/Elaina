@@ -84,17 +84,43 @@ internal sealed class PreviewGame : Game
         {
             int mineSlot = 0;
             while (DollCommands.AtSlot(mineSlot) != DollCommand.Mine) mineSlot++;
+            // 中心标签依赖本地化，预览按 UI.hjson 手写两种语言。
+            var zh = new Dictionary<DollCommand, string> {
+                [DollCommand.Mine] = "挖掘物块", [DollCommand.BreakWall] = "敲掉墙壁",
+                [DollCommand.Cancel] = "取消任务", [DollCommand.Dismiss] = "收回玩偶" };
+            var en = new Dictionary<DollCommand, string> {
+                [DollCommand.Mine] = "Mine Blocks", [DollCommand.BreakWall] = "Break Walls",
+                [DollCommand.Cancel] = "Cancel Tasks", [DollCommand.Dismiss] = "Dismiss Dolls" };
+            void Doll(View v, int hovered, Dictionary<DollCommand, string> labels, float close = -1, Vector2? pointer = null)
+            {
+                Fill(v, DollCommands.Count, 1, hovered, mineSlot, close: close);
+                v.ShowNumber = false;
+                v.CancelHub = true;
+                v.Focus = hovered;
+                if (pointer.HasValue) v.Pointer = v.Center + pointer.Value;
+                for (int i = 0; i < v.Count; i++)
+                {
+                    v.Items[i].Cooldown = v.Items[i].Remaining = 0;
+                    v.Items[i].Stack = v.Items[i].MaxStack = 1;
+                    v.Items[i].SealDeniedAge = 9;
+                    v.Items[i].Label = labels[DollCommands.AtSlot(i)];
+                }
+            }
             foreach (float scale in new[] { 1f, 1.5f })
-                Render("doll-idle-chest-reach", scale, v => {
-                    Fill(v, DollCommands.Count, 1, mineSlot, mineSlot);
-                    v.ShowNumber = false;
-                    for (int i = 0; i < v.Count; i++)
-                    {
-                        v.Items[i].Cooldown = v.Items[i].Remaining = 0;
-                        v.Items[i].Stack = v.Items[i].MaxStack = 1;
-                        v.Items[i].SealDeniedAge = 9;
-                    }
-                });
+            {
+                Render("doll-idle", scale, v => Doll(v, -1, zh, pointer: new Vector2(140, 90)));
+                Render("doll-hub-cancel", scale, v => Doll(v, -1, zh, pointer: new Vector2(9, 7)));
+                for (int slot = 0; slot < DollCommands.Count; slot++)
+                {
+                    int s = slot;
+                    Render($"doll-hover-{DollCommands.AtSlot(s)}-zh", scale, v => Doll(v, s, zh));
+                    Render($"doll-hover-{DollCommands.AtSlot(s)}-en", scale, v => Doll(v, s, en));
+                }
+            }
+            int cancelSlot = 0;
+            while (DollCommands.AtSlot(cancelSlot) != DollCommand.Cancel) cancelSlot++;
+            foreach (float t in new[] { .04f, .1f, .17f })
+                Render($"doll-chosen-close-{t:0.00}", 1, v => Doll(v, cancelSlot, zh, close: t));
             Exit();
             return;
         }

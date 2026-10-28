@@ -340,8 +340,8 @@ public abstract class DollPetProjectile : ModProjectile
             RecallToOwner(owner);
             return;
         }
-        // 任务全部结束、回到主人身边后，把挖到的物品从玩偶身上抛给主人。
-        if (isOwner && commands.HasLoot && !commands.HasTask &&
+        // 附近任务结束或远处任务暂停后，回到主人身边交还挖到的物品。
+        if (isOwner && commands.HasLoot && !commands.HasNearbyTask &&
             Vector2.DistanceSquared(Projectile.Center, owner.Center) < DeliverDistance * DeliverDistance)
             commands.DeliverLoot(Projectile.Center, Projectile.GetSource_FromThis(), this);
         // 从箱子取回的物品不必等其他任务结束，带货玩偶一回来就交还。
@@ -397,7 +397,7 @@ public abstract class DollPetProjectile : ModProjectile
             workTile = chestTarget;
             workWall = workPlace = false;
         }
-        else if (carryType > 0 || commands.HasMiningCargo(this) && !commands.HasTask)
+        else if (carryType > 0 || commands.HasMiningCargo(this) && !commands.HasNearbyTask)
         {
             // 带着箱子里的物品时先回主人身边交还，不接新的挖掘或放置任务。
             workTile = new Point(-1, -1);

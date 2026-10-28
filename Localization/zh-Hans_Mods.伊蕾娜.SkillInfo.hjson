@@ -48,15 +48,15 @@ SkillDesc: {
 	DollControlSkill:
 		'''
 		消耗20点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]召唤{0}只玩偶，收回前会一直跟随。
-		初始即可召唤整队。每次进修仅消耗{1}研习点，提升动作速度，最高额外+200%（3倍动作速度）。
-		玩偶在场时按住左键打开指令盘：
-		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Mine][c/FFD27A:挖掘物块]：挖掉选中的物块，带回掉落物。
-		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_BreakWall][c/FFD27A:敲掉墙壁]：敲掉选中的墙壁。
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_MineChain]按住 {2} 键框选区域，松开后玩偶会挖掘其中的物块或敲掉墙壁。离你太远的目标会等你靠近后再处理。
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_OpenChest]右键远处的宝箱，让玩偶替你开箱：取出的物品由开箱玩偶带回，放入的物品由另一只空闲玩偶送过去。
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_PlacePlanters]手持物块点击或拖过够不着的位置，玩偶会替你放下物块。玩偶在场时放下的种植盆，会由它们照料、种植和收获。
+		在技能轮盘中选择此技能打开指令盘，不会切换当前术式：
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Mine][c/FFD27A:挖掘物块]：框选改为挖掘物块，可开启连锁挖掘与带回物品。
+		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_BreakWall][c/FFD27A:敲掉墙壁]：框选改为敲掉墙壁，可开启连锁敲墙与带回物品。
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Cancel][c/FFD27A:取消任务]：清除所有任务。
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_Dismiss][c/FFD27A:收回玩偶]：收回整队玩偶。
-		玩偶在场时无需指令盘可执行的操作：
-		[klicon/16,0:伊蕾娜/Snippets/RightClickIcon]右键远处的宝箱，让玩偶替你开箱：取出的物品由开箱玩偶带回，放入的物品由另一只空闲玩偶送过去。
-		手持物块点击或拖过够不着的位置，玩偶会替你放下物块。玩偶在场时放下的种植盆，会由它们照料、种植和收获。
+		开启连锁后，点按即可选中相连的同类目标。
 		'''
 	RecallSkill:
 		'''

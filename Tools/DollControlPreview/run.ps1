@@ -19,8 +19,12 @@ $placeStart = $placing.IndexOf('    internal bool TrySelectPlacementTarget(')
 # Stop before CompletePlacement's doc comment; replaying vanilla placement needs the real engine (garden.ps1).
 $placeEnd = $placing.LastIndexOf('    ///', $placing.IndexOf('    internal void CompletePlacement(', $placeStart))
 if ($mineStart -lt 0 -or $mineEnd -lt 0 -or $placeStart -lt 0 -or $placeEnd -lt $placeStart) { throw 'Production selectors were not found.' }
-$selectors = "using System;`nusing System.Collections.Generic;`nnamespace " + [char]0x4F0A + [char]0x857E + [char]0x5A1C + ".ElainaModSkills.Skills.DollControl;`npublic sealed partial class DollCommandPlayer {`n" +
+$selectors = "using System;`nusing System.Linq;`nusing System.Collections.Generic;`nnamespace " + [char]0x4F0A + [char]0x857E + [char]0x5A1C + ".ElainaModSkills.Skills.DollControl;`npublic sealed partial class DollCommandPlayer {`n" +
     $mining.Substring($mineStart, $mineEnd - $mineStart) + $placing.Substring($placeStart, $placeEnd - $placeStart) + "`n}"
+$garden = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $production 'DollGardenTask.cs')
+$nearStart = $garden.IndexOf('    internal bool HasNearbyTask =>')
+$nearEnd = $garden.IndexOf(';', $nearStart) + 1
+$selectors += "`npublic sealed partial class DollCommandPlayer {`n" + $garden.Substring($nearStart, $nearEnd - $nearStart) + "`n}"
 $selectorPath = Join-Path $output 'TargetSelectors.cs'
 Set-Content -LiteralPath $selectorPath -Value $selectors -Encoding utf8
 $entries += ,@('Compile', $selectorPath)

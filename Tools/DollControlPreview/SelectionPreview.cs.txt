@@ -55,9 +55,7 @@ internal sealed class SelectionPreview : Game
             ("walls-150", "zh-Hans", 1.5f, 1280, 800, true, 268, false),
             ("english-150", "en-US", 1.5f, 1280, 800, true, 123456, true),
             ("compact-150", "zh-Hans", 1.5f, 800, 600, false, 53, false),
-            ("weak-pick", "zh-Hans", 1.5f, 1280, 800, false, 32, true),
-            ("locked-wall", "zh-Hans", 1.5f, 1280, 800, true, 32, true),
-            ("locked-wall-en", "en-US", 1.5f, 800, 600, true, 32, true)
+            ("compact-en", "en-US", 1.5f, 800, 600, true, 32, true)
         };
         var crops = new List<Texture2D>();
         foreach (var (name, language, scale, width, height, walls, count, hover) in cases)
@@ -72,14 +70,11 @@ internal sealed class SelectionPreview : Game
                 DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
             DollSelectionBarDrawing.Draw(batch, new(pixel, stars, serif, sans), walls ? wall : mine, layout,
                 hover ? new Vector2(layout.Start.Center.X, layout.Start.Center.Y) : new(-1), scale,
-                Text(walls ? "DollCommandBreakWall" : "DollCommandMine"), Text(walls ? "DollSelectionWalls" : "DollSelectionTiles"), count,
-                Text(walls ? "DollSelectionEmptyWalls" : "DollSelectionEmptyTiles"), Text(walls ? "DollMarkHintChain" : "DollMarkHintRect"),
-                Text(walls ? "DollSelectionStartWalls" : "DollSelectionStart"), Text("DollSelectionExit"),
-                bringBackLabel: Text("DollBringBackItems"), bringBackItems: name != "walls-150" && name != "compact-150",
-                chainLabel: Text(walls ? "DollChainWalls" : "DollChainMining"), chain: walls,
-                onLabel: Text("DollToggleOn"), offLabel: Text("DollToggleOff"),
-                warning: name == "weak-pick" ? Text("DollPickPowerInsufficient")
-                    : name.StartsWith("locked-wall") ? Text("DollWallRequiresGolem") : null);
+                Text(walls ? "DollCommandBreakWall" : "DollCommandMine"), Text("DollModeSettings"),
+                Text("DollMarkKeyHint").Replace("{0}", name == "english-150" ? "Mouse4 / RightControl" : "F"), Text("DollSettingsDone"),
+                Text("DollBringBackItems"), name != "walls-150" && name != "compact-150",
+                Text(walls ? "DollChainWalls" : "DollChainMining"), walls,
+                Text("DollToggleOn"), Text("DollToggleOff"));
             batch.End(); GraphicsDevice.SetRenderTarget(null);
             using (var stream = File.Create(Path.Combine(output, name + ".png"))) target.SaveAsPng(stream, width, height);
             var cropRect = new Rectangle((int)(layout.Panel.X * scale) - 6, (int)(layout.Panel.Y * scale) - 6,
@@ -96,7 +91,7 @@ internal sealed class SelectionPreview : Game
             using var stream = File.Create(Path.Combine(output, "selection-states.png")); sheet.SaveAsPng(stream, sheet.Width, sheet.Height);
         }
         foreach (var crop in crops) crop.Dispose();
-        Console.WriteLine("PASS: shared FNA renderer, real Noto Serif SC / HarmonyOS Sans SC fonts, NotebookStars and localized labels; ready/disabled/hover/walls/English/compact at 100% and 150% UI scale.");
+        Console.WriteLine("PASS: shared FNA renderer, real Noto Serif SC / HarmonyOS Sans SC fonts, NotebookStars and localized labels; settings/hover/walls/English/compact at 100% and 150% UI scale.");
         Console.WriteLine(Path.Combine(output, "selection-states.png"));
         Exit();
     }

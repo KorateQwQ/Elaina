@@ -7,7 +7,7 @@ using ReLogic.Graphics;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 选区操作条的共享布局与绘制，沿用炼金手记的视觉语言：细线框 + 四角折线、金色「炼制」式主按钮、淡描边次按钮。
+/// 工作模式设置条的共享布局与绘制：细线框、四角折线、金色完成按钮和选项开关。
 /// 输入和绘制均使用 UI 逻辑坐标；只依赖传入的贴图和字体，离线预览直接链接本文件。
 /// </summary>
 internal static class DollSelectionBarDrawing
@@ -20,7 +20,7 @@ internal static class DollSelectionBarDrawing
     // 游戏的 MagicPixel 是 1×1000 贴图，按比例缩放时必须只取一个像素。
     private static readonly Rectangle Unit = new(0, 0, 1, 1);
 
-    internal readonly record struct Layout(Rectangle Panel, Rectangle Start, Rectangle Exit,
+    internal readonly record struct Layout(Rectangle Panel, Rectangle Start,
         Rectangle BringBack = default, Rectangle Chain = default);
 
     /// <summary>Stars 为炼金手记的 NotebookStars 图集（预乘 alpha）。</summary>
@@ -32,23 +32,21 @@ internal static class DollSelectionBarDrawing
         int height = Height + 30;
         int x = (int)(viewport.X - width) / 2;
         int y = Math.Max(12, (int)viewport.Y - 50 - height);
-        int startWidth = width >= 400 ? 148 : 124, exitWidth = 64;
+        int startWidth = 112;
         var start = new Rectangle(x + width - 12 - startWidth, y + 11, startWidth, 28);
-        return new(new(x, y, width, height), start, new(start.X - 8 - exitWidth, y + 12, exitWidth, 26),
+        return new(new(x, y, width, height), start,
             new(x + 16 + (width - 32) / 2, y + 49, (width - 32) / 2, 24),
             new(x + 12, y + 49, (width - 32) / 2, 24));
     }
 
-    /// <param name="countFormat">含 {0} 的数量文案；数字单独以衬线大字绘制。</param>
-    /// <param name="uiScale">UI 缩放，用于挑选四芒星图集的预过滤层级。</param>
+    /// <summary>工作模式设置，选项立即保存；完成按钮仅关闭面板。</summary>
     internal static void Draw(SpriteBatch batch, Art art, Texture2D icon, Layout layout, Vector2 pointer, float uiScale,
-        string title, string countFormat, int count, string empty, string hint, string start, string exit,
-        bool canStart = true, string bringBackLabel = null, bool bringBackItems = true,
-        string chainLabel = null, bool chain = false, string onLabel = null, string offLabel = null, string warning = null)
+        string title, string subtitle, string hint, string done, string bringBackLabel, bool bringBackItems,
+        string chainLabel, bool chain, string onLabel, string offLabel)
     {
         Rectangle panel = layout.Panel;
         Texture2D pixel = art.Pixel;
-        bool enabled = count > 0 && canStart && warning == null;
+        bool enabled = true;
 
         // 底板：纵向渐变 + 1px 线框 + 四角折线。
         for (int i = 0; i < panel.Height; i++)
@@ -64,35 +62,11 @@ internal static class DollSelectionBarDrawing
         float iconScale = 22f / Math.Max(icon.Width, icon.Height);
         batch.Draw(icon, medal, null, Color.White, 0, new Vector2(icon.Width, icon.Height) / 2, iconScale, SpriteEffects.None, 0);
 
-        // 标题与数量：标签用无衬线 Muted 小字，数字用衬线 Ink。
-        float textX = panel.X + 54, textWidth = layout.Exit.X - 10 - textX;
+        float textX = panel.X + 54, textWidth = layout.Start.X - 10 - textX;
         Fitted(art.Serif, title, textX, rowCenter - 8, 15, textWidth, Ink, 0);
-        if (count > 0)
-        {
-            int split = countFormat.IndexOf("{0}", StringComparison.Ordinal);
-            string pre = split < 0 ? countFormat.Trim() : countFormat[..split].Trim();
-            string post = split < 0 ? "" : countFormat[(split + 3)..].Trim();
-            string number = count.ToString();
-            const float label = 10, digits = 14, gap = 3;
-            float preWidth = Measure(art.Sans, pre, label), numberWidth = Measure(art.Serif, number, digits);
-            float postWidth = Measure(art.Sans, post, label);
-            float total = preWidth + numberWidth + postWidth + (pre.Length > 0 ? gap : 0) + (post.Length > 0 ? gap : 0);
-            float fit = Math.Min(1, textWidth / Math.Max(1, total)), x = textX, y = rowCenter + 9;
-            Text(art.Sans, pre, x, y + .5f, label * fit, Muted, 0);
-            if (pre.Length > 0) x += (preWidth + gap) * fit;
-            Text(art.Serif, number, x, y, digits * fit, Ink, 0);
-            Text(art.Sans, post, x + (numberWidth + gap) * fit, y + .5f, label * fit, Muted, 0);
-        }
-        else Fitted(art.Sans, empty, textX, rowCenter + 9, 10, textWidth, Muted * .6f, 0);
+        Fitted(art.Sans, subtitle, textX, rowCenter + 9, 10, textWidth, Muted, 0);
 
-        // 次按钮「退出」：淡描边胶囊。
-        Rectangle exitRect = layout.Exit;
-        bool exitHover = Contains(exitRect);
-        RoundRect(exitRect, exitHover ? Ink * .05f : Color.Transparent, Ink * (exitHover ? .3f : .18f));
-        Fitted(art.Sans, exit, exitRect.Center.X, exitRect.Y + exitRect.Height / 2f, 11, exitRect.Width - 16,
-            exitHover ? Ink : Muted, .5f);
-
-        // 主按钮：与「炼制」相同的金色胶囊，两端四芒星；禁用时整体 40%。
+        // 完成按钮：金色胶囊，两端四芒星。
         Rectangle startRect = layout.Start;
         bool startHover = enabled && Contains(startRect);
         float alpha = enabled ? 1 : .4f;
@@ -100,15 +74,15 @@ internal static class DollSelectionBarDrawing
         float sparkY = startRect.Y + startRect.Height / 2f;
         Spark(new(startRect.X + 13.5f, sparkY), 9, Gold * (.55f * alpha));
         Spark(new(startRect.Right - 13.5f, sparkY), 9, Gold * (.55f * alpha));
-        Fitted(art.Serif, start, startRect.Center.X, sparkY, 13, startRect.Width - 52, Gold * alpha, .5f, 1);
+        Fitted(art.Serif, done, startRect.Center.X, sparkY, 13, startRect.Width - 52, Gold * alpha, .5f, 1);
 
         // 虚线分隔与一行操作说明。
         if (bringBackLabel != null && layout.BringBack.Width > 0) Toggle(layout.BringBack, bringBackLabel, bringBackItems);
         if (chainLabel != null && layout.Chain.Width > 0) Toggle(layout.Chain, chainLabel, chain);
         float ruleY = panel.Bottom - (Height - RowHeight);
         for (int x = panel.X + 12; x < panel.Right - 12; x += 4) Box(x, ruleY, Math.Min(2, panel.Right - 12 - x), 1, Ink * .14f);
-        Fitted(art.Sans, warning ?? hint, panel.Center.X, ruleY + (Height - RowHeight) / 2f + .5f,
-            10, panel.Width - 24, warning != null ? new Color(240, 165, 176) : Muted * .85f, .5f);
+        Fitted(art.Sans, hint, panel.Center.X, ruleY + (Height - RowHeight) / 2f + .5f,
+            10, panel.Width - 24, Muted * .85f, .5f);
 
         void Toggle(Rectangle rect, string label, bool active)
         {

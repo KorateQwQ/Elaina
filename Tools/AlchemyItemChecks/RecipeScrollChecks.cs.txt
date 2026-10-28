@@ -51,7 +51,7 @@ internal static class RecipeScrollChecks
         foreach (var scroll in scrolls)
         {
             string id = scroll.EntryId;
-            int requiredLevel = id switch { "painkiller" => 1, "featherlight" => 2, _ => 8 };
+            int requiredLevel = id switch { "painkiller" => 5, "featherlight" => 4, _ => 8 };
             var requirement = AlchemyProgressPlayer.RequirementFor(id);
             Check(requirement.RequiredLevel == requiredLevel && requirement.RequiresRecipe && requirement.RecipeItemType == scroll.Type &&
                 requirement.RecipeStack == 1 && requirement.ConsumeRecipe, id + " requires its own scroll and configured level");
@@ -128,106 +128,8 @@ internal static class RecipeScrollChecks
         Check(!rule.CanDrop(attempt), "Friendly entities cannot drop combat recipes");
         var friendlyLoot = new NPCLoot(NPCID.Bunny, new ItemDropDatabase()); sources.ModifyNPCLoot(enemy, friendlyLoot);
         Check(friendlyLoot.Get(false).Count == 0, "Friendly entities do not advertise combat recipe drops");
-        CheckChestLoot(scrolls[4].Type);
-        CheckJungleChestLoot(scrolls[5].Type, scrolls[4].Type);
+        // Dynamic natural-chest discovery is exercised by Tools/AlchemyChestChecks/run.ps1.
         AlchemyCatalog.ItemTypeResolver = oldResolver;
         Console.WriteLine($"Recipe scrolls: {passed} registration, research, persistence, shop and loot checks passed.");
-    }
-
-    private static void CheckChestLoot(int scrollType)
-    {
-        Main.maxTilesX = 256; Main.maxTilesY = 600; Main.worldSurface = 50;
-        Main.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
-            null, new object[] { (ushort)Main.maxTilesX, (ushort)Main.maxTilesY }, null)!;
-        Chest Treasure(int x, int y, int style = 1, ushort tileType = TileID.Containers)
-        {
-            var chest = new Chest { x = x, y = y };
-            for (int i = 0; i < chest.item.Length; i++) chest.item[i] = new Item();
-            chest.item[0] = new Item(ItemID.CloudinaBottle);
-            chest.item[1] = new Item(ItemID.Torch, 17);
-            Tile tile = Main.tile[x, y];
-            tile.HasTile = true; tile.TileType = tileType; tile.TileFrameX = (short)(style * 36);
-            return chest;
-        }
-        Check(!AlchemyRecipeChestLoot.IsUndergroundGoldChest(null), "Missing chest is ignored");
-        var surface = Treasure(5, 49);
-        var hell = Treasure(5, Main.UnderworldLayer);
-        var wood = Treasure(6, 60, 0);
-        var locked = Treasure(7, 60, 2);
-        var frozen = Treasure(8, 60, 11);
-        var trap = Treasure(9, 60, 52);
-        var fake = Treasure(10, 60, 1, TileID.Containers2);
-        var empty = Treasure(11, 60); empty.item[0].TurnToAir(); empty.item[1].TurnToAir();
-        var removed = Treasure(12, 60); Tile removedTile = Main.tile[12, 60]; removedTile.HasTile = false;
-        var full = Treasure(13, 60);
-        for (int i = 2; i < full.item.Length; i++) full.item[i] = new Item(ItemID.Torch, 99);
-        Chest[] excluded = [surface, hell, wood, locked, frozen, trap, fake, empty, removed];
-        Check(excluded.All(c => !AlchemyRecipeChestLoot.IsUndergroundGoldChest(c)),
-            "Surface, hell, non-gold, locked, biome, trap, empty and removed chests are excluded");
-        Check(AlchemyRecipeChestLoot.IsUndergroundGoldChest(Treasure(14, 50)), "Underground boundary includes ordinary gold chests");
-
-        // A fixed seed exercises both outcomes through the actual world-generation hook.
-        var ordinary = Enumerable.Range(0, 1000).Select(i => Treasure(20 + i % 100, 100 + i / 100)).ToArray();
-        Main.chest = ordinary.Concat(excluded).Append(full).Append(null).ToArray();
-        WorldGen.genRand.SetSeed(20261021);
-        new AlchemyRecipeChestLoot().PostWorldGen();
-        int found = ordinary.Count(c => c.item.Any(i => i.type == scrollType));
-        Check(found >= 70 && found <= 130, "Gold chest population has an approximately ten-percent scroll rate");
-        Check(ordinary.All(c => c.item[0].type == ItemID.CloudinaBottle && c.item[1].type == ItemID.Torch &&
-            c.item[1].stack == 17), "All existing treasure is preserved");
-        Check(ordinary.All(c => c.item.Count(i => i.type == scrollType) <= 1 &&
-            c.item.Where(i => i.type == scrollType).All(i => i.stack == 1)), "Successful gold chests receive exactly one scroll");
-        Check(excluded.Append(full).All(c => c.item.All(i => i.type != scrollType)), "Excluded and full chests receive no scroll");
-        Check(full.item.Skip(2).All(i => i.type == ItemID.Torch && i.stack == 99), "Full chest contents are never overwritten");
-        Console.WriteLine($"Featherlight chest sample: {found}/1000 ordinary underground Gold Chests received one scroll.");
-    }
-
-    private static void CheckJungleChestLoot(int scrollType, int featherlightType)
-    {
-        // Reuse only the isolated tilemap from CheckChestLoot; never touch a world save.
-        Chest Treasure(int x, int y, int style = 10, ushort tileType = TileID.Containers)
-        {
-            var chest = new Chest { x = x, y = y };
-            for (int i = 0; i < chest.item.Length; i++) chest.item[i] = new Item();
-            chest.item[0] = new Item(ItemID.FeralClaws);
-            chest.item[1] = new Item(ItemID.Torch, 17);
-            Tile tile = Main.tile[x, y];
-            tile.HasTile = true; tile.TileType = tileType; tile.TileFrameX = (short)(style * 36);
-            return chest;
-        }
-        Check(!AlchemyRecipeChestLoot.IsJungleChest(null), "Missing jungle chest is ignored");
-        Check(!AlchemyRecipeChestLoot.IsJungleChest(new Chest { x = -1, y = 60 }) &&
-            !AlchemyRecipeChestLoot.IsJungleChest(new Chest { x = Main.maxTilesX, y = 60 }) &&
-            !AlchemyRecipeChestLoot.IsJungleChest(new Chest { x = 5, y = -1 }) &&
-            !AlchemyRecipeChestLoot.IsJungleChest(new Chest { x = 5, y = Main.maxTilesY }),
-            "Out-of-world jungle chests are ignored without tile access");
-        var gold = Treasure(5, 60, 1);
-        var mahogany = Treasure(6, 60, 8);
-        var dungeonJungle = Treasure(7, 60, 24);
-        var temple = Treasure(8, 60, 16);
-        var fake = Treasure(9, 60, 10, TileID.Containers2);
-        var empty = Treasure(10, 60); empty.item[0].TurnToAir(); empty.item[1].TurnToAir();
-        var removed = Treasure(11, 60); Tile removedTile = Main.tile[11, 60]; removedTile.HasTile = false;
-        var wood = Treasure(12, 60, 0);
-        var full = Treasure(13, 60);
-        for (int i = 2; i < full.item.Length; i++) full.item[i] = new Item(ItemID.Torch, 99);
-        Chest[] excluded = [gold, mahogany, dungeonJungle, temple, fake, empty, removed, wood];
-        Check(excluded.All(c => !AlchemyRecipeChestLoot.IsJungleChest(c)),
-            "Gold, crafted mahogany, Dungeon biome, temple, fake, empty, removed and wooden chests are not jungle treasure");
-        Check(AlchemyRecipeChestLoot.IsJungleChest(Treasure(14, 60)), "Ivy Chest is eligible jungle treasure");
-        var jungle = Enumerable.Range(0, 1000).Select(i => Treasure(20 + i % 100, 100 + i / 100)).ToArray();
-        Main.chest = jungle.Concat(excluded).Append(full).Append(null).ToArray();
-        WorldGen.genRand.SetSeed(20261021);
-        new AlchemyRecipeChestLoot().PostWorldGen();
-        int found = jungle.Count(c => c.item.Any(i => i.type == scrollType));
-        Check(found >= 70 && found <= 130, "Jungle chests have an approximately ten-percent painkiller scroll rate");
-        Check(jungle.All(c => c.item[0].type == ItemID.FeralClaws && c.item[1].type == ItemID.Torch &&
-            c.item[1].stack == 17), "All existing jungle treasure is preserved");
-        Check(jungle.All(c => c.item.Count(i => i.type == scrollType) <= 1 &&
-            c.item.Where(i => i.type == scrollType).All(i => i.stack == 1)), "Successful jungle chests receive exactly one scroll");
-        Check(jungle.All(c => c.item.All(i => i.type != featherlightType)), "Jungle treasure does not receive the gold chest scroll");
-        Check(excluded.Append(full).All(c => c.item.All(i => i.type != scrollType)), "Excluded and full chests receive no painkiller scroll");
-        Check(full.item.Skip(2).All(i => i.type == ItemID.Torch && i.stack == 99), "Full jungle chest contents are never overwritten");
-        Console.WriteLine($"Painkiller chest sample: {found}/1000 Jungle Ivy Chests received one scroll.");
     }
 }

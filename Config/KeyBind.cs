@@ -14,6 +14,8 @@ namespace 伊蕾娜.Config
         public static ModKeybind OpenLoadoutPanel { get; private set; }
 #endif
 
+        public static ModKeybind DollMark { get; private set; }
+
         public static ModKeybind OpenSkillWheel { get; private set; }
 
         /// <summary>按住时技能栏跟随鼠标，松开后保存位置（模组全局，所有角色共用）。技能栏本身不响应鼠标。</summary>
@@ -27,6 +29,7 @@ namespace 伊蕾娜.Config
             OpenLoadoutPanel = KeybindLoader.RegisterKeybind(Mod, "OpenLoadoutPanel", "L");
 #endif
             OpenSkillWheel = KeybindLoader.RegisterKeybind(Mod, "OpenSkillWheel", "Mouse2");
+            DollMark = KeybindLoader.RegisterKeybind(Mod, "DollMark", "F");
             MoveSkillBar = KeybindLoader.RegisterKeybind(Mod, "MoveSkillBar", "K");
         }
 
@@ -39,6 +42,7 @@ namespace 伊蕾娜.Config
 #endif
             OpenSkillWheel = null;
             MoveSkillBar = null;
+            DollMark = null;
         }
 
         public static void InitAllKeybinds()
@@ -49,6 +53,7 @@ namespace 伊蕾娜.Config
             OpenLoadoutPanel.BindKey(OpenLoadoutPanel.GetKeyDefaultName());
 #endif
             OpenSkillWheel.BindKey(OpenSkillWheel.GetKeyDefaultName());
+            DollMark.BindKey(DollMark.GetKeyDefaultName());
             MoveSkillBar.BindKey(MoveSkillBar.GetKeyDefaultName());
         }
         

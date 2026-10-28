@@ -100,6 +100,8 @@ internal static class SkillWheelDrawing
         public float SealDeniedAge;
         public int Slot, Stack, MaxStack;
         public Texture2D Icon;
+        /// <summary>CancelHub 模式下指向该项时，阵心显示的功能名。</summary>
+        public string Label;
     }
 
     public sealed class View
@@ -109,6 +111,7 @@ internal static class SkillWheelDrawing
         /// <summary>Focus 为中心展示的术式：悬停项，或死区内的当前术式；FocusAge 为其切换后经过的秒数。</summary>
         public int Count, Hovered = -1, Focus = -1, Chosen = -1;
         public bool Open, ShowNumber;
+        public bool CancelHub;
         /// <summary>Release 为松开选中后的反馈进度 0→1，未选中时为 -1。</summary>
         public float Presence, RingScale = 1, Seconds, FocusAge, Release = -1;
         // Optional geometry for the healing target wheel. Zero retains the skill wheel's layout.
@@ -380,7 +383,17 @@ internal static class SkillWheelDrawing
             Stretch(batch, art.State.Diamond, center + Direction(angle) * circle * .7f, new Vector2(2.5f), EdgeColor * (.3f * alpha));
         }
 
-        if (view.Focus >= 0 && view.Focus < view.Count && view.Items[view.Focus].Icon != null)
+        if (view.CancelHub)
+        {
+            // 指向某项（或其选中后的淡出）时阵心写出功能名，其余时候是取消按钮；切换时随 FocusAge 淡入。
+            float fade = EaseOutCubic(view.FocusAge / FocusFade);
+            bool labelled = view.Focus >= 0 && view.Focus < view.Count && !string.IsNullOrEmpty(view.Items[view.Focus].Label)
+                && (view.Focus == view.Hovered || view.Focus == view.Chosen);
+            if (labelled) DrawHubLabel(batch, art, sector, center, circle, view.Items[view.Focus].Label, fade * alpha);
+            else DrawCancelButton(batch, art, sector, center, circle,
+                view.Open && Vector2.DistanceSquared(view.Pointer, center) <= baseHub * baseHub, fade * alpha);
+        }
+        else if (view.Focus >= 0 && view.Focus < view.Count && view.Items[view.Focus].Icon != null)
         {
             ref WheelItem item = ref view.Items[view.Focus];
             bool pointed = view.Focus == view.Hovered || view.Focus == view.Chosen;
@@ -409,6 +422,54 @@ internal static class SkillWheelDrawing
                 new Vector2(art.State.Diamond.Width, art.State.Diamond.Height) / 2,
                 new Vector2(8f / art.State.Diamond.Width, 15f / art.State.Diamond.Height), SpriteEffects.None, 0);
         }
+    }
+
+    private static void DrawCancelButton(SpriteBatch batch, in Art art, SectorPainter sector, Vector2 center, float circle,
+        bool hovered, float alpha)
+    {
+        const float top = -MathHelper.PiOver2;
+        Color tint = (hovered ? Pale : EdgeColor) * ((hovered ? 1 : .7f) * alpha);
+        sector(center, 0, circle * .65f, top, top + MathHelper.TwoPi, Highlight * ((hovered ? .2f : .06f) * alpha),
+            1, tint * .45f);
+        Line(batch, art.State.Pixel, center + new Vector2(-9, -9), center + new Vector2(9, 9), 2, tint);
+        Line(batch, art.State.Pixel, center + new Vector2(9, -9), center + new Vector2(-9, 9), 2, tint);
+    }
+
+    /// <summary>功能名底板盖住内圈法阵；放不下且含空格时（英文）在最靠近中点的空格处折成两行。</summary>
+    private static void DrawHubLabel(SpriteBatch batch, in Art art, SectorPainter sector, Vector2 center, float circle,
+        string label, float alpha)
+    {
+        if (alpha <= 0) return;
+        const float top = -MathHelper.PiOver2, lineHeight = 21;
+        float maxWidth = circle * 1.5f, baseScale = lineHeight / Math.Max(1, art.Number.LineSpacing);
+        string first = label, second = null;
+        if (art.Number.MeasureString(label).X * baseScale > maxWidth)
+        {
+            int split = -1;
+            for (int i = 0; i < label.Length; i++)
+                if (label[i] == ' ' && (split < 0 || Math.Abs(i - label.Length / 2) < Math.Abs(split - label.Length / 2)))
+                    split = i;
+            if (split > 0) (first, second) = (label[..split], label[(split + 1)..]);
+        }
+
+        Stretch(batch, art.State.Glow, center, new Vector2(circle * 2.1f), Shade * (.5f * alpha));
+        sector(center, 0, circle * .8f, top, top + MathHelper.TwoPi, Highlight * (.12f * alpha), 1, EdgeColor * (.3f * alpha));
+        Color color = Pale * alpha;
+        float rise = (1 - alpha) * 3;
+        if (second == null) HubLine(batch, art, first, center + new Vector2(0, rise), maxWidth, baseScale, color);
+        else
+        {
+            float gap = lineHeight * .52f;
+            HubLine(batch, art, first, center + new Vector2(0, rise - gap), maxWidth, baseScale, color);
+            HubLine(batch, art, second, center + new Vector2(0, rise + gap), maxWidth, baseScale, color);
+        }
+    }
+
+    private static void HubLine(SpriteBatch batch, in Art art, string text, Vector2 position, float maxWidth,
+        float baseScale, Color color)
+    {
+        float scale = Math.Min(baseScale, maxWidth / Math.Max(1, art.Number.MeasureString(text).X));
+        SkillBarDrawing.OutlinedText(batch, art.Number, text, position, color, scale, new Vector2(.5f));
     }
 
     /// <summary>两枚细长菱形交叉成的四芒星，带暗底与缓慢呼吸的柔光。</summary>

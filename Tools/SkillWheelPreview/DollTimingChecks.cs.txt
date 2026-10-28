@@ -57,8 +57,16 @@ internal static class DollTimingChecks
         Thread.Sleep(80);
         Main.mouseLeft = false;
         wheel.Step(ZeroTime);
-        Require(chosen == DollCommand.Cancel && confirmations == 1 && !DollCommandWheel.OwnsPointer,
-            "release over bottom sector confirms cancel exactly once");
+        Require(chosen == null && confirmations == 0 && DollCommandWheel.IsShowing,
+            "release opening gesture keeps command wheel open");
+        Main.mouseLeft = true;
+        wheel.Step(ZeroTime);
+        Require(chosen == DollCommand.Cancel && confirmations == 1 && DollCommandWheel.OwnsPointer,
+            "left press executes exactly once and consumes click until released");
+        wheel.Step(ZeroTime);
+        Require(confirmations == 1, "held confirmation does not repeat");
+        Main.mouseLeft = false;
+        wheel.Tick(ZeroTime);
         Require(Read<float>(wheel, "_closeTime") < .02f, "release starts fade without inheriting opening interval");
         Thread.Sleep(370);
         wheel.Step(ZeroTime);
@@ -91,6 +99,24 @@ internal static class DollTimingChecks
         Require(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
             "tree exit clears animation clock");
 
+        Main.hasFocus = true;
+        Main.mouseLeft = false;
+        Main.MouseScreen = new(500, 400);
+        DollCommandWheel.TryOpen(() => true, null, Confirm);
+        wheel.Step(ZeroTime);
+        Main.MouseScreen = new(950, 700);
+        Main.mouseLeft = true;
+        wheel.Step(ZeroTime);
+        Require(DollCommandWheel.IsShowing && confirmations == 1, "outside wheel click executes nothing");
+        Main.mouseLeft = false;
+        wheel.Step(ZeroTime);
+        Main.MouseScreen = new(500, 400);
+        Main.mouseLeft = true;
+        wheel.Step(ZeroTime);
+        Require(!DollCommandWheel.IsShowing && confirmations == 1 && DollCommandWheel.OwnsPointer,
+            "center closes wheel without cancelling task queues");
+        Main.mouseLeft = false;
+        wheel.Tick(ZeroTime);
         Main.hasFocus = true;
         DollCommandWheel.TryOpen(() => true, null, Confirm);
         DollCommandWheel.ResetWorld();

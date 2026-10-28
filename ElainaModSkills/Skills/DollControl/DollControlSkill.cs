@@ -10,8 +10,8 @@ using 伊蕾娜.ElainaAttribute;
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 玩偶不在场时召唤四只玩偶；玩偶在场时左键改由 <see cref="DollCommandPlayer"/> 打开指令盘或标记挖掘区域，
-/// 不再挥杖、不扣魔力。玩偶持续存在，直到“收回玩偶”指令、主人死亡或离开世界。
+/// 技能轮盘选中时召唤玩偶并打开指令盘，不切换当前术式。独立标记键由 <see cref="DollCommandPlayer"/> 处理。
+/// 玩偶持续存在，直到“收回玩偶”指令、主人死亡或离开世界。
 /// </summary>
 [SkillUIInfo(State = 2, Pixels = 400)]
 public class DollControlSkill : ElainaSkill
@@ -27,7 +27,12 @@ public class DollControlSkill : ElainaSkill
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(DollControlProgression.UpgradeCost);
 
     protected override object[] SkillDescriptionArgs =>
-        [DollControlProgression.DollCount(Level), DollControlProgression.UpgradeCost];
+        [DollControlProgression.DollCount(Level), DollControlProgression.UpgradeCost, MarkKeyLabel];
+
+    // 标记键名随绑定实时变化；未绑定时以红字提醒玩家去设置。
+    private static string MarkKeyLabel => DollCommandPlayer.MarkKeyName is { } key
+        ? $"[c/FFD27A:{key}]"
+        : $"[c/E28096:{Language.GetTextValue("Mods.伊蕾娜.UI.DollMarkUnbound")}]";
 
     private static string CountLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.DollStats.Count");
     private static string SpeedLabel => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.DollStats.ActionSpeed");
@@ -124,7 +129,23 @@ public class DollControlSkill : ElainaSkill
         return false;
     }
 
-    // 玩偶在场时左键属于指令盘与框选，魔杖不进入使用。
+    /// <summary>技能轮盘直接执行召唤并打开指令盘，不改动当前攻击术式。</summary>
+    internal void OpenCommands()
+    {
+        if (DollPetProjectile.FindOwned(Player) == null)
+        {
+            var skills = ElainaSkillModPlayer.GetActiveSkill;
+            for (int i = 0; i < skills.Count; i++)
+                if (ReferenceEquals(skills[i]?.ModSkill, this))
+                {
+                    Player.GetModPlayer<ElainaSkillModPlayer>().UseSkill(i, Player.GetSource_Misc(nameof(DollControlSkill)));
+                    break;
+                }
+        }
+        Player.GetModPlayer<DollCommandPlayer>().OpenCommandWheel();
+    }
+
+    // 兼容旧的术式选择入口；指令操作已独立于魔杖左键。
     public override bool BeginWandUse() => DollPetProjectile.FindOwned(Player) == null;
 
     public override bool PreUseSkill(IEntitySource source = null)

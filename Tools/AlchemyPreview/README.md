@@ -1,8 +1,8 @@
 # 炼金手记 FNA 离线预览
 
-## 瓶中雨改用雨云（2026-10-27）
+## 瓶中雨简化为雨云与玻璃瓶（2026-10-28）
 
-瓶中雨每批材料改为月露 ×1、雨云 ×1、幌菊 ×1。雨云使用本机 `ItemID.RainCloud`（765）和原版名称本地化引用；正式描边为 `UI/Assets/Outlines/Item_765.png`，已同步清单。依次运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -ExportMaterials`、`python Tools/AlchemyPreview/bake_redesign.py`、`python Tools/AlchemyPreview/bake_redesign.py --check` 和 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene curio-rain` 可复现。65 张描边及正式目录资源检查通过，已打开本次 `output/zh-Hans/curio-rain-1600x1000-1.00.png` 和 `curio-rain-1600x1000-1.25.png`，确认雨云图标、数量、材料行与制作底栏正常。预览链接正式目录和绘制源码；实际游戏内炼制与背包扣料尚未验证。
+瓶中雨每批仅需雨云 ×1、玻璃瓶 ×1，产出瓶中雨 ×1。材料映射使用本机 `ItemID.RainCloud`（765）与 `ItemID.Bottle`（31），中英文名称均引用原版本地化；正式描边为 `UI/Assets/Outlines/Item_765.png` 与 `Item_31.png`，已同步清单。依次运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -ExportMaterials`、`python Tools/AlchemyPreview/bake_redesign.py`、`python Tools/AlchemyPreview/bake_redesign.py --check` 和 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene curio-rain` 可复现。66 张描边及正式目录资源检查通过，已打开本次 `output/zh-Hans/curio-rain-1600x1000-1.00.png` 和 `curio-rain-1600x1000-1.25.png`，确认两种材料的图标、数量、材料行与制作底栏正常。`dotnet msbuild 伊蕾娜.csproj /t:Compile /p:Configuration=Debug /p:BuildProjectReferences=false` 编译通过，仍有项目既有警告。预览链接正式目录和绘制源码；实际游戏内炼制与背包扣料尚未验证。
 
 ## 素材精简与月露文案（2026-10-23）
 

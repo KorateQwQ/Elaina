@@ -1,5 +1,33 @@
 # 人偶等级成长、协作与共用玩偶 AI
 
+## 独立标记键与指令盘（2026-10-28）
+
+当前交互以本节为准，下面的按住左键、草稿和开始按钮说明保留为旧版本记录。
+
+- 技能轮盘选中玩偶直接调用召唤/指令入口，保留原攻击术式；已有玩偶不再次收费。没有玩偶时仍按原技能检查魔力、冷却和弹幕空位。
+- 指令盘持续显示，左键按下执行指令；圆心 X、右键或 Esc 仅关闭指令盘，外圈取消任务才清空任务。关闭时吃掉本次点击直到释放，避免穿透为攻击。
+- 挖掘和拆墙打开工作模式设置，连锁及带回物品立即生效并随角色保存；完成仅关闭设置。
+- 独立玩偶标记键默认为 F，可在按键设置重绑。玩偶在场时不限制当前术式或手持物品。按住拖动矩形选区，原地按放按连锁设置选择；松开重验目标并直接追加任务。已有任务不会因重复标记删除，无草稿或开始按钮。家具仍按完整占用范围选择。
+- 临时标记遇到 UI、地图、聊天、失焦、死亡或玩偶消失时取消，左键不参与世界标记。设置提示读取实际键位。
+- 远处任务保持待办，附近无人工任务时允许照料种植盆；带货玩偶先回来交货，再参与照料。走回任务范围后自动恢复人工任务优先级。
+
+验证入口：
+
+```powershell
+pwsh -File Tools/DollControlPreview/selection.ps1
+pwsh -File Tools/SkillWheelPreview/check-timing.ps1
+pwsh -File Tools/DollControlPreview/run.ps1 -Checks
+pwsh -File Tools/DollControlPreview/garden.ps1
+pwsh -File Tools/DollControlPreview/mining.ps1
+pwsh -File Tools/SkillWheelPreview/run.ps1 -DollCommands
+dotnet build 伊蕾娜.csproj -t:Compile --no-restore -p:BuildProjectReferences=false --nologo -v:q
+```
+
+本次输入/设置/家具检查 191 条、技能盘 17 条、玩偶盘 18 条、召唤/协作/AI 检查 269 条通过。`garden.ps1` 使用真实 tML 引擎，143 条种植维护检查通过，包含远处挖掘/拆墙保留与返回后的优先级；其掉落、开箱、搬运和放置回归也通过。`mining.ps1` 的 476 条真实家具挖掘与 840 条模拟传输网络检查通过；修正夹具提取遗漏，挖掘倍率直接读取正式源码常量。输入宿主隔离了游戏与 SUI 边界，未进行游戏窗口或双客户端端到端测试。
+
+已打开本次 FNA 离线输出 `.vissandbox/doll-selection/selection-states.png` 与 `.vissandbox/skillwheel-preview/output/doll-idle-chest-reach-1.5.png`，检查中文/英文、重绑键位、窄屏与 100%/150% 缩放的设置面板，以及指令盘中心关闭按钮。预览直接链接正式共享绘制，不是游戏截图。
+
+
 ## 家具与桌面摆件挖掘（2026-10-27）
 
 挖掘选区改按物块存在及原版工具类别识别，不再要求 `tileSolid`。床、工作台、桌子、椅子、瓶子、火把和药草等非实心物件可框选或连锁选择；斧类树木与锤类祭坛不进入镐子任务。命中多格家具的任意一格后由原版拆除整件家具，失效标记自动清理；镐力、进度和 `CanKillTile` 限制继续生效。

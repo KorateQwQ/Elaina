@@ -115,6 +115,7 @@ public static class AlchemyCatalog
     private static AlchemyCatalogMaterial[] CreateMaterials() => new AlchemyCatalogMaterial[]
     {
         new("water", "Catalog.BottledWater", "Bottled Water", "Catalog.GlassBottleWater", 36, null, null),
+        new("bottle", "Catalog.Bottle", "Bottle", "Catalog.GlassAtFurnace", 30, null, null),
         new("moonglow", "Catalog.Moonglow", "Moonglow", "Catalog.JungleGatherAtNight", 9, null, null),
         new("star", "Catalog.FallenStar", "Fallen Star", "Catalog.FallsFromTheNightSky", 8, null, null),
         new("glowingmushroom", "Catalog.GlowingMushroom", "Glowing Mushroom", "Catalog.GlowingMushroomBiome", 12, null, null),
@@ -368,9 +369,8 @@ public static class AlchemyCatalog
             PixelWidth = 31, PixelHeight = 38,
             Ingredients = new AlchemyCatalogIngredient[]
             {
-                new(1, "moondew"),
                 new(1, "raincloud"),
-                new(1, "waterleaf"),
+                new(1, "bottle"),
             },
             Effects = new AlchemyCatalogEffect[]
             {

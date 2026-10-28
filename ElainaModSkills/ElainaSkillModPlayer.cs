@@ -111,12 +111,13 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
 
     void ReSetCurrentSkillIndex()
     {
-        if (CurrentSkillIndex < 0||CurrentSkillIndex>=GetActiveSkill.Count|| GetActiveSkill[CurrentSkillIndex]== null)
+        if (CurrentSkillIndex < 0||CurrentSkillIndex>=GetActiveSkill.Count|| GetActiveSkill[CurrentSkillIndex]== null
+            || GetActiveSkill[CurrentSkillIndex].ModSkill is Skills.DollControl.DollControlSkill)
         {
             CurrentSkillIndex = -1;
             for (int i = 0; i < GetActiveSkill.Count; i++)
             {
-                if (GetActiveSkill[i] != null)
+                if (GetActiveSkill[i] != null && GetActiveSkill[i].ModSkill is not Skills.DollControl.DollControlSkill)
                 {
                     CurrentSkillIndex = i;
                     break;

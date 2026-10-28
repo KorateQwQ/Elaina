@@ -35,4 +35,10 @@ public abstract class AlchemyRecipeScroll : ModItem
             player.GetModPlayer<AlchemyProgressPlayer>().IsUnlocked(EntryId))
             tooltips.Add(new(Mod, "AlreadyLearned", LocalizeUI("RecipeScrollLearned")) { OverrideColor = new Color(150, 210, 170) });
     }
+
+    public override bool OnPickup(Player player)
+    {
+        player.GetModPlayer<AlchemyRecipeDiscoveryPlayer>().Observe(Item);
+        return true;
+    }
 }

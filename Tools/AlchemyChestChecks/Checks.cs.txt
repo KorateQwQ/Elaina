@@ -1,0 +1,273 @@
+using System.Reflection;
+using System.Buffers.Binary;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
+using Terraria.Net;
+using Terraria.Net.Sockets;
+using Terraria.Utilities;
+using 伊蕾娜;
+using 伊蕾娜.ElainaModAlchemy.Gameplay;
+using 伊蕾娜.ElainaModAlchemy.item.Recipes;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using GameMain = Terraria.Main;
+
+static class Checks
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    static readonly Mod Mod = new CheckMod();
+    static readonly AlchemyRecipeChestLoot World = new();
+    static readonly Type Recipe = typeof(AlchemyRecipeChestLoot).Assembly.GetType("伊蕾娜.ElainaModAlchemy.Gameplay.ExplorationRecipe")!;
+    static readonly object Feather = Enum.ToObject(Recipe, 1), Pain = Enum.ToObject(Recipe, 2);
+    static int passed;
+    static Player Player => GameMain.player[0];
+    static AlchemyRecipeDiscoveryPlayer State => Player.GetModPlayer<AlchemyRecipeDiscoveryPlayer>();
+    static int PainType => ModContent.ItemType<PainkillerRecipe>();
+    static int FeatherType => ModContent.ItemType<FeatherlightPotionRecipe>();
+    static void Check(bool ok, string message) { if (!ok) throw new Exception(message); passed++; }
+    static object Call(object target, string method, params object[] args) => target.GetType().GetMethod(method, All)!.Invoke(target, args)!;
+    static object Static(string method, params object[] args) => typeof(AlchemyRecipeChestLoot).GetMethod(method, All)!.Invoke(null, args)!;
+    static int Chance(object recipe) => (int)Call(State, "ChancePercent", recipe);
+    static int Misses(object recipe) => (int)Call(State, "Misses", recipe);
+    static void Open(int index) => Static("PrepareOpening", Player, index);
+    static bool Has(Chest chest, int type) => chest.item.Any(i => i.type == type && i.stack > 0);
+
+    static void Register(ModType content) { ((ILoadable)content).Load(Mod); ContentInstance.Register(content); }
+    static Player MakePlayer(int index)
+    {
+        var player = new Player { active = true, whoAmI = index, chest = -1 };
+        ModPlayer[] parts = [new ElainaModplayer(), new AlchemyProgressPlayer(), new AlchemyRecipeDiscoveryPlayer(), new DollCommandPlayer()];
+        for (ushort i = 0; i < parts.Length; i++)
+        {
+            typeof(ModPlayer).GetProperty("Entity", All)!.SetValue(parts[i], player);
+            typeof(ModPlayer).GetProperty("Index", All)!.SetValue(parts[i], i);
+            typeof(ModType).GetProperty("Mod", All)!.SetValue(parts[i], Mod);
+            if (index == 0) ContentInstance.Register(parts[i]);
+        }
+        typeof(Player).GetField("modPlayers", All)!.SetValue(player, parts);
+        player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        player.GetModPlayer<AlchemyProgressPlayer>().Initialize();
+        player.GetModPlayer<AlchemyRecipeDiscoveryPlayer>().Initialize();
+        return GameMain.player[index] = player;
+    }
+
+    static Chest ChestAt(int index, int x, int y, int style = 10, ushort type = TileID.Containers)
+    {
+        var chest = new Chest { x = x, y = y, item = Enumerable.Range(0, 40).Select(_ => new Item()).ToArray() };
+        chest.item[0] = new Item(ItemID.Torch, 17);
+        GameMain.chest[index] = chest;
+        for (int dx = 0; dx < 2; dx++) for (int dy = 0; dy < 2; dy++)
+        {
+            Tile tile = GameMain.tile[x + dx, y + dy];
+            tile.HasTile = true; tile.TileType = type;
+            tile.TileFrameX = (short)(style * 36 + dx * 18); tile.TileFrameY = (short)(dy * 18);
+        }
+        return chest;
+    }
+
+    static void Reset()
+    {
+        GameMain.netMode = NetmodeID.SinglePlayer; GameMain.dedServ = false;
+        World.ClearWorld(); State.Initialize();
+        Player.GetModPlayer<AlchemyProgressPlayer>().Initialize();
+        Player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        Player.active = true; Player.dead = false; Player.chest = -1;
+        GameMain.chest = new Chest[GameMain.maxChests];
+        GameMain.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), BindingFlags.Instance | BindingFlags.NonPublic,
+            null, new object[] { (ushort)GameMain.maxTilesX, (ushort)GameMain.maxTilesY }, null)!;
+        foreach (var items in new[] { Player.inventory, Player.bank.item, Player.bank2.item, Player.bank3.item, Player.bank4.item })
+            for (int i = 0; i < items.Length; i++) items[i] = new Item();
+        GameMain.mouseItem = new Item();
+        GameMain.rand = new RollRandom(99);
+    }
+
+    static void ProbabilitiesAndWorld()
+    {
+        Reset();
+        Check(Chance(Pain) == 30 && Chance(Feather) == 20, "First-copy base chances");
+        var first = ChestAt(0, 80, 100); var second = ChestAt(1, 84, 100); var third = ChestAt(2, 88, 100);
+        World.PostWorldGen();
+        Check(!Has(first, PainType) && !Has(second, PainType) && !Has(third, PainType), "Worldgen only registers, never rolls");
+        Player.GetModPlayer<ElainaModplayer>().Elaina = false; Open(0);
+        Check(Misses(Pain) == 0, "Other characters do not consume opportunities");
+        Player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        Open(0); Check(Misses(Pain) == 1 && Chance(Pain) == 60, "First failure raises painkiller to 60 percent");
+        Open(0); Check(Misses(Pain) == 1, "Reopening cannot farm pity");
+        Open(1); Check(Misses(Pain) == 2 && Chance(Pain) == 100, "Second failure guarantees next painkiller");
+        var playerSave = new TagCompound(); State.SaveData(playerSave);
+        var worldSave = new TagCompound(); World.SaveWorldData(worldSave);
+        State.Initialize(); State.LoadData(playerSave); World.ClearWorld(); World.LoadWorldData(worldSave);
+        Open(0); Check(Misses(Pain) == 2, "Visited chests stay spent after reload");
+        Open(2); Check(Has(third, PainType) && Misses(Pain) == 0, "Third new chest succeeds after save/load");
+        Check(third.item[0].type == ItemID.Torch && third.item[0].stack == 17, "Treasure preserved");
+        Check(Chance(Pain) == 30, "Generated scroll is not yet obtained");
+        State.Observe(third.item.First(i => i.type == PainType));
+        Check(Chance(Pain) == 5, "Acquired scroll lowers repeats to 5 percent");
+        State.SaveData(playerSave); State.Initialize(); State.LoadData(playerSave);
+        Check(Chance(Pain) == 5, "Permanent history survives discarding and reload");
+        for (int i = 0; i < 9; i++) ChestAt(i + 10, 80 + i * 3, 200, 1);
+        World.PostWorldGen();
+        for (int i = 0; i < 9; i++)
+        {
+            Check(Chance(Feather) == 20 + i * 10, "Featherlight rising chance " + i);
+            Open(i + 10);
+        }
+        Check(Has(GameMain.chest[18], FeatherType) && Misses(Feather) == 0, "Ninth gold chest guarantees featherlight");
+        Check(Chance(Pain) == 5, "Formula histories are independent");
+
+        Reset(); var full = ChestAt(0, 80, 100);
+        for (int i = 1; i < 40; i++) full.item[i] = new Item(ItemID.Torch, 99);
+        World.PostWorldGen(); Open(0);
+        Check(Misses(Pain) == 0 && full.item.All(i => i.type == ItemID.Torch), "Full chest preserves loot and opportunity");
+        full.item[1].TurnToAir(); Open(0);
+        Check(Misses(Pain) == 1, "Space permits a later opening to settle once");
+        GameMain.chest[1] = new Chest { x = 84, y = 100 }; ChestAt(1, 84, 100); Open(1);
+        Check(Misses(Pain) == 1, "Player-placed chests are not registered");
+        World.LoadWorldData(new TagCompound()); Open(1);
+        Check(Misses(Pain) == 1, "Old worlds are not retroactively scanned");
+
+        Reset(); ChestAt(0, 80, 100); World.PostWorldGen();
+        ChestAt(0, 80, 100); Open(0);
+        Check(Misses(Pain) == 0, "Replacement chest cannot inherit a candidate at identical coordinates");
+    }
+
+    static void JungleRange()
+    {
+        Reset();
+        int jungleStyle = new Item(ItemID.JungleChest).placeStyle;
+        var ivy = ChestAt(0, 190, 250, 10);
+        int index = 1;
+        foreach (int style in new[] { 0, 1, 8, 16, jungleStyle, jungleStyle + 5 })
+            ChestAt(index, 190 + index++ * 3, 250, style);
+        ChestAt(7, 215, 250, 10, TileID.Containers2);
+        for (int x = 195; x < 209; x++) for (int y = 260; y < 270; y++)
+        { Tile tile = GameMain.tile[x, y]; tile.HasTile = true; tile.TileType = TileID.JungleGrass; }
+        Check((bool)Static("IsIvyChest", ivy), "Ivy chest is eligible");
+        for (int i = 1; i <= 7; i++)
+            Check(!(bool)Static("IsIvyChest", GameMain.chest[i]), "Other chest type excluded even in jungle: " + i);
+        World.PostWorldGen();
+        Player.Center = new Vector2(0, 0); GameMain.rand = new RollRandom(0);
+        for (int i = 1; i <= 7; i++) Open(i);
+        Check(Enumerable.Range(1, 7).All(i => !Has(GameMain.chest[i], PainType)) && Misses(Pain) == 0,
+            "Non-Ivy chests neither give painkiller nor advance its pity");
+        Check(Has(GameMain.chest[2], FeatherType), "Underground gold chest still gives featherlight");
+        Open(0);
+        Check(Has(ivy, PainType) && !Has(ivy, FeatherType), "Remote owner's Ivy chest gives only painkiller");
+    }
+
+    static void Acquisition()
+    {
+        Reset();
+        Player.bank4.item[0] = new Item(PainType); Call(State, "ObservePossessions");
+        Check(Chance(Pain) == 5, "Personal storage counts as obtained");
+        State.Initialize(); Player.bank4.item[0].TurnToAir();
+        var chest = ChestAt(0, 80, 100); chest.item[1] = new Item(PainType); Player.chest = 0;
+        Call(State, "ObservePossessions"); Check(Chance(Pain) == 30, "Shared chest visibility is not ownership");
+        GameMain.mouseItem = new Item(PainType); Call(State, "ObservePossessions");
+        Check(Chance(Pain) == 5, "Mouse-held recipe is obtained");
+        State.Initialize(); GameMain.mouseItem.TurnToAir();
+        Call(Player.GetModPlayer<DollCommandPlayer>(), "AddCargo", new Item(PainType), null!);
+        Check(Chance(Pain) == 5, "Actual doll cargo entry records ownership before delivery");
+        State.Initialize();
+        new Item(FeatherType).ModItem.OnPickup(Player);
+        Check(Chance(Feather) == 5, "Ground pickup records acquisition immediately");
+        State.Initialize();
+        Player.GetModPlayer<AlchemyProgressPlayer>().LoadData(new TagCompound { ["Level"] = 1, ["Unlocked"] = new List<string> { "painkiller" } });
+        Call(State, "ObservePossessions"); Check(Chance(Pain) == 5, "Already researched recipe implies acquisition");
+    }
+
+    static void Packet(byte operation, bool identity, byte history, byte goldMisses, byte jungleMisses, int sender = 0)
+    {
+        using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream);
+        writer.Write(operation);
+        if (operation == 0) writer.Write(identity);
+        writer.Write(history);
+        if (operation != 1) { writer.Write(goldMisses); writer.Write(jungleMisses); }
+        stream.Position = 0;
+        typeof(AlchemyRecipeDiscoveryPlayer).GetMethod("HandlePacket", All)!.Invoke(null, [new BinaryReader(stream), sender, 0]);
+    }
+
+    static void Networking()
+    {
+        Reset(); GameMain.netMode = NetmodeID.Server;
+        Packet(0, true, 0, 0, 2, 1);
+        Check(Chance(Pain) == 30, "Another sender cannot initialize this character");
+        Packet(0, true, 0, 0, 2);
+        Check(Chance(Pain) == 100, "Join snapshot restores server pity");
+        Packet(0, true, 0, 0, 0);
+        Check(Chance(Pain) == 100, "Repeated join snapshot cannot rewind server pity");
+        var chest = ChestAt(0, 80, 100); World.PostWorldGen();
+        var delivered = new List<(int Message, int Slot, int Type)>();
+        var socket = new MemorySocket(); Netplay.Clients[0] = new RemoteClient { State = 10, Socket = socket };
+        // Intercept only the final transport. The production request wrapper and real vanilla GetData execute.
+        On_NetMessage.hook_SendData capture = (orig, msg, remote, ignore, text, number, n2, n3, n4, n5, n6, n7) =>
+            delivered.Add((msg, (int)n2, msg == MessageID.SyncChestItem ? GameMain.chest[number].item[(int)n2].type : 0));
+        On_NetMessage.SendData += capture;
+        World.Load();
+        try
+        {
+            var buffer = new MessageBuffer { whoAmI = 0 };
+            buffer.readBuffer[0] = MessageID.RequestChestOpen;
+            BinaryPrimitives.WriteInt16LittleEndian(buffer.readBuffer.AsSpan(1), 80);
+            BinaryPrimitives.WriteInt16LittleEndian(buffer.readBuffer.AsSpan(3), 100);
+            buffer.GetData(0, 5, out int message);
+            Check(message == MessageID.RequestChestOpen, "Real vanilla open request processed");
+            Check(delivered.Count(m => m.Message == MessageID.SyncChestItem) == 40, "Initial reply contains all forty slots");
+            Check(delivered.Any(m => m.Message == MessageID.SyncChestItem && m.Type == PainType), "Recipe is already in initial contents");
+            int openedAt = delivered.FindIndex(m => m.Message == MessageID.SyncPlayerChest);
+            Check(openedAt == 40, "Client receives all finalized contents BEFORE its open message");
+            Check(delivered.Skip(openedAt + 1).All(m => m.Message != MessageID.SyncChestItem), "No late recipe slot update/pop-in");
+            Check(chest.item.Count(i => i.type == PainType) == 1 && socket.Sent.Count == 1, "One roll and one character state update");
+            int before = delivered.Count;
+            buffer.GetData(0, 5, out _);
+            Check(delivered.Count == before, "Busy chest request does not reroll or send contents");
+
+            Player.chest = -1; delivered.Clear();
+            var untouched = ChestAt(1, 90, 100); World.PostWorldGen();
+            // Unrelated item sync must not trigger a new discovery or spend its opportunity.
+            NetMessage.SendData(MessageID.SyncChestItem, 0, -1, null, 1, 0);
+            Check(!Has(untouched, PainType) && Misses(Pain) == 0, "Ordinary slot synchronization never rolls");
+        }
+        finally { World.Unload(); On_NetMessage.SendData -= capture; }
+
+        GameMain.netMode = NetmodeID.MultiplayerClient; State.Observe(new Item(PainType));
+        Packet(2, true, 0, 4, 2);
+        Check(Chance(Pain) == 5 && Chance(Feather) == 60, "Late server snapshot preserves local pickup and updates independent pity");
+    }
+
+    static void MainEntry()
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        typeof(Mod).GetField("netID", All)!.SetValue(Mod, (short)0);
+        typeof(ModNet).GetField("netMods", All)!.SetValue(null, new Mod[] { Mod });
+        Register(new FeatherlightPotionRecipe()); Register(new PainkillerRecipe());
+        _ = new Item(ItemID.Torch); _ = GameMain.player;
+        SetFactory.ResizeArrays(false);
+        typeof(ItemLoader).GetMethod("ResizeArrays", All)!.Invoke(null, [false]);
+        GameMain.myPlayer = 0; GameMain.maxTilesX = 400; GameMain.maxTilesY = 600; GameMain.worldSurface = 50;
+        MakePlayer(0); MakePlayer(1);
+        for (int i = 2; i < GameMain.player.Length; i++) GameMain.player[i] = new Player { active = false, chest = -1 };
+        ProbabilitiesAndWorld(); JungleRange(); Acquisition(); Networking();
+        Console.WriteLine($"Alchemy chest discovery: {passed} checks passed against compiled production code and real tML types.");
+    }
+    public static void Main(string[] args) => MainEntry();
+    sealed class CheckMod : Mod { public override string Name => "AlchemyChestChecks"; }
+    sealed class RollRandom(int value) : UnifiedRandom { public override int Next(int maxValue) => Math.Min(value, maxValue - 1); }
+    sealed class MemorySocket : ISocket
+    {
+        public readonly List<byte[]> Sent = [];
+        public void AsyncSend(byte[] data, int offset, int size, SocketSendCallback callback, object state = null)
+        { Sent.Add(data.AsSpan(offset, size).ToArray()); callback(state); }
+        public void Close() { }
+        public bool IsConnected() => true;
+        public void Connect(RemoteAddress address) { }
+        public void AsyncReceive(byte[] data, int offset, int size, SocketReceiveCallback callback, object state = null) { }
+        public bool IsDataAvailable() => false;
+        public void SendQueuedPackets() { }
+        public bool StartListening(SocketConnectionAccepted callback) => false;
+        public void StopListening() { }
+        public RemoteAddress GetRemoteAddress() => new TcpAddress(System.Net.IPAddress.Loopback, 7777);
+    }
+}

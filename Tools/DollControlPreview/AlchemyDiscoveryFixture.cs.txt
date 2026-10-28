@@ -1,0 +1,7 @@
+// Garden/cargo checks isolate alchemy. Tools/AlchemyChestChecks executes the real
+// discovery player together with production DollCommandPlayer.AddCargo.
+namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
+public sealed class AlchemyRecipeDiscoveryPlayer : Terraria.ModLoader.ModPlayer
+{
+    public void Observe(Terraria.Item item) { }
+}

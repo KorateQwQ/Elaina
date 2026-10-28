@@ -4,8 +4,9 @@ using Terraria.DataStructures;
 using Terraria.GameInput;
 using Terraria.ID;
 using Terraria.ModLoader.IO;
-using 伊蕾娜.ElainaAttribute;
-using 伊蕾娜.Items;
+using 伊蕾娜.Config;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using Microsoft.Xna.Framework.Input;
 using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
@@ -26,18 +27,18 @@ public sealed partial class DollCommandPlayer : ModPlayer
 
     public readonly HashSet<Point> TileMarks = [];
     public readonly HashSet<Point> WallMarks = [];
-    /// <summary>本次编辑的草稿，只有点击开始后才合并到任务队列。</summary>
-    public readonly HashSet<Point> DraftMarks = [];
+    /// <summary>仅在标记键按住期间存在，松开即提交；从不保留为草稿。</summary>
+    public readonly HashSet<Point> SelectionMarks = [];
     private readonly Dictionary<int, int> loot = [];
     private readonly List<(int Type, int Stack)> captured = [];
 
-    /// <summary>当前标记工具；为空时左键打开指令盘。</summary>
-    public DollCommand? Tool { get; private set; }
-    /// <summary>矩形框选的起点，松开左键时与 <see cref="HoverTile"/> 围成的区域整体反选。</summary>
+    public DollCommand MarkMode { get; private set; } = DollCommand.Mine;
+    public bool SettingsOpen { get; private set; }
+    public DollCommand? Tool => DragStart.HasValue ? MarkMode : null;
     public Point? DragStart { get; private set; }
     public Point HoverTile { get; private set; }
-
-    private bool lastLeft;
+    private bool dragged, lastLeft;
+    private Point selectionEnd;
     private int validateTimer;
 
     /// <summary>挖掘、敲墙与远程放置任务；照料种植盆是自发行为，不算在内。</summary>
@@ -45,8 +46,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
     public bool HasLoot => loot.Count > 0;
     /// <summary>挖掘与敲墙是否收集掉落；随角色保存，后续敲击立即使用当前选择。</summary>
     public bool BringBackItems { get; private set; } = true;
-    public string DraftBlockReason { get; private set; }
-    private uint draftCheckedAt;
+    public string SelectionBlockReason { get; private set; }
 
     public override void OnEnterWorld()
     {
@@ -59,108 +59,106 @@ public sealed partial class DollCommandPlayer : ModPlayer
 
     #region 输入
 
-    /// <summary>手持魔杖、当前术式为玩偶操控且玩偶在场时，左键归指令盘与标记使用。</summary>
-    public bool InControlMode => Player.whoAmI == Main.myPlayer && Player.active && !Player.dead
-        && Player.HeldItem.ModItem is ElainaWand && CurrentSkillIsDoll
-        && Player.GetModPlayer<ElainaModplayer>().Elaina
-        && Player.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled
+    /// <summary>玩偶在场即可标记，与当前术式和手持物品无关。</summary>
+    public bool CanCommand => Player.whoAmI == Main.myPlayer && Player.active && !Player.dead
         && DollPetProjectile.FindOwned(Player) != null;
 
-    private static bool CurrentSkillIsDoll
+    private bool InputAvailable => Main.hasFocus && !Main.gameMenu && !Main.blockMouse && !Main.mapFullscreen
+        && !Main.drawingPlayerChat && !Main.editSign && !Main.editChest && !Main.inFancyUI
+        && !Main.ingameOptionsWindow && !Main.hideUI && Player.chest < 0 && Player.talkNPC < 0;
+    private bool PointerInWorld => InputAvailable && !Player.mouseInterface;
+
+    /// <summary>标记键当前绑定的按键名；未绑定时为 null。</summary>
+    public static string MarkKeyName
     {
         get
         {
-            var skills = ElainaSkillModPlayer.GetActiveSkill;
-            int index = ElainaSkillModPlayer.CurrentSkillIndex;
-            return skills != null && index >= 0 && index < skills.Count && skills[index]?.ModSkill is DollControlSkill;
+            string keys = KeyBind.DollMark == null ? "" : string.Join(" / ", KeyBind.DollMark.GetAssignedKeys());
+            return keys.Length == 0 ? null : keys;
         }
     }
 
-    private bool PointerInWorld => !Player.mouseInterface && !Main.blockMouse && !Main.mapFullscreen
-        && !Main.drawingPlayerChat && !Main.editSign && !Main.editChest && !Main.inFancyUI;
+    internal void OpenCommandWheel()
+    {
+        CancelSelection();
+        SettingsOpen = false;
+        if (CanCommand) DollCommandWheel.TryOpen(() => CanCommand, MarkMode, OnCommandChosen);
+    }
 
     public override void ProcessTriggers(TriggersSet triggersSet)
     {
         if (Player.whoAmI != Main.myPlayer) return;
-        bool left = Main.mouseLeft;
-        bool leftPressed = left && !lastLeft;
-        lastLeft = left;
+        bool leftPressed = Main.mouseLeft && !lastLeft;
+        lastLeft = Main.mouseLeft;
         HoverTile = Main.MouseWorld.ToTileCoordinates();
-
-        if (!InControlMode)
+        if (!CanCommand || !InputAvailable)
         {
-            ExitTool();
+            CancelSelection();
+            SettingsOpen = false;
             return;
         }
-        if (DollCommandWheel.OwnsPointer) return;
-        if (Player.chest >= 0) return;
-
-        if (Tool is not { } tool)
+        if (Main.keyState.IsKeyDown(Keys.Escape))
         {
-            if (leftPressed && PointerInWorld)
-                DollCommandWheel.TryOpen(() => InControlMode, null, OnCommandChosen);
+            CancelSelection();
+            SettingsOpen = false;
             return;
         }
-
-        bool walls = DollCommands.TargetsWalls(tool);
-        if (Main.GameUpdateCount % 15 == 0)
-            DraftMarks.RemoveWhere(p => !IsMarkable(p.X, p.Y, walls));
-        if (Main.GameUpdateCount - draftCheckedAt >= 15) RefreshDraftStatus();
-
-        // 使用原始屏幕坐标，避免世界缩放影响固定 UI 的按钮命中。
-        var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale);
-        Vector2 pointer = new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale;
-        bool uiBlocked = Main.blockMouse || Main.mapFullscreen || Main.drawingPlayerChat
-            || Main.editSign || Main.editChest || Main.inFancyUI;
-        if (!uiBlocked && layout.Panel.Contains(pointer.ToPoint()))
+        if (DollCommandWheel.OwnsPointer || ElainaSkillWheel.IsShowing || ElainaHealingWheel.IsShowing)
         {
-            Player.mouseInterface = true;
-            Player.controlUseItem = Player.controlUseTile = false;
-            // 从世界拖到操作条时放弃这一笔，不能把松手误当成按钮点击。
-            DragStart = null;
-            if (leftPressed)
+            CancelSelection();
+            return;
+        }
+        if (SettingsOpen)
+        {
+            var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale);
+            Point pointer = (new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale).ToPoint();
+            if (layout.Panel.Contains(pointer))
             {
-                if (layout.Exit.Contains(pointer.ToPoint()))
+                Player.mouseInterface = true;
+                Player.controlUseItem = Player.controlUseTile = false;
+                if (leftPressed)
                 {
-                    ExitTool();
-                    SoundEngine.PlaySound(SoundID.MenuClose);
-                }
-                else if (layout.Start.Contains(pointer.ToPoint())) CommitDraft();
-                else if (layout.BringBack.Contains(pointer.ToPoint()))
-                {
-                    BringBackItems = !BringBackItems;
+                    if (layout.Start.Contains(pointer)) SettingsOpen = false;
+                    else if (layout.BringBack.Contains(pointer)) BringBackItems = !BringBackItems;
+                    else if (layout.Chain.Contains(pointer))
+                        MarkMode = DollCommands.IsChain(MarkMode) ? DollCommands.BaseCommand(MarkMode)
+                            : DollCommands.TargetsWalls(MarkMode) ? DollCommand.BreakWallChain : DollCommand.MineChain;
                     SoundEngine.PlaySound(SoundID.MenuTick);
                 }
-                else if (layout.Chain.Contains(pointer.ToPoint()))
-                {
-                    Tool = DollCommands.IsChain(tool) ? DollCommands.BaseCommand(tool)
-                        : walls ? DollCommand.BreakWallChain : DollCommand.MineChain;
-                    SoundEngine.PlaySound(SoundID.MenuTick);
-                }
+                return;
             }
-            return;
         }
-
         if (!PointerInWorld)
         {
-            DragStart = null;
+            CancelSelection();
             return;
         }
-        if (DollCommands.IsChain(tool))
+        ModKeybind key = KeyBind.DollMark;
+        if (key == null) { CancelSelection(); return; }
+        if (key.JustPressed)
         {
-            if (leftPressed && PointerInWorld) ToggleChain(HoverTile, walls);
-            return;
+            SettingsOpen = false;
+            DragStart = HoverTile;
+            dragged = false;
+            RefreshSelection();
         }
-        if (leftPressed && PointerInWorld) DragStart = HoverTile;
-        if (DragStart is { } start && !left)
+        if (DragStart is not { } start) return;
+        // 离开起点后即为矩形手势，即使又移回起点也不会突然变成连锁。
+        dragged |= start != HoverTile;
+        if (selectionEnd != HoverTile || Main.GameUpdateCount % 15 == 0 || !key.Current) RefreshSelection();
+        if (key.Current) return;
+        if (SelectionBlockReason != null) Notify(SelectionBlockReason, new Color(240, 165, 176));
+        else if (SelectionMarks.Count > 0)
         {
-            DragStart = null;
-            ToggleRect(start, HoverTile, walls);
+            (DollCommands.TargetsWalls(MarkMode) ? WallMarks : TileMarks).UnionWith(SelectionMarks);
+            SoundEngine.PlaySound(SoundID.MenuOpen);
         }
+        CancelSelection();
     }
 
     private void OnCommandChosen(DollCommand command)
     {
+        CancelSelection();
         switch (command)
         {
             case DollCommand.Cancel:
@@ -172,58 +170,38 @@ public sealed partial class DollCommandPlayer : ModPlayer
                 DollPetProjectile.DismissAll(Player);
                 break;
             default:
-                bool walls = DollCommands.TargetsWalls(command);
-                if ((walls ? BestHammer() : Player.GetBestPickaxe()) == null)
-                {
-                    Notify(walls ? "DollNoHammer" : "DollNoPickaxe", new Color(240, 165, 176));
-                    break;
-                }
-                Tool = command;
-                DragStart = null;
-                DraftMarks.Clear();
-                RefreshDraftStatus();
+                // 切换工作类型时保留连锁偏好，设置本身不产生任何任务。
+                MarkMode = DollCommands.IsChain(MarkMode)
+                    ? DollCommands.TargetsWalls(command) ? DollCommand.BreakWallChain : DollCommand.MineChain
+                    : DollCommands.BaseCommand(command);
+                SettingsOpen = true;
                 break;
         }
     }
 
-    private void ExitTool()
+    private void CancelSelection()
     {
-        Tool = null;
         DragStart = null;
-        DraftMarks.Clear();
-        DraftBlockReason = null;
+        dragged = false;
+        SelectionMarks.Clear();
+        SelectionBlockReason = null;
     }
 
-    private void RefreshDraftStatus()
+    private void RefreshSelection()
     {
-        draftCheckedAt = Main.GameUpdateCount;
-        DraftBlockReason = null;
-        if (Tool is not { } tool) return;
-        bool walls = DollCommands.TargetsWalls(tool);
+        SelectionMarks.Clear();
+        SelectionBlockReason = null;
+        if (DragStart is not { } start) return;
+        selectionEnd = HoverTile;
+        bool walls = DollCommands.TargetsWalls(MarkMode);
+        if (!dragged && DollCommands.IsChain(MarkMode)) SelectionMarks.UnionWith(FindChain(start, walls));
+        else SelectionMarks.UnionWith(DollTileSelection.RectangleCells(start, HoverTile, walls));
         Item item = walls ? BestHammer() : Player.GetBestPickaxe();
-        foreach (Point point in DraftMarks)
+        foreach (Point point in SelectionMarks)
         {
-            if (!IsMarkable(point.X, point.Y, walls)) continue;
-            DraftBlockReason = DollMiningRules.BlockReason(Player, point, walls, item);
-            if (DraftBlockReason != null) return;
+            SelectionBlockReason = DollMiningRules.BlockReason(Player, point, walls, item);
+            if (SelectionBlockReason != null) break;
         }
-    }
-
-    private void CommitDraft()
-    {
-        if (Tool is not { } tool) return;
-        bool walls = DollCommands.TargetsWalls(tool);
-        DraftMarks.RemoveWhere(p => !IsMarkable(p.X, p.Y, walls));
-        RefreshDraftStatus();
-        if (DraftMarks.Count == 0) return;
-        if (DraftBlockReason != null)
-        {
-            Notify(DraftBlockReason, new Color(240, 165, 176));
-            return;
-        }
-        (walls ? WallMarks : TileMarks).UnionWith(DraftMarks);
-        ExitTool();
-        SoundEngine.PlaySound(SoundID.MenuOpen);
     }
 
     private void Notify(string key, Color color) =>
@@ -241,49 +219,6 @@ public sealed partial class DollCommandPlayer : ModPlayer
         // 树木与祭坛等需要斧/锤的目标不属于当前镐子任务。
         return walls ? tile.WallType > 0
             : tile.HasTile && !Main.tileAxe[tile.TileType] && !Main.tileHammer[tile.TileType];
-    }
-
-    /// <summary>区域触及家具任意一格即整件反选；同一笔经过多格也只处理一次。</summary>
-    private void ToggleRect(Point a, Point b, bool walls)
-    {
-        HashSet<Point> marks = DraftMarks;
-        HashSet<Point> cells = DollTileSelection.RectangleCells(a, b, walls);
-        HashSet<Point> visited = [];
-        foreach (Point point in cells)
-        {
-            if (visited.Contains(point)) continue;
-            HashSet<Point> furniture = [];
-            DollTileSelection.AddObject(furniture, point, walls);
-            bool remove = true;
-            foreach (Point cell in furniture) remove &= marks.Contains(cell);
-            foreach (Point cell in furniture)
-            {
-                visited.Add(cell);
-                if (remove) marks.Remove(cell);
-                else marks.Add(cell);
-            }
-        }
-        if (cells.Count > 0)
-        {
-            RefreshDraftStatus();
-            SoundEngine.PlaySound(SoundID.MenuTick);
-        }
-    }
-
-    /// <summary>点中未标记的物块则标记整组相连同类，点中已标记的则清除整组。</summary>
-    private void ToggleChain(Point start, bool walls)
-    {
-        List<Point> group = FindChain(start, walls);
-        if (group.Count == 0) return;
-        HashSet<Point> marks = DraftMarks;
-        bool mark = !marks.Contains(start);
-        foreach (Point point in group)
-        {
-            if (mark) marks.Add(point);
-            else marks.Remove(point);
-        }
-        RefreshDraftStatus();
-        SoundEngine.PlaySound(SoundID.MenuTick);
     }
 
     /// <summary>从起点按四邻接找相连同类，最多搜索 <see cref="ChainLimit"/> 格，再补齐边界处家具。</summary>
@@ -323,7 +258,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
         workClaims.Clear();
         ResetGarden();
         ReleaseRemoteChest(true);
-        ExitTool();
+        CancelSelection();
+        SettingsOpen = false;
     }
 
     #endregion
@@ -587,6 +523,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
         SaveGardenOwner(tag);
         SaveChestCargo(tag);
         tag["DollBringBackItems"] = BringBackItems;
+        tag["DollMarkMode"] = (int)MarkMode;
         if (loot.Count == 0) return;
         List<TagCompound> list = [];
         foreach (var (type, stack) in loot)
@@ -600,6 +537,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
         LoadGardenOwner(tag);
         LoadChestCargo(tag);
         BringBackItems = !tag.ContainsKey("DollBringBackItems") || tag.GetBool("DollBringBackItems");
+        int mode = tag.GetInt("DollMarkMode");
+        MarkMode = mode >= 0 && mode <= (int)DollCommand.BreakWallChain ? (DollCommand)mode : DollCommand.Mine;
         loot.Clear();
         foreach (TagCompound entry in tag.GetList<TagCompound>("DollLoot"))
         {

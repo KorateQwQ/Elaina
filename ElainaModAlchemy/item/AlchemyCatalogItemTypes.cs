@@ -17,6 +17,7 @@ public sealed class AlchemyCatalogItemTypes : ModSystem
     private static int Resolve(string id) => id switch
     {
         "water" => ItemID.BottledWater,
+        "bottle" => ItemID.Bottle,
         "moonglow" => ItemID.Moonglow,
         "star" => ItemID.FallenStar,
         "glowingmushroom" => ItemID.GlowingMushroom,

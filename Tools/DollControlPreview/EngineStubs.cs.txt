@@ -42,7 +42,8 @@ namespace Terraria
         public Vector2 Center, velocity;
         readonly ElainaAttributeModPlayer attributes = new();
         readonly DollCommandPlayer commands = new();
-        public T GetModPlayer<T>() where T : class { commands.Player = this; return attributes as T ?? commands as T; }
+        readonly 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer skills = new();
+        public T GetModPlayer<T>() where T : class { commands.Player = this; return attributes as T ?? commands as T ?? skills as T; }
         public DataStructures.IEntitySource GetSource_Misc(string context) => null;
     }
     public class Item { public int pick; }
@@ -222,6 +223,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         private int PlacementAt(Point target) => Placements.FindIndex(p => p.Target == target);
         private void ValidatePlacements() { }
         public void ClearTasks() { TileMarks.Clear(); WallMarks.Clear(); Placements.Clear(); workClaims.Clear(); }
+        public int CommandOpens;
+        internal void OpenCommandWheel() { if (DollPetProjectile.FindOwned(Player) != null) CommandOpens++; }
         public void ResumeGarden() { }
         public Point? PreviewChestTarget;
         public DollPetProjectile PreviewChestHelper;
@@ -271,5 +274,13 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
             MiningCarrier = null;
             DeliveredAt = from;
         }
+    }
+}
+
+namespace 伊蕾娜.ElainaModSkills {
+    public sealed class ElainaSkillModPlayer {
+        public sealed class Slot { public ElainaSkill ModSkill; }
+        public static List<Slot> GetActiveSkill = [];
+        public void UseSkill(int index, Terraria.DataStructures.IEntitySource source) => GetActiveSkill[index].ModSkill.PreUseSkill(source);
     }
 }

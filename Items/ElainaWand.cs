@@ -186,6 +186,7 @@ namespace 伊蕾娜.Items
         }
         public override bool CanUseItem(Player player)
         {
+            if (ElainaModSkills.Skills.DollControl.DollCommandWheel.OwnsPointer) return false;
             if (!player.GetModPlayer<ElainaModplayer>().Elaina||Main.myPlayer!=player.whoAmI) return false;
             
             ElainaSkillModPlayer skillModPlayer = player.GetModPlayer<ElainaSkillModPlayer>();

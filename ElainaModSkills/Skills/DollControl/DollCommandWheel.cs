@@ -10,14 +10,14 @@ using Terraria.ID;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using 伊蕾娜.ElainaModSkills.UICore;
-using 伊蕾娜.Items;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
+using static 伊蕾娜.Localization.UIText;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
-/// 玩偶指令盘：外观与技能盘相同（图标环带 + 中心法阵），开合与输入沿用治疗选择盘：
-/// 左键按下打开，指向某个指令松开即确认；在中心松开、右键或 Esc 取消。
+/// 玩偶指令盘：外观与技能盘相同（图标环带 + 中心法阵），开合沿用独立动画时钟：
+/// 从技能轮盘进入后保持打开；指向指令时阵心写出其功能，左键点击立即执行；点击中心、右键或 Esc 关闭。
 /// </summary>
 [RegisterUI("Vanilla: Radial Hotbars", "Elaina: Doll Command Wheel", 1004)]
 public sealed class DollCommandWheel : BaseBody
@@ -38,7 +38,7 @@ public sealed class DollCommandWheel : BaseBody
     private Vector2 _anchor;
     private int _hovered = -1, _chosen = -1, _focus = -1;
     private float _time, _closeTime = -1, _presence, _focusAge, _scale = 1;
-    private bool _open, _closing, _anchorPending;
+    private bool _open, _closing, _anchorPending, _lastLeft;
 
     public DollCommandWheel() => Enabled = false;
     public override bool IsInteractable => _open || _closing;
@@ -65,6 +65,7 @@ public sealed class DollCommandWheel : BaseBody
     {
         if (Main.gameMenu || !Main.hasFocus || !TryGet(out var wheel)) return false;
         wheel.Cancel();
+        wheel._lastLeft = Main.mouseLeft;
         wheel._closing = false;
         wheel._closeTime = -1;
         wheel._validSource = validSource;
@@ -151,8 +152,8 @@ public sealed class DollCommandWheel : BaseBody
     }
 
     private bool CanStayOpen => !Main.gameMenu && Main.hasFocus && !Main.hideUI && !Main.drawingPlayerChat
-        && !Main.ingameOptionsWindow && !Main.inFancyUI && !Main.editSign && !Main.editChest
-        && Main.LocalPlayer is { active: true, dead: false } && Main.LocalPlayer.HeldItem.ModItem is ElainaWand
+        && !Main.mapFullscreen && !Main.ingameOptionsWindow && !Main.inFancyUI && !Main.editSign && !Main.editChest
+        && Main.LocalPlayer is { active: true, dead: false }
         && _validSource?.Invoke() == true;
 
     protected override void Update(GameTime gameTime)
@@ -192,7 +193,7 @@ public sealed class DollCommandWheel : BaseBody
 
         if (Fading)
         {
-            // Track 可能在本次松键时刚启动淡出，不应把之前的展开间隔算入关闭。
+            // Track 可能在本次点击时刚启动淡出，不应把之前的展开间隔算入关闭。
             if (!wasFading) dt = 0;
             _closeTime += dt;
             _presence = Math.Max(0, _presence - dt / FadeOut);
@@ -208,7 +209,7 @@ public sealed class DollCommandWheel : BaseBody
         for (int i = 0; i < Count; i++)
             _hover[i] = MathHelper.Lerp(_hover[i], i == lit ? 1 : 0, Math.Min(1, dt / .12f));
 
-        // 圆心只展示所指指令的图标；关闭后保持所选图标随轮盘淡出。
+        // 指向某项或选中后淡出时阵心显示其功能名，其余时候（含指针回到中心）显示关闭按钮。
         int focus = _open ? _hovered : _chosen >= 0 ? _chosen : _focus;
         if (focus != _focus)
         {
@@ -234,11 +235,19 @@ public sealed class DollCommandWheel : BaseBody
         margin *= _scale;
         _anchor.X = size.X > margin * 2 ? Math.Clamp(_anchor.X, margin, size.X - margin) : size.X / 2;
         _anchor.Y = size.Y > margin * 2 ? Math.Clamp(_anchor.Y, margin, size.Y - margin) : size.Y / 2;
-        int hovered = Pick((Main.MouseScreen - Bounds.Position - _anchor) / _scale, Count);
+        Vector2 offset = (Main.MouseScreen - Bounds.Position - _anchor) / _scale;
+        float distance = offset.Length();
+        int hovered = distance >= RadiusFor(Count) - BandHalf && distance <= RadiusFor(Count) + BandHalf
+            ? Pick(offset, Count) : -1;
         if (hovered >= 0 && hovered != _hovered) SoundEngine.PlaySound(SoundID.MenuTick);
         _hovered = hovered;
-        // 打开这次按键属于魔杖，SUI 不一定派发 MouseUp；在拾取之后轮询，用松开时的指针位置确认。
-        if (!Main.mouseLeft) Confirm(hovered);
+        bool pressed = Main.mouseLeft && !_lastLeft;
+        _lastLeft = Main.mouseLeft;
+        if (pressed)
+        {
+            if (distance <= HubRadiusFor(Count)) Cancel();
+            else if (hovered >= 0) Confirm(hovered);
+        }
     }
 
     private void Confirm(int slot)
@@ -296,6 +305,7 @@ public sealed class DollCommandWheel : BaseBody
         view.RingScale = _open ? OpeningRingScale(_time) : MathHelper.Lerp(.94f, 1, _presence);
         view.Seconds = _time + .5f;
         view.ShowNumber = false;
+        view.CancelHub = true;
 
         float radius = RadiusFor(Count);
         for (int i = 0; i < Count; i++)
@@ -314,6 +324,7 @@ public sealed class DollCommandWheel : BaseBody
                 Stack = 1,
                 MaxStack = 1,
                 Icon = _icons[i].Value,
+                Label = LocalizeUI("DollCommand" + DollCommands.AtSlot(i)),
             };
         }
     }

@@ -29,7 +29,7 @@ internal static class DollCommands
 
     public static string IconPath(DollCommand command) => IconPrefix + command;
 
-    /// <summary>选中后进入世界标记状态的指令；其余指令在确认时立即生效。</summary>
+    /// <summary>选中后进入快捷键工作模式设置的指令；其余指令在确认时立即生效。</summary>
     public static bool IsMarkingTool(DollCommand command) => command <= DollCommand.BreakWallChain;
 
     public static bool TargetsWalls(DollCommand command) =>

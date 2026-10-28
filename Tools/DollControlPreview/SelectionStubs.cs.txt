@@ -13,6 +13,8 @@ namespace Terraria
     {
         public static int myPlayer, netMode, maxTilesX = 160, maxTilesY = 100;
         public static bool mouseLeft, mouseRight, blockMouse, mapFullscreen, drawingPlayerChat, editSign, editChest, inFancyUI;
+        public static bool hasFocus = true, gameMenu, ingameOptionsWindow, hideUI;
+        public static Microsoft.Xna.Framework.Input.KeyboardState keyState;
         public static float UIScale = 1;
         public static uint GameUpdateCount = 1;
         public static Vector2 MouseWorld;
@@ -39,7 +41,7 @@ namespace Terraria
     public class Player
     {
         public int whoAmI;
-        public int chest = -1;
+        public int chest = -1, talkNPC = -1;
         public int direction = 1;
         public Vector2 Center = new(320, 320);
         public Item[] inventory = System.Linq.Enumerable.Range(0, 59).Select(_ => new Item()).ToArray();
@@ -179,7 +181,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
     {
         public sealed class Host { public bool active; public int owner; public DollPetProjectile ModProjectile; }
         public Host Projectile = new();
-        public static DollPetProjectile FindOwned(Player player) => new();
+        public static bool Present = true;
+        public static DollPetProjectile FindOwned(Player player) => Present ? new() : null;
         public static void DismissAll(Player player) { }
     }
     public static class DollCommandWheel
@@ -206,4 +209,11 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl {
  }
  public sealed partial class DollCommandPlayer { internal bool HasGardenTask => false; internal void PauseGarden() { } internal void ResumeGarden() { } private void SaveGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { } private void LoadGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { } }
  internal static class DollGardenSystem { internal static void Join(Player player) { } internal static void Register(Player player, Point p, int pot) { } }
+}
+
+namespace 伊蕾娜.Config { public static class KeyBind { public static Terraria.ModLoader.ModKeybind DollMark = new(); } }
+namespace Terraria.ModLoader { public class ModKeybind { public bool Current, JustPressed; } }
+namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI {
+    public static class ElainaSkillWheel { public static bool IsShowing; }
+    public static class ElainaHealingWheel { public static bool IsShowing; }
 }

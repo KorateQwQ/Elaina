@@ -3,6 +3,7 @@
 用法：
     python Tools/DollCommandIcons/BuildPixelDollCommandIcons.py          # 只输出 output/pixel/ 预览
     python Tools/DollCommandIcons/BuildPixelDollCommandIcons.py --apply  # 确认后写入正式目录
+    python Tools/DollCommandIcons/BuildPixelDollCommandIcons.py --apply --only DollCommand_Cancel  # 只重写指定图标
 
 与 SVG 版的区别：不做抗锯齿和外发光，每层自动描 1px 深色外轮廓，明暗只用 2~3 阶平涂。
 20x20 网格放大 2x 后与熊头像（Kuma_Idle_1 截图 2x）的像素密度一致。
@@ -32,8 +33,9 @@ PALETTE = {
     "y": "#ffe28a", "Y": "#e0a832", "o": "#a8701a", "r": "#fff0b0",
     # 砖墙
     "b": "#b4644f", "B": "#8e4a3c", "m": "#4a2420", "c": "#ffb088", "C": "#d8704c", "R": "#ffe0a8",
-    # 取消（紫）
-    "p": "#e6d9ff", "P": "#9f7ae8", "q": "#6a4bb0",
+    # 取消任务：羊皮纸任务单 + 与熊头像同色的红色叉号角标
+    "i": "#e2cfa3", "I": "#b99c6c", "v": "#9a7a54", "l": "#76573e",
+    "1": "#e2454f", "2": "#b03845", "4": "#fff3f3",
     # 剑刃 / 剑柄
     "e": "#eef1ff", "E": "#aeb6d6", "f": "#7d86ad",
     "h": "#ffa6c2", "H": "#e2507e", "j": "#a8335a",
@@ -255,29 +257,27 @@ def icon_attack():
 
 
 def icon_cancel():
-    ring, cross = Layer(), Layer()
-    c = 9.5
+    """任务单 + 右下红色叉号角标，与“收回玩偶”的熊头像角标同一套语言；不画外发光或亮边高光。"""
+    paper, badge = Layer(), Layer()
+    paper.rect(2, 1, 12, 16, "i")
+    paper.rect(12, 1, 12, 16, "I")
+    paper.rect(2, 16, 12, 16, "I")
+    for x, y in ((11, 1), (12, 1), (12, 2)):
+        del paper.px[(x, y)]  # 右上折角
+    paper.set(11, 2, "v")
+    for y, end in ((4, 9), (7, 10), (10, 7), (13, 6)):
+        paper.set(4, y, "l")
+        paper.rect(6, y, end, y, "l")
 
-    def ring_color(x, y):
-        dx, dy = x + .5 - c - .5, y + .5 - c - .5
-        d = (dx * dx + dy * dy) ** .5
-        if not 6.0 <= d <= 8.2:
+    def badge_color(x, y):
+        dx, dy = x - 14.5, y - 14.5  # 8 像素圆盘，叉号 4x4、中心 2x2 实块，缩到 50px 后仍连成斜线
+        if dx * dx + dy * dy > 3.9 * 3.9:
             return None
-        if d >= 7.4 and dx + dy < -2:
-            return "p"
-        if d <= 6.8 and dx + dy > 2:
-            return "q"
-        return "P"
-    ring.each(ring_color)
-
-    def cross_color(x, y):
-        if max(abs(x - c), abs(y - c)) > 4.1:
-            return None
-        if x - y in (-1, 0, 1) or x + y in (18, 19, 20):
-            return "p" if (x - y == -1 or x + y == 18) else "P"
-        return None
-    cross.each(cross_color)
-    return compose(ring, cross)
+        if abs(dx) <= 1.5 and abs(dy) <= 1.5 and abs(dx) == abs(dy):
+            return "4"
+        return "2" if dx + dy >= 4 else "1"
+    badge.each(badge_color)
+    return compose(paper, badge)
 
 
 def leaf(layer, base, tip, half_w, bend):
@@ -335,10 +335,12 @@ def comparison(names, old, new):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--only", nargs="*", metavar="NAME", help="只生成/写入这些图标，如 DollCommand_Cancel")
     args = parser.parse_args()
     os.makedirs(PIXEL_OUT, exist_ok=True)
     new, old = {}, {}
-    for name, fn in ICONS.items():
+    icons = {n: f for n, f in ICONS.items() if not args.only or n in args.only}
+    for name, fn in icons.items():
         im = fn()
         im.save(os.path.join(PIXEL_OUT, name + ".png"))
         new[name] = im
@@ -346,7 +348,7 @@ def main():
         old[name] = Image.open(old_path).convert("RGBA") if os.path.exists(old_path) else Image.new("RGBA", im.size)
         if args.apply:
             premultiply(im).save(os.path.join(APPLY_DIR, name + ".png"))
-    comparison(list(ICONS), old, new).save(os.path.join(PIXEL_OUT, "_compare.png"))
+    comparison(list(icons), old, new).save(os.path.join(PIXEL_OUT, "_compare.png"))
     print("written", len(new), "icons", "(applied)" if args.apply else "(preview only)")
 
 

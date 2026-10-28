@@ -21,11 +21,6 @@ public sealed class DollMarkSystem : ModSystem
     // 操作条主按钮两端的四芒星与炼金手记共用同一图集。
     private const string StarsPath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookStars";
 
-    private List<Point> _chain = [];
-    private Point _chainAt = new(-1, -1);
-    private bool _chainWalls;
-    private uint _chainTick;
-
     public override void PostDrawTiles()
     {
         if (Main.dedServ || Main.gameMenu || Main.myPlayer < 0) return;
@@ -43,13 +38,16 @@ public sealed class DollMarkSystem : ModSystem
             DrawMarks(batch, commands.WallMarks, WallColor, view, pulse);
             DrawMarks(batch, commands.TileMarks, TileColor, view, pulse);
             DrawPlacements(batch, commands, view, pulse);
-            if (commands.Tool is { } tool)
+            if (commands.Tool is { })
             {
-                DrawMarks(batch, commands.DraftMarks, AddColor, view, pulse);
-                var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale);
-                Vector2 pointer = new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale;
-                if (!Main.LocalPlayer.mouseInterface && !Main.mapFullscreen && !Main.blockMouse
-                    && !layout.Panel.Contains(pointer.ToPoint())) DrawPreview(batch, commands, tool, view);
+                DrawMarks(batch, commands.SelectionMarks, commands.SelectionBlockReason == null ? AddColor : RemoveColor, view, pulse);
+                if (commands.DragStart is { } start)
+                {
+                    Rectangle area = Cell(new Point(Math.Min(start.X, commands.HoverTile.X), Math.Min(start.Y, commands.HoverTile.Y)));
+                    area.Width = (Math.Abs(start.X - commands.HoverTile.X) + 1) * 16;
+                    area.Height = (Math.Abs(start.Y - commands.HoverTile.Y) + 1) * 16;
+                    Outline(batch, area, Color.White * .9f);
+                }
             }
         }
         finally
@@ -113,56 +111,6 @@ public sealed class DollMarkSystem : ModSystem
             scale, SpriteEffects.None, 0f);
     }
 
-    private void DrawPreview(SpriteBatch batch, DollCommandPlayer commands, DollCommand tool, Rectangle view)
-    {
-        bool walls = DollCommands.TargetsWalls(tool);
-        HashSet<Point> marks = commands.DraftMarks;
-        Point hover = commands.HoverTile;
-        Color toolColor = walls ? WallColor : TileColor;
-
-        if (DollCommands.IsChain(tool))
-        {
-            // 预览这次点击会标记（绿）或清除（红）的整组；指针移到新格子或每秒刷新一次。
-            if (hover != _chainAt || walls != _chainWalls || Main.GameUpdateCount - _chainTick > 60)
-            {
-                _chain = DollCommandPlayer.FindChain(hover, walls);
-                _chainAt = hover;
-                _chainWalls = walls;
-                _chainTick = Main.GameUpdateCount;
-            }
-            Color color = (marks.Contains(hover) ? RemoveColor : AddColor) * .35f;
-            foreach (Point point in _chain)
-                if (view.Contains(point)) batch.Draw(TextureAssets.MagicPixel.Value, Cell(point), color);
-            Outline(batch, Cell(hover), toolColor);
-            return;
-        }
-
-        if (commands.DragStart is not { } start)
-        {
-            Rectangle bounds = DollTileSelection.Bounds(hover, walls);
-            Rectangle outline = Cell(new(bounds.X, bounds.Y));
-            outline.Width = bounds.Width * 16; outline.Height = bounds.Height * 16;
-            Outline(batch, outline, toolColor);
-            return;
-        }
-        int left = Math.Min(start.X, hover.X), right = Math.Max(start.X, hover.X);
-        int top = Math.Min(start.Y, hover.Y), bottom = Math.Max(start.Y, hover.Y);
-        int visibleLeft = Math.Max(left, view.Left), visibleRight = Math.Min(right, view.Right);
-        int visibleTop = Math.Max(top, view.Top), visibleBottom = Math.Min(bottom, view.Bottom);
-        // 触及家具时预览整件，拖拽框仍表示鼠标划过的区域。
-        if (visibleLeft > visibleRight || visibleTop > visibleBottom) return;
-        foreach (Point point in DollTileSelection.RectangleCells(new(visibleLeft, visibleTop), new(visibleRight, visibleBottom), walls))
-            {
-                if (!view.Contains(point)) continue;
-                batch.Draw(TextureAssets.MagicPixel.Value, Cell(point),
-                    (marks.Contains(point) ? RemoveColor : AddColor) * .35f);
-            }
-        Rectangle area = Cell(new Point(left, top));
-        area.Width = (right - left + 1) * 16;
-        area.Height = (bottom - top + 1) * 16;
-        Outline(batch, area, Color.White * .9f);
-    }
-
     private static Rectangle Cell(Point point)
     {
         Vector2 position = new Vector2(point.X * 16, point.Y * 16) - Main.screenPosition;
@@ -187,13 +135,14 @@ public sealed class DollMarkSystem : ModSystem
             layers.Insert(index, new LegacyGameInterfaceLayer("伊蕾娜: Doll Selection", DrawSelectionBar, InterfaceScaleType.UI));
     }
 
-    /// <summary>固定在屏幕下方的选区操作条；鼠标旁不再跟随整段说明。</summary>
+    /// <summary>固定在屏幕下方的工作模式设置；临时标记不打开操作条。</summary>
     private static bool DrawSelectionBar()
     {
         if (Main.gameMenu || Main.myPlayer < 0 || Main.mapFullscreen || Main.inFancyUI
             || Main.drawingPlayerChat || Main.editSign || Main.editChest) return true;
         DollCommandPlayer commands = Main.LocalPlayer.GetModPlayer<DollCommandPlayer>();
-        if (commands.Tool is not { } tool) return true;
+        if (!commands.SettingsOpen) return true;
+        DollCommand tool = commands.MarkMode;
         bool walls = DollCommands.TargetsWalls(tool);
         var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / Main.UIScale);
         Vector2 pointer = new Vector2(PlayerInput.MouseX, PlayerInput.MouseY) / Main.UIScale;
@@ -202,17 +151,13 @@ public sealed class DollMarkSystem : ModSystem
         var art = new DollSelectionBarDrawing.Art(TextureAssets.MagicPixel.Value,
             ModContent.Request<Texture2D>(StarsPath).Value, UIDrawKit.TitleFont,
             FontManager.HarmonyOS_Sans_SC?.Value ?? FontAssets.MouseText.Value);
-        // 数量文案保留 {0}，由绘制拆开后单独画数字。
-        string countFormat = Language.GetTextValue("Mods.伊蕾娜.UI." + (walls ? "DollSelectionWalls" : "DollSelectionTiles"));
+        string keyName = DollCommandPlayer.MarkKeyName ?? LocalizeUI("DollMarkUnbound");
         DollSelectionBarDrawing.Draw(Main.spriteBatch, art, icon, layout, pointer, Main.UIScale,
-            LocalizeUI("DollCommand" + DollCommands.BaseCommand(tool)), countFormat, commands.DraftMarks.Count,
-            LocalizeUI(walls ? "DollSelectionEmptyWalls" : "DollSelectionEmptyTiles"),
-            LocalizeUI(DollCommands.IsChain(tool) ? "DollMarkHintChain" : "DollMarkHintRect"),
-            LocalizeUI(walls ? "DollSelectionStartWalls" : "DollSelectionStart"), LocalizeUI("DollSelectionExit"),
-            commands.DraftBlockReason == null, LocalizeUI("DollBringBackItems"), commands.BringBackItems,
+            LocalizeUI("DollCommand" + DollCommands.BaseCommand(tool)), LocalizeUI("DollModeSettings"),
+            Language.GetTextValue("Mods.伊蕾娜.UI.DollMarkKeyHint", keyName), LocalizeUI("DollSettingsDone"),
+            LocalizeUI("DollBringBackItems"), commands.BringBackItems,
             LocalizeUI(walls ? "DollChainWalls" : "DollChainMining"), DollCommands.IsChain(tool),
-            LocalizeUI("DollToggleOn"), LocalizeUI("DollToggleOff"),
-            commands.DraftBlockReason != null ? LocalizeUI(commands.DraftBlockReason) : null);
+            LocalizeUI("DollToggleOn"), LocalizeUI("DollToggleOff"));
         return true;
     }
 }

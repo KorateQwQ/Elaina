@@ -1,5 +1,8 @@
 ﻿using System;
+using Microsoft.Xna.Framework.Input;
 using Terraria.GameInput;
+using Terraria.ModLoader.IO;
+using 伊蕾娜.Config;
 using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 using Host = Terraria.Main;
 
@@ -9,122 +12,85 @@ internal static class SelectionChecks
     internal static void Run()
     {
         for (int x = 0; x < Host.maxTilesX; x++) for (int y = 0; y < Host.maxTilesY; y++) Host.tile[x, y] = new Tile();
+        Point a = new(20, 20), b = new(21, 20), other = new(22, 20), old = new(30, 20);
+        Host.tile[a.X, a.Y] = new Tile { HasTile = true, TileType = 1, WallType = 1 };
+        Host.tile[b.X, b.Y] = new Tile { HasTile = true, TileType = 1, WallType = 1 };
+        Host.tile[other.X, other.Y] = new Tile { HasTile = true, TileType = 2, WallType = 2 };
         foreach (float scale in new[] { 1f, 1.5f, 2f })
+        foreach (bool walls in new[] { false, true })
+        foreach (bool chain in new[] { false, true })
         {
             Host.UIScale = scale;
-            foreach (DollCommand tool in new[] { DollCommand.Mine, DollCommand.MineChain, DollCommand.BreakWall, DollCommand.BreakWallChain })
-            {
-                var c = new DollCommandPlayer();
-                var a = new Point(20, 20); var b = new Point(21, 20); var old = new Point(30, 20);
-                Host.tile[a.X, a.Y] = new Tile { HasTile = true, TileType = 1, WallType = 1 };
-                Host.tile[b.X, b.Y] = new Tile { HasTile = true, TileType = 2, WallType = 2 };
-                var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / scale);
-                Begin(c, tool);
-                Check(c.BringBackItems, "New characters collect drops by default");
-                Button(c, layout.BringBack);
-                Check(!c.BringBackItems && c.DraftMarks.Count == 0 && c.DragStart == null && c.Tool == tool,
-                    "Toggle must switch off without selecting world tiles or closing editor");
-                MoveToButton(c, true, layout.BringBack); MoveToButton(c, true, layout.BringBack);
-                Check(c.BringBackItems, "Holding the toggle must flip it only once");
-                MoveToButton(c, false, layout.BringBack);
-                Button(c, layout.BringBack);
-                var save = new Terraria.ModLoader.IO.TagCompound(); c.SaveData(save);
-                var restored = new DollCommandPlayer(); restored.LoadData(save);
-                Check(!restored.BringBackItems, "Disabled preference survives saving even without collected loot");
-                restored.LoadData(new());
-                Check(restored.BringBackItems, "Old saves with no preference retain existing collection behavior");
-                Button(c, layout.Start);
-                Check(c.Tool == tool && !c.HasTask, "Empty start must stay in selection mode");
-                Select(c, a);
-                Check(c.DraftMarks.Contains(a) && !c.HasTask, "Selection must not become an executable task");
-                Host.mouseRight = true; Tick(c, false, a); Host.mouseRight = false;
-                Check(c.Tool == tool && c.DraftMarks.Contains(a), "Right click must not exit or clear selection");
-                Select(c, b);
-                Check(c.DraftMarks.Count == 2, "Multiple selections must accumulate");
-                Select(c, a);
-                Check(!c.DraftMarks.Contains(a) && c.DraftMarks.Contains(b), "Selecting again must erase only the overlap");
-                c.TileMarks.Add(old);
-                Button(c, layout.Exit);
-                Check(c.Tool == null && c.DraftMarks.Count == 0 && c.TileMarks.SetEquals([old]) && c.WallMarks.Count == 0,
-                    "Exit must discard only the draft and preserve active tasks");
-                Begin(c, tool); Select(c, a);
-                Check(!c.BringBackItems, "Reopening the editor preserves the last choice");
-                int opens = DollCommandWheel.Opens;
-                Button(c, layout.Start);
-                Check(c.Tool == null && c.DraftMarks.Count == 0 && c.TileMarks.Contains(old), "Start must close the editor and preserve existing tasks");
-                Check((DollCommands.TargetsWalls(tool) ? c.WallMarks : c.TileMarks).Contains(a), "Start must submit to the correct queue");
-                Check(DollCommandWheel.Opens == opens, "Start click must not reopen the command wheel");
-                Begin(c, tool); Select(c, b); c.ClearTasks();
-                Check(!c.HasTask && c.DraftMarks.Count == 0 && c.Tool == null, "Cancel Tasks must clear both task queues and the draft");
-                c.OnEnterWorld();
-                Check(!c.BringBackItems, "Cancelling or entering another world must not reset the preference");
-                restored.SaveData(save); c.LoadData(save);
-                Check(c.BringBackItems, "Enabled preference also roundtrips");
-                Begin(c, tool); Select(c, a); c.Player.dead = true; Tick(c, false, a);
-                Check(c.Tool == null && c.DraftMarks.Count == 0, "Losing control must discard unsubmitted selection");
-            }
+            var c = new DollCommandPlayer();
+            c.OpenCommandWheel(); DollCommandWheel.Choose(walls ? DollCommand.BreakWall : DollCommand.Mine);
+            Check(c.SettingsOpen && c.Tool == null && !c.HasTask, "command opens settings without starting selection or task");
+            var layout = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / scale);
+            if (chain) Button(c, layout.Chain);
+            Button(c, layout.BringBack);
+            Check(!c.BringBackItems && DollCommands.IsChain(c.MarkMode) == chain, "settings toggle once per click at every UI scale");
+            Button(c, layout.Start);
+            Check(!c.SettingsOpen && !c.HasTask, "Done only closes settings");
+            c.Player.HeldItem.ModItem = new object();
+            伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.GetActiveSkill[0].ModSkill = new object();
+            var queue = walls ? c.WallMarks : c.TileMarks;
+            queue.Add(old);
+            Tick(c, true, a, left: true);
+            Check(c.Tool != null && queue.SetEquals([old]) && c.SelectionMarks.Count == (chain ? 2 : 1), "F hold previews without submitting under another spell or item");
+            Check(c.Player.controlUseItem && !c.Player.mouseInterface && Host.mouseLeft, "marking leaves attack input untouched");
+            Tick(c, false, a, left: true);
+            Check(queue.SetEquals(chain ? new[] {old, a, b} : new[] {old, a}) && c.Tool == null && c.SelectionMarks.Count == 0,
+                "F release immediately appends selected object/chain and clears transient state");
+            Tick(c, false, other, left: true);
+            Check(!queue.Contains(other), "left attack does not mark targets");
+            Tick(c, true, a); Tick(c, true, other);
+            Check(c.SelectionMarks.SetEquals([a, b, other]), "drag selects rectangle even when chain is enabled");
+            Tick(c, false, other);
+            Check(queue.SetEquals([old, a, b, other]), "rectangle submits once without a Start button");
+            Tick(c, true, a); Tick(c, true, other); Tick(c, false, a);
+            Check(c.SelectionMarks.Count == 0 && queue.Count == 4, "repeated assignment is idempotent and never removes queued tasks");
+            var save = new TagCompound(); c.SaveData(save);
+            var loaded = new DollCommandPlayer(); loaded.LoadData(save);
+            Check(loaded.MarkMode == c.MarkMode && !loaded.BringBackItems && !loaded.SettingsOpen && loaded.Tool == null,
+                "mode and collection preference persist without transient UI or selections");
+            c.ClearTasks();
+            Check(!c.HasTask && c.Tool == null && !c.SettingsOpen, "Cancel Tasks clears tasks and gesture");
         }
         Host.UIScale = 1;
-        var draft = new DollCommandPlayer();
-        var p = new Point(20, 20);
-        Begin(draft, DollCommand.Mine); Select(draft, p);
-        var bar = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize);
-        draft.Player.Pickaxe = null; Button(draft, bar.Start);
-        Check(draft.Tool != null && !draft.HasTask, "Removing the tool must prevent submission");
-        draft.Player.Pickaxe = new(); Host.tile[p.X, p.Y].HasTile = false; Button(draft, bar.Start);
-        Check(draft.Tool != null && !draft.HasTask && draft.DraftMarks.Count == 0, "Destroyed tiles must not be submitted");
-        Host.tile[p.X, p.Y].HasTile = true;
-        Tick(draft, true, p); MoveToButton(draft, true, bar.Start); MoveToButton(draft, false, bar.Start);
-        Check(draft.Tool != null && draft.DragStart == null && draft.DraftMarks.Count == 0 && !draft.HasTask,
-            "Dragging into the bar must not submit or draw through it");
-        Tick(draft, true, p); draft.Player.mouseInterface = true; Host.mouseLeft = false; draft.ProcessTriggers(new());
-        Check(draft.DragStart == null && draft.DraftMarks.Count == 0, "Release over other UI must not select world tiles");
-        CheckPlatformsAndPlanterBoxes();
-        CheckFurniture();
-        CheckModesAndRestrictions();
-        Console.WriteLine($"PASS: {assertions} selection assertions; 4 tools at 3 UI scales, draft/queue isolation, exit, start, cancel, input capture, stale targets, platforms and planter boxes.");
-    }
-    private static void CheckPlatformsAndPlanterBoxes()
-    {
-        // 原版 Main 初始化：Platforms = 19、PlanterBox = 380，二者的两种 solid 标记都为 true。
-        Array.Resize(ref Host.tileSolid, 381);
-        Array.Resize(ref Host.tileSolidTop, 381);
-        Host.tileSolid[19] = Host.tileSolidTop[19] = true;
-        Host.tileSolid[380] = Host.tileSolidTop[380] = true;
-        foreach (ushort type in new ushort[] { 19, 380 })
+        foreach (string interrupt in new[] { "focus", "chat", "map", "options", "ui", "chest", "dead", "absent", "escape", "wheel" })
         {
-            var a = new Point(50, 20); var b = new Point(51, 20); var other = new Point(52, 20);
-            var plant = new Point(50, 19);
-            Host.tile[a.X, a.Y] = new Tile { HasTile = true, TileType = type };
-            Host.tile[b.X, b.Y] = new Tile { HasTile = true, TileType = type };
-            Host.tile[other.X, other.Y] = new Tile { HasTile = true, TileType = 1 };
-            Host.tile[plant.X, plant.Y] = new Tile { HasTile = true, TileType = 82 };
-            foreach (DollCommand tool in new[] { DollCommand.Mine, DollCommand.MineChain })
+            var c = new DollCommandPlayer();
+            Tick(c, true, a);
+            switch (interrupt)
             {
-                var c = new DollCommandPlayer();
-                Begin(c, tool);
-                if (tool == DollCommand.Mine)
-                {
-                    Tick(c, true, plant); Tick(c, false, b);
-                }
-                else Select(c, a);
-                Point[] expected = tool == DollCommand.Mine ? [a, b, plant] : [a, b];
-                Check(c.DraftMarks.SetEquals(expected), $"{type}/{tool}: rectangle includes plants; chain only follows the matching type");
-                Host.GameUpdateCount = 15; Tick(c, false, b); Host.GameUpdateCount = 1;
-                Check(c.DraftMarks.SetEquals(expected), $"{type}/{tool}: periodic validation retains selected objects");
-                Button(c, DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize).Start);
-                Check(c.TileMarks.SetEquals(expected) && c.Tool == null, $"{type}/{tool}: submit selected objects to the mining queue");
+                case "focus": Host.hasFocus = false; break;
+                case "chat": Host.drawingPlayerChat = true; break;
+                case "map": Host.mapFullscreen = true; break;
+                case "options": Host.ingameOptionsWindow = true; break;
+                case "chest": c.Player.chest = 0; break;
+                case "dead": c.Player.dead = true; break;
+                case "absent": DollPetProjectile.Present = false; break;
+                case "escape": Host.keyState = new KeyboardState(Keys.Escape); break;
+                case "wheel": DollCommandWheel.OwnsPointer = true; break;
             }
-            Host.tile[a.X, a.Y].HasTile = false;
-            Check(!DollCommandPlayer.IsMarkable(a.X, a.Y, false), $"{type}: removed tiles must not remain markable");
-            Check(!DollCommandPlayer.IsMarkable(b.X, b.Y, true), $"{type}: a platform or planter box is not a wall");
+            Tick(c, false, b, ui: interrupt == "ui");
+            Check(!c.HasTask && c.Tool == null && c.SelectionMarks.Count == 0, interrupt + " cancels transient selection on release");
+            Host.hasFocus = true; Host.drawingPlayerChat = Host.mapFullscreen = Host.ingameOptionsWindow = false;
+            Host.keyState = default; DollPetProjectile.Present = true; DollCommandWheel.OwnsPointer = false;
         }
+        var restricted = new DollCommandPlayer();
+        Host.tile[a.X, a.Y].RequiredPick = 200;
+        Tick(restricted, true, a); Tick(restricted, false, a);
+        Check(!restricted.HasTask && restricted.Tool == null && CombatText.Last == "DollPickPowerInsufficient", "blocked targets reject and clear gesture instead of leaving a draft");
+        Host.tile[a.X, a.Y].RequiredPick = 0;
+        Tick(restricted, true, a); Host.tile[a.X, a.Y].HasTile = false; Tick(restricted, false, a);
+        Check(!restricted.HasTask, "release revalidates tiles destroyed while holding");
+        CheckFurniture();
+        Console.WriteLine($"PASS: {assertions} production hotkey input, settings, persistence, restriction and furniture checks.");
     }
-
     private static void CheckFurniture()
     {
-        foreach (var (type, width, height) in new[] { (79, 4, 2), (18, 2, 1), (14, 3, 2), (13, 1, 1), (4, 1, 1), (15, 1, 2) })
-        foreach (DollCommand tool in new[] { DollCommand.Mine, DollCommand.MineChain })
+        foreach (var (type, width, height) in new[] { (79, 4, 2), (18, 2, 1), (14, 3, 2), (13, 1, 1), (4, 1, 1), (15, 1, 2), (19, 1, 1), (380, 1, 1) })
+        foreach (bool chain in new[] { false, true })
         {
             Host.tileFrameImportant[type] = true;
             Terraria.ObjectData.TileObjectData.Fixtures[type] = new() { Width = width, Height = height };
@@ -135,110 +101,40 @@ internal static class SelectionChecks
                 Point p = new(90 + x, 30 + y); cells.Add(p);
                 Host.tile[p.X, p.Y] = new Tile { HasTile = true, TileType = (ushort)type, TileFrameX = (short)(x * 18), TileFrameY = (short)(y * 18) };
             }
-            var c = new DollCommandPlayer(); Begin(c, tool);
-            Select(c, cells[^1]);
-            Check(c.DraftMarks.SetEquals(cells), $"{type}: clicking one cell selects the complete furniture");
-            Select(c, cells[^1]);
-            Check(c.DraftMarks.Count == 0, $"{type}: furniture selection can be erased");
-            if (tool == DollCommand.Mine && cells.Count > 1)
-            {
-                c.DraftMarks.Add(cells[0]);
-                Select(c, cells[^1]);
-                Check(c.DraftMarks.SetEquals(cells), "A preexisting partial selection is completed, not inverted into another partial object");
-                Select(c, cells[0]);
-                Check(c.DraftMarks.Count == 0, "Clicking a different cell removes the whole selected object");
-            }
-            if (tool == DollCommand.Mine) { Tick(c, true, cells[0]); Tick(c, false, cells[^1]); }
-            else Select(c, cells[^1]);
-            Host.GameUpdateCount = 15; Tick(c, false, cells[0]); Host.GameUpdateCount = 1;
-            Check(c.DraftMarks.SetEquals(cells), $"{type}: complete furniture survives periodic validation");
-            Button(c, DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize).Start);
-            Check(c.TileMarks.SetEquals(cells), $"{type}: furniture reaches mining queue");
+            var c = new DollCommandPlayer(); c.OpenCommandWheel(); DollCommandWheel.Choose(DollCommand.Mine);
+            if (chain) Button(c, DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize).Chain);
+            Tick(c, true, cells[^1]);
+            Check(c.SelectionMarks.SetEquals(cells), $"{type}: one cell previews complete furniture");
+            Tick(c, false, cells[^1]);
+            Check(c.TileMarks.SetEquals(cells) && c.Tool == null, $"{type}: complete furniture submitted on release");
         }
         Host.tileAxe[5] = true; Host.tileHammer[26] = true;
         foreach (ushort type in new ushort[] { 5, 26 })
         {
             Host.tile[100, 40] = new Tile { HasTile = true, TileType = type };
-            Check(!DollCommandPlayer.IsMarkable(100, 40, false), "Pickaxe selection excludes axe/hammer targets");
+            Check(!DollCommandPlayer.IsMarkable(100, 40, false), "pickaxe selection excludes axe/hammer targets");
         }
-        Check(!DollCommandPlayer.IsMarkable(0, 0, false), "World boundary is excluded");
+        Check(!DollCommandPlayer.IsMarkable(0, 0, false), "world boundary excluded");
     }
-
-    private static void CheckModesAndRestrictions()
+    private static void Tick(DollCommandPlayer c, bool held, Point tile, bool left = false, bool ui = false)
     {
-        Check(DollCommands.Count == 4, "Wheel exposes four implemented task commands (planters moved to remote placement)");
-        Check(Enumerable.Range(0, DollCommands.Count).Select(DollCommands.AtSlot).SequenceEqual(new[] {
-            DollCommand.Mine, DollCommand.BreakWall, DollCommand.Cancel, DollCommand.Dismiss }),
-            "Wheel slots preserve every command after merging chain entries");
-        foreach (float scale in new[] { 1f, 1.5f, 2f })
-        foreach (bool walls in new[] { false, true })
-        {
-            Host.UIScale = scale;
-            var c = new DollCommandPlayer();
-            var a = new Point(70, 20); var b = new Point(71, 20); var hard = new Point(72, 20);
-            foreach (Point p in new[] { a, b, hard }) Host.tile[p.X, p.Y] = new Tile { HasTile = true, TileType = 1, WallType = 1 };
-            Host.tile[hard.X, hard.Y].TileType = 2;
-            var bar = DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize / scale);
-            Begin(c, walls ? DollCommand.BreakWall : DollCommand.Mine);
-            Select(c, hard);
-            Button(c, bar.Chain);
-            Check(DollCommands.IsChain(c.Tool.Value) && c.DraftMarks.SetEquals([hard]) && !c.HasTask,
-                "Chain toggle preserves draft and does not submit");
-            MoveToButton(c, true, bar.Chain); MoveToButton(c, true, bar.Chain);
-            Check(!DollCommands.IsChain(c.Tool.Value), "Holding chain button changes mode only once");
-            MoveToButton(c, false, bar.Chain); Button(c, bar.Chain);
-            Select(c, a);
-            Check(c.DraftMarks.SetEquals([a, b, hard]), "Chain click expands connected targets");
-            Button(c, bar.Chain); Select(c, a);
-            Check(c.DraftMarks.SetEquals([b, hard]), "Disabling chain restores rectangle selection of one cell");
-            Check(c.BringBackItems, "Selection mode toggle leaves loot preference alone");
-            if (walls) { Host.wallDungeon[2] = true; Host.tile[hard.X, hard.Y].WallType = 2; NPC.downedBoss3 = false; }
-            else Host.tile[hard.X, hard.Y].RequiredPick = 150;
-            Host.GameUpdateCount += 15; Tick(c, false, a);
-            string reason = walls ? "DollWallRequiresSkeletron" : "DollPickPowerInsufficient";
-            Check(c.DraftBlockReason == reason, "Selected restricted target displays the correct warning before start");
-            Button(c, bar.Start);
-            Check(!c.HasTask && c.Tool != null && c.DraftMarks.SetEquals([b, hard]) && CombatText.Last == reason,
-                "One impossible target blocks the entire mixed draft, with a notification");
-            if (walls) NPC.downedBoss3 = true; else c.Player.Pickaxe.pick = 150;
-            // No refresh tick: the start handler must revalidate inventory/progression immediately.
-            Button(c, bar.Start);
-            Check(c.Tool == null && (walls ? c.WallMarks : c.TileMarks).SetEquals([b, hard]),
-                "Upgrading tool or unlocking walls immediately permits the same retained draft");
-            c.ClearTasks(); Begin(c, walls ? DollCommand.BreakWall : DollCommand.Mine); Select(c, hard);
-            if (walls) { Host.tile[hard.X, hard.Y].WallType = 87; NPC.downedGolemBoss = false; }
-            else c.Player.Pickaxe.pick = 50;
-            Button(c, bar.Start);
-            Check(!c.HasTask && c.DraftBlockReason == (walls ? "DollWallRequiresGolem" : "DollPickPowerInsufficient"),
-                "Fresh click validation catches a weaker tool or changed wall without waiting for UI refresh");
-            Select(c, hard);
-            Check(c.DraftBlockReason == null && c.DraftMarks.Count == 0, "Deselecting blocked targets clears the warning");
-            if (walls) { c.Player.Hammer = null; Select(c, b); Button(c, bar.Start);
-                Check(c.DraftBlockReason == "DollNoHammer" && !c.HasTask, "Removing hammer blocks submission"); }
-        }
-        Host.UIScale = 1; NPC.downedBoss3 = NPC.downedGolemBoss = false;
-    }
-    private static void Begin(DollCommandPlayer c, DollCommand tool)
-    {
-        Tick(c, false, new(2, 2)); Tick(c, true, new(2, 2)); Tick(c, false, new(2, 2));
-        DollCommandWheel.Choose(tool);
-    }
-    private static void Select(DollCommandPlayer c, Point tile) { Tick(c, false, tile); Tick(c, true, tile); Tick(c, false, tile); }
-    private static void Tick(DollCommandPlayer c, bool left, Point tile)
-    {
-        c.Player.mouseInterface = false; Host.mouseLeft = left; Host.MouseWorld = new(tile.X * 16, tile.Y * 16);
-        PlayerInput.MouseX = 100; PlayerInput.MouseY = 100;
+        KeyBind.DollMark.JustPressed = held && !KeyBind.DollMark.Current;
+        KeyBind.DollMark.Current = held;
+        c.Player.mouseInterface = ui; c.Player.controlUseItem = left; Host.mouseLeft = left;
+        Host.MouseWorld = new(tile.X * 16, tile.Y * 16);
+        PlayerInput.MouseX = PlayerInput.MouseY = 100;
+        Host.GameUpdateCount++;
         c.ProcessTriggers(new());
     }
     private static void Button(DollCommandPlayer c, Rectangle button)
     {
-        MoveToButton(c, false, button); MoveToButton(c, true, button); MoveToButton(c, false, button);
-    }
-    private static void MoveToButton(DollCommandPlayer c, bool left, Rectangle button)
-    {
-        c.Player.mouseInterface = false; Host.mouseLeft = left;
-        PlayerInput.MouseX = (int)(button.Center.X * Host.UIScale); PlayerInput.MouseY = (int)(button.Center.Y * Host.UIScale);
-        c.ProcessTriggers(new());
+        KeyBind.DollMark.Current = KeyBind.DollMark.JustPressed = false;
+        foreach (bool left in new[] { false, true, true, false })
+        {
+            c.Player.mouseInterface = false; Host.mouseLeft = left;
+            PlayerInput.MouseX = (int)(button.Center.X * Host.UIScale); PlayerInput.MouseY = (int)(button.Center.Y * Host.UIScale);
+            c.ProcessTriggers(new());
+        }
     }
     private static void Check(bool condition, string message) { assertions++; if (!condition) throw new Exception(message); }
 }

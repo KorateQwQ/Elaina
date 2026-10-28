@@ -93,6 +93,22 @@ internal static partial class PlanterNativeChecks
         commands.ReleaseGardenHold();
         Check(commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out _), "Finishing the task resumes recurring gardening");
 
+        Point deferred = new(5, 5);
+        commands.TileMarks.Add(deferred);
+        Check(commands.HasTask && !commands.HasNearbyTask && commands.GardenIdle,
+            "distant mining task stays queued without blocking gardening");
+        Check(commands.TrySelectGardenTarget(day.ToWorldCoordinates(), day, out _),
+            "owned flowering planter is selected while distant task is pending");
+        Vector2 savedCenter = player.Center;
+        player.Center = deferred.ToWorldCoordinates();
+        Check(commands.HasNearbyTask && !commands.GardenIdle && commands.TileMarks.Contains(deferred),
+            "returning near deferred task restores task priority without losing it");
+        player.Center = savedCenter;
+        commands.TileMarks.Remove(deferred);
+        commands.WallMarks.Add(deferred);
+        Check(commands.GardenIdle && commands.WallMarks.Contains(deferred), "distant wall task also allows gardening");
+        commands.WallMarks.Clear();
+
         var world = new DollGardenSystem(); var save = new TagCompound(); world.SaveWorldData(save);
         var role = new TagCompound(); commands.SaveData(role); Guid ownerId = commands.GardenOwner;
         world.ClearWorld(); Check(DollGardenSystem.Beds.Count == 0, "Different world starts without old beds");
