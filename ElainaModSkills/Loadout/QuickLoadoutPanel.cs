@@ -19,6 +19,7 @@ using Terraria.GameInput;
 using Terraria.ID;
 using Terraria.ModLoader;
 using 伊蕾娜.Config;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.ElainaModSkills.Loadout;
 
@@ -42,6 +43,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     private Vector2 _origin, _lastSize;
     private int _selected = 1, _current = 1;
     private string _toast;
+    private readonly ConstellationUIClock _controlsClock = new();
 
     private static string ToggleKeyLabel => KeyBind.OpenLoadoutPanel?.GetAssignedKeys().FirstOrDefault() ?? LocalizeUI("LoadoutKey");
     private SkillLoadout SelectedLoadout => SkillBalanceSystem.Current.Loadouts.FirstOrDefault(l => l.Stage == _selected);
@@ -98,7 +100,7 @@ public sealed class QuickLoadoutPanel : BaseBody
     protected override void UpdateStatus(GameTime gameTime)
     {
         base.UpdateStatus(gameTime);
-        _toastLife = Math.Max(0, _toastLife - Math.Min((float)gameTime.ElapsedGameTime.TotalSeconds, .1f));
+        _toastLife = Math.Max(0, _toastLife - _controlsClock.Sample(Main.hasFocus && !Main.hideUI));
         Vector2 size = new(Width.Pixels, Height.Pixels);
         if (size != _lastSize)
         {
@@ -116,7 +118,7 @@ public sealed class QuickLoadoutPanel : BaseBody
         if (IsMouseHovering) Main.LocalPlayer.mouseInterface = true;
     }
 
-    private void Close() { Enabled = false; _toastLife = 0; }
+    private void Close() { Enabled = false; _toastLife = 0; _controlsClock.Stop(); }
     private void Notify(string text) { _toast = text; _toastLife = 5f; }
 
     private void ApplySelected()
@@ -323,6 +325,7 @@ public sealed class QuickLoadoutPanel : BaseBody
         if (body.Enabled) { body.Close(); return true; }
         body._current = body._selected = LoadoutApplier.CurrentStage(Main.LocalPlayer);
         body._previews.Clear();
+        body._controlsClock.Stop();
         body.Enabled = true;
         return true;
     }

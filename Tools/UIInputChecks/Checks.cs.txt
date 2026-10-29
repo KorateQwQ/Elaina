@@ -24,7 +24,106 @@ internal static class Checks
         LayerChecks();
         foreach (float scale in new[] { 1f, 1.25f, 1.5f, 2f }) ScopeChecks(scale);
         NativeUIChecks();
+        ElasticScrollChecks();
+        ActiveClockChecks();
         Console.WriteLine($"PASS: {_passed} UI input checks (real tModLoader input/UI APIs).");
+    }
+
+    private static void ActiveClockChecks()
+    {
+        var clock = new 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationUIClock();
+        Check(clock.Sample(true) == 0, "First visible frame starts its own clock.");
+        Thread.Sleep(50);
+        Check(clock.Sample(true) > .035f, "Active UI clock consumes real elapsed time.");
+        var wall = global::System.Diagnostics.Stopwatch.StartNew();
+        float sum = 0;
+        for (int i = 0; i < 100; i++) sum += clock.Sample(true);
+        Check(sum <= wall.Elapsed.TotalSeconds + .02, "Repeated UI samples count elapsed time only once.");
+        Check(clock.Sample(false) == 0, "Focus loss stops the shared UI clock.");
+        Thread.Sleep(80);
+        Check(clock.Sample(false) == 0 && clock.Sample(true) == 0, "First focused frame excludes the whole inactive interval.");
+        Thread.Sleep(40);
+        Check(clock.Sample(true) > .025f, "Animation continues after focus recovery.");
+        clock.Stop();
+        Thread.Sleep(50);
+        Check(clock.Sample() == 0 && clock.Sample(true) == 0, "Closing and reopening exclude hidden time.");
+        var lifecycle = new UIAnimationClockSystem();
+        GameMain.hasFocus = true;
+        GameMain.hideUI = GameMain.gameMenu = false;
+        lifecycle.UpdateUI(new());
+        clock.Sample(true);
+        GameMain.hideUI = true;
+        lifecycle.UpdateUI(new());
+        // No clock samples while hidden: this is how SUI actually skips its tree.
+        Thread.Sleep(60);
+        GameMain.hideUI = false;
+        lifecycle.UpdateUI(new());
+        Check(clock.Sample(true) == 0, "Unhiding excludes time even if there were no hidden draw callbacks.");
+        Thread.Sleep(35);
+        Check(clock.Sample(true) > .02f, "Clock resumes after hidden UI becomes visible.");
+        lifecycle.OnWorldUnload();
+        Check(clock.Sample(true) == 0, "World unload invalidates samples across surviving UI instances.");
+    }
+
+    private static void ElasticScrollChecks()
+    {
+        GameMain.myPlayer = 0;
+        GameMain.player[0] = new Player();
+        GameMain.hasFocus = true;
+        GameMain.mouseLeft = false;
+        var scroll = new ElasticPageScrollView { AcceptInput = () => true, CanDrag = _ => true };
+        var row = new SilkyUIFramework.Elements.UIView();
+        scroll.Container.AddChild(row);
+        scroll.SetPageRange(100, 600, 1);
+        var wheel = new SilkyUIFramework.UIScrollWheelEvent(row, Vector2.Zero, -120);
+        row.OnMouseWheel(wheel);
+        Check(wheel.ScrollElement == scroll, "Detail row wheel bubbles to the elastic scroll view.");
+        Check(scroll.Motion.Target > 0, "Detail wheel changes the scroll target.");
+        // SUI draws with Terraria's cached GameTime. Input must still animate
+        // when the cached update interval is zero or repeats across draw calls.
+        var time = new GameTime();
+        for (int i = 0; i < 20; i++)
+        {
+            Thread.Sleep(20);
+            scroll.HandleUpdateStatus(time);
+        }
+        Check(scroll.Motion.Position > 100, "Detail wheel advances even with a zero cached game timestep.");
+        Check(scroll.Container.ScrollOffset.Y < -100, "The real SUI container receives the wheel offset.");
+
+        scroll.SetPageRange(100, 600, 1.5f);
+        scroll.ResetPosition(200);
+        Check(scroll.Container.ScrollOffset.Y == -300, "Page units are converted to scaled SUI coordinates.");
+        row.OnMouseWheel(new SilkyUIFramework.UIScrollWheelEvent(row, Vector2.Zero, 120));
+        Check(scroll.Motion.Target == 80, "Wheel up reverses direction.");
+        var consumed = new SilkyUIFramework.UIScrollWheelEvent(row, Vector2.Zero, -120);
+        consumed.LockScroll(row);
+        row.OnMouseWheel(consumed);
+        Check(scroll.Motion.Target == 80, "Already consumed wheel input cannot scroll twice.");
+
+        scroll.ResetPosition(200);
+        GameMain.mouseLeft = true;
+        row.OnLeftMouseDown(new SilkyUIFramework.UIMouseEvent(row, new Vector2(0, 150)));
+        GameMain.mouseY = 90;
+        scroll.HandleUpdateStatus(time);
+        Check(scroll.Motion.Dragging && scroll.Motion.Position == 240, "Dragging still follows scaled pointer movement.");
+        row.OnLeftMouseUp(new SilkyUIFramework.UIMouseEvent(row, new Vector2(0, 90)));
+        GameMain.mouseLeft = false;
+        Check(!scroll.Motion.Dragging && scroll.Motion.DidDrag, "Release ends dragging and suppresses an accidental click.");
+        row.OnMouseWheel(new SilkyUIFramework.UIScrollWheelEvent(row, Vector2.Zero, -120));
+        Check(scroll.Motion.Target == 360, "Wheel input works immediately after releasing a drag.");
+
+        GameMain.hasFocus = false;
+        scroll.HandleUpdateStatus(time);
+        Check(scroll.Motion.Position == scroll.Motion.Target && !scroll.Motion.Dragging, "Focus loss cancels pending movement.");
+        GameMain.hasFocus = true;
+        scroll.AcceptInput = () => false;
+        float stopped = scroll.Motion.Position;
+        row.OnMouseWheel(new SilkyUIFramework.UIScrollWheelEvent(row, Vector2.Zero, -120));
+        Check(scroll.Motion.Target == stopped, "Closed or disabled pages ignore wheel movement.");
+        scroll.AcceptInput = () => true;
+        scroll.SetPageRange(600, 100, 1);
+        row.OnMouseWheel(new SilkyUIFramework.UIScrollWheelEvent(row, Vector2.Zero, -120));
+        Check(scroll.Motion.Position == 0 && scroll.Motion.Target == 0, "Short details do not scroll.");
     }
 
     private static void CaptureChecks()

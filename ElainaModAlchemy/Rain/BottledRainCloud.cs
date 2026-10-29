@@ -9,7 +9,7 @@ using Terraria.ModLoader;
 
 namespace 伊蕾娜.ElainaModAlchemy.Rain;
 
-/// <summary>同一弹幕从瓶子转为雨云，避免重复生成。ai[0] 阶段，ai[1] 年龄，ai[2] 展开高度。</summary>
+/// <summary>同一弹幕从瓶子转为雨云。ai[0] 阶段，ai[1] 年龄，ai[2] 飞行帧数/展开高度。</summary>
 public sealed class BottledRainCloud : ModProjectile
 {
     private float[] rainLengths;
@@ -20,26 +20,31 @@ public sealed class BottledRainCloud : ModProjectile
 
     public override void SetDefaults()
     {
-        Projectile.width = 16;
-        Projectile.height = 24;
+        Projectile.width = RainThrowTrajectory.BottleWidth;
+        Projectile.height = RainThrowTrajectory.BottleHeight;
         Projectile.aiStyle = -1;
         Projectile.penetrate = -1;
         Projectile.timeLeft = 180;
         Projectile.friendly = Projectile.hostile = false;
         Projectile.ignoreWater = true;
         Projectile.netImportant = true;
+        Projectile.tileCollide = false;
     }
 
     public override bool? CanDamage() => false;
     public override bool? CanCutTiles() => false;
+    public override bool ShouldUpdatePosition() => false;
 
     public override void AI()
     {
         if (Projectile.ai[0] == 0)
         {
             Projectile.rotation += Projectile.velocity.X * .035f;
-            Projectile.velocity.Y = Math.Min(Projectile.velocity.Y + .18f, 12);
-            if (++Projectile.ai[1] >= 45) Release();
+            int flight = Projectile.ai[2] == 0 ? 45 : (int)Projectile.ai[2];
+            Vector2 center = Projectile.Center;
+            RainThrowTrajectory.Step(ref center, ref Projectile.velocity, flight);
+            Projectile.Center = center;
+            if (++Projectile.ai[1] >= Math.Abs(flight)) Release();
             return;
         }
 
@@ -65,23 +70,13 @@ public sealed class BottledRainCloud : ModProjectile
             RainPlantGrowth.Water(Projectile.Center);
     }
 
-    public override bool OnTileCollide(Vector2 oldVelocity)
-    {
-        if (Projectile.ai[0] == 0) Release();
-        return false;
-    }
+    public override bool OnTileCollide(Vector2 oldVelocity) => false;
 
     private void Release()
     {
-        Vector2 center = Projectile.Center;
-        float originY = center.Y;
+        float originY = Projectile.Center.Y;
         // 雨云向上展开，低天花板会限制高度，不穿过屋顶去浇灌另一层。
-        for (int i = 0; i < 12; i++)
-        {
-            Vector2 next = center - new Vector2(0, 8);
-            if (next.Y < 48 || Collision.SolidCollision(next - new Vector2(24, 12), 48, 24)) break;
-            center = next;
-        }
+        Vector2 center = RainThrowTrajectory.CloudCenter(Projectile.Center);
         Projectile.Center = center;
         Projectile.velocity = Vector2.Zero;
         Projectile.tileCollide = false;

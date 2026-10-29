@@ -11,7 +11,7 @@ sealed class Preview : Game
     readonly string output;
     readonly string repo;
     SpriteBatch batch;
-    Texture2D pixel, spikes, slime, bat, glow, explosives, traps;
+    Texture2D pixel, spikes, slime, bat, glow, explosives, traps, chests, books;
     RevealingDustTextures dust;
     bool done;
     public Preview(string output, string content, string repo)
@@ -32,6 +32,8 @@ sealed class Preview : Game
         bat = Content.Load<Texture2D>("Images/NPC_49");
         explosives = Content.Load<Texture2D>("Images/Tiles_141");
         traps = Content.Load<Texture2D>("Images/Tiles_137");
+        chests = Content.Load<Texture2D>("Images/Tiles_21");
+        books = Content.Load<Texture2D>("Images/Tiles_50");
         glow = Load(Path.Combine(repo, "ElainaModAlchemy/Revealing/Assets/MarkGlow.png"));
         string kl = Path.Combine(repo, "../KL/Effects/Tex/Sparkle");
         dust = new RevealingDustTextures(glow, Load(Path.Combine(repo, "ElainaModSkills/UICore/Assets/GlowDot.png")),
@@ -61,6 +63,14 @@ sealed class Preview : Game
             using var frame = Frame(600 + i * 4, false, 1); Save(frame, $"wick-{i:000}.png");
         }
         using (var markers = MarkerComparison()) Save(markers, "mark-comparison.png");
+        for (int i = 0; i < 36; i++)
+        {
+            using var frame = ChestComparison(i * 4); Save(frame, $"chests-{i:000}.png");
+        }
+        for (int i = 0; i < 36; i++)
+        {
+            using var frame = WaterBoltComparison(i * 4); Save(frame, $"waterbolt-{i:000}.png");
+        }
         for (int i = 0; i < 60; i++)
         {
             using var frame = Frame(i * 3, false, 1); Save(frame, $"motion-{i:000}.png");
@@ -99,6 +109,88 @@ sealed class Preview : Game
         batch.End(); GraphicsDevice.SetRenderTarget(null);
         return target;
     }
+    RenderTarget2D ChestComparison(float tick)
+    {
+        var target = new RenderTarget2D(GraphicsDevice, 960, 360);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(12, 15, 23));
+        // Rows: dark and bright; columns: unmarked, gold, ivy, enlarged gold.
+        for (int row = 0; row < 2; row++)
+        {
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone);
+            Fill(0, row * 180, 960, 180, row == 0 ? new Color(12, 15, 23) : new Color(125, 143, 153));
+            for (int col = 0; col < 4; col++)
+            {
+                Vector2 center = new(120 + col * 240, 90 + row * 180);
+                float scale = col == 3 ? 2 : 1;
+                int style = col == 2 ? 10 : 1;
+                for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+                    batch.Draw(chests, center + new Vector2(x * 16 - 16, y * 16 - 16) * scale,
+                        new Rectangle(style * 36 + x * 18, y * 18, 16, 16),
+                        row == 0 ? new Color(45, 40, 36) : Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            }
+            batch.End();
+            for (int col = 1; col < 4; col++)
+            {
+                Vector2 center = new(120 + col * 240, 90 + row * 180);
+                Matrix transform = Matrix.CreateScale(col == 3 ? 2 : 1) * Matrix.CreateTranslation(center.X, center.Y, 0);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, transform);
+                RevealingDustDrawing.DrawRecipeChest(batch, dust, Vector2.Zero, tick, col * 151);
+                batch.End();
+            }
+        }
+        GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+
+    RenderTarget2D WaterBoltComparison(float tick)
+    {
+        var target = new RenderTarget2D(GraphicsDevice, 960, 360);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(12, 15, 23));
+        // Rows: dark and bright; columns: dungeon shelf with Water Bolt at native scale, 2x shelf, gold chest for contrast.
+        for (int row = 0; row < 2; row++)
+        {
+            Color tint = row == 0 ? new Color(45, 40, 36) : Color.White;
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone);
+            Fill(0, row * 180, 960, 180, row == 0 ? new Color(12, 15, 23) : new Color(125, 143, 153));
+            for (int col = 0; col < 2; col++)
+            {
+                float scale = col + 1;
+                Vector2 left = new(180 + col * 300 - 48 * scale, 90 + row * 180);
+                Fill((int)left.X - 4, (int)(left.Y + 16 * scale), (int)(104 * scale), (int)(4 * scale), row == 0 ? new Color(52, 40, 34) : new Color(140, 98, 66));
+                // Books styles 0..4 are ordinary books; style 5 (frameX 90) is the Water Bolt.
+                for (int i = 0; i < 6; i++)
+                {
+                    int style = i == 3 ? 5 : i % 5;
+                    batch.Draw(books, left + new Vector2(i * 16 * scale, 0), new Rectangle(style * 18, 0, 16, 16), tint,
+                        0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                }
+            }
+            for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+                batch.Draw(chests, new Vector2(800 + x * 16 - 16, 90 + row * 180 + y * 16 - 16),
+                    new Rectangle(36 + x * 18, y * 18, 16, 16), tint);
+            batch.End();
+            for (int col = 0; col < 2; col++)
+            {
+                float scale = col + 1;
+                Vector2 at = new Vector2(180 + col * 300 - 48 * scale, 90 + row * 180) + new Vector2(3 * 16 + 8, 8) * scale;
+                Matrix transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(at.X, at.Y, 0);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, transform);
+                RevealingDustDrawing.DrawWaterBolt(batch, dust, Vector2.Zero, tick, 211 + col);
+                batch.End();
+            }
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateTranslation(800, 90 + row * 180, 0));
+            RevealingDustDrawing.DrawRecipeChest(batch, dust, Vector2.Zero, tick, 151);
+            batch.End();
+        }
+        GraphicsDevice.SetRenderTarget(null);
+        return target;
+    }
+
     RenderTarget2D MarkerComparison()
     {
         var target = new RenderTarget2D(GraphicsDevice, 960, 480);

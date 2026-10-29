@@ -80,9 +80,9 @@ internal sealed class ConstellationBookMotion
 
 internal static class ConstellationBookLayout
 {
-    internal static Rectangle DockBounds(Vector2 screen, Vector2 rack)
+    internal static Rectangle DockBounds(Vector2 screen, Vector2 rack, float rackWidth = 646)
     {
-        int x = (int)Math.Clamp(rack.X + 646 - 96, 8, Math.Max(8, screen.X - 104));
+        int x = (int)Math.Clamp(rack.X + rackWidth - 96, 8, Math.Max(8, screen.X - 104));
         int y = (int)Math.Clamp(rack.Y - 38, 8, Math.Max(8, screen.Y - 38));
         return new Rectangle(x, y, 96, 30);
     }

@@ -1,5 +1,24 @@
 # Battle skill bar preview
 
+## Bar size setting
+
+`BasicConfig.SkillBarScale` is a client setting from 0.5 to 1.0 in 0.05 steps,
+defaulting to 1.0 for new and existing configurations. It resizes the SUI bar,
+padding, gaps, slots, icons and all ornaments/cooldown/seal drawing. The wheel's
+scale remains independent. Movement uses the resized bounds; the book/toast dock
+follows the bar's right edge.
+
+`pwsh -File Tools/SkillBarPreview/run.ps1 -ScaleOnly` renders 100%, 75% and 50%
+bar sizes at 100% and 125% Terraria UI scales using the production drawing code,
+including cooldown numbers, charge pips/badges and seal/release states. Outputs
+are `seal-states-dark-ui<UI scale>-bar<bar scale>.png`. These are FNA offline
+renders with fixture skill state. Live SUI input and settings-menu interaction
+still need game verification.
+
+`Tools/ResourceDisplayChecks/run.ps1` checks config JSON compatibility/round trips,
+runtime clamping (including nonfinite values), resized production SUI properties,
+restoring full size, movement/bounds at multiple UI scales and the book dock.
+
 ## Seal state (2026-10-19)
 
 `SkillBarDrawing.DrawSealState` ports the four corner tethers, central diamond/keyhole,
@@ -21,6 +40,10 @@ The live SUI bar uses `ElainaSkillBar.cs`, `ElainaSkillSlot.cs`, and `ElainaSkil
 The bar ignores the mouse entirely. Holding the `MoveSkillBar` keybind (default K) centers it
 on the cursor; the position is a mod-wide client preference (`SkillBarLayout.cs`, stored in
 `ModConfigs/伊蕾娜_SkillBarLayout.json`), not per player.
+The bar derives directly from SUI `BaseBody`, without KL's mouse drag controller;
+the legacy book icon no longer forwards drag events to it. Positioning runs during
+SUI's draw status update, where pointer and screen bounds share UI coordinates.
+`Tools/ResourceDisplayChecks/run.ps1` also checks that mouse gestures cannot move it.
 `SkillBarDrawing.cs` is linked directly into the offline FNA host; it is not a copy.
 The reference is `ElainaModSkills/ElainaSkillUI/NewUIExample/elaina-battle-eight-skills.html`.
 

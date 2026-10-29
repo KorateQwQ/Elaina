@@ -1,0 +1,72 @@
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModAlchemy.Rain;
+
+using var game = new AimPreview(args[0], args[1]);
+game.Run();
+
+sealed class AimPreview : Game
+{
+    readonly string output;
+    SpriteBatch batch;
+    Texture2D pixel;
+    readonly Dictionary<int, Texture2D> textures = new();
+    JsonDocument scene;
+    bool done;
+    public AimPreview(string output, string content)
+    {
+        this.output = output; Content.RootDirectory = content;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 800, PreferredBackBufferHeight = 480,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = Content.Load<Texture2D>("Images/MagicPixel");
+        scene = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "scene.json")));
+        foreach (JsonElement tile in scene.RootElement.GetProperty("Tiles").EnumerateArray())
+        {
+            int type = tile.GetProperty("Type").GetInt32();
+            if (!textures.ContainsKey(type)) textures[type] = Content.Load<Texture2D>("Images/Tiles_" + type);
+        }
+    }
+    static Vector2 V(JsonElement v) => new(v[0].GetSingle(), v[1].GetSingle());
+    protected override void Draw(GameTime time)
+    {
+        if (done) return; done = true;
+        foreach (float scale in new[] { 1f, 1.25f })
+        foreach (bool bright in new[] { false, true })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, (int)(800 * scale), (int)(480 * scale));
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(bright ? new Color(140, 185, 211) : new Color(26, 32, 50));
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale));
+            JsonElement root = scene.RootElement;
+            Vector2 camera = V(root.GetProperty("Camera"));
+            foreach (JsonElement tile in root.GetProperty("Tiles").EnumerateArray())
+            {
+                int type = tile.GetProperty("Type").GetInt32();
+                int frame = tile.GetProperty("Frame").GetInt32();
+                Vector2 at = new Vector2(tile.GetProperty("X").GetSingle(), tile.GetProperty("Y").GetSingle()) - camera;
+                int height = type is 82 or 83 or 84 ? 20 : 16;
+                batch.Draw(textures[type], at + new Vector2(0, 16 - height), new Rectangle(frame, 0, 16, height), Color.White);
+            }
+            var path = root.GetProperty("Path").EnumerateArray().Select(V).ToArray();
+            var plants = root.GetProperty("Plants").EnumerateArray()
+                .Select(p => new RainAimPlant(V(p.GetProperty("Anchor")), p.GetProperty("InPlanter").GetBoolean())).ToArray();
+            RainAimDrawing.Draw(batch, pixel, camera, path, V(root.GetProperty("Impact")), V(root.GetProperty("Cloud")),
+                root.GetProperty("Lengths").EnumerateArray().Select(p => p.GetSingle()).ToArray(), plants);
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            string file = Path.Combine(output, $"aim-{(bright ? "day" : "night")}-{scale:0.00}.png");
+            using var stream = File.Create(file); target.SaveAsPng(stream, target.Width, target.Height);
+            Console.WriteLine(file);
+        }
+        Exit();
+    }
+    protected override void UnloadContent() { batch.Dispose(); scene.Dispose(); base.UnloadContent(); }
+}

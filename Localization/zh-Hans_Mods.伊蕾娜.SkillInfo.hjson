@@ -37,7 +37,7 @@ SkillDesc: {
 	HealSkill: 在{2}秒内为自己或附近的一名队友恢复{0}生命，治疗效果可以叠加。
 	AlchemySkill:
 		'''
-		右键炼金大锅打开配方手记，研究配方后即可炼制。部分配方还需要持有对应的配方。
+		右键[klicon/16,0:Item:Cauldron][c/E8C27A:炼金大锅]打开配方手记，研究配方后即可炼制。部分配方还需要持有对应的配方。
 		炼制可获得炼金经验。炼金等级越高，可研究的配方越多，炼制越快，并有几率额外获得一份产物。
 		'''
 	FrostVeilSkill:
@@ -105,7 +105,8 @@ SkillDesc: {
 	MagicBarrierSkill:
 		'''
 		需要开启灰之魔女技能才可使用。
-		在即将受伤时开启护盾，护盾会根据因灰之魔女损失的血量提供伤害减免，并消耗相当于护盾所抵消伤害的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
+		在即将受伤时开启护盾，按因灰之魔女损失的生命上限比例减少受到的伤害，并消耗等同于抵消伤害的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
+		当前减伤比例：{0:0.#}%
 		当受到部分持续伤害效果时，也会持续展开护盾，并且完全免疫这些效果。
 		'''
 	WindSlashSkill:
@@ -123,7 +124,7 @@ DollStats: {
 }
 
 UnlockConditions: {
-	ObtainedReturnPotion: 获得过{$ItemName.PotionOfReturn}
+	ObtainedReturnPotion: 获得过{$ItemName.RecallPotion}
 	IceQueen: 在霜月事件中击败霜月女王
 	ShardbindReveal: 经历某个冬季夜间事件
 	CharacterLevel: 角色等级达到 Lv.{0}

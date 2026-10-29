@@ -11,6 +11,7 @@ using Terraria.Utilities;
 using 伊蕾娜;
 using 伊蕾娜.ElainaModAlchemy.Gameplay;
 using 伊蕾娜.ElainaModAlchemy.item.Recipes;
+using 伊蕾娜.ElainaModAlchemy.Revealing;
 using 伊蕾娜.ElainaModSkills.Skills.DollControl;
 using GameMain = Terraria.Main;
 
@@ -19,6 +20,7 @@ static class Checks
     const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
     static readonly Mod Mod = new CheckMod();
     static readonly AlchemyRecipeChestLoot World = new();
+    static readonly RevealingRecipeChests RevealSystem = new();
     static readonly Type Recipe = typeof(AlchemyRecipeChestLoot).Assembly.GetType("伊蕾娜.ElainaModAlchemy.Gameplay.ExplorationRecipe")!;
     static readonly object Feather = Enum.ToObject(Recipe, 1), Pain = Enum.ToObject(Recipe, 2);
     static int passed;
@@ -102,9 +104,11 @@ static class Checks
         Open(0); Check(Misses(Pain) == 2, "Visited chests stay spent after reload");
         Open(2); Check(Has(third, PainType) && Misses(Pain) == 0, "Third new chest succeeds after save/load");
         Check(third.item[0].type == ItemID.Torch && third.item[0].stack == 17, "Treasure preserved");
-        Check(Chance(Pain) == 30, "Generated scroll is not yet obtained");
+        Check(Chance(Pain) == 5, "Opening a recipe chest lowers repeats to 5 percent without taking the scroll");
+        State.SaveData(playerSave); State.Initialize(); State.LoadData(playerSave);
+        Check(Chance(Pain) == 5 && Has(third, PainType), "Unclaimed chest recipe history survives character save/load");
         State.Observe(third.item.First(i => i.type == PainType));
-        Check(Chance(Pain) == 5, "Acquired scroll lowers repeats to 5 percent");
+        Check(Chance(Pain) == 5, "Later pickup preserves the already recorded chest discovery");
         State.SaveData(playerSave); State.Initialize(); State.LoadData(playerSave);
         Check(Chance(Pain) == 5, "Permanent history survives discarding and reload");
         for (int i = 0; i < 9; i++) ChestAt(i + 10, 80 + i * 3, 200, 1);
@@ -115,12 +119,14 @@ static class Checks
             Open(i + 10);
         }
         Check(Has(GameMain.chest[18], FeatherType) && Misses(Feather) == 0, "Ninth gold chest guarantees featherlight");
+        Check(Chance(Feather) == 5, "Unclaimed featherlight recipe also immediately lowers repeats to 5 percent");
         Check(Chance(Pain) == 5, "Formula histories are independent");
 
         Reset(); var full = ChestAt(0, 80, 100);
         for (int i = 1; i < 40; i++) full.item[i] = new Item(ItemID.Torch, 99);
         World.PostWorldGen(); Open(0);
-        Check(Misses(Pain) == 0 && full.item.All(i => i.type == ItemID.Torch), "Full chest preserves loot and opportunity");
+        Check(Misses(Pain) == 0 && Chance(Pain) == 30 && full.item.All(i => i.type == ItemID.Torch),
+            "Full chest preserves loot, first-copy chance and opportunity");
         full.item[1].TurnToAir(); Open(0);
         Check(Misses(Pain) == 1, "Space permits a later opening to settle once");
         GameMain.chest[1] = new Chest { x = 84, y = 100 }; ChestAt(1, 84, 100); Open(1);
@@ -131,6 +137,32 @@ static class Checks
         Reset(); ChestAt(0, 80, 100); World.PostWorldGen();
         ChestAt(0, 80, 100); Open(0);
         Check(Misses(Pain) == 0, "Replacement chest cannot inherit a candidate at identical coordinates");
+    }
+
+    static void UnclaimedRecipes()
+    {
+        foreach (var recipe in new[] { Pain, Feather })
+        {
+            Reset();
+            int type = recipe == Pain ? PainType : FeatherType;
+            int style = recipe == Pain ? 10 : 1;
+            var first = ChestAt(0, 80, 100, style);
+            var second = ChestAt(1, 84, 100, style);
+            var third = ChestAt(2, 88, 100, style);
+            World.PostWorldGen(); GameMain.rand = new RollRandom(0);
+            Open(0);
+            Check(Has(first, type) && Chance(recipe) == 5 && !Player.inventory.Any(i => i.type == type),
+                "Chest discovery counts before any pickup: " + recipe);
+            Check((int)Call(GameMain.player[1].GetModPlayer<AlchemyRecipeDiscoveryPlayer>(), "ChancePercent", recipe)
+                == (recipe == Pain ? 30 : 20), "Only the opener's first-copy chance is consumed: " + recipe);
+            GameMain.rand = new RollRandom(5);
+            Check(!Revealed(second), "Dust forecast immediately uses the reduced repeat chance: " + recipe);
+            Open(1);
+            Check(!Has(second, type) && Chance(recipe) == 5 && Misses(recipe) == 0,
+                "Leaving the first scroll behind cannot restart pity or keep a higher drop rate: " + recipe);
+            GameMain.rand = new RollRandom(4); Open(2);
+            Check(Has(third, type) && Chance(recipe) == 5, "Repeat drop still succeeds below the 5 percent threshold: " + recipe);
+        }
     }
 
     static void JungleRange()
@@ -178,6 +210,116 @@ static class Checks
         Call(State, "ObservePossessions"); Check(Chance(Pain) == 5, "Already researched recipe implies acquisition");
     }
 
+    static bool Revealed(Chest chest) => (bool)Static("RevealsRecipe", Player, chest);
+    static void Revealing()
+    {
+        Reset();
+        var chest = ChestAt(0, 80, 100); World.PostWorldGen();
+        GameMain.rand = new RollRandom(40);
+        Check(!Revealed(chest) && Misses(Pain) == 0 && !Has(chest, PainType), "Reveal rolls without granting items or consuming pity");
+        GameMain.rand = new RollRandom(0);
+        Check(!Revealed(chest), "Repeated reveal cannot reroll a losing chest");
+        var save = new TagCompound(); World.SaveWorldData(save); World.ClearWorld(); World.LoadWorldData(save);
+        Check(!Revealed(chest), "Preview roll survives world save and reload");
+        Call(State, "RecordRoll", Pain, false);
+        Check(Revealed(chest) && Misses(Pain) == 1, "Current pity can turn a saved roll into a forecast success without spending it");
+        GameMain.rand = new RollRandom(99); Open(0);
+        Check(Has(chest, PainType) && Misses(Pain) == 0, "Opening uses the exact preview roll despite a different RNG result");
+        Check(Revealed(chest), "Actual recipe remains visible after the natural opportunity is consumed");
+        chest.item.First(i => i.type == PainType).TurnToAir();
+        Check(!Revealed(chest), "Taking the recipe removes the highlight");
+        chest.item[1] = new Item(FeatherType);
+        Player.GetModPlayer<ElainaModplayer>().Elaina = false;
+        Check(Revealed(chest), "Existing scrolls can be discovered by any dust user");
+        chest.item[1].TurnToAir(); World.PostWorldGen();
+        Check(!Revealed(chest), "Non-Elaina user cannot forecast an Elaina-only drop");
+        Player.GetModPlayer<ElainaModplayer>().Elaina = true;
+        State.Initialize(); // Independent first-copy guarantee fixture after the earlier successful opening.
+        Call(State, "RecordRoll", Pain, false); Call(State, "RecordRoll", Pain, false);
+        Check(Revealed(chest), "Guaranteed next recipe is highlighted");
+        for (int i = 1; i < 40; i++) chest.item[i] = new Item(ItemID.Torch);
+        Check(!Revealed(chest), "Full candidate without a scroll cannot promise a drop");
+        chest.item[1] = new Item(PainType);
+        Check(Revealed(chest), "Full chest containing a real recipe is still revealed");
+        chest.item[1].TurnToAir();
+        ChestAt(0, 80, 100);
+        Check(!Revealed(GameMain.chest[0]), "Replacement chest does not inherit a preview result");
+        GameMain.netMode = NetmodeID.MultiplayerClient;
+        Check(!Revealed(chest), "Client cannot predict authoritative chest contents");
+        Reset(); chest = ChestAt(0, 80, 100); World.PostWorldGen();
+        World.SaveWorldData(save);
+        foreach (var entry in save.GetList<TagCompound>("NaturalRecipeChestsV1"))
+        { entry.Remove("FeatherRoll"); entry.Remove("PainRoll"); }
+        World.LoadWorldData(save); GameMain.rand = new RollRandom(0);
+        Check(Revealed(chest), "Old candidate save without preview fields gains a roll lazily");
+    }
+
+    static void RevealVisibility()
+    {
+        Reset(); RevealSystem.ClearWorld(); GameMain.gameMenu = false;
+        void Tick(uint tick) => typeof(GameMain).GetField("_gameUpdateCount", All)!.SetValue(null, tick);
+        Tick(0);
+        for (int i = 0; i < GameMain.projectile.Length; i++)
+        {
+            GameMain.projectile[i] ??= new Projectile { whoAmI = i };
+            GameMain.projectile[i].active = false;
+        }
+        var chest = ChestAt(0, 80, 100); chest.item[1] = new Item(PainType);
+        var far = ChestAt(1, 200, 100); far.item[1] = new Item(PainType);
+        Projectile area = GameMain.projectile[0];
+        area.SetDefaults(ModContent.ProjectileType<RevealingDustArea>());
+        area.active = true; area.owner = 0; area.Center = new Vector2(80 * 16 + 16, 100 * 16 + 16);
+        Point[] Visible() => ((IEnumerable<Point>)Call(RevealSystem, "VisibleChests")).ToArray();
+        RevealSystem.PostUpdateProjectiles();
+        Check(Visible().SequenceEqual(new[] { new Point(80, 100) }), "Only recipe chests within an owned dust area are visible");
+        chest.item[1].TurnToAir(); Tick(60); RevealSystem.PostUpdateProjectiles();
+        Check(Visible().Length == 0, "Regular scan removes a recipe taken from the chest");
+        chest.item[1] = new Item(PainType); Tick(120); RevealSystem.PostUpdateProjectiles();
+        Check(Visible().Length == 1, "Regular scan detects a newly deposited recipe");
+        Projectile overlap = GameMain.projectile[1];
+        overlap.SetDefaults(ModContent.ProjectileType<RevealingDustArea>());
+        overlap.active = true; overlap.owner = 0; overlap.Center = area.Center;
+        RevealSystem.PostUpdateProjectiles();
+        Check(Visible().Length == 1, "Overlapping owned areas draw one chest marker");
+        overlap.active = false; RevealSystem.PostUpdateProjectiles();
+        Check(Visible().Length == 1, "Removing one overlap preserves the remaining area's mark");
+        area.owner = 1;
+        Check(Visible().Length == 0, "Another player's dust does not expose the local chest mark");
+        area.owner = 0; area.active = false;
+        Check(Visible().Length == 0, "Area expiry hides a cached mark immediately");
+        area.active = true;
+        Tile tile = GameMain.tile[80, 100]; tile.HasTile = false;
+        Check(Visible().Length == 0, "Destroyed chest stops drawing before the next scan");
+        tile.HasTile = true; Player.dead = true;
+        Check(Visible().Length == 0, "Dead owner sees no marker"); Player.dead = false;
+
+        RevealSystem.ClearWorld(); GameMain.netMode = NetmodeID.Server;
+        var ownerSocket = new MemorySocket(); var otherSocket = new MemorySocket();
+        Netplay.Clients[0] = new RemoteClient { State = 10, Socket = ownerSocket };
+        Netplay.Clients[1] = new RemoteClient { State = 10, Socket = otherSocket };
+        RevealSystem.PostUpdateProjectiles();
+        Check(ownerSocket.Sent.Count == 1 && otherSocket.Sent.Count == 0,
+            "Actual ModPacket transport sends chest snapshot only to the dust owner");
+        Check(Visible().Length == 0, "Server never populates local draw cache");
+        void Receive(int owner, int count = 1)
+        {
+            using var data = new MemoryStream(); using var writer = new BinaryWriter(data);
+            writer.Write((ushort)count); writer.Write((short)80); writer.Write((short)100); data.Position = 0;
+            typeof(RevealingRecipeChests).GetMethod("HandlePacket", All)!.Invoke(null, [new BinaryReader(data), owner]);
+        }
+        Receive(0); Check(Visible().Length == 0, "Server rejects client visibility packets");
+        GameMain.netMode = NetmodeID.MultiplayerClient;
+        Receive(1); Check(Visible().Length == 0, "Other recipient's snapshot cannot populate local markers");
+        Receive(0, 2); Check(Visible().Length == 0, "Truncated snapshot is ignored");
+        Receive(0); Check(Visible().Length == 1, "Owner accepts server coordinates without opening the chest");
+        Tick(300); Check(Visible().Length == 0, "Stale server snapshots expire after three seconds");
+        Receive(0); Check(Visible().Length == 1, "A refreshed snapshot restores the current marker");
+        area.active = false; Check(Visible().Length == 0, "Client drops drawing immediately when its area expires");
+        RevealSystem.ClearWorld(); area.active = true;
+        Check(Visible().Length == 0, "World cleanup removes private snapshots");
+        area.active = false; GameMain.netMode = NetmodeID.SinglePlayer;
+    }
+
     static void Packet(byte operation, bool identity, byte history, byte goldMisses, byte jungleMisses, int sender = 0)
     {
         using var stream = new MemoryStream(); using var writer = new BinaryWriter(stream);
@@ -220,6 +362,8 @@ static class Checks
             Check(openedAt == 40, "Client receives all finalized contents BEFORE its open message");
             Check(delivered.Skip(openedAt + 1).All(m => m.Message != MessageID.SyncChestItem), "No late recipe slot update/pop-in");
             Check(chest.item.Count(i => i.type == PainType) == 1 && socket.Sent.Count == 1, "One roll and one character state update");
+            Check(Chance(Pain) == 5 && !Player.inventory.Any(i => i.type == PainType),
+                "Server records discovery during the open request before any pickup");
             int before = delivered.Count;
             buffer.GetData(0, 5, out _);
             Check(delivered.Count == before, "Busy chest request does not reroll or send contents");
@@ -232,7 +376,16 @@ static class Checks
         }
         finally { World.Unload(); On_NetMessage.SendData -= capture; }
 
-        GameMain.netMode = NetmodeID.MultiplayerClient; State.Observe(new Item(PainType));
+        GameMain.netMode = NetmodeID.MultiplayerClient; State.Initialize();
+        byte[] reply = socket.Sent.Single();
+        // The actual server packet ends with operation + history + the two pity counters.
+        using (var data = new MemoryStream(reply, reply.Length - 4, 4))
+            typeof(AlchemyRecipeDiscoveryPlayer).GetMethod("HandlePacket", All)!.Invoke(null, [new BinaryReader(data), 256, 0]);
+        Check(Chance(Pain) == 5 && Misses(Pain) == 0 && !Player.inventory.Any(i => i.type == PainType),
+            "Actual server snapshot gives the client permanent discovery without an inventory item");
+        var saved = new TagCompound(); State.SaveData(saved); State.Initialize(); State.LoadData(saved);
+        Check(Chance(Pain) == 5, "Client saves the server-confirmed unclaimed recipe discovery");
+        State.Initialize(); State.Observe(new Item(PainType));
         Packet(2, true, 0, 4, 2);
         Check(Chance(Pain) == 5 && Chance(Feather) == 60, "Late server snapshot preserves local pickup and updates independent pity");
     }
@@ -243,13 +396,16 @@ static class Checks
         typeof(Mod).GetField("netID", All)!.SetValue(Mod, (short)0);
         typeof(ModNet).GetField("netMods", All)!.SetValue(null, new Mod[] { Mod });
         Register(new FeatherlightPotionRecipe()); Register(new PainkillerRecipe());
+        Register(new RevealingDustArea()); Register(RevealSystem);
         _ = new Item(ItemID.Torch); _ = GameMain.player;
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(ProjectileID.Sets).TypeHandle);
         SetFactory.ResizeArrays(false);
         typeof(ItemLoader).GetMethod("ResizeArrays", All)!.Invoke(null, [false]);
+        typeof(ProjectileLoader).GetMethod("ResizeArrays", All)!.Invoke(null, [false]);
         GameMain.myPlayer = 0; GameMain.maxTilesX = 400; GameMain.maxTilesY = 600; GameMain.worldSurface = 50;
         MakePlayer(0); MakePlayer(1);
         for (int i = 2; i < GameMain.player.Length; i++) GameMain.player[i] = new Player { active = false, chest = -1 };
-        ProbabilitiesAndWorld(); JungleRange(); Acquisition(); Networking();
+        ProbabilitiesAndWorld(); JungleRange(); Acquisition(); Networking(); UnclaimedRecipes(); Revealing(); RevealVisibility();
         Console.WriteLine($"Alchemy chest discovery: {passed} checks passed against compiled production code and real tML types.");
     }
     public static void Main(string[] args) => MainEntry();

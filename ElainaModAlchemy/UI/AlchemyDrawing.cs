@@ -22,8 +22,8 @@ internal sealed partial class AlchemyDrawing
     internal static readonly Color Gold = new(230, 206, 165);
     internal static readonly Color LineColor = new(76, 62, 88);
     private const string SurfacePath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookSurface";
-    private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Glow";
-    private const string DiscPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Disc";
+    private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/Glow";
+    private const string DiscPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/Disc";
     private const string MagicIconPath = "伊蕾娜/Snippets/MagicStarIcon";
     private const string MagicTagPrefix = "[klicon/16,0:" + MagicIconPath + "][c/4C91FFFF:";
     private const string ChineseMagicTag = MagicTagPrefix + "魔力]";

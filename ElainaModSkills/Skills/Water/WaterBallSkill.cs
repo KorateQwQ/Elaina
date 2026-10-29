@@ -12,9 +12,12 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 [SkillUIInfo(State = 12, Pixels = 400)]
 public class WaterBallSkill: ElainaSkill
 {
-    // 学习门槛读取配置中的角色等级上限，默认至少达到 30。
+    public override Type[] PrerequisiteSkills => [typeof(WaterLaserSKill)];
+
+    // 学习门槛读取配置中的角色等级上限，默认至少达到 30；水流术需达到 3 级（上限 30 阶段的满级）。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(25), RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30));
+        new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(25), RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30),
+            RequireSkillLevel<WaterLaserSKill>(3));
 
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
 

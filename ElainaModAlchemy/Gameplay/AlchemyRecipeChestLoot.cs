@@ -17,7 +17,18 @@ internal enum ExplorationRecipe : byte { None = 0, Featherlight = 1, Painkiller 
 public sealed partial class AlchemyRecipeChestLoot : ModSystem
 {
     // Coordinates survive save/load; live identity also rejects replacement/reused chest slots.
-    private sealed record Candidate(Chest Chest, ExplorationRecipe Remaining);
+    private sealed record Candidate(Chest Chest, ExplorationRecipe Remaining)
+    {
+        public int FeatherRoll = -1, PainRoll = -1;
+
+        // Reveal and opening share a saved roll; looking never advances character pity.
+        public int Roll(ExplorationRecipe recipe)
+        {
+            ref int roll = ref (recipe == ExplorationRecipe.Painkiller ? ref PainRoll : ref FeatherRoll);
+            if (roll < 0) roll = Main.rand.Next(100);
+            return roll;
+        }
+    }
     private static readonly Dictionary<Point, Candidate> candidates = new();
 
     public override void ClearWorld() => candidates.Clear();
@@ -39,7 +50,8 @@ public sealed partial class AlchemyRecipeChestLoot : ModSystem
     {
         tag["NaturalRecipeChestsV1"] = candidates.Where(p => IsSameChest(p.Key, p.Value.Chest))
             .Select(p => new TagCompound { ["X"] = p.Key.X, ["Y"] = p.Key.Y,
-                ["Recipes"] = (byte)p.Value.Remaining }).ToList();
+                ["Recipes"] = (byte)p.Value.Remaining,
+                ["FeatherRoll"] = p.Value.FeatherRoll, ["PainRoll"] = p.Value.PainRoll }).ToList();
     }
 
     public override void LoadWorldData(TagCompound tag)
@@ -53,8 +65,33 @@ public sealed partial class AlchemyRecipeChestLoot : ModSystem
             int index = Chest.FindChest(x, y);
             var recipes = (ExplorationRecipe)(entry.GetByte("Recipes") & 3);
             if (index >= 0 && recipes != ExplorationRecipe.None)
-                candidates[new(x, y)] = new(Main.chest[index], recipes);
+                candidates[new(x, y)] = new(Main.chest[index], recipes)
+                {
+                    FeatherRoll = ReadRoll(entry, "FeatherRoll"), PainRoll = ReadRoll(entry, "PainRoll")
+                };
         }
+    }
+
+    private static int ReadRoll(TagCompound tag, string key)
+        => tag.ContainsKey(key) && tag.GetInt(key) is >= 0 and < 100 ? tag.GetInt(key) : -1;
+
+    internal static bool RevealsRecipe(Player player, Chest chest)
+    {
+        if (Main.netMode == NetmodeID.MultiplayerClient || player is not { active: true, dead: false }
+            || chest == null || !WorldGen.InWorld(chest.x, chest.y, 0)) return false;
+        Tile tile = Main.tile[chest.x, chest.y];
+        if (!tile.HasTile || !TileID.Sets.BasicChest[tile.TileType]) return false;
+        if (chest.item.Any(item => item is { IsAir: false, ModItem: AlchemyRecipeScroll })) return true;
+        if (!player.GetModPlayer<ElainaModplayer>().Elaina || Chest.IsLocked(chest.x, chest.y)
+            || !chest.item.Any(item => item == null || item.IsAir)) return false;
+        if (!candidates.TryGetValue(new(chest.x, chest.y), out var candidate)
+            || !ReferenceEquals(chest, candidate.Chest)) return false;
+        var discovery = player.GetModPlayer<AlchemyRecipeDiscoveryPlayer>();
+        if (Main.netMode == NetmodeID.Server && !discovery.ServerReady) return false;
+        return ((candidate.Remaining & ExplorationRecipe.Featherlight) != 0
+                && candidate.Roll(ExplorationRecipe.Featherlight) < discovery.ChancePercent(ExplorationRecipe.Featherlight))
+            || ((candidate.Remaining & ExplorationRecipe.Painkiller) != 0
+                && candidate.Roll(ExplorationRecipe.Painkiller) < discovery.ChancePercent(ExplorationRecipe.Painkiller));
     }
 
     private static bool IsSameChest(Point point, Chest expected)
@@ -98,7 +135,7 @@ public sealed partial class AlchemyRecipeChestLoot : ModSystem
             int slot = Array.FindIndex(chest.item, item => item == null || item.IsAir);
             // Full chests keep their opportunity until a later opening with space.
             if (slot < 0) continue;
-            bool success = Main.rand.Next(100) < discovery.ChancePercent(recipe);
+            bool success = candidate.Roll(recipe) < discovery.ChancePercent(recipe);
             if (success) chest.item[slot] = new Item(type);
             discovery.RecordRoll(recipe, success);
             remaining &= ~recipe;

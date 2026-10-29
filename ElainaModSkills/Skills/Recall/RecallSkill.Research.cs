@@ -14,7 +14,7 @@ public partial class RecallSkill
         "Mods.伊蕾娜.SkillInfo.UnlockConditions.ObtainedReturnPotion");
 
     public override SkillUnlockCondition UnlockCondition { get; set; } =
-        SkillUnlockCondition.ByItemsAndSkillPoint(20, new SkillUnlockItem(ItemID.PotionOfReturn, 1));
+        SkillUnlockCondition.ByItemsAndSkillPoint(20, new SkillUnlockItem(ItemID.RecallPotion, 1));
 
     public override bool TryUnlockSkill(KLSkillModPlayer skillPlayer) =>
         IsConstellationRevealed(skillPlayer?.Player) && base.TryUnlockSkill(skillPlayer);

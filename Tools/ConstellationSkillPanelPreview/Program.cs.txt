@@ -5,6 +5,7 @@ internal sealed class PanelGame : Game
     internal static string Repo;
     private static string VanillaContent;
     private static GraphicsDevice Device;
+    private static Microsoft.Xna.Framework.Content.ContentManager Vanilla;
     private static readonly Dictionary<string, Texture2D> Textures = [];
     private bool _done;
     private static bool IconsOnly;
@@ -41,6 +42,7 @@ internal sealed class PanelGame : Game
         KL.Drawing.FontManager.NotoSerifSC = new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
         KL.Drawing.FontManager.Gelasio = new(Content.Load<DynamicSpriteFont>("Gelasio"));
         Content.RootDirectory = VanillaContent;
+        Vanilla = Content;
         Terraria.GameContent.FontAssets.MouseText = new(Content.Load<DynamicSpriteFont>("Fonts/Mouse_Text"));
         var pixel = new Texture2D(Device, 1, 1); pixel.SetData(new[] { Color.White });
         Terraria.GameContent.TextureAssets.MagicPixel = new(pixel);
@@ -86,13 +88,13 @@ internal sealed class PanelGame : Game
             }
             Console.WriteLine(output); Exit(); return;
         }
-        if (!LocalizationOnly && !SkipChecks && !RecallResearchOnly) IconChecks.Run(batch);
+        if (IconsOnly || (!LocalizationOnly && !SkipChecks && !RecallResearchOnly)) IconChecks.Run(batch);
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
         string[] scenes = AlchemyOnly ? ["alchemy-stats", "alchemy-growth", "alchemy-max"]
             : ForgetOnly ? ["forget", "forget-armed", "forget-lv1"]
-            : TermsOnly ? ["terms-freeze", "terms-magic"]
+            : TermsOnly ? ["terms-freeze", "terms-magic", "terms-cauldron"]
             : HealingOnly ? ["healing-new", "healing-level1", "healing-growth", "healing-level8", "healing-description"]
             : RecallResearchOnly ? ["recall-sealed", "recall-revealed-missing", "recall-ready", "recall-learned"]
             : OrnamentsOnly ? ["camera-350", "empty", "editor"]
@@ -113,6 +115,9 @@ internal sealed class PanelGame : Game
     internal static Texture2D Texture(string asset)
     {
         if (Textures.TryGetValue(asset, out var result)) return result;
+        // Vanilla item icons (klicon "Item:<name>") come from the game's XNB content.
+        if (asset.StartsWith("Terraria/Images/", StringComparison.Ordinal))
+            return Vanilla.Load<Texture2D>(asset["Terraria/".Length..]);
         // KL assets (term icons) live in the sibling KL mod; the rest are this repository's.
         string root = asset.StartsWith("KL/", StringComparison.Ordinal) ? Path.Combine(Repo, "../KL") : Repo;
         using var stream = File.OpenRead(Path.Combine(root, asset[(asset.IndexOf('/') + 1)..] + ".png"));
@@ -164,10 +169,16 @@ internal sealed class PanelGame : Game
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Name"),
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Description", 100f),
             () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Duration"), "4", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds")),
-                (Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Cooldown"), "60", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))]));
+                (Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Cooldown"), "60", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
         KL.Drawing.Snippets.KLTerms.Register(new("伊蕾娜/Snippets/MagicStarIcon", new Color(76, 145, 255),
             () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Name"),
-            () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Description", 10f, 2f, 10f, 2f)));
+            () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Description", 10f, 2f, 10f, 2f),
+            Category: () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
+        KL.Drawing.Snippets.KLTerms.Register(new("Item:Cauldron", new Color(232, 194, 122),
+            () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.AlchemyCauldron.Name"),
+            () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.AlchemyCauldron.Description"),
+            Category: () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.CraftingStation")));
         // The old fixture class uses WindBladeSkill for the production WindSlashSkill.
         Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillName.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.WindSlashSkill");
         using var game = new PanelGame(); game.Run();

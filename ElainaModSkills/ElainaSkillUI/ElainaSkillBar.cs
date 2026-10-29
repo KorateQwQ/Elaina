@@ -1,9 +1,8 @@
-using KL.SkillSystem.AbstractClass;
-using KL.SkillSystem.TemplateSkillUI;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using SilkyUIFramework;
 using SilkyUIFramework.Attributes;
+using SilkyUIFramework.Elements;
 using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria.ModLoader;
@@ -12,11 +11,12 @@ using 伊蕾娜.Config;
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
 [RegisterUI("Vanilla: Radial Hotbars", "ElainaMod: ElainaSkillBar", int.MinValue)]
-public class ElainaSkillBar : BasicSkillBar
+public class ElainaSkillBar : BaseBody
 {
     internal const string ArtPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/BattleBar/";
     private Asset<Texture2D> _rack;
     private bool _moving;
+    private float _scale;
 
     public override bool Enabled
     {
@@ -27,25 +27,23 @@ public class ElainaSkillBar : BasicSkillBar
 
     // 技能栏完全不接收鼠标：战斗中点到它既不会被拦截，也不会误拖；位置只由快捷键调整。
     public override bool IsInteractable => false;
-    public override int MaxSkillSlot { get; set; } = 8;
+    public int MaxSkillSlot { get; set; } = 8;
 
     protected override void OnInitialize()
     {
         ApplyLayout();
-        SetSize(SkillBarDrawing.Width, SkillBarDrawing.Height);
         FlexDirection = FlexDirection.Row;
         FitWidth = FitHeight = false;
         Border = 0;
-        Padding = new Margin(27, 25, 13, 9);
-        Gap = 18;
         BackgroundColor = BorderColor = Color.Transparent;
         OverflowHidden = false;
         Enabled = true;
+        DisableMouseInteraction = true;
         ZIndex = -100;
         _rack = ModContent.Request<Texture2D>(ArtPath + "Rack");
         ElainaSkillModPlayer.ElainaSkillBar = this;
         for (int i = 0; i < MaxSkillSlot; i++)
-            new ElainaSkillSlot(null) { SlotIndex = i }.Join(this);
+            new ElainaSkillSlot(null) { SlotIndex = i }.Join(this).ApplyScale(_scale);
         UpdateSkillBar();
     }
 
@@ -70,8 +68,6 @@ public class ElainaSkillBar : BasicSkillBar
         }
     }
 
-    protected override SkillSlot CreateSkillSlot(SkillIcon icon = null) => new ElainaSkillSlot(icon);
-
     /// <summary>按住“调整技能栏位置”快捷键时，技能栏以鼠标为中心跟随；松开后保存为全局位置。</summary>
     private void UpdateMoveKey()
     {
@@ -80,22 +76,34 @@ public class ElainaSkillBar : BasicSkillBar
         if (held)
         {
             var screen = GraphicsDeviceHelper.GetBackBufferSizeByUIScale();
-            var size = new Vector2(SkillBarDrawing.Width, SkillBarDrawing.Height);
+            var size = new Vector2(SkillBarDrawing.Width, SkillBarDrawing.Height) * ElainaSkillManager.BarScale;
             SkillBarLayout.MoveTo(Main.MouseScreen - size / 2, new Vector2(screen.Width, screen.Height), size);
         }
         else if (_moving) SkillBarLayout.Save();
         _moving = held;
     }
 
-    protected override void Update(GameTime gameTime)
+    protected override void UpdateStatus(GameTime gameTime)
     {
+        // SUI has applied this layer's UI transform before the draw status pass,
+        // so the pointer and available screen size use the same coordinates.
         UpdateMoveKey();
         ApplyLayout();
-        base.Update(gameTime);
+        base.UpdateStatus(gameTime);
     }
 
     private void ApplyLayout()
     {
+        float scale = ElainaSkillManager.BarScale;
+        if (_scale != scale)
+        {
+            _scale = scale;
+            SetSize(SkillBarDrawing.Width * scale, SkillBarDrawing.Height * scale);
+            Padding = new Margin(27 * scale, 25 * scale, 13 * scale, 9 * scale);
+            Gap = 18 * scale;
+            foreach (var child in Children)
+                if (child is ElainaSkillSlot slot) slot.ApplyScale(scale);
+        }
         var anchor = SkillBarLayout.Anchor;
         SetLeft(pixels: 0, alignment: anchor.X);
         SetTop(pixels: 0, alignment: anchor.Y);
@@ -103,6 +111,6 @@ public class ElainaSkillBar : BasicSkillBar
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        SkillBarDrawing.DrawRack(spriteBatch, _rack.Value, Bounds.Position);
+        SkillBarDrawing.DrawRack(spriteBatch, _rack.Value, Bounds.Position, _scale);
     }
 }

@@ -10,9 +10,11 @@
 
 ## 表现（2026-10-28 定稿，HTML 预览 A 方案）
 
-- 特效 90 tick：脚下 `ThinRing` 压扁成星环展开，8 个绕行光点（隔一个叠 `Star4` 闪烁）；一道光环自脚底升到头顶上方 62 像素；第 37 tick 起头顶亮起魔杖同款星芒（KL `T_StartFlare001` + 两条 `ShotLine` + 斜向 `Star4` + 亮芯）。
-- 粒子：14 条自星环边缘上冲的 `ShotLine` 细光线，24 颗显迹尘同款 `GlowDot` 柔光点（每三颗一颗 `Star4` 闪粒）上浮飘散，星芒亮起时甩出 10 道短射线。暖金为主、少量淡紫。
-- 绘制同玩偶星屑：`Projectiles.After` 同层 Bloom，预乘 AlphaBlend + `ReColor` HDR 2.2；`MarkGlow` 大柔光覆盖度为 0（纯叠加），避免白天亮背景出现灰色暗圈。贴图全部是预制 PNG，新增的 `ThinRing.png` 由 `Tools/FixedTextureBake` 烘焙并登记清单。
+- 特效 90 tick：脚下 `ThinRing` 压扁成星环展开，8 个绕行光点（隔一个叠 `Star4` 闪烁）；一道光环自脚底升到头顶上方 62 像素；第 37 tick 起头顶亮起魔杖同款星芒（`StarFlare` + 两条 `ShotLine` + 斜向 `Star4` + 亮芯；`StarFlare` 为 KL `T_StartFlare001` 去色散的纯白仿制，原图横臂的彩虹色散在游戏中会采成一条红线）。
+- 粒子：14 条自星环边缘上冲的 `ShotLine` 细光线，24 颗显迹尘同款 `GlowDot` 柔光点（每三颗一颗 `Star4` 闪粒）上浮飘散，星芒亮起时甩出 10 道短射线。配色为淡紫（2026-10-29 选定 B 方案：主色 205,180,255，光晕 165,130,240，亮芯近白 248,242,255），不用暖金。
+- 图层：脚下星环与绕行光点在 `Projectiles.After`（玩家之下）；上升光环、头顶星芒与全部粒子在 `OverPlayers.After`（玩家之上）。
+- 黑色垫底：每层先以 `LevelUpDust.ShadowOrder` 提交同形状的纯黑覆盖（不透明度为光效亮度 × `LevelUpVisuals.ShadowOpacity` 0.7，尺寸为光效的 `ShadowScale` 0.7 倍，只压在亮芯下面；与光效同尺寸时光效边缘外会露出黑边，星环为细线故不缩放），再画正常光效，压暗白天亮背景，让颜色不被叠成纯白；纯叠加的 `MarkGlow` 大柔光不垫底，否则会出现灰色圆盘。
+- 绘制同玩偶星屑：同层 Bloom，预乘 AlphaBlend + `ReColor` HDR 2.2；`MarkGlow` 大柔光覆盖度为 0（纯叠加），避免白天亮背景出现灰色暗圈。贴图全部是预制 PNG，新增的 `ThinRing.png` 由 `Tools/FixedTextureBake` 烘焙并登记清单。
 - 提示：与显现提示同款卡片，1.35 倍显示在屏幕 28% 高度处（人物在 50%），0.22 秒回弹弹入、停留 1.4 秒、0.45 秒原地上浮淡出，不接收鼠标，不进入技能栏旁的停靠位。内容为「旅程等级提升 · Lv.4 → Lv.5 · 获得研习点 +N」，未发放研习点时只显示等级变化。停留中再次升级合并为一条并重新计时；淡入淡出中按当前透明度续接。Boss 战期间（`Main.CurrentFrameFlags.AnyActiveBossNPC`）新的升级只记入等待卡片、不弹出，战斗结束后与 Boss 奖励光球带来的升级合并为一张结算卡；升级特效不延后，始终在升级瞬间播放；Boss 出现前已在屏幕上的卡片照常播完，战斗中的升级不会延长它。显现/启封提示保持原有行为，在技能栏右上方独立出现。
 
 ## 验证
@@ -23,7 +25,7 @@ pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -Sources <tModLoader 源
 pwsh -File Tools/ExperiencePreview/run.ps1 -Checks
 ```
 
-- `run.ps1` 链接正式 `LevelUpVisuals` 与正式贴图，输出 `.vissandbox/level-up-preview/level-up-night.gif`、`level-up-day.gif`、`level-up-sequence.png`。预览按 tModLoader 方式预乘 PNG alpha，按 `场景×(1−a) + rgb×HDR` 合成，不模拟 KL Bloom 模糊；人物与地面为夹具，人物静止。
+- `run.ps1` 链接正式 `LevelUpVisuals` 与正式贴图，输出 `.vissandbox/level-up-preview/level-up-night.gif`、`level-up-day.gif`、`level-up-sequence.png`。预览按 tModLoader 方式预乘 PNG alpha，按 `场景×(1−a) + rgb×HDR` 合成，不模拟 KL Bloom 模糊；人物与地面为夹具，人物静止；所有特效都叠在夹具之上，不反映游戏内的玩家前后图层。
 - `-DiscoveryOnly` 运行提示队列检查（弹入、停留、合并、淡出续接、约 2 秒后消失、Boss 战暂存与战后合并），并输出 `level-*.png`（100%/125% UI 缩放，弹入/停留/淡出三帧）。
 - `-Checks` 中的升级反馈断言：无升级不提示；一次多级只放一次特效、一条提示且研习点与实际发放一致；满级存经验不提示；Boss 提高上限后消耗余经验时提示一次。
 - `index.html` 是定稿前的 HTML 方案对比（`tex/` 为正式贴图副本，仅供该页面使用），不代表游戏内最终像素。

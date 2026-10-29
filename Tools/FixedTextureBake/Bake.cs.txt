@@ -28,6 +28,7 @@ foreach (var entry in OriginalFixedTextures.UiMasks())
     Export("ElainaModSkills/UICore/Assets/" + entry.Key, size, size, entry.Value);
 }
 Export("ElainaModSkills/UICore/Assets/ThinRing", 256, 256, ThinRing());
+Export("ElainaModSkills/UICore/Assets/StarFlare", 128, 128, StarFlare());
 Export("ElainaModSkills/Skills/Recall/Assets/PortalLine", 1, 32, OriginalFixedTextures.PortalLine());
 Export("ElainaModSkills/Skills/Ice/Assets/ReticleNoise", 512, 512, OriginalFixedTextures.IceNoise());
 File.WriteAllText(Path.Combine(output, "pixels.json"), JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true }));
@@ -55,6 +56,35 @@ static Color[] ThinRing()
             float dx = x + .5f - size / 2f, dy = y + .5f - size / 2f;
             float d = (MathF.Sqrt(dx * dx + dy * dy) - 120f) / 2f;
             int a = (int)MathF.Round(255 * MathF.Exp(-d * d));
+            pixels[y * size + x] = new Color(a, a, a, a);
+        }
+    return pixels;
+}
+
+// White four-point flare for the level-up head star, shaped after KL T_StartFlare001 but without its
+// rainbow-dispersed horizontal arm (at small draw sizes that sampled as a red line once tinted lavender).
+// Arms thicken toward the cusp core; a faint haze matches the original's soft surround. Premultiplied (a, a, a, a).
+// Haze and cusp are windowed to reach exactly zero inside the texture, otherwise the border reads as a box once lifted to HDR.
+static Color[] StarFlare()
+{
+    const int size = 128;
+    var pixels = new Color[size * size];
+    static float Arm(float along, float across)
+    {
+        float width = .9f + 3.4f / (1 + along / 5f), t = along / (size / 2f);
+        return MathF.Exp(-(across / width) * (across / width)) * MathF.Pow(MathF.Max(0, 1 - t * t), 1.2f);
+    }
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float dx = MathF.Abs(x + .5f - size / 2f), dy = MathF.Abs(y + .5f - size / 2f);
+            float r = MathF.Sqrt(dx * dx + dy * dy);
+            float core = MathF.Exp(-(r / 7f) * (r / 7f));
+            float window = MathF.Pow(MathF.Max(0, 1 - r * r / (60f * 60f)), 2);
+            float cusp = MathF.Min(1, 1 / (1 + dx * dy / 18f)) * MathF.Exp(-r / 26f) * window;
+            float haze = .18f * MathF.Exp(-(r / 45f) * (r / 45f)) * window;
+            float coverage = 1 - (1 - Arm(dx, dy)) * (1 - Arm(dy, dx)) * (1 - core) * (1 - cusp) * (1 - haze);
+            int a = (int)MathF.Round(255 * Math.Clamp(coverage, 0, 1));
             pixels[y * size + x] = new Color(a, a, a, a);
         }
     return pixels;

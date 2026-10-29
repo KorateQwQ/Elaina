@@ -1,0 +1,31 @@
+using Terraria;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModAlchemy.Rain;
+using 伊蕾娜.ElainaModAlchemy.item.Curios;
+
+internal static class CheckHost
+{
+    internal static void Main(string[] args)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        var mod = new RainCheckMod();
+        foreach (ModType content in new ModType[] { new BottledRainCloud(), new BottledRain() })
+        {
+            ((ILoadable)content).Load(mod);
+            ContentInstance.Register(content);
+        }
+        BottledRainChecks.Run(args[0]);
+    }
+    private sealed class RainCheckMod : Mod { public override string Name => "RainChecks"; }
+}
+
+// Only unrelated recipe/catalog inheritance is adapted. Terraria, item Shoot,
+// projectile AI, tile collision, plant scans and growth are all production code.
+namespace 伊蕾娜.ElainaModAlchemy.item
+{
+    public abstract class AlchemyItem : ModItem
+    {
+        public virtual string EntryId => null;
+        public override void SetDefaults() { Item.maxStack = Item.CommonMaxStack; }
+    }
+}

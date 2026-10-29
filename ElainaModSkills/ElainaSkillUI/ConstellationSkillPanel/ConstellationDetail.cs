@@ -99,7 +99,7 @@ internal sealed class ConstellationDetail
                 // A faint underline marks terms that explain themselves on hover.
                 foreach (var (area, term) in paragraph.Terms)
                     d.Line(new Vector2(area.X + 1, area.Y + TermUnderline), new Vector2(area.Right - 2, area.Y + TermUnderline),
-                        term.Color * (hover == "term:" + term.IconPath ? .85f : .35f));
+                        term.Color * (hover == TermHover(area) ? .85f : .35f));
             }, paragraph.Terms.Select(t => new ConstellationDetailAction(t.Area, "term", t.Term.IconPath, t.Term.Name())).ToArray());
         }
 
@@ -362,6 +362,9 @@ internal sealed class ConstellationDetail
             }
         }
     }
+
+    // Hover key of one term occurrence; the same term can appear several times in a paragraph.
+    internal static string TermHover(Rectangle area) => $"term:{area.X},{area.Y}";
 
     // Design-space tooltip anchor for a row action. Terms span the column so their card opens on
     // the map side instead of covering the paragraph being read.

@@ -16,6 +16,9 @@ namespace Terraria
         public static bool mouseLeft, mouseRight, playerInventory, hideUI;
         public static Microsoft.Xna.Framework.Input.KeyboardState keyState, oldKeyState;
         public static int myPlayer;
+        public const int maxPlayers = 8;
+        public static Player[] player = Enumerable.Range(0, maxPlayers).Select(i => new Player { whoAmI = i }).ToArray();
+        public static SpriteBatch spriteBatch;
         public static Vector2 MouseScreen = new(500, 400);
         public static Player LocalPlayer = new();
         public static void QueueMainThreadAction(Action action) => action();
@@ -24,6 +27,9 @@ namespace Terraria
     {
         public bool active = true, dead, mouseInterface;
         public int whoAmI;
+        public string name = "Target";
+        public int statLife = 100, statLifeMax2 = 100;
+        public Vector2 Center;
         public bool tileInteractionHappened;
         public int talkNPC = -1, chest = -1;
         public Item HeldItem = new();
@@ -77,12 +83,14 @@ namespace KL.Drawing
 {
     public static class DrawHelper
     {
+        public static void DrawStaticPlayerHead(Terraria.Player player, Vector2 center, float alpha, float scale, Color color) => throw new NotSupportedException();
         public static void DrawAnnularSectorUI(Vector2 center, float inner, float outer, float start, float end,
             Color fill, float border, Color borderColor, Matrix matrix) => throw new NotSupportedException();
     }
 }
 namespace SilkyUIFramework
 {
+    public sealed class UIMouseEvent { }
     public sealed class SilkyUI
     {
         public Matrix TransformMatrix = Matrix.Identity;
@@ -106,15 +114,33 @@ namespace SilkyUIFramework.Layout
     public readonly record struct Margin(float Value);
     public readonly record struct Dimension(float Pixels);
     public readonly record struct Bounds(Vector2 Position);
+    public enum Positioning { Absolute }
 }
 namespace SilkyUIFramework.Attributes
 {
     [AttributeUsage(AttributeTargets.Class)]
     public sealed class RegisterUIAttribute(string layer, string name, int order) : Attribute { }
 }
-namespace SilkyUIFramework.Extensions { internal static class Placeholder { } }
+namespace SilkyUIFramework.Extensions
+{
+    internal static class Placeholder
+    {
+        public static T Join<T>(this T view, SilkyUIFramework.Elements.BaseBody parent) => view;
+    }
+}
 namespace SilkyUIFramework.Elements
 {
+    public class UIElementGroup
+    {
+        public Layout.Positioning Positioning;
+        public bool FitWidth, FitHeight;
+        public float Border;
+        public Color BackgroundColor, BorderColor;
+        public virtual bool ContainsPoint(Vector2 point) => true;
+        public void SetSize(float w, float h, float wp, float hp) { }
+        public void SetLeft(float x) { }
+        public void SetTop(float y) { }
+    }
     public abstract class BaseBody
     {
         public bool Enabled, FitWidth, FitHeight;
@@ -138,6 +164,8 @@ namespace SilkyUIFramework.Elements
         public void Step(GameTime gameTime) { if (Enabled) UpdateStatus(gameTime); }
         public void Tick(GameTime gameTime) { if (Enabled) Update(gameTime); }
         public void ExitTree() => OnExitTree();
+        public void RemoveAllChildren() { }
+        public virtual void OnRightMouseDown(UIMouseEvent evt) { }
     }
 }
 namespace 伊蕾娜.Items { public sealed class ElainaWand { } }
@@ -158,10 +186,6 @@ namespace 伊蕾娜.ElainaModSkills
     }
     public sealed class SkillBar { public void UpdateSkillBar() { } }
     public sealed class ElainaSealedSkill { public bool IsSealed; public float SealDeniedAge; }
-}
-namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI
-{
-    public static class ElainaHealingWheel { public static bool IsShowing; }
 }
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel
 {

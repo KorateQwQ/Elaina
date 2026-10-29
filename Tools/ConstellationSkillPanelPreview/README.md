@@ -48,7 +48,7 @@
 
 布局编辑验证链接实际 `ConstellationLayout` 与 `ConstellationLayoutEditor`，并抽取正式编辑按钮与操作提示绘制。新增检查覆盖缩放下拖动坐标换算、网格对齐、取消、边界更新、布局优先级、JSON 保存重载、未知技能条目保留、格式错误及写入失败。所有写入都在 `.vissandbox/constellation-skill-panel/layout-checks` 内，绝不覆盖游戏实际布局。`editor` / `editor-moved` 场景分别覆盖进入编辑与移动后的坐标、未保存标记及底部工具栏。
 
-无色图标直接加载手工提供的 `_Gray.png`。`IconChecks` 验证原图/无色图选择、共用资产复用、缺图与空路径回退、缺图查询缓存，以及正式/演示两套实际 FNA 绘制。`-IconsOnly` 运行状态和图标检查后退出，不批量输出截图。预览宿主负责释放模拟资产加载器拥有的纹理；游戏中的这些贴图由 `ModContent` 管理。
+无色图标直接加载手工提供的 `_Gray.png`。`IconChecks` 验证原图/无色图选择、共用资产复用、缺图与空路径回退、缺图查询缓存，以及正式面板的实际 FNA 绘制。`-IconsOnly` 运行状态和图标检查后退出，不批量输出截图。预览宿主负责释放模拟资产加载器拥有的纹理；游戏中的这些贴图由 `ModContent` 管理。
 
 最大等级验证每次从 KL 源码抽取实际 `ModSkill.MaxLevel`、`TryLevelUp()` 和 `Skill.MaxLevel`，检查默认 5、固定覆写、动态上限变化、满级不扣费、超上限存档保留和详情刷新；`maxed` 场景检查 5 / 5 及满级按钮显示。
 
@@ -68,6 +68,13 @@
 
 ## 专有名词悬停说明（2026-10-26）
 
-`-TermsOnly -SkipChecks`（英文加 `-Culture en-US`）导出 `terms-freeze`（冰锥术）与 `terms-magic`（灰之魔女）在 720p、默认和 125% UI 下的详情页，悬停首个已注册名词：重放正式 `ConstellationRichText` 命中区域、`ConstellationDetail` 下划线与锚点、`ConstellationDrawing.TermTooltip` 说明卡（2026-10-26 定稿为“手札便签”款：书页点线内框加四角星、衬线名称、可选的大号数值两栏；曾对比书签夹页、星注两款）。名词注册在 `Program` 中按正式路径、本地化键与冻结常量复刻（正式注册位于 KL `ElementBuildUpSystem` 与 `Localization/ElainaTerms.cs`），并额外加载 KL 的 HJSON；`KL/` 开头的贴图从相邻 KL 目录读取。冰锥术的伤害/积累参数是夹具值。实际 SUI 悬停派发、提示延迟和滚动中的命中需游戏内验证。
+`-TermsOnly -SkipChecks`（英文加 `-Culture en-US`）导出 `terms-freeze`（冰锥术）、`terms-magic`（灰之魔女）与 `terms-cauldron`（炼金术）在 720p、默认和 125% UI 下的详情页，悬停首个已注册名词：重放正式 `ConstellationRichText` 命中区域、`ConstellationDetail` 下划线与锚点、`ConstellationDrawing.TermTooltip` 说明卡（2026-10-26 定稿为“手札便签”款：书页点线内框加四角星、衬线名称、可选的大号数值两栏；曾对比书签夹页、星注两款）。名词注册在 `Program` 中按正式路径、本地化键与冻结常量复刻（正式注册位于 KL `ElementBuildUpSystem` 与 `Localization/ElainaTerms.cs`），并额外加载 KL 的 HJSON；`KL/` 开头的贴图从相邻 KL 目录读取，`Item:` 名词图标从原版 XNB 内容读取（桩 `ItemID.Search` 只覆盖预览文本用到的物品名）。冰锥术的伤害/积累参数是夹具值。实际 SUI 悬停派发、提示延迟和滚动中的命中需游戏内验证。
 
 `-ForgetOnly -SkipChecks`（英文加 `-Culture en-US`）导出魔法飞弹 Lv.3 持有 2 本忘却之书时的 `forget`（未确认）、`forget-armed`（等待确认）和 `forget-lv1`（已是 Lv.1）详情页，滚动到详情底部，覆盖 720p、默认和 125% UI。正式结算位于 `ElainaModSkills/SkillForgetting.cs`，预览中 `BookOfOblivion` 物品 ID 为桩值；默认检查覆盖无书不可忘却、返还等于进修研习点之和、只扣 1 本、退回 Lv.1 仍习得、Lv.1 不扣书、改选取消确认、忘却后可再次进修。实际点击、背包变化和存档需游戏内验证。
+
+
+旧游戏内星图演示和聊天命令已移除；本工具只在游戏外重放正式面板。
+`-IconsOnly -SkipChecks` 单独运行图标回归（显式指定 IconsOnly 时仍执行），不依赖通用业务夹具。成功加载用已有无色图样本验证；正式技能的可选路径允许缺失，仍由正式绘制验证回退。
+正式贴图和图集索引统一位于 `ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets`，炼金共用的 Glow/Disc 也从此处加载。
+`GenerateAssets.py` 重建 Icons 图集、Disc、Glow 和连线贴图；`GenerateBackground.py` 只重建 Glow，`GenerateLinks.py` 只重建连线；`GenerateHeaderHat.py` 从正式目录中的 HeaderHat.svg 重建徽记。星形仍由 `bake_stars.py` 重建/检查。
+上述生成脚本位于 Tools，不参与游戏加载；不会再生成演示技能、独立点数或旧演示底图。字体和图标检查由本工具覆盖，旧 TypographyPreview 已删除。

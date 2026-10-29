@@ -13,6 +13,7 @@ internal sealed class PreviewGame : Game
     private readonly string output;
     private readonly Dictionary<string, Texture2D> textures = new();
     private bool rendered;
+    private static bool ScaleOnly;
     private Effect cooldown;
     private DynamicSpriteFont numberFont;
     private Effect sealEffect;
@@ -64,6 +65,14 @@ internal sealed class PreviewGame : Game
         SDL.SDL_HideWindow(Window.Handle);
         Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(GraphicsDevice);
+        if (ScaleOnly)
+        {
+            foreach (float uiScale in new[] { 1f, 1.25f })
+            foreach (float barScale in new[] { 1f, .75f, .5f })
+                RenderSeals(batch, uiScale, false, barScale);
+            Exit();
+            return;
+        }
         foreach (float scale in new[] { 1f, 1.5f })
         {
             RenderSeals(batch, scale, false);
@@ -94,7 +103,7 @@ internal sealed class PreviewGame : Game
         return texture;
     }
 
-    private void RenderSeals(SpriteBatch batch, float scale, bool day)
+    private void RenderSeals(SpriteBatch batch, float scale, bool day, float barScale = 1)
     {
         using var target = new RenderTarget2D(GraphicsDevice, (int)(710 * scale), (int)(150 * scale));
         GraphicsDevice.SetRenderTarget(target);
@@ -106,16 +115,16 @@ internal sealed class PreviewGame : Game
         var stateArt = new SkillBarDrawing.StateArt(pixel, glow, diamond);
         var icon = Texture("ElainaModSkills/Skills/Ice/ShardbindSkill");
         var atlas = Texture("ElainaModSkills/ElainaSkillUI/BattleBar/Ornaments");
-        Begin(); SkillBarDrawing.DrawRack(batch, Texture("ElainaModSkills/ElainaSkillUI/BattleBar/Rack"), position);
+        Begin(); SkillBarDrawing.DrawRack(batch, Texture("ElainaModSkills/ElainaSkillUI/BattleBar/Rack"), position, barScale);
         string[] labels = ["sealed", "sealed+CD", "denied", "0.06s", "0.25s", "0.50s", "open+CD", "ready"];
         for (int i = 0; i < 8; i++)
         {
-            Vector2 center = position + new Vector2(57 + 78 * i, 55);
+            Vector2 center = position + new Vector2(57 + 78 * i, 55) * barScale;
             bool sealedState = i < 3;
             float releaseAge = i switch { 3 => .06f, 4 => .25f, 5 => .5f, _ => -1 };
             float remaining = i is 1 or 4 or 6 ? .45f : 0;
             bool bound = SkillBarDrawing.HasSealOverlay(sealedState, releaseAge);
-            SkillBarDrawing.DrawSlotBackground(batch, atlas, center, i == 2, true, 0, .7f);
+            SkillBarDrawing.DrawSlotBackground(batch, atlas, center, i == 2, true, 0, .7f, scale: barScale);
             batch.End();
             sealEffect.Parameters["time"].SetValue(1 - remaining);
             sealEffect.Parameters["flashTime"].SetValue(0f);
@@ -123,19 +132,21 @@ internal sealed class PreviewGame : Game
             sealEffect.Parameters["seal"].SetValue(SkillBarDrawing.SealTone(sealedState, releaseAge));
             Begin(sealEffect);
             batch.Draw(icon, center, null, Color.White, 0, new Vector2(icon.Width, icon.Height) / 2,
-                50f / Math.Max(icon.Width, icon.Height), SpriteEffects.None, 0);
+                50f * barScale / Math.Max(icon.Width, icon.Height), SpriteEffects.None, 0);
             batch.End(); Begin();
             float flash = SkillBarDrawing.SealReleasePulse(releaseAge);
             if (flash > 0) batch.Draw(icon, center, null, new Color(245, 222, 255, 0) * flash, 0,
-                new Vector2(icon.Width, icon.Height) / 2, 50f / Math.Max(icon.Width, icon.Height), SpriteEffects.None, 0);
-            SkillBarDrawing.DrawSlotFrame(batch, atlas, center, i == 2, true, 0, .7f);
-            SkillBarDrawing.DrawSkillState(batch, stateArt, numberFont, center, 60 * remaining, remaining, remaining > 0 ? 0 : 1, 1, !bound);
-            if (bound) SkillBarDrawing.DrawSealState(batch, stateArt, center, .7f, i == 2 ? .12f : 9, releaseAge);
-            batch.DrawString(numberFont, labels[i], center + new Vector2(0, 59), day ? Color.Black : Color.White,
-                0, numberFont.MeasureString(labels[i]) * new Vector2(.5f, 0), 10f / 48, SpriteEffects.None, 0);
+                new Vector2(icon.Width, icon.Height) / 2, 50f * barScale / Math.Max(icon.Width, icon.Height), SpriteEffects.None, 0);
+            SkillBarDrawing.DrawSlotFrame(batch, atlas, center, i == 2, true, 0, .7f, scale: barScale);
+            SkillBarDrawing.DrawSkillState(batch, stateArt, numberFont, center, 60 * remaining, remaining, remaining > 0 ? 0 : 1, ScaleOnly && i == 6 ? 3 : ScaleOnly && i == 7 ? 8 : 1, !bound, barScale);
+            if (bound) SkillBarDrawing.DrawSealState(batch, stateArt, center, .7f, i == 2 ? .12f : 9, releaseAge, scale: barScale);
+            batch.DrawString(numberFont, labels[i], center + new Vector2(0, 59 * barScale), day ? Color.Black : Color.White,
+                0, numberFont.MeasureString(labels[i]) * new Vector2(.5f, 0), 10f / 48 * barScale, SpriteEffects.None, 0);
         }
         batch.End(); GraphicsDevice.SetRenderTarget(null);
-        string file = Path.Combine(output, $"seal-states-{(day ? "day" : "dark")}-{scale:0.0}.png");
+        string file = Path.Combine(output, ScaleOnly
+            ? $"seal-states-{(day ? "day" : "dark")}-ui{scale:0.00}-bar{barScale:0.00}.png"
+            : $"seal-states-{(day ? "day" : "dark")}-{scale:0.0}.png");
         using var stream = File.Create(file); target.SaveAsPng(stream, target.Width, target.Height);
         Console.WriteLine(file);
     }
@@ -201,6 +212,7 @@ internal sealed class PreviewGame : Game
     [STAThread]
     private static void Main(string[] args)
     {
+        ScaleOnly = Array.IndexOf(args, "--scale-only") >= 0;
         using var game = new PreviewGame(args[0], args[1]);
         game.Run();
     }

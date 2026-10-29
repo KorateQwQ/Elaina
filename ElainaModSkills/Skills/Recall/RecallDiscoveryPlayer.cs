@@ -8,13 +8,14 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Recall;
 /// <summary>个人探索经历不会因药水消耗、丢弃或技能重置而清除。</summary>
 public sealed class RecallDiscoveryPlayer : ModPlayer
 {
+    // 保留原有字段名与存档键，以兼容已经启封的角色。
     public bool HasObtainedReturnPotion { get; private set; }
 
     public override void Initialize() => HasObtainedReturnPotion = false;
 
     public void Observe(Item item)
     {
-        if (item != null && !item.IsAir && item.type == ItemID.PotionOfReturn)
+        if (item != null && !item.IsAir && item.type == ItemID.RecallPotion)
             HasObtainedReturnPotion = true;
     }
 
@@ -48,7 +49,7 @@ public sealed class RecallDiscoveryPlayer : ModPlayer
 
 public sealed class RecallDiscoveryItem : GlobalItem
 {
-    public override bool AppliesToEntity(Item entity, bool lateInstantiation) => entity.type == ItemID.PotionOfReturn;
+    public override bool AppliesToEntity(Item entity, bool lateInstantiation) => entity.type == ItemID.RecallPotion;
 
     public override bool OnPickup(Item item, Player player)
     {

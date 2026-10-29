@@ -3,7 +3,6 @@ using KL.DamageSystem;
 using KL.DamageSystem.ElementalDamageClass;
 using KL.Drawing;
 using KL.Dusts;
-using KL.Dusts.Burst;
 using KL.Extensions;
 using KL.Utils;
 using Microsoft.Xna.Framework.Graphics;
@@ -13,7 +12,6 @@ using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
-using 伊蕾娜.Dusts;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
 
@@ -29,17 +27,27 @@ public class MagicMissile : KLProjectile
     private int count = 0;
     private bool draw = false;
     private TrailManager.TrailHandle managedTrail;
+    private MagicMissileTrailVisuals trailVisuals;
+    // 撞墙时沿入射方向找回的接触点与入射角；为空表示命中敌人或寿命结束
+    private Vector2? wallContact;
+    private float wallImpactRotation;
     protected override bool SampleTrailInDrawBehind => true;
 
     private float scale = 0.5f;
     private float totalAlpha = 0;
+    // 本次命中触发了花印爆发时的目标中心（仅命中方客户端）
+    private Vector2? burstCenter;
 
     private static Texture2D dissolveNoise;
     private static Texture2D waterRipple;
     private static Texture2D innerNoise;
     private static Texture2D headClip;
     private static Texture2D trail;
+    private static MagicMissileTrailNoise trailNoise;
     private static Texture2D flower;
+    private static Texture2D headStamp;
+    private static Texture2D headNoise;
+    private static Effect trailEffect;
 
 
     public override void Load()
@@ -51,7 +59,12 @@ public class MagicMissile : KLProjectile
             innerNoise = AssetManager.GetTexture("KL/Effects/Tex/Noise/Eff_Noise_11");
             headClip = AssetManager.GetTexture("KL/Effects/Tex/射灯_alpha");
             trail = AssetManager.GetTexture("KL/Effects/Tex/Trail/LightTrail");
+            trailNoise = new MagicMissileTrailNoise(AssetManager.GetTexture("KL/Effects/Tex/PerlinX"));
+            trailEffect = AssetManager.GetEffect("伊蕾娜/Effects/Content/MagicMissileTrail");
             flower = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flo_1");
+            // 直接请求：缺失时报错，而不是返回 null 让头部静默不画
+            headStamp = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/T_Vfx_Stamp_HitSword_22", AssetRequestMode.ImmediateLoad).Value;
+            headNoise = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/5", AssetRequestMode.ImmediateLoad).Value;
         }
         base.Load();
     }
@@ -80,8 +93,12 @@ public class MagicMissile : KLProjectile
         TrailSampleCount = 24;
         TrailMaxLength = 320f;
         managedTrail = null;
+        trailVisuals = null;
+        wallContact = null;
+        wallImpactRotation = 0;
         scale = 0.0f;
         totalAlpha = 0;
+        burstCenter = null;
 
         base.SetDefaults();
     }
@@ -171,15 +188,17 @@ public class MagicMissile : KLProjectile
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
         if (trail != null && OldCenter is { Length: > 1 })
         {
+            trailVisuals ??= new MagicMissileTrailVisuals(Projectile.identity * 397 ^ Projectile.owner);
+            trailVisuals.TextureOffset = 1f - (Main.GameUpdateCount % 120) / 30f;
             TrailManager.CreateOrUpdateTrail(
                 ref managedTrail,
                 OldCenter,
-                lifetime: 10,
-                trail,
+                lifetime: MagicMissileTrailVisuals.FadeTicks,
+                trailVisuals,
                 DrawManagedTrail,
                 layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
                 LayerDrawRequestSystem.DrawTiming.After,
-                bloom: true);
+                bloom: true, shrinkPathOnExpire: false);
         }
         LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissile", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
@@ -191,18 +210,32 @@ public class MagicMissile : KLProjectile
         EndBeginDraw();
     }
 
-    private static void DrawManagedTrail(Texture2D texture, Vector2[] points, float _)
+    private static void DrawManagedTrail(MagicMissileTrailVisuals visual, Vector2[] points, float remaining)
     {
+        // 长度缩短由 MagicMissileTrailVisuals 截掉尾端几何完成（提交时关闭了 TrailManager 的线性缩短）
         if (points.Length < 2)
             return;
 
-        int animation = (int)Main.GameUpdateCount;
-        TrailEffect(texture, points,
-            new Vector4(new Vector3(1f, 0.5f, 0.9f) * 1.5f, 1.0f),
-            new Vector4(1f, 0.4f, 0.9f, 0f),
-            6f, 2f, startAlpha: 1f, endAlpha: 3f, drawTimes: 1,
-            uTime: new Vector2(1f - (animation % 120) / 30f, 0f), blendState: 1);
+        Main.spriteBatch.End();
+        try
+        {
+            Matrix transform = Matrix.CreateTranslation(-Main.screenPosition.X, -Main.screenPosition.Y, 0) * Main.Transform;
+            visual.Draw(Main.graphics.GraphicsDevice, trailEffect, trail, trailNoise, points, remaining, transform,
+                DrawSystem.GetBlendStateForBloom(BlendState.Additive), Main.GameViewMatrix.TransformationMatrix.M11);
+            // 飞行中由飞弹本体盖住拖尾头部；消失后改由消融的爆点遮住截断端口
+            if (visual.Expiring)
+                visual.DrawHead(Main.graphics.GraphicsDevice, trailEffect, headStamp, headNoise, points[0], remaining, transform,
+                    DrawSystem.GetBlendStateForBloom(BlendState.AlphaBlend));
+        }
+        finally
+        {
+            BeginTrailBatch();
+        }
     }
+
+    private static void BeginTrailBatch() =>
+        Main.spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, Main.DefaultSamplerState,
+            DepthStencilState.None, RasterizerState.CullCounterClockwise, null, Main.GameViewMatrix.TransformationMatrix);
 
     void DrawMagicMissile()
     {
@@ -253,9 +286,21 @@ public class MagicMissile : KLProjectile
     {
         // 被动：同一目标累计命中5次后，对周围其他敌人造成一次溅射伤害
         if (target.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark(target))
+        {
             SplashDamage(target);
+            // 命中后飞弹随即消失，由 OnKill 在目标中心播放花印爆发
+            burstCenter = target.Center;
+        }
 
         base.OnHitNPC(target, hit, damageDone);
+    }
+
+    public override bool OnTileCollide(Vector2 oldVelocity)
+    {
+        // 原版在此之后才按滑动后的速度移动并 Kill，此时 Center 仍是本次移动前的位置
+        wallContact = MagicMissileTrailVisuals.WallContact(Projectile.Center, oldVelocity, Projectile.velocity);
+        wallImpactRotation = oldVelocity.ToRotation();
+        return base.OnTileCollide(oldVelocity);
     }
 
     private void SplashDamage(NPC mainTarget)
@@ -277,39 +322,36 @@ public class MagicMissile : KLProjectile
             if (Main.netMode != NetmodeID.SinglePlayer)
                 NetMessage.SendStrikeNPC(npc, hitInfo);
 
-            KLBasicDust.SpawnDust(npc.Center, ModContent.DustType<BurstPoint>(),
-                Main.rand.NextVector2Circular(0.1f, 0.1f),
-                lifeTime: 12, color: new Color(255, 150, 239, 0), scale: new Vector2(1.3f));
+            // 被溅射的敌人从主目标方向受击
+            MagicMissileHitDust.Emit(npc.Center, (npc.Center - mainTarget.Center).ToRotation());
         }
     }
 
     public override void OnKill(int timeLeft)
     {
-        Vector2 velocity = Projectile.velocity.SafeNormalize(Projectile.velocity);
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<ShockBlackDust>(), 7, -velocity * 10.1f,
-            2.14f, 10, new Color(180, 50, 180, 255), new Vector2(0.3f, 0.1f), 0, 10, new Vector2(0.05f, 0.03f), 3);
-
-
-        KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<BurstPoint>(),
-            Main.rand.NextVector2Circular(0.1f, 0.1f),
-            lifeTime: 12, color: new Color(180, 50, 180, 255), scale: new Vector2(1.3f));
-
-        KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<BurstPoint>(),
-            Main.rand.NextVector2Circular(0.1f, 0.1f),
-            lifeTime: 12, color: new Color(255, 150, 239, 0), scale: new Vector2(1.3f));
-        KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<BurstPoint>(),
-            Main.rand.NextVector2Circular(0.1f, 0.1f),
-            lifeTime: 12, color: new Color(255, 150, 239, 0), scale: new Vector2(1.3f));
-
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<ShockDust>(), 5, -velocity * 10.1f,
-            2.14f, 15, new Color(255, 120, 239, 255), new Vector2(0.2f, 0.1f), 0, 10, new Vector2(0.05f, 0.03f), 3);
-
-
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 5, -velocity * 10.1f,
-            3.14f, 15, new Color(255, 120, 239, 0), new Vector2(1, 0.3f), 0, 0, new Vector2(0.5f, 0f), 3);
-
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 10, -velocity * 10.1f,
-            3.14f, 15, new Color(255, 120, 239, 0), new Vector2(1, 0.3f), 0, 20, new Vector2(0.5f, 0f), 3);
+        Vector2 end = wallContact ?? Projectile.Center;
+        // 撞墙后速度已被改成沿墙滑动甚至归零，命中特效与星芒按入射方向
+        float angle = wallContact.HasValue ? wallImpactRotation : Projectile.velocity.ToRotation();
+        if (!Main.dedServ && trail != null)
+        {
+            // 碰撞可能发生在下一次 DrawBehind 之前，先补末段，否则命中点与旧拖尾之间会空一截。
+            Vector2[] finalPath = MagicMissileTrailVisuals.FinishPath(OldCenter, end, TrailMaxLength);
+            trailVisuals ??= new MagicMissileTrailVisuals(Projectile.identity * 397 ^ Projectile.owner);
+            trailVisuals.Expiring = true;
+            trailVisuals.HeadRotation = angle;
+            trailVisuals.TextureOffset = 1f - (Main.GameUpdateCount % 120) / 30f;
+            TrailManager.CreateOrUpdateTrail(ref managedTrail, finalPath, MagicMissileTrailVisuals.FadeTicks,
+                trailVisuals, DrawManagedTrail, layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                timing: LayerDrawRequestSystem.DrawTiming.After, bloom: true, shrinkPathOnExpire: false);
+        }
+        if (burstCenter is Vector2 center)
+        {
+            MagicMissileHitDust.Emit(center, angle, burst: true);
+        }
+        else
+        {
+            MagicMissileHitDust.Emit(end, angle);
+        }
 
         base.OnKill(timeLeft);
     }
@@ -339,8 +381,7 @@ public class MagicMissile : KLProjectile
             markCount++;
             if (markCount >= 5)
             {
-                KLBasicDust.SpawnDust(npc.Center, ModContent.DustType<FloDust>(), Vector2.Zero, 15,
-                    new Color(255, 255, 255, 200));
+                // 花印爆发特效由飞弹的 OnKill 播放
                 markCount = 0;
                 return true;
             }

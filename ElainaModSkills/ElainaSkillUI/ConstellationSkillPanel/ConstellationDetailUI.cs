@@ -67,7 +67,7 @@ public sealed partial class ConstellationSkillPanel
                 {
                     null => null,
                     "relation" => action.Id,
-                    "term" => "term:" + action.Id,
+                    "term" => ConstellationDetail.TermHover(action.Area),
                     _ => action.Kind
                 };
                 row.Paint(_draw, visualAction);

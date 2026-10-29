@@ -9,6 +9,12 @@ public class ElainaSkillManager : ModSystem
 {
     public static bool ShowCD = false;
     public static float WheelScale = .5f;
+    private static float barScale = 1f;
+    public static float BarScale
+    {
+        get => barScale;
+        set => barScale = float.IsFinite(value) ? global::System.Math.Clamp(value, .5f, 1f) : 1f;
+    }
     private static ElainaModplayer resourceDisplayOwner;
 
     internal static void RestoreResourceDisplay(ElainaModplayer player)

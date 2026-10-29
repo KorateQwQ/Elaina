@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:\Steam\steamapps\common\tModLoader')
+param([string]$Tml = 'D:\Steam\steamapps\common\tModLoader', [switch]$ScaleOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $preview = Join-Path $repo '.vissandbox\skillbar-preview'
@@ -20,5 +20,7 @@ foreach ($entry in @(
     [void]$project.Project.SelectSingleNode('ItemGroup').AppendChild($node)
 }
 $project.Save((Join-Path $preview 'Preview.csproj'))
-dotnet run --project (Join-Path $preview 'Preview.csproj') -- $repo (Join-Path $preview 'output')
+$previewArgs = @($repo, (Join-Path $preview 'output'))
+if ($ScaleOnly) { $previewArgs += '--scale-only' }
+dotnet run --project (Join-Path $preview 'Preview.csproj') -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Skill bar FNA preview failed.' }

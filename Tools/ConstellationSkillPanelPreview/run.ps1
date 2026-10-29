@@ -110,7 +110,6 @@ $null = Add-Item 'Compile' "$repo/System/Experience/ExperienceRules.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallSkill.Research.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallDiscoveryPlayer.cs"
 $null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
-foreach ($name in @('PreviewDrawing','PreviewData')) { $null = Add-Item 'Compile' "$ui/../ConstellationPreview/$name.cs" }
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
 $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Helper/TextSnippetHelper.cs"
 foreach ($name in @('KLTextureSnippet','KLTextureTagHandler','KLTerms')) { $null = Add-Item 'Compile' "$repo/../KL/Drawing/Snippets/$name.cs" }

@@ -5,15 +5,24 @@ using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaModSkills.item;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
 [SkillUIInfo(State = 4, Pixels = 400)]
 public class WaterLaserSKill : ElainaSkill
 {
+    private SkillUnlockCondition unlockCondition;
+
     // 默认骷髅王后开放（角色等级上限 30）；具体门槛读取 JSON，不要求实际等级达到上限。
-    public override SkillUnlockCondition UnlockCondition { get; set; } =
-        new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(25), RequireConfiguredCharacterLevelCap(nameof(WaterLaserSKill), 30));
+    // 研习消耗一本水魔法书。技能模板在加载期创建，物品类型此时可能尚未注册，因此首次读取时再构建。
+    public override SkillUnlockCondition UnlockCondition
+    {
+        get => unlockCondition ??= new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(25),
+            SkillUnlockCondition.ByItems(new SkillUnlockItem(ModContent.ItemType<WaterSpellbook>(), 1)),
+            RequireConfiguredCharacterLevelCap(nameof(WaterLaserSKill), 30));
+        set => unlockCondition = value;
+    }
 
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(5);
 

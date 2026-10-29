@@ -25,6 +25,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private readonly AlchemyNotebookState _state = new();
     private readonly AlchemySelectionQuillMotion _quill = new();
     private readonly AlchemyCardMotion _cardMotion = new();
+    private readonly ConstellationUIClock _controlsClock = new();
     private readonly List<(UIView View, Rectangle Area)> _regions = [];
     private readonly List<(PaintView View, AlchemyCatalogRecipe Recipe)> _cards = [];
     private readonly List<(PaintView View, AlchemyNotebookRow Row)> _rows = [];
@@ -399,7 +400,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         if (!_book.Moving) _bookClock.Stop();
         if (_book.IsClosed) { CloseImmediately(); return; }
         if (!Main.hasFocus || !Main.mouseLeft) StopDragging();
-        float dt = Main.hasFocus ? Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f) : 0;
+        float dt = _controlsClock.Sample(Main.hasFocus && !Main.hideUI);
         _quill.Advance(dt);
         _clock += dt;
         _tabMarker ??= new ConstellationTween(ActiveTab(), .18f);
@@ -503,6 +504,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         _quill.Reset();
         _cardMotion.Reset();
         _bookClock.Stop();
+        _controlsClock.Stop();
         Enabled = false;
         _keyboard = default;
     }
@@ -520,6 +522,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         else if (body._state.Refresh()) body.Dirty(false);
         body._owner = Main.LocalPlayer;
         body._keyboard = Keyboard.GetState();
+        if (!body.Enabled) body._controlsClock.Stop();
         body.Enabled = true;
         body.RequestBook(true);
         return true;

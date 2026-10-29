@@ -284,6 +284,7 @@ namespace 伊蕾娜
             PurificationDewProtection,
             DollMining,
             AlchemyRecipeDiscovery,
+            RevealingRecipeChests,
         }
 
 
@@ -303,6 +304,9 @@ namespace 伊蕾娜
             int playernumber = reader.ReadInt32();
             switch (msgType)
             {
+                case MessageType.RevealingRecipeChests:
+                    ElainaModAlchemy.Revealing.RevealingRecipeChests.HandlePacket(reader, playernumber);
+                    break;
                 case MessageType.AlchemyRecipeDiscovery:
                     ElainaModAlchemy.Gameplay.AlchemyRecipeDiscoveryPlayer.HandlePacket(reader, whoAmI, playernumber);
                     break;

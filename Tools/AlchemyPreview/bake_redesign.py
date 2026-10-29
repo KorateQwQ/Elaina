@@ -54,7 +54,7 @@ else:
 # Reuse the skill atlas (Tools/ConstellationSkillPanelPreview/bake_stars.py, HTML crossStar
 # geometry), preserving premultiplied pixels. One 128x64 row per shape the notebook draws; the row
 # order must match AlchemyDrawing.StarRows. Levels 64/32/16/8/4 sit at x 0/64/96/112/120.
-skill = ROOT / 'ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets'
+skill = ROOT / 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets'
 regions = json.loads((skill / 'Stars.json').read_text())
 sheet = Image.open(skill / 'Stars.png')
 STAR_ROWS = ((1000, 200), (2833, 200), (778, 250), (976, 280))

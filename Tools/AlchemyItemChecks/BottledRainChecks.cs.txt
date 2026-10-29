@@ -14,7 +14,7 @@ internal static class BottledRainChecks
     static void Check(bool condition, string message)
     { if (!condition) throw new Exception(message); passed++; Console.WriteLine("PASS Rain: " + message); }
 
-    public static void Run()
+    public static void Run(string output = null)
     {
         const BindingFlags hidden = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
         Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer; Main.myPlayer = 0;
@@ -117,8 +117,11 @@ internal static class BottledRainChecks
         Check(cloud.CanDamage() == false && cloud.CanCutTiles() == false, "Bottle and cloud cannot damage or cut plants");
         Vector2 before = bottle.Center;
         cloud.OnTileCollide(bottle.velocity);
+        Check(bottle.ai[0] == 0, "Touching a tile cannot release a bottle before the aimed destination");
+        bottle.ai[2] = 1; bottle.velocity = new Vector2(0, -RainThrowTrajectory.Gravity);
+        cloud.AI();
         Check(bottle.ai[0] == 1 && bottle.ai[1] == 0 && bottle.timeLeft == 3600 && !bottle.tileCollide,
-            "Impact transforms the existing projectile into a 60-second cloud");
+            "Arrival transforms the existing projectile into a 60-second cloud");
         Check(bottle.Center.Y == before.Y - 96, "Cloud unfolds above the impact point");
         cloud.AI(); float age = bottle.ai[1]; Vector2 after = bottle.Center;
         cloud.OnTileCollide(Vector2.Zero);
@@ -132,7 +135,8 @@ internal static class BottledRainChecks
         Check(airborne.ai[0] == 1, "A bottle thrown into open air still releases its cloud");
         Projectile lowCeiling = Bottle(new Vector2(100 * 16, 98 * 16));
         for (int x = 98; x <= 102; x++) Place(x, 96, TileID.Stone);
-        lowCeiling.ModProjectile.OnTileCollide(Vector2.Zero);
+        lowCeiling.ai[2] = 1; lowCeiling.velocity = new Vector2(0, -RainThrowTrajectory.Gravity);
+        lowCeiling.ModProjectile.AI();
         Check(lowCeiling.Center.Y >= 97 * 16, "Cloud emergence cannot pass through a low ceiling");
 
         // The real client overlay scans synced entities without invoking any growth on the client.
@@ -170,6 +174,174 @@ internal static class BottledRainChecks
         Check(MarkerCount() == 0, "World changes clear all rain indicator state");
         Main.dedServ = true; indicators.PostUpdateProjectiles();
         Check(MarkerCount() == 0, "Dedicated server skips indicator collection");
+        AimChecks(output);
         Console.WriteLine($"Bottled Rain: {passed} real-engine checks passed.");
+    }
+
+    private static void AimChecks(string output)
+    {
+        for (int x = 0; x < 240; x++) for (int y = 0; y < 240; y++) Main.tile[x, y].ClearEverything();
+        Main.dedServ = true; Main.netMode = NetmodeID.SinglePlayer;
+        var path = new List<Vector2>();
+        Projectile Throw(Vector2 origin, Vector2 velocity, int flight)
+        {
+            var p = new Projectile(); p.SetDefaults(ModContent.ProjectileType<BottledRainCloud>());
+            p.Center = origin; p.velocity = velocity; p.ai[2] = flight; p.active = true; p.owner = 0;
+            return p;
+        }
+        void Finish(Projectile p)
+        {
+            for (int i = 0; i < 65 && p.ai[0] == 0; i++) p.ModProjectile.AI();
+            Check(p.ai[0] == 1, "Aimed throw releases once it reaches its destination");
+        }
+        Vector2 origin = new(1600, 1200);
+        foreach (Vector2 offset in new[] { Vector2.Zero, new Vector2(2, 1), new Vector2(160, 0),
+            new Vector2(-360, 100), new Vector2(500, -240), new Vector2(900, 460), new Vector2(0, -500) })
+        foreach (float gravity in new[] { 1f, -1f })
+        {
+            Vector2 target = origin + offset;
+            Vector2 v = RainThrowTrajectory.Aim(origin, target, gravity, out int flight);
+            Vector2 impact = RainThrowTrajectory.Predict(origin, v, flight, path);
+            Check(Vector2.Distance(impact, target) < .05f, $"Cursor hit within .05 px: {offset}, gravity {gravity}");
+            var p = Throw(origin, v, flight);
+            Finish(p);
+            Check(Vector2.Distance(p.Center, RainThrowTrajectory.CloudCenter(impact)) < .001f,
+                "Actual projectile and preview produce the same cloud position");
+            Check(!p.ModProjectile.ShouldUpdatePosition() && !p.tileCollide,
+                "Engine does not integrate movement/collision a second time");
+        }
+        Tile Place(int x, int y, ushort type, int frame = 0)
+        { Tile t = Main.tile[x, y]; t.ClearEverything(); t.HasTile = true; t.TileType = type; t.TileFrameX = (short)frame; return t; }
+        for (int y = 45; y < 110; y++) Place(110, y, TileID.Stone);
+        Vector2 velocity = RainThrowTrajectory.Aim(origin, origin + new Vector2(650, 80), 1, out int duration);
+        Collision.up = true; Collision.down = false; Collision.stair = true; Collision.stairFall = true; Collision.sloping = true;
+        Vector2 hit = RainThrowTrajectory.Predict(origin, velocity, duration, path);
+        Check(Vector2.Distance(hit, origin + new Vector2(650, 80)) < .05f && path.Count == duration + 1,
+            "Aimed throw passes through the solid wall and reaches the cursor");
+        Check(Collision.up && !Collision.down && Collision.stair && Collision.stairFall && Collision.sloping,
+            "Preview preserves Terraria's shared collision flags");
+        var blocked = Throw(origin, velocity, duration); Finish(blocked);
+        Check(Vector2.Distance(blocked.Center, RainThrowTrajectory.CloudCenter(hit)) < .001f, "Actual throw passes through the wall exactly as previewed");
+        for (int y = 45; y < 110; y++) Main.tile[110, y].ClearEverything();
+        var original = Throw(origin, velocity, duration);
+        for (int i = 0; i < 13; i++) original.ModProjectile.AI();
+        var replica = Throw(original.Center, original.velocity, (int)original.ai[2]);
+        replica.ai[1] = original.ai[1];
+        Finish(original); Finish(replica);
+        Check(original.Center == replica.Center && original.ai[2] == replica.ai[2],
+            "Mid-flight replicated position/velocity/ai reach the same release point without mouse state");
+
+        // Probe the real item entry and the local overlay gate, without drawing or consuming an inventory stack.
+        var item = ModContent.GetInstance<伊蕾娜.ElainaModAlchemy.item.Curios.BottledRain>();
+        item.SetDefaults();
+        Player player = Main.player[0]; player.active = true; player.selectedItem = 0;
+        player.inventory[0] = item.Item; player.Center = origin;
+        Main.gameMenu = Main.mapFullscreen = Main.playerInventory = Main.blockMouse = false;
+        Main.dedServ = false;
+        Check(RainAimPreviewSystem.CanPreview(player), "Holding Bottled Rain shows a preview before use");
+        player.mouseInterface = true;
+        Check(!RainAimPreviewSystem.CanPreview(player), "UI hover suppresses the world preview");
+        player.mouseInterface = false; Main.playerInventory = true;
+        Check(!RainAimPreviewSystem.CanPreview(player), "Open inventory suppresses the preview");
+        Main.playerInventory = false; Main.mapFullscreen = true;
+        Check(!RainAimPreviewSystem.CanPreview(player), "Fullscreen map suppresses the preview");
+        Main.mapFullscreen = false; player.itemAnimation = 1;
+        Check(!RainAimPreviewSystem.CanPreview(player), "An ongoing throw hides the next aim preview");
+        player.itemAnimation = 0; player.dead = true;
+        Check(!RainAimPreviewSystem.CanPreview(player), "Dead players do not show aim previews");
+        player.dead = false; player.inventory[0] = new Item();
+        Check(!RainAimPreviewSystem.CanPreview(player), "Switching away hides the preview immediately");
+        Main.dedServ = true;
+        player.inventory[0] = item.Item;
+        Main.screenPosition = Vector2.Zero; Main.mouseX = 1850; Main.mouseY = 1260;
+        foreach (Projectile p in Main.projectile) p.active = false;
+        var source = new Terraria.DataStructures.EntitySource_ItemUse_WithAmmo(player, item.Item, 0);
+        bool defaultShot = item.Shoot(player, source, Vector2.Zero,
+            new Vector2(999, 999), ModContent.ProjectileType<BottledRainCloud>(), 0, 0);
+        Projectile shot = Main.projectile.Single(p => p.active);
+        Vector2 expectedVelocity = RainThrowTrajectory.Aim(RainThrowTrajectory.Origin(player), Main.MouseWorld, player.gravDir, out int expectedFlight);
+        Check(!defaultShot && shot.Center == RainThrowTrajectory.Origin(player)
+            && shot.velocity == expectedVelocity && shot.ai[2] == expectedFlight,
+            "Item Shoot spawns exactly one aimed bottle from the same origin as the preview");
+        Finish(shot);
+        Check(Vector2.Distance(shot.Center, RainThrowTrajectory.CloudCenter(Main.MouseWorld)) < .05f,
+            "Real item Shoot reaches the cursor instead of using the engine's fixed-speed input");
+        foreach (Projectile p in Main.projectile) p.active = false;
+        Main.myPlayer = 1;
+        item.Shoot(player, source, origin, Vector2.One,
+            ModContent.ProjectileType<BottledRainCloud>(), 0, 0);
+        Check(Main.projectile.All(p => !p.active), "A non-owner never spawns a duplicate bottle");
+        Main.myPlayer = 0;
+
+        // Every terrain shape must be ignored during flight.
+        foreach (int shape in new[] { 0, 1, 2 })
+        {
+            for (int x = 95; x <= 105; x++)
+            {
+                Tile t = Place(x, 95, TileID.Stone);
+                if (shape == 1) t.IsHalfBlock = true;
+                if (shape == 2) t.Slope = SlopeType.SlopeDownRight;
+            }
+            velocity = RainThrowTrajectory.Aim(new Vector2(1600, 1400), new Vector2(1600, 1650), 1, out duration);
+            hit = RainThrowTrajectory.Predict(new Vector2(1600, 1400), velocity, duration, path);
+            var terrain = Throw(new Vector2(1600, 1400), velocity, duration); Finish(terrain);
+            Check(Math.Abs(hit.Y - 1650) < .05f && terrain.Center == RainThrowTrajectory.CloudCenter(hit),
+                $"Preview/flight pass through terrain shape {shape}");
+            for (int x = 95; x <= 105; x++) Main.tile[x, 95].ClearEverything();
+        }
+
+        var edgePlants = new List<Point>();
+        Place(125, 120, TileID.ImmatureHerbs); Place(125, 121, TileID.ImmatureHerbs);
+        RainPlantGrowth.CollectCoveredPlants(new Vector2(2000, 1600), edgePlants);
+        Check(edgePlants.Contains(new Point(125, 120)) && !edgePlants.Contains(new Point(125, 121)),
+            "Growth candidates stop at the same 320 px bottom edge shown by the preview");
+        Main.tile[125, 120].ClearEverything(); Main.tile[125, 121].ClearEverything();
+
+        Main.tileSolid[TileID.PlanterBox] = Main.tileSolidTop[TileID.PlanterBox] = true;
+        TileID.Sets.Platforms[TileID.PlanterBox] = true;
+        for (int x = 64; x < 114; x++) Place(x, 88, TileID.Stone);
+        for (int x = 76; x <= 96; x++)
+        {
+            Place(x, 87, TileID.PlanterBox);
+            if (x % 2 == 0 && x != 94) Place(x, 86, TileID.ImmatureHerbs, (x % 7) * 18);
+        }
+        Place(92, 87, TileID.ClayPot);
+        // 可视场景让瞄准虚线穿过一堵完整实心墙。
+        for (int y = 70; y <= 84; y++) Place(78, y, TileID.Stone);
+        for (int x = 83; x <= 85; x++) Place(x, 84, TileID.Stone);
+        Place(89, 82, TileID.PlanterBox); Place(89, 81, TileID.MatureHerbs, 72);
+        Vector2 camera = new(64 * 16, 64 * 16);
+        origin = camera + new Vector2(80, 200);
+        Vector2 aim = camera + new Vector2(416, 352);
+        velocity = RainThrowTrajectory.Aim(origin, aim, 1, out duration);
+        hit = RainThrowTrajectory.Predict(origin, velocity, duration, path);
+        Vector2 cloud = RainThrowTrajectory.CloudCenter(hit);
+        var plants = new List<Point>(); RainPlantGrowth.CollectCoveredPlants(cloud, plants);
+        Check(plants.Contains(new Point(90, 86)) && plants.Contains(new Point(92, 86)), "Preview finds immature herbs in planter boxes and clay pots");
+        Check(plants.Contains(new Point(89, 81)), "Preview also finds plants in an upper planter row");
+        Check(!plants.Contains(new Point(84, 86)) && !plants.Contains(new Point(94, 86)) && !plants.Contains(new Point(76, 86)),
+            "Preview excludes roofed plants, empty planters and plants outside coverage");
+        Check(RainPlantGrowth.IsInPlanter(new Point(90, 86)) && RainPlantGrowth.IsInPlanter(new Point(92, 86))
+            && !RainPlantGrowth.IsInPlanter(new Point(94, 86)), "Container emphasis requires a real planted herb");
+        Main.netMode = NetmodeID.MultiplayerClient;
+        RainPlantGrowth.CollectCoveredPlants(cloud, plants);
+        Check(Main.tile[90, 86].TileType == TileID.ImmatureHerbs, "Aiming never grows the highlighted herbs");
+        Main.netMode = NetmodeID.SinglePlayer;
+        var lengths = new float[20]; RainPlantGrowth.MeasureRain(cloud, lengths);
+        if (output != null)
+        {
+            float[] V(Vector2 v) => new[] { v.X, v.Y };
+            var tiles = new List<object>();
+            for (int x = 64; x < 114; x++) for (int y = 64; y < 90; y++)
+            {
+                Tile t = Main.tile[x, y];
+                if (t.HasTile) tiles.Add(new { X = x * 16, Y = y * 16, Type = (int)t.TileType, Frame = (int)t.TileFrameX });
+            }
+            Directory.CreateDirectory(output);
+            File.WriteAllText(Path.Combine(output, "scene.json"), global::System.Text.Json.JsonSerializer.Serialize(new {
+                Camera = V(camera), Path = path.Select(V), Impact = V(hit), Cloud = V(cloud), Lengths = lengths, Tiles = tiles,
+                Plants = plants.Select(p => new { Anchor = V(RainPlantGrowth.IndicatorAnchor(p)), InPlanter = RainPlantGrowth.IsInPlanter(p) })
+            }));
+        }
     }
 }

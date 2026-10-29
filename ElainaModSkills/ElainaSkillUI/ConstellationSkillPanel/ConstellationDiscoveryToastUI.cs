@@ -46,11 +46,15 @@ public sealed class ConstellationDiscoveryToastUI : BaseBody
     {
         var screen = GraphicsDeviceHelper.GetBackBufferSizeByUIScale();
         // Same anchor as the existing rack; remains deterministic before its first layout pass.
-        Vector2 rack = new((screen.Width - SkillBarDrawing.Width) * .95f, (screen.Height - SkillBarDrawing.Height) * .95f);
+        Vector2 size = new Vector2(SkillBarDrawing.Width, SkillBarDrawing.Height) * ElainaSkillManager.BarScale;
+        Vector2 rack = (new Vector2(screen.Width, screen.Height) - size) * SkillBarLayout.Anchor;
         if (SilkyUISystem.ServiceProvider != null &&
             SilkyUIRenderSystem.Instance.TryGetInstance<ElainaSkillBar>(out var bar) && bar.Bounds.Width > 0)
+        {
             rack = bar.Bounds.Position;
-        return ConstellationBookLayout.DockBounds(new Vector2(screen.Width, screen.Height), rack);
+            size = (Vector2)bar.Bounds.Size;
+        }
+        return ConstellationBookLayout.DockBounds(new Vector2(screen.Width, screen.Height), rack, size.X);
     }
 
     private void Position()

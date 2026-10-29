@@ -207,6 +207,15 @@ Items: {
 		DisplayName: Ghost Step Dye Dummy Item
 		Tooltip: ""
 	}
+
+	WaterSpellbook: {
+		DisplayName: Water Spellbook
+		Tooltip:
+			'''
+			Required to study {$Mods.伊蕾娜.SkillInfo.SkillName.WaterLaserSKill}
+			Crafting it does not consume the {$ItemName.WaterBolt}
+			'''
+	}
 }
 
 Projectiles: {
@@ -304,6 +313,11 @@ Configs: {
 		ShowCD: {
 			Label: Display Skill Cooldown Timers
 			Tooltip: Show numeric countdown timers for each skill's cooldown in the Skill Bar
+		}
+
+		SkillBarScale: {
+			Label: Skill Bar Scale
+			Tooltip: Adjust the skill bar's display size.
 		}
 
 		SkillWheelScale: {
@@ -450,6 +464,15 @@ Terms: {
 			Elaina's unique magic for casting skills while Ashen Witch is active. Each point of vanilla maximum mana, and each point of maximum life lost to Ashen Witch, adds 1 to its maximum.
 			Regenerates {0} plus {1:0.##}% of its maximum per second, even while casting. Casting, hitting or taking damage keeps you in combat for {2} seconds; out of combat, recovery greatly increases and it refills in about {3:0.##} seconds.
 			While any boss is still alive, you never leave combat.
+			'''
+	}
+
+	AlchemyCauldron: {
+		Name: Alchemy Cauldron
+		Description:
+			'''
+			Elaina's exclusive alchemy tool once she has learned Alchemy.
+			Crafted by hand from {$ItemName.IronBar} or {$ItemName.LeadBar} ×10 and {$ItemName.Campfire} ×1.
 			'''
 	}
 }

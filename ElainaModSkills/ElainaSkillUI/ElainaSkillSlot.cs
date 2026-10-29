@@ -7,6 +7,7 @@ using SilkyUIFramework;
 using SilkyUIFramework.Extensions;
 using Terraria.ModLoader;
 using 伊蕾娜.ElainaModSkills.UICore;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -21,6 +22,16 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
     private bool _selected;
     private float _selectionTime;
     private float _hover;
+    private readonly ConstellationUIClock _animationClock = new();
+    internal float BarScale { get; private set; } = 1f;
+
+    internal void ApplyScale(float scale)
+    {
+        BarScale = scale;
+        SlotSize = new Vector2(60 * scale);
+        SetSize(SlotSize.X, SlotSize.Y);
+        if (SkillIcon is ElainaSkillIcon icon) icon.ApplyScale(scale);
+    }
 
     protected override void OnInitialize()
     {
@@ -33,37 +44,45 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
     public ElainaSkill GetSkill() => GetSlotSkill()?.ModSkill as ElainaSkill;
     public Skill GetSlotSkill() => HasSkill ? (Children[0] as ElainaSkillIcon)?.Skill : null;
 
-    protected override void Update(GameTime gameTime)
+    protected override void UpdateStatus(GameTime gameTime)
     {
-        float dt = Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, 0.1f);
+        float dt = _animationClock.Sample(Main.hasFocus && !Main.hideUI);
         bool selected = SlotIndex == ElainaSkillModPlayer.CurrentSkillIndex;
         _selectionTime = selected && _selected ? _selectionTime + dt : 0;
         _selected = selected;
         _hover = MathHelper.Lerp(_hover, IsMouseHovering ? 1 : 0, Math.Min(1, dt / .14f));
         if (IsMouseHovering) Main.LocalPlayer.mouseInterface = true;
-        base.Update(gameTime);
+        base.UpdateStatus(gameTime);
+    }
+
+    protected override void OnExitTree()
+    {
+        _animationClock.Stop();
+        _selected = false;
+        _selectionTime = _hover = 0;
+        base.OnExitTree();
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
         SkillBarDrawing.DrawSlotBackground(spriteBatch, _ornaments.Value,
-            Bounds.Center, _selected, HasSkill, _hover, _selectionTime);
+            Bounds.Center, _selected, HasSkill, _hover, _selectionTime, scale: BarScale);
     }
 
     public override void DrawChildren(GameTime gameTime, SpriteBatch spriteBatch)
     {
         base.DrawChildren(gameTime, spriteBatch);
         SkillBarDrawing.DrawSlotFrame(spriteBatch, _ornaments.Value,
-            Bounds.Center, _selected, HasSkill, _hover, _selectionTime);
+            Bounds.Center, _selected, HasSkill, _hover, _selectionTime, scale: BarScale);
         if (GetSlotSkill() is { } skill)
         {
             var seal = skill.ModSkill as ElainaSealedSkill;
             bool bound = seal != null && SkillBarDrawing.HasSealOverlay(seal.IsSealed, seal.SealReleaseAge);
             SkillBarDrawing.DrawSkillState(spriteBatch, StateArt, UIDrawKit.NumberFont, Bounds.Center,
-                skill.CurrentCD, skill.CooldownRemainingFraction, skill.Stack, skill.MaxStack, ElainaSkillManager.ShowCD && !bound);
+                skill.CurrentCD, skill.CooldownRemainingFraction, skill.Stack, skill.MaxStack, ElainaSkillManager.ShowCD && !bound, BarScale);
             if (bound)
                 SkillBarDrawing.DrawSealState(spriteBatch, StateArt, Bounds.Center, (float)Main.GlobalTimeWrappedHourly,
-                    seal.SealDeniedAge, seal.IsSealed ? -1 : seal.SealReleaseAge);
+                    seal.SealDeniedAge, seal.IsSealed ? -1 : seal.SealReleaseAge, scale: BarScale);
         }
     }
 

@@ -1,0 +1,575 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
+
+// 魔法飞弹命中特效预览：旧版（改版前 MagicMissile.OnKill 的 KL 粒子，按游戏参数复刻，不进 Bloom）与正式的普通命中、
+// 第五击花印爆发（直接调用 MagicMissileHitVisuals，走 KL 真实 Bloom 管线，同 Projectiles.After 层）放在三条泳道里，
+// 以原版僵尸为靶子，白天/夜晚各渲染一遍逐帧输出，compose.py 拼图。
+internal static class Program
+{
+    static void Main(string[] args)
+    {
+        TrailChecks.Run(args[2]);
+        using var game = new HitPreview(args[0], args[1], args[2], args[3]);
+        game.Run();
+    }
+
+    // 与 Tools/BloomBackbufferPreview 相同：从 KL 源码中取出 Bloom 管线并编译，Run 可指定目标层
+    internal static Assembly CompilePipeline(string kl)
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            using System;
+            using System.Collections.Generic;
+            using System.Reflection;
+            using Microsoft.Xna.Framework;
+            using Microsoft.Xna.Framework.Graphics;
+            using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing {
+            public class ModSystem {}
+            public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+            public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+            public static class Main {
+                public static DeviceContext instance, graphics;
+                public static SpriteBatch spriteBatch;
+                public static int screenWidth, screenHeight;
+                public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                public static ViewContext GameViewMatrix = new();
+            }
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
+            public partial class DrawSystem {
+                public void Run(float strength, int iterations, bool bloomEnabled, int layer) {
+                    SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
+            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render,
+            "CreateRender", "EnsureRenderTargets", "SwitchRender", "TargetMatches", "DetachRenderTargets", "DisposeTargets",
+            "Main_OnResolutionChanged") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect");
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += "}}\n";
+        source += File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs"));
+        source = source.Replace("namespace KL.Drawing;", "namespace KL.Drawing {") + "\n}";
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("BloomPipelineLook", [CSharpSyntaxTree.ParseText(source)], references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+}
+
+/// <summary>一次命中：方案、命中点、飞行方向、生成帧与随机种子。</summary>
+sealed record Hit(string Look, Vector2 Position, float Angle, int Start, int Seed, bool Trail = false, bool Curved = false);
+
+sealed class HitPreview : Game
+{
+    const int LaneWidth = 520, Lanes = 3, Width = LaneWidth * Lanes, Height = 500, GroundY = 400;
+    const int TimelineFrames = 80, BurstFrames = 60;
+    static readonly string[] LookNames = ["current", "hit", "burst"];
+    // 飞弹从左侧略向下飞入
+    const float HitAngle = 0.12f;
+
+    [DllImport("kernel32.dll")]
+    static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+    readonly string kl, output, elaina, terrariaImages;
+    readonly Assembly pipeline;
+    SpriteBatch batch;
+    Effect reColor;
+    Effect trailEffect;
+    Texture2D trailTexture;
+    MagicMissileTrailNoise trailNoise;
+    Texture2D headStamp;
+    // 拖尾消亡时的长度缩短比例；对照方案为 0（不缩短）
+    float lengthShrink = MagicMissileTrailVisuals.DefaultLengthShrink;
+    Texture2D headNoise;
+    Texture2D pixel, zombie, shockBlack, shock, burstPoint, shotLine;
+    MagicMissileHitTextures textures;
+    int zombieFrameHeight;
+    object renderer;
+    Type main, draw, queue;
+    MethodInfo run, request, forBloom;
+    bool done;
+    int state = -1;
+
+    public HitPreview(string kl, string output, string elaina, string terrariaImages)
+    {
+        this.kl = kl;
+        this.output = output;
+        this.elaina = elaina;
+        this.terrariaImages = terrariaImages;
+        pipeline = Program.CompilePipeline(kl);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(Path.Combine(output, "frames"));
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        main = pipeline.GetType("KL.Drawing.Main");
+        draw = pipeline.GetType("KL.Drawing.DrawSystem");
+        queue = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem");
+        var helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context);
+        Set(main, "graphics", context);
+        Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", Width);
+        Set(main, "screenHeight", Height);
+        var effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        Set(helper, "bloom", effects.Load<Effect>("Bloom"));
+        Set(helper, "reColor", effects.Load<Effect>("ReColor"));
+        reColor = effects.Load<Effect>("ReColor");
+        trailEffect = new ContentManager(Services, Path.Combine(elaina, "Effects/Content")).Load<Effect>("MagicMissileTrail");
+        trailTexture = Png("Effects/Tex/Trail/LightTrail.png");
+        // 与游戏一致保持绑定的纹理存活，拖尾收缩与头部消融都在绘制时采样
+        trailNoise = new MagicMissileTrailNoise(Png("Effects/Tex/PerlinX.png"));
+        TrailChecks.RunNoise(trailNoise);
+        headStamp = Png("Effects/Tex/Sparkle/T_Vfx_Stamp_HitSword_22.PNG");
+        headNoise = Png("Effects/Tex/Noise/5.png");
+        renderer = Activator.CreateInstance(draw);
+        run = draw.GetMethod("Run");
+        forBloom = draw.GetMethod("GetBlendStateForBloom");
+        request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters()[3].ParameterType == typeof(Action));
+
+        shockBlack = Png("Dusts/ShockBlackDust.png");
+        shock = Png("Dusts/ShockDust.png");
+        burstPoint = Png("Dusts/Burst/BurstPoint.png");
+        shotLine = Png("Dusts/ShotLine.png");
+        // 与 MagicMissileHitDust.LoadTextures 相同的正式贴图
+        textures = new MagicMissileHitTextures(Png("Effects/Tex/Sparkle/T_StartFlare001.PNG"),
+            Png("ElainaModSkills/UICore/Assets/GlowDot.png", elaina), Png("Dusts/Burst/BurstCircle.png"), Png("Dusts/Burst/BurstDust.png"),
+            Png("Effects/Tex/Sparkle/ShotLineSPA.png"),
+            Enumerable.Range(1, 5).Select(i => Png($"ElainaModSkills/Skills/MagicMissile/Flo_{i}.png", elaina)).ToArray());
+        zombie = new ContentManager(Services, terrariaImages).Load<Texture2D>("NPC_3");
+        zombieFrameHeight = zombie.Height / 3;
+    }
+
+    // 与打包后的 tModLoader 一致：PNG 转为 rawimg（ImageIO.ToRaw），RawImgReader 原样上传、不预乘，
+    // 只把 alpha 为 0 的像素清零；无 mipmap。root 默认为 KL
+    Texture2D Png(string path, string root = null)
+    {
+        using var stream = File.OpenRead(Path.Combine(root ?? kl, path));
+        var texture = Texture2D.FromStream(GraphicsDevice, stream);
+        var data = new Color[texture.Width * texture.Height];
+        texture.GetData(data);
+        for (int i = 0; i < data.Length; i++)
+            if (data[i].A == 0) data[i] = Color.Transparent;
+        texture.SetData(data);
+        return texture;
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return;
+        done = true;
+        int code = 1;
+        try
+        {
+            Execute();
+            code = 0;
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+        }
+        Console.Out.Flush();
+        Console.Error.Flush();
+        // FNA 的 D3D11 后端在进程退出清理时会卡住，写完结果后直接终止进程
+        TerminateProcess(Process.GetCurrentProcess().Handle, (uint)code);
+    }
+
+    Vector2 HitPoint(int lane) => new(lane * LaneWidth + 190, GroundY - zombieFrameHeight / 2f - 2);
+
+    void Execute()
+    {
+        File.WriteAllText(Path.Combine(output, "layout.txt"), string.Join("\n", Enumerable.Range(0, Lanes)
+            .Select(i => FormattableString.Invariant($"{LookNames[i]} {HitPoint(i).X} {HitPoint(i).Y}"))));
+
+        // 单次命中：每条泳道一发，第 0 帧生成
+        var single = Enumerable.Range(0, Lanes).Select(i => new Hit(LookNames[i], HitPoint(i), HitAngle, 0, 100 + i)).ToList();
+
+        // 连发：每 3 帧一发、落点上下错开；花印泳道前四发为普通命中，第五发触发花印爆发
+        int[] offsets = [-8, 6, -3, 9, 0];
+        var burst = new List<Hit>();
+        for (int i = 0; i < Lanes; i++)
+        {
+            bool burstLane = LookNames[i].StartsWith("burst");
+            int count = burstLane ? 5 : 4;
+            for (int k = 0; k < count; k++)
+            {
+                string look = burstLane && k < 4 ? LookNames[i].Replace("burst", "hit") : LookNames[i];
+                int start = k * 3 - (count == 5 ? 3 : 0);
+                burst.Add(new Hit(look, HitPoint(i) + new Vector2(k % 2 * 4, offsets[k]), HitAngle + (k - 2) * 0.05f, start, 200 + i * 10 + k));
+            }
+        }
+
+        foreach (bool night in new[] { false, true })
+        {
+            string bg = night ? "night" : "day";
+            for (int t = 1; t <= TimelineFrames; t++)
+                SavePng(Path.Combine(output, "frames", $"{bg}-hit-{t:000}.png"), RenderFrame(single, t, night));
+            for (int t = 1; t <= BurstFrames; t++)
+                SavePng(Path.Combine(output, "frames", $"{bg}-burst-{t:000}.png"), RenderFrame(burst, t, night));
+            Console.WriteLine($"{bg}: {TimelineFrames} hit frames, {BurstFrames} burst frames");
+            var trails = Enumerable.Range(0, Lanes).Select(i => new Hit(i == 2 ? "burst" : "hit",
+                new Vector2(i * LaneWidth + 345, 330), HitAngle, 0, 400 + i, true, i == 1)).ToList();
+            for (int t = 1; t <= 50; t++)
+                SavePng(Path.Combine(output, "frames", $"{bg}-trail-{t:000}.png"), RenderFrame(trails, t, night));
+            // 对照：完全不缩短，纯靠截面收窄
+            lengthShrink = 0f;
+            for (int t = 1; t <= 50; t++)
+                SavePng(Path.Combine(output, "frames", $"{bg}-noshrink-{t:000}.png"), RenderFrame(trails, t, night));
+            lengthShrink = MagicMissileTrailVisuals.DefaultLengthShrink;
+            // 无爆炸遮挡的拖尾分段检查，便于观察每处缺口和全长保留。
+            SavePng(Path.Combine(output, $"{bg}-trail-only.png"), RenderFrame(trails, 15, night, true));
+            // 头部爆点消融序列（无命中特效遮挡）
+            foreach (int t in new[] { 1, 4, 7, 10, 13, 16, 19 })
+                SavePng(Path.Combine(output, "frames", $"{bg}-head-{t:000}.png"), RenderFrame(trails, t, night, true));
+            foreach (float zoom in new[] { 1f, 2f })
+                SavePng(Path.Combine(output, $"{bg}-width-{zoom:0}x.png"), RenderWidthStudy(night, zoom));
+        }
+    }
+
+    // 六个阶段、两个噪声切片；真实矩阵缩放，用于检查消亡瞬间粗细与最后的亚像素细线。
+    Color[] RenderWidthStudy(bool night, float zoom)
+    {
+        using var scene = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None,
+            0, RenderTargetUsage.PreserveContents);
+        Set(draw, "CanUseRender", true);
+        GraphicsDevice.SetRenderTarget(scene);
+        GraphicsDevice.Clear(night ? new Color(25, 34, 54) : new Color(62, 155, 151));
+        Enqueue(() =>
+        {
+            float[] ages = [-1, 0, .4f, .6f, .8f, .97f];
+            for (int column = 0; column < 2; column++)
+            for (int row = 0; row < ages.Length; row++)
+            {
+                float age = ages[row];
+                var visual = new MagicMissileTrailVisuals(column == 0 ? 400 : 403)
+                    { Expiring = age >= 0, TextureOffset = .4f };
+                var path = Enumerable.Range(0, 24).Select(i => new Vector2(-i * 320f / 23, 0)).ToArray();
+                batch.End();
+                visual.Draw(GraphicsDevice, trailEffect, trailTexture, trailNoise, path, 1 - Math.Max(0, age),
+                    Matrix.CreateScale(zoom) * Matrix.CreateTranslation(column * 780 + 720, row * 75 + 45, 0),
+                    (BlendState)forBloom.Invoke(null, [BlendState.Additive]), zoom);
+                batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone);
+            }
+            state = -1;
+        });
+        run.Invoke(renderer, [1f, 3, true, 3]);
+        GraphicsDevice.SetRenderTarget(null);
+        var pixels = new Color[Width * Height];
+        scene.GetData(pixels);
+        return pixels;
+    }
+
+    Color[] RenderFrame(List<Hit> hits, int frame, bool night, bool trailOnly = false)
+    {
+        using var scene = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None,
+            0, RenderTargetUsage.PreserveContents);
+        Set(draw, "CanUseRender", true);
+        GraphicsDevice.SetRenderTarget(scene);
+        GraphicsDevice.Clear(Color.Black);
+        DrawScene(night, hits[0].Trail);
+
+        var bloomParts = new List<Action>();
+        var plainParts = new List<Action>();
+        foreach (Hit hit in hits)
+        {
+            int age = frame - hit.Start;
+            if (age < 1) continue;
+            if (hit.Trail && age <= MagicMissileTrailVisuals.FadeTicks)
+            {
+                var visual = new MagicMissileTrailVisuals(hit.Seed) { Expiring = true, TextureOffset = 0.4f, HeadRotation = hit.Angle,
+                    LengthShrink = lengthShrink };
+                // 上次绘制距命中位置 30 px，验证 FinishPath 的末段连接。
+                Vector2[] previous = Enumerable.Range(0, 24).Select(i => hit.Position
+                    - Dir(hit.Angle) * (30 + i * 290f / 23)
+                    + new Vector2(0, hit.Curved ? -65 * MathF.Sin(i / 23f * MathF.PI) : 0)).ToArray();
+                Vector2[] path = MagicMissileTrailVisuals.FinishPath(previous, hit.Position, 320);
+                bloomParts.Add(() =>
+                {
+                    batch.End();
+                    visual.Draw(GraphicsDevice, trailEffect, trailTexture, trailNoise, path, 1 - (age - 1f) / MagicMissileTrailVisuals.FadeTicks,
+                        Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.Additive]));
+                    visual.DrawHead(GraphicsDevice, trailEffect, headStamp, headNoise, path[0], 1 - (age - 1f) / MagicMissileTrailVisuals.FadeTicks,
+                        Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.AlphaBlend]));
+                    batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                        DepthStencilState.None, RasterizerState.CullNone);
+                    state = -1;
+                });
+            }
+            if (trailOnly) continue;
+            var parts = Build(hit);
+            (hit.Look == "current" ? plainParts : bloomParts).Add(() => parts.ForEach(p => p(age)));
+        }
+
+        // 正式特效：Projectiles.After 层 Bloom，与飞弹本体和 KL 粒子同一后处理
+        if (bloomParts.Count > 0)
+        {
+            Enqueue(() =>
+            {
+                state = -1;
+                bloomParts.ForEach(p => p());
+            });
+            run.Invoke(renderer, [1f, 3, true, 3]);
+        }
+
+        // 旧版：游戏中这些粒子 ShouldBloom = false，在 DrawDust 中直接绘制
+        if (plainParts.Count > 0)
+        {
+            GraphicsDevice.SetRenderTarget(scene);
+            batch.Begin();
+            state = -1;
+            plainParts.ForEach(p => p());
+            batch.End();
+        }
+
+        GraphicsDevice.SetRenderTarget(null);
+        var pixels = new Color[Width * Height];
+        scene.GetData(pixels);
+        return pixels;
+    }
+
+    void Enqueue(Action callback)
+    {
+        request.Invoke(null, ["Elaina:MagicMissileHit", Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), 3),
+            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback, 0]);
+    }
+
+    void DrawScene(bool night, bool trails = false)
+    {
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        Color top = night ? new Color(14, 20, 38) : new Color(58, 150, 150);
+        Color bottom = night ? new Color(46, 60, 92) : new Color(70, 165, 150);
+        for (int y = 0; y < Height; y += 10)
+            batch.Draw(pixel, new Rectangle(0, y, Width, 10), Color.Lerp(top, bottom, y / (float)Height));
+        Color grass = night ? new Color(30, 70, 40) : new Color(60, 170, 60);
+        Color dirt = night ? new Color(60, 44, 34) : new Color(140, 100, 70);
+        batch.Draw(pixel, new Rectangle(0, GroundY, Width, 16), grass);
+        batch.Draw(pixel, new Rectangle(0, GroundY + 16, Width, Height - GroundY - 16), dirt);
+        // 原版僵尸第 1 帧，面朝左（飞弹来向）；夜晚按环境光压暗
+        Color tint = night ? new Color(120, 120, 150) : Color.White;
+        for (int i = 0; i < Lanes; i++)
+        {
+            Vector2 hit = HitPoint(i);
+            if (trails) hit = new Vector2(i * LaneWidth + 345 + (i == 2 ? 45 : 0), 330);
+            batch.Draw(zombie, new Vector2(hit.X - 4, hit.Y - zombieFrameHeight / 2), new Rectangle(0, 0, zombie.Width, zombieFrameHeight), tint);
+        }
+        batch.End();
+    }
+
+    #region 绘制工具
+
+    void Use(int blend)
+    {
+        if (blend == state) return;
+        batch.End();
+        BlendState bs = blend switch { 1 => BlendState.Additive, 2 => BlendState.NonPremultiplied, _ => BlendState.AlphaBlend };
+        bs = (BlendState)forBloom.Invoke(null, [bs]);
+        batch.Begin(SpriteSortMode.Immediate, bs, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, null, Matrix.Identity);
+        state = blend;
+    }
+
+    // ReColor 第 0 通道 = 贴图 × 顶点色 × hdr；Bloom 只提取超过 1 的部分
+    void SetHdr(float hdr)
+    {
+        reColor.Parameters["newColor"].SetValue(new Vector4(hdr, hdr, hdr, 1));
+        reColor.CurrentTechnique.Passes[0].Apply();
+    }
+
+    void Sprite(Texture2D texture, Rectangle? source, Vector2 position, Color color, float rotation, Vector2 scale, float hdr = 1)
+    {
+        SetHdr(hdr);
+        Rectangle rect = source ?? texture.Bounds;
+        batch.Draw(texture, position, source, color, rotation, new Vector2(rect.Width, rect.Height) / 2, scale, SpriteEffects.None, 0);
+    }
+
+    static Vector2 Dir(float angle) => new(MathF.Cos(angle), MathF.Sin(angle));
+
+    static Vector2 Rotate(Vector2 v, float angle) => Vector2.Transform(v, Matrix.CreateRotationZ(angle));
+
+    // 每次更新先衰减速度再位移，n 次更新后的累计位移（以初速为单位）
+    static float Travel(float damping, int n) => damping >= 1 ? n : damping * (1 - MathF.Pow(damping, n)) / (1 - damping);
+
+    static float F(Random r, float min, float max) => min + (float)r.NextDouble() * (max - min);
+
+    // 同 Terraria Utils.NextVector2Circular
+    static Vector2 Circular(Random r, float x, float y) => Dir(F(r, 0, MathHelper.TwoPi)) * new Vector2(x, y) * F(r, 0, 1);
+
+    static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    #endregion
+
+    List<Action<int>> Build(Hit hit)
+    {
+        var parts = new List<Action<int>>();
+        var r = new Random(hit.Seed);
+        if (hit.Look == "current")
+        {
+            Current(parts, hit, r);
+            return parts;
+        }
+        MagicMissileHitPart[] hitParts = hit.Look == "burst"
+            ? MagicMissileHitVisuals.CreateBurst(r, hit.Angle)
+            : MagicMissileHitVisuals.CreateHit(r, hit.Angle);
+        parts.Add(age =>
+        {
+            Use(0);
+            Vector2 center = hit.Position + (hit.Trail && hit.Look == "burst" ? new Vector2(45, 0) : Vector2.Zero);
+            MagicMissileHitVisuals.Draw(batch, textures, center, hitParts, age, SetHdr);
+            if (hit.Trail && hit.Look == "burst")
+                MagicMissileHitVisuals.Draw(batch, textures, hit.Position, MagicMissileHitVisuals.CreateContact(hit.Angle), age, SetHdr);
+        });
+        return parts;
+    }
+
+    #region 旧版：改版前的 MagicMissile.OnKill
+
+    // 复刻 KLBasicDust.SpawnDustsCircle 的随机顺序与参数
+    void Circle(List<Action<int>> parts, Random r, Vector2 position, int kind, int amount, Vector2 velocity, float rotRange,
+        int life, Color color, Vector2 scale, float startOffset, Vector2 scaleOffset, int lifeOffset)
+    {
+        for (int i = 0; i < amount; i++)
+        {
+            Vector2 v = Rotate(velocity, F(r, -rotRange / 2, rotRange / 2));
+            Vector2 finalScale = scale + Circular(r, scaleOffset.X, scaleOffset.Y);
+            Vector2 start = position + Vector2.Normalize(v) * F(r, 0, startOffset);
+            v *= F(r, 1, 1);
+            KLDust(parts, kind, start, v, life + r.Next(-lifeOffset, lifeOffset), color, finalScale);
+        }
+    }
+
+    // kind：0 ShockBlackDust，1 ShockDust，2 BurstPoint，3 LineSparkle。生成时立即 Update 一次，同 tick 内 Dust 再更新一次后才首次绘制
+    void KLDust(List<Action<int>> parts, int kind, Vector2 start, Vector2 velocity, int life, Color color, Vector2 scale)
+    {
+        float damping = kind == 2 ? 1f : 0.92f;
+        float rotation = MathF.Atan2(velocity.Y, velocity.X);
+        parts.Add(age =>
+        {
+            int n = age + 1;
+            if (n > life) return;
+            float p = n / (float)life;
+            Vector2 at = start + velocity * Travel(damping, n);
+            switch (kind)
+            {
+                case 0:
+                {
+                    int frame = (int)Lerp(0, 4, p);
+                    if (frame > 3) return;
+                    Use(2);
+                    Sprite(shockBlack, new Rectangle(frame * 128, 0, 128, 512), at, color * (1 - p), rotation + MathHelper.PiOver2, scale * Lerp(1, 2, p));
+                    break;
+                }
+                case 1:
+                {
+                    int frame = (int)Lerp(0, 4, p);
+                    if (frame > 3) return;
+                    Use(1);
+                    Sprite(shock, new Rectangle(frame * 128, 0, 128, 512), at, color, rotation + MathHelper.PiOver2, scale * Lerp(1, 2, p), 1.5f * Lerp(1, 0.5f, p));
+                    break;
+                }
+                case 2:
+                {
+                    int frame = Math.Clamp((int)(p * 4), 0, 3);
+                    Use(0);
+                    Sprite(burstPoint, new Rectangle(frame % 2 * 128, frame / 2 * 128, 128, 128), at, color * (1 - p), rotation + MathHelper.PiOver2, scale);
+                    break;
+                }
+                default:
+                {
+                    float length = 1 - p;
+                    Use(0);
+                    Sprite(shotLine, null, at, color, rotation, scale * new Vector2(0.2f * length, 0.1f * length));
+                    Sprite(shotLine, null, at, color, rotation, scale * new Vector2(0.1f * length, 0.03f));
+                    for (int i = 0; i < 3; i++)
+                        Sprite(shotLine, null, at, color * 0.15f * ((10 - i) / 10f), rotation, 3.8f * scale * new Vector2(0.1f * length, 0.6f * length) * (1 + i * 0.01f));
+                    break;
+                }
+            }
+        });
+    }
+
+    void Current(List<Action<int>> parts, Hit hit, Random r)
+    {
+        Vector2 h = hit.Position, v = Dir(hit.Angle);
+        Color dark = new(180, 50, 180, 255), pink = new(255, 120, 239, 255), pinkAdd = new(255, 120, 239, 0), splash = new(255, 150, 239, 0);
+        Circle(parts, r, h, 0, 7, -v * 10.1f, 2.14f, 10, dark, new Vector2(0.3f, 0.1f), 10, new Vector2(0.05f, 0.03f), 3);
+        KLDust(parts, 2, h, Circular(r, 0.1f, 0.1f), 12, dark, new Vector2(1.3f));
+        KLDust(parts, 2, h, Circular(r, 0.1f, 0.1f), 12, splash, new Vector2(1.3f));
+        KLDust(parts, 2, h, Circular(r, 0.1f, 0.1f), 12, splash, new Vector2(1.3f));
+        Circle(parts, r, h, 1, 5, -v * 10.1f, 2.14f, 15, pink, new Vector2(0.2f, 0.1f), 10, new Vector2(0.05f, 0.03f), 3);
+        Circle(parts, r, h, 3, 5, -v * 10.1f, 3.14f, 15, pinkAdd, new Vector2(1, 0.3f), 0, new Vector2(0.5f, 0), 3);
+        Circle(parts, r, h, 3, 10, -v * 10.1f, 3.14f, 15, pinkAdd, new Vector2(1, 0.3f), 20, new Vector2(0.5f, 0), 3);
+    }
+
+    #endregion
+
+
+    void SavePng(string path, Color[] image)
+    {
+        for (int i = 0; i < image.Length; i++)
+            image[i].A = 255;
+        using var texture = new Texture2D(GraphicsDevice, Width, Height);
+        texture.SetData(image);
+        using var stream = File.Create(path);
+        texture.SaveAsPng(stream, Width, Height);
+    }
+}

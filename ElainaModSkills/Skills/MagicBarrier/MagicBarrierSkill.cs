@@ -65,7 +65,18 @@ public class MagicBarrierSkill : ElainaSkill
         return Math.Max(0f, attributePlayer.MaxMagicPoint * MaximumManaShieldRatio + BaseShieldAmount);
     }
 
-    protected override object[] SkillDescriptionArgs => Array.Empty<object>();
+    protected override object[] SkillDescriptionArgs => [GetCurrentReductionPercent()];
+
+    private double GetCurrentReductionPercent()
+    {
+        // 不依赖护盾开关，便于在开启前查看当前可获得的减伤。
+        if (Player == null || !Player.GetModPlayer<ElainaSkillModPlayer>().TryGetUnlockedModSkill(out AshenWitchSkill witch))
+        {
+            return 0d;
+        }
+
+        return BarrierDamageMath.GetReduction(Player.statLifeMax2, witch.LostMaxLife) * 100d;
+    }
 
     public class MagicBarrierModPlayer : ModPlayer
     {

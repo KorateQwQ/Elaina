@@ -9,6 +9,7 @@ using SilkyUIFramework.Layout;
 using Terraria.Audio;
 using Terraria.ID;
 using 伊蕾娜.ElainaModSkills.UICore;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using 伊蕾娜.Items;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
 using static 伊蕾娜.Localization.UIText;
@@ -27,6 +28,7 @@ public sealed class ElainaHealingWheel : BaseBody
     private readonly float[] _extentAtClose = new float[MaxTargets];
     private readonly float[] _opacityAtClose = new float[MaxTargets];
     private readonly SkillWheelDrawing.View _frame = new();
+    private readonly ConstellationUIClock _animationClock = new();
     private Func<int, bool> _validTarget;
     private Func<bool> _validSource;
     private Action<int> _confirmed;
@@ -47,7 +49,11 @@ public sealed class ElainaHealingWheel : BaseBody
 
     private bool Fading => _closeTime >= 0;
 
-    private void SyncEnabled() => Enabled = _open || _closing || Fading;
+    private void SyncEnabled()
+    {
+        Enabled = _open || _closing || Fading;
+        if (!Enabled) _animationClock.Stop();
+    }
 
     private static bool TryGet(out ElainaHealingWheel wheel)
     {
@@ -75,6 +81,7 @@ public sealed class ElainaHealingWheel : BaseBody
         wheel._refresh = 0;
         wheel._hover = wheel._focus = wheel._chosen = -1;
         Array.Clear(wheel._itemHover);
+        wheel._animationClock.Restart();
         wheel.SyncEnabled();
         wheel.RefreshTargets();
         return wheel._open;
@@ -116,6 +123,7 @@ public sealed class ElainaHealingWheel : BaseBody
             _opacityAtClose[i] = OpeningOpacity(_time, i);
         }
         _closeTime = 0;
+        _animationClock.Restart();
     }
 
     private void Cancel()
@@ -224,7 +232,9 @@ public sealed class ElainaHealingWheel : BaseBody
     protected override void UpdateStatus(GameTime gameTime)
     {
         base.UpdateStatus(gameTime);
-        float dt = Math.Clamp((float)gameTime.ElapsedGameTime.TotalSeconds, 0, .1f);
+        // Draw status receives cached game time; use elapsed real time like the other wheels.
+        float dt = _animationClock.Sample();
+        bool wasFading = Fading;
         if (_open && _targets.Count > 0)
         {
             if (CanStayOpen) Track(dt);
@@ -233,6 +243,8 @@ public sealed class ElainaHealingWheel : BaseBody
 
         if (Fading)
         {
+            // Track can confirm/cancel on this frame; its opening interval belongs to opening.
+            if (!wasFading) dt = 0;
             _closeTime += dt;
             _presence = Math.Max(0, _presence - dt / FadeOut);
             if (_closeTime >= (_chosen >= 0 ? ChosenClose : Math.Max(FadeOut, ItemClose)))

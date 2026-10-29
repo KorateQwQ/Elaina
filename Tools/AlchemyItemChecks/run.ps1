@@ -1,5 +1,9 @@
 ﻿param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$PotionsOnly, [switch]$RainOnly, [switch]$RevealingOnly)
 $ErrorActionPreference = 'Stop'
+if ($RainOnly) {
+    & (Join-Path $PSScriptRoot '../BottledRainAimPreview/check.ps1') -Tml $Tml
+    return
+}
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/alchemy-item-checks'
 New-Item -ItemType Directory -Force -Path $output | Out-Null

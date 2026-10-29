@@ -10,7 +10,7 @@ internal static class RecallResearchChecks
     {
         int count = 0;
         void Check(bool ok, string name) { if (!ok) throw new Exception(name); count++; }
-        Item Potion(int type = ItemID.PotionOfReturn) => new() { type = type, stack = 1 };
+        Item Potion(int type = ItemID.RecallPotion) => new() { type = type, stack = 1 };
         var player = Fixtures.Player(typeof(RecallSkill));
         var discovery = player.Player.GetModPlayer<RecallDiscoveryPlayer>();
         var state = new ConstellationState(player);
@@ -24,8 +24,11 @@ internal static class RecallResearchChecks
         Check(state.Status(state.Current) == "hidden", "unavailable stage remains hidden rather than sealed");
         template.BasicStatus = Skill.SKillBasicStatus.Lock;
         state.Select(id);
-        discovery.Observe(Potion(ItemID.RecallPotion));
-        Check(!discovery.HasObtainedReturnPotion, "Recall Potion is not Potion of Return");
+        discovery.Observe(Potion(ItemID.PotionOfReturn));
+        Check(!discovery.HasObtainedReturnPotion, "Potion of Return does not reveal Recall research");
+        var discoveryItem = new RecallDiscoveryItem();
+        Check(discoveryItem.AppliesToEntity(Potion(), false) && !discoveryItem.AppliesToEntity(Potion(ItemID.PotionOfReturn), false), "discovery hooks apply only to Recall Potion");
+        Check(Terraria.Localization.Language.Exists("ItemName.RecallPotion") && !((RecallSkill)template.ModSkill).ConstellationRevealHint.Contains("{$"), "Recall Potion hint resolves installed game localization");
         player.Player.inventory[0] = Potion();
         Check(!template.ModSkill.TryUnlockSkill(player), "direct research cannot bypass discovery");
         discovery.PostUpdate();
@@ -39,10 +42,12 @@ internal static class RecallResearchChecks
         var saved = new TagCompound(); discovery.SaveData(saved);
         discovery.Initialize(); discovery.LoadData(saved);
         Check(discovery.HasObtainedReturnPotion, "discovery persists through save load");
+        player.Player.inventory[0] = Potion(ItemID.PotionOfReturn);
+        Check(!state.Unlock() && player.SkillPoint == 20 && player.Player.inventory[0].stack == 1, "Potion of Return cannot pay the research cost");
         player.Player.inventory[0] = Potion(); player.SkillPoint = 19;
         Check(!state.Unlock() && player.SkillPoint == 19 && player.Player.inventory[0].stack == 1, "insufficient points consume nothing");
         player.SkillPoint = 20;
-        Check(state.Unlock() && player.SkillPoint == 0 && player.Player.inventory[0].IsAir, "research consumes exactly 20 points and one Potion of Return");
+        Check(state.Unlock() && player.SkillPoint == 0 && player.Player.inventory[0].IsAir, "research consumes exactly 20 points and one Recall Potion");
         Check(state.Status(state.Current) == "learned" && !state.Unlock() && discovery.HasObtainedReturnPotion, "learned state and one-time payment");
         Check(template.BasicStatus == Skill.SKillBasicStatus.Lock, "shared template is unchanged");
         discovery.Initialize();

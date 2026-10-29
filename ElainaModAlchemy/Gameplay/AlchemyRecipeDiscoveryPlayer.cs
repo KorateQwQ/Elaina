@@ -8,7 +8,7 @@ using 伊蕾娜.ElainaModAlchemy.item.Recipes;
 
 namespace 伊蕾娜.ElainaModAlchemy.Gameplay;
 
-/// <summary>Permanent acquisition history and per-formula bad-luck protection belong to the character.</summary>
+/// <summary>Permanent discovery (successful chest roll or acquisition) and per-formula pity belong to the character.</summary>
 public sealed class AlchemyRecipeDiscoveryPlayer : ModPlayer
 {
     private ExplorationRecipe obtained;
@@ -33,7 +33,13 @@ public sealed class AlchemyRecipeDiscoveryPlayer : ModPlayer
 
     internal void RecordRoll(ExplorationRecipe recipe, bool success)
     {
-        int next = success || HasObtained(recipe) ? 0 : Misses(recipe) + 1;
+        if (success)
+        {
+            // Opening counts even when the scroll is left in the chest; reveal forecasts never call this.
+            Obtain(recipe);
+            return;
+        }
+        int next = HasObtained(recipe) ? 0 : Misses(recipe) + 1;
         if (recipe == ExplorationRecipe.Painkiller) painkillerMisses = Math.Clamp(next, 0, 2);
         else featherlightMisses = Math.Clamp(next, 0, 8);
     }

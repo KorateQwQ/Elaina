@@ -118,7 +118,7 @@ internal sealed class PanelScene
             player.SkillPoint = 50;
             if (scenario != "recall-sealed")
             {
-                player.Player.inventory[0] = new Item { type = Terraria.ID.ItemID.PotionOfReturn, stack = 1 };
+                player.Player.inventory[0] = new Item { type = Terraria.ID.ItemID.RecallPotion, stack = 1 };
                 player.Player.GetModPlayer<伊蕾娜.ElainaModSkills.Skills.Recall.RecallDiscoveryPlayer>().PostUpdate();
                 if (scenario == "recall-revealed-missing") player.Player.inventory[0].TurnToAir();
             }
@@ -162,10 +162,11 @@ internal sealed class PanelScene
         }
         if (scenario.StartsWith("terms-"))
         {
-            var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
-            var type = scenario == "terms-freeze" ? typeof(IceConeSkill) : typeof(AshenWitchSkill);
+            var type = scenario == "terms-freeze" ? typeof(IceConeSkill)
+                : scenario == "terms-cauldron" ? typeof(伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill) : typeof(AshenWitchSkill);
+            var player = Fixtures.Types.Contains(type) ? Fixtures.Player() : Fixtures.Player(type);
             player.UnlockSkill(KL.SkillSystem.Skill.NewSkill(type));
-            _state.Refresh(); _state.Select(type.Name);
+            _state = new(player); _state.Select(type.FullName);
         }
         if (scenario.StartsWith("alchemy-"))
         {

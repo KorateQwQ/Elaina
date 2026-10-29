@@ -1,6 +1,16 @@
 param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
+# Guard known local SUI directories, including future controls inside them. Ignore comments
+# explaining the cached-time pitfall; actual UI code must use an independent clock.
+foreach ($directory in @('ElainaModSkills/ElainaSkillUI', 'ElainaModSkills/Loadout', 'ElainaModSkills/Skills/DollControl', 'ElainaModAlchemy/UI', 'System/UI')) {
+    foreach ($source in Get-ChildItem -LiteralPath (Join-Path $repo $directory) -Recurse -File -Filter '*.cs') {
+        $code = [regex]::Replace([IO.File]::ReadAllText($source.FullName), '(?s)/\*.*?\*/|(?m)//[^\r\n]*', '')
+        if ($code -match '\bElapsedGameTime\b|\bMain\.gameTimeCache\b') {
+            throw "Cached game time found in SUI code: $($source.FullName). Use an independent UI clock."
+        }
+    }
+}
 $output = Join-Path $repo '.vissandbox/ui-input-checks'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
@@ -15,9 +25,10 @@ $null = Add-CheckItem 'Reference' "$Tml/tModLoader.dll"
 $null = Add-CheckItem 'Reference' "$repo/../SilkyUIFramework/bin/Debug/net8.0/SilkyUIFramework.dll"
 $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
-foreach ($name in @('UIPointerCapture', 'VanillaMouseInputScope', 'SUIInputLayerOrder')) {
+foreach ($name in @('UIPointerCapture', 'VanillaMouseInputScope', 'SUIInputLayerOrder', 'ElasticPageScrollView', 'ElasticScrollMotion', 'UIAnimationClockSystem')) {
     $null = Add-CheckItem 'Compile' "$repo/System/UI/$name.cs"
 }
+$null = Add-CheckItem 'Compile' "$repo/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/ConstellationUIClock.cs"
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
 $path = Join-Path $output 'Checks.csproj'

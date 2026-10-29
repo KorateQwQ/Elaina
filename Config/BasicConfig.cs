@@ -13,6 +13,12 @@ namespace 伊蕾娜.Config
         public bool ShowCD = true;
 
         [DefaultValue(0.75f)]
+        [Range(0.5f, 1f)]
+        [Increment(0.05f)]
+        [Slider]
+        public float SkillBarScale = 1f;
+
+        [DefaultValue(0.75f)]
         [Range(0.3f, 1.5f)]
         [Increment(0.05f)]
         [Slider]
@@ -21,6 +27,7 @@ namespace 伊蕾娜.Config
         public override void OnChanged()
         {
             ElainaSkillManager.ShowCD = ShowCD;
+            ElainaSkillManager.BarScale = SkillBarScale;
             ElainaSkillManager.WheelScale = SkillWheelScale;
             base.OnChanged();
         }

@@ -21,7 +21,7 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 // Original and uncolored artwork are ModContent-owned; no runtime texture copies are created.
 internal sealed class ConstellationDrawing
 {
-    internal const string Root = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/";
+    internal const string Root = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/";
     internal static readonly Color Ink = new(238, 233, 245);
     internal static readonly Color Muted = new(178, 168, 195);
     internal static readonly Color Lavender = new(202, 178, 237);
@@ -74,7 +74,7 @@ internal sealed class ConstellationDrawing
 
     internal ConstellationDrawing(Mod mod)
     {
-        const string path = "ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/";
+        const string path = "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/";
         _icons = JsonSerializer.Deserialize<Dictionary<string, int[]>>(mod.GetFileBytes(path + "Icons.json"));
         foreach (var star in JsonSerializer.Deserialize<StarRegion[]>(mod.GetFileBytes(path + "Stars.json")))
         {
@@ -89,9 +89,7 @@ internal sealed class ConstellationDrawing
     }
 
     internal Texture2D Texture(string name)
-        => LoadTexture(name is "ButterflyMask" or "BookCoverFront" or "BookCoverBack" or "NotebookSurface" or "StudyBook" or "ToggleTrack" or "ToggleOutline" or "ToggleThumb" or "UpgradeFill" or "UpgradeOutline" or "PrimaryActionFill" or "PrimaryActionTrim"
-            or "PortraitNight"
-            ? "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/" + name : Root + name);
+        => LoadTexture(Root + name);
 
     private Texture2D LoadTexture(string path)
     {
@@ -674,7 +672,10 @@ internal sealed class ConstellationDrawing
     // and serif name, its rich-text explanation, then optional fixed values as detail-style stat columns.
     internal void TermTooltip(KLTerm term, Vector2 pointer, Vector2 bounds, Rectangle? anchor = null)
     {
-        const float width = 272, pad = 18, rule = pad + 30, bodyTop = rule + 12;
+        const float pad = 18, rule = pad + 30, bodyTop = rule + 12;
+        string name = term.Name(), tag = term.Category?.Invoke() ?? LocalizeUI("TermTag");
+        // Widen for long names so the type tag never overlaps them.
+        float width = Math.Max(272, pad * 2 + 25 + Measure(name, 17, 1, true) + 16 + Measure(tag, 9, 2));
         var stats = term.Stats?.Invoke() ?? [];
         var body = new ConstellationRichText(term.Description(), width - pad * 2, 12, 21, DetailText);
         float statTop = bodyTop + body.Height + 10;
@@ -689,10 +690,12 @@ internal sealed class ConstellationDrawing
         Dots(l, t + 9, l, b - 9, DotColor * .8f); Dots(r, t + 9, r, b - 9, DotColor * .8f);
         foreach (var corner in new[] { new Vector2(l, t), new Vector2(r, t), new Vector2(r, b), new Vector2(l, b) })
             CrossStar(corner, new Vector2(7 * .976f, 7), Lavender * .8f, .28f);
-        var icon = ModContent.Request<Texture2D>(term.IconPath, AssetRequestMode.ImmediateLoad).Value;
-        Batch.Draw(icon, At(pad, pad + 2), null, Color.White, 0, Vector2.Zero, 18f / Math.Max(icon.Width, icon.Height) * Scale, SpriteEffects.None, 0);
-        Text(term.Name(), pad + 25, pad - 1, 17, term.Color, spacing: 1, serif: true);
-        Text(LocalizeUI("TermTag"), width - pad, pad + 5, 9, Muted2, 1, 2);
+        var icon = KLTextureTagHandler.RequestIcon(term.IconPath).Value;
+        float iconScale = 18f / Math.Max(icon.Width, icon.Height);
+        Batch.Draw(icon, At(pad + (18 - icon.Width * iconScale) / 2, pad + 2 + (18 - icon.Height * iconScale) / 2), null,
+            Color.White, 0, Vector2.Zero, iconScale * Scale, SpriteEffects.None, 0);
+        Text(name, pad + 25, pad - 1, 17, term.Color, spacing: 1, serif: true);
+        Text(tag, width - pad, pad + 5, 9, Muted2, 1, 2);
         Dots(pad, rule, width - pad, rule, DotColor);
         var bodyOrigin = Origin;
         Origin = At(pad, bodyTop);

@@ -142,6 +142,14 @@ static class Checks
 
         // No graphics device is needed to check the actual SUI visibility/input gates.
         var bar = (ElainaSkillBar)RuntimeHelpers.GetUninitializedObject(typeof(ElainaSkillBar));
+        Check(!typeof(KL.SkillSystem.SilkyUI.IDraggableUI).IsAssignableFrom(bar.GetType()),
+            "The skill bar no longer inherits the legacy mouse drag controller.");
+        bar.SetLeft(25, 0, .5f);
+        bar.SetTop(35, 0, .5f);
+        var barPosition = (bar.Left, bar.Top);
+        bar.OnLeftMouseDown(new SilkyUIFramework.UIMouseEvent(bar, Vector2.Zero));
+        bar.OnLeftMouseUp(new SilkyUIFramework.UIMouseEvent(bar, new Vector2(500, 300)));
+        Check((bar.Left, bar.Top) == barPosition, "Mouse drag events cannot change the shortcut-controlled bar position.");
         bar.Enabled = true;
         Check(bar.Enabled, "The skill bar is enabled for an active Elaina character.");
         GameMain.player[0] = ordinary.Player;
@@ -159,7 +167,108 @@ static class Checks
         Check(bar.Enabled, "Returning to Elaina re-enables the existing UI instance.");
         bar.Enabled = false;
         Check(!bar.Enabled, "The base UI enable switch remains respected.");
+        SlotAnimationChecks();
+        SkillBarScaleChecks();
         Console.WriteLine($"PASS: {passed} resource preference and skill-bar checks (real tModLoader APIs and production code).");
+    }
+
+    static void SlotAnimationChecks()
+    {
+        var slot = new ElainaSkillSlot(null);
+        var time = new GameTime();
+        var elapsed = typeof(ElainaSkillSlot).GetField("_selectionTime", Instance)!;
+        var selected = typeof(ElainaSkillSlot).GetField("_selected", Instance)!;
+        float Age() => (float)elapsed.GetValue(slot)!;
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        GameMain.hasFocus = true;
+        GameMain.hideUI = false;
+        slot.HandleUpdateStatus(time);
+        Thread.Sleep(65);
+        slot.HandleUpdateStatus(time);
+        Check(Age() > .04f, "Skill slot selection advances with zero cached game time.");
+        float before = Age();
+        var wall = global::System.Diagnostics.Stopwatch.StartNew();
+        var stale = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(20));
+        for (int i = 0; i < 100; i++) slot.HandleUpdateStatus(stale);
+        Check(Age() - before <= wall.Elapsed.TotalSeconds + .02, "Repeated cached time cannot accelerate slot selection.");
+        GameMain.hasFocus = false;
+        slot.HandleUpdateStatus(time);
+        before = Age();
+        Thread.Sleep(90);
+        GameMain.hasFocus = true;
+        slot.HandleUpdateStatus(time);
+        Check(Age() == before, "Slot focus recovery excludes the unfocused interval.");
+        ElainaSkillModPlayer.CurrentSkillIndex = 1;
+        slot.HandleUpdateStatus(time);
+        Check(Age() == 0 && !(bool)selected.GetValue(slot)!, "Switching skills resets the old selection animation.");
+    }
+
+    static void SkillBarScaleChecks()
+    {
+        var config = new global::伊蕾娜.Config.BasicConfig();
+        Check(config.SkillBarScale == 1f, "New and legacy settings keep the original bar size.");
+        var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<global::伊蕾娜.Config.BasicConfig>("{\"ShowCD\":true}")!;
+        Check(restored.SkillBarScale == 1f, "Existing config JSON without the new setting defaults to 100 percent.");
+        config.SkillBarScale = .65f;
+        restored = Newtonsoft.Json.JsonConvert.DeserializeObject<global::伊蕾娜.Config.BasicConfig>(
+            Newtonsoft.Json.JsonConvert.SerializeObject(config))!;
+        restored.OnChanged();
+        Check(ElainaSkillManager.BarScale == .65f, "Saved bar scale applies immediately through OnChanged.");
+        foreach (var (input, expected) in new[] { (2f, 1f), (-1f, .5f), (0f, .5f), (float.NaN, 1f), (float.PositiveInfinity, 1f) })
+        {
+            config.SkillBarScale = input;
+            config.OnChanged();
+            Check(ElainaSkillManager.BarScale == expected, "Invalid/out-of-range config cannot enlarge or hide the bar.");
+        }
+
+        var layout = typeof(ElainaSkillBar).Assembly.GetType("伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillBarLayout")!;
+        var anchorField = layout.GetField("_anchor", BindingFlags.Static | BindingFlags.NonPublic)!;
+        object oldAnchor = anchorField.GetValue(null);
+        var bar = (ElainaSkillBar)RuntimeHelpers.GetUninitializedObject(typeof(ElainaSkillBar));
+        // Only BaseBody's constructor needs a graphics device. Exercise the real size
+        // application on real SUI children without initializing textures or writing saves.
+        var children = new List<SilkyUIFramework.Elements.UIView>();
+        for (int i = 0; i < 8; i++) children.Add(new ElainaSkillSlot(null));
+        typeof(SilkyUIFramework.Elements.UIElementGroup).GetField("<Elements>k__BackingField", Instance)!.SetValue(bar, children);
+        var apply = typeof(ElainaSkillBar).GetMethod("ApplyLayout", Instance)!;
+        var move = layout.GetMethod("MoveTo")!;
+        var dock = typeof(ElainaSkillBar).Assembly.GetType("伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationBookLayout")!
+            .GetMethod("DockBounds", BindingFlags.Static | BindingFlags.NonPublic)!;
+        try
+        {
+            foreach (float scale in new[] { 1f, .75f, .5f, 1f })
+            {
+                ElainaSkillManager.BarScale = scale;
+                anchorField.SetValue(null, new Vector2(.95f));
+                apply.Invoke(bar, null);
+                Check(Math.Abs(bar.Width.Pixels - 646 * scale) < .001f && Math.Abs(bar.Height.Pixels - 94 * scale) < .001f,
+                    "Live bar bounds resize, including restoration to 100 percent.");
+                Check(children.All(c => c.Width.Pixels == 60 * scale && c.Height.Pixels == 60 * scale),
+                    "All eight existing SUI slots resize with the bar.");
+                Check(bar.Padding.Left == 27 * scale && bar.Padding.Top == 25 * scale && !bar.IsInteractable,
+                    "Padding follows scale and shrinking never enables mouse capture.");
+                foreach (float uiScale in new[] { 1f, 1.25f, 2f })
+                {
+                    Vector2 screen = new Vector2(1920, 1080) / uiScale;
+                    Vector2 size = new(646 * scale, 94 * scale);
+                    Vector2 mouse = screen / 2;
+                    move.Invoke(null, [mouse - size / 2, screen, size]);
+                    var anchor = (Vector2)layout.GetProperty("Anchor")!.GetValue(null)!;
+                    Check(Vector2.Distance((screen - size) * anchor + size / 2, mouse) < .01f,
+                        "Shortcut centering uses the scaled bounds at each Terraria UI scale.");
+                    move.Invoke(null, [screen * 2, screen, size]);
+                    anchor = (Vector2)layout.GetProperty("Anchor")!.GetValue(null)!;
+                    Check(anchor == Vector2.One, "Dragging beyond the screen clamps the complete shrunken bar.");
+                }
+                var bounds = (Rectangle)dock.Invoke(null, [new Vector2(1920, 1080), new Vector2(300, 800), 646 * scale])!;
+                Check(bounds.Right == (int)(300 + 646 * scale), "Book/toast dock follows the resized bar's right edge.");
+            }
+        }
+        finally
+        {
+            anchorField.SetValue(null, oldAnchor);
+            ElainaSkillManager.BarScale = 1f;
+        }
     }
 
     sealed class Display(string key) : IPlayerResourcesDisplaySet

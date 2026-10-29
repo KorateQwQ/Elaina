@@ -2,6 +2,20 @@
 
 正式代码位于 `ElainaModAlchemy/Revealing/`，物品入口为 `item/Curios/RevealingDust.cs`。
 
+## 水矢标记（2026-10-30）
+
+客户端在每秒整区扫描危险物块的同一轮中，记录区域内的水矢书本（`TileID.Books` 且 `TileFrameX == 90`，破坏后掉落 `ItemID.WaterBolt`）。重叠区域合并去重；绘制与光照前再次检查物块，书被取走立即停止标记。标记对所有能看到该区域的客户端显示，与危险物块高亮一致，不需要服务器同步。
+
+`PostDrawTiles` 用正式 `DrawWaterBolt` 绘制水蓝柔光与上浮星点（复用 `MarkGlow`、`GlowDot`、`Star4`），`PostUpdateEverything` 每帧提交 `(0.12, 0.42, 0.85)` 的蓝色光照。`run.ps1` 额外输出 `waterbolt-000.png` 至 `waterbolt-035.png` 与 `water-bolts.gif`：上排暗底、下排亮底，依次为原尺寸书架、2 倍书架、配方宝箱金光对照。书架为原版 `Tiles_50` 贴图拼出的夹具，不是完整地牢场景，游戏内光照传播仍需实机确认。`check-lighting.ps1` 新增 4 项水矢检查（只标记区域内样式 5、蓝光每帧一次、取走即停、末个区域消失即停），共 59 项。
+
+## 配方宝箱金光（2026-10-30）
+
+`RevealingRecipeChests` 在单机/服务器每秒扫描使用者自己的显迹区域，区域改变时提前扫描。已存有任意炼金配方卷轴的宝箱，以及按该角色当前保底进度开箱会产出配方的天然候选箱，发送给区域拥有者显示。候选箱的随机值在首次探测或开箱时确定并保存；探测不修改库存、不结算保底，开箱沿用该随机值。因此角色保底进度或获得记录变化、其他人先开箱后，下一次扫描会更新结果。
+
+金光使用正式 `DrawRecipeChest` 与已有 `MarkGlow`、`GlowDot`、`Star4` 预制资源，在 `PostDrawTiles` 绘制金色柔光和交错上浮星芒；不生成运行时纹理。客户端只接收自己的坐标快照，并再次检查自己的存活区域；区域结束、角色死亡或箱子消失会停止绘制，断更快照在 180 tick 后失效。配方取走或新存入在下一次扫描更新。
+
+运行 `pwsh -File Tools/RevealingDustPreview/run.ps1` 生成 `recipe-chests.gif` 与 `chests-000.png` 至 `chests-035.png`。预览上排暗底、下排亮底；四列依次为未标记金箱、标记金箱、标记常春藤箱、2 倍标记金箱。已检查多个阶段及中英文手记默认/125% 缩放。宝箱逻辑与私人同步检查运行 `pwsh -File Tools/AlchemyChestChecks/run.ps1`；原有 55 项危险物块、敌人及光照回归运行 `check-lighting.ps1`。离线夹具不替代实际游戏中的双客户端、延迟和完整地形遮挡验收。
+
 ## 目标实际光照（2026-10-25）
 
 标记现在会在 `PostUpdateEverything` 每帧向 `Lighting.AddLight` 提交暖金色光照，RGB 强度为 `(0.65, 0.38, 0.10)`：危险物块按去重后的缓存提交，NPC 按当前中心提交。原有危险感高亮、金色粉尘与柔光继续保留。下文旧记录中“不向地形写入光源”仅描述此次修改前的行为。

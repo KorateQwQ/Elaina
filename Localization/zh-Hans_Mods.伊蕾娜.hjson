@@ -206,6 +206,15 @@ Items: {
 		// DisplayName: Ghost Step Dye Dummy Item
 		// Tooltip: ""
 	}
+
+	WaterSpellbook: {
+		DisplayName: 水魔法书
+		Tooltip:
+			'''
+			研习{$Mods.伊蕾娜.SkillInfo.SkillName.WaterLaserSKill}所需
+			合成时不消耗{$ItemName.WaterBolt}
+			'''
+	}
 }
 
 Projectiles: {
@@ -303,6 +312,11 @@ Configs: {
 		ShowCD: {
 			Label: 显示技能CD
 			Tooltip: 将技能CD具体还剩余多少秒显示在技能条中
+		}
+
+		SkillBarScale: {
+			Label: 技能栏大小倍率
+			Tooltip: 调整技能栏的显示大小。
 		}
 
 		SkillWheelScale: {
@@ -449,6 +463,15 @@ Terms: {
 			伊蕾娜开启灰之魔女后，施放技能所消耗的独特魔力。每1点原版最大魔力，以及灰之魔女减少的每1点生命上限，各提供1点上限。
 			每秒自动回复{0}点＋最大值的{1:0.##}%，施法时也不会停止回复。施法、命中或受到伤害后{2}秒内视为战斗中；脱离战斗后，魔力恢复大幅提升，约{3:0.##}秒即可回满。
 			地图上若还有存活的Boss，始终不会视为脱离战斗。
+			'''
+	}
+
+	AlchemyCauldron: {
+		Name: 炼金大锅
+		Description:
+			'''
+			伊蕾娜学会炼金术后专用的炼金道具。
+			用{$ItemName.IronBar}或{$ItemName.LeadBar}×10、{$ItemName.Campfire}×1徒手制作。
 			'''
 	}
 }

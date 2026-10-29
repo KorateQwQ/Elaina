@@ -74,6 +74,8 @@ Debug 页脚包含「等级 +1」「升满级」「解锁所有配方」「补�
 
 `& Tools/AlchemyPreview/run.ps1 -BookOnly` 直接链接正式 `AlchemyBookArt`、`ConstellationBookMotion`、`ConstellationBookRenderer` 与 `ConstellationUIClock`。先捕获共享的完整炼金页面与无文字 PNG 加运行时字体封面，再以真实 32 条带书页网格重放展开、收回及两次快速反向。默认技能栏锚点按正式 `ConstellationBookLayout` 计算，收起坐标位于技能按钮左侧 104 UI 像素、尺寸 96×30；该坐标仅用于动画，不绘制按钮。
 
+2026-10-29：正式炼金书的羽毛、卡片、页签、提示及界面刷新改为独立控件时钟，与开合计时器分开；关闭、失焦、隐藏 UI 和世界切换会排除停用期间的时间。酿造进度仍读取实际酿造会话。`Tools/UIInputChecks/run.ps1` 检查计时来源与时钟生命周期，`-QuillOnly` 的固定时间步预览只检查运动和外观，不能证明正式 SUI 计时正确。本次更新本机材料导出缓存后资源校验通过，15 项羽毛运动检查通过，已查看 1280 与 1600/125% 代表帧；完整游戏内交互仍需重载验证。
+
 开合验证输出 `output/book-frames`：720p 连续 145 帧，1600×1000 与 125% UI 缩放代表帧；`alchemy-book-cover.png` 为实际标题绘制后的封面，`alchemy-book-timeline.json` 记录运动参数，`alchemy-book-checks.txt` 记录 30/60/144 FPS 时长、连续反向、不同帧间隔、失焦收敛、世界重置与结束状态检查。`python Tools/AlchemyPreview/book_contact_sheet.py` 生成帧条、缩放对照和 WebP 动画。
 
 动画使用确定时间步长的 FNA 离线重放；并未模拟原生 SUI 输入树、游戏失焦回调或真实 RenderTargetPool 生命周期，相关部分需游戏内验证。只为编译共享 Renderer 中未使用的技能专属封面/按钮方法而提供 `ConstellationDrawing` 桩；若误调用会主动抛错，炼金封面由真实 `AlchemyBookArt` 绘制。

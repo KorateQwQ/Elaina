@@ -13,8 +13,8 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 /// </summary>
 internal static class SkillBarLayout
 {
-    /// <summary>默认停在屏幕右下角，与旧版固定位置一致。</summary>
-    public static readonly Vector2 DefaultAnchor = new(.95f, .95f);
+    /// <summary>默认停在屏幕右下角附近。</summary>
+    public static Vector2 DefaultAnchor => new(.88f, .94f);
 
     private static Vector2? _anchor;
 

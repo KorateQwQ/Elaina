@@ -97,7 +97,7 @@ namespace Terraria
     }
     public sealed class Chest { public Item[] item = Enumerable.Range(0, 40).Select(_ => new Item()).ToArray(); }
     public sealed class Item { public int type, stack; public bool IsAir => stack <= 0; public void TurnToAir() { type = stack = 0; } }
-    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 4870 => Language.GetTextValue("Mods.伊蕾娜.SkillInfo.UnlockConditions.ObtainedReturnPotion").Contains("返回药水") ? "返回药水" : "Potion of Return", 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
+    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2350 => Language.GetTextValue("ItemName.RecallPotion"), 4870 => Language.GetTextValue("ItemName.PotionOfReturn"), 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
 }
 namespace 伊蕾娜.System
 {
@@ -121,7 +121,12 @@ namespace 伊蕾娜.System
 namespace Terraria.ID
 {
     public static class NetmodeID { public const int SinglePlayer = 0, MultiplayerClient = 1, Server = 2; }
-    public static class ItemID { public const int Wood = 9, RecallPotion = 2350, PotionOfReturn = 4870; }
+    public static class ItemID
+    {
+        public const int Wood = 9, RecallPotion = 2350, PotionOfReturn = 4870, Cauldron = 1791;
+        // klicon "Item:<name>" icons; only the names the previewed text uses.
+        public static class Search { public static bool TryGetId(string name, out int id) => (id = name == nameof(Cauldron) ? Cauldron : 0) != 0; }
+    }
 }
 namespace Terraria.ModLoader.IO
 {
@@ -414,7 +419,7 @@ internal static class SkillBalanceConfigForPreview
 [SkillUIInfo(State = 4, Pixels = 400)] public class WaterLaserSKill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 [SkillUIInfo(State = 6, Pixels = 600)] public class FireLaserSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 // Fixture damage / buildup arguments for the term preview; production values come from SkillBalance.json.
-[SkillUIInfo(State = 7, Pixels = 500)] public class IceConeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { protected override object[] SkillDescriptionArgs => [126, 12.5f]; }
+[SkillUIInfo(State = 7, Pixels = 500)] public class IceConeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { protected override object[] SkillDescriptionArgs => [126, 12.5f, Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.ShardbindSkill")]; }
 [SkillUIInfo(State = 8, Pixels = 600)] public class FireBurstSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 [SkillUIInfo(State = 12, Pixels = 400)] public class WaterBallSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 public class UnlistedSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }

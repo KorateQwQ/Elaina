@@ -12,6 +12,9 @@ foreach ($entry in @(
     @('Compile', "$output/Program.cs")
 )) {
     $node = $project.CreateElement($entry[0]); $node.SetAttribute('Include', $entry[1])
+    if ($entry[1] -like '*Revealing/*.cs') {
+        $node.SetAttribute('Exclude', "$repo/ElainaModAlchemy/Revealing/RevealingRecipeChests.cs")
+    }
     if ($entry[1] -like '*Libraries/**') {
         $node.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
     }
@@ -27,6 +30,12 @@ var area = new RevealingDustArea();
 ContentInstance.Register(area);
 RevealingDustChecks.Run(mod);
 sealed class CheckMod : Mod { public override string Name => "RevealingLightChecks"; }
+// This fixture exercises danger/NPC lighting; actual chest logic lives in AlchemyChestChecks.
+namespace 伊蕾娜.ElainaModAlchemy.Revealing {
+    public sealed class RevealingRecipeChests : ModSystem {
+        internal IEnumerable<Microsoft.Xna.Framework.Point> VisibleChests() => Array.Empty<Microsoft.Xna.Framework.Point>();
+    }
+}
 '@ | Set-Content -LiteralPath (Join-Path $output 'Program.cs') -Encoding utf8
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)

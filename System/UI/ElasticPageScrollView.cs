@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using SilkyUIFramework;
 using SilkyUIFramework.Elements;
 using Terraria;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.System.UI;
 
@@ -12,6 +13,7 @@ internal sealed class ElasticPageScrollView : SUIScrollView
     internal Func<bool> AcceptInput;
     internal Func<UIMouseEvent, bool> CanDrag;
     private float _scale = 1;
+    private readonly ConstellationUIClock _clock = new();
 
     internal ElasticPageScrollView()
     {
@@ -31,6 +33,7 @@ internal sealed class ElasticPageScrollView : SUIScrollView
     internal void ResetPosition(float position = 0)
     {
         Motion.Reset(position);
+        _clock.Stop();
         ApplyPosition();
     }
 
@@ -62,12 +65,16 @@ internal sealed class ElasticPageScrollView : SUIScrollView
     protected override void UpdateStatus(GameTime gameTime)
     {
         base.UpdateStatus(gameTime);
-        if (!Main.hasFocus || AcceptInput?.Invoke() != true) Motion.Reset(Motion.Position);
+        // SUI calls this while drawing with Main.gameTimeCache. That cached
+        // update interval can be zero or reused by several draws.
+        bool active = Main.hasFocus && AcceptInput?.Invoke() == true;
+        float seconds = _clock.Sample(active);
+        if (!active) Motion.Reset(Motion.Position);
         else
         {
             if (Main.mouseLeft) Motion.DragTo(Main.MouseScreen.Y / _scale);
             else Motion.EndDrag();
-            Motion.Advance((float)gameTime.ElapsedGameTime.TotalSeconds);
+            Motion.Advance(seconds);
         }
         ApplyPosition();
         if (Motion.Dragging) Main.LocalPlayer.mouseInterface = true;

@@ -180,6 +180,30 @@ internal static class RevealingDustChecks
             Main.dedServ = true; centerLights.Clear(); Area(0, center).AI(); Main.dedServ = false;
             Check(centerLights.Count == 0, "Dedicated server submits no center light");
         }
+        // Water Bolt: only Books style 5 (frameX 90) inside the area is marked; taking the book stops it before the next scan.
+        foreach (var p in Main.projectile) p.active = false;
+        system.ClearWorld();
+        Place(205, 200, TileID.Books).TileFrameX = 90;
+        Place(206, 200, TileID.Books).TileFrameX = 72;
+        Place(330, 200, TileID.Books).TileFrameX = 90;
+        var boltArea = Area(0, center); Tick(20500); system.PostUpdateProjectiles();
+        var bolts = system.VisibleWaterBolts().ToList();
+        Check(bolts.Count == 1 && bolts[0] == new Point(205, 200), "Only Water Bolt books inside the area are marked");
+        var boltLights = new List<(int X, int Y, Vector3 Color)>();
+        using (new Hook(typeof(Lighting).GetMethod(nameof(Lighting.AddLight),
+            new[] { typeof(int), typeof(int), typeof(float), typeof(float), typeof(float) })!,
+            (Action<AddLightOriginal, int, int, float, float, float>)((orig, x, y, r, g, b)
+                => boltLights.Add((x, y, new Vector3(r, g, b))))))
+        {
+            system.PostUpdateEverything();
+            Check(boltLights.Count(l => l.X == 205 && l.Y == 200 && l.Color.Z > l.Color.Y && l.Color.Y > l.Color.X) == 1
+                && !boltLights.Any(l => l.X == 206 && l.Y == 200), "Marked Water Bolt emits one blue light per update");
+        }
+        Tile book = Main.tile[205, 200]; book.HasTile = false;
+        Check(!system.VisibleWaterBolts().Any(), "Taking the Water Bolt stops its mark before the next scan");
+        book.HasTile = true;
+        boltArea.Projectile.active = false; system.PostUpdateProjectiles();
+        Check(!system.VisibleWaterBolts().Any(), "Water Bolt marks end with the last covering area");
         Area(0, Vector2.Zero); Tick(21000); system.PostUpdateProjectiles();
         Check(true, "Scanning at the world edge stays inside the tilemap");
         system.ClearWorld(); Check(!system.IsHighlighted(200, 200, TileID.Spikes), "World cleanup clears tile caches");

@@ -17,7 +17,7 @@ public sealed class FacsimileCraftingTooltip : GlobalItem
     internal const string MarkerSeparator = "  ";
 
     private const string StarsPath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookStars";
-    private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets/Glow";
+    private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/Glow";
     private static Asset<Texture2D> stars, glow;
 
     internal static string Marker => Language.GetTextValue(KeyPrefix + "FacsimileCraftable");

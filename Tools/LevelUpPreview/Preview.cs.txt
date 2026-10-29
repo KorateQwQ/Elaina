@@ -59,7 +59,7 @@ sealed class Preview : Game
         string ui = Path.Combine(repo, "ElainaModSkills/UICore/Assets"), kl = Path.Combine(repo, "../KL/Effects/Tex/Sparkle");
         // Same order as LevelUpDust.Textures().
         tex = new LevelUpTextures(Load(Path.Combine(ui, "GlowDot.png")), Load(Path.Combine(ui, "Star4.png")),
-            Load(Path.Combine(kl, "T_StartFlare001.PNG")), Load(Path.Combine(kl, "ShotLine.png")),
+            Load(Path.Combine(ui, "StarFlare.png")), Load(Path.Combine(kl, "ShotLine.png")),
             Load(Path.Combine(ui, "ThinRing.png")), Load(Path.Combine(repo, "ElainaModAlchemy/Revealing/Assets/MarkGlow.png")));
     }
 
@@ -94,8 +94,14 @@ sealed class Preview : Game
             GraphicsDevice.SetRenderTarget(hdr);
             GraphicsDevice.Clear(Color.Transparent);
             batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
-            LevelUpVisuals.DrawBody(batch, tex, feet, tick);
-            foreach (var (origin, particle) in particles) LevelUpVisuals.Draw(batch, tex, origin, particle);
+            // Black underlay first, as the game's ShadowOrder requests; then the normal effect.
+            for (int pass = 0; pass < 2; pass++)
+            {
+                bool shadow = pass == 0;
+                LevelUpVisuals.DrawCircle(batch, tex, feet, tick, shadow);
+                LevelUpVisuals.DrawAura(batch, tex, feet, tick, shadow);
+                foreach (var (origin, particle) in particles) LevelUpVisuals.Draw(batch, tex, origin, particle, shadow);
+            }
             batch.End();
 
             GraphicsDevice.SetRenderTarget(target);

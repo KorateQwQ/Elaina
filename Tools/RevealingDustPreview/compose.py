@@ -3,6 +3,10 @@ import sys
 from PIL import Image, ImageDraw
 
 root = Path(sys.argv[1])
+chests = [Image.open(p).convert('RGB') for p in sorted(root.glob('chests-*.png'))]
+chests[0].save(root / 'recipe-chests.gif', save_all=True, append_images=chests[1:], duration=67, loop=0)
+bolts = [Image.open(p).convert('RGB') for p in sorted(root.glob('waterbolt-*.png'))]
+bolts[0].save(root / 'water-bolts.gif', save_all=True, append_images=bolts[1:], duration=67, loop=0)
 frames = [Image.open(p).convert('RGB') for p in sorted(root.glob('motion-*.png'))]
 frames[0].save(root / 'revealing-dust.gif', save_all=True, append_images=frames[1:], duration=33, loop=0)
 wick = [Image.open(p).convert('RGB') for p in sorted(root.glob('wick-*.png'))]

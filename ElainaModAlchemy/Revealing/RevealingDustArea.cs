@@ -13,6 +13,8 @@ public sealed class RevealingDustArea : ModProjectile
     public const int Duration = 5 * 60 * 60;
     public const int ScanInterval = 60;
     internal readonly Dictionary<int, ushort> DangerousTiles = new();
+    /// <summary>区域内水矢书本物块的世界线性索引，与危险物块同轮扫描。</summary>
+    internal readonly HashSet<int> WaterBoltTiles = new();
     internal ulong NextScan;
     internal bool HasScanned;
 
@@ -29,6 +31,7 @@ public sealed class RevealingDustArea : ModProjectile
         Projectile.friendly = Projectile.hostile = false;
         Projectile.netImportant = true;
         DangerousTiles.Clear();
+        WaterBoltTiles.Clear();
         HasScanned = false;
         NextScan = 0;
     }

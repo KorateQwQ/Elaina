@@ -10,15 +10,15 @@ using Terraria.ModLoader;
 namespace 伊蕾娜.System.Experience;
 
 /// <summary>
-/// 角色升级特效：由升级者本端生成并随弹幕同步，各端跟随主人脚底绘制星环与星芒，按时间轴放出 <see cref="LevelUpDust"/>。
+/// 角色升级特效：由升级者本端生成并随弹幕同步，各端跟随主人脚底绘制星环（玩家之下）与光环、星芒（玩家之上），按时间轴放出 <see cref="LevelUpDust"/>。
 /// localAI[0] 为本端已播放的 tick；晚收到同步的客户端从收到时开始播放。
 /// </summary>
 public sealed class LevelUpEffect : ModProjectile
 {
-    private static readonly Vector3 CircleLight = new(.55f, .45f, .62f), FlareLight = new(1f, .82f, .5f);
+    private static readonly Vector3 CircleLight = new(.55f, .45f, .62f), FlareLight = new(.78f, .72f, 1f);
     private readonly List<LevelUpParticle> emitted = new();
     private Random random;
-    private Action<LayerDrawRequestSystem.DrawRequestContext> bloomDraw;
+    private Action<LayerDrawRequestSystem.DrawRequestContext> circleDraw, auraDraw, circleShadow, auraShadow;
 
     public override string Texture => LevelUpDust.UiAssets + "GlowDot";
 
@@ -72,18 +72,31 @@ public sealed class LevelUpEffect : ModProjectile
         List<int> behindProjectiles, List<int> overPlayers, List<int> overWiresUI)
     {
         if (Main.dedServ) return;
-        // 与玩偶星屑同法：预乘 AlphaBlend + ReColor HDR，排在粒子之前。
-        bloomDraw ??= context =>
-        {
-            if (!Projectile.active || Projectile.type != Type) return;
-            DrawHelper.EndBeginDraw(0, 1, ss: SamplerState.LinearClamp);
-            DrawHelper.ReColorEffect(new Vector4(LevelUpDust.Hdr, LevelUpDust.Hdr, LevelUpDust.Hdr, 1));
-            LevelUpVisuals.DrawBody(Main.spriteBatch, LevelUpDust.Textures(), Projectile.Center - Main.screenPosition,
-                Projectile.localAI[0] - 1);
-            DrawHelper.EndBeginDraw();
-        };
-        LayerDrawRequestSystem.RequestBloom("Elaina:LevelUp:Body", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, bloomDraw, order: LayerDrawRequestSystem.ProjectileOrder);
+        // 与玩偶星屑同法：预乘 AlphaBlend + ReColor HDR，排在粒子之前；黑色垫底排在最前。
+        circleDraw ??= context => DrawLayer(LevelUpVisuals.DrawCircle, false);
+        auraDraw ??= context => DrawLayer(LevelUpVisuals.DrawAura, false);
+        circleShadow ??= context => DrawLayer(LevelUpVisuals.DrawCircle, true);
+        auraShadow ??= context => DrawLayer(LevelUpVisuals.DrawAura, true);
+        LayerDrawRequestSystem.RequestBloom("Elaina:LevelUp:CircleShadow", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, circleShadow, order: LevelUpDust.ShadowOrder);
+        LayerDrawRequestSystem.RequestBloom("Elaina:LevelUp:AuraShadow", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.After, auraShadow, order: LevelUpDust.ShadowOrder);
+        LayerDrawRequestSystem.RequestBloom("Elaina:LevelUp:Circle", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After, circleDraw, order: LayerDrawRequestSystem.ProjectileOrder);
+        LayerDrawRequestSystem.RequestBloom("Elaina:LevelUp:Aura", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.After, auraDraw, order: LayerDrawRequestSystem.ProjectileOrder);
+    }
+
+    private delegate void BodyDraw(SpriteBatch batch, in LevelUpTextures tex, Vector2 feet, float age, bool shadow);
+
+    private void DrawLayer(BodyDraw draw, bool shadow)
+    {
+        if (!Projectile.active || Projectile.type != Type) return;
+        DrawHelper.EndBeginDraw(0, 1, ss: SamplerState.LinearClamp);
+        if (!shadow) DrawHelper.ReColorEffect(new Vector4(LevelUpDust.Hdr, LevelUpDust.Hdr, LevelUpDust.Hdr, 1));
+        draw(Main.spriteBatch, LevelUpDust.Textures(), Projectile.Center - Main.screenPosition, Projectile.localAI[0] - 1,
+            shadow);
+        DrawHelper.EndBeginDraw();
     }
 
     public override bool PreDraw(ref Color lightColor) => false;

@@ -9,6 +9,7 @@
 | UI 柔光点 | `ElainaModSkills/UICore/Assets/GlowDot.png` | 128×128 |
 | UI 柔边圆环 | `ElainaModSkills/UICore/Assets/SoftRing.png` | 128×128 |
 | 升级星环细圆环（非原生成器移出，新增） | `ElainaModSkills/UICore/Assets/ThinRing.png` | 256×256 |
+| 升级头顶星芒（仿 KL T_StartFlare001 的纯白版，新增） | `ElainaModSkills/UICore/Assets/StarFlare.png` | 128×128 |
 | UI 四芒星 | `ElainaModSkills/UICore/Assets/Star4.png` | 128×128 |
 | UI 菱形 | `ElainaModSkills/UICore/Assets/DiamondFill.png` | 64×64 |
 | 传送门线条横截面 | `ElainaModSkills/Skills/Recall/Assets/PortalLine.png` | 1×32 |
@@ -17,6 +18,8 @@
 资源清单位于 `Effects/Tex/Baked/manifest.json`，记录尺寸、RGBA SHA-256、透明度编码。RGBA8 总像素量为 1,523,844 字节，未增加图集/mipmap；不据此宣称帧率提升，改动主要移除运行时固定像素计算和上传路径。
 
 `ThinRing` 是 2026-10-28 为升级特效新增的固定纹理：半径 120/128、截面 σ=2 像素的高斯细环，生成函数在 `Bake.cs.txt` 末尾，同样以 `(a,a,a,a)` 存储并写入清单。
+
+`StarFlare` 是 2026-10-29 为升级头顶星芒新增的纯白四芒星：形状仿 KL `T_StartFlare001`（向核心加粗的光臂、尖角亮芯、淡柔光），但去掉了原图横臂的彩虹色散——缩到几十像素绘制时会采到偏红的行，染成淡紫后显出一条红线。柔光与尖角亮芯乘径向窗口在半径 60 内归零，贴图边框 alpha 为 0；否则提亮到 HDR 后整张贴图的矩形边界会显出来。
 
 ## 生成与编码
 

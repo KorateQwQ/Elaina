@@ -26,6 +26,8 @@ public sealed class RevealingDustSystem : ModSystem
     // FNA Point 的哈希在密集网格上冲突较多；世界内线性索引使整区扫描保持便宜。
     private readonly Dictionary<int, ushort> visibleDanger = new();
     private readonly Dictionary<int, bool> scanMemo = new();
+    private readonly HashSet<int> visibleWaterBolts = new();
+    private static readonly Vector3 WaterBoltLight = new(.12f, .42f, .85f);
 
     public override void Load()
     {
@@ -87,9 +89,12 @@ public sealed class RevealingDustSystem : ModSystem
         {
             scanMemo.Clear();
             foreach (RevealingDustArea area in due) ScanTiles(area);
-            visibleDanger.Clear();
+            visibleDanger.Clear(); visibleWaterBolts.Clear();
             foreach (RevealingDustArea area in areas)
+            {
                 foreach (var tile in area.DangerousTiles) visibleDanger[tile.Key] = tile.Value;
+                visibleWaterBolts.UnionWith(area.WaterBoltTiles);
+            }
         }
         previousAreas.Clear(); previousAreas.UnionWith(areas);
 
@@ -109,6 +114,7 @@ public sealed class RevealingDustSystem : ModSystem
     internal void ScanTiles(RevealingDustArea area)
     {
         area.DangerousTiles.Clear();
+        area.WaterBoltTiles.Clear();
         Vector2 center = area.Projectile.Center;
         int radius = RevealingDustArea.Radius;
         int minX = Math.Clamp((int)Math.Floor((center.X - radius) / 16), 0, Main.maxTilesX - 1);
@@ -122,9 +128,23 @@ public sealed class RevealingDustSystem : ModSystem
             Tile tile = Main.tile[x, y];
             if (!tile.HasTile) continue;
             int point = x + y * Main.maxTilesX;
+            if (IsWaterBolt(tile)) area.WaterBoltTiles.Add(point);
             if (!scanMemo.TryGetValue(point, out bool dangerous))
                 scanMemo[point] = dangerous = TileDrawing.IsTileDangerous(x, y, Main.LocalPlayer);
             if (dangerous) area.DangerousTiles[point] = tile.TileType;
+        }
+    }
+
+    /// <summary>书本物块第 6 种样式（frameX 90）即水矢，破坏后掉落水矢。</summary>
+    internal static bool IsWaterBolt(Tile tile) => tile.HasTile && tile.TileType == TileID.Books && tile.TileFrameX == 90;
+
+    /// <summary>当前仍存在的已标记水矢；被拿走的书本立即停止标记，不等下一次扫描。</summary>
+    internal IEnumerable<Point> VisibleWaterBolts()
+    {
+        foreach (int point in visibleWaterBolts)
+        {
+            int x = point % Main.maxTilesX, y = point / Main.maxTilesX;
+            if (IsWaterBolt(Main.tile[x, y])) yield return new(x, y);
         }
     }
 
@@ -145,6 +165,8 @@ public sealed class RevealingDustSystem : ModSystem
             if (tile.HasTile && tile.TileType == entry.Value)
                 Lighting.AddLight(x, y, light.X, light.Y, light.Z);
         }
+        foreach (Point point in VisibleWaterBolts())
+            Lighting.AddLight(point.X, point.Y, WaterBoltLight.X, WaterBoltLight.Y, WaterBoltLight.Z);
 
         foreach (NPC npc in Main.ActiveNPCs)
         {
@@ -180,6 +202,18 @@ public sealed class RevealingDustSystem : ModSystem
         }
         try
         {
+            foreach (Point point in ModContent.GetInstance<RevealingRecipeChests>().VisibleChests())
+            {
+                Vector2 at = new Vector2(point.X * 16 + 16, point.Y * 16 + 16) - Main.screenPosition;
+                if (Begin(at, 80)) RevealingDustDrawing.DrawRecipeChest(batch, tex, at,
+                    (float)(Main.GameUpdateCount % 36000), point.X + point.Y * 397);
+            }
+            foreach (Point point in VisibleWaterBolts())
+            {
+                Vector2 at = new Vector2(point.X * 16 + 8, point.Y * 16 + 8) - Main.screenPosition;
+                if (Begin(at, 64)) RevealingDustDrawing.DrawWaterBolt(batch, tex, at,
+                    (float)(Main.GameUpdateCount % 36000), point.X + point.Y * 397);
+            }
             foreach (Projectile projectile in Main.ActiveProjectiles)
             {
                 if (projectile.ModProjectile is not RevealingDustArea) continue;
@@ -205,7 +239,7 @@ public sealed class RevealingDustSystem : ModSystem
 
     private void Reset()
     {
-        areas.Clear(); due.Clear(); previousAreas.Clear(); visibleDanger.Clear(); scanMemo.Clear();
+        areas.Clear(); due.Clear(); previousAreas.Clear(); visibleDanger.Clear(); scanMemo.Clear(); visibleWaterBolts.Clear();
     }
     public override void ClearWorld() => Reset();
     public override void OnWorldUnload() => Reset();

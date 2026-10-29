@@ -13,7 +13,7 @@ function Add-Item([string]$kind, [string]$path) {
     $null = $items.AppendChild($node)
     return $node
 }
-foreach ($path in @("$Tml/tModLoader.dll", "$repo/../KL/bin/Debug/net8.0/KL.dll", "$repo/bin/Debug/net8.0/伊蕾娜.dll", "$repo/../SilkyUIFramework.dll")) {
+foreach ($path in @("$Tml/tModLoader.dll", "$repo/../KL/bin/Debug/net8.0/KL.dll", "$repo/bin/Debug/net8.0/伊蕾娜.dll", "$repo/../SilkyUIFramework/bin/Debug/net8.0/SilkyUIFramework.dll")) {
     $null = Add-Item 'Reference' $path
 }
 $reference = Add-Item 'Reference' "$Tml/Libraries/**/*.dll"

@@ -7,6 +7,7 @@ namespace 伊蕾娜.Localization;
 public sealed class ElainaTerms : ModSystem
 {
     public const string MagicPowerIcon = "伊蕾娜/Snippets/MagicStarIcon";
+    public const string AlchemyCauldronIcon = "Item:Cauldron";
 
     public override void Load()
     {
@@ -16,6 +17,11 @@ public sealed class ElainaTerms : ModSystem
                 ElainaMagicAttributes.CombatRecoveryPerSecond,
                 ElainaMagicAttributes.CombatMaxMagicPointRecoveryPercentPerSecond * 100f,
                 ElainaMagicAttributes.CombatStateDurationSeconds,
-                ElainaMagicAttributes.OutOfCombatRefillSeconds)));
+                ElainaMagicAttributes.OutOfCombatRefillSeconds),
+            Category: () => Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
+        KLTerms.Register(new KLTerm(AlchemyCauldronIcon, new Color(232, 194, 122),
+            () => Language.GetTextValue("Mods.伊蕾娜.Terms.AlchemyCauldron.Name"),
+            () => Language.GetTextValue("Mods.伊蕾娜.Terms.AlchemyCauldron.Description"),
+            Category: () => Language.GetTextValue("Mods.KL.Terms.Categories.CraftingStation")));
     }
 }

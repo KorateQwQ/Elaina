@@ -1,5 +1,4 @@
 using KL.Drawing;
-using KL.SkillSystem.SilkyUI;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using ReLogic.Graphics;
@@ -12,48 +11,11 @@ using Terraria.ModLoader;
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
 //[RegisterUI("Vanilla: Radial Hotbars", "BookIconSkillBar", int.MinValue)]
-public class BookIconSkillBar : SUIImage,IDraggableUI
+public class BookIconSkillBar : SUIImage
 {
-    public UIView DragUI => this;
-
-    public bool IsDragging { get; set; }
-    
-    public Vector2 LastMousePosition { get; set; } = Vector2.Zero;
-
-    public ElainaSkillBar elainaSkillBar;
-    
-    public override void OnLeftMouseDown(UIMouseEvent evt)
-    {
-        //((IDraggableUI)this).StartDrag(Main.MouseScreen);
-        if (elainaSkillBar != null)
-        {
-            elainaSkillBar.IsDragging = true;
-            elainaSkillBar.LastMousePosition = Main.MouseScreen;
-            elainaSkillBar.OnLeftMouseDown(evt);
-        }
-        //base.OnLeftMouseDown(evt);
-    }
-
-    public override void OnLeftMouseUp(UIMouseEvent evt)
-    {
-        //((IDraggableUI)this).StopDrag();
-        if (elainaSkillBar != null)
-        {
-            elainaSkillBar.IsDragging = false;
-            elainaSkillBar.OnLeftMouseUp(evt);
-        }
-        //base.OnLeftMouseUp(evt);
-    }
-    
     protected override void Update(GameTime gameTime)
     {
         ZIndex = 1;//设置图层顺序
-        if (elainaSkillBar != null && elainaSkillBar.IsDragging)
-        {
-            elainaSkillBar.IsDragging = true;
-        }
-        
-        ((IDraggableUI)this).UpdateDrag(); // 调用接口的拖拽更新
         SetLeft(-80,alignment: 0f);
         SetTop(-20,alignment: 0f);
         BackgroundColor = Color.Black;

@@ -1,0 +1,162 @@
+using System;
+using System.IO;
+using System.Linq;
+using Microsoft.Xna.Framework;
+using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
+
+static class TrailChecks
+{
+    public static void Run(string repo)
+    {
+        static void Check(bool success, string message)
+        {
+            if (!success) throw new Exception("Trail regression: " + message);
+        }
+        Vector2[] previous = [new(30, 0), new(90, 15), new(190, 30), new(350, 30)];
+        Vector2[] saved = (Vector2[])previous.Clone();
+        Vector2[] path = MagicMissileTrailVisuals.FinishPath(previous, Vector2.Zero, 320);
+        Check(path[0] == Vector2.Zero && path[1] == previous[0], "final collision point must bridge last draw sample");
+        Check(previous.SequenceEqual(saved), "snapshot must not mutate projectile history");
+        float length = path.Zip(path.Skip(1), Vector2.Distance).Sum();
+        Check(Math.Abs(length - 320) < .001f, "final path keeps the 320 px cap");
+        Check(MagicMissileTrailVisuals.FinishPath(null, Vector2.Zero, 320).Length == 1, "death before first draw");
+        Check(MagicMissileTrailVisuals.FinishPath([Vector2.Zero, Vector2.Zero, Vector2.One], Vector2.Zero, 320).Length == 2,
+            "duplicate and stationary samples");
+        var visual = new MagicMissileTrailVisuals(402);
+        var other = new MagicMissileTrailVisuals(403);
+        Check(visual.NoiseOffset != other.NoiseOffset, "each projectile gets a stable seeded noise offset");
+        Check(Math.Abs(visual.NoiseOffset.X) <= 1 && Math.Abs(visual.NoiseOffset.Y) <= 1, "noise offset stays in texture range");
+        var source = File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Skills/MagicMissile/MagicMissile.cs"));
+        Check(source.Split("shrinkPathOnExpire: false").Length - 1 == 2, "length shrink is owned by the projectile, not TrailManager");
+        Check(source.Contains("FinishPath(OldCenter, end, TrailMaxLength)"), "OnKill must refresh snapshot");
+        Check(source.Contains("Vector2 end = wallContact ?? Projectile.Center;"), "wall deaths must end the trail at the recovered contact");
+        Check(source.Contains("WallContact(Projectile.Center, oldVelocity, Projectile.velocity)"), "OnTileCollide must recover contact before vanilla slides");
+        Check(source.Contains("MagicMissileHitDust.Emit(end, angle)"), "hit effect must use the same contact point as the trail head");
+        Check(source.Contains("visual.DrawHead(Main.graphics.GraphicsDevice, trailEffect, headStamp, headNoise"), "expired trail must draw the dissolving head stamp");
+        // 只有像素着色器的通道在游戏中会沿用不确定的顶点着色器，头部曾因此完全不显示
+        string fx = File.ReadAllText(Path.Combine(repo, "Effects/Content/MagicMissileTrail.fx"));
+        string headPass = fx[fx.IndexOf("pass Head")..];
+        Check(headPass[..headPass.IndexOf('}')].Contains("VertexShader"), "head pass must bind its own vertex shader");
+        Check(source.Contains("ModContent.Request<Texture2D>(\"KL/Effects/Tex/Sparkle/T_Vfx_Stamp_HitSword_22\""),
+            "head stamp must load loudly instead of silently skipping");
+        // 消融表按 Noise/5 测得，换噪声必须重跑 head_curve.py
+        Check(source.Contains("ModContent.Request<Texture2D>(\"KL/Effects/Tex/Noise/5\""), "head dissolve noise must match the measured table");
+        Check(!source.Contains("RenderTarget2D(") && !source.Contains("new Texture2D("), "head star must use packed textures");
+        Check(source.Contains("new MagicMissileTrailNoise(AssetManager.GetTexture(\"KL/Effects/Tex/PerlinX\"))"), "formal trail uses packed PerlinX");
+        Check(!source.Contains("GetData("), "formal projectile path must not read GPU texture data");
+        Check(source.Contains("MagicMissileTrailVisuals.ExpiredPath") == false, "length shrink must not re-trim the path before UV is computed");
+        Vector2[] curved = MagicMissileTrailVisuals.FinishPath([new(0, 0), new(30, 0), new(60, -30)], new(0, 0), 320);
+        Check(curved[1] == new Vector2(30, 0), "ordinary curved paths must not be straightened");
+
+        // 撞墙：原版把被挡住的轴截到贴墙距离，其余轴照常滑动；接触点必须落在入射线上
+        Check(Vector2.Distance(MagicMissileTrailVisuals.WallContact(Vector2.Zero, new(12, 12), new(12, 4)), new(4, 4)) < .001f,
+            "floor hit keeps the incoming line instead of sliding");
+        Check(Vector2.Distance(MagicMissileTrailVisuals.WallContact(new(5, 5), new(-9, 15), new(-3, 15)), new(2, 10)) < .001f,
+            "wall hit keeps the incoming line instead of sliding");
+        Check(MagicMissileTrailVisuals.WallContact(new(5, 5), new(0, 16), Vector2.Zero) == new Vector2(5, 5),
+            "perpendicular hit already touching the wall");
+        Check(MagicMissileTrailVisuals.WallContact(Vector2.Zero, new(10, 6), new(10, 6)) == new Vector2(10, 6),
+            "unblocked velocity keeps the full step");
+        Check(MagicMissileTrailVisuals.WallContact(Vector2.Zero, new(10, 6), new(-2, 6)) == Vector2.Zero,
+            "reversed axis clamps to the start");
+        foreach (Vector2 incoming in new Vector2[] { new(14, 14), new(19, 6), new(4, 19), new(-17, 9), new(20, 1) })
+        {
+            // 斜向飞行的历史采样，上一帧绘制停在本次移动起点；被挡住的轴只走一部分，另一轴整步滑动
+            Vector2 dir = Vector2.Normalize(incoming);
+            Vector2 start = new(400, 300);
+            Vector2[] history = Enumerable.Range(0, 24).Select(i => start - dir * 14f * i).ToArray();
+            foreach (float blocked in new[] { 0f, .2f, .55f, .9f })
+            {
+                Vector2 collided = Math.Abs(incoming.Y) >= Math.Abs(incoming.X)
+                    ? new Vector2(incoming.X, incoming.Y * blocked)
+                    : new Vector2(incoming.X * blocked, incoming.Y);
+                Vector2 contact = MagicMissileTrailVisuals.WallContact(start, incoming, collided);
+                Vector2[] finished = MagicMissileTrailVisuals.FinishPath(history, contact, 320);
+                Check(finished.All(p => Vector2.Dot(p - finished[0], dir) <= .01f), "trail must never run ahead of the head");
+                for (int i = 1; i < finished.Length; i++)
+                {
+                    Vector2 segment = finished[i - 1] - finished[i];
+                    if (segment.LengthSquared() > .01f)
+                        Check(Vector2.Dot(Vector2.Normalize(segment), dir) > .999f, "wall hit must not bend the trail into an L");
+                }
+                // 旧实现以滑动后的位置为终点：末段与入射方向不共线，即 L 形来源
+                Vector2 slidSegment = start + collided - history[0];
+                if (blocked < .9f)
+                    Check(Vector2.Dot(Vector2.Normalize(slidSegment), dir) < .9999f, "test input must reproduce the sliding end");
+            }
+        }
+        // 头部爆点：剩余可见量越少消融值越大，完整时不蚀去可见部分，归零时已越过测得的消失点
+        float previousDissolve = -1f;
+        for (int i = 0; i <= 20; i++)
+        {
+            float dissolve = MagicMissileTrailVisuals.DissolveForVisible(1f - i / 20f);
+            Check(dissolve > previousDissolve, "head dissolve must grow as visible amount drops");
+            previousDissolve = dissolve;
+        }
+        Check(MagicMissileTrailVisuals.DissolveForVisible(1f) <= .3f && MagicMissileTrailVisuals.DissolveForVisible(0f) >= .8f,
+            "head stays intact at start and fully dissolves at the end");
+        Console.WriteLine("Trail checks passed: final-point bridge, length cap, duplicates, wall contact, seeded Perlin offsets, noise resource, and lifecycle wiring.");
+    }
+    public static void RunNoise(MagicMissileTrailNoise noise)
+    {
+        static void Check(bool success, string message)
+        {
+            if (!success) throw new Exception("Noise width regression: " + message);
+        }
+        Check(noise.Texture != null, "formal PerlinX texture must be bound without CPU readback");
+        Vector2[] points = [new(350, 150), new(310, 135), new(250, 145), new(180, 160)];
+        var geometry = new MagicMissileTrailVisuals(400);
+        foreach (float zoom in new[] { 1f, 2f })
+        {
+            int liveCount = geometry.BuildGeometry(points, 1, zoom, noise);
+            var live = geometry.Geometry(liveCount).ToArray();
+            for (int i = 0; i < points.Length - 1; i++)
+            {
+                Vector2 delta = Vector2.Normalize(points[i] - points[i + 1]);
+                Vector2 expected = points[i] + new Vector2(-delta.Y, delta.X)
+                    * MathHelper.Lerp(6, 2, i / (float)points.Length) * zoom;
+                Check(Vector2.Distance(live[3 + i * 6].Position, expected) < .001f, "live width/normals must match KL TrailEffect");
+            }
+            geometry.Expiring = true;
+            int count = geometry.BuildGeometry(points, 1, zoom, noise);
+            var original = geometry.Geometry(count).ToArray();
+            int dyingCount = geometry.BuildGeometry(points, .35f, zoom, noise);
+            var dying = geometry.Geometry(dyingCount);
+            // 末尾一组顶点落在缩短的截断处
+            for (int i = 0; i < dyingCount - 6; i++)
+                Check(dying[i].Color == original[i].Color && dying[i].UV == original[i].UV,
+                    "death must never fade color/alpha or change texture UV");
+            for (int i = 3; i + 2 < dyingCount; i += 6)
+            {
+                if (i + 6 >= dyingCount) break; // 最后一组在截断处
+                Check(Vector2.Distance((dying[i].Position + dying[i + 2].Position) * .5f,
+                    (original[i].Position + original[i + 2].Position) * .5f) < .001f, "centerline must stay still");
+                Check(Vector2.Distance(dying[i].Position, dying[i + 2].Position)
+                    <= Vector2.Distance(original[i].Position, original[i + 2].Position) + .001f, "only the cross section shrinks");
+            }
+            geometry.Expiring = false;
+        }
+        // 尾端缩短：只截掉尾端几何，保留部分的 U 与完整路径一致（先截路径再重算 U 会让噪声图案整体跳动）
+        Vector2[] straight = Enumerable.Range(0, 24).Select(i => new Vector2(-i * 320f / 23, 0)).ToArray();
+        var shrink = new MagicMissileTrailVisuals(400) { Expiring = true };
+        int fullCount = shrink.BuildGeometry(straight, 1f, 1f, noise);
+        var full = shrink.Geometry(fullCount).ToArray();
+        int previous = fullCount;
+        foreach (float remaining in new[] { .8f, .6f, .45f, .3f, .1f })
+        {
+            int partCount = shrink.BuildGeometry(straight, remaining, 1f, noise);
+            var part = shrink.Geometry(partCount);
+            Check(partCount <= previous, "trail only gets shorter while expiring");
+            previous = partCount;
+            float age = 1 - remaining;
+            float expected = 320 * (1 - MagicMissileTrailVisuals.DefaultLengthShrink * age * age);
+            Check(Math.Abs(-(part[partCount - 1].Position.X + part[partCount - 3].Position.X) / 2 - expected) < 1f,
+                "visible length follows 1 - shrink * age²");
+            for (int i = 0; i < partCount - 6; i++)
+                Check(part[i].UV == full[i].UV && part[i].Position == full[i].Position, "kept geometry and UV must not move while shrinking");
+        }
+        shrink.LengthShrink = 0;
+        Check(shrink.BuildGeometry(straight, .05f, 1f, noise) == fullCount, "zero shrink keeps the whole path");
+        Console.WriteLine("Noise geometry passed: formal PerlinX binding, unchanged HDR/alpha/UV, stationary centerline, live widths at 1x/2x.");
+    }
+}

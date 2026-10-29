@@ -331,12 +331,16 @@ namespace 伊蕾娜.ElainaModSkills
         public float MaxCD, MagicPointCost;
         public int Level = 1;
         public virtual KL.SkillSystem.SkillUnlockCondition UnlockCondition { get; set; }
+        public virtual KL.SkillSystem.SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => new();
+        public virtual bool AllowsLifeConversion => true;
+        protected static void PrintText(object text) { }
         protected static KL.SkillSystem.SkillUnlockCondition DefaultUnlockCost => new();
         protected static KL.SkillSystem.SkillUnlockCondition RequireConfiguredCharacterLevelCap(string id, int cap) => new();
         protected virtual object[] SkillDescriptionArgs => [];
         public virtual (string Label, string Value, string Unit)[] GetConstellationStats(int level) => [];
         public virtual (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int level) => [];
-        public virtual bool CanUseSkill() => true;
+        public virtual bool CanUseSkill() => MagicPointCost <= 0 ||
+            Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false, AllowsLifeConversion);
         public virtual void Initialize()
         {
             var entry = SkillBalanceSystem.Current.Skills[GetType().Name];
@@ -355,7 +359,10 @@ namespace 伊蕾娜.ElainaModSkills
 }
 namespace KL.SkillSystem
 {
-    public class SkillUnlockCondition { }
+    public class SkillUnlockCondition
+    {
+        public static SkillUnlockCondition BySkillPoint(int points) => new();
+    }
     public class CompositeSkillUnlockCondition(params SkillUnlockCondition[] conditions) : SkillUnlockCondition { }
 }
 namespace 伊蕾娜.Localization

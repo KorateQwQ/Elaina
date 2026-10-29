@@ -1,0 +1,102 @@
+using System.Diagnostics;
+using System.Reflection;
+using SilkyUIFramework;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
+
+internal static class HealingTimingChecks
+{
+    private static readonly GameTime Zero = new();
+    private static int checks;
+    private static void Check(bool condition, string reason)
+    {
+        if (!condition) throw new Exception(reason);
+        checks++;
+    }
+    private static T Read<T>(ElainaHealingWheel wheel, string name) =>
+        (T)typeof(ElainaHealingWheel).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(wheel)!;
+
+    internal static void Run()
+    {
+        var wheel = new ElainaHealingWheel();
+        SilkyUIRenderSystem.Instance.Body = wheel;
+        Main.LocalPlayer = Main.player[0];
+        Main.hasFocus = Main.mouseLeft = true;
+        Main.mouseRight = Main.gameMenu = Main.hideUI = false;
+        Main.MouseScreen = new(500, 400);
+        int confirmations = 0, cancellations = 0, target = -1;
+        bool validSource = true;
+        void Open(bool recall = false) => Check(ElainaHealingWheel.TryOpen(i => i < 2, () => validSource,
+            i => { target = i; confirmations++; }, () => cancellations++, recall), "healing/recall picker opens");
+        Open();
+        wheel.Step(Zero);
+        float before = Read<float>(wheel, "_time");
+        Thread.Sleep(60);
+        wheel.Step(Zero);
+        Check(Read<float>(wheel, "_time") - before > .04f, "zero cached game time cannot stall healing opening");
+        before = Read<float>(wheel, "_time");
+        var wall = Stopwatch.StartNew();
+        Thread.Sleep(300);
+        wheel.Step(new GameTime(TimeSpan.Zero, TimeSpan.FromTicks(1)));
+        float elapsed = Read<float>(wheel, "_time") - before;
+        Check(elapsed > .27f && elapsed <= wall.Elapsed.TotalSeconds + .02, "tiny game delta and a slow frame use full elapsed time");
+        Check(Read<float>(wheel, "_presence") == 1 && OpeningOpacity(Read<float>(wheel, "_time"), 1) == 1,
+            "both targets finish opening");
+        before = Read<float>(wheel, "_time");
+        wall.Restart();
+        var stale = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(20));
+        for (int i = 0; i < 100; i++) wheel.Step(stale);
+        Check(Read<float>(wheel, "_time") - before <= wall.Elapsed.TotalSeconds + .02, "repeated stale game time is not multiplied");
+
+        // Right half selects the second ally. Release is processed in Track on this same draw.
+        Main.MouseScreen = new(650, 400);
+        Thread.Sleep(100);
+        Main.mouseLeft = false;
+        wheel.Step(Zero);
+        Check(confirmations == 1 && target == 1, "release confirms the displayed ally once");
+        Check(Read<float>(wheel, "_closeTime") == 0, "new fade cannot inherit the preceding opening interval");
+        Thread.Sleep(370);
+        wheel.Step(Zero);
+        Check(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0,
+            "fade completes with zero game delta and hidden clock stops");
+        Check(confirmations == 1, "fading cannot confirm a second time");
+
+        Thread.Sleep(90);
+        Main.mouseLeft = true;
+        wall.Restart();
+        Open(recall: true);
+        wheel.Step(Zero);
+        Check(Read<float>(wheel, "_time") <= wall.Elapsed.TotalSeconds + .02, "recall reopen excludes hidden interval");
+        Check(Read<bool>(wheel, "_recall"), "recall shares the same picker animation");
+        wheel.OnRightMouseDown(new());
+        Check(ElainaHealingWheel.OwnsPointer && cancellations == 1, "right cancellation retains the held gesture");
+        Thread.Sleep(200);
+        wheel.Step(Zero);
+        Main.mouseLeft = false;
+        wheel.Tick(Zero);
+        Check(!wheel.Enabled && !ElainaHealingWheel.OwnsPointer, "cancellation fades and releases pointer");
+
+        Main.mouseLeft = true;
+        Open(); wheel.Step(Zero);
+        validSource = false;
+        Thread.Sleep(60);
+        wheel.Step(Zero);
+        Check(cancellations == 2 && confirmations == 1 && Read<float>(wheel, "_closeTime") == 0,
+            "invalid source cancels on draw without charging its elapsed interval to fade");
+        wheel.ExitTree();
+        Check(!wheel.Enabled && Read<ConstellationUIClock>(wheel, "_animationClock").Sample() == 0, "tree exit stops clock");
+        validSource = true;
+        Open(); wheel.Step(Zero);
+        Main.hasFocus = false;
+        wheel.Tick(Zero);
+        Check(!ElainaHealingWheel.OwnsPointer && cancellations == 3, "focus loss cancels instead of confirming");
+        wheel.ExitTree();
+        Main.hasFocus = true;
+        Open();
+        ElainaHealingWheel.ResetWorld();
+        Check(!wheel.Enabled && !ElainaHealingWheel.OwnsPointer, "world reset clears pending picker and clock");
+        Main.mouseLeft = false;
+        Console.WriteLine($"PASS: {checks} production healing/recall-wheel timing/input checks (isolated game/SUI boundary).");
+    }
+}

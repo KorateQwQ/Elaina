@@ -1,4 +1,4 @@
-"""Rebake ConstellationPreview/Assets/Stars.png with the HTML crossStar geometry.
+"""Rebake ConstellationSkillPanel/Assets/Stars.png with the HTML crossStar geometry.
 
 Each region is a square tile per prefiltered level; the star's longer axis spans 112/128 of
 the tile (CrossStar draws extent = max(size) * 128 / 112). The outline follows the HTML path:
@@ -16,7 +16,7 @@ import json
 import sys
 from PIL import Image, ImageDraw
 
-ASSETS = Path(__file__).resolve().parents[2] / 'ElainaModSkills/ElainaSkillUI/ConstellationPreview/Assets'
+ASSETS = Path(__file__).resolve().parents[2] / 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets'
 CHECK = '--check' in sys.argv
 SS = 16
 # The tab marker's slim flash (34 × 12, waist .2) gets its own aspect instead of a squashed square star.

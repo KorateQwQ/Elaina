@@ -36,7 +36,7 @@ internal static class RainPlantGrowth
             int tx = (int)MathF.Floor(x / 16);
             int startY = (int)MathF.Floor((center.Y + 16) / 16);
             lengths[column] = RainCloudDrawing.MaxFall;
-            for (int y = startY; y <= startY + RainCloudDrawing.MaxFall / 16; y++)
+            for (int y = startY; y <= LastRainRow(center.Y); y++)
             {
                 if (!WorldGen.InWorld(tx, y, 10)) { lengths[column] = Math.Max(0, y * 16 - center.Y - 16); break; }
                 Tile tile = Main.tile[tx, y];
@@ -65,7 +65,7 @@ internal static class RainPlantGrowth
         for (int column = 0; column < RainCloudDrawing.Columns; column++)
         {
             int x = (int)MathF.Floor((center.X - RainCloudDrawing.Width * .5f + (column + .5f) * 16) / 16);
-            for (int y = top; y <= top + RainCloudDrawing.MaxFall / 16; y++)
+            for (int y = top; y <= LastRainRow(center.Y); y++)
             {
                 if (!WorldGen.InWorld(x, y, 10)) break;
                 Tile tile = Main.tile[x, y];
@@ -90,6 +90,9 @@ internal static class RainPlantGrowth
         if (tile.TileType == TileID.Pumpkins && (tile.TileFrameX % 36 != 0 || tile.TileFrameY != 0)) return false;
         return true;
     }
+
+    // 与雨幕最下沿相接但没有重叠的下一行不属于覆盖范围。
+    private static int LastRainRow(float cloudY) => (int)MathF.Ceiling((cloudY + 16 + RainCloudDrawing.MaxFall) / 16) - 1;
 
     internal static void GrowPlant(int x, int y)
     {
@@ -129,5 +132,13 @@ internal static class RainPlantGrowth
         if (TileID.Sets.CommonSapling[type]) return new Vector2(root.X * 16 + 8, (root.Y - 1) * 16);
         if (type == TileID.Pumpkins) return new Vector2(root.X * 16 + 16, root.Y * 16);
         return new Vector2(root.X * 16 + 8, root.Y * 16);
+    }
+
+    internal static bool IsInPlanter(Point plant)
+    {
+        if (!CanReceiveGrowth(plant.X, plant.Y) || !Main.tileAlch[Main.tile[plant.X, plant.Y].TileType]
+            || !WorldGen.InWorld(plant.X, plant.Y + 1, 10)) return false;
+        Tile support = Main.tile[plant.X, plant.Y + 1];
+        return support.HasTile && !support.IsActuated && support.TileType is TileID.ClayPot or TileID.PlanterBox;
     }
 }

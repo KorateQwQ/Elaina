@@ -140,6 +140,44 @@ public static class RevealingDustDrawing
         }
     }
 
+    /// <summary>Compact gold halo and staggered stars, visible over terrain only to the dust owner.</summary>
+    public static void DrawRecipeChest(SpriteBatch batch, in RevealingDustTextures tex, Vector2 center, float tick, int seed)
+    {
+        float pulse = .7f + .3f * MathF.Sin(tick * .065f + Noise(seed) * MathHelper.TwoPi);
+        Draw(batch, tex.Glow, center, new Color(255, 161, 36, 0) * (.4f * pulse), 0, new Vector2(68, 52));
+        Draw(batch, tex.Glow, center, new Color(255, 216, 100, 0) * (.28f * pulse), 0, new Vector2(36, 24));
+        for (int i = 0; i < 5; i++)
+        {
+            int key = seed + i * 71;
+            float phase = tick / 110f + Noise(key);
+            float life = phase - MathF.Floor(phase);
+            float flash = MathF.Pow(MathF.Sin(life * MathHelper.Pi), 4);
+            Vector2 at = center + new Vector2((Noise(key + 9) - .5f) * 40, 12 - life * 42);
+            Draw(batch, tex.Sparkle, at, new Color(255, 223, 128, 0) * flash,
+                .15f * MathF.Sin(tick * .02f + i), new Vector2(9 + 10 * flash));
+            Draw(batch, tex.Dot, at, new Color(255, 247, 211, 0) * flash, 0, new Vector2(5));
+        }
+    }
+
+    /// <summary>水矢书本：比配方宝箱更小的水蓝柔光与上浮星点，用冷色与金色标记区分。</summary>
+    public static void DrawWaterBolt(SpriteBatch batch, in RevealingDustTextures tex, Vector2 center, float tick, int seed)
+    {
+        float pulse = .7f + .3f * MathF.Sin(tick * .07f + Noise(seed) * MathHelper.TwoPi);
+        Draw(batch, tex.Glow, center, new Color(40, 140, 255, 0) * (.5f * pulse), 0, new Vector2(56));
+        Draw(batch, tex.Glow, center, new Color(130, 215, 255, 0) * (.38f * pulse), 0, new Vector2(22));
+        for (int i = 0; i < 4; i++)
+        {
+            int key = seed + i * 71;
+            float phase = tick / 100f + Noise(key);
+            float life = phase - MathF.Floor(phase);
+            float flash = MathF.Pow(MathF.Sin(life * MathHelper.Pi), 4);
+            Vector2 at = center + new Vector2((Noise(key + 9) - .5f) * 26, 6 - life * 32);
+            Draw(batch, tex.Sparkle, at, new Color(120, 200, 255, 0) * flash,
+                .15f * MathF.Sin(tick * .02f + i), new Vector2(7 + 8 * flash));
+            Draw(batch, tex.Dot, at, new Color(215, 242, 255, 0) * flash, 0, new Vector2(4));
+        }
+    }
+
     public static Color DangerColor(Color color)
     {
         color.R = 255;

@@ -14,11 +14,9 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
         if (Parent != null)
         {
             //适应skillSlot的大小和圆角效果
-            SetSize(Parent.Width.Pixels,Parent.Height.Pixels);
-            BorderRadius = new Vector4(2);
             Padding = 0;
             
-            ImageScale = new Vector2(50f / Math.Max(Texture2D.Width(), Texture2D.Height()));
+            ApplyScale((Parent as ElainaSkillSlot)?.BarScale ?? 1f);
 
             SetLeft(alignment: 0.5f);
             SetTop(alignment: 0.5f);
@@ -28,7 +26,7 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
             ImageAlign = new Vector2(0.5f);
             BackgroundColor = Color.Black*0;
             
-            //忽略鼠标交互，伊蕾娜的技能图标不需要拖动，鼠标会直接穿透和技能栏交互拖动
+            // 技能栏只用快捷键移动，图标不接收鼠标。
             IgnoreMouseInteraction = true;
 
         }
@@ -57,10 +55,15 @@ public class ElainaSkillIcon(Skill skill) : SkillIcon(skill)
         if (parent == null) return;
 
         BackgroundColor = Color.Black*0.0f;
-        SetSize(parent.Width.Pixels,parent.Height.Pixels);
-        BorderRadius = new Vector4(2);
-        ImageScale = new Vector2(50f / Math.Max(Texture2D.Width(), Texture2D.Height()));
+        ApplyScale((parent as ElainaSkillSlot)?.BarScale ?? 1f);
         base.Update(gameTime);
+    }
+
+    internal void ApplyScale(float scale)
+    {
+        SetSize(60 * scale, 60 * scale);
+        BorderRadius = new Vector4(2 * scale);
+        ImageScale = new Vector2(50f * scale / Math.Max(Texture2D.Width(), Texture2D.Height()));
     }
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)

@@ -8,6 +8,53 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 // Shared by the live SUI controls and the offline FNA preview.
 internal static class SkillBarDrawing
 {
+    public static void DrawRack(SpriteBatch batch, Texture2D rack, Vector2 position, float scale = 1)
+        => DrawRack(new ScaledSprites(batch, position, scale), rack, position);
+
+    public static void DrawSlotBackground(SpriteBatch batch, Texture2D atlas,
+        Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1, float scale = 1)
+        => DrawSlotBackground(new ScaledSprites(batch, center, scale), atlas, center, selected, occupied, hover, seconds, opacity);
+
+    public static void DrawSlotFrame(SpriteBatch batch, Texture2D atlas,
+        Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1, float scale = 1)
+        => DrawSlotFrame(new ScaledSprites(batch, center, scale), atlas, center, selected, occupied, hover, seconds, opacity);
+
+    public static void DrawSkillState(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+        Vector2 center, float cooldown, float remaining, int stack, int maxStack, bool showNumber, float scale = 1)
+        => DrawSkillState(new ScaledSprites(batch, center, scale), art, font, center, cooldown, remaining, stack, maxStack, showNumber);
+
+    public static void DrawSealState(SpriteBatch batch, StateArt art, Vector2 center,
+        float seconds, float denyAge = 9, float releaseAge = -1, float opacity = 1, float scale = 1)
+        => DrawSealState(new ScaledSprites(batch, center, scale), art, center, seconds, denyAge, releaseAge, opacity);
+
+    internal static void OutlinedText(SpriteBatch batch, DynamicSpriteFont font, string text,
+        Vector2 position, Color color, float scale, Vector2 anchor)
+        => OutlinedText(new ScaledSprites(batch, position, 1), font, text, position, color, scale, anchor);
+
+    // Scale geometry around the already-positioned slot/rack. This preserves the SUI
+    // batch and shader matrices, including legacy skill callbacks, without extra flushes.
+    private readonly struct ScaledSprites(SpriteBatch batch, Vector2 anchor, float factor)
+    {
+        private Vector2 At(Vector2 position) => anchor + (position - anchor) * factor;
+
+        public void Draw(Texture2D texture, Vector2 position, Rectangle? source, Color color,
+            float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
+            => batch.Draw(texture, At(position), source, color, rotation, origin, scale * factor, effects, depth);
+
+        public void Draw(Texture2D texture, Vector2 position, Rectangle? source, Color color,
+            float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float depth)
+            => batch.Draw(texture, At(position), source, color, rotation, origin, scale * factor, effects, depth);
+
+        public void Draw(Texture2D texture, Rectangle destination, Color color)
+            => batch.Draw(texture, At(new Vector2(destination.X, destination.Y)), null, color, 0, Vector2.Zero,
+                new Vector2(destination.Width / (float)texture.Width, destination.Height / (float)texture.Height) * factor,
+                SpriteEffects.None, 0);
+
+        public void DrawString(DynamicSpriteFont font, string text, Vector2 position, Color color,
+            float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
+            => batch.DrawString(font, text, At(position), color, rotation, origin, scale * factor, effects, depth);
+    }
+
     public const float SealReleaseDuration = .7f;
     public static bool HasSealOverlay(bool sealedState, float releaseAge) =>
         sealedState || releaseAge >= 0 && releaseAge < SealReleaseDuration;
@@ -28,7 +75,7 @@ internal static class SkillBarDrawing
     }
 
     /// <summary>HTML封印参考的四角束缚、钥匙孔及解封动画；不绘制提示浮字。</summary>
-    public static void DrawSealState(SpriteBatch batch, StateArt art, Vector2 center,
+    private static void DrawSealState(ScaledSprites batch, StateArt art, Vector2 center,
         float seconds, float denyAge = 9, float releaseAge = -1, float opacity = 1)
     {
         float p = releaseAge >= 0 ? Math.Clamp(releaseAge / SealReleaseDuration, 0, 1) : 0;
@@ -81,15 +128,15 @@ internal static class SkillBarDrawing
     private const float ArrivalDuration = .45f;
     private static readonly Vector2[] Orbit = CreateOrbit();
 
-    public static void DrawRack(SpriteBatch batch, Texture2D rack, Vector2 position) =>
+    private static void DrawRack(ScaledSprites batch, Texture2D rack, Vector2 position) =>
         batch.Draw(rack, position - new Vector2(24), null, Color.White, 0,
             Vector2.Zero, .5f, SpriteEffects.None, 0);
 
-    private static void Ornament(SpriteBatch batch, Texture2D atlas, int tile, Vector2 center, Color color) =>
+    private static void Ornament(ScaledSprites batch, Texture2D atlas, int tile, Vector2 center, Color color) =>
         batch.Draw(atlas, center, new Rectangle(tile * Tile, 0, Tile, Tile), color,
             0, new Vector2(Tile / 2), .5f, SpriteEffects.None, 0);
 
-    public static void DrawSlotBackground(SpriteBatch batch, Texture2D atlas,
+    private static void DrawSlotBackground(ScaledSprites batch, Texture2D atlas,
         Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1)
     {
         Ornament(batch, atlas, selected ? 2 : 4, center, Color.White * opacity);
@@ -101,7 +148,7 @@ internal static class SkillBarDrawing
                 Color.Lerp(new Color(177, 154, 195) * (113f / 255f), new Color(224, 203, 238), hover)) * opacity);
     }
 
-    public static void DrawSlotFrame(SpriteBatch batch, Texture2D atlas,
+    private static void DrawSlotFrame(ScaledSprites batch, Texture2D atlas,
         Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1)
     {
         if (!selected)
@@ -141,7 +188,7 @@ internal static class SkillBarDrawing
         DrawSelectionMarkers(batch, atlas, center, seconds, pulse, opacity);
     }
 
-    private static void DrawSelectionMarkers(SpriteBatch batch, Texture2D atlas,
+    private static void DrawSelectionMarkers(ScaledSprites batch, Texture2D atlas,
         Vector2 center, float seconds, float pulse, float opacity)
     {
         float breath = .5f + .5f * MathF.Sin(seconds * MathHelper.TwoPi / 3.6f);
@@ -162,12 +209,12 @@ internal static class SkillBarDrawing
             new Color(255, 241, 255, 0) * (.35f * diamondPulse * reveal), 1);
     }
 
-    private static void DrawMarker(SpriteBatch batch, Texture2D atlas, int marker,
+    private static void DrawMarker(ScaledSprites batch, Texture2D atlas, int marker,
         Vector2 position, Color color, float scale) =>
         batch.Draw(atlas, position, new Rectangle(16 + marker * 64, 192, 64, 64),
             color, 0, new Vector2(32), .5f * scale, SpriteEffects.None, 0);
 
-    private static void DrawRestingCorners(SpriteBatch batch, Texture2D atlas, Vector2 center, Color color)
+    private static void DrawRestingCorners(ScaledSprites batch, Texture2D atlas, Vector2 center, Color color)
     {
         // Crop four 12px patches from the existing 2x frame; retain the full tile for arrival pulses.
         const int near = 36;
@@ -191,7 +238,7 @@ internal static class SkillBarDrawing
     /// 冷却与层数叠加层：扫描指针标出恢复进度；层数 ≤ <see cref="MaxPips"/> 时用菱形刻度，否则用角标；
     /// 只有无层可用时才在中心显示倒计时，避免可释放的技能被大号数字盖住。
     /// </summary>
-    public static void DrawSkillState(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+    private static void DrawSkillState(ScaledSprites batch, StateArt art, DynamicSpriteFont font,
         Vector2 center, float cooldown, float remaining, int stack, int maxStack, bool showNumber)
     {
         bool recovering = cooldown > 0 && remaining > 0;
@@ -207,7 +254,7 @@ internal static class SkillBarDrawing
     private static readonly Color Ink = new(20, 14, 30);
     private static readonly Color Lilac = new(232, 216, 255);
 
-    private static void DrawSweepHand(SpriteBatch batch, StateArt art, Vector2 center, float progress, bool usable)
+    private static void DrawSweepHand(ScaledSprites batch, StateArt art, Vector2 center, float progress, bool usable)
     {
         // 与 CDEffect 的扇区边界对齐：十二点方向顺时针；只画外半段，避免划过图标主体。
         float angle = progress * MathHelper.TwoPi;
@@ -219,7 +266,7 @@ internal static class SkillBarDrawing
         Glow(batch, art, tip, new Vector2(7), light);
     }
 
-    private static void DrawChargePips(SpriteBatch batch, StateArt art, Vector2 center,
+    private static void DrawChargePips(ScaledSprites batch, StateArt art, Vector2 center,
         int stack, int maxStack, float progress)
     {
         const float spacing = 8;
@@ -242,7 +289,7 @@ internal static class SkillBarDrawing
         }
     }
 
-    private static void DrawChargeBadge(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+    private static void DrawChargeBadge(ScaledSprites batch, StateArt art, DynamicSpriteFont font,
         Vector2 center, int stack)
     {
         const float scale = 12f / 48f;
@@ -262,7 +309,7 @@ internal static class SkillBarDrawing
             empty ? new Color(140, 124, 160) : new Color(246, 238, 255), scale, new Vector2(0, .5f));
     }
 
-    private static void DrawCountdown(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+    private static void DrawCountdown(ScaledSprites batch, StateArt art, DynamicSpriteFont font,
         Vector2 center, float seconds)
     {
         string text = seconds >= 10 ? $"{MathF.Ceiling(seconds):0}" : $"{seconds:0.0}";
@@ -270,7 +317,7 @@ internal static class SkillBarDrawing
         OutlinedText(batch, font, text, center, new Color(248, 240, 255), 16f / 48f, new Vector2(.5f));
     }
 
-    internal static void OutlinedText(SpriteBatch batch, DynamicSpriteFont font, string text,
+    private static void OutlinedText(ScaledSprites batch, DynamicSpriteFont font, string text,
         Vector2 position, Color color, float scale, Vector2 anchor)
     {
         Vector2 origin = font.MeasureString(text) * anchor;
@@ -284,20 +331,20 @@ internal static class SkillBarDrawing
         batch.DrawString(font, text, position, color, 0, origin, scale, SpriteEffects.None, 0);
     }
 
-    private static void Line(SpriteBatch batch, StateArt art, Vector2 a, Vector2 b, float thickness, Color color)
+    private static void Line(ScaledSprites batch, StateArt art, Vector2 a, Vector2 b, float thickness, Color color)
     {
         Vector2 delta = b - a;
         batch.Draw(art.Pixel, a, null, color, MathF.Atan2(delta.Y, delta.X),
             new Vector2(0, .5f), new Vector2(delta.Length(), thickness), SpriteEffects.None, 0);
     }
 
-    private static void Glow(SpriteBatch batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
+    private static void Glow(ScaledSprites batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
         Stretch(batch, art.Glow, center, size, color);
 
-    private static void Diamond(SpriteBatch batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
+    private static void Diamond(ScaledSprites batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
         Stretch(batch, art.Diamond, center, size, color);
 
-    private static void Stretch(SpriteBatch batch, Texture2D texture, Vector2 center, Vector2 size, Color color)
+    private static void Stretch(ScaledSprites batch, Texture2D texture, Vector2 center, Vector2 size, Color color)
     {
         Vector2 source = new(texture.Width, texture.Height);
         batch.Draw(texture, center, null, color, 0, source / 2, size / source, SpriteEffects.None, 0);
