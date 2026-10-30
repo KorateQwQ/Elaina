@@ -3,12 +3,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using KL.Drawing.Snippets;
 using KL.SkillSystem;
 using Terraria;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
-internal sealed record ConstellationRequirement(string Name, long Owned, long Needed, bool Met, bool Points = false, bool Custom = false)
+// `Term` is set for items registered as terms; the footer explains them on hover.
+internal sealed record ConstellationRequirement(string Name, long Owned, long Needed, bool Met, bool Points = false, bool Custom = false,
+    KLTerm Term = null)
 {
     internal string Detail => Custom ? Met ? LocalizeUI("Met") : LocalizeUI("Unmet") : LocalizeUI("OwnedNeeded", Owned, Needed)
         + (Met ? LocalizeUI("MetSuffix") : LocalizeUI("MissingSuffix", Math.Max(0, Needed - Owned)));
@@ -59,7 +62,7 @@ internal sealed class ConstellationRequirements
         foreach (var (type, count) in materials)
         {
             long owned = player.Player.inventory.Where(i => i != null && !i.IsAir && i.type == type).Sum(i => (long)i.stack);
-            result.Rows.Add(new(Lang.GetItemNameValue(type), owned, count, owned >= count));
+            result.Rows.Add(new(Lang.GetItemNameValue(type), owned, count, owned >= count, Term: KLTerms.FindItem(type)));
         }
         if (result.PointCost > 0)
             result.Rows.Add(new(LocalizeUI("StudyPoints"), player.SkillPoint, result.PointCost, player.SkillPoint >= result.PointCost, Points: true));

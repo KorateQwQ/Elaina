@@ -29,6 +29,7 @@ namespace KL.Drawing {
     }
     public class PreviewRandom(int seed) : Random(seed) {
         public float NextFloat(float min, float max) => min + (max - min) * (float)NextDouble();
+        public float NextFloat(float max = 1) => max * (float)NextDouble();
         public Vector2 NextVector2Circular(float x, float y) {
             float angle = NextFloat(0, MathHelper.TwoPi), radius = MathF.Sqrt((float)NextDouble());
             return new Vector2(MathF.Cos(angle) * x, MathF.Sin(angle) * y) * radius;
@@ -152,6 +153,17 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water {
                 laser.Set(tick, currentOrigin, angle, length, bend);
                 if (tick <= ticks) laser.SpawnWaterDust();
                 // Match Main.Update: player -> projectile/particle spawn -> Dust.UpdateDust.
+                foreach (Dust dust in Dust.All) DustLoader.Instance.Update(dust);
+                Dust.All.RemoveAll(d => !d.active);
+            }
+        }
+        // WaterBall.OnKill spawns during projectile update; Dust.UpdateDust follows in the same tick.
+        public static void PrepareBurst(int ticks, Vector2 center, float radius, float rotation, bool cone, bool launch) {
+            // OnShoot reuses the cone burst at the production launch scale.
+            if (launch) radius *= BallReplay.LaunchBurstScale;
+            Dust.All.Clear(); Main.rand = new PreviewRandom(47); laser = new LaserReplay();
+            for (int tick = 0; tick <= ticks; tick++) {
+                if (tick == 0) BallReplay.SpawnBurstParticles(center, radius, rotation, cone);
                 foreach (Dust dust in Dust.All) DustLoader.Instance.Update(dust);
                 Dust.All.RemoveAll(d => !d.active);
             }

@@ -125,6 +125,8 @@ internal static class Pipeline {
         source += update.ToFullString() + Methods(dust, "SpawnDust", "OnSpawn", "SubmitBloomDrawRequests", "SubmitBloomDrawRequest", "DrawBloom") + "}}";
         var laser = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaser.cs"))).GetCompilationUnitRoot();
         source += "namespace 伊蕾娜.ElainaModSkills.Skills.Water { public partial class LaserReplay : ModProjectile {" + Methods(laser, "SpawnWaterDust", "PreDraw", "DrawVisual") + "}}";
+        var ball = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterBall.cs"))).GetCompilationUnitRoot();
+        source += "namespace 伊蕾娜.ElainaModSkills.Skills.Water { public static class BallReplay {" + Fields(ball, n => n == "LaunchBurstScale") + Methods(ball, "SpawnBurstParticles") + "}}";
         source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");
         File.WriteAllText(Path.Combine(output, "replay.cs.txt"), source);
         string[] inputs = [source, File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterLaserVisuals.cs")),

@@ -690,10 +690,7 @@ internal sealed class ConstellationDrawing
         Dots(l, t + 9, l, b - 9, DotColor * .8f); Dots(r, t + 9, r, b - 9, DotColor * .8f);
         foreach (var corner in new[] { new Vector2(l, t), new Vector2(r, t), new Vector2(r, b), new Vector2(l, b) })
             CrossStar(corner, new Vector2(7 * .976f, 7), Lavender * .8f, .28f);
-        var icon = KLTextureTagHandler.RequestIcon(term.IconPath).Value;
-        float iconScale = 18f / Math.Max(icon.Width, icon.Height);
-        Batch.Draw(icon, At(pad + (18 - icon.Width * iconScale) / 2, pad + 2 + (18 - icon.Height * iconScale) / 2), null,
-            Color.White, 0, Vector2.Zero, iconScale * Scale, SpriteEffects.None, 0);
+        TermIcon(term, pad, pad + 2, 18);
         Text(name, pad + 25, pad - 1, 17, term.Color, spacing: 1, serif: true);
         Text(tag, width - pad, pad + 5, 9, Muted2, 1, 2);
         Dots(pad, rule, width - pad, rule, DotColor);
@@ -718,6 +715,15 @@ internal sealed class ConstellationDrawing
             }
         }
         Origin = origin;
+    }
+
+    // A term's klicon texture fitted and centred in a size × size cell.
+    internal void TermIcon(KLTerm term, float x, float y, float size)
+    {
+        var icon = KLTextureTagHandler.RequestIcon(term.IconPath).Value;
+        float scale = size / Math.Max(icon.Width, icon.Height);
+        Batch.Draw(icon, At(x + (size - icon.Width * scale) / 2, y + (size - icon.Height * scale) / 2), null,
+            Color.White, 0, Vector2.Zero, scale * Scale, SpriteEffects.None, 0);
     }
 
     // Offline KL DrawCrossStar output; all shapes and prefiltered sizes share one texture.

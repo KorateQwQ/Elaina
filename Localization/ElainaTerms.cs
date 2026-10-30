@@ -1,5 +1,6 @@
 using KL.Drawing.Snippets;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.item;
 
 namespace 伊蕾娜.Localization;
 
@@ -8,6 +9,8 @@ public sealed class ElainaTerms : ModSystem
 {
     public const string MagicPowerIcon = "伊蕾娜/Snippets/MagicStarIcon";
     public const string AlchemyCauldronIcon = "Item:Cauldron";
+    // 水魔法书物品贴图为 10 帧动画，图标取其中一帧并去掉散落水滴。
+    public const string WaterSpellbookIcon = "伊蕾娜/Snippets/WaterSpellbookIcon";
 
     public override void Load()
     {
@@ -23,5 +26,12 @@ public sealed class ElainaTerms : ModSystem
             () => Language.GetTextValue("Mods.伊蕾娜.Terms.AlchemyCauldron.Name"),
             () => Language.GetTextValue("Mods.伊蕾娜.Terms.AlchemyCauldron.Description"),
             Category: () => Language.GetTextValue("Mods.KL.Terms.Categories.CraftingStation")));
+        KLTerms.Register(new KLTerm(WaterSpellbookIcon, new Color(102, 195, 197),
+            () => Lang.GetItemNameValue(ModContent.ItemType<WaterSpellbook>()),
+            () => Language.GetTextValue("Mods.伊蕾娜.Terms.WaterSpellbook.Description"),
+            Category: () => Language.GetTextValue("Mods.伊蕾娜.Terms.Categories.Spellbook")));
     }
+
+    // 物品类型在 Load 之后才确定。
+    public override void PostSetupContent() => KLTerms.RegisterItem(ModContent.ItemType<WaterSpellbook>(), WaterSpellbookIcon);
 }

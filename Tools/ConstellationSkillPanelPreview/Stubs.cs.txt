@@ -97,7 +97,7 @@ namespace Terraria
     }
     public sealed class Chest { public Item[] item = Enumerable.Range(0, 40).Select(_ => new Item()).ToArray(); }
     public sealed class Item { public int type, stack; public bool IsAir => stack <= 0; public void TurnToAir() { type = stack = 0; } }
-    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2350 => Language.GetTextValue("ItemName.RecallPotion"), 4870 => Language.GetTextValue("ItemName.PotionOfReturn"), 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", _ => "Item " + id }; }
+    public static class Lang { public static string GetItemNameValue(int id) => id switch { 9 => "木材", 1 => "石块", 2350 => Language.GetTextValue("ItemName.RecallPotion"), 4870 => Language.GetTextValue("ItemName.PotionOfReturn"), 2 => "名称特别长的测试材料用于验证自动换行不会超出详情边框", PanelScene.SpellbookItem => Language.GetTextValue("Mods.伊蕾娜.Items.WaterSpellbook.DisplayName"), _ => "Item " + id }; }
 }
 namespace 伊蕾娜.System
 {

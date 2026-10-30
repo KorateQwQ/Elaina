@@ -15,6 +15,14 @@ python ./Tools/WaterLaserPreview/make_clear_textures.py --fna-comparison
 
 两次 FNA 输出分别位于 `.vissandbox/water-laser-preview/out` 与 `out-clear`。`atlas-comparison.png` 展示贴图动画抽帧，`fna-comparison.png` 展示实际共享绘制代码的终点裁剪对比。已查看清透版白天第 18/60 帧、夜晚第 60 帧；两套完整预览均通过既有 Bloom、生命周期及附着断言。未进行游戏实机验证。
 
+## 水球爆炸水花（2026-10-30）
+
+水球术爆炸原本用 KL `WaterDust`/`WaterDust1`/`WaterDust2`：灰白剪影贴图 + 白色顶点色 + 叠加混合，画面是纯白的。现改为 `WaterBall.SpawnBurstParticles`，复用 `WaterLaserDust` 的清透水花（不含泡沫环），与水流术同材质、同层、同混合；`BubbleDust` 气泡保留并改为浅蓝着色。发射时的 `OnShoot` 水花按 `LaunchBurstScale`（0.6 倍半径）复用锥形爆炸。
+
+预览提取正式的 `SpawnBurstParticles` 渲染 `ball-{circle|cone|launch}-*`，水球只有蓄满（半径 200）才能发射，因此只渲染这一种尺寸：第 1/6/12/20 帧白天、第 6 帧夜晚、2 倍局部，以及开关 Bloom 对比和第 30 帧清空检查。金色虚线圈只标出水球半径；锥形爆炸叠加的红框是 `Colliding` 的 T 形判定，水花按它分为窄而长的中间突刺与短而宽的两侧。KL 气泡和径向扭曲不在预览中。
+
+动态预览：`& ./Tools/WaterLaserPreview/run.ps1 -BallFrames` 额外输出第 0–32 帧连续帧到 `out-clear/frames/`，再运行 `python ./Tools/WaterLaserPreview/make_ball_gif.py` 合成 `water-ball-burst.gif`（约实际速度，每帧 20ms）和 `water-ball-burst-slow.gif`（3 倍慢放）。GIF 只含水花粒子，不含水球本体、蓄力水流、气泡和屏幕扭曲。
+
 ## 运行与验证
 
 运行：`& ./Tools/WaterLaserPreview/run.ps1`。默认使用项目 tModLoader.targets 对应的 `D:/Steam/steamapps/common/tModLoader`，也可传入 `-TmlPath`。

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using KL.Drawing.Snippets;
 using KL.SkillSystem;
 using Microsoft.Xna.Framework;
 using 伊蕾娜.System.UI;
@@ -25,6 +26,8 @@ internal sealed class ConstellationDetail
     private const float FooterRowGap = 9, FooterRowHeight = 18, FooterLack = 18, MaxFooterRows = 4;
     // Underline offset inside a 24px description line, just below the 13px glyphs.
     private const float TermUnderline = 20.5f;
+    // Underline offset below a 12px requirement name.
+    private const float FooterTermUnderline = 18.5f;
     internal readonly List<ConstellationDetailRow> Rows = [];
     internal float Top => 303;
     internal bool Owned { get; }
@@ -295,15 +298,17 @@ internal sealed class ConstellationDetail
     }
 
     // Pinned above the action bar, in panel design coordinates.
-    internal void DrawFooter(ConstellationDrawing d)
+    // Returns the requirement term under `pointer` (design space) so the panel can show its card.
+    internal (Rectangle Area, KLTerm Term)? DrawFooter(ConstellationDrawing d, Vector2? pointer)
     {
-        if (FooterHeight <= 0) return;
+        (Rectangle Area, KLTerm Term)? hovered = null;
+        if (FooterHeight <= 0) return hovered;
         float x = Left, y = FooterTop;
         if (Maxed)
         {
             d.Spark(new Vector2(x + 4, y + 6), 8, Gold);
             d.Text(LocalizeUI("MaxLevelReached"), x + 14, y, 10, Muted2, spacing: 2);
-            return;
+            return hovered;
         }
         d.Spark(new Vector2(x + 4, y + 6.5f), 8, Lavender);
         d.Text(Owned ? LocalizeUI("UpgradeRequirements") : LocalizeUI("LearnRequirements"), x + 14, y, 10, Muted2, spacing: 2);
@@ -320,7 +325,7 @@ internal sealed class ConstellationDetail
         {
             y += FooterRowGap;
             d.Text(LocalizeUI("NoCost"), x, y + 3, 12, new Color(214, 200, 224), spacing: 1);
-            return;
+            return hovered;
         }
         foreach (var row in Requirements.Rows.Take((int)MaxFooterRows))
         {
@@ -329,6 +334,11 @@ internal sealed class ConstellationDetail
             if (row.Points)
             {
                 d.Image("StudyBook", x, y + 1.5f, 15, 15, Gold);
+                nameLeft += 23;
+            }
+            else if (row.Term != null)
+            {
+                d.TermIcon(row.Term, x, y + 1.5f, 15);
                 nameLeft += 23;
             }
             float valueWidth = 0;
@@ -353,7 +363,17 @@ internal sealed class ConstellationDetail
                 while (name.Length > 1 && d.Measure(name + "…", 12, 1) * .85f > room) name = name[..^1];
                 name += "…";
             }
-            d.FittedText(name, nameLeft, y + 2, room, 12, new Color(214, 200, 224), spacing: 1);
+            d.FittedText(name, nameLeft, y + 2, room, 12, row.Term?.Color ?? new Color(214, 200, 224), spacing: 1);
+            if (row.Term != null)
+            {
+                // Same faint underline as description terms; the icon and name both open the card.
+                float nameWidth = Math.Min(room, d.Measure(name, 12, 1));
+                var area = new Rectangle((int)x, (int)y, (int)MathF.Ceiling(nameLeft + nameWidth - x), (int)FooterRowHeight);
+                bool hover = pointer is { } p && area.Contains((int)p.X, (int)p.Y);
+                if (hover) hovered = (area, row.Term);
+                d.Line(new Vector2(nameLeft + 1, y + FooterTermUnderline), new Vector2(nameLeft + nameWidth - 2, y + FooterTermUnderline),
+                    row.Term.Color * (hover ? .85f : .35f));
+            }
             y += FooterRowHeight;
             if (!row.Met && !row.Custom)
             {
@@ -361,6 +381,7 @@ internal sealed class ConstellationDetail
                 y += FooterLack;
             }
         }
+        return hovered;
     }
 
     // Hover key of one term occurrence; the same term can appear several times in a paragraph.

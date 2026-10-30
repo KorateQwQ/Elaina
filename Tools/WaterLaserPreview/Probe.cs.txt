@@ -87,6 +87,37 @@ sealed class LaserProbe : Game
         Render("wand-release-10", 60, night: true, beam: false, release: 10, wand: true, wandMoving: true);
         Render("wand-release-20", 60, night: true, beam: false, release: 20, wand: true, wandMoving: true);
         Render("wand-default-purple", 60, night: true, beam: false, release: 30, wand: true, wandMoving: true, waterWand: false);
+        if (Environment.GetEnvironmentVariable("WATER_BALL_FRAMES") == "1") {
+            // Consecutive 60 Hz ticks for GIF assembly (make_ball_gif.py).
+            Directory.CreateDirectory(Path.Combine(output, "frames"));
+            foreach (string kind in new[] { "circle", "cone", "launch" })
+            for (int tick = 0; tick <= 32; tick++)
+                RenderBurst($"frames/{kind}-{tick:D2}", tick, FullRadius, kind != "circle", launch: kind == "launch");
+        }
+        // Launch requires time > 60 while charge fills by tick 50, so only the full radius (50 + 150) exists.
+        const float radius = FullRadius;
+        foreach (bool cone in new[] { false, true }) {
+            string kind = cone ? "cone" : "circle";
+            foreach (int tick in new[] { 1, 6, 12, 20 }) RenderBurst($"ball-{kind}-day-{tick}", tick, radius, cone);
+            RenderBurst($"ball-{kind}-night-6", 6, radius, cone, night: true);
+            RenderBurst($"ball-{kind}-zoom-6", 6, radius, cone, zoom: 2);
+            var burstOff = RenderBurst($"ball-{kind}-bloom-off", 6, radius, cone, bloom: false);
+            var burstOn = RenderBurst($"ball-{kind}-bloom-on", 6, radius, cone);
+            int burstGlow = burstOff.Zip(burstOn).Count(p => p.Second.G > p.First.G + 2);
+            if (burstGlow > 50) throw new Exception("Water ball burst unexpectedly glows: " + kind + " " + burstGlow);
+            RenderBurst($"ball-{kind}-end", 30, radius, cone);
+            int left = (int)scene.GetProperty("DustCount").GetValue(null);
+            if (left != 0) throw new Exception("Burst particles survived their lifetime: " + kind + " " + left);
+        }
+        {
+            string kind = "launch";
+            foreach (int tick in new[] { 1, 6, 12 }) RenderBurst($"ball-{kind}-day-{tick}", tick, radius, true, launch: true);
+            RenderBurst($"ball-{kind}-night-6", 6, radius, true, night: true, launch: true);
+            RenderBurst($"ball-{kind}-zoom-6", 6, radius, true, zoom: 2, launch: true);
+            RenderBurst($"ball-{kind}-end", 30, radius, true, launch: true);
+            if ((int)scene.GetProperty("DustCount").GetValue(null) != 0) throw new Exception("Launch particles survived: " + kind);
+        }
+        Console.WriteLine("PASS water ball burst: circle/cone/launch at full charge, no glowing nodes, cleared by tick 30.");
         Console.WriteLine($"PASS: restrained Bloom changed {lit} pixels; isolated particle bloom changed {particleGlow}; particles cleared after release.");
         Console.WriteLine("Rendered actual beam/muzzle/particle drawing and KL Bloom on day/night, left/up, bend, zoom, short beam and backbuffer.");
         Exit();
@@ -125,6 +156,54 @@ sealed class LaserProbe : Game
         using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
         using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
         return pixels;
+    }
+    const float FullRadius = 200;
+    Color[] RenderBurst(string name, int ticks, float radius, bool cone, bool night = false, float zoom = 1, bool bloom = true, bool launch = false) {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(night ? new Color(12, 23, 34) : new Color(67, 134, 141));
+        Vector2 camera = new(2000, 1200); Set(main, "screenPosition", camera);
+        Vector2 center = cone ? new Vector2(300, 350) : new Vector2(600, 350);
+        Matrix transform = Matrix.CreateTranslation(-center.X, -center.Y, 0) * Matrix.CreateScale(zoom, zoom, 1)
+            * Matrix.CreateTranslation(center.X, center.Y, 0);
+        Set(main, "Transform", transform);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view, transform);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, transform);
+        for (int x = 0; x < Width; x += 100) batch.Draw(pixel, new Rectangle(x, 0, 1, Height), new Color(48, 89, 96));
+        for (int y = 0; y < Height; y += 100) batch.Draw(pixel, new Rectangle(0, y, Width, 1), new Color(48, 89, 96));
+        // Ball outline only marks the explosion radius; the ball itself is already gone on OnKill.
+        for (int i = 0; i < 64; i++) {
+            float a = MathHelper.TwoPi * i / 64;
+            batch.Draw(pixel, center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius * .5f, null, new Color(194, 165, 105), 0, Vector2.Zero, 3, SpriteEffects.None, 0);
+        }
+        if (cone && !launch) {
+            // WaterBall.Colliding T shape: flight hitbox width = radius * 0.8 (resized during Hold).
+            float w = (int)(radius * .8f), rotation = .2f;
+            DrawBox(center, rotation, -w / 2, w * 3.5f, w);
+            DrawBox(center, rotation, -w / 2, w * 1.5f, w * 3);
+        }
+        batch.End();
+        scene.GetMethod("PrepareBurst").Invoke(null, [ticks, center + camera, radius, cone ? .2f : 0f, cone, launch]);
+        scene.GetMethod("Queue").Invoke(null, [false, true]);
+        render.Invoke(renderer, [1f, 5, bloom]);
+        scene.GetMethod("CheckAfterDraw").Invoke(null, null);
+        var pixels = new Color[Width * Height];
+        target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
+        using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
+        return pixels;
+    }
+    void DrawBox(Vector2 center, float rotation, float start, float end, float thickness) {
+        Vector2 dir = new(MathF.Cos(rotation), MathF.Sin(rotation)), normal = new(-dir.Y, dir.X);
+        Vector2[] corners = [center + dir * start - normal * thickness / 2, center + dir * end - normal * thickness / 2,
+            center + dir * end + normal * thickness / 2, center + dir * start + normal * thickness / 2];
+        for (int i = 0; i < 4; i++) {
+            Vector2 a = corners[i], b = corners[(i + 1) % 4];
+            batch.Draw(pixel, a, null, new Color(230, 120, 90), MathF.Atan2(b.Y - a.Y, b.X - a.X), new Vector2(0, .5f),
+                new Vector2(Vector2.Distance(a, b), 2), SpriteEffects.None, 0);
+        }
     }
     protected override void UnloadContent() {
         if (pipeline != null) {

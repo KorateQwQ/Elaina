@@ -806,7 +806,11 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             }
         }
         d.Dots(ConstellationDetail.Left, 288.5f, ConstellationDetail.Left + ConstellationDetail.Width, 288.5f, DotColor);
-        _detail?.DrawFooter(d);
+        Vector2? pointer = _book.IsOpen && IsMouseHovering ? Design(Main.MouseScreen) : null;
+        // Requirement terms open their card beside the column, like terms in the description.
+        if (_detail?.DrawFooter(d, pointer) is { } hit)
+            RequestTooltip(hit.Term.Name(), new Rectangle(ConstellationDetail.Left, hit.Area.Y, ConstellationDetail.Width, hit.Area.Height),
+                "footer-term:" + hit.Term.IconPath, hit.Term);
         if (_detail?.HasActions == true)
             d.Dots(ConstellationDetail.Left, 655.5f, ConstellationDetail.Left + ConstellationDetail.Width, 655.5f, DotColor);
     }

@@ -212,8 +212,8 @@ Items: {
 		DisplayName: Water Spellbook
 		Tooltip:
 			'''
-			Required to study {$Mods.伊蕾娜.SkillInfo.SkillName.WaterLaserSKill}
-			Crafting it does not consume the {$ItemName.WaterBolt}
+			A spellbook recording water magic
+			Consumed when studying it in the skill notebook
 			'''
 	}
 }
@@ -412,6 +412,7 @@ Conditions: {
 	Freeze: Not yet learned freeze
 	Healing: Mods.伊蕾娜.Conditions.Healing
 	Wind: Mods.伊蕾娜.Conditions.Wind
+	NeverCraftedWaterSpellbook: Never crafted a {$Mods.伊蕾娜.Items.WaterSpellbook.DisplayName}
 }
 
 Wand: {
@@ -457,6 +458,8 @@ NewSkillUI: {
 }
 
 Terms: {
+	Categories.Spellbook: SPELLBOOK
+
 	MagicPower: {
 		Name: Magic Power
 		Description:
@@ -475,4 +478,10 @@ Terms: {
 			Crafted by hand from {$ItemName.IronBar} or {$ItemName.LeadBar} ×10 and {$ItemName.Campfire} ×1.
 			'''
 	}
+
+	WaterSpellbook.Description:
+		'''
+		The spellbook needed to study {$Mods.伊蕾娜.SkillInfo.SkillName.WaterLaserSKill}.
+		Crafted by hand while holding a {$ItemName.WaterBolt}, which is not consumed.
+		'''
 }

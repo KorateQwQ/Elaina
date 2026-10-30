@@ -32,8 +32,12 @@ internal sealed class PanelScene
     private HashSet<string> _ancestors;
     private ConstellationLayoutEditor _layoutEditor;
     private bool Editing => _layoutEditor?.IsEditing == true;
-    // The fixture has no pointer: Main.MouseScreen is off-screen, so nothing is hovered.
-    private Vector2 Design(Vector2 mouse) => mouse;
+    // The fixture has no pointer: Main.MouseScreen is off-screen, so nothing is hovered unless a scene sets one.
+    private Vector2? _pointer;
+    private bool IsMouseHovering => _pointer != null;
+    private Vector2 Design(Vector2 mouse) => _pointer ?? mouse;
+    // Stands in for the production 伊蕾娜 WaterSpellbook, linked to its term in Program.
+    internal const int SpellbookItem = 5000;
     internal void RenderPrimaryButton(SpriteBatch batch, float scale, string mode, bool hover, bool pressed, float seconds)
     {
         if (_state == null)
@@ -96,7 +100,7 @@ internal sealed class PanelScene
         Func<ConstellationDetail, float> scrollPosition = null)
     {
         _book.Request(true); _book.Finish();
-        _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long"));
+        _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long" or "requirements-term"));
         if (scenario is "active" or "equipped" or "maxed")
         {
             _state.Select(nameof(MagicMissileSkill));
@@ -132,7 +136,8 @@ internal sealed class PanelScene
             _state.Select(nameof(MagicMissileSkill));
             var player = 伊蕾娜.ElainaModSkills.ElainaSkillModPlayer.SkillModPlayer;
             _state.Current.ModSkill.UnlockCondition = KL.SkillSystem.SkillUnlockCondition.ByItemsAndSkillPoint(20,
-                new KL.SkillSystem.SkillUnlockItem(scenario == "requirements-long" ? 2 : 9, 10));
+                scenario == "requirements-term" ? new KL.SkillSystem.SkillUnlockItem(SpellbookItem, 1)
+                    : new KL.SkillSystem.SkillUnlockItem(scenario == "requirements-long" ? 2 : 9, 10));
             player.SkillPoint = scenario == "requirements-ready" ? 20 : 4;
             player.Player.inventory[0].type = 9;
             player.Player.inventory[0].stack = scenario == "requirements-ready" ? 10 : 3;
@@ -248,6 +253,8 @@ internal sealed class PanelScene
         _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = origin;
         var detail = new ConstellationDetail(_state, _draw);
         _detail = detail;
+        // Hover the first requirement row (the term item), as the pointer would in the panel.
+        _pointer = scenario == "requirements-term" ? new Vector2(ConstellationDetail.Left + 30, detail.FooterTop + 13 + 9 + 9) : null;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
         DrawChrome(); DrawDetails(); DrawActionButton(false); DrawCloseButton(false);
         string[] filters = ["learned", "ready", "locked", "hidden"];
@@ -293,6 +300,11 @@ internal sealed class PanelScene
             var pointer = new Vector2(ConstellationDetail.Left + termAction.Area.Center.X, termTop + termAction.Area.Center.Y);
             var termAnchor = ConstellationDetail.TooltipAnchor(termAction, new Vector2(ConstellationDetail.Left, termTop));
             _draw.TermTooltip(KLTerms.Find(termAction.Id), pointer, new Vector2(DesignWidth, DesignHeight), termAnchor);
+        }
+        if (scenario == "requirements-term")
+        {
+            if (_tooltipTerm == null) throw new Exception("requirements-term: the requirement term is not hovered.");
+            _draw.TermTooltip(_tooltipTerm, _pointer.Value, new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
         }
         if (scenario == "requirements-tooltip")
         {

@@ -295,15 +295,8 @@ public class WaterBall : ElainaBasicProjectile
             ShakeScreen(Projectile.Center,Projectile.velocity,10f,5f,16);
         }
         
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust>(), 20,
-            Projectile.velocity, 1.88f, 20, Color.White,
-            new Vector2(0.5f) * WaterBallRadius / 100f, startDistance: 0, startOffset: 20, scaleOffset: new Vector2(0.3f),
-            lifeOffset: 10, velocityOffset: 0.2f);
-        
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust1>(), 10,
-            Projectile.velocity*1.5f, 0.58f, 20, Color.White,
-            new Vector2(0.8f) * WaterBallRadius / 100f, startDistance: 0, startOffset: 50, scaleOffset: new Vector2(0.3f),
-            lifeOffset: 10, velocityOffset: 0.2f);
+        // 发射水花按较小半径复用锥形爆炸，分量轻于命中爆炸。
+        SpawnBurstParticles(Projectile.Center, WaterBallRadius * LaunchBurstScale, Projectile.velocity.ToRotation(), true);
 
         Vector2 move = new Vector2(1,0);
         int arrayLength = 250;
@@ -484,60 +477,15 @@ public class WaterBall : ElainaBasicProjectile
 
         if ((Projectile.Center - Main.player[Main.myPlayer].Center).Length() < 1800)
         {
-            if (time2 > 52)
-            {
-                CreateRadialWaveWarp(Projectile.Center, WaterBallRadius, WaterBallRadius * 10.5f, 30, 2.5f);
+            bool cone = time2 <= 52;
+            if (!cone) CreateRadialWaveWarp(Projectile.Center, WaterBallRadius, WaterBallRadius * 10.5f, 30, 2.5f);
+            SpawnBurstParticles(Projectile.Center, WaterBallRadius, Projectile.rotation, cone);
 
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust1>(), 20,
-                    Vector2.One * 8 * WaterBallRadius / 90f, 6.28f, 20, Color.White,
-                    new Vector2(1) * WaterBallRadius / 100f, startDistance: 0, startOffset: 20, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-
-
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust>(), 20,
-                    Vector2.One * 7 * WaterBallRadius / 85f, 6.28f, 20, new Color(180, 230, 255, 255),
-                    new Vector2(1) * WaterBallRadius / 200f, startDistance: 20, startOffset: 30, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust2>(), 20,
-                    Vector2.One * 7 * WaterBallRadius / 85f, 6.28f, 20, new Color(180, 230, 255, 255),
-                    new Vector2(1) * WaterBallRadius / 200f, startDistance: 20, startOffset: 30, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<BubbleDust>(), 25,
-                    Vector2.One * 2 * WaterBallRadius / 90f, 6.28f, 60, Color.White,
-                    new Vector2(1) * WaterBallRadius / 200f, startDistance: 20, startOffset: 30, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-            }
-            else
-            {
-                Vector2 move = new Vector2(1,0).RotatedBy(Projectile.rotation);
-                /*KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust1>(), 20,
-                    move * 8 * WaterBallRadius / 90f, 1.28f, 20, Color.White,
-                    new Vector2(1) * WaterBallRadius / 100f, startDistance: 0, startOffset: 20, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);*/
-
-
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust>(), 10,
-                    move * 10 * WaterBallRadius / 85f, 1.88f, 20, new Color(180, 230, 255, 255),
-                    new Vector2(1,2) * WaterBallRadius / 200f, startDistance: 20, startOffset: 100* WaterBallRadius / 200f, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.5f);
-                
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust>(), 20,
-                    move * 20 * WaterBallRadius / 85f, 0.58f, 20, new Color(180, 230, 255, 255),
-                    new Vector2(1,2) * WaterBallRadius / 200f, startDistance: 20, startOffset: 200* WaterBallRadius / 200f, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<WaterDust2>(), 20,
-                    move * 7 * WaterBallRadius / 85f, 1.8f, 20, new Color(180, 230, 255, 255),
-                    new Vector2(1) * WaterBallRadius / 200f, startDistance: 20, startOffset: 30, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-
-                KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<BubbleDust>(), 25,
-                    move * 5 * WaterBallRadius / 90f, 1.8f, 60, Color.White,
-                    new Vector2(1) * WaterBallRadius / 200f, startDistance: 20, startOffset: 30, scaleOffset: new Vector2(0.3f),
-                    lifeOffset: 10, velocityOffset: 0.2f);
-            }
+            Vector2 bubbleVelocity = cone ? new Vector2(1, 0).RotatedBy(Projectile.rotation) * 5 : Vector2.One * 2;
+            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<BubbleDust>(), 25,
+                bubbleVelocity * WaterBallRadius / 90f, cone ? 1.8f : 6.28f, 60, new Color(180, 230, 255),
+                new Vector2(1) * WaterBallRadius / 200f, startDistance: 20, startOffset: 30, scaleOffset: new Vector2(0.3f),
+                lifeOffset: 10, velocityOffset: 0.2f);
 
 
             float strength = MathHelper.Lerp(0, 0.01f, WaterBallRadius / 200f);
@@ -545,6 +493,58 @@ public class WaterBall : ElainaBasicProjectile
             ShakeScreen(Projectile.Center,Projectile.velocity,100f,5f,16);
         }
         base.OnKill(timeLeft);
+    }
+
+    internal const float LaunchBurstScale = 0.6f;
+
+    /// <summary>爆炸水花复用水流术的水花，保持同一套青蓝水体与白色浪尖。</summary>
+    internal static void SpawnBurstParticles(Vector2 center, float radius, float rotation, bool cone)
+    {
+        // 只有蓄满（半径 200）才能发射；水花速度按 0.93 衰减，总位移约为初速的 11 倍。
+        float sizeScale = 0.45f + radius / 250f;
+        float reach = radius * 0.1f;
+        Vector2 forward = new(MathF.Cos(rotation), MathF.Sin(rotation));
+        // 锥形按 Colliding 的 T 形判定：两侧短而宽（约 1.2 倍半径），中间窄突刺约 2.8 倍半径。
+        const float sideSpread = 1.15f;
+        const float coreSpread = 0.2f;
+
+        int splashCount = (int)(14 + radius / 10f);
+        for (int i = 0; i < splashCount; i++)
+        {
+            float angle = cone
+                ? Main.rand.NextFloat(-sideSpread, sideSpread)
+                : MathHelper.TwoPi * (i + Main.rand.NextFloat()) / splashCount;
+            Vector2 direction = forward.RotatedBy(angle);
+            WaterLaserDust.Emit(center + direction * radius * 0.25f, direction * reach * Main.rand.NextFloat(0.6f, 1.1f),
+                new Vector2(110f, 30f) * sizeScale * Main.rand.NextFloat(0.8f, 1.2f), Main.rand.Next(18, 25));
+        }
+
+        if (cone)
+        {
+            // 速度分层铺开，突刺从根部连到尖端，不会脱离两侧成为独立的一团。
+            int coreCount = (int)(10 + radius / 12f);
+            for (int i = 0; i < coreCount; i++)
+            {
+                float angle = Main.rand.NextFloat(-coreSpread, coreSpread);
+                Vector2 direction = forward.RotatedBy(angle);
+                float layer = (i + Main.rand.NextFloat()) / coreCount;
+                WaterLaserDust.Emit(center + direction * radius * 0.25f, direction * reach * MathHelper.Lerp(0.9f, 2.6f, layer),
+                    new Vector2(140f, 30f) * sizeScale * Main.rand.NextFloat(0.9f, 1.2f), Main.rand.Next(20, 27));
+            }
+        }
+
+        // 细小快速的水滴：圆形打散外缘，锥形压在突刺尖端。
+        int dropletCount = (int)(8 + radius / 16f);
+        for (int i = 0; i < dropletCount; i++)
+        {
+            float angle = cone
+                ? Main.rand.NextFloat(-coreSpread * 0.6f, coreSpread * 0.6f)
+                : Main.rand.NextFloat(MathHelper.TwoPi);
+            Vector2 direction = forward.RotatedBy(angle);
+            WaterLaserDust.Emit(center + direction * radius * 0.15f,
+                direction * reach * (cone ? Main.rand.NextFloat(2.4f, 3f) : Main.rand.NextFloat(1.2f, 1.7f)),
+                new Vector2(64f, 16f) * sizeScale, Main.rand.Next(14, 19));
+        }
     }
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)

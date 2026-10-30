@@ -211,8 +211,8 @@ Items: {
 		DisplayName: 水魔法书
 		Tooltip:
 			'''
-			研习{$Mods.伊蕾娜.SkillInfo.SkillName.WaterLaserSKill}所需
-			合成时不消耗{$ItemName.WaterBolt}
+			记载着水魔法的魔法书
+			在技能手札中研习该魔法时消耗
 			'''
 	}
 }
@@ -411,6 +411,7 @@ Conditions: {
 	Freeze: 未学习冰霜魔法
 	Healing: 未学习治愈魔法
 	Wind: 未学习风魔法
+	NeverCraftedWaterSpellbook: 从未制作过{$Mods.伊蕾娜.Items.WaterSpellbook.DisplayName}
 }
 
 Wand: {
@@ -456,6 +457,8 @@ NewSkillUI: {
 }
 
 Terms: {
+	Categories.Spellbook: 魔法书
+
 	MagicPower: {
 		Name: 魔力
 		Description:
@@ -474,4 +477,10 @@ Terms: {
 			用{$ItemName.IronBar}或{$ItemName.LeadBar}×10、{$ItemName.Campfire}×1徒手制作。
 			'''
 	}
+
+	WaterSpellbook.Description:
+		'''
+		研习{$Mods.伊蕾娜.SkillInfo.SkillName.WaterLaserSKill}所需的魔法书。
+		持有{$ItemName.WaterBolt}即可徒手制作，不会消耗{$ItemName.WaterBolt}。
+		'''
 }
