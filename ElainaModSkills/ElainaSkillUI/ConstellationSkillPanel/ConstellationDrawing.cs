@@ -55,10 +55,12 @@ internal sealed class ConstellationDrawing
     private readonly Dictionary<string, ConstellationToggleAnimation> _toggles = [];
     private readonly Dictionary<string, ConstellationToggleAnimation> _buttons = [];
     private ConstellationTween _filterMarker;
-    private static PixelFont GetFont(bool serif) => serif
-        ? FontManager.NotoSerifSC_Pixels : FontManager.HarmonyOS_Sans_SC_Pixels;
+    internal readonly ConstellationFont Sans;
+    private readonly ConstellationFont _serif, _latin;
+    private ConstellationFont GetFont(bool serif) => serif ? _serif : Sans;
     private readonly Dictionary<string, int[]> _icons;
     private readonly Dictionary<(int Aspect, int Waist, bool Filled), Rectangle[]> _stars = [];
+    private readonly Dictionary<string, Rectangle[]> _raster = [];
     private sealed class StarRegion
     {
         public int Aspect { get; set; }
@@ -76,9 +78,12 @@ internal sealed class ConstellationDrawing
 
     internal ConstellationDrawing(Mod mod)
     {
+        Sans = new(mod, "HarmonyOS_Sans_SC", FontManager.HarmonyOS_Sans_SC, 9, 28);
+        _serif = new(mod, "NotoSerifSC", FontManager.NotoSerifSC, 9, 48);
+        _latin = new(mod, "Gelasio", FontManager.Gelasio, 8, 26);
         const string path = "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/";
         _icons = JsonSerializer.Deserialize<Dictionary<string, int[]>>(mod.GetFileBytes(path + "Icons.json"));
-        foreach (var star in JsonSerializer.Deserialize<StarRegion[]>(mod.GetFileBytes(path + "Stars.json")))
+        foreach (var star in JsonSerializer.Deserialize<StarRegion[]>(mod.GetFileBytes(path + "StarsRaster.json")))
         {
             var levels = new Rectangle[star.Levels.Length];
             for (int i = 0; i < levels.Length; i++)
@@ -88,6 +93,8 @@ internal sealed class ConstellationDrawing
             }
             _stars.Add((star.Aspect, star.Waist, star.Filled), levels);
         }
+        foreach (var entry in JsonSerializer.Deserialize<Dictionary<string, int[][]>>(mod.GetFileBytes(path + "RasterMasks.json")))
+            _raster.Add(entry.Key, entry.Value.Select(r => new Rectangle(r[0], r[1], r[2], r[3])).ToArray());
     }
 
     internal Texture2D Texture(string name)
@@ -103,10 +110,46 @@ internal sealed class ConstellationDrawing
     internal Vector2 At(float x, float y) => Origin + new Vector2(x, y) * Scale;
     internal void Image(string name, float x, float y, float width, float height, Color? tint = null, float rotation = 0)
     {
+        if (name is "HeaderHat" or "StudyBook")
+        {
+            RasterMask(name, new Vector2(x + width / 2, y + height / 2), new Vector2(width, height), tint ?? Color.White, rotation);
+            return;
+        }
         var tex = Texture(name);
         Batch.Draw(tex, At(x + width / 2, y + height / 2), null, tint ?? Color.White,
             rotation, new Vector2(tex.Width, tex.Height) / 2,
             new Vector2(width / tex.Width, height / tex.Height) * Scale, SpriteEffects.None, 0);
+    }
+
+    // Fixed masks are area-filtered offline near their actual device size. A large PNG reduced with
+    // bilinear sampling alone skips fine strokes; changing the global UI scale cannot repair that.
+    private Rectangle RasterTile(Rectangle[] levels, float pixels)
+    {
+        Rectangle best = levels[0];
+        float distance = Math.Abs(best.Width - pixels);
+        for (int i = 1; i < levels.Length; i++)
+        {
+            float next = Math.Abs(levels[i].Width - pixels);
+            if (next >= distance) continue;
+            best = levels[i]; distance = next;
+        }
+        return best;
+    }
+
+    private Vector2 SnapCenter(Vector2 center, Vector2 pixels)
+    {
+        Vector2 device = Vector2.Transform(At(center.X, center.Y), Transform);
+        device = new Vector2(MathF.Round(device.X - pixels.X / 2), MathF.Round(device.Y - pixels.Y / 2)) + pixels / 2;
+        return Vector2.Transform(device, Matrix.Invert(Transform));
+    }
+
+    private void RasterMask(string name, Vector2 center, Vector2 size, Color color, float rotation = 0)
+    {
+        Vector2 pixels = new(Math.Max(1, MathF.Round(size.X * Device)), Math.Max(1, MathF.Round(size.Y * Device)));
+        var source = RasterTile(_raster[name], Math.Max(pixels.X, pixels.Y));
+        Batch.Draw(Texture("RasterMasks"), rotation == 0 ? SnapCenter(center, pixels) : At(center.X, center.Y), source,
+            color, rotation, new Vector2(source.Width, source.Height) / 2,
+            pixels / new Vector2(source.Width, source.Height) * Scale / Device, SpriteEffects.None, 0);
     }
 
     // NotebookSurface is drawn 1:1 over the 1100×800 design plane, so the same rectangle
@@ -387,6 +430,15 @@ internal sealed class ConstellationDrawing
     {
         var delta = b - a;
         if (delta.LengthSquared() < .001f) return;
+        if (width * Device <= 1.5f)
+        {
+            // A one-pixel opaque quad has no edge coverage when rotated. Transparent padding lets
+            // linear sampling integrate the thin stroke instead of dropping diagonal fragments.
+            Batch.Draw(Texture("LineAA"), Origin + a * Scale, null, color * Math.Min(1, width * Device),
+                MathF.Atan2(delta.Y, delta.X), new Vector2(0, 1.5f),
+                new Vector2(delta.Length() * Scale / 3, Math.Max(1, width * Device) * Scale / Device), SpriteEffects.None, 0);
+            return;
+        }
         Batch.Draw(TextureAssets.MagicPixel.Value, Origin + a * Scale, new Rectangle(0, 0, 1, 1), color,
             MathF.Atan2(delta.Y, delta.X), new Vector2(0, .5f), new Vector2(delta.Length(), width) * Scale,
             SpriteEffects.None, 0);
@@ -473,6 +525,7 @@ internal sealed class ConstellationDrawing
 
     internal void Ring(Vector2 center, float rx, float ry, Color color, float width = 1, bool dashed = false, float rotation = 0)
     {
+        if (dashed) { DottedRing(center, rx, ry, color, width, rotation); return; }
         const int segments = 160;
         Vector2 Point(int i)
         {
@@ -482,7 +535,23 @@ internal sealed class ConstellationDrawing
             return center + new Vector2(v.X * c - v.Y * s, v.X * s + v.Y * c);
         }
         for (int i = 0; i < segments; i++)
-            if (!dashed || i % 4 == 0) Line(Point(i), Point(i + 1), color, width);
+            Line(Point(i), Point(i + 1), color, width);
+    }
+
+    private void DottedRing(Vector2 center, float rx, float ry, Color color, float width, float rotation)
+    {
+        // The old 160-segment ring kept 40 microscopic dashes even at an 8px diameter.
+        // Reserve at least 3 device pixels per dot and gap; a tiny tab icon becomes eight dots.
+        float circumference = MathHelper.TwoPi * MathF.Sqrt((rx * rx + ry * ry) / 2) * Device;
+        int count = Math.Clamp((int)MathF.Floor(circumference / 3), 6, 80);
+        float radius = Math.Max(.55f / Device, width * .5f);
+        float c = MathF.Cos(rotation), s = MathF.Sin(rotation);
+        for (int i = 0; i < count; i++)
+        {
+            float angle = i * MathHelper.TwoPi / count;
+            var v = new Vector2(MathF.Cos(angle) * rx, MathF.Sin(angle) * ry);
+            Dot(center + new Vector2(v.X * c - v.Y * s, v.X * s + v.Y * c), radius, color);
+        }
     }
 
     // Circular arc from `from` degrees, sweeping `sweep` degrees clockwise on screen.
@@ -500,7 +569,14 @@ internal sealed class ConstellationDrawing
     }
 
     internal void Dot(Vector2 center, float radius, Color color)
-        => Image("Disc", center.X - radius, center.Y - radius, radius * 2, radius * 2, color);
+    {
+        // The mask has a transparent one-pixel border, so the diameter here includes that padding.
+        float diameter = Math.Max(1, radius * 2 * Device);
+        var source = RasterTile(_raster["Disc"], diameter + 2);
+        float extent = diameter * source.Width / (source.Width - 2);
+        Batch.Draw(Texture("RasterMasks"), At(center.X, center.Y), source, color, 0,
+            new Vector2(source.Width, source.Height) / 2, extent * Scale / Device / source.Width, SpriteEffects.None, 0);
+    }
 
     // The small hashed constellation outside a node ring. `traced` is the time since the butterfly
     // last landed or beat its wings here: links light up one by one from the first star (0.2s each),
@@ -679,7 +755,7 @@ internal sealed class ConstellationDrawing
         // Widen for long names so the type tag never overlaps them.
         float width = Math.Max(272, pad * 2 + 25 + Measure(name, 17, 1, true) + 16 + Measure(tag, 9, 2));
         var stats = term.Stats?.Invoke() ?? [];
-        var body = new ConstellationRichText(term.Description(), width - pad * 2, 12, 21, DetailText, Device);
+        var body = new ConstellationRichText(term.Description(), width - pad * 2, 12, 21, DetailText, this);
         float statTop = bodyTop + body.Height + 10;
         float height = (stats.Length > 0 ? statTop + 29 + 44 : bodyTop + body.Height) + pad - 2;
         var p = ConstellationTooltipPlacement.Place(new Vector2(width, height), pointer, bounds, anchor);
@@ -734,19 +810,20 @@ internal sealed class ConstellationDrawing
         if (size.X <= 0 || size.Y <= 0) return;
         var key = ((int)MathF.Round(size.X / size.Y * 1000),
             (int)MathF.Round(Math.Clamp(waist, .05f, .49f) * 1000), filled);
-        Rectangle source = StarTile(_stars[key], Math.Max(size.X, size.Y) * 128f / 112);
         float extent = Math.Max(size.X, size.Y) * 128f / 112;
-        Batch.Draw(Texture("Stars"), Origin + center * Scale, source, color, rotation,
-            new Vector2(source.Width, source.Height) / 2, extent * Scale / source.Width, SpriteEffects.None, 0);
+        // Small, unrotated ornaments use native texels; avoid upscaling a 4px tile into a 6px star.
+        float pixels = extent * Device;
+        bool native = rotation == 0 && pixels <= 24;
+        if (native) pixels = Math.Max(4, MathF.Round(pixels));
+        Rectangle source = StarTile(_stars[key], pixels / Device);
+        Batch.Draw(Texture("StarsRaster"), native ? SnapCenter(center, new Vector2(pixels)) : Origin + center * Scale, source, color, rotation,
+            new Vector2(source.Width, source.Height) / 2, pixels * Scale / Device / source.Width, SpriteEffects.None, 0);
     }
 
     // PNG assets have no automatic mipmaps. Select a prefiltered tile close to screen size.
     private Rectangle StarTile(Rectangle[] levels, float extent)
     {
-        float pixels = extent * Scale * Main.UIScale;
-        int level = 0;
-        while (level + 1 < levels.Length && pixels < MathF.Sqrt(levels[level].Width * levels[level + 1].Width)) level++;
-        return levels[level];
+        return RasterTile(levels, extent * Device);
     }
 
     // 1px vertical strips colored by x, clipped to rounded corners on the left and/or right.
@@ -879,10 +956,10 @@ internal sealed class ConstellationDrawing
 
     // Sizes are design ems (a full-width Chinese advance; Gelasio's 48px master em for Latin labels).
     internal float SlotLabelWidth(string text, float size)
-        => FontManager.Gelasio_Pixels.Measure(text, size * Device) / Device;
+        => _latin.Measure(text, size * Device) / Device;
 
     internal void SlotLabel(string text, float x, float y, float size, Color color)
-        => FontManager.Gelasio_Pixels.Draw(Batch, text, At(x, y), color, size * Device, Transform);
+        => _latin.Draw(Batch, text, At(x, y), color, size * Device, Transform);
 
     // Masthead counterpart of character-progression in the approved level-preview HTML.
     // Share the actual drawing with the FNA fixture; only the fixture substitutes player data.

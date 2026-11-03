@@ -45,8 +45,9 @@ for source in sources + vanilla:
     save(atlas, OUT / source.name)
     manifest.append({'name': source.stem, 'width': w, 'height': h, 'frames': count})
 manifest_path = OUT / 'manifest.json'
+manifest.sort(key=lambda item: item['name'])
 if CHECK:
-    if not manifest_path.exists() or json.loads(manifest_path.read_text(encoding='utf-8')) != manifest:
+    if not manifest_path.exists() or sorted(json.loads(manifest_path.read_text(encoding='utf-8')), key=lambda item: item['name']) != manifest:
         raise SystemExit(f'Stale or missing outline manifest: {manifest_path}')
 else:
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')

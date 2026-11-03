@@ -1,0 +1,118 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using System.Buffers.Binary;
+using System.IO.Compression;
+using System.Text;
+
+internal static class FontBake
+{
+    private static readonly Dictionary<Texture2D, Color[]> Pages = [];
+    internal static char[] Characters(string repo, string family)
+    {
+        var sets = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int[]>>(
+            File.ReadAllText(Path.Combine(repo, "Tools/ConstellationRasterChecks/charsets.json")));
+        var codes = sets[family];
+        if (codes.Length == 0 || codes.Any(c => c < 0 || c > char.MaxValue) || codes.Distinct().Count() != codes.Length)
+            throw new InvalidDataException($"Invalid character manifest: {family}");
+        return codes.Select(c => (char)c).Order().ToArray();
+    }
+    internal static DynamicSpriteFont Bake(GraphicsDevice device, DynamicSpriteFont master, IEnumerable<char> characters, int em, string folder)
+    {
+        const int width = 1024;
+        float scale = em / 48f;
+        var glyphs = new List<(char Character, Rectangle Region, Rectangle Padding, int Advance, Color[] Pixels)>();
+        int x = 2, y = 2, row = 0;
+        foreach (char c in characters.Distinct().Order().Where(master.SpriteCharacters.ContainsKey))
+        {
+            var glyph = master.SpriteCharacters[c];
+            if (!Pages.TryGetValue(glyph.Texture, out var page))
+            {
+                using var target = new RenderTarget2D(device, glyph.Texture.Width, glyph.Texture.Height);
+                using var batch = new SpriteBatch(device);
+                device.SetRenderTarget(target); device.Clear(Color.Transparent);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+                batch.Draw(glyph.Texture, Vector2.Zero, Color.White); batch.End();
+                device.SetRenderTarget(null);
+                page = new Color[target.Width * target.Height]; target.GetData(page); Pages.Add(glyph.Texture, page);
+            }
+            float offsetX = (glyph.Padding.X + Math.Max(0, glyph.Kerning.X)) * scale, offsetY = glyph.Padding.Y * scale;
+            int left = (int)MathF.Floor(offsetX) - 1, top = (int)MathF.Floor(offsetY) - 1;
+            int w = (int)MathF.Ceiling(offsetX + glyph.Glyph.Width * scale) + 1 - left;
+            int h = (int)MathF.Ceiling(offsetY + glyph.Glyph.Height * scale) + 1 - top;
+            if (x + w + 2 > width) { x = 2; y += row + 3; row = 0; }
+            var pixels = new Color[w * h];
+            for (int dy = 0; dy < h; dy++) for (int dx = 0; dx < w; dx++)
+            {
+                float l = (left + dx - offsetX) / scale, r = l + 1 / scale;
+                float t = (top + dy - offsetY) / scale, b = t + 1 / scale;
+                double sum = 0;
+                for (int sy = Math.Max(0, (int)MathF.Floor(t)); sy < Math.Min(glyph.Glyph.Height, MathF.Ceiling(b)); sy++)
+                for (int sx = Math.Max(0, (int)MathF.Floor(l)); sx < Math.Min(glyph.Glyph.Width, MathF.Ceiling(r)); sx++)
+                    sum += page[(glyph.Glyph.Y + sy) * glyph.Texture.Width + glyph.Glyph.X + sx].A
+                        * (Math.Min(sx + 1, r) - Math.Max(sx, l)) * (Math.Min(sy + 1, b) - Math.Max(sy, t));
+                byte alpha = (byte)Math.Clamp((int)Math.Round(sum * scale * scale), 0, 255);
+                pixels[dy * w + dx] = new Color(alpha, alpha, alpha, alpha);
+            }
+            int advance = (int)MathF.Round(master.MeasureString(c.ToString()).X * scale);
+            glyphs.Add((c, new Rectangle(x,y,w,h), new Rectangle(left,top,w,h), advance, pixels));
+            x += w + 3; row = Math.Max(row,h);
+        }
+        int height = y + row + 2;
+        var atlasPixels = new Color[width * height];
+        foreach (var glyph in glyphs)
+            for (int dy = 0; dy < glyph.Region.Height; dy++)
+                Array.Copy(glyph.Pixels, dy * glyph.Region.Width, atlasPixels, (glyph.Region.Y+dy)*width+glyph.Region.X, glyph.Region.Width);
+        var atlas = new Texture2D(device,width,height); atlas.SetData(atlasPixels);
+        var font = new DynamicSpriteFont(0, (int)MathF.Round(master.LineSpacing * scale), master.DefaultCharacter);
+        foreach (var glyph in glyphs)
+            font.SpriteCharacters.Add(glyph.Character, new(atlas,glyph.Region,glyph.Padding,new Vector3(0,glyph.Advance,0)));
+        if (folder != null)
+        {
+            Directory.CreateDirectory(folder);
+            WriteMaskPng(Path.Combine(folder, em + ".png"), width, height, atlasPixels);
+            using var data = new BinaryWriter(File.Create(Path.Combine(folder, em + ".bin")));
+            data.Write(1); data.Write(font.LineSpacing); data.Write(glyphs.Count);
+            foreach (var glyph in glyphs)
+            {
+                data.Write((ushort)glyph.Character);
+                foreach (int n in new[] { glyph.Region.X,glyph.Region.Y,glyph.Region.Width,glyph.Region.Height,glyph.Padding.X,glyph.Padding.Y,glyph.Advance }) data.Write(n);
+            }
+        }
+        return font;
+    }
+
+    // A lossless 256-entry palette preserves premultiplied 8-bit coverage with one byte per pixel.
+    // FNA's generic RGBA PNG writer is much larger for a monochrome font atlas.
+    private static void WriteMaskPng(string path, int width, int height, Color[] pixels)
+    {
+        using var file = File.Create(path);
+        file.Write(new byte[] { 137,80,78,71,13,10,26,10 });
+        void Chunk(string type, byte[] bytes)
+        {
+            var length = new byte[4]; BinaryPrimitives.WriteInt32BigEndian(length,bytes.Length); file.Write(length);
+            var name = Encoding.ASCII.GetBytes(type); file.Write(name); file.Write(bytes);
+            uint crc = uint.MaxValue;
+            foreach (byte b in name.Concat(bytes))
+            {
+                crc ^= b;
+                for (int bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0 : 0xedb88320u);
+            }
+            BinaryPrimitives.WriteUInt32BigEndian(length,~crc); file.Write(length);
+        }
+        byte[] header = new byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(header,width); BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4),height);
+        header[8] = 8; header[9] = 3; Chunk("IHDR",header);
+        byte[] palette = new byte[768], alpha = new byte[256];
+        for (int i = 0; i < 256; i++) { palette[i*3] = palette[i*3+1] = palette[i*3+2] = alpha[i] = (byte)i; }
+        Chunk("PLTE",palette); Chunk("tRNS",alpha);
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(compressed,CompressionLevel.SmallestSize,true))
+            for (int y = 0; y < height; y++)
+            {
+                zlib.WriteByte(0);
+                for (int x = 0; x < width; x++) zlib.WriteByte(pixels[y*width+x].A);
+            }
+        Chunk("IDAT",compressed.ToArray()); Chunk("IEND",[]);
+    }
+}

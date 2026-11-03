@@ -2,6 +2,7 @@ using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using KL.Drawing;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -9,6 +10,7 @@ using ReLogic.Content;
 using ReLogic.Graphics;
 using Terraria.GameContent;
 using Terraria.ModLoader;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.ElainaModAlchemy.UI;
 
@@ -43,11 +45,41 @@ internal sealed partial class AlchemyDrawing
     internal SpriteBatch Batch;
     internal Vector2 Origin;
     internal float Scale = 1;
+    // Root UI transform for stable text layout; card rotation/zoom is applied by the batch separately.
+    internal Matrix Transform = Matrix.Identity;
+    internal float Device => Scale * Transform.M11;
+    private readonly ConstellationFont _sans, _serif, _latin;
+    private const string RasterRoot = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/";
+    private readonly Dictionary<(int Aspect, int Waist), Rectangle[]> _stars = [];
+    private readonly Rectangle[] _dots, _crest;
 
-    private static DynamicSpriteFont GetFont(bool serif) => serif
-        ? FontManager.NotoSerifSC.Value : FontManager.HarmonyOS_Sans_SC.Value;
-    private static float FontScale(DynamicSpriteFont font, float size)
-        => size / Math.Max(1f, font.MeasureString("国").X);
+    internal AlchemyDrawing()
+    {
+        var mod = ModContent.GetInstance<global::伊蕾娜.伊蕾娜>();
+        _sans = new(mod,"HarmonyOS_Sans_SC",FontManager.HarmonyOS_Sans_SC,9,28);
+        _serif = new(mod,"NotoSerifSC",FontManager.NotoSerifSC,9,48);
+        _latin = new(mod,"Gelasio",FontManager.Gelasio,8,26);
+        const string assets = "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/";
+        using var stars = JsonDocument.Parse(mod.GetFileBytes(assets + "StarsRaster.json"));
+        foreach (var star in stars.RootElement.EnumerateArray())
+        {
+            if (!star.GetProperty("Filled").GetBoolean()) continue;
+            var levels = new List<Rectangle>();
+            foreach (var r in star.GetProperty("Levels").EnumerateArray())
+                levels.Add(new(r[0].GetInt32(),r[1].GetInt32(),r[2].GetInt32(),r[3].GetInt32()));
+            _stars.Add((star.GetProperty("Aspect").GetInt32(),star.GetProperty("Waist").GetInt32()),levels.ToArray());
+        }
+        using var masks = JsonDocument.Parse(mod.GetFileBytes(assets + "RasterMasks.json"));
+        var dots = new List<Rectangle>();
+        foreach (var r in masks.RootElement.GetProperty("Disc").EnumerateArray())
+            dots.Add(new(r[0].GetInt32(),r[1].GetInt32(),r[2].GetInt32(),r[3].GetInt32()));
+        _dots = dots.ToArray();
+        var crest = new List<Rectangle>();
+        foreach (var r in masks.RootElement.GetProperty("AlchemyCrest").EnumerateArray())
+            crest.Add(new(r[0].GetInt32(),r[1].GetInt32(),r[2].GetInt32(),r[3].GetInt32()));
+        _crest = crest.ToArray();
+    }
+    private ConstellationFont GetFont(bool serif) => serif ? _serif : _sans;
     internal Vector2 At(float x, float y) => Origin + new Vector2(x, y) * Scale;
 
     internal Texture2D Texture(string path)
@@ -59,6 +91,23 @@ internal sealed partial class AlchemyDrawing
 
     internal void Image(string path, float x, float y, float width, float height, Color? tint = null, float rotation = 0)
     {
+        if (path == AlchemyNotebookPresentation.AssetRoot + "AlchemyCrest")
+        {
+            var matrix = BatchTransform(Batch);
+            float matrixScale = MathF.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
+            float pixels = Math.Max(1,MathF.Round(Math.Min(width,height)*Scale*matrixScale));
+            var source = RasterTile(_crest,pixels);
+            var position = At(x+width/2,y+height/2);
+            if (rotation == 0 && Math.Abs(matrix.M12)<.00001f && Math.Abs(matrix.M21)<.00001f)
+            {
+                var screen=Vector2.Transform(position,matrix);
+                screen=new Vector2(MathF.Round(screen.X-pixels/2),MathF.Round(screen.Y-pixels/2))+new Vector2(pixels/2);
+                position=Vector2.Transform(screen,Matrix.Invert(matrix));
+            }
+            Batch.Draw(Texture(RasterRoot+"RasterMasks"),position,source,tint??Color.White,rotation,
+                new Vector2(source.Width,source.Height)/2,pixels/matrixScale/source.Width,SpriteEffects.None,0);
+            return;
+        }
         if (path.StartsWith(AlchemyCatalog.VanillaItemRoot, StringComparison.Ordinal))
         {
             int itemType = int.Parse(path[AlchemyCatalog.VanillaItemRoot.Length..]);
@@ -232,6 +281,15 @@ internal sealed partial class AlchemyDrawing
     {
         Vector2 delta = b - a;
         if (delta.LengthSquared() < .001f) return;
+        var matrix = BatchTransform(Batch);
+        float device = Scale * MathF.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
+        if (width * device <= 1.5f)
+        {
+            Batch.Draw(Texture(RasterRoot + "LineAA"), At(a.X,a.Y), null, color * Math.Min(1,width*device),
+                MathF.Atan2(delta.Y,delta.X),new Vector2(0,1.5f),
+                new Vector2(delta.Length()*Scale/3,Math.Max(1,width*device)*Scale/device),SpriteEffects.None,0);
+            return;
+        }
         Batch.Draw(TextureAssets.MagicPixel.Value, Origin + a * Scale, new Rectangle(0, 0, 1, 1), color,
             MathF.Atan2(delta.Y, delta.X), new Vector2(0, .5f), new Vector2(delta.Length(), width) * Scale,
             SpriteEffects.None, 0);
@@ -296,6 +354,24 @@ internal sealed partial class AlchemyDrawing
         for (int i = 0; i < segments; i++) Line(Point(i), Point(i + 1), color, width);
     }
 
+    // Static collection row: quantize in device pixels using the actual batch transform.
+    // Each marker has identical coverage and an integer pitch, even at fractional UI scales.
+    internal void CollectionDiamond(int index, Color color, bool filled)
+    {
+        var matrix = BatchTransform(Batch);
+        float matrixScale = MathF.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
+        float device = Scale * matrixScale;
+        int pixels = Math.Clamp((int)MathF.Round(5 * device), 3, 24);
+        float pitch = Math.Max(pixels + 2, MathF.Round(8.3f * device));
+        var screen = Vector2.Transform(At(794, 126), matrix);
+        screen = new Vector2(MathF.Round(screen.X - pixels / 2f) + index * pitch,
+            MathF.Round(screen.Y - pixels / 2f)) + new Vector2(pixels / 2f);
+        var position = Vector2.Transform(screen, Matrix.Invert(matrix));
+        var source = new Rectangle(filled ? 0 : 28, (pixels - 3) * 28, pixels + 2, pixels + 2);
+        Batch.Draw(Texture(AlchemyNotebookPresentation.AssetRoot + "CollectionDiamonds"), position, source, color,
+            0, new Vector2(source.Width / 2f), 1 / matrixScale, SpriteEffects.None, 0);
+    }
+
     internal void Diamond(Vector2 center, float size, Color color, bool filled = false)
     {
         if (filled)
@@ -337,10 +413,9 @@ internal sealed partial class AlchemyDrawing
             return total;
         }
         var font = GetFont(serif);
-        float factor = FontScale(font, size);
-        if (spacing == 0) return font.MeasureString(text).X * factor;
+        if (spacing == 0) return font.Measure(text, size * Device) / Device;
         float width = 0;
-        foreach (char c in text) width += font.MeasureString(c.ToString()).X * factor + spacing;
+        foreach (char c in text) width += font.Measure(c.ToString(), size * Device) / Device + spacing;
         return Math.Max(0, width - spacing);
     }
 
@@ -349,7 +424,7 @@ internal sealed partial class AlchemyDrawing
     {
         if (string.IsNullOrEmpty(text)) return;
         var font = GetFont(serif);
-        float factor = FontScale(font, size), start = x - Measure(text, size, spacing, serif) * align;
+        float start = x - Measure(text, size, spacing, serif) * align;
         string packed = PackMagicTags(text);
         if (packed.IndexOfAny(['\uE000', '\uE001']) >= 0)
         {
@@ -364,7 +439,7 @@ internal sealed partial class AlchemyDrawing
                     start += Measure(segment, size, spacing, serif) + spacing;
                 }
                 var icon = Texture(MagicIconPath);
-                float centerY = y + font.MeasureString("国").Y * factor * .5f;
+                float centerY = y + font.Height("国", size * Device) / Device * .5f;
                 DrawPixel(icon, At(start + size * .5f, centerY), Color.White * (color.A / 255f), 0,
                     size / Math.Max(icon.Width, icon.Height) * Scale);
                 Text(MagicLabel(packed[i]), start + size * 1.12f + spacing, y, size,
@@ -377,16 +452,14 @@ internal sealed partial class AlchemyDrawing
         }
         if (spacing == 0)
         {
-            Batch.DrawString(font, text, At(start, y), color, 0, Vector2.Zero,
-                factor * Scale, SpriteEffects.None, 0);
+            font.Draw(Batch, text, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
             return;
         }
         foreach (char c in text)
         {
             string glyph = c.ToString();
-            Batch.DrawString(font, glyph, At(start, y), color, 0, Vector2.Zero,
-                factor * Scale, SpriteEffects.None, 0);
-            start += font.MeasureString(glyph).X * factor + spacing;
+            font.Draw(Batch, glyph, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
+            start += font.Measure(glyph, size * Device) / Device + spacing;
         }
     }
 
@@ -397,8 +470,8 @@ internal sealed partial class AlchemyDrawing
         var font = GetFont(serif);
         float measured = Measure(text, size, 0, serif);
         if (measured > width) size *= width / measured;
-        Batch.DrawString(font, text, At(center.X, center.Y), color, rotation, font.MeasureString(text) / 2,
-            FontScale(font, size) * Scale, SpriteEffects.None, 0);
+        font.Draw(Batch, text, At(center.X, center.Y), color, size * Device, BatchTransform(Batch),
+            Transform.M11, rotation, centered: true);
     }
 
     internal void FittedText(string text, float x, float y, float width, float size, Color color,
@@ -410,25 +483,23 @@ internal sealed partial class AlchemyDrawing
     }
 
     internal float LatinWidth(string text, float size, float spacing = 0)
-        => string.IsNullOrEmpty(text) ? 0 : FontManager.Gelasio.Value.MeasureString(text).X * size / 48f
+        => string.IsNullOrEmpty(text) ? 0 : _latin.Measure(text, size * Device) / Device
             + Math.Max(0, text.Length - 1) * spacing;
 
     internal void LatinText(string text, float x, float y, float size, Color color, float align = 0, float spacing = 0)
     {
         if (string.IsNullOrEmpty(text)) return;
-        var font = FontManager.Gelasio.Value;
+        var font = _latin;
         float start = x - LatinWidth(text, size, spacing) * align;
         if (spacing == 0)
         {
-            Batch.DrawString(font, text, At(start, y), color, 0, Vector2.Zero,
-                size / 48f * Scale, SpriteEffects.None, 0);
+            font.Draw(Batch, text, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
             return;
         }
         foreach (char c in text)
         {
             string glyph = c.ToString();
-            Batch.DrawString(font, glyph, At(start, y), color, 0, Vector2.Zero,
-                size / 48f * Scale, SpriteEffects.None, 0);
+            font.Draw(Batch, glyph, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
             start += LatinWidth(glyph, size) + spacing;
         }
     }

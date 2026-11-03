@@ -7,6 +7,7 @@ param(
     [switch]$ScrollOnly,
     [switch]$StarPowerOnly,
     [switch]$ExportMaterials,
+    [switch]$ResolutionOnly,
     [string]$Scene = '',
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug',
     [string]$Python = 'python'
@@ -57,9 +58,11 @@ $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyBrewSe
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyEfficiency.cs"
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/UI/AlchemyBrewAnimation.cs"
 $null = Add-PreviewItem 'Compile' "$PSScriptRoot/BrewingPreview.cs.txt"
+$null = Add-PreviewItem 'Compile' "$PSScriptRoot/RasterChecks.cs.txt"
 $null = Add-PreviewItem 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
 $null = Add-PreviewItem 'Compile' "$repo/System/UI/ScrollHint.cs"
 $bookUi = Join-Path $repo 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel'
+$null = Add-PreviewItem 'Compile' (Join-Path $bookUi 'ConstellationFont.cs')
 foreach ($name in @('ConstellationBookMotion','ConstellationBookRenderer','ConstellationUIClock')) {
     $null = Add-PreviewItem 'Compile' (Join-Path $bookUi "$name.cs")
 }
@@ -76,6 +79,7 @@ else {
     if ($ScrollOnly) { $previewArgs += '--scroll-only' }
     if ($StarPowerOnly) { $previewArgs += '--star-power-only' }
     if ($ExportMaterials) { $previewArgs += '--export-materials' }
+    if ($ResolutionOnly) { $previewArgs += '--resolution-only' }
     if ($Scene) { $previewArgs += "--scene=$Scene" }
     dotnet run --project $projectPath --configuration $Configuration -- @previewArgs
 }

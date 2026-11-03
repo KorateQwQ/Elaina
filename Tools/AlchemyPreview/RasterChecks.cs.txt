@@ -1,0 +1,83 @@
+using 伊蕾娜.ElainaModAlchemy.UI;
+
+internal static class AlchemyRasterChecks
+{
+    internal static void Run(SpriteBatch batch)
+    {
+        foreach(float ui in new[] {1f,1.125f,1.25f,1.5f,2f})
+        {
+            var matrix=Matrix.CreateScale(ui);
+            var d=new AlchemyDrawing {Batch=batch,Scale=.86f,Transform=matrix,Origin=new Vector2(10.25f)};
+            float before=d.Measure("月露合剂",13,serif:true);
+            var lines=d.WrapParagraph("Magic Power is restored over time. 炼金效果说明",110,13);
+            batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,RasterizerState.CullNone,null,matrix);
+            var frame=d.PushFrame(new Vector2(30),.035f,1.04f);
+            if(d.Measure("月露合剂",13,serif:true)!=before || !d.WrapParagraph("Magic Power is restored over time. 炼金效果说明",110,13).SequenceEqual(lines))
+                throw new Exception("Card motion changed text layout metrics.");
+            d.Text("月露合剂",0,0,13,Color.White,serif:true);
+            d.RotatedText("已研究",new Vector2(30,50),60,10,Color.White,-.06f);
+            d.PopFrame(frame);
+            batch.End();
+        }
+        Console.WriteLine("PASS: alchemy text layout remains stable under card transforms at five UI scales.");
+        CheckCollection(batch);
+    }
+
+    private static void CheckCollection(SpriteBatch batch)
+    {
+        var device = batch.GraphicsDevice;
+        var displays = new[] { (1366,768,1f), (1864,977,1.25f), (1920,1080,1f),
+            (1920,1080,1.125f), (1920,1080,1.25f), (2560,1440,1.5f), (3840,2160,2f) };
+        int legacyFailures = 0;
+        foreach (var (width,height,ui) in displays)
+        {
+            float fit = Math.Min(1, Math.Min((width/ui-40)/AlchemyNotebookPresentation.DesignWidth,
+                (height/ui-40)/AlchemyNotebookPresentation.DesignHeight));
+            var transform = Matrix.CreateScale(ui) * Matrix.CreateTranslation(.37f,.61f,0);
+            float scale = fit * ui;
+            int pixels = Math.Clamp((int)MathF.Round(5*scale),3,24);
+            int pitch = (int)Math.Max(pixels+2,MathF.Round(8.3f*scale));
+            foreach (bool filled in new[] { true,false })
+            foreach (bool legacy in new[] { true,false })
+            {
+                using var target = new RenderTarget2D(device,480,48);
+                device.SetRenderTarget(target);
+                device.Clear(Color.Transparent);
+                var d = new AlchemyDrawing { Batch=batch, Scale=fit, Transform=transform,
+                    Origin=new Vector2(10.25f/ui-794*fit,20.65f/ui-126*fit) };
+                batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,
+                    DepthStencilState.None,RasterizerState.CullNone,null,transform);
+                for(int i=0;i<22;i++)
+                    if(legacy) d.Diamond(new(794+i*8.3f,126),2.5f,Color.White,filled);
+                    else d.CollectionDiamond(i,Color.White,filled);
+                batch.End();
+                device.SetRenderTarget(null);
+                var data=new Color[target.Width*target.Height]; target.GetData(data);
+                int left=(int)MathF.Round(10.62f-pixels/2f)-1;
+                int top=(int)MathF.Round(21.26f-pixels/2f)-1;
+                int extent=pixels+2, difference=0;
+                for(int i=1;i<22;i++)
+                {
+                    int next=legacy ? (int)MathF.Round(10.62f+i*8.3f*scale-pixels/2f)-1 : left+i*pitch;
+                    for(int y=0;y<extent;y++) for(int x=0;x<extent;x++)
+                    {
+                        var a=data[(top+y)*target.Width+left+x];
+                        var b=data[(top+y)*target.Width+next+x];
+                        difference=Math.Max(difference,Math.Abs(a.A-b.A));
+                    }
+                }
+                if(legacy) { if(difference>2) legacyFailures++; }
+                else
+                {
+                    if(difference>2) throw new Exception($"Collection coverage varies: {width}x{height}/{ui}, filled={filled}, delta={difference}");
+                    if(!data.Any(p=>p.A>0 && p.A<255)) throw new Exception("Collection has no antialiased edge coverage.");
+                    byte center=data[(top+extent/2)*target.Width+left+extent/2].A;
+                    // Even diameters put the geometric center between four pixels.
+                    if(filled ? center<240 : center>160) throw new Exception($"Collection states are indistinct: pixels={pixels}, filled={filled}, center={center}.");
+                }
+            }
+        }
+        if(legacyFailures==0) throw new Exception("Collection regression did not detect the legacy defect.");
+        Console.WriteLine($"PASS: collection diamonds match across 22 positions at 7 display scales; legacy defect detected in {legacyFailures}/14 rows.");
+    }
+}

@@ -4,9 +4,9 @@
     [switch]$FireOnly,
     [switch]$IceWaterOnly,
     [switch]$ResolutionOnly,
-    [switch]$FontSizesOnly,
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
     [string]$Sources = 'D:/泰拉原版贴图与代码与其他工具/tModLoader',
+    [string]$SilkySources = '',
     [switch]$IconsOnly,
     [switch]$HeadersOnly,
     [switch]$RequirementsOnly,
@@ -35,7 +35,8 @@ if (!(Test-Path -LiteralPath "$Sources/Terraria/UI/Chat/TextSnippet.cs")) {
     if (Test-Path -LiteralPath "$candidate/Terraria/UI/Chat/TextSnippet.cs") { $Sources = $candidate }
     else { throw 'Terraria sources not found. Pass -Sources with the tModLoader source directory.' }
 }
-if (!(Test-Path -LiteralPath "$repo/../SilkyUIFramework/Components/SnippetModule.cs")) {
+if (!$SilkySources) { $SilkySources = "$repo/../SilkyUIFramework" }
+if (!(Test-Path -LiteralPath "$SilkySources/Components/SnippetModule.cs")) {
     throw 'Place matching SilkyUIFramework source beside this mod before running the preview.'
 }
 $out = Join-Path $repo '.vissandbox/constellation-skill-panel'
@@ -114,10 +115,10 @@ $null = Add-Item 'Compile' "$repo/System/Experience/ExperienceRules.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallSkill.Research.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallDiscoveryPlayer.cs"
 $null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
-foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
-$null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Helper/TextSnippetHelper.cs"
+foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$SilkySources/Components/$name.cs" }
+$null = Add-Item 'Compile' "$SilkySources/Helper/TextSnippetHelper.cs"
 foreach ($name in @('KLTextureSnippet','KLTextureTagHandler','KLTerms')) { $null = Add-Item 'Compile' "$repo/../KL/Drawing/Snippets/$name.cs" }
-$null = Add-Item 'Compile' "$repo/../KL/Drawing/PixelFont.cs"
+$null = Add-Item 'Compile' "$ui/ConstellationFont.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SkillUnlockCondition.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SilkyUI/SkillUIInfoAttribute.cs"
 foreach ($name in @('TextSnippet','ITagHandler')) { $null = Add-Item 'Compile' "$Sources/Terraria/UI/Chat/$name.cs" }
@@ -131,7 +132,6 @@ if ($LocalizationOnly) { $previewArgs += '--localization-only' }
 if ($FireOnly) { $previewArgs += '--fire-only' }
 if ($IceWaterOnly) { $previewArgs += '--ice-water-only' }
 if ($ResolutionOnly) { $previewArgs += '--resolution-only' }
-if ($FontSizesOnly) { $previewArgs += '--font-sizes-only' }
 if ($IconsOnly) { $previewArgs += '--icons-only' }
 if ($HeadersOnly) { $previewArgs += '--headers-only' }
 if ($RequirementsOnly) { $previewArgs += '--requirements-only' }

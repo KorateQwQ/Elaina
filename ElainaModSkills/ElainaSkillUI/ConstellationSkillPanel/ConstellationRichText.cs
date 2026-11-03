@@ -18,6 +18,7 @@ internal sealed class ConstellationRichText
 {
     private readonly List<List<TextSnippet>> _lines = [];
     private readonly float _scale, _size, _device, _lineHeight;
+    private readonly ConstellationFont _pixels;
     // Registered KL terms (icon plus same-colored name) in paragraph coordinates, for hover explanations.
     internal readonly List<(Rectangle Area, KLTerm Term)> Terms = [];
     internal float Height => _lines.Count * _lineHeight;
@@ -25,13 +26,14 @@ internal sealed class ConstellationRichText
     internal float Width { get; private set; }
 
     // `device` is the drawing's device pixels per design unit; rebuild the paragraph when it changes.
-    internal ConstellationRichText(string text, float width, float size, float lineHeight, Color color, float device)
+    internal ConstellationRichText(string text, float width, float size, float lineHeight, Color color, ConstellationDrawing drawing)
     {
         size = ConstellationDrawing.Legible(size);
         var font = FontManager.HarmonyOS_Sans_SC.Value;
         _scale = size / Math.Max(1, font.MeasureString("国").X);
         _size = size;
-        _device = device;
+        _device = drawing.Device;
+        _pixels = drawing.Sans;
         _lineHeight = lineHeight;
         var source = new List<TextSnippet>().Parse(text, color).ConvertPlainSnippet();
         var line = new List<TextSnippet>();
@@ -85,7 +87,7 @@ internal sealed class ConstellationRichText
 
     // Design-unit width of plain text, measured with the font drawn at this on-screen size.
     private float TextWidth(string text, float snippetScale = 1)
-        => FontManager.HarmonyOS_Sans_SC_Pixels.Measure(text, _size * snippetScale * _device) / _device;
+        => _pixels.Measure(text, _size * snippetScale * _device) / _device;
 
     // Mirrors SnippetModule.DrawText advances in design units: character spacing plus each snippet's width.
     private void FindTerms(List<TextSnippet> line, DynamicSpriteFont font, Color baseColor)
@@ -124,7 +126,7 @@ internal sealed class ConstellationRichText
     internal void Draw(ConstellationDrawing drawing)
     {
         var font = FontManager.HarmonyOS_Sans_SC.Value;
-        var pixels = FontManager.HarmonyOS_Sans_SC_Pixels;
+        var pixels = _pixels;
         float inset = Math.Max(0, (_lineHeight - font.LineSpacing * _scale) / 2);
         for (int i = 0; i < _lines.Count; i++)
         {

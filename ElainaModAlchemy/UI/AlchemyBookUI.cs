@@ -33,7 +33,16 @@ public sealed partial class AlchemyNotebookPanel
         spriteBatch.Draw(TextureAssets.MagicPixel.Value,
             new Rectangle(0, 0, (int)Math.Ceiling(viewport.Width / Main.UIScale), (int)Math.Ceiling(viewport.Height / Main.UIScale)),
             new Color(8, 10, 18) * (.72f * _book.BackdropAlpha));
-        if (!_book.Moving) { base.HandleDraw(gameTime, spriteBatch); return; }
+        if (!_book.Moving)
+        {
+            spriteBatch.End();
+            var previous = spriteBatch.BackupStates();
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, global::SilkyUIFramework.SilkyUI.ScissorRasterizerState, null, matrix);
+            try { base.HandleDraw(gameTime, spriteBatch); }
+            finally { spriteBatch.End(); previous.Begin(); }
+            return;
+        }
 
         var pool = (RenderTargetPool)SilkyUISystem.ServiceProvider.GetService(typeof(RenderTargetPool));
         var page = pool.Rent(viewport.Width, viewport.Height);
@@ -108,9 +117,11 @@ public sealed class AlchemyBookResources : ModSystem
         var previousBatch = drawing.Batch;
         var origin = drawing.Origin;
         float scale = drawing.Scale;
+        var transform = drawing.Transform;
         drawing.Batch = batch;
         drawing.Origin = Vector2.Zero;
         drawing.Scale = 1;
+        drawing.Transform = Matrix.Identity;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, RasterizerState.CullNone);
         bool painted = false;
@@ -121,6 +132,7 @@ public sealed class AlchemyBookResources : ModSystem
             drawing.Batch = previousBatch;
             drawing.Origin = origin;
             drawing.Scale = scale;
+            drawing.Transform = transform;
             if (!painted) { pool.Return(_cover); _cover = null; }
         }
         return _cover;

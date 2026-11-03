@@ -46,7 +46,16 @@ public sealed partial class ConstellationSkillPanel
         spriteBatch.Draw(TextureAssets.MagicPixel.Value,
             new Rectangle(0, 0, (int)Math.Ceiling(viewport.Width / Main.UIScale), (int)Math.Ceiling(viewport.Height / Main.UIScale)),
             new Color(8, 10, 18) * (.72f * _book.BackdropAlpha));
-        if (!_book.Moving) { base.HandleDraw(gameTime, spriteBatch); return; }
+        if (!_book.Moving)
+        {
+            spriteBatch.End();
+            var previous = spriteBatch.BackupStates();
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, global::SilkyUIFramework.SilkyUI.ScissorRasterizerState, null, matrix);
+            try { base.HandleDraw(gameTime, spriteBatch); }
+            finally { spriteBatch.End(); previous.Begin(); }
+            return;
+        }
 
         var pool = (RenderTargetPool)SilkyUISystem.ServiceProvider.GetService(typeof(RenderTargetPool));
         var page = pool.Rent(viewport.Width, viewport.Height);

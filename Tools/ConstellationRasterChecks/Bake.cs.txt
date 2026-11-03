@@ -1,0 +1,104 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
+
+public static class RasterBake
+{
+    // Average pixel coverage, not a single bilinear sample from a much larger source.
+    public static Bitmap Reduce(Bitmap source, int size, bool premultiplied = false)
+    {
+        var target = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        double step = source.Width / (double)size;
+        for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+        {
+            double sum = 0, red = 0, green = 0, blue = 0, l = x * step, r = (x + 1) * step, t = y * step, b = (y + 1) * step;
+            for (int sy = (int)t; sy < Math.Ceiling(b); sy++) for (int sx = (int)l; sx < Math.Ceiling(r); sx++)
+            {
+                Color pixel = source.GetPixel(Math.Min(sx, source.Width - 1), Math.Min(sy, source.Height - 1));
+                double weight = (Math.Min(sx + 1, r) - Math.Max(sx, l)) * (Math.Min(sy + 1, b) - Math.Max(sy, t));
+                sum += pixel.A * weight; red += pixel.R * weight; green += pixel.G * weight; blue += pixel.B * weight;
+            }
+            int alpha = Math.Max(0, Math.Min(255, (int)Math.Round(sum / (step * step))));
+            target.SetPixel(x, y, premultiplied
+                ? Color.FromArgb(alpha,(int)Math.Round(red/(step*step)),(int)Math.Round(green/(step*step)),(int)Math.Round(blue/(step*step)))
+                : Color.FromArgb(alpha, alpha, alpha, alpha));
+        }
+        return target;
+    }
+    public static Bitmap Star(int side, int aspect, int waist, bool filled)
+    {
+        const int ss = 8;
+        using (var high = new Bitmap(side * ss, side * ss))
+        using (var g = Graphics.FromImage(high))
+        using (var path = new GraphicsPath())
+        using (var pen = new Pen(Color.White, ss))
+        {
+            float major = side * ss * 56f / 128, hx = major, hy = major;
+            if (aspect >= 1000) hy *= 1000f / aspect; else hx *= aspect / 1000f;
+            float cx = side * ss / 2f, c = Math.Min(.49f, Math.Max(.05f, waist / 1000f));
+            var points = new[] { new PointF(0,-1), new PointF(1,0), new PointF(0,1), new PointF(-1,0), new PointF(0,-1) };
+            for (int i = 0; i < 4; i++)
+            {
+                var a = points[i]; var b = points[i+1];
+                var control = new PointF(cx + (a.X + b.X) * c * hx, cx + (a.Y + b.Y) * c * hy);
+                path.AddBezier(new PointF(cx + a.X * hx, cx + a.Y * hy), control, control, new PointF(cx + b.X * hx, cx + b.Y * hy));
+            }
+            path.CloseFigure(); g.SmoothingMode = SmoothingMode.AntiAlias;
+            if (filled) g.FillPath(Brushes.White, path); else g.DrawPath(pen, path);
+            return Reduce(high, side);
+        }
+    }
+    public static int[] Put(Bitmap atlas, Bitmap tile, ref int x, ref int y, ref int row)
+    {
+        if (x + tile.Width + 2 > atlas.Width) { x = 2; y += row + 4; row = 0; }
+        if (y + tile.Height + 2 > atlas.Height) throw new InvalidOperationException("Atlas overflow");
+        // Do not use Graphics.DrawImage: the masks are already premultiplied.
+        for (int j = 0; j < tile.Height; j++) for (int i = 0; i < tile.Width; i++) atlas.SetPixel(x+i, y+j, tile.GetPixel(i,j));
+        var area = new[] { x, y, tile.Width, tile.Height };
+        x += tile.Width + 4; row = Math.Max(row, tile.Height); return area;
+    }
+    public static Bitmap Disc(int size)
+    {
+        using (var high = new Bitmap(size * 8, size * 8))
+        using (var g = Graphics.FromImage(high))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.FillEllipse(Brushes.White, 8, 8, (size-2)*8, (size-2)*8);
+            return Reduce(high, size);
+        }
+    }
+    public static Bitmap SmallBook(int size)
+    {
+        const int ss = 8;
+        using (var high = new Bitmap(size * ss, size * ss))
+        using (var g = Graphics.FromImage(high))
+        using (var outline = new GraphicsPath())
+        using (var detail = new GraphicsPath())
+        using (var pen = new Pen(Color.White, Math.Max(1.25f, 27f / size)))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.ScaleTransform(size * ss / 32f, size * ss / 32f);
+            pen.StartCap = pen.EndCap = LineCap.Round; pen.LineJoin = LineJoin.Round;
+            // Same open-book silhouette as StudyBook.svg. At 13px, two separated page marks
+            // replace the fine hatching and diamond so the spine remains recognizable.
+            outline.AddBezier(16,9,12.6f,6.6f,8.1f,6.1f,3.5f,7.1f);
+            outline.AddLine(3.5f,7.1f,3.5f,23.1f);
+            outline.AddBezier(3.5f,23.1f,8.2f,22.1f,12.4f,22.6f,16,25);
+            outline.AddBezier(16,25,19.6f,22.6f,23.8f,22.1f,28.5f,23.1f);
+            outline.AddLine(28.5f,23.1f,28.5f,7.1f);
+            outline.AddBezier(28.5f,7.1f,23.9f,6.1f,19.4f,6.6f,16,9);
+            outline.CloseFigure(); g.DrawPath(pen,outline);
+            g.DrawLine(pen,16,9,16,25);
+            pen.Width = Math.Max(1, 22f / size);
+            detail.AddBezier(7,13,9.2f,12.8f,11.3f,13.3f,13,14.2f);
+            detail.StartFigure(); detail.AddBezier(7,18,9.2f,17.8f,11.3f,18.3f,13,19.2f);
+            detail.StartFigure(); detail.AddBezier(19,14.2f,20.7f,13.3f,22.8f,12.8f,25,13);
+            detail.StartFigure(); detail.AddBezier(19,19.2f,20.7f,18.3f,22.8f,17.8f,25,18);
+            g.DrawPath(pen,detail);
+            return Reduce(high,size);
+        }
+    }
+}

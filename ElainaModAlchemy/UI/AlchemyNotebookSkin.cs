@@ -12,7 +12,26 @@ internal sealed partial class AlchemyDrawing
     private static Vector2 Polar(float radius, float degrees)
         => new(radius * MathF.Cos(MathHelper.ToRadians(degrees)), radius * MathF.Sin(MathHelper.ToRadians(degrees)));
     internal void Dot(Vector2 center, float radius, Color color)
-        => Stretch(AlchemyNotebookPresentation.AssetRoot + "NotebookDot", center.X - radius, center.Y - radius, radius * 2, radius * 2, color);
+    {
+        var matrix = BatchTransform(Batch);
+        float device = Scale * MathF.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
+        float diameter = Math.Max(1,radius*2*device);
+        var source = RasterTile(_dots,diameter+2);
+        float extent = diameter*source.Width/(source.Width-2);
+        Batch.Draw(Texture(RasterRoot+"RasterMasks"),At(center.X,center.Y),source,color,0,
+            new Vector2(source.Width,source.Height)/2,extent*Scale/device/source.Width,SpriteEffects.None,0);
+    }
+    private static Rectangle RasterTile(Rectangle[] levels,float pixels)
+    {
+        var best=levels[0]; float distance=Math.Abs(best.Width-pixels);
+        for(int i=1;i<levels.Length;i++)
+        {
+            float next=Math.Abs(levels[i].Width-pixels);
+            if(next>=distance) continue;
+            best=levels[i]; distance=next;
+        }
+        return best;
+    }
     internal void Dots(float x1, float y1, float x2, float y2, Color color)
     {
         Vector2 a = new(x1, y1), b = new(x2, y2);
@@ -41,17 +60,27 @@ internal sealed partial class AlchemyDrawing
             float cost = Math.Abs(MathF.Log(aspect / StarRows[i].Aspect)) * 4 + Math.Abs(waist - StarRows[i].Waist) * 10;
             if (cost < best) { best = cost; row = i; }
         }
-        // Prefiltered levels 64, 32, 16, 8, 4; premultiplied alpha. The longer axis spans 112/128 of a tile.
-        int side = 64, x = 0;
+        // Share the skill notebook's dense, prefiltered tiers; no second atlas to maintain.
         float extent = Math.Max(size.X, size.Y) * 128 / 112;
         var transform = BatchTransform(Batch);
-        float pixels = extent * Scale * MathF.Sqrt(transform.M11 * transform.M11 + transform.M12 * transform.M12);
-        while (side > 4 && pixels < side * .7071f) { x += side; side /= 2; }
+        float matrixScale = MathF.Sqrt(transform.M11 * transform.M11 + transform.M12 * transform.M12);
+        float pixels = extent * Scale * matrixScale;
+        bool native = pixels<=24 && Math.Abs(aspect-StarRows[row].Aspect)<.002f &&
+            Math.Abs(transform.M12)<.00001f && Math.Abs(transform.M21)<.00001f;
+        if(native) pixels=Math.Max(4,MathF.Round(pixels));
+        var source=RasterTile(_stars[((int)MathF.Round(StarRows[row].Aspect*1000),(int)MathF.Round(StarRows[row].Waist*1000))],pixels);
         float rowAspect = StarRows[row].Aspect;
         Vector2 baked = rowAspect >= 1 ? new(1, 1 / rowAspect) : new(rowAspect, 1);
-        Batch.Draw(Texture(AlchemyNotebookPresentation.AssetRoot + "NotebookStars"), At(center.X, center.Y),
-            new Rectangle(x, row * 64, side, side), color, 0, new Vector2(side / 2f),
-            size / baked * (128f / 112 / side * Scale), SpriteEffects.None, 0);
+        var position=At(center.X,center.Y);
+        Vector2 scale=size/baked*(128f/112/source.Width*Scale);
+        if(native)
+        {
+            var screen=Vector2.Transform(position,transform);
+            screen=new Vector2(MathF.Round(screen.X-pixels/2),MathF.Round(screen.Y-pixels/2))+new Vector2(pixels/2);
+            position=Vector2.Transform(screen,Matrix.Invert(transform));
+            scale=new Vector2(pixels/matrixScale/source.Width);
+        }
+        Batch.Draw(Texture(RasterRoot+"StarsRaster"),position,source,color,0,new Vector2(source.Width,source.Height)/2,scale,SpriteEffects.None,0);
     }
     internal void Spark(Vector2 center, float size, Color color) => Star(center, new(size), color);
     internal void Trio(Vector2 center)

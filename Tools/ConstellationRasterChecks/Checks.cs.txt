@@ -1,0 +1,65 @@
+using System.Buffers.Binary;
+using Microsoft.Xna.Framework;
+using ReLogic.Content;
+using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class RasterChecks
+{
+    internal static void Fallback(string repo, string family, Asset<DynamicSpriteFont> master, int min, int max)
+    {
+        var font = new ConstellationFont(new Terraria.ModLoader.Mod(),family,master,min,max);
+        foreach (float em in new[] { min - 1f, max + 1f, 64f })
+            Require(Math.Abs(font.Measure("Test ?",em)-master.Value.MeasureString("Test ?").X*em/48f)<.001f,
+                "Out-of-range font must use the master directly");
+        var covered = FontBake.Characters(repo,family).ToHashSet();
+        char missing = master.Value.SpriteCharacters.Keys.FirstOrDefault(c=>!covered.Contains(c) && !char.IsControl(c));
+        if (missing != default)
+            Require(Math.Abs(font.Measure(missing.ToString(),14)-master.Value.MeasureString(missing.ToString()).X*14/48f)<.001f,
+                "Glyph outside the atlas must use the master directly");
+        Console.WriteLine($"PASS: {family} master fallback at size boundaries and for uncovered glyphs.");
+    }
+    internal static void Assets(string repo)
+    {
+        string folder = Path.Combine(repo,"ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/FontRaster");
+        int count = 0, glyphs = 0;
+        foreach (var (name,min,max) in new[] { ("HarmonyOS_Sans_SC",9,28),("NotoSerifSC",9,48),("Gelasio",8,26) })
+        for (int size = min; size <= max; size++)
+        {
+            string stem = Path.Combine(folder,name,size.ToString());
+            byte[] png = File.ReadAllBytes(stem+".png");
+            int width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16)), height = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20));
+            using var data = new BinaryReader(File.OpenRead(stem+".bin"));
+            Require(data.ReadInt32() == 1,"Font data version");
+            Require(data.ReadInt32() > 0,"Font line spacing");
+            int length = data.ReadInt32(); var seen = new HashSet<char>();
+            for (int i = 0; i < length; i++)
+            {
+                Require(seen.Add((char)data.ReadUInt16()),"Duplicate glyph");
+                int x=data.ReadInt32(), y=data.ReadInt32(), w=data.ReadInt32(), h=data.ReadInt32();
+                Require(w>0 && h>0 && x>=1 && y>=1 && x+w<width && y+h<height,"Glyph atlas bounds/padding");
+                data.ReadInt32(); data.ReadInt32();
+                Require(data.ReadInt32()>=0,"Negative glyph advance");
+            }
+            Require(data.BaseStream.Position==data.BaseStream.Length,"Font data trailing bytes");
+            Require(seen.Contains('?') && seen.Contains(' '),"Missing fallback or space");
+            Require(seen.SetEquals(FontBake.Characters(repo,name)),"Font atlas differs from the independent character manifest");
+            count++; glyphs+=length;
+        }
+        Console.WriteLine($"PASS: {count} font atlases, {glyphs} glyph records, complete size ranges and valid bounds.");
+    }
+    internal static void NativeText(Color[] linear, Color[] point, int width, float scale)
+    {
+        // At 100% and 112.5%, the old 30px title fell back to a scaled 48px font and depended on
+        // the sampler. Native glyphs must retain coverage with either sampler, including fractional origins.
+        int changed = 0;
+        for (int y=(int)MathF.Ceiling(12.25f*scale); y<(int)(48*scale); y++)
+        for (int x=(int)MathF.Ceiling(67.25f*scale); x<(int)(240*scale); x++)
+        {
+            var a=linear[y*width+x]; var b=point[y*width+x];
+            if (Math.Abs(a.R-b.R)>2 || Math.Abs(a.G-b.G)>2 || Math.Abs(a.B-b.B)>2) changed++;
+        }
+        Require(changed==0,$"Title resampled at scale {scale}: {changed} pixels");
+    }
+    private static void Require(bool condition,string message) { if (!condition) throw new InvalidDataException(message); }
+}

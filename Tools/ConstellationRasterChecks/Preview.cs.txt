@@ -1,0 +1,177 @@
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Content;
+using ReLogic.Graphics;
+using KL.Drawing;
+using Terraria;
+using Terraria.GameContent;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+namespace ReLogic.Content { public sealed class Asset<T>(T value) { public T Value => value; public bool IsLoaded => true; } }
+namespace Terraria { public static class Main { public static float UIScale = 1; } }
+namespace Terraria.ModLoader
+{
+    public sealed class Mod { public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(PreviewAssets.Repo,path)); }
+    public static class ModContent
+    {
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(object)PreviewAssets.Load(path));
+    }
+}
+internal static class PreviewAssets
+{
+    internal static string Repo;
+    internal static GraphicsDevice Device;
+    private static readonly Dictionary<string,Texture2D> Textures = [];
+    internal static Texture2D Load(string path)
+    {
+        if (!Textures.TryGetValue(path,out var texture))
+        {
+            using var file = File.OpenRead(Path.Combine(Repo,path[(path.IndexOf('/')+1)..]+".png"));
+            Textures[path] = texture = Texture2D.FromStream(Device,file);
+        }
+        return texture;
+    }
+}
+namespace Terraria.GameContent { public static class TextureAssets { public static Asset<Texture2D> MagicPixel; } }
+namespace KL.Drawing
+{
+    public static class FontManager
+    {
+        public static Asset<DynamicSpriteFont> HarmonyOS_Sans_SC, NotoSerifSC, Gelasio;
+    }
+}
+
+internal sealed class RasterDrawing
+{
+    internal SpriteBatch Batch;
+    internal Matrix Transform = Matrix.Identity;
+    internal Vector2 Origin;
+    internal float Scale = 1;
+    internal float Device => Scale * Transform.M11;
+    private readonly Dictionary<string, Texture2D> _textures = [];
+    private readonly Dictionary<(int Aspect, int Waist, bool Filled), Rectangle[]> _stars = [];
+    private readonly Dictionary<string, Rectangle[]> _raster = [];
+    private readonly ConstellationFont _sans, _serif, _latin;
+    private ConstellationFont GetFont(bool serif) => serif ? _serif : _sans;
+    private readonly string _assets;
+    private sealed class StarRegion { public int Aspect { get; set; } public int Waist { get; set; } public bool Filled { get; set; } public int[][] Levels { get; set; } }
+    internal RasterDrawing(SpriteBatch batch, string assets)
+    {
+        Batch = batch; _assets = assets;
+        var mod = new Terraria.ModLoader.Mod();
+        _sans = new(mod,"HarmonyOS_Sans_SC",FontManager.HarmonyOS_Sans_SC,9,28);
+        _serif = new(mod,"NotoSerifSC",FontManager.NotoSerifSC,9,48);
+        _latin = new(mod,"Gelasio",FontManager.Gelasio,8,26);
+        foreach (var star in JsonSerializer.Deserialize<StarRegion[]>(File.ReadAllText(Path.Combine(assets, File.Exists(Path.Combine(assets, "StarsRaster.json")) ? "StarsRaster.json" : "Stars.json"))))
+            _stars.Add((star.Aspect, star.Waist, star.Filled), star.Levels.Select(r => new Rectangle(r[0], r[1], r[2], r[3])).ToArray());
+        string raster = Path.Combine(assets, "RasterMasks.json");
+        if (File.Exists(raster))
+            foreach (var entry in JsonSerializer.Deserialize<Dictionary<string, int[][]>>(File.ReadAllText(raster)))
+                _raster.Add(entry.Key, entry.Value.Select(r => new Rectangle(r[0], r[1], r[2], r[3])).ToArray());
+    }
+    internal Texture2D Texture(string name)
+    {
+        if (!_textures.TryGetValue(name, out var texture))
+        {
+            using var file = File.OpenRead(Path.Combine(_assets, name + ".png"));
+            _textures[name] = texture = Texture2D.FromStream(Batch.GraphicsDevice, file);
+        }
+        return texture;
+    }
+    // PRODUCTION_METHODS
+}
+
+internal sealed class RasterGame : Game
+{
+    private readonly string _repo, _label;
+    private bool _done;
+    internal RasterGame(string repo, string label)
+    {
+        _repo = repo; _label = label;
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        SDL2.SDL.SDL_HideWindow(Window.Handle);
+        IsFixedTimeStep = false;
+    }
+    protected override void LoadContent()
+    {
+        PreviewAssets.Repo = _repo; PreviewAssets.Device = GraphicsDevice;
+        Content.RootDirectory = Path.GetFullPath(Path.Combine(_repo, "../KL/Fonts"));
+        Asset<DynamicSpriteFont> Load(string name, int min, int max)
+        {
+            var master = new Asset<DynamicSpriteFont>(Content.Load<DynamicSpriteFont>(name));
+            Console.WriteLine($"{name}: {master.Value.SpriteCharacters.Count} master glyphs, {master.Value.SpriteCharacters.First().Value.Texture.Format}");
+            var characters = FontBake.Characters(_repo, name);
+            if (characters.Any(c => !master.Value.IsCharacterSupported(c)))
+                throw new InvalidDataException($"{name}: character manifest exceeds master coverage.");
+            if (_label == "bake-fonts")
+            {
+                foreach (int n in Enumerable.Range(min, (name == "NotoSerifSC" ? 48 : max) - min + 1))
+                {
+                    string folder = Path.Combine(_repo, "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/FontRaster", name);
+                    var baked = FontBake.Bake(GraphicsDevice, master.Value, characters, n, folder);
+                    foreach (var texture in baked.SpriteCharacters.Values.Select(g => g.Texture).Distinct()) texture.Dispose();
+                }
+            }
+            return master;
+        }
+        FontManager.HarmonyOS_Sans_SC = Load("HarmonyOS_Sans_SC", 9, 28);
+        FontManager.NotoSerifSC = Load("NotoSerifSC", 9, 28);
+        FontManager.Gelasio = Load("Gelasio", 8, 26);
+        RasterChecks.Fallback(_repo,"HarmonyOS_Sans_SC",FontManager.HarmonyOS_Sans_SC,9,28);
+        RasterChecks.Fallback(_repo,"NotoSerifSC",FontManager.NotoSerifSC,9,48);
+        RasterChecks.Fallback(_repo,"Gelasio",FontManager.Gelasio,8,26);
+        var pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        TextureAssets.MagicPixel = new(pixel);
+    }
+    protected override void Update(GameTime gameTime)
+    {
+        if (_done) return; _done = true;
+        string output = Path.Combine(_repo, ".vissandbox/constellation-raster", _label);
+        Directory.CreateDirectory(output);
+        using var batch = new SpriteBatch(GraphicsDevice);
+        var d = new RasterDrawing(batch, Path.Combine(_repo, "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets"));
+        RasterChecks.Assets(_repo);
+        Color[] linearPixels = null;
+        foreach (float scale in new[] { .86f, 1f, 1.125f, 1.25f, 1.5f, 2f })
+        foreach (bool point in new[] { false, true })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, (int)Math.Ceiling(660 * scale), (int)Math.Ceiling(270 * scale));
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(36, 31, 50));
+            // Match the non-integer UI matrix, not just a scaled drawing with identity transform.
+            Terraria.Main.UIScale = scale; d.Scale = 1; d.Transform = Matrix.CreateScale(scale); d.Origin = new Vector2(12.25f, 12.25f);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, point ? SamplerState.PointClamp : SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, null, d.Transform);
+            Color ink = new(226, 211, 242);
+            d.Image("HeaderHat", 0, 0, 40, 40, ink);
+            d.Text("魔女手札", 55, 0, 30, ink, serif: true, spacing: 3);
+            d.Ring(new Vector2(12, 68), 4, 4, ink, 1, true);
+            d.Text("未显现", 26, 60, 14, ink, serif: true, spacing: 2);
+            d.LatinText("14", 92, 65, 9.5f, ink);
+            foreach (var (size, x) in new[] { (5f, 130f), (8f, 160f), (11f, 195f), (16f, 235f), (24f, 280f) })
+                d.CrossStar(new Vector2(x, 70), new Vector2(size), ink, .2f);
+            d.Ring(new Vector2(340, 68), 29, 29, ink * .5f, 1, true);
+            d.Ring(new Vector2(415, 68), 29, 29, ink * .5f);
+            d.Image("StudyBook",470,48,13,13,ink);
+            d.Image("StudyBook",500,48,15,15,ink);
+            d.Image("StudyBook",535,42,27,27,ink);
+            d.Text("伊蕾娜使用魔力释放技能，每获得一点原版", 0, 108, 13, ink);
+            d.Text("最大魔力值，提升一点魔力上限。", 0, 132, 13, ink);
+            d.Text("已习得  待研习  待启封  未显现", 0, 163, 14, ink, serif: true, spacing: 2);
+            d.Text("角色等级  上限  经验  已启用", 0, 193, 11, ink);
+            d.LatinText("LV. 1 / 100   0123456789", 0, 222, 10, ink);
+            batch.End(); GraphicsDevice.SetRenderTarget(null);
+            if (scale is 1f or 1.125f)
+            {
+                var pixels = new Color[target.Width*target.Height]; target.GetData(pixels);
+                if (!point) linearPixels=pixels;
+                else RasterChecks.NativeText(linearPixels,pixels,target.Width,scale);
+            }
+            using var file = File.Create(Path.Combine(output, $"raster-{scale:0.###}-{(point ? "point" : "linear")}.png"));
+            target.SaveAsPng(file, target.Width, target.Height);
+        }
+        Console.WriteLine("Raster samples: " + output);
+        Console.WriteLine("PASS: native title coverage is independent of sampler at 100% and 112.5%.");
+        Exit();
+    }
+    static void Main(string[] args) { using var game = new RasterGame(args[0], args[1]); game.Run(); }
+}

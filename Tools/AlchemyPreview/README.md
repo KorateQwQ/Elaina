@@ -1,5 +1,30 @@
 # 炼金手记 FNA 离线预览
 
+## 研究收录菱形（2026-11-04）
+
+研究收录改用 `CollectionDiamonds.png` 中 3–24 屏幕像素的预制层级。实心与空心采用相同外轮廓，32×32 子像素面积覆盖生成预乘 RGBA；绘制时读取实际 SpriteBatch 变换，统一直径、起点和整数像素间距，按 1:1 纹素显示。该对齐仅用于静态研究收录行，其他旋转或动画菱形沿用各自绘法。
+
+资源重建：`powershell -NoProfile -ExecutionPolicy Bypass -File Tools/AlchemyPreview/bake_collection.ps1`。常规 `-ResolutionOnly` 同时验证 7 组分辨率与缩放下的 22 个位置，包含非整数矩阵与平移；实心/空心逐像素 Alpha 差异不超过 2，并检查边缘覆盖和中心区分。旧绘法在 14/14 组状态行中暴露差异，修复后的 14 组通过。已查看全部 7 张原生尺寸对比，输出为 `.vissandbox/alchemy-preview/collection-comparison.png`。
+
+离线预览使用正式绘制代码；游戏内重载与观察尚未完成。完整打包因正在运行的游戏占用模组而被 TML003 阻止。编译时发现原有 `RevealingRecipeChests.VisibleChests` 将 ref-struct 枚举器用于迭代器，已把区域判断提取到普通方法，保留原有筛选与每个宝箱只返回一次的行为；修正后 Release 源码编译通过，`Tools/AlchemyChestChecks` 对正式编译产物的 106 项检查全部通过。
+
+## 小尺寸清晰度与共用资源（2026-11-04）
+
+炼金文字现复用技能面板的 `ConstellationFont` 与同一批 `FontRaster` 资源，缺字或字号越界直接回退 KL 母版，不新增第二套字号文件。测量、换行和绘制共用实际屏幕字号；根 UI 缩放变化会重建详情行。卡片的旋转与缩放仅影响绘制变换，保持文字度量稳定；封面绘制临时使用自身的单位变换，结束后恢复根变换。
+
+标题徽记使用 `RasterMasks` 中的面积滤波层级，星芒、圆点与细线复用技能面板的 `StarsRaster` / `RasterMasks` / `LineAA`。正式物品和材料像素图仍沿用原像素绘制路径。共用资源在 `Tools/ConstellationRasterChecks/bake.ps1` 重建。
+
+```powershell
+pwsh -File Tools/AlchemyPreview/run.ps1 -ResolutionOnly -Scene raster-regression -Configuration Release
+pwsh -File Tools/AlchemyPreview/run.ps1 -ResolutionOnly -Scene raster-regression -Culture en-US -Configuration Release
+```
+
+通过 `-Tml` 指定游戏目录，`-Python` 指定带 Pillow 的 Python。`raster-regression` 覆盖目录页、星力药水、详情底部和素材初始状态；每种语言输出 28 张原生尺寸图，覆盖 1366×768 / 100%、1864×977 / 125%、1920×1080 / 100%、112.5%、125%、2560×1440 / 150%、3840×2160 / 200%。分辨率模式也检查五种 UI 缩放下卡片变换不改变文字测量和换行。
+
+资源验证仍运行 `bake_redesign.py --check`，本次校正了已不在正式材料目录中的 `Item_751` 旧清单条目，并使清单比较与文件枚举顺序无关；65 张现用轮廓逐像素检查通过，实际绘制启动继续检查正式目录的所有描边。没有修改材料、配方或像素物品图。
+
+最初的完整构建受 `RevealingRecipeChests.cs:102` 的 CS8344 阻断；同日研究收录修复阶段已消除该编译错误，见上文。上述正式绘制代码的离线渲染与资源验证未替换正在运行的游戏模组。
+
 ## 瓶中雨简化为雨云与玻璃瓶（2026-10-28）
 
 瓶中雨每批仅需雨云 ×1、玻璃瓶 ×1，产出瓶中雨 ×1。材料映射使用本机 `ItemID.RainCloud`（765）与 `ItemID.Bottle`（31），中英文名称均引用原版本地化；正式描边为 `UI/Assets/Outlines/Item_765.png` 与 `Item_31.png`，已同步清单。依次运行 `pwsh -File Tools/AlchemyPreview/run.ps1 -ExportMaterials`、`python Tools/AlchemyPreview/bake_redesign.py`、`python Tools/AlchemyPreview/bake_redesign.py --check` 和 `pwsh -File Tools/AlchemyPreview/run.ps1 -Scene curio-rain` 可复现。66 张描边及正式目录资源检查通过，已打开本次 `output/zh-Hans/curio-rain-1600x1000-1.00.png` 和 `curio-rain-1600x1000-1.25.png`，确认两种材料的图标、数量、材料行与制作底栏正常。`dotnet msbuild 伊蕾娜.csproj /t:Compile /p:Configuration=Debug /p:BuildProjectReferences=false` 编译通过，仍有项目既有警告。预览链接正式目录和绘制源码；实际游戏内炼制与背包扣料尚未验证。

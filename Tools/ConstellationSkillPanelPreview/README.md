@@ -1,6 +1,6 @@
 # 正式技能面板离线验证
 
-`-ResolutionOnly -SkipChecks -Configuration Release` 按原生分辨率导出治愈术详情、术语提示和水流技能三个场景，覆盖支持的三种显示配置：1920×1080 / 100%、2560×1440 / 150%、3840×2160 / 200% UI 缩放。输出在 `output/<culture>/resolution-comparison/<场景>-<宽>x<高>-ui<百分比>.png`，PNG 不做后期缩放。面板和游戏内一样最多按设计尺寸显示，因此三种配置的屏幕字号分别是设计字号的 1、1.5、2 倍。字体请在图片查看器 100% 比例下判断。`-FontSizesOnly` 列出三种配置下面板请求的全部屏幕字号，供 `Tools/FontTiers` 确定烘焙字号。
+`-ResolutionOnly -SkipChecks -Configuration Release` 按原生分辨率导出治愈术详情、术语提示和水流技能三个场景，覆盖 1366×768 / 100%、1864×977 / 125%、1920×1080 / 100%、112.5%、125%、150%、2560×1440 / 150%、3840×2160 / 200%。输出在 `output/<culture>/resolution-comparison/<场景>-<宽>x<高>-ui<百分比>.png`，PNG 不做后期缩放；面板仍按游戏内规则缩放至可用屏幕。字体请在图片查看器 100% 比例下判断。2026-11-04 起技能面板使用自己的面积滤波字号图集，资源重建与细节回归见 `Tools/ConstellationRasterChecks/README.md`。旧小字号 XNB 与 `-FontSizesOnly` 探针已移除，字体范围和字符清单由新工具维护。
 
 `pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、20 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。
 

@@ -35,7 +35,7 @@ internal static partial class AlchemyNotebookPresentation
         for (int i=0;i<AlchemyCatalog.Recipes.Count;i++)
         {
             var r=AlchemyCatalog.Recipes[i]; bool known=s.IsUnlocked(r);
-            d.Diamond(new(794+i*8.3f,126),2.5f,known ? Ink : s.Research(r).CanResearch ? Gold : Muted*.5f,known);
+            d.CollectionDiamond(i,known ? Ink : s.Research(r).CanResearch ? Gold : Muted*.5f,known);
         }
         d.Dots(26,145.5f,731,145.5f,Dots); d.Trio(new(753.5f,145.5f)); d.Dots(776,145.5f,1074,145.5f,Dots);
         d.Dots(753.5f,156,753.5f,700,Dots);

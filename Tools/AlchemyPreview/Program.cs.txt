@@ -18,6 +18,7 @@ internal sealed class AlchemyPreviewGame : Game
     private static bool ScrollOnly;
     private static bool StarPowerOnly;
     private static bool ExportMaterials;
+    private static bool ResolutionOnly;
     private static string FocusScene;
     private bool done;
 
@@ -85,6 +86,7 @@ internal sealed class AlchemyPreviewGame : Game
             return;
         }
         using var batch = new SpriteBatch(Device);
+        if (ResolutionOnly) AlchemyRasterChecks.Run(batch);
         if (FocusScene == "cauldron-animations")
         {
             BrewingPreview.Run(Device, batch, Repo, output);
@@ -118,8 +120,16 @@ internal sealed class AlchemyPreviewGame : Game
             select $"recipe-{id}-{status}";
         scenes = scenes.Concat(scrollScenes).ToArray();
         if (StarPowerOnly) scenes = ["starpower"];
-        if (FocusScene != null) scenes = FocusScene == "recipe-scrolls" ? scrollScenes.ToArray() : [FocusScene];
-        foreach (var (width, height, uiScale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
+        if (FocusScene != null) scenes = FocusScene switch
+        {
+            "recipe-scrolls" => scrollScenes.ToArray(),
+            "raster-regression" => ["all","starpower","detail-bottom","material-initial"],
+            _ => [FocusScene]
+        };
+        var displays = ResolutionOnly
+            ? new[] { (1366,768,1f), (1864,977,1.25f), (1920,1080,1f), (1920,1080,1.125f), (1920,1080,1.25f), (2560,1440,1.5f), (3840,2160,2f) }
+            : new[] { (1600,1000,1f), (1280,720,1f), (1600,1000,1.25f) };
+        foreach (var (width, height, uiScale) in displays)
         foreach (string scene in scenes)
         {
             using var target = new RenderTarget2D(Device, width, height);
@@ -314,6 +324,7 @@ internal sealed class AlchemyPreviewGame : Game
         QuillOnly = args.Contains("--quill-only");
         StarPowerOnly = args.Contains("--star-power-only");
         ExportMaterials = args.Contains("--export-materials");
+        ResolutionOnly = args.Contains("--resolution-only");
         FocusScene = args.FirstOrDefault(a => a.StartsWith("--scene="))?[8..];
         ScrollOnly = args.Contains("--scroll-only");
         using var game = new AlchemyPreviewGame();

@@ -99,15 +99,17 @@ public sealed class RevealingRecipeChests : ModSystem
             Tile tile = Main.tile[point.X, point.Y];
             if (!tile.HasTile || !TileID.Sets.BasicChest[tile.TileType]) continue;
             Vector2 center = new(point.X * 16 + 16, point.Y * 16 + 16);
-            foreach (var projectile in Main.ActiveProjectiles)
-            {
-                if (projectile.owner != Main.myPlayer || projectile.ModProjectile is not RevealingDustArea area
-                                                      || !area.Contains(center)) continue;
-                yield return point;
-                break;
-            }
-
+            if (IsInsideLocalRevealingArea(center)) yield return point;
         }
+    }
+
+    // ActiveProjectiles has a ref-struct enumerator, which cannot span a yield.
+    private static bool IsInsideLocalRevealingArea(Vector2 center)
+    {
+        foreach (var projectile in Main.ActiveProjectiles)
+            if (projectile.owner == Main.myPlayer && projectile.ModProjectile is RevealingDustArea area
+                                                  && area.Contains(center)) return true;
+        return false;
     }
 
     private void Reset()

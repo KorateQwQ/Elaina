@@ -19,12 +19,15 @@ namespace Terraria
 }
 namespace Terraria.ModLoader
 {
+    public class Mod { public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(AlchemyPreviewGame.Repo,path)); }
     public static class ModContent
     {
+        public static T GetInstance<T>() where T : new() => new();
         public static Asset<T> Request<T>(string path, AssetRequestMode mode)
             => new((T)(object)AlchemyPreviewGame.Texture(path));
     }
 }
+namespace 伊蕾娜 { public sealed class 伊蕾娜 : Terraria.ModLoader.Mod { } }
 namespace Terraria.GameContent
 {
     public static class TextureAssets { public static Asset<Texture2D> MagicPixel; }

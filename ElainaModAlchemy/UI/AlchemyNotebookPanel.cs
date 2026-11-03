@@ -36,7 +36,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
     private ElasticPageScrollView _catalog, _detail;
     private SUIScrollView _bagScroll;
     private AlchemyCatalogMaterial[] _bagMaterials = [];
-    private float _scale = 1, _lastScale = 1, _flash, _toastTime, _clock;
+    private float _scale = 1, _lastScale = 1, _flash, _toastTime, _clock, _textDevice;
     private string _craftedId, _toast;
     private bool _dirty = true, _resetScroll = true;
     private bool _revealSelection;
@@ -208,6 +208,7 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         _draw.Batch = batch;
         _draw.Origin = view.Bounds.Position;
         _draw.Scale = _scale;
+        _draw.Transform = SilkyUI.TransformMatrix;
         paint(_draw);
     }
     private void Dirty(bool reset) { _dirty = true; _resetScroll |= reset; }
@@ -417,6 +418,9 @@ public sealed partial class AlchemyNotebookPanel : BaseBody
         }
         _flash = Math.Max(0, _flash - dt * 1.25f);
         _toastTime = Math.Max(0, _toastTime - dt);
+        _draw.Scale = _scale;
+        _draw.Transform = Main.UIScaleMatrix;
+        if (_textDevice != _draw.Device) { _textDevice = _draw.Device; Dirty(false); }
         if (_dirty) RefreshViews();
         foreach (var (view, _) in _cards) view.DisableMouseInteraction = Brewing;
         foreach (var view in _quantityControls) view.DisableMouseInteraction = Brewing;
