@@ -23,7 +23,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         internal bool TrySelectTarget(Vector2 from, Point current, bool currentWall, out Point target, out bool wall, DollPetProjectile worker = null)
         { target = new(-1, -1); wall = false; return false; }
         internal void Hit(Point point, bool walls, DollPetProjectile worker = null) => throw new Exception("Mining outside garden fixture");
-        internal int HitInterval(bool walls) => 6;
+        internal int HitInterval(Point point, bool walls) => 6;
 
         // Gardening only runs while idle. Fixtures hold it with a pending mark far from every pot (TrySelectTarget never
         // picks it here), and release it the way finishing that task would.

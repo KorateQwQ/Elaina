@@ -18,10 +18,11 @@ using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.Items;
 using GameMain = Terraria.Main;
 
-static class Checks
+static partial class Checks
 {
     const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
     static int passed;
+    static string rootDirectory;
     static void Check(bool value, string name) { if (!value) throw new Exception(name); passed++; }
     static void Near(double value, double expected, string name) => Check(Math.Abs(value - expected) < .0001, $"{name}: {value} != {expected}");
     static void Clock(uint tick) => typeof(GameMain).GetField("_gameUpdateCount", All)!.SetValue(null, tick);
@@ -30,7 +31,7 @@ static class Checks
     static Player PlayerFixture(int index)
     {
         var player = new Player { whoAmI = index, active = true };
-        var parts = new ModPlayer[] { new IceCyclePlayer(), new ElainaSkillModPlayer(), new FreezeBuildupPlayer(),
+        var parts = new ModPlayer[] { new IceCyclePlayer(), new ElainaSkillModPlayer(), new FreezeBuildupPlayer(), new WaterExposurePlayer(),
             new ElainaAttributeModPlayer(), new ActionModPlayer(), new global::伊蕾娜.ElainaModplayer { Elaina = true },
             new ElainaManaElixirPlayer() };
         for (ushort i = 0; i < parts.Length; i++) {
@@ -51,15 +52,16 @@ static class Checks
         var npc = new NPC { active = true, whoAmI = index, type = NPCID.BlueSlime, realLife = realLife, life = 10000, lifeMax = 10000 };
         npc.buffImmune = new bool[BuffLoader.BuffCount];
         var icebound = new IceboundNPC(); icebound.SetDefaults(npc);
-        typeof(NPC).GetField("_globals", All)!.SetValue(npc, new GlobalNPC[] { new ElementalGlobalNPC(), icebound });
+        typeof(NPC).GetField("_globals", All)!.SetValue(npc, new GlobalNPC[] { new ElementalGlobalNPC(), icebound, NewFire(npc), new WaterExposureNPC() });
         GameMain.npc[index] = npc;
         return npc;
     }
+    static FireBurnNPC NewFire(NPC npc) { var fire = new FireBurnNPC(); fire.SetDefaults(npc); return fire; }
     static void FreezeCD(NPC npc, int ticks) => typeof(ElementalGlobalNPC).GetField("freezeCooldown", All)!.SetValue(npc.GetGlobalNPC<ElementalGlobalNPC>(), ticks);
     static void TriggerFreeze(NPC npc, int sourcePlayer)
     {
         var global = npc.GetGlobalNPC<ElementalGlobalNPC>();
-        global.SetCurrentAccumulation(ElementType.Ice, 98);
+        global.SetCurrentAccumulation(ElementType.Ice, 99);
         global.OnHitByElement(ElementType.Ice, npc, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, sourcePlayer, 2.8f);
     }
     static T Attach<T>(T modProjectile, int owner = 0) where T : ModProjectile
@@ -70,6 +72,7 @@ static class Checks
     }
     static void Main(string[] args)
     {
+        rootDirectory = Path.GetFullPath(args[0]);
         Terraria.Program.SavePath = Path.GetTempPath(); GameMain.dedServ = true; GameMain.netMode = NetmodeID.SinglePlayer; GameMain.myPlayer = 0;
         GameMain.combatText = Enumerable.Range(0, 100).Select(_ => new CombatText { active = true }).ToArray();
         for (int i = 0; i < GameMain.npc.Length; i++) GameMain.npc[i] = new NPC { active = false, whoAmI = i };
@@ -79,7 +82,7 @@ static class Checks
         typeof(ModType).GetProperty("Mod", All)!.SetValue(template, mod);
         typeof(GlobalNPC).GetMethod("Register", All)!.Invoke(template, null);
         ContentInstance.Register(template);
-        Register(mod, new IceboundNPC());
+        Register(mod, new IceboundNPC()); Register(mod, new FireBurnNPC()); Register(mod, new WaterExposureNPC());
         Register(mod, new ElementalAffliction_Freeze()); Register(mod, new ElementalAffliction_Fire());
         Register(mod, new ElementalAffliction_Electrocuted()); Register(mod, new ElementalAffliction_Wet());
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(BuffID.Sets).TypeHandle);
@@ -102,23 +105,9 @@ static class Checks
         Check(renamedLoader.UnlockedSkill.Count == 0 && renamedLoader.ActiveSkill.All(s => s == null),
             "Save with removed IceShardLockSkill type loads without error and drops it");
 
-        FreezeCD(target, 600); FreezeCD(other, 600);
-        var batch = new IceWaterHitBatch();
-        batch.OnHit(player, target, 0, false); Near(skill.CurrentCD, 60, "No damage gives no refund");
-        batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 59.7, "Beam first hit refund"); Near(target.GetFreezeCooldown(), 570, "Beam freeze refund");
-        batch.OnHit(player, part, 1, false); Near(skill.CurrentCD, 59.7, "Shared part no extra skill refund"); Near(target.GetFreezeCooldown(), 570, "Shared anchor no duplicate freeze refund");
-        batch.OnHit(player, other, 1, false); Near(skill.CurrentCD, 59.7, "Second enemy no extra skill refund"); Near(other.GetFreezeCooldown(), 570, "Independent enemy receives freeze refund");
-        batch.Reset(); batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 59.4, "Next paid pulse refunds again");
-        FreezeCD(target, 1200); FreezeCD(other, 1200);
-        batch = new IceWaterHitBatch(); batch.OnHit(player, target, 1, true); batch.OnHit(player, target, 1, true); batch.OnHit(player, part, 1, true); batch.OnHit(player, other, 1, true);
-        Near(skill.CurrentCD, 51.4, "Orb direct and explosion refund once"); Near(target.GetFreezeCooldown(), 600, "Orb same target and shared parts refund once"); Near(other.GetFreezeCooldown(), 600, "Orb other enemy receives ten-second freeze refund");
-        FreezeCD(target, 0); batch.Reset(); batch.OnHit(player, target, 1, false); Near(skill.CurrentCD, 51.1, "Fresh phase target still refunds lock"); Near(target.GetFreezeCooldown(), 0, "No negative freeze CD");
-        batch.Reset(); batch.OnHit(otherPlayer, target, 1, true); Near(otherSkill.CurrentCD, 60, "Remote player's client callbacks do not refund");
-        cycle.ReduceLockCooldown(100); Check(skill.Stack == 1 && skill.CurrentCD == 0, "Refund completes a charge immediately");
-        Check(((ShardbindSkill)skill.ModSkill).IsSealed, "Water completing cooldown cannot unseal");
-        skill.UpdateCD(1f / 60); Check(skill.Stack == 1, "Next framework tick does not add a second charge");
-        cycle.ReduceLockCooldown(18); Check(skill.Stack == 1 && skill.CurrentCD == 0, "Ready skill banks nothing");
-        skill.Stack = 0; skill.StartCooldown(60); Near(skill.CurrentCD, 60, "No stored refund on next cast");
+        Check(typeof(IceCyclePlayer).GetMethod("ReduceLockCooldown") == null && typeof(IceCyclePlayer).GetMethod("ApplyWaterHit") == null,
+            "Water cooldown refund entry points removed");
+        CheckWaterExposure(player, skill);
 
         var buildUp = new ElementBuildUpSystem(); buildUp.Load();
         new IceCycleSystem().Load();
@@ -129,21 +118,22 @@ static class Checks
         var sealedSkill = (ShardbindSkill)skill.ModSkill;
         var otherSealed = (ShardbindSkill)otherSkill.ModSkill;
         Check(sealedSkill.IsSealed && otherSealed.IsSealed, "Skills start sealed even when cooldown can recover");
-        for (int i = 0; i < 17; i++) global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f);
+        target.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 600);
+        for (int i = 0; i < 17; i++) { Clock((uint)(100 + i * 2)); global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f); }
         Check(!target.HasBuff<ElementalAffliction_Freeze>() && sealedSkill.IsSealed, "17 hits do not freeze or unseal");
-        global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f);
+        Clock(134); global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f);
         Check(target.HasBuff<ElementalAffliction_Freeze>() && part.HasBuff<ElementalAffliction_Freeze>(), "18th hit freezes shared group");
         Near(target.buffTime[target.FindBuffIndex(ModContent.BuffType<ElementalAffliction_Freeze>())], 240, "Freeze lasts four seconds");
         Check(!sealedSkill.IsSealed && otherSealed.IsSealed, "Freeze unseals only its source player");
         Near(skill.CurrentCD, 60, "Freeze does not refund cooldown");
         Near(otherSkill.CurrentCD, 60, "Other player's cooldown unchanged");
         Near(sealedSkill.SealReleaseAge, 0, "Unseal starts visual animation");
-        Clock(101); TriggerFreeze(NpcFixture(3), 0);
+        Clock(135); TriggerFreeze(NpcFixture(3), 0);
         Check(!sealedSkill.Unseal(), "Repeated freezes do not bank another release");
         Near(sealedSkill.SealReleaseAge, 1f / 60, "Repeated freeze does not restart release animation");
         sealedSkill.Seal();
         cycle.ReceiveFreezeReward(2); Check(sealedSkill.IsSealed, "Duplicate event cannot unseal after a cast");
-        Clock(102); TriggerFreeze(NpcFixture(4), 0);
+        Clock(136); TriggerFreeze(NpcFixture(4), 0);
         Check(!sealedSkill.IsSealed, "A new freeze immediately unseals without old15second reward gate");
         Near(skill.CurrentCD, 60, "New target cannot bypass cooldown");
         sealedSkill.Seal();
@@ -160,8 +150,9 @@ static class Checks
         FreezeCD(target, 600); int previousEvents = freezeEvents;
         for (int i = 0; i < 36; i++) global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 2.8f);
         Check(freezeEvents == previousEvents, "Freeze cooldown blocks buildup");
-        player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill.Clear(); batch.Reset(); batch.OnHit(player, target, 1, true);
-        Near(target.GetFreezeCooldown(), 0, "Water still reduces freeze CD without learning lock and clamps at zero");
+        player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill.Clear();
+        Clock(150); WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(target)!.Value, 0, 180, 700, 155, 1);
+        Near(target.GetFreezeCooldown(), 600, "Water cannot reduce freeze cooldown even without learning lock");
 
         var burst = Attach(new ShardbindProj()); burst.Projectile.Center = Vector2.Zero;
         Check(burst.CanDamage() == false, "Lock cannot damage during gathering");
@@ -195,14 +186,17 @@ static class Checks
         Near(config.Skills[nameof(IceConeSkill)].FreezeBuildup, savedIceBuildup, "Ice Cone parser preserves user-saved per-hit buildup");
         var waterBall = config.Skills["WaterBallSkill"];
         Near(waterBall.ManaCost, 100, "Water Ball costs one hundred mana");
-        Near(config.GetSkillDamage(1, waterBall, 95), 6.75, "Water Ball lower cost preserves its original damage budget");
-        Near(entry.BaseCooldown, 60, "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
-        Near(config.GetSkillDamage(1, entry, 95), 12, "Lock burst reduced to twelve baseline seconds; cooldown and mana preserved");
+        Near(config.GetSkillDamage(1, waterBall, 95), 2, "Water Ball ordinary budget is two baseline seconds");
+        Near(waterBall.BaseCooldown, 10, "Water Ball ten-second cooldown");
+        Near(entry.BaseCooldown, 30, "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
+        Near(config.GetSkillDamage(1, entry, 95), 6, "Dry lock budget is six baseline seconds");
+        Near(config.GetSkillDamage(1, entry, 95) * IceCycleBalance.LockWetDamageMultiplier, 15, "Wet lock is 0.5 DPS over thirty seconds");
         Check(entry.InitialCharges == 1 && entry.MaxCharges == 1, "One opening charge, no stockpile");
         var stream = config.Skills[nameof(WaterLaserSKill)];
-        foreach (var (level, ratio) in new[] { (26, 1d), (35, 1d), (40, .9), (50, .82), (65, .7), (95, .7) })
+        foreach (var (level, ratio) in new[] { (26, .8), (35, .8), (40, .8), (50, .8), (65, .8), (95, .8) })
             Near(config.GetSkillDps(1, stream, level), ratio, $"Water Stream DPS at character level {level}");
         CheckWaterDamage();
+        CheckNewFreezeRules();
         foreach (string culture in new[] { "zh-Hans", "en-US" }) Hjson.HjsonValue.Parse(File.ReadAllText(Path.Combine(root, $"Localization/{culture}_Mods.伊蕾娜.SkillInfo.hjson")));
         Console.WriteLine($"Ice cycle integration: {passed} checks passed against compiled KL/Elaina and real tML entities. Both HJSON files parsed. No renderer or live multiplayer sockets exercised.");
     }
@@ -215,17 +209,15 @@ static class Checks
         typeof(WaterLaser).GetField("primaryTarget", All)!.SetValue(beam, target.whoAmI);
         foreach (int cooldown in new[] { 0, 1, 600 }) {
             FreezeCD(target, cooldown); FreezeCD(other, cooldown);
-            float expected = cooldown > 0 ? 1f : 1f / 1.3f;
+            float expected = 1f;
             foreach (var npc in new[] { target, part, other }) {
                 var modifiers = new NPC.HitModifiers();
                 beam.ModifyHitNPC(npc, ref modifiers);
                 Near(modifiers.SourceDamage.ApplyTo(1), expected * (npc == target ? 1 : .5f),
-                    "Water Stream retains per-target freeze-CD multiplier and half splash damage");
+                    "Water Stream damage is independent of freeze cooldown and retains half splash");
             }
         }
-        float ordinary = WaterLaser.OutsideFreezeCooldownDamageMultiplier;
-        Near(WaterLaser.FreezeCooldownDamageBonus, .3, "Description displays a 30 percent freeze-CD bonus");
-        Near(1f / ordinary - 1f, .3, "Actual freeze-CD damage is 30 percent above ordinary damage");
+
     }
 
     static Skill Owned(ElainaSkill modSkill)
@@ -335,14 +327,13 @@ static class Checks
         attributes.Attributes.SetBase(CharacterAttributes.CooldownHaste, 100); attributes.Attributes.Commit();
         wand.UseItem(player); Near(shard.CurrentCD, 30, "Skill cooldown uses published haste");
         Check(casts == 2 && sealedSkill.IsSealed, "Recovered unsealed skill casts and reseals");
-        player.GetModPlayer<IceCyclePlayer>().ReduceLockCooldown(18);
-        Near(shard.CurrentCD, 12, "Existing ice/water refund reaches the same equipped instance");
+        Near(shard.CurrentCD, 30, "No water refund changes the equipped instance");
         sealedSkill.Unseal();
         var saved = new Terraria.ModLoader.IO.TagCompound();
         sealedSkill.SerializeData(saved);
         sealedSkill.DeserializeData(saved);
         Check(sealedSkill.IsSealed, "Deserializing a skill does not restore temporary unseal");
-        Near(shard.CurrentCD, 12, "Loading preserves independent cooldown");
+        Near(shard.CurrentCD, 30, "Loading preserves independent cooldown");
         KLSkillManager.UnEquipSkill(skills.ActiveSkill, 1);
         Check(!wand.CanUseItem(player), "Unequipped Shardbind cannot cast");
         GameMain.netMode = NetmodeID.SinglePlayer;
@@ -519,9 +510,10 @@ static class Checks
         modifiers = new NPC.HitModifiers(); element.ModifyHitNPC(new Projectile(), npc, ref modifiers);
         hook.Invoke(system, [orig, npc, modifiers.ToHitInfo(100, false, 2f), false, false]);
         Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 0, "Damage tag alone cannot add global ice buildup");
-        element.OnHitNPC(new Projectile { owner = 0 }, npc, default, 100);
+        npc.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 600);
+        Clock(9000); element.OnHitNPC(new Projectile { owner = 0 }, npc, default, 100);
         Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 2.8, "Real projectile hit sends its own skill's points");
-        element.FreezeBuildup = 7.5f;
+        Clock(9002); element.FreezeBuildup = 7.5f;
         element.OnHitNPC(new Projectile { owner = 0 }, npc, default, 100);
         Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 10.3, "Different source chooses a different buildup without changing shared capacity");
         element.FreezeBuildup = 0;

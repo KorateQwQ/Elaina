@@ -94,7 +94,7 @@ namespace Terraria.ID
 {
     public static class SoundID { public const int MenuTick = 1, MenuOpen = 2, MenuClose = 3, Dig = 4; }
     public static class WallID { public const int LihzahrdBrickUnsafe = 87; }
-    public static class TileID { public const int PlanterBox = 380, ClayPot = 78, ImmatureHerbs = 82, BloomingHerbs = 84; public static class Sets { public static bool[] Platforms = new bool[700]; } }
+    public static class TileID { public const int ShadowOrbs = 31, PlanterBox = 380, ClayPot = 78, ImmatureHerbs = 82, BloomingHerbs = 84; public static class Sets { public static bool[] Platforms = new bool[700]; } }
     public static class ContentSamples { public static Dictionary<int, Item> ItemsByType = []; }
     public enum SlopeType { Solid }
     public static class NetmodeID { public const int MultiplayerClient = 1; }
@@ -212,7 +212,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl {
 }
 
 namespace 伊蕾娜.Config { public static class KeyBind { public static Terraria.ModLoader.ModKeybind DollMark = new(); } }
-namespace Terraria.ModLoader { public class ModKeybind { public bool Current, JustPressed; } }
+namespace Terraria.ModLoader { public class ModKeybind { public bool Current, JustPressed; public List<string> GetAssignedKeys() => ["F"]; } }
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI {
     public static class ElainaSkillWheel { public static bool IsShowing; }
     public static class ElainaHealingWheel { public static bool IsShowing; }

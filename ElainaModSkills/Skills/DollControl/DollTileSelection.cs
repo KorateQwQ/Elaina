@@ -9,9 +9,25 @@ internal static class DollTileSelection
     internal static Rectangle Bounds(Point point, bool walls = false)
     {
         Rectangle single = new(point.X, point.Y, 1, 1);
-        if (walls || !WorldGen.InWorld(point.X, point.Y, 1)) return single;
+        if (!WorldGen.InWorld(point.X, point.Y, 1)) return single;
         Tile tile = Main.tile[point.X, point.Y];
+        if (walls && !(tile.HasTile && DollMiningRules.IsHammerTarget(tile.TileType))) return single;
         if (!tile.HasTile || !Main.tileFrameImportant[tile.TileType]) return single;
+        // 原版这两种 2×2 物件使用专用帧逻辑，没有 TileObjectData。
+        if (DollMiningRules.IsHammerTarget(tile.TileType))
+        {
+            if (tile.TileFrameX < 0 || tile.TileFrameY < 0) return single;
+            int baseFrameX = tile.TileFrameX / 36 * 36;
+            Rectangle orb = new(point.X - tile.TileFrameX % 36 / 18, point.Y - tile.TileFrameY / 18, 2, 2);
+            if (!WorldGen.InWorld(orb.Left, orb.Top, 1) || !WorldGen.InWorld(orb.Right - 1, orb.Bottom - 1, 1)) return single;
+            for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+            {
+                Tile part = Main.tile[orb.Left + x, orb.Top + y];
+                if (!part.HasTile || part.TileType != tile.TileType
+                    || part.TileFrameX != baseFrameX + x * 18 || part.TileFrameY != y * 18) return single;
+            }
+            return orb;
+        }
         TileObjectData data = TileObjectData.GetTileData(tile);
         if (data == null || data.Width <= 0 || data.Height <= 0 || data.CoordinateFullWidth <= 0
             || data.CoordinateFullHeight <= 0 || tile.TileFrameX < 0 || tile.TileFrameY < 0) return single;

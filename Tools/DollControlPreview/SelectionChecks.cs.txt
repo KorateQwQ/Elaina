@@ -85,8 +85,61 @@ internal static class SelectionChecks
         Tick(restricted, true, a); Host.tile[a.X, a.Y].HasTile = false; Tick(restricted, false, a);
         Check(!restricted.HasTask, "release revalidates tiles destroyed while holding");
         CheckFurniture();
+        CheckOrbSelection();
         Console.WriteLine($"PASS: {assertions} production hotkey input, settings, persistence, restriction and furniture checks.");
     }
+    private static void CheckOrbSelection()
+    {
+        const ushort type = Terraria.ID.TileID.ShadowOrbs;
+        Host.tileFrameImportant[type] = Host.tileHammer[type] = true;
+        foreach (int style in new[] { 0, 1 })
+        foreach (bool chain in new[] { false, true })
+        {
+            for (int x = 70; x < 76; x++) for (int y = 30; y < 34; y++) Host.tile[x, y] = new Tile();
+            HashSet<Point> cells = [];
+            for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+            {
+                cells.Add(new(70 + x, 30 + y));
+                Host.tile[70 + x, 30 + y] = new Tile { HasTile = true, TileType = type,
+                    TileFrameX = (short)(style * 36 + x * 18), TileFrameY = (short)(y * 18) };
+            }
+            var c = new DollCommandPlayer(); c.Player.Pickaxe = null;
+            c.OpenCommandWheel(); DollCommandWheel.Choose(DollCommand.Mine);
+            Tick(c, true, new(71, 31)); Tick(c, false, new(71, 31));
+            Check(!c.HasTask, "Mine Blocks does not select orb/heart hammer targets");
+            c.OpenCommandWheel(); DollCommandWheel.Choose(DollCommand.BreakWall);
+            if (chain) Button(c, DollSelectionBarDrawing.GetLayout(PlayerInput.OriginalScreenSize).Chain);
+            Tick(c, true, new(71, 31));
+            Check(c.SelectionMarks.SetEquals(cells) && c.SelectionBlockReason == null,
+                "Orb/heart selection includes all four cells and requires only a hammer");
+            Tick(c, false, new(71, 31));
+            Check(c.TileMarks.SetEquals(cells) && c.WallMarks.Count == 0, "Break Wall submits orb/heart as a foreground object task");
+            c.ClearTasks(); c.Player.Hammer = null; c.Player.Pickaxe = new();
+            Tick(c, true, new(70, 30)); Tick(c, false, new(70, 30));
+            Check(!c.HasTask && CombatText.Last == "DollNoHammer", "A pickaxe cannot substitute for a missing hammer");
+            c.Player.Hammer = new();
+            Host.tile[72, 30] = new Tile { HasTile = true, TileType = 1, WallType = 1 };
+            foreach (Point cell in cells) Host.tile[cell.X, cell.Y].WallType = 1;
+            c.Player.Pickaxe = null;
+            Check(DollCommandPlayer.FindChain(new(70, 30), true).ToHashSet().SetEquals(cells),
+                "Orb chain stays on foreground object instead of following its background wall");
+            Check(DollCommandPlayer.FindChain(new(72, 30), true).SequenceEqual(new[] { new Point(72, 30) }),
+                "Wall chain does not switch to adjacent orb targets");
+            Tick(c, true, new(70, 30)); Tick(c, true, new(72, 31)); Tick(c, false, new(72, 31));
+            Check(c.TileMarks.SetEquals(cells) && c.WallMarks.SetEquals(new[] { new Point(72, 30) }),
+                "Mixed rectangle queues orb and exposed wall separately, never the wall behind the orb");
+            c.ClearTasks();
+            Host.wallDungeon[1] = true;
+            Tick(c, true, new(70, 30)); Tick(c, false, new(70, 30));
+            Check(c.TileMarks.SetEquals(cells) && c.WallMarks.Count == 0,
+                "Protected background wall does not prevent hammering the foreground orb");
+            c.ClearTasks(); Host.wallDungeon[1] = false;
+            foreach (Point cell in cells) Host.tile[cell.X, cell.Y].HasTile = false;
+            Tick(c, true, new(70, 30)); Tick(c, false, new(70, 30));
+            Check(c.TileMarks.Count == 0 && c.WallMarks.Contains(new(70, 30)), "A new mark after breaking targets the now-exposed wall");
+        }
+    }
+
     private static void CheckFurniture()
     {
         foreach (var (type, width, height) in new[] { (79, 4, 2), (18, 2, 1), (14, 3, 2), (13, 1, 1), (4, 1, 1), (15, 1, 2), (19, 1, 1), (380, 1, 1) })

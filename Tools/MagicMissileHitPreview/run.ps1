@@ -14,5 +14,8 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Program.cs.txt') -Destination (
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'TrailChecks.cs.txt') -Destination (Join-Path $work 'TrailChecks.cs')
 dotnet run --project (Join-Path $work 'Preview.csproj') "-p:TmlPath=$TmlPath" "-p:ElainaPath=$root" -- $kl $out $root $TerrariaImages
 if ($LASTEXITCODE -ne 0) { throw "Preview failed: $LASTEXITCODE" }
-python -I (Join-Path $PSScriptRoot 'compose.py') $out
-if ($LASTEXITCODE -ne 0) { throw "Compose failed: $LASTEXITCODE" }
+if ($env:MISSILE_EARLY_CRACKS -ne '1') {
+    $composer = if ($env:MISSILE_LEGACY_HITS -eq '1') { 'compose.py' } else { 'compose_smooth.py' }
+    python -I (Join-Path $PSScriptRoot $composer) $out
+    if ($LASTEXITCODE -ne 0) { throw "Compose failed: $LASTEXITCODE" }
+}

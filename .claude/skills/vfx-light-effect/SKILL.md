@@ -17,8 +17,9 @@ description: 伊蕾娜模组的光效/命中爆点/粒子特效制作经验：�
 
 ## 贴图与预乘
 
-- 用户的贴图基本都已预乘（KL `ShockDust`/`ShockBlackDust` 例外）。不确定时逐像素检查"RGB 是否 ≤ α"。
+- 用户的贴图基本都已预乘（KL `ShockDust`/`ShockBlackDust`、`Dusts/Spark` 例外）。不确定时逐像素检查"RGB 是否 ≤ α"。直通 alpha 贴图不要换混合模式，改用预乘版（如 `Dusts/Spark_Premultiplied`，没有就先烘焙一份）仍走 AlphaBlend：顶点色 A=0 即叠加，A=255 即正常遮挡，中间值介于两者。
 - 打包后 PNG 转 rawimg，游戏加载时不再预乘。离线预览读 PNG 只把 α=0 的像素清零，不要 `Color.FromNonPremultiplied`，否则比游戏暗、误导调参。
+- shader 额外槽位（s1 以后）的采样方式不受 `SpriteBatch.Begin` 控制，游戏中常残留 `PointClamp`，而离线预览设备默认线性采样，问题只在游戏里出现。放大使用的遮罩/噪声要显式设置线性采样；能用公式表达的包络（椭圆、径向衰减等）优先在 shader 里算。预览渲染前把这些槽位设为 `PointClamp` 来复现。
 - 带大片低透明柔光边的贴图（如 `ShotLineSPA`）多份叠加会糊成白雾：用源矩形只取亮的部分，光晕交给 Bloom。
 
 ## 混合

@@ -187,6 +187,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
     /// </summary>
     public sealed partial class DollCommandPlayer
     {
+        public static string MarkKeyName => "F";
         public Player Player;
         // Cargo inventory is covered by ChestNativeChecks; these team/animation fixtures carry no cargo.
         internal int CarryType(DollPetProjectile worker) => 0;
@@ -218,7 +219,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         private enum Work { Ready, Later, Never }
         private Work Check(Point p, bool wall) => (wall ? InvalidWalls : InvalidTiles).Contains(p) ? Work.Never
             : (wall ? BlockedWalls : BlockedTiles).Contains(p) ? Work.Later : Work.Ready;
-        private bool IsMarkable(int x, int y, bool wall) => !(wall ? InvalidWalls : InvalidTiles).Contains(new(x, y));
+        private bool IsWorkTarget(int x, int y, bool wall) => !(wall ? InvalidWalls : InvalidTiles).Contains(new(x, y));
         private bool InRange(Point p) => Vector2.DistanceSquared(Player.Center, p.ToWorldCoordinates()) <= 2400f * 2400f;
         private int PlacementAt(Point target) => Placements.FindIndex(p => p.Target == target);
         private void ValidatePlacements() { }
@@ -247,7 +248,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         public bool HasTask => TileMarks.Count > 0 || WallMarks.Count > 0 || PlacementTargets.Count > 0;
         public bool HasLoot => Loot > 0;
         internal void CompletePlacement(Point point) { if (PlacementTargets.Remove(point)) PlacedBlocks++; }
-        internal int HitInterval(bool walls) => Interval;
+        internal int HitInterval(Point point, bool walls) => Interval;
         readonly Dictionary<(Point, bool), int> damage = [];
         internal DollPetProjectile MiningCarrier;
         internal bool HasMiningCargo(DollPetProjectile worker) => Loot > 0 && worker == MiningCarrier;
@@ -280,7 +281,11 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
 namespace 伊蕾娜.ElainaModSkills {
     public sealed class ElainaSkillModPlayer {
         public sealed class Slot { public ElainaSkill ModSkill; }
-        public static List<Slot> GetActiveSkill = [];
+        public List<Slot> ActiveSkill = [];
+        public static List<Slot> GetActiveSkill {
+            get => Main.LocalPlayer.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
+            set => Main.LocalPlayer.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill = value;
+        }
         public void UseSkill(int index, Terraria.DataStructures.IEntitySource source) => GetActiveSkill[index].ModSkill.PreUseSkill(source);
     }
 }

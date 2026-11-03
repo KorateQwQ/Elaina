@@ -163,7 +163,7 @@ public sealed class BroomDashWindRenderer : IDisposable
 
     /// <summary>以骑乘中心为路径的整体气流拖尾。</summary>
     /// <param name="points">逐 tick 采样，最新点在 [0]，最多 <see cref="TrailSamples"/>+1 个。
-    /// 冲刺结束后调用方不再追加新点，拖尾留在冲刺直线上向终点收拢。</param>
+    /// 冲刺结束后调用方不再追加新点，只把整条直线随人物平移，拖尾向人物收拢。</param>
     public void DrawTrail(GraphicsDevice device, Texture2D texture, ReadOnlySpan<Vector2> points,
         float age, int dashTicks, Matrix worldToScreen)
     {

@@ -6,6 +6,7 @@ using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent.UI.ResourceSets;
 using Terraria.ModLoader;
+using 伊蕾娜.Config;
 using 伊蕾娜.System;
 
 namespace 伊蕾娜.ElainaAttribute;
@@ -75,20 +76,26 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         Draw(spriteBatch, (batch, ui) =>
         {
             drawing.Draw(batch, ui, origin, false, seconds, life);
+            Value(batch, ui, origin, false, snapshot.Life, snapshot.LifeMax);
             portraitDrawing.Draw(batch, ui, centre, portrait, life.Value, seconds);
         });
-        Hover(origin, ResourceBarDrawing.LifeHeight, $"{snapshot.Life:0.#}/{snapshot.LifeMax:0.#}");
     }
 
     public override void DrawMana(SpriteBatch spriteBatch)
     {
         if (drawing == null) return;
         var origin = ResourceBarDrawing.ManaPosition(Main.screenWidth);
-        Draw(spriteBatch, (batch, ui) => drawing.Draw(batch, ui, origin, true, seconds + .7f, mana));
-        float recovery = uniqueMana
-            ? Main.LocalPlayer.GetModPlayer<ElainaAttributeModPlayer>().GetMagicPointRecovery()
-            : Main.LocalPlayer.GetModPlayer<ElainaMagicPointModPlayer>().NaturalManaRegenPerSecond;
-        Hover(origin, ResourceBarDrawing.ManaHeight, $"{manaValue:0.#}/{manaMaximum:0.#}  (+{recovery:0.#}/s)");
+        Draw(spriteBatch, (batch, ui) =>
+        {
+            drawing.Draw(batch, ui, origin, true, seconds + .7f, mana);
+            Value(batch, ui, origin, true, manaValue, manaMaximum);
+        });
+    }
+
+    private static void Value(SpriteBatch batch, Matrix ui, Vector2 origin, bool isMana, float value, float max)
+    {
+        if (!ModContent.GetInstance<BasicConfig>().ShowResourceValues) return;
+        ResourceBarDrawing.DrawValue(batch, ui, origin, isMana, FontManager.NotoSerifSC.Value, $"{value:0}/{max:0}");
     }
 
     private static void Draw(SpriteBatch batch, Action<SpriteBatch, Matrix> draw)
@@ -111,17 +118,7 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         }
     }
 
-    // Use vanilla's cursor-following mouse text, like the stock resource bars.
-    private static void Hover(Vector2 origin, float height, string text)
-    {
-        var area = new Rectangle((int)origin.X - 2, (int)origin.Y - 3, (int)ResourceBarDrawing.Length + 4, (int)height + 6);
-        if (!area.Contains(Main.MouseScreen.ToPoint())) return;
-        Main.LocalPlayer.cursorItemIconEnabled = false;
-        Main.instance.MouseTextHackZoom(text);
-        Main.mouseText = true;
-    }
-
-    // Hover text above supports the custom magic pool; suppress vanilla's ordinary mana tooltip.
+    // The bars have no hover readout; suppress vanilla's resource tooltip as well.
     public override bool PreHover(out bool hoveringLife) { hoveringLife = false; return false; }
 
     public override void Unload()

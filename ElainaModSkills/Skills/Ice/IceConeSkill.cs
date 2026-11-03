@@ -17,7 +17,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 [SkillUIInfo(State = 7, Pixels = 500)]
 public class IceConeSkill : ElainaSkill
 {
-    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 3), GetConfiguredFreezeBuildup(), ShardbindSkill.NameFor(Player)];
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 3), GetConfiguredFreezeBuildup() * .5f, ShardbindSkill.NameFor(Player)];
     public override bool IsPassiveSkill => false;
 
     // 当前 JSON 配置为血肉墙后开放（角色等级上限 40）；门槛由 unlockStageCap 决定，不要求实际等级达到上限。

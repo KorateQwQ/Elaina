@@ -23,7 +23,7 @@ internal static class Program
         game.Run();
     }
 
-    internal static Assembly CompilePipeline(string kl)
+    internal static Assembly CompilePipeline(string kl, params string[] extraSources)
     {
         CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
         string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
@@ -45,7 +45,7 @@ internal static class Program
             public class ModSystem {}
             public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
             public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
-            public static class Main {
+            public static partial class Main {
                 public static DeviceContext instance, graphics;
                 public static SpriteBatch spriteBatch;
                 public static int screenWidth, screenHeight;
@@ -95,7 +95,7 @@ internal static class Program
             "if (PreviewOptions.PreserveBackbuffer) presentation.RenderTargetUsage = RenderTargetUsage.PreserveContents;");
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
             .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
-        var compilation = CSharpCompilation.Create("BloomPipelineProbe", [CSharpSyntaxTree.ParseText(source)], references,
+        var compilation = CSharpCompilation.Create("BloomPipelineProbe", new[] { source }.Concat(extraSources).Select(s => CSharpSyntaxTree.ParseText(s)), references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         using var bytes = new MemoryStream();
         var result = compilation.Emit(bytes);

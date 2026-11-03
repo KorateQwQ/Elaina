@@ -45,7 +45,41 @@ Shader 区分黑底灰度图（亮度×Alpha 遮罩）和彩色透明底图（Al
 
 覆盖开始到三秒蓄力的 90 帧、日间背景/1.35 倍缩放、不同弹幕种子/0.8 倍缩放和无条带对照。
 本场景模拟蓄力时间、球体成长和固定球心，不模拟玩家、实际相机、游戏光照、碰撞或联机。
-游戏里还需检查移动瞄准时的衔接及松手发射；正式入口仅在 Hold 状态绘制水流。
+游戏里还需检查移动瞄准时的衔接及松手发射；蓄力水流入口仅在 Hold 状态绘制。
+
+## 飞行双螺旋水带
+
+运行 `& ./Tools/WaterChargePreview/run.ps1 -Dotnet C:/Users/PC/.dotnet/dotnet.exe -Flight`。
+输出在 `.vissandbox/water-charge-preview/out-flight/`：`water-ball-spiral.gif` 为飞行稳定形态的旋转近景，
+`water-ball-spiral-slow.gif` 为三倍慢放，`water-ball-moving.gif` 为含发射拉伸的移动演示，
+`flight-sheet.png` 为六个时刻的帧条。GIF 循环末尾会重新开始展示。
+
+正式 `WaterBallFlightRenderer` 复用打包的 `Eff_Splash_322_288`、KL 噪声和 `WaterChargeFlow.xnb`，
+不生成固定贴图，不增加 Bloom。两条水带相差半圈，绕飞行方向旋转；轨道从球头向尾端逐渐扩大成锥形，
+水带本身也向外略增宽，末端仍收尖淡出。`tailLength = 4.6` 将尾部向后拉长，
+`tailFlare = 0.9` 控制尾端增加的基础半径倍数，使锥形更修长，
+`noseOrbitScale = 0.75` 控制球头小口；额外扩张不随发射瞬间的纵向拉伸倍增。
+球体附近仍随 `drawWidth/drawHeight` 适配发射拉伸。每段按当地轨道半径归一化深度后拆为前后两层，近侧略宽、略亮。
+`WaterBall.PreDraw` 先画后侧水带，再画水球，最后画前侧水带。发射时记录 `Main.timeForVisualEffects`，
+旋转、水纹滚动和淡入使用当前视觉时间与发射快照的差值，与原有顶端风纹使用同一时钟来源。
+暂停 AI 后水带仍继续播放，球体位置与拉伸保持暂停状态；同一视觉时间重复绘制保持一致，不受蓄力时长影响。
+
+绘制入口按弹幕 PreDraw 的已开启批次约定：调用原始顶点 renderer 前 End，finally 中 Begin。
+renderer 恢复 Blend/Depth/Rasterizer、两个 sampler 与 texture 槽；它持有的 Effect 克隆与 sampler 在卸载时释放。
+`rotationSpeed`、`turns`、`ribbonWidth`、`tailLength`、`textureLength` 位于 renderer 的 Draw 开头，可直接调节。
+
+沿轴参数 t 和水纹 U 都从尾端向球头递增。螺旋相位使用 `t * 2π * turns + seconds * rotationSpeed`，
+使等相位点随时间向尾端传播；材质 Shader 采样 `U - Time * Speed`，因此水纹与噪声滚动速度取负。
+这样水球向右飞时，螺旋波形与水纹相对球体向左流。方向回归读取正式 renderer 的空间采样点，
+追踪相邻视觉帧的同向深度过零点，检查其沿飞行轴坐标减小，覆盖右/左/上/斜向，并核对实际材质滚动参数。
+
+飞行模式每次编译当前正式 renderer，并提取实际 `PreDraw`、`DrawFlightFlow` 与 `DrawBall`。
+仅省略旧飞行风纹分支、无关的 Hold 蓄力入口与基类绘制；使用当前正式水球 shader。
+覆盖 60 个旋转帧、24 个按 35px/tick 前进的帧、左向/上向/斜向、亮暗底、0.8/1.35/2 倍缩放、非零相机坐标，
+并检查冻结 AI tick、仅推进视觉时间时像素发生变化，同一视觉时间重绘像素一致，
+以及 PreDraw 入口和返回的 SpriteBatch 配对。暂停回归在旧的 AI 计时实现上失败，改用视觉时钟后通过。
+已查看本次帧条与斜向亮底画面，模组 Compile 通过。
+这些是 FNA 离线预览：未叠加原有大水花、气泡、旧风纹和屏幕扭曲，也未运行游戏碰撞或联机。
 
 源码编译（不会尝试覆盖运行中的模组包）：
 

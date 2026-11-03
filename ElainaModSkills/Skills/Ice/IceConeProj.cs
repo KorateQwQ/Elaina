@@ -317,6 +317,12 @@ public class IceConeProj : ElainaBasicProjectile
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
     }
 
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        if (WaterExposureNPC.IsWet(target)) modifiers.SourceDamage *= IceCycleBalance.ConeWetDamageMultiplier;
+        base.ModifyHitNPC(target, ref modifiers);
+    }
+
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
         base.OnHitNPC(target, hit, damageDone);

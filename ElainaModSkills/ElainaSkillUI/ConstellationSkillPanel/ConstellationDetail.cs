@@ -95,7 +95,7 @@ internal sealed class ConstellationDetail
         if (!string.IsNullOrWhiteSpace(description))
         {
             Heading(LocalizeUI("Effect"));
-            var paragraph = new ConstellationRichText(description, Width, 13, 24, Ink * .86f);
+            var paragraph = new ConstellationRichText(description, Width, 13, 24, Ink * .86f, drawing.Device);
             Add(paragraph.Height + 4, (d, hover) =>
             {
                 paragraph.Draw(d);

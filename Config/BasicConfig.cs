@@ -24,6 +24,9 @@ namespace 伊蕾娜.Config
         [Slider]
         public float SkillWheelScale = 0.75f;
 
+        [DefaultValue(false)]
+        public bool ShowResourceValues;
+
         public override void OnChanged()
         {
             ElainaSkillManager.ShowCD = ShowCD;

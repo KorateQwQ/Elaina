@@ -123,10 +123,13 @@ sealed class BodyOptions : Game
     {
         this.output = output;
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Data/SkillBalance.json")));
-        var f = doc.RootElement.GetProperty("configuration").GetProperty("skills").EnumerateArray().First(x => x.GetProperty("id").GetString() == "FlightSkill").GetProperty("flight");
-        cruiseSpeed = f.GetProperty("baseSpeed").GetSingle() * (1 + f.GetProperty("learnedSpeedBonus").GetSingle() + 8 * f.GetProperty("speedBonusPerLevel").GetSingle());
-        dashSpeed = cruiseSpeed * f.GetProperty("dashMultiplier").GetSingle(); handling = f.GetProperty("handlingPercent").GetSingle() / 100f;
-        dashTicks = (int)Math.Round(f.GetProperty("dashSeconds").GetDouble() * 60); recoveryTicks = (int)Math.Round(f.GetProperty("dashRecoverySeconds").GetDouble() * 60);
+        var skill = doc.RootElement.GetProperty("configuration").GetProperty("skills").EnumerateArray().First(x => x.GetProperty("id").GetString() == "FlightSkill");
+        // 数据未覆盖 flight 段时沿用 FlightBalance 的默认值。
+        bool hasFlight = skill.TryGetProperty("flight", out var f);
+        float Get(string key, float fallback) => hasFlight && f.TryGetProperty(key, out var v) ? v.GetSingle() : fallback;
+        cruiseSpeed = Get("baseSpeed", 8f) * (1 + Get("learnedSpeedBonus", .10f) + 8 * Get("speedBonusPerLevel", .05f));
+        dashSpeed = cruiseSpeed * Get("dashMultiplier", 2.5f); handling = Get("handlingPercent", 25f) / 100f;
+        dashTicks = (int)Math.Round(Get("dashSeconds", .4f) * 60); recoveryTicks = (int)Math.Round(Get("dashRecoverySeconds", .15f) * 60);
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = W, PreferredBackBufferHeight = H, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
     }
@@ -203,9 +206,10 @@ sealed class BodyOptions : Game
             rings.DrawTrail(d, wind, raw.ToArray(), tick, dashTicks, view);
             return;
         }
-        // freeze：冲刺结束后不再追加新点，拖尾留在冲刺直线上向终点收拢，不随转向弯折。
+        // freeze：冲刺结束后不再追加新点，整条直线随人物平移并向人物收拢，不随转向弯折。
         int head = freeze ? Math.Min(tick, dashTicks - 1) : tick;
-        for (int i = head; i >= Math.Max(0, head - Samples); i--) raw.Add(path[i].Pos);
+        Vector2 shift = path[tick].Pos - path[head].Pos;
+        for (int i = head; i >= Math.Max(0, head - Samples); i--) raw.Add(path[i].Pos + shift);
         // E 已定稿：直接调用正式渲染器（内部完成收拢与插值），用来核对正式实现与原型一致。
         if (v == 'E')
         {

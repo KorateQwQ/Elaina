@@ -39,9 +39,10 @@ public enum SkillGrowthMode { Phase, Interval }
 /// GrowthMode 为 Interval 时，从 UnlockLevel 起每 LevelInterval 个角色等级新增一级，不使用阶段跨度或 LevelsPerPhase。
 /// MaxLevel 为 0 时不设固定等级上限；正整数限制两种成长方式产生的技能等级数。
 /// MaxCharges / InitialCharges 为主动技能的储存层数上限与新习得时的可用层数，普攻固定为 1。</summary>
+// 主动技能显式配置 ratio 时按 DPS 直接定价；未迁移技能继续使用旧的魔力转换模型。
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, double ManaCost,
     double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
-    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0, FlightBalance Flight = null);
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0, FlightBalance Flight = null, bool UsesDpsRatio = false);
 
 /// <summary>阶段推荐配装中的一个饰品；Id 与 Prefix 是网页键名（如 sorcerer / arcane），由 Loadout 映射到物品与前缀。</summary>
 public sealed record SkillLoadoutItem(string Id, string Prefix);
@@ -136,7 +137,8 @@ public sealed class SkillBalanceConfig
                     ConversionRate: Number(row, "k", 0, 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
                     MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
                     GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row)));
+                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
+                    DpsRatio: OptionalNumber(row, "ratio", 0, 5, 0), UsesDpsRatio: row.TryGetProperty("ratio", out _)));
             }
             config = new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
             return true;
@@ -308,11 +310,11 @@ public sealed class SkillBalanceConfig
     }
 
     /// <summary>未取整的整次基础伤害；characterLevel 是该技能等级映射出的伤害基准等级，只影响带曲线的普攻倍率。
-    /// 主动技能的 CD 只按 CdDamageRatio 折算为伤害预算，实际冷却不变。</summary>
+    /// 显式 ratio 的主动技能与普攻按完整周期定价；其他主动技能沿用魔力转换预算。</summary>
     public double GetSkillDamage(double baselineDps, SkillBalanceEntry skill, int characterLevel)
     {
         double baseline = Math.Max(0, baselineDps);
-        if (skill.Kind == SkillBalanceKind.BasicAttack)
+        if (skill.Kind == SkillBalanceKind.BasicAttack || skill.UsesDpsRatio)
             return baseline * GetDpsRatio(skill, characterLevel) * skill.BaseCooldown;
         double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.CdDamageRatio * skill.ConversionRate;
         return baseline * (OccupyRatio * Math.Max(1d / 60, skill.OccupySeconds) + extraRatio);

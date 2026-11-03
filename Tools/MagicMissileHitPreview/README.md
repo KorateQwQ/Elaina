@@ -1,12 +1,24 @@
 # 魔法飞弹命中特效预览
 
-对比改版前 `MagicMissile.OnKill` 的命中粒子与正式命中特效。正式特效的构成与绘制在 `ElainaModSkills/Skills/MagicMissile/MagicMissileHitVisuals.cs`，游戏中的 `MagicMissileHitDust` 与本预览共用这份代码。Bloom 管线从 KL 源码编译（同 `Tools/FireTornadoLookPreview`），靶子用原版僵尸 `NPC_3.xnb`。
+默认预览当前正式的连续追尾收细版；另保留断裂版与命中特效的比较入口。正式命中特效的构成与绘制在 `ElainaModSkills/Skills/MagicMissile/MagicMissileHitVisuals.cs`，游戏中的 `MagicMissileHitDust` 与本预览共用这份代码。Bloom 管线从 KL 源码编译（同 `Tools/FireTornadoLookPreview`），靶子用原版僵尸 `NPC_3.xnb`。
+
+## 当前默认：连续追尾收细
+
+`MagicMissileTrailVisuals.FracturedRelease` 默认 `false`。不使用噪声断裂、随机裂口或局部截面归零；整个截面（包括亮芯）从原宽度线性压缩到零，保持发光材质。
+
+极细斜线使用基于屏幕导数的最小采样宽度，并按实际宽度 / 采样宽度补偿覆盖率，避免最后几帧因亮芯窄于一像素而被采成虚线。这只处理亚像素覆盖，不引入裂口或额外随机消融。
+
+死亡时 `BeginRelease` 保存完整轨迹与实际入射速度（换算为每游戏 tick 的位移，包含 extraUpdates）。撞墙使用 `OnTileCollide` 的旧速度，避免墙体把速度改成滑动或零；其他死亡使用最后一次 AI 的飞行速度。生命周期取 `ceil(轨迹长度 / 速度)`，尾端每 tick 沿原路径向死亡点前进该速度，材质坐标也按相同弧长前移，不只是裁掉尾端。头部固定在死亡位置，保留曲线，不向墙后延伸。零速弹幕保持原路径、在 22 tick 内只收细。由 TrailManager 的游戏 tick 推进，重复绘制不累计推进，游戏暂停仍沿用 TrailManager 规则。
+
+默认输出 `smooth-follow.gif`、`smooth-follow-stages.png`、`smooth-*-width.png` 和逐帧 `smooth-day/night-*.png`，主预览为 30 px/tick，另检查 12 / 65 px/tick。图中包含直线、弯曲轨迹、普通命中和花印命中；是独立 FNA 预览，不是游戏实拍。`RunFollowing` 检查速度与到达时刻、弯曲/极短/重复点路径、零速、不越过死亡点、材质弧长推进和重复绘制稳定；GPU 检查收尾时只有一条连续亮线。
+
+断裂版源码与图片快照保存在 `Variants/Fractured`。设置 `$env:MISSILE_EARLY_CRACKS = '1'` 可运行该模式的绘制回归；`$env:MISSILE_LEGACY_HITS = '1'` 可运行下文的旧全量命中特效比较。使用后移除对应环境变量，恢复默认连续追尾预览。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tools/MagicMissileHitPreview/run.ps1
 ```
 
-输出在 `.vissandbox/magic-missile-hit/out`：
+输出在 `.vissandbox/magic-missile-hit/out`。以下列表对应 `MISSILE_LEGACY_HITS=1` 的全量命中特效比较：
 
 - `day-compare.png` / `night-compare.png`：三行依次是旧版、普通命中、第五击花印爆发，列为命中后第 1/2/3/5/8/12/20/35/55 帧和连发第 12 帧。连发每 3 帧一发；花印行为 4 发普通命中加第 5 发爆发。
 - `day-hit.gif` / `night-hit.gif`：单发命中（80 帧），`*-burst.gif`：连发（60 帧）。泳道并排，每帧 20 ms，接近游戏速度。
@@ -40,7 +52,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tools/MagicMissileHitPre
 
 ## 拖尾消亡与断口回归
 
-`MagicMissile.OnKill` 用接触点（撞墙）或当前 `Projectile.Center` 补齐最后一次 `DrawBehind` 采样，并刷新同一个 TrailManager handle。两次提交都关闭 `shrinkPathOnExpire`：TrailManager 的线性缩短会在半程就砍掉一半长度，而截面消融要到后段才完成，看起来像拖尾“变短而消失”。改由 `MagicMissileTrailVisuals.BuildGeometry` 按 `1 − LengthShrink × age²`（默认 0.45）只截掉尾端几何：保留部分的顶点与 U 完全不动。曾先截路径再按新点数重算 U，导致每次截断越过采样点时噪声图案整体跳动；`RunNoise` 检查缩短时保留几何与 U 不变。Shader 的 `TrailAge = 0.12 + 1.25 × age`，收缩最快的部位约 40% 寿命归零、最慢的约 70%，此时长度仍保留约八成，消失由断续消融主导。路径长度上限仍为 320 px。
+`MagicMissile.OnKill` 用接触点（撞墙）或当前 `Projectile.Center` 补齐最后一次 `DrawBehind` 采样，并刷新同一个 TrailManager handle。两次提交都关闭 `shrinkPathOnExpire`：TrailManager 的线性缩短会在半程就砍掉一半长度，而截面消融要到后段才完成，看起来像拖尾“变短而消失”。改由 `MagicMissileTrailVisuals.BuildGeometry` 按 `1 − LengthShrink × age²`（默认 0.45）只截掉尾端几何：保留部分的顶点与 U 完全不动。曾先截路径再按新点数重算 U，导致每次截断越过采样点时噪声图案整体跳动；`RunNoise` 检查缩短时保留几何与 U 不变。路径长度上限仍为 320 px。
+
+退场参考火焰射线：`ReleaseNoisePeriod = 1300`，噪声横向缩放按完整快照长度 / 周期计算，尾端缩短时不重新缩放。原先固定缩放 0.46、局部收缩倍率 1.65 会过早切成细碎短点；现在倍率为 1.25，`TrailAge = age / 0.72`，72% 寿命时与头部一起收完。仅依靠局部宽度归零会拖到约 58% 寿命才断开，因此裂口与整体收细独立控制。
+
+裂口按每发种子在完整快照 U 上随机分布，不限定在两个固定区段。构造时选取 6–8 个候选位置，保持最小间距；1–2 处从撞击首帧开裂，其余按不同的时刻先局部收尖再贯穿，逐渐把较长残线切成更多细线。每处宽度、收尖范围也有差异；时间推进只扩大已有裂口并增加新裂口，不重新随机位置。旧版两个固定裂口只会保持三段，本版已移除该做法。保留 HDR、透明度和固定纹理坐标，残线持续发光；Shader 在局部宽度为零时明确返回透明，避免中心线恰好落在像素中心时留下一像素残迹。
+
+首帧裂口回归：设置 `$env:MISSILE_EARLY_CRACKS = '1'` 后运行 `run.ps1` 可只检查退场，运行结束后用 `Remove-Item Env:MISSILE_EARLY_CRACKS` 清除设置。`*-early-cracks-1x/2x.png` 上下依次为飞行中、撞击首帧、随后第 1/2 tick、25% 和 60% 消亡进度，左右为两个固定种子；`*-early-impact-*.png` 覆盖直线、弯曲和花印命中。自动检查关闭 Bloom 后的正式 Shader GPU 输出，要求两个种子的撞击首帧都切断原先发亮的像素；旧版只缩细、延迟开裂的实现会失败。`early-cracks-check.png` 为检查原图。
+
+逐步断裂回归同入口执行：`*-progressive-cracks.png` 上下为飞行中、撞击首帧以及消亡进度 12%/24%/36%/48%，左右为不同种子。GPU 检查覆盖 8 个种子，要求中后段残线数量多于首帧、不同种子的首帧裂口不同、已经切断的像素不重新发亮。固定两处裂口的旧实现已实际运行并触发 `3 -> 3 segments` 失败；新版样例为 2–3 段逐步增加到 6–9 段。
+
+整体收细必须同步压缩亮芯：Shader 按当前局部宽度重新归一化横向采样坐标，把完整光纹压进收缩后的截面；轴向坐标不动，颜色和透明度不按时间衰减。只裁去原纹理外缘，会让明亮中心在前半段仍保持原宽度，断块显得粗。GPU 回归在远离裂口和截断尾端的位置测亮芯宽度：旧版消亡进度 24% 时仍为 `10 -> 10 px`，本次调整后 8 个种子均为 `10 -> 6 px`（2 倍预览），并继续检查裂口增加与不愈合。
 
 预览曾在加载后立即释放 PerlinX 纹理，绘制时噪声为空、拖尾只会整体均匀收细，与游戏不符；现在与游戏一样保持纹理存活。
 

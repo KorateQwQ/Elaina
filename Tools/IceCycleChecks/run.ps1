@@ -16,13 +16,15 @@ function Add-CheckItem([string]$kind, [string]$path) {
     $null = $items.AppendChild($node)
     return $node
 }
-foreach ($path in @("$Tml/tModLoader.dll", "$repo/../KL/bin/Debug/net8.0/KL.dll", "$repo/bin/Debug/net8.0/$modName.dll", "$repo/../SilkyUIFramework.dll")) {
+foreach ($path in @("$Tml/tModLoader.dll", "$repo/../KL/bin/Debug/net8.0/KL.dll", "$repo/bin/Debug/net8.0/$modName.dll", "$repo/../SilkyUIFramework/bin/Debug/net8.0/SilkyUIFramework.dll")) {
     $null = Add-CheckItem 'Reference' $path
 }
 $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/WaterChecks.cs.txt"
+$check.SetAttribute('Link', 'WaterChecks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
 dotnet run --project $projectPath --configuration Release --verbosity quiet -- $repo *> "$output/checks.log"

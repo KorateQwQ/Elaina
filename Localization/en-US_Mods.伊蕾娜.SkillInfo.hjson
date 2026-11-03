@@ -28,6 +28,8 @@ SkillName: {
 }
 
 SkillDesc: {
+	FireBurstSkill: Erupt at the target location, dealing {0} Fire damage and consuming {1:0.##} {$Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint}. Stores up to {2} charges and restores one every {3:0.##} seconds.
+	FireLaserSkill: Hold to charge for {0:0.##}s, then channel a flame beam. Every {1:0.##}s, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {2} Fire damage to enemies along the beam. Hits ignite enemies in about {4:0.##}s. Higher damage speeds up ignition, requiring at most {5:0.##}% of their maximum life in damage. Burning lasts 10s and further hits refresh it.
 	FlightSkill:
 		'''
 		While riding the broom, increases flight speed by {0:0.##}% and enables the Broom Acceleration key:
@@ -67,24 +69,25 @@ SkillDesc: {
 		'''
 		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} Ice damage in total.
 		Binds the target in ice for the duration, leaving it unable to act.
-		Starts sealed. Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] unseals one use, which cannot stack. Casting still requires the cooldown to finish and seals the spell again. Unsealing does not reduce its cooldown.
+		Deals 150% more damage to [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
+		Starts sealed. Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] yourself unlocks one cast.
 		'''
 	IceConeSkill:
 		'''
 		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] buildup.
+		Deals 12.5% more damage and doubles Freeze buildup against [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
 		Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] yourself unseals one use of {2}.
 		'''
 	WaterBallSkill:
 		'''
 		Hold to conjure a water orb, then release to launch it, dealing {0} damage.
 		After traveling a certain distance, the orb bursts in a wide splash behind the target along its flight direction. At close range, it bursts in a circular splash instead.
-		On hit, reduces the target's [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown by 10 seconds and {1}'s cooldown by 8 seconds.
+		Inflicts [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] on non-burning enemies. Deals double damage to burning enemies and consumes their burn.
 		'''
 	WaterLaserSKill:
 		'''
 		Hold to channel a water beam. Every {0:0.##} seconds, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {1} Water damage, plus {2:0.#}% splash damage to enemies near the end of the beam.
-		Deals {4:0.#}% increased damage to enemies on [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown.
-		On hit, reduces the target's [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] cooldown by 0.5 seconds and {5}'s cooldown by 0.3 seconds.
+		About 3 seconds of sustained hits make enemies [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet]. Against burning enemies, the stream first rapidly consumes the burn.
 		'''
 	MagicMissileSkill:
 		'''
@@ -113,6 +116,7 @@ SkillDesc: {
 		'''
 		Unleashes a piercing wind blade that deals {0} magic damage to every enemy in its path.
 		Weaker enemies are knocked back along the blade's direction.
+		After touching a burning enemy, the blade ignites enemies hit afterward.
 		'''
 }
 

@@ -5,10 +5,12 @@ float4x4 uTransform;
 float uTimex;
 float2 NoiseOffset;
 float2 NoiseScale;
+float4 CrackSites[8]; // 位置、出现时刻、最终半宽、收尖宽度，按每发种子固定
 float TrailAge;
 float MaxShrinkRate;
 float ShrinkExponent;
 bool UseShrink;
+bool UseFracture;
 
 struct VSInput
 {
@@ -36,18 +38,46 @@ PSInput VertexShaderFunction(VSInput input)
 float4 PixelShaderFunction(PSInput input) : COLOR0
 {
     float3 coord = input.Texcoord;
-    float4 color = tex2D(uImage0, float2(coord.x + uTimex, coord.y));
+    float width = 1.0;
     if (UseShrink)
     {
+        width = saturate(1.0 - TrailAge);
+        if (UseFracture)
+        {
         float noise = tex2D(uImage1, frac(float2(coord.x * NoiseScale.x + NoiseOffset.x,
             0.5 * NoiseScale.y + NoiseOffset.y))).r;
         float rate = lerp(1.0, MaxShrinkRate, smoothstep(0.34, 0.70, noise));
-        float width = pow(saturate(1.0 - TrailAge * rate), ShrinkExponent);
-        float side = abs(coord.y - 0.5) * 2.0;
-        if (side > width)
-            return float4(0, 0, 0, 0);
+        width = pow(saturate(1.0 - TrailAge * rate), ShrinkExponent);
+        // 初始少量裂口，后续在剩余长线中不断出现新裂口；位置固定，数量随时间增加。
+        // 新断点先局部收细再贯穿，不通过整体淡出来隐藏新增裂口。
+        [unroll]
+        for (int i = 0; i < 8; i++)
+        {
+            float4 crack = CrackSites[i];
+            float elapsed = TrailAge - crack.y;
+            float open = saturate(elapsed / 0.12);
+            float halfWidth = lerp(0.006, crack.z, saturate(elapsed / 0.6));
+            float localWidth = smoothstep(halfWidth, halfWidth + crack.w, abs(coord.x - crack.x));
+            width *= lerp(1.0, localWidth, open);
+        }
+        }
     }
-    return color * input.Color * coord.z;
+    if (width <= 0.0) return 0;
+    float sampleWidth = width;
+    float coverage = 1.0;
+    if (UseShrink && !UseFracture)
+    {
+        // 连续版的细亮芯不足一像素时扩大采样核、按实际覆盖率补偿能量，避免斜线采成虚线。
+        float minimumSampleWidth = 4.0 * (abs(ddx(coord.y)) + abs(ddy(coord.y)));
+        sampleWidth = max(width, minimumSampleWidth);
+        coverage = width / sampleWidth;
+    }
+    if (abs(coord.y - 0.5) * 2.0 > sampleWidth) return 0;
+    // 压缩整个横截面（包括亮芯），而非仅裁掉原贴图外缘；宽度变化从退场开始就可见。
+    // 轴向纹理坐标保持不动，RGB/alpha 不随时间淡化，残线继续保持光感。
+    float sampleY = 0.5 + (coord.y - 0.5) / max(sampleWidth, 0.0001);
+    float4 color = tex2D(uImage0, float2(coord.x + uTimex, sampleY));
+    return color * input.Color * coord.z * coverage;
 }
 
 // 头部爆点：与拖尾同样用自带顶点着色器的四边形绘制图集中的一帧（不经 SpriteBatch，避免沿用不确定的顶点着色器），

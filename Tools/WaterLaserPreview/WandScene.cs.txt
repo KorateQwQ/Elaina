@@ -1,13 +1,16 @@
 // Only PlayerDrawSet/DrawData storage is adapted; the action overrides, base dispatch,
 // color/fade calculations, trail shader and star textures are extracted from game sources.
 namespace Terraria.DataStructures {
-    public struct PlayerDrawSet { public List<DrawData> DrawDataCache; }
+    public struct PlayerDrawSet { public List<DrawData> DrawDataCache; public float shadow; }
     public struct DrawData(Texture2D texture, Vector2 position, Rectangle? sourceRect, Color color,
         float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float layerDepth) {
         public bool ignorePlayerRotation;
         public Color Color = color;
-        public void Draw(SpriteBatch batch) => batch.Draw(texture, position, sourceRect, Color,
-            rotation, origin, scale, effects, layerDepth);
+        public static readonly List<Color> DrawnColors = new();
+        public void Draw(SpriteBatch batch) {
+            DrawnColors.Add(Color);
+            batch.Draw(texture, position, sourceRect, Color, rotation, origin, scale, effects, layerDepth);
+        }
     }
 }
 namespace 伊蕾娜.ElainaActions {
@@ -17,10 +20,25 @@ namespace 伊蕾娜.ElainaActions {
         private Vector2[] wandTrailPositions;
         private int wandTrailPointCount;
 
-        public Color ReadStar(float progress) {
-            var info = new PlayerDrawSet { DrawDataCache = new() };
+        public Color ReadStar(float progress, float shadow = 0f) {
+            LayerDrawRequestSystem.ClearFrame();
+            DrawData.DrawnColors.Clear();
+            var info = new PlayerDrawSet { DrawDataCache = new(), shadow = shadow };
             DrawStar(ref info, progress);
-            return info.DrawDataCache[0].Color;
+            if (info.DrawDataCache.Count != 0) throw new Exception("Action star still enters the player layer.");
+            bool particlesPassed = false;
+            LayerDrawRequestSystem.Request("Preview:Particles", LayerDrawRequestSystem.DrawTargetLayer.Dust,
+                LayerDrawRequestSystem.DrawTiming.After, () => {
+                    if (DrawData.DrawnColors.Count != 0) throw new Exception("Action star drew before skill particles.");
+                    particlesPassed = true;
+                }, order: LayerDrawRequestSystem.DustOrder);
+            LayerDrawRequestSystem.Flush(LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.After);
+            if (!particlesPassed || DrawData.DrawnColors.Count != (shadow == 0f ? 3 : 0))
+                throw new Exception("Action star was missing, duplicated, or queued for a player shadow.");
+            // The deferred request must return with the batch closed.
+            BeginDraw();
+            Main.spriteBatch.End();
+            return DrawData.DrawnColors.Count == 0 ? Color.Transparent : DrawData.DrawnColors[0];
         }
 
         public void Replay(Vector2 origin, float angle, float progress, bool moving) {
@@ -63,7 +81,8 @@ namespace 伊蕾娜.ElainaActions {
             Color start = normal.ReadStar(0), middle = normal.ReadStar(.5f);
             if (start.R != 0 || start.B != 0 || middle.R <= middle.G || middle.B <= middle.G)
                 throw new Exception("Default action's purple star or fade-in changed.");
-            Console.WriteLine("PASS wand: blue star visible at held frame 0, fades across recovery, other actions retain purple/fade-in.");
+            normal.ReadStar(.5f, shadow: .5f);
+            Console.WriteLine("PASS wand: stars draw after skill particles, shadows do not queue stars, batch closes; blue/purple colors and recovery fade preserved.");
         }
     }
 }

@@ -31,6 +31,8 @@ public class MagicMissile : KLProjectile
     // 撞墙时沿入射方向找回的接触点与入射角；为空表示命中敌人或寿命结束
     private Vector2? wallContact;
     private float wallImpactRotation;
+    private float wallImpactSpeed;
+    private float lastTravelSpeed;
     protected override bool SampleTrailInDrawBehind => true;
 
     private float scale = 0.5f;
@@ -96,6 +98,7 @@ public class MagicMissile : KLProjectile
         trailVisuals = null;
         wallContact = null;
         wallImpactRotation = 0;
+        wallImpactSpeed = lastTravelSpeed = 0f;
         scale = 0.0f;
         totalAlpha = 0;
         burstCenter = null;
@@ -144,6 +147,7 @@ public class MagicMissile : KLProjectile
             }
         }
 
+        lastTravelSpeed = Projectile.velocity.Length() * (Projectile.extraUpdates + 1);
         //TraceTarget();
         base.AI();
     }
@@ -212,7 +216,7 @@ public class MagicMissile : KLProjectile
 
     private static void DrawManagedTrail(MagicMissileTrailVisuals visual, Vector2[] points, float remaining)
     {
-        // 长度缩短由 MagicMissileTrailVisuals 截掉尾端几何完成（提交时关闭了 TrailManager 的线性缩短）
+        // 消亡拖尾自行按入射速度沿原轨迹追至死亡位置；TrailManager 只提供游戏时间与快照。
         if (points.Length < 2)
             return;
 
@@ -300,6 +304,7 @@ public class MagicMissile : KLProjectile
         // 原版在此之后才按滑动后的速度移动并 Kill，此时 Center 仍是本次移动前的位置
         wallContact = MagicMissileTrailVisuals.WallContact(Projectile.Center, oldVelocity, Projectile.velocity);
         wallImpactRotation = oldVelocity.ToRotation();
+        wallImpactSpeed = oldVelocity.Length() * (Projectile.extraUpdates + 1);
         return base.OnTileCollide(oldVelocity);
     }
 
@@ -337,10 +342,12 @@ public class MagicMissile : KLProjectile
             // 碰撞可能发生在下一次 DrawBehind 之前，先补末段，否则命中点与旧拖尾之间会空一截。
             Vector2[] finalPath = MagicMissileTrailVisuals.FinishPath(OldCenter, end, TrailMaxLength);
             trailVisuals ??= new MagicMissileTrailVisuals(Projectile.identity * 397 ^ Projectile.owner);
-            trailVisuals.Expiring = true;
+            float travelSpeed = wallContact.HasValue ? wallImpactSpeed :
+                (lastTravelSpeed > .01f ? lastTravelSpeed : Projectile.velocity.Length() * (Projectile.extraUpdates + 1));
+            trailVisuals.BeginRelease(finalPath, travelSpeed);
             trailVisuals.HeadRotation = angle;
             trailVisuals.TextureOffset = 1f - (Main.GameUpdateCount % 120) / 30f;
-            TrailManager.CreateOrUpdateTrail(ref managedTrail, finalPath, MagicMissileTrailVisuals.FadeTicks,
+            TrailManager.CreateOrUpdateTrail(ref managedTrail, finalPath, trailVisuals.ReleaseTicks,
                 trailVisuals, DrawManagedTrail, layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
                 timing: LayerDrawRequestSystem.DrawTiming.After, bloom: true, shrinkPathOnExpire: false);
         }

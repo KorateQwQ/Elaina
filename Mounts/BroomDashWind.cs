@@ -51,18 +51,23 @@ public sealed class BroomDashWind : ModProjectile
     }
 
     // 冲刺时速度锁定在冲刺方向，路径必为直线；冲刺结束（或撞墙、远端延迟导致方向已变）后不再追加新点，
-    // 拖尾留在这条直线上向终点收拢，不随转向弯折。
+    // 整条直线拖尾随人物平移，头部始终接在身后，再向人物收拢，不随转向弯折。
     private void SampleTrail(Player owner)
     {
         if (Projectile.localAI[0] == 0) PushTrail(Projectile.Center);
-        if (trailFrozen) return;
-        Vector2 direction = Projectile.ai[0].ToRotationVector2();
-        if (Projectile.localAI[0] + 1 >= DashTicks || Vector2.Dot(owner.velocity, direction) < Projectile.ai[1] * .8f)
+        if (!trailFrozen)
         {
+            Vector2 direction = Projectile.ai[0].ToRotationVector2();
+            if (Projectile.localAI[0] + 1 < DashTicks && Vector2.Dot(owner.velocity, direction) >= Projectile.ai[1] * .8f)
+            {
+                PushTrail(owner.MountedCenter);
+                return;
+            }
             trailFrozen = true;
-            return;
         }
-        PushTrail(owner.MountedCenter);
+        // 冲刺后仍有余速，拖尾若停在终点会与人物脱开。
+        Vector2 shift = owner.MountedCenter - trail[0];
+        for (int i = 0; i < trailCount; i++) trail[i] += shift;
     }
 
     private void PushTrail(Vector2 point)

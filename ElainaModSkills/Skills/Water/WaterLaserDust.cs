@@ -4,7 +4,7 @@ using KL.Dusts;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 
-/// <summary>水射线专用 KL 粒子：与射线共用 Projectiles.After Bloom，按 order 绘制在主体上方。</summary>
+/// <summary>水流术与水球共用的水花粒子，在 Dust.After 普通绘制，覆盖玩家与水球。</summary>
 public sealed class WaterLaserDust : KLBasicDust
 {
     public override string Texture => WaterLaserVisuals.SplashTexturePath;
@@ -38,7 +38,7 @@ public sealed class WaterLaserDust : KLBasicDust
     {
         dust.noGravity = true;
         dust.noLight = true;
-        // 本类通过 SubmitBloomDrawRequest 提交自定义水花绘制。
+        // 复用 KL 的粒子收集入口，提交普通绘制请求，不参与 Bloom。
         ShouldBloom = false;
         base.OnSpawn(dust);
     }
@@ -76,14 +76,14 @@ public sealed class WaterLaserDust : KLBasicDust
             info.DustData = state = new ParticleState(false, info.AttachedEntity?.position ?? Vector2.Zero);
         state.Draw ??= context =>
         {
-            // 同组所有水花只 Begin/End 一次；与射线同层，仅做一次后处理。
-            if (context.IsFirst) WaterLaserVisuals.BeginSprites();
+            // DrawDust 返回时已 End；本组自管 Begin/End，离开时仍保持批次关闭。
+            if (context.IsFirst) BeginDraw(state: 2, defferred: 1, ss: SamplerState.LinearClamp);
             if (dust.active && ReferenceEquals(dust.customData, info))
                 WaterLaserVisuals.DrawParticle(dust.position, dust.rotation, info.scale,
                     info.LifeProgress, info.randFrame, state.Foam, dust.color);
-            if (context.IsLast) EndBeginDraw();
+            if (context.IsLast) Main.spriteBatch.End();
         };
-        LayerDrawRequestSystem.RequestBloom("Elaina:WaterLaser:Particles", WaterLaserVisuals.Layer,
+        LayerDrawRequestSystem.Request("Elaina:WaterLaser:Particles", LayerDrawRequestSystem.DrawTargetLayer.Dust,
             LayerDrawRequestSystem.DrawTiming.After, state.Draw, order: LayerDrawRequestSystem.DustOrder);
     }
 

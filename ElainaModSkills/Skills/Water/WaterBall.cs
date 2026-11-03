@@ -25,15 +25,19 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 public class WaterBall : ElainaBasicProjectile
 {
     private static WaterChargeFlowRenderer chargeFlowRenderer;
+    private static WaterBallFlightRenderer flightRenderer;
 
     public override void Unload()
     {
         WaterChargeFlowRenderer renderer = chargeFlowRenderer;
         chargeFlowRenderer = null;
         if (renderer != null) Main.QueueMainThreadAction(renderer.Dispose);
+        WaterBallFlightRenderer flight = flightRenderer;
+        flightRenderer = null;
+        if (flight != null) Main.QueueMainThreadAction(flight.Dispose);
     }
 
-    private readonly IceWaterHitBatch iceCycleBatch = new();
+    private readonly WaterExposureBatch waterBatch = new();
     private Vector2 oldPosition;
 
     private float lastRotation;
@@ -65,6 +69,7 @@ public class WaterBall : ElainaBasicProjectile
     private float HoldDistance = 70;
     private int time;
     private int time2 = 60;
+    private double flightVisualStart;
 
     public float WaterBallRadius = 50;
 
@@ -83,9 +88,11 @@ public class WaterBall : ElainaBasicProjectile
     {
         HoldDistance = 150;
         InfusionElement = ElementType.Water;
+        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().SuppressBuildup = true;
         state = State.Hold;
         TrailLength = 30;
         time2 = 60;
+        flightVisualStart = 0;
 
         WaterBallRadius = 50;
         Projectile.hide = true;
@@ -181,11 +188,6 @@ public class WaterBall : ElainaBasicProjectile
         }*/
         return base.PreAI();
     }
-    //todo: 联机同步,
-    //测试多个水球的位置同步，
-    //水球大小同步，
-    //发射时机同步
-
     //蓄力至少一秒后射出水球，水球在移动一定距离后会造成锥形范围伤害，否则造成圆形范围伤害
     //水球仅靠自身凝聚成长，不受场地水源或天气影响
     public override void AI()
@@ -286,6 +288,7 @@ public class WaterBall : ElainaBasicProjectile
     {
         Projectile.friendly = true;
         state = State.Fly;
+        flightVisualStart = time;
         Projectile.velocity *= 35f;
         needShoot = false;
         Projectile.tileCollide = true;
@@ -312,7 +315,9 @@ public class WaterBall : ElainaBasicProjectile
     public override bool PreDraw(ref Color lightColor)
     {
         DrawChargeFlow(false);
+        DrawFlightFlow(false);
         DrawBall();
+        DrawFlightFlow(true);
         DrawChargeFlow(true);
         EndBeginDraw();
         return base.PreDraw(ref lightColor);
@@ -335,6 +340,23 @@ public class WaterBall : ElainaBasicProjectile
         {
             BeginDraw();
         }
+    }
+
+    private void DrawFlightFlow(bool foreground)
+    {
+        if (Main.dedServ || state != State.Fly) return;
+        flightRenderer ??= new WaterBallFlightRenderer(Main.instance.GraphicsDevice,
+            ModContent.Request<Effect>("伊蕾娜/Effects/Content/WaterChargeFlow", AssetRequestMode.ImmediateLoad).Value,
+            path => ModContent.Request<Texture2D>(path, AssetRequestMode.ImmediateLoad).Value);
+        // PreDraw 位于已开启的弹幕批次中；原始顶点绘制前结束，返回时恢复。
+        Main.spriteBatch.End();
+        // 与飞行风纹共用视觉时钟；暂停 AI 时仍旋转，发射快照保留淡入起点。
+        float seconds = (float)((time - flightVisualStart) / 60d);
+        flightRenderer.Draw(Projectile.Center - Main.screenPosition, WaterBallRadius,
+            new Vector2(drawWidth, drawHeight), Projectile.rotation, seconds,
+            foreground, Main.GameViewMatrix.TransformationMatrix);
+        BeginDraw();
+
     }
 
     void DrawBall()
@@ -547,9 +569,15 @@ public class WaterBall : ElainaBasicProjectile
         }
     }
 
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        if (waterBatch.Capture(target)) modifiers.SourceDamage *= 2f;
+        base.ModifyHitNPC(target, ref modifiers);
+    }
+
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        iceCycleBatch.OnHit(Owner, target, damageDone, waterBall: true);
+        waterBatch.OnHit(Owner, target, damageDone, Projectile, WaterExposureNPC.ExposureTicks, 1);
         base.OnHitNPC(target, hit, damageDone);
     }
 }

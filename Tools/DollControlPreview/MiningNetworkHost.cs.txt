@@ -17,7 +17,6 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl
         internal bool BringBackItems { get; set; } = true;
         internal int Count(int type) => loot.GetValueOrDefault(type);
         internal void ResetLoot() => loot.Clear();
-        private Item BestHammer() => null;
         private void SaveGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { }
         private void LoadGardenOwner(Terraria.ModLoader.IO.TagCompound tag) { }
         private void SaveChestCargo(Terraria.ModLoader.IO.TagCompound tag) { }

@@ -116,10 +116,10 @@ public sealed class DollMiningNetwork : ModSystem
             || Vector2.DistanceSquared(player.Center, point.ToWorldCoordinates()) > DollCommandPlayer.WorkRange * DollCommandPlayer.WorkRange
             || DollPetProjectile.FindOwned(player) == null) return drops;
         Tile tile = Main.tile[x, y];
-        if (!tile.HasTile || tile.TileType != type || Main.tileAxe[type] || Main.tileHammer[type]
+        if (!DollCommandPlayer.IsWorkTarget(x, y, false) || tile.TileType != type
             || Main.tileFrameImportant[type] && (tile.TileFrameX != frameX || tile.TileFrameY != frameY)) return drops;
-        Item pickaxe = player.GetBestPickaxe();
-        if (pickaxe == null || !DollTileBreaker.CanDamageTile(player, x, y, pickaxe.pick) || !WorldGen.CanKillTile(x, y)) return drops;
+        Item tool = player.GetModPlayer<DollCommandPlayer>().ToolFor(point, false);
+        if (DollMiningRules.BlockReason(player, point, false, tool) != null || !WorldGen.CanKillTile(x, y)) return drops;
         HashSet<Point> changed = [];
         changedTiles = changed;
         try { DollTileBreaker.BreakTile(x, y, drops); }

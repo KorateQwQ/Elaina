@@ -281,14 +281,18 @@ internal static class RecallPortalDrawing
     /// <param name="destination">是否为出生地出口：false 为施法地点，true 为出生地，可用于区分两端特效。</param>
     /// <param name="hovered">鼠标是否处于法阵的椭圆区域，可用于高亮；不代表距离、队伍等交互条件已满足。</param>
     /// <param name="burstStart">最近一次向上爆发开始时的 age：画完时为 delay，之后每次有人经法阵传送时更新。</param>
+    /// <param name="tint">法阵颜色（非预乘）；为空时按 destination 取回城的紫色或蓝色。供其他技能复用同一法阵。</param>
+    /// <param name="script">是否绘制外圈花体字。</param>
+    /// <param name="teleportBurst">是否绘制传送时向上的光幕和光束；仅复用平面阵纹的技能传 false。</param>
     public static void Draw(GraphicsDevice device, Effect effect, Matrix transform, Vector2 center, float radius,
-        float age, int delay, int lifetime, bool destination, bool hovered, float burstStart)
+        float age, int delay, int lifetime, bool destination, bool hovered, float burstStart,
+        Color? tint = null, bool script = true, bool teleportBurst = true)
     {
         // 描绘进度即蓄力进度：两端同时生成，一起从零画出纹路。
         float build = Math.Max(0, age) / delay;
         float opacity = Math.Min(Math.Clamp(age / 15, 0, 1), Math.Clamp((delay + lifetime - age) / 30, 0, 1));
         if (opacity <= 0) return;
-        Color color = (destination ? new Color(123, 215, 240) : new Color(205, 160, 246)) * opacity;
+        Color color = (tint ?? (destination ? new Color(123, 215, 240) : new Color(205, 160, 246))) * opacity;
         Vector2 Point(float angle, float r) => center + new Vector2(MathF.Cos(angle) * r, MathF.Sin(angle) * r * .3f);
         // 笔画在 finishedAt 帧到达终点后，笔尖过曝在 TipFade 帧内平滑淡出。
         float TipAfterglow(float finishedAt)
@@ -302,7 +306,7 @@ internal static class RecallPortalDrawing
         float burst = (age - burstStart) / BurstTicks;
         burstSeed = 0;
         burstHeight = burstIntensity = 0;
-        if (burst >= 0 && burst < 1)
+        if (teleportBurst && burst >= 0 && burst < 1)
         {
             burstHeight = radius * BurstHeight * (1 - MathF.Pow(1 - Math.Min(1, burst * 1.6f), 3));
             burstIntensity = Math.Min(1, (age - burstStart + 1) / 3) * (1 - burst) * (1 - burst) * opacity;
@@ -311,7 +315,7 @@ internal static class RecallPortalDrawing
         DrawPattern();
         burstSheet = 0;
         burstRays = .25f;
-        DrawScript(Math.Min(build, 1));
+        if (script) DrawScript(Math.Min(build, 1));
         if (indexCount == 0) return;
 
         EnsureTexture();

@@ -19,7 +19,7 @@ internal static partial class FurnitureMiningChecks
         Terraria.Program.SavePath = Path.GetTempPath();
         Host.dedServ = true; Host.netMode = NetmodeID.SinglePlayer; Host.myPlayer = 0;
         Host.SceneMetrics = new SceneMetrics(); Host.PylonSystem = new Terraria.GameContent.TeleportPylonsSystem();
-        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(WallID.Sets), typeof(ItemID.Sets) })
+        foreach (Type sets in new[] { typeof(TileID.Sets), typeof(WallID.Sets), typeof(ItemID.Sets), typeof(Terraria.GameContent.Prefixes.PrefixLegacy.ItemSets) })
             System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(sets.TypeHandle);
         SetFactory.ResizeArrays(false); TileObjectData.Initialize();
         var mod = new FixtureMod();
@@ -79,6 +79,7 @@ internal static partial class FurnitureMiningChecks
         }
         Console.WriteLine($"PASS: {passed} native furniture mining checks (real WorldGen, framing, pickaxe damage and captured/world drops).");
         CheckNetwork();
+        CheckOrbs();
     }
     private static void Reset()
     {

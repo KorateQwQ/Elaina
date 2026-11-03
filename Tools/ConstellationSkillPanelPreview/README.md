@@ -1,5 +1,7 @@
 # 正式技能面板离线验证
 
+`-ResolutionOnly -SkipChecks -Configuration Release` 按原生分辨率导出治愈术详情、术语提示和水流技能三个场景，覆盖支持的三种显示配置：1920×1080 / 100%、2560×1440 / 150%、3840×2160 / 200% UI 缩放。输出在 `output/<culture>/resolution-comparison/<场景>-<宽>x<高>-ui<百分比>.png`，PNG 不做后期缩放。面板和游戏内一样最多按设计尺寸显示，因此三种配置的屏幕字号分别是设计字号的 1、1.5、2 倍。字体请在图片查看器 100% 比例下判断。`-FontSizesOnly` 列出三种配置下面板请求的全部屏幕字号，供 `Tools/FontTiers` 确定烘焙字号。
+
 `pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、20 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。
 
 `-DiscoveryOnly` 链接正式 `StageGateUnlockCondition`、`ConstellationState` 与 `ConstellationDiscovery`，检查已习得/待研习/待启封/未显现四态、不可达门槛与其子技能未显现、未显现不能研习、可达门槛和未学前置列为缺口、依赖成环、追踪器的显现/启封判定与静默首次观察、共享新标记，以及提示队列的合并、淡入淡出、悬停保持和清空。随后导出显现、问号显现、多项合并、启封四种横幅的入场/停留/悬停帧（100%、125%），位于 `output/<culture>/discovery`。实际 SUI 点击、存档往返和真实 Boss 进度仍需游戏内验证。

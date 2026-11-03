@@ -30,6 +30,7 @@ internal static partial class FurnitureMiningChecks
         // tML reserves the first mod tile slot for its own content before user mods load.
         var reserved = new ReservedFixture(); ((ILoadable)reserved).Load(mod); ContentInstance.Register(reserved);
         furniture = new FurnitureFixture(); ((ILoadable)furniture).Load(mod); ContentInstance.Register(furniture);
+        var protectedOrbs = new ProtectedOrbFixture(); ((ILoadable)protectedOrbs).Load(mod); ContentInstance.Register(protectedOrbs);
         // Observe transport below the production suppression hook.
         On_NetMessage.SendData += CaptureVanilla;
         typeof(Mod).GetField("netID", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(mod, (short)0);

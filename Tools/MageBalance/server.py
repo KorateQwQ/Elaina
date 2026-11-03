@@ -187,6 +187,8 @@ def validate_payload(payload):
         ids.add(key)
         number(row, "cost", 0, 10000)
         number(row, "cd", .1, 600)
+        if "ratio" in row:
+            number(row, "ratio", 0, 5)
         if "freezeBuildup" in row:
             number(row, "freezeBuildup", 0, 100)
         if "cdRatio" not in row:

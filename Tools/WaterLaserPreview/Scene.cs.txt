@@ -173,14 +173,20 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water {
             if (beam) { Color c = Color.White; laser.PreDraw(ref c); }
             // Same collection point as DrawSystem: after projectile PreDraw, before Projectiles.After flush.
             if (particles) KLBasicDust.SubmitBloomDrawRequests();
-            if ((beam || particles && Dust.All.Any(d => d.active)) &&
+            if (beam &&
                 !LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After))
-                throw new Exception("Beam/particles missed Projectiles.After");
+                throw new Exception("Beam missed Projectiles.After");
             foreach (var layer in Enum.GetValues<LayerDrawRequestSystem.DrawTargetLayer>())
             foreach (var timing in Enum.GetValues<LayerDrawRequestSystem.DrawTiming>())
-                if ((layer != LayerDrawRequestSystem.DrawTargetLayer.Projectiles || timing != LayerDrawRequestSystem.DrawTiming.After) &&
+                if ((!beam || layer != LayerDrawRequestSystem.DrawTargetLayer.Projectiles || timing != LayerDrawRequestSystem.DrawTiming.After) &&
                     LayerDrawRequestSystem.HasBloomRequests(layer, timing))
-                    throw new Exception("Beam/particles created an extra bloom stage");
+                    throw new Exception("Water particles entered the bloom queue");
+            var requests = (System.Collections.IDictionary)typeof(LayerDrawRequestSystem)
+                .GetField("Requests", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            bool hasParticles = particles && Dust.All.Any(d => d.active);
+            var particleLayer = (LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.After);
+            if (requests.Count != (hasParticles ? 1 : 0) || hasParticles && !requests.Contains(particleLayer))
+                throw new Exception("Water particles must draw once at Dust.After, above OverPlayers");
         }
         public static void CheckAfterDraw() {
             // Vanilla DrawDust happens later: it must neither redraw nor queue another frame's bloom.

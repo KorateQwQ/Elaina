@@ -13,6 +13,10 @@ internal sealed class PanelGame : Game
     private static bool SkipChecks;
     private static bool HeadersOnly;
     private static bool LocalizationOnly;
+    private static bool FireOnly;
+    private static bool IceWaterOnly;
+    private static bool ResolutionOnly;
+    private static bool FontSizesOnly;
     private static bool RequirementsOnly;
     private static bool ToggleOnly;
     private static bool PolishOnly;
@@ -41,6 +45,10 @@ internal sealed class PanelGame : Game
         KL.Drawing.FontManager.HarmonyOS_Sans_SC = new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
         KL.Drawing.FontManager.NotoSerifSC = new(Content.Load<DynamicSpriteFont>("NotoSerifSC"));
         KL.Drawing.FontManager.Gelasio = new(Content.Load<DynamicSpriteFont>("Gelasio"));
+        var fonts = new Microsoft.Xna.Framework.Content.ContentManager(Services, Content.RootDirectory);
+        KL.Drawing.FontManager.HarmonyOS_Sans_SC_Pixels = new(KL.Drawing.FontManager.HarmonyOS_Sans_SC, new PixelSizes(fonts, "HarmonyOS_Sans_SC"));
+        KL.Drawing.FontManager.NotoSerifSC_Pixels = new(KL.Drawing.FontManager.NotoSerifSC, new PixelSizes(fonts, "NotoSerifSC"));
+        KL.Drawing.FontManager.Gelasio_Pixels = new(KL.Drawing.FontManager.Gelasio, new PixelSizes(fonts, "Gelasio"));
         Content.RootDirectory = VanillaContent;
         Vanilla = Content;
         Terraria.GameContent.FontAssets.MouseText = new(Content.Load<DynamicSpriteFont>("Fonts/Mouse_Text"));
@@ -52,6 +60,45 @@ internal sealed class PanelGame : Game
         if (_done) return; _done = true;
         string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output", Terraria.Localization.Language.Culture); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (ResolutionOnly)
+        {
+            string folder = Path.Combine(output, "resolution-comparison");
+            Directory.CreateDirectory(folder);
+            // The three supported displays at their default UI scales; the panel stays at design size in each.
+            foreach (var (width, height, uiScale) in new[] { (1920, 1080, 1f), (2560, 1440, 1.5f), (3840, 2160, 2f) })
+            foreach (string scene in new[] { "healing-level1", "terms-freeze", "ice-water-stream" })
+            {
+                using var target = new RenderTarget2D(Device, width, height);
+                Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
+                new PanelScene().Render(batch, width, height, uiScale, scene);
+                Device.SetRenderTarget(null);
+                string path = Path.Combine(folder, $"{scene}-{width}x{height}-ui{uiScale * 100:0}.png");
+                using var stream = File.Create(path);
+                target.SaveAsPng(stream, width, height);
+                Console.WriteLine(path);
+            }
+            Exit(); return;
+        }
+        if (FontSizesOnly)
+        {
+            // Lists every on-screen em the panel requests at the three supported displays, for Tools/FontTiers.
+            string[] all = ["new", "passive", "passive-stats", "active", "equipped", "missing", "off", "empty", "bottom", "editor", "maxed",
+                "growth", "growth-poor", "growth-long", "growth-maxed", "terms-freeze", "terms-magic", "terms-cauldron",
+                "requirements-learn", "requirements-upgrade", "requirements-ready", "requirements-tooltip", "requirements-long", "requirements-term",
+                "healing-new", "healing-level1", "healing-description", "alchemy-stats", "alchemy-growth", "forget", "forget-armed",
+                "recall-sealed", "recall-revealed-missing", "recall-ready", "fire-beam", "fire-burst", "ice-water-stream", "ice-water-lock"];
+            foreach (var (width, height, uiScale) in new[] { (1920, 1080, 1f), (2560, 1440, 1.5f), (3840, 2160, 2f) })
+            {
+                using var target = new RenderTarget2D(Device, width, height);
+                Device.SetRenderTarget(target);
+                foreach (string scene in all) new PanelScene().Render(batch, width, height, uiScale, scene);
+                new PanelScene().RenderHeader(batch, uiScale, 9999, 99, 120, 99);
+                Device.SetRenderTarget(null);
+            }
+            foreach (var group in PixelSizes.Requested.GroupBy(r => r.Font))
+                Console.WriteLine($"{group.Key}: {string.Join(",", group.Select(r => r.Pixels).Distinct().Order())}");
+            Exit(); return;
+        }
         if (DebugToolsOnly)
         {
 #if DEBUG
@@ -92,7 +139,9 @@ internal sealed class PanelGame : Game
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
-        string[] scenes = AlchemyOnly ? ["alchemy-stats", "alchemy-growth", "alchemy-max"]
+        string[] scenes = IceWaterOnly ? ["ice-water-stream", "ice-water-orb", "ice-water-cone", "ice-water-lock"]
+            : FireOnly ? ["fire-beam", "fire-burst", "fire-wind"]
+            : AlchemyOnly ? ["alchemy-stats", "alchemy-growth", "alchemy-max"]
             : ForgetOnly ? ["forget", "forget-armed", "forget-lv1"]
             : TermsOnly ? ["terms-freeze", "terms-magic", "terms-cauldron", "requirements-term"]
             : HealingOnly ? ["healing-new", "healing-level1", "healing-growth", "healing-level8", "healing-description"]
@@ -138,6 +187,10 @@ internal sealed class PanelGame : Game
         HeadersOnly = args.Contains("--headers-only");
         SkipChecks = args.Contains("--skip-checks");
         LocalizationOnly = args.Contains("--localization-only");
+        FireOnly = args.Contains("--fire-only");
+        IceWaterOnly = args.Contains("--ice-water-only");
+        ResolutionOnly = args.Contains("--resolution-only");
+        FontSizesOnly = args.Contains("--font-sizes-only");
         RequirementsOnly = args.Contains("--requirements-only");
         ToggleOnly = args.Contains("--toggle-only");
         PolishOnly = args.Contains("--polish-only");
@@ -169,7 +222,12 @@ internal sealed class PanelGame : Game
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Name"),
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Description", 100f),
             () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Duration"), "4", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds")),
-                (Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Cooldown"), "60", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
+                (Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Cooldown"), "30", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
+        KL.Drawing.Snippets.KLTerms.Register(new("KL/Drawing/Snippets/Icons/WaterIcon", new Color(102,195,232),
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Name"),
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Description"),
+            () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Duration"), "10", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
         KL.Drawing.Snippets.KLTerms.Register(new("伊蕾娜/Snippets/MagicStarIcon", new Color(76, 145, 255),
             () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Name"),
@@ -186,6 +244,32 @@ internal sealed class PanelGame : Game
         KL.Drawing.Snippets.KLTerms.RegisterItem(PanelScene.SpellbookItem, "伊蕾娜/Snippets/WaterSpellbookIcon");
         // The old fixture class uses WindBladeSkill for the production WindSlashSkill.
         Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillName.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.WindSlashSkill");
+        Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillDesc.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillDesc.WindSlashSkill");
         using var game = new PanelGame(); game.Run();
     }
+}
+
+// Exact-size font copies from KL/Fonts (Name_px.xnb), recording every size the panel asks for.
+internal sealed class PixelSizes(Microsoft.Xna.Framework.Content.ContentManager content, string font) : IReadOnlyDictionary<int, Asset<DynamicSpriteFont>>
+{
+    internal static readonly HashSet<(string Font, int Pixels)> Requested = [];
+    private readonly Dictionary<int, Asset<DynamicSpriteFont>> _loaded = [];
+    public bool TryGetValue(int pixels, out Asset<DynamicSpriteFont> value)
+    {
+        Requested.Add((font, pixels));
+        if (!_loaded.TryGetValue(pixels, out value))
+        {
+            string name = $"{font}_{pixels}";
+            value = File.Exists(Path.Combine(content.RootDirectory, name + ".xnb")) ? new(content.Load<DynamicSpriteFont>(name)) : null;
+            _loaded[pixels] = value;
+        }
+        return value != null;
+    }
+    public Asset<DynamicSpriteFont> this[int key] => throw new NotSupportedException();
+    public IEnumerable<int> Keys => throw new NotSupportedException();
+    public IEnumerable<Asset<DynamicSpriteFont>> Values => throw new NotSupportedException();
+    public int Count => throw new NotSupportedException();
+    public bool ContainsKey(int key) => TryGetValue(key, out _);
+    public IEnumerator<KeyValuePair<int, Asset<DynamicSpriteFont>>> GetEnumerator() => throw new NotSupportedException();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }

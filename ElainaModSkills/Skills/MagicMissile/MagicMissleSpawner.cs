@@ -290,7 +290,7 @@ public class MagicMissleSpawner : KLProjectile
         float length =MathHelper.Lerp(1, 0, startTime / 20f);
         
         EndBeginDraw(1,1);
-        CircleRingEffect(0.06f,outerRadius:radius,ringColor:color.ToVector4()*2.5f,texScale:new Vector2(0.5f,4),
+        CircleRingEffect(0.06f,outerRadius:radius,ringColor:new Vector4(color.ToVector3()*2.5f,1),texScale:new Vector2(0.5f,4),
             swapUV:true,noiseTex:noise,edgeNoiseStrength:noiseStr);
         DrawInWorld(line,Projectile.Center);
 
@@ -336,7 +336,7 @@ public class MagicMissleSpawner : KLProjectile
         }
         
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(new Vector4(new Vector3(1f, 0.22f, 0.72f)*2.4f,1));
+        effect.Parameters["CircleColor"].SetValue(new Vector4(new Vector3(1f, 0.22f, 0.72f)*2.0f,1));
         effect.Parameters["DistortionStrength"].SetValue(0.04f);
 
         DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale)*1.1f);

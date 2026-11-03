@@ -119,8 +119,8 @@ public sealed class ConstellationBookResources : ModSystem
         _cover = pool.Rent(1100, 800);
         device.SetRenderTarget(_cover);
         device.Clear(Color.Transparent);
-        var previousBatch = drawing.Batch; var origin = drawing.Origin; float scale = drawing.Scale;
-        drawing.Batch = batch; drawing.Origin = Vector2.Zero; drawing.Scale = 1;
+        var previousBatch = drawing.Batch; var origin = drawing.Origin; float scale = drawing.Scale; var transform = drawing.Transform;
+        drawing.Batch = batch; drawing.Origin = Vector2.Zero; drawing.Scale = 1; drawing.Transform = Matrix.Identity;
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, RasterizerState.CullNone);
         bool painted = false;
@@ -132,7 +132,7 @@ public sealed class ConstellationBookResources : ModSystem
         finally
         {
             batch.End();
-            drawing.Batch = previousBatch; drawing.Origin = origin; drawing.Scale = scale;
+            drawing.Batch = previousBatch; drawing.Origin = origin; drawing.Scale = scale; drawing.Transform = transform;
             if (!painted) { pool.Return(_cover); _cover = null; }
         }
         return _cover;

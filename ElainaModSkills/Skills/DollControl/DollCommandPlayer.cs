@@ -150,7 +150,14 @@ public sealed partial class DollCommandPlayer : ModPlayer
         if (SelectionBlockReason != null) Notify(SelectionBlockReason, new Color(240, 165, 176));
         else if (SelectionMarks.Count > 0)
         {
-            (DollCommands.TargetsWalls(MarkMode) ? WallMarks : TileMarks).UnionWith(SelectionMarks);
+            foreach (Point point in SelectionMarks)
+            {
+                Tile tile = Main.tile[point.X, point.Y];
+                // 指令按工具归类，任务仍区分实际破坏层；敲珠子不连带登记其背后的墙。
+                bool wall = DollCommands.TargetsWalls(MarkMode)
+                    && !(tile.HasTile && DollMiningRules.IsHammerTarget(tile.TileType));
+                (wall ? WallMarks : TileMarks).Add(point);
+            }
             SoundEngine.PlaySound(SoundID.MenuOpen);
         }
         CancelSelection();
@@ -187,6 +194,9 @@ public sealed partial class DollCommandPlayer : ModPlayer
         SelectionBlockReason = null;
     }
 
+    internal Item ToolFor(Point point, bool walls) =>
+        walls || DollMiningRules.IsHammerTarget(Main.tile[point.X, point.Y].TileType) ? BestHammer() : Player.GetBestPickaxe();
+
     private void RefreshSelection()
     {
         SelectionMarks.Clear();
@@ -196,10 +206,11 @@ public sealed partial class DollCommandPlayer : ModPlayer
         bool walls = DollCommands.TargetsWalls(MarkMode);
         if (!dragged && DollCommands.IsChain(MarkMode)) SelectionMarks.UnionWith(FindChain(start, walls));
         else SelectionMarks.UnionWith(DollTileSelection.RectangleCells(start, HoverTile, walls));
-        Item item = walls ? BestHammer() : Player.GetBestPickaxe();
         foreach (Point point in SelectionMarks)
         {
-            SelectionBlockReason = DollMiningRules.BlockReason(Player, point, walls, item);
+            Tile tile = Main.tile[point.X, point.Y];
+            bool wallLayer = walls && !(tile.HasTile && DollMiningRules.IsHammerTarget(tile.TileType));
+            SelectionBlockReason = DollMiningRules.BlockReason(Player, point, wallLayer, ToolFor(point, wallLayer));
             if (SelectionBlockReason != null) break;
         }
     }
@@ -215,10 +226,20 @@ public sealed partial class DollCommandPlayer : ModPlayer
     {
         if (!WorldGen.InWorld(x, y, 1)) return false;
         Tile tile = Main.tile[x, y];
+        bool hammerTarget = tile.HasTile && DollMiningRules.IsHammerTarget(tile.TileType);
+        return walls ? tile.WallType > 0 || hammerTarget
+            : IsWorkTarget(x, y, false) && !hammerTarget;
+    }
+
+    internal static bool IsWorkTarget(int x, int y, bool walls)
+    {
+        if (!WorldGen.InWorld(x, y, 1)) return false;
+        Tile tile = Main.tile[x, y];
         // 家具、瓶子等可用镐拆除的物件不一定实心；碰撞属性不能作为选区条件。
-        // 树木与祭坛等需要斧/锤的目标不属于当前镐子任务。
+        // 暗影珠/猩红之心由拆墙指令登记为物块任务，实际执行仍使用锤子。
         return walls ? tile.WallType > 0
-            : tile.HasTile && !Main.tileAxe[tile.TileType] && !Main.tileHammer[tile.TileType];
+            : tile.HasTile && !Main.tileAxe[tile.TileType]
+                && (!Main.tileHammer[tile.TileType] || DollMiningRules.IsHammerTarget(tile.TileType));
     }
 
     /// <summary>从起点按四邻接找相连同类，最多搜索 <see cref="ChainLimit"/> 格，再补齐边界处家具。</summary>
@@ -227,7 +248,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
         List<Point> group = [];
         if (!IsMarkable(start.X, start.Y, walls)) return group;
         Tile origin = Main.tile[start.X, start.Y];
-        int type = walls ? origin.WallType : origin.TileType;
+        bool wallLayer = walls && !(origin.HasTile && DollMiningRules.IsHammerTarget(origin.TileType));
+        int type = wallLayer ? origin.WallType : origin.TileType;
         HashSet<Point> seen = [start];
         Queue<Point> queue = new();
         queue.Enqueue(start);
@@ -240,7 +262,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
             {
                 if (!IsMarkable(neighbor.X, neighbor.Y, walls) || !seen.Add(neighbor)) continue;
                 Tile tile = Main.tile[neighbor.X, neighbor.Y];
-                if ((walls ? tile.WallType : tile.TileType) == type) queue.Enqueue(neighbor);
+                bool neighborWall = walls && !(tile.HasTile && DollMiningRules.IsHammerTarget(tile.TileType));
+                if (neighborWall == wallLayer && (wallLayer ? tile.WallType : tile.TileType) == type) queue.Enqueue(neighbor);
             }
         }
         // 连锁上限不能把最后一件家具切成半件；最多补齐边界处的整件家具。
@@ -278,8 +301,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
         if (++validateTimer >= 30)
         {
             validateTimer = 0;
-            TileMarks.RemoveWhere(p => !IsMarkable(p.X, p.Y, false));
-            WallMarks.RemoveWhere(p => !IsMarkable(p.X, p.Y, true));
+            TileMarks.RemoveWhere(p => !IsWorkTarget(p.X, p.Y, false));
+            WallMarks.RemoveWhere(p => !IsWorkTarget(p.X, p.Y, true));
         }
 
         target = current;
@@ -353,8 +376,8 @@ public sealed partial class DollCommandPlayer : ModPlayer
     private Work Check(Point point, bool walls)
     {
         int x = point.X, y = point.Y;
-        if (!IsMarkable(x, y, walls)) return Work.Never;
-        Item tool = walls ? BestHammer() : Player.GetBestPickaxe();
+        if (!IsWorkTarget(x, y, walls)) return Work.Never;
+        Item tool = ToolFor(point, walls);
         if (DollMiningRules.BlockReason(Player, point, walls, tool) != null) return Work.Never;
         if (walls)
         {
@@ -375,9 +398,9 @@ public sealed partial class DollCommandPlayer : ModPlayer
     }
 
     /// <summary>两次敲击的间隔：与玩家用同一把工具的挥动节奏一致，敲墙按原版取一半。</summary>
-    internal int HitInterval(bool walls)
+    internal int HitInterval(Point point, bool walls)
     {
-        Item tool = walls ? BestHammer() : Player.GetBestPickaxe();
+        Item tool = ToolFor(point, walls);
         if (tool == null) return 30;
         return walls ? Math.Max(5, tool.useTime / 2) : Math.Max(6, tool.useTime);
     }
@@ -386,7 +409,7 @@ public sealed partial class DollCommandPlayer : ModPlayer
     internal void Hit(Point point, bool walls, DollPetProjectile worker = null)
     {
         int x = point.X, y = point.Y;
-        if (!IsMarkable(x, y, walls)) return;
+        if (!IsWorkTarget(x, y, walls)) return;
         HitTile hitTile = Player.hitTile;
         if (walls)
         {
@@ -410,17 +433,21 @@ public sealed partial class DollCommandPlayer : ModPlayer
             return;
         }
 
-        Item pickaxe = Player.GetBestPickaxe();
-        if (pickaxe == null) return;
+        Item tool = ToolFor(point, false);
+        if (DollMiningRules.BlockReason(Player, point, false, tool) != null) return;
         Tile tile = Main.tile[x, y];
+        bool hammerTarget = DollMiningRules.IsHammerTarget(tile.TileType);
         int index = hitTile.HitObject(x, y, 1);
-        int damage = DollTileBreaker.PickaxeDamage(Player, x, y, pickaxe.pick, index, tile);
+        // 原版锤击暗影珠按锤力累计；镐子仍沿用原版镐力判定与玩偶挖掘倍率。
+        int damage = hammerTarget ? tool.hammer : DollTileBreaker.PickaxeDamage(Player, x, y, tool.pick, index, tile);
         if (!WorldGen.CanKillTile(x, y)) damage = 0;
-        if (Main.getGoodWorld) damage *= 2;
-        // 仅放大判定后的有效进度：镐力不足或禁止拆除时仍为 0，不能越级挖掘。
-        damage *= MiningDamageMultiplier;
-        // 草、苔藓等先被敲成土或石头，下一次再挖掉。
-        if (DollTileBreaker.TransformsOnKill(Player, hitTile, damage, x, y, pickaxe.pick, index, tile)) damage = 0;
+        if (!hammerTarget)
+        {
+            if (Main.getGoodWorld) damage *= 2;
+            damage *= MiningDamageMultiplier;
+            // 草、苔藓等先被敲成土或石头，下一次再挖掉。
+            if (DollTileBreaker.TransformsOnKill(Player, hitTile, damage, x, y, tool.pick, index, tile)) damage = 0;
+        }
         if (hitTile.AddDamage(index, damage) >= 100)
         {
             hitTile.TryClearingAndPruning(x, y, 1);

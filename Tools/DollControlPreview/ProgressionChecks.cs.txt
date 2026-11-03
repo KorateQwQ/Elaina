@@ -87,7 +87,9 @@ static partial class Checks
         }
 
         Reset(1);
-        var live = new DollControlSkill { Level = 1 }; live.Initialize(); live.UpdateEquips(World.player[0]);
+        var live = new DollControlSkill { Level = 1 }; live.Initialize();
+        ElainaSkillModPlayer.GetActiveSkill = [new() { ModSkill = live }];
+        live.UpdateEquips(World.player[0]);
         live.Level = 3; live.UpdateEquips(World.player[0]);
         Check(Team().Length == 4 && Team().All(d => d.SkillLevel == 3), "Upgrade to Lv3 keeps all four dolls and accelerates their actions");
         live.Level = 8; live.UpdateEquips(World.player[0]);
@@ -97,7 +99,9 @@ static partial class Checks
         live.Level = 1; live.UpdateEquips(World.player[0]);
         Check(Team().Count(d => !d.IsDismissing) == 4 && Team().All(d => d.SkillLevel == 1), "Downgrade retains four dolls and restores base work speed");
 
-        Reset(1); live = new DollControlSkill { Level = 1 }; live.Initialize(); live.UpdateEquips(World.player[0]);
+        Reset(1); live = new DollControlSkill { Level = 1 }; live.Initialize();
+        ElainaSkillModPlayer.GetActiveSkill = [new() { ModSkill = live }];
+        live.UpdateEquips(World.player[0]);
         World.projectile[1].ModProjectile = null; // Simulate a legacy incomplete team.
         foreach (var p in World.projectile) p.active = true;
         live.Level = 3; live.UpdateEquips(World.player[0]);
@@ -112,6 +116,43 @@ static partial class Checks
             "Old overleveled saves cannot exceed the Lv8 effect");
         Check(DollControlProgression.DollCount(0) == 4 && DollControlProgression.ActionSpeedBonusPercent(0) == 0,
             "Invalid low levels use the full team and base action speed");
+        RunEquipmentChecks();
         Console.WriteLine("PASS: Lv1-8 count, work throughput, use actions, live upgrades, pool limits and synchronized level.");
+    }
+
+    static void RunEquipmentChecks()
+    {
+        Reset(1);
+        foreach (var p in World.projectile) p.active = false;
+        var owner = World.player[0];
+        var live = new DollControlSkill { Level = 3 }; live.Initialize();
+        var commands = owner.GetModPlayer<DollCommandPlayer>();
+        owner.GetModPlayer<ElainaAttributeModPlayer>().MagicPoint = 0;
+        live.UpdateEquips(owner);
+        Check(Team().Length == 0, "Learning without equipping does not summon dolls");
+        ElainaSkillModPlayer.GetActiveSkill = [new() { ModSkill = live }];
+        live.UpdateEquips(owner);
+        Check(Team().Length == 4 && Team().All(d => d.SkillLevel == 3), "Equip summons a full team without manual casting or mana");
+        var original = Team();
+        ElainaSkillModPlayer.GetActiveSkill = [null, new() { ModSkill = live }];
+        live.UpdateEquips(owner);
+        Check(Team().SequenceEqual(original), "Moving between equipped slots preserves the team");
+        DollPetProjectile.DismissAll(owner);
+        live.UpdateEquips(owner);
+        Check(Team().All(d => d.IsDismissing), "Manual dismissal stays dismissed while equipped");
+        ElainaSkillModPlayer.GetActiveSkill.Clear(); live.UpdateEquips(owner);
+        ElainaSkillModPlayer.GetActiveSkill.Add(new() { ModSkill = live }); live.UpdateEquips(owner);
+        Check(Team().Count(d => !d.IsDismissing) == 4, "Re-equipping summons again during the old team's dismissal");
+        commands.TileMarks.Add(new Point(8, 6));
+        ElainaSkillModPlayer.GetActiveSkill.Clear(); live.UpdateEquips(owner);
+        Check(Team().All(d => d.IsDismissing) && commands.TileMarks.Count == 0, "Unequip recalls the team and clears pending work");
+
+        foreach (var p in World.projectile) { p.active = true; p.ModProjectile = null; }
+        ElainaSkillModPlayer.GetActiveSkill.Add(new() { ModSkill = live }); live.UpdateEquips(owner);
+        Check(Team().Length == 0, "Full projectile pool defers automatic summon");
+        for (int i = 0; i < 4; i++) World.projectile[i].active = false;
+        live.UpdateEquips(owner);
+        Check(Team().Length == 4, "Deferred automatic summon retries after capacity becomes available");
+        Console.WriteLine("PASS: equipment summon, slot move, manual dismissal, re-equip, task cleanup and pool retry.");
     }
 }

@@ -21,7 +21,7 @@ public class WaterBallSkill: ElainaSkill
 
     public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(15);
 
-    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(), Ice.ShardbindSkill.NameFor(Player)];
+    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage()];
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单次伤害

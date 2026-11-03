@@ -105,7 +105,7 @@ static class TrailChecks
         }
         Check(noise.Texture != null, "formal PerlinX texture must be bound without CPU readback");
         Vector2[] points = [new(350, 150), new(310, 135), new(250, 145), new(180, 160)];
-        var geometry = new MagicMissileTrailVisuals(400);
+        var geometry = new MagicMissileTrailVisuals(400) { FracturedRelease = true };
         foreach (float zoom in new[] { 1f, 2f })
         {
             int liveCount = geometry.BuildGeometry(points, 1, zoom, noise);
@@ -138,7 +138,7 @@ static class TrailChecks
         }
         // 尾端缩短：只截掉尾端几何，保留部分的 U 与完整路径一致（先截路径再重算 U 会让噪声图案整体跳动）
         Vector2[] straight = Enumerable.Range(0, 24).Select(i => new Vector2(-i * 320f / 23, 0)).ToArray();
-        var shrink = new MagicMissileTrailVisuals(400) { Expiring = true };
+        var shrink = new MagicMissileTrailVisuals(400) { Expiring = true, FracturedRelease = true };
         int fullCount = shrink.BuildGeometry(straight, 1f, 1f, noise);
         var full = shrink.Geometry(fullCount).ToArray();
         int previous = fullCount;
@@ -158,5 +158,58 @@ static class TrailChecks
         shrink.LengthShrink = 0;
         Check(shrink.BuildGeometry(straight, .05f, 1f, noise) == fullCount, "zero shrink keeps the whole path");
         Console.WriteLine("Noise geometry passed: formal PerlinX binding, unchanged HDR/alpha/UV, stationary centerline, live widths at 1x/2x.");
+        RunFollowing(noise);
+    }
+
+    static void RunFollowing(MagicMissileTrailNoise noise)
+    {
+        static void Check(bool condition, string message) { if (!condition) throw new Exception("Following trail: " + message); }
+        Vector2[][] paths = [
+            [Vector2.Zero, new(-80, 0), new(-160, 0), new(-240, 0), new(-320, 0)],
+            [Vector2.Zero, new(-60, 0), new(-60, 80), new(-180, 80)],
+            [Vector2.Zero, Vector2.Zero, new(0, -20)],
+            [Vector2.Zero, new(3, 4)]
+        ];
+        foreach (var path in paths)
+        foreach (float speed in new[] { 0f, 12f, 30f, 65f }) {
+            float length = path.Zip(path.Skip(1), Vector2.Distance).Sum();
+            var visual = new MagicMissileTrailVisuals(10);
+            visual.BeginRelease(path, speed);
+            Check(!visual.FracturedRelease, "new default must not fracture");
+            Check(visual.ReleaseTicks == (speed > 0 ? Math.Max(1, (int)MathF.Ceiling(length / speed)) : 22), "lifetime must allow normal-speed arrival");
+            float previousWidth = 1;
+            for (int tick = 0; tick <= visual.ReleaseTicks; tick++) {
+                float remaining = 1f - tick / (float)visual.ReleaseTicks;
+                float expectedLength = Math.Max(0, length - speed * tick);
+                float width = 1 - visual.FollowProgress(remaining);
+                Check(width <= previousWidth + .0001f, "whole width must narrow monotonically");
+                previousWidth = width;
+                int count = visual.BuildGeometry(path, remaining, 1f, noise);
+                if (expectedLength < .01f || remaining <= 0) { Check(count == 0, "nothing may overshoot or survive arrival"); continue; }
+                var vertices = visual.Geometry(count);
+                Vector2 head = (vertices[0].Position + vertices[1].Position) * .5f;
+                Vector2 tail = (vertices[^1].Position + vertices[^2].Position) * .5f;
+                Check(Vector2.Distance(head, path[0]) < .001f, "head stays at the death position");
+                Vector2 expectedTail = path[0];
+                float distance = expectedLength;
+                for (int i = 1; i < path.Length; i++) {
+                    float segment = Vector2.Distance(path[i - 1], path[i]);
+                    if (segment > .001f && distance <= segment) { expectedTail = Vector2.Lerp(path[i - 1], path[i], distance / segment); break; }
+                    distance -= segment; expectedTail = path[i];
+                }
+                Check(Vector2.Distance(tail, expectedTail) < .01f, "tail must travel speed * ticks along the original curve");
+                float sourceSample = vertices[0].UV.X * path.Length;
+                float materialDistance = 0f;
+                for (int i = 0; i < path.Length - 1; i++)
+                    materialDistance += Vector2.Distance(path[i], path[i + 1]) * Math.Clamp(sourceSample - i, 0f, 1f);
+                Check(Math.Abs(materialDistance - speed * tick) < .01f,
+                    "material itself must advance speed * ticks, not only clip the tail");
+                var savedHead = vertices[0];
+                int repeated = visual.BuildGeometry(path, remaining, 1f, noise);
+                Check(repeated == count && visual.Geometry(repeated)[0].Position == savedHead.Position,
+                    "repeated draws with the same game time must not advance the trail");
+            }
+        }
+        Console.WriteLine("Following trail passed: normal-speed arrival, curved/short/duplicate paths, zero speed, fixed death point, material advance and repeat-draw stability.");
     }
 }

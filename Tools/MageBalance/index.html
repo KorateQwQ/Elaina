@@ -301,8 +301,8 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  <div class="title"><h2>主动技能设计 · 释放计划</h2><div class="actions"><span class="tag">已接入飞弹、水球 · 其他技能仍需迁移</span><button id="addSkill" type="button">添加主动技能</button></div></div>
  <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label><label class="field" title="主动技能每秒占手给予 B × 该倍率的伤害；0 = 不补偿占手，读条少打的普攻需靠 K 或手动调高伤害弥补">占手补偿倍率 ⓘ<input id="occupyRatio" type="number" min="0" max="5" step="0.05"></label></div>
  <label class="check"><input id="skillStats" type="checkbox">技能伤害继承装备伤害与暴击；CD 伤害折算率只影响魔力额外伤害，不影响占手补偿；占手补偿 = B × 占手补偿倍率 × 占手秒，与参考普攻无关。</label>
- <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>等额命中数</th><th>蓝耗</th><th>CD/充能秒</th><th>CD伤害折算率</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th title="魔力转换率 K：相对于每 20 魔力基准增幅的倍率，并非技能的总 DPS 倍率">魔力转换率 K</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th><th title="按当前配装计算，不扣命中率；多段或持续技能为整次施放的总预算">单次伤害预算</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
- <p class="note">技能 ID 与游戏内类名对应，不能重复；名称仅用于展示。普通飞弹 MagicMissileSkill 是普攻，不添加到主动技能表：其 DPS 倍率、蓝耗、动作时长和发数在上方“普通攻击设计”调整，避免重复计算。魔力转换率 K 只控制主动技能额外伤害的定价（1 = 采用当前每 20 魔力基准增幅），不是普攻的 DPS 倍率。“单次伤害预算”按当前配装、不扣命中率；多段或持续技能显示整次施放总预算，不是每一段各获得此伤害。</p>
+ <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>等额命中数</th><th>蓝耗</th><th>CD/充能秒</th><th>CD伤害折算率</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th title="配置 ratio 的技能使用 DPS 倍率；其他技能使用魔力转换率 K">伤害系数</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th><th title="按当前配装计算，不扣命中率；多段或持续技能为整次施放的总预算">单次伤害预算</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
+ <p class="note">技能 ID 与游戏内类名对应，不能重复；名称仅用于展示。普通飞弹 MagicMissileSkill 是普攻，不添加到主动技能表：其 DPS 倍率、蓝耗、动作时长和发数在上方“普通攻击设计”调整，避免重复计算。炎爆的伤害系数为 DPS 倍率，单次伤害按基准 DPS × 倍率 × 充能时间计算。其余技能的魔力转换率 K 只控制主动技能额外伤害的定价（1 = 采用当前每 20 魔力基准增幅），不是普攻的 DPS 倍率。“单次伤害预算”按当前配装、不扣命中率；多段或持续技能显示整次施放总预算，不是每一段各获得此伤害。</p>
  <p class="note">优先级数字越小越先释放。CD 从施放开始计时，储存次数按顺序逐层恢复；首次释放时间不阻止提前充能。零占手仍占 1 帧；伤害预算使用相同的有效占手时长。持续伤害从占手结束＋延迟后均匀结算，战斗结束后的伤害不计。命中率只影响伤害，不减少蓝耗。</p>
  <h3 style="margin-top:18px">实际释放与伤害</h3><div class="tablewrap"><table><thead><tr><th>技能</th><th>实际 / 不限蓝次数</th><th>实际耗蓝</th><th>已兑现伤害</th><th>缺蓝等待段数</th></tr></thead><tbody id="rotationResults"></tbody></table></div>
  <h3 style="margin-top:22px">魔力价值阶梯 · 加技能、改数值前先看这里</h3>
@@ -329,7 +329,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
   <dt>局限</dt><dd>这是稳态估算，按“蓝先给价值高的技能”的理想打法计算；“按优先级”策略实际按优先级花蓝，以上方实际模拟次数为准。盈亏线按当前配装估算，通常略偏保守（实测奥秘打平所需的价值略低）。短战斗主要在花开场蓝，阶梯只作参考。</dd>
  </dl></details>
  <details><summary>查看施法、用药、受伤与缺蓝事件</summary><p id="simEventCount" class="note"></p><div class="tablewrap eventtable"><table><thead><tr><th>时间 / 秒</th><th>事件</th><th>事件后魔力</th></tr></thead><tbody id="combatEvents"></tbody></table></div></details>
- <details><summary>模拟口径与局限</summary><p class="note" style="margin-top:10px">采用 1/60 秒步长。普攻按完整攻击间隔占手，成功付款后在动作结束造成伤害；技能占手时不普攻。普攻倍率按当前 B 反推的等级取倍率曲线。技能总伤害 = 阶段 B × (占手补偿倍率 × 占手 + 0.002 × 单次蓝耗 × 基准 CD × CD伤害折算率 × 魔力转换率 K) × 技能装备倍率，整次再乘命中率。药剂与扣费同时结算，余额再裁剪上限。星云所选强化假定开场即有且全程保持；可选特殊回蓝适配按平均每秒回复模拟，不额外应用原版减耗。不模拟死亡、击退、打断、敌人防御或生命转魔力；手填套装特效按持续背景 DPS 计入。不限蓝仅移除资源限制，仍遵守时长、占手、CD、优先级、命中和伤害落点，不代表全局最优输出；不同实际调度可能使其不是严格上界。</p></details>
+ <details><summary>模拟口径与局限</summary><p class="note" style="margin-top:10px">采用 1/60 秒步长。普攻按完整攻击间隔占手，成功付款后在动作结束造成伤害；技能占手时不普攻。普攻倍率按当前 B 反推的等级取倍率曲线。炎爆总伤害 = 阶段 B × DPS 倍率 × 充能时间 × 技能装备倍率；模拟不包含首次点燃赠送的层数或溢出炎爆。其他技能总伤害 = 阶段 B × (占手补偿倍率 × 占手 + 0.002 × 单次蓝耗 × 基准 CD × CD伤害折算率 × 魔力转换率 K) × 技能装备倍率，整次再乘命中率。药剂与扣费同时结算，余额再裁剪上限。星云所选强化假定开场即有且全程保持；可选特殊回蓝适配按平均每秒回复模拟，不额外应用原版减耗。不模拟死亡、击退、打断、敌人防御或生命转魔力；手填套装特效按持续背景 DPS 计入。不限蓝仅移除资源限制，仍遵守时长、占手、CD、优先级、命中和伤害落点，不代表全局最优输出；不同实际调度可能使其不是严格上界。</p></details>
 </section>
 
 <details class="panel section sourcesbox"><summary>读取本地源码的装备数据与模型边界</summary><div class="sources"><p class="note" style="margin-top:12px">版本依据：工作区提供的 tML 2025.06 源码；不是声称与其他版本完全一致。预设是合法阶段的参考组合，不声称是最优配装；手动改装不强制限制进度和饰品兼容性。相同非占位饰品重复装备会给出警告。</p><ul>
@@ -620,8 +620,8 @@ function applyStageUnlocks(s,stage){
  return {level,skills:s.skills.filter(row=>row.enabled).map(row=>row.name),locked:s.skills.filter(row=>!row.enabled).map(row=>row.name),basics:basics.map(row=>row.name)};
 }
 function progressionBudget(s,row,level){
- const baseline=levelDps(level),basic=s.basicAttacks.includes(row),period=basic?row.interval:row.cd,ratio=basic?basicRatio(row,level):null;
- const total=basic?baseline*ratio*period:baseline*(s.occupyRatio*Math.max(1/60,row.cast)+(s.rate/100/20)*row.cost*row.cd*row.cdRatio*row.k);
+ const baseline=levelDps(level),basic=s.basicAttacks.includes(row),period=basic?row.interval:row.cd,ratio=basic?basicRatio(row,level):(Number.isFinite(row.ratio)?row.ratio:null);
+ const total=basic?baseline*ratio*period:Number.isFinite(row.ratio)?baseline*row.ratio*period:baseline*(s.occupyRatio*Math.max(1/60,row.cast)+(s.rate/100/20)*row.cost*row.cd*row.cdRatio*row.k);
  return {baseline,ratio,total,dps:total/period,perShot:total/row.shots,integerHit:total>0?Math.max(1,Math.floor(total/row.shots)):0};
 }
 // stage 为 1..19；也接受旧的 presets 键名（如 'jungle'）。
@@ -680,7 +680,7 @@ function calculate(s){
 }
 // One cast's expected total damage, before hit-rate and timing truncation; not per projectile/hit.
 function skillDamageBudget(s,skill,result=calculate(s)){
- return s.baseDps*(s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
+ return s.baseDps*(Number.isFinite(skill.ratio)?skill.ratio*skill.cd:s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
 }
 return {levelDps,setDpsCurve,normalizeBaseDps,syncBaseDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,migrateLoadouts,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
 })();
@@ -945,7 +945,7 @@ function validSaved(x){
  if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Balance.validGrowth(r)&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&Number.isInteger(r.priority)))return false;
  if(typeof x.skillStats!=='boolean')return false;
  for(const side of ['v','e']){const g=x[side];if(!g||!g.nebula||!['damage','mana','life'].every(k=>Number.isInteger(g.nebula[k])&&g.nebula[k]>=0&&g.nebula[k]<=3)||!Object.hasOwn(Balance.armors,g.armor)||!Array.isArray(g.items)||g.items.length!==7)return false;if(!['damage','crit','proc'].every(k=>typeof g[k]==='number'&&Number.isFinite(g[k]))||g.damage< -90||g.damage>1000||g.crit< -100||g.crit>100||g.proc<0||g.proc>1000000)return false;if(!g.items.every(r=>r&&Object.hasOwn(Balance.accessories,r.id)&&Object.hasOwn(Balance.prefixes,r.prefix)))return false;}
- return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=200&&r.cdRatio>=0&&r.cdRatio<=1);
+ return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>(!('ratio' in r)||(typeof r.ratio==='number'&&Number.isFinite(r.ratio)&&r.ratio>=0&&r.ratio<=5))&&typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=200&&r.cdRatio>=0&&r.cdRatio<=1);
 }
 function keepKnown(template,input,property=''){
  if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0,...(v.flight?{flight:Balance.clone(v.flight)}:{})}));
@@ -966,8 +966,9 @@ function stageOptions(){
 
 let latestCombat;
 const rotationFields=[['shots',1,100,1,'等额命中数'],['cost',0,10000,'any','蓝耗'],['cd',.1,600,.1,'CD'],['cdRatio',0,1,.05,'CD伤害折算率'],['cast',0,60,.1,'占手'],['delay',0,120,.1,'延迟'],['duration',0,120,.5,'持续'],['k',0,200,.05,'魔力转换率'],['hit',0,100,5,'命中'],['maxCharges',1,99,1,'储存上限'],['initialCharges',0,99,1,'开场次数'],['first',0,600,1,'首次释放'],['priority',1,99,1,'优先级']];
+function rowRotationFields(row){return rotationFields.map(field=>field[0]==='k'&&Number.isFinite(row.ratio)?['ratio',0,5,.05,'DPS倍率']:field);}
 function rotation(){
- $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input type="checkbox" aria-label="模拟启用${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="enabled" ${row.enabled?'checked':''}></td><td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>${rotationFields.map(([key,min,max,step,label])=>`<td><input type="number" aria-label="模拟${escapeHtml(row.name)}${label}" min="${min}" max="${max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"></td>`).join('')}<td id="skillDamage${i}"></td><td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('');
+ $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input type="checkbox" aria-label="模拟启用${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="enabled" ${row.enabled?'checked':''}></td><td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>${rowRotationFields(row).map(([key,min,max,step,label])=>`<td><input type="number" aria-label="模拟${escapeHtml(row.name)}${label}" min="${min}" max="${max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"></td>`).join('')}<td id="skillDamage${i}"></td><td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('');
  $('rotationRows').querySelectorAll('input').forEach(el=>el.addEventListener(el.type==='text'?'change':'input',()=>{
   if(el.type==='number'&&el.value==='')return;
   const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
@@ -979,7 +980,7 @@ function rotation(){
    row[key]=value;
    const tr=el.closest('tr');
    tr.querySelector('[data-skill-field="enabled"]').setAttribute('aria-label','模拟启用'+row.name);
-   for(const [field,,,,label] of rotationFields)tr.querySelector(`[data-skill-field="${field}"]`).setAttribute('aria-label','模拟'+row.name+label);
+   for(const [field,,,,label] of rowRotationFields(row))tr.querySelector(`[data-skill-field="${field}"]`).setAttribute('aria-label','模拟'+row.name+label);
    tr.querySelector('[data-remove-skill]').setAttribute('aria-label','删除'+row.name);
    skills();update();return;
   }

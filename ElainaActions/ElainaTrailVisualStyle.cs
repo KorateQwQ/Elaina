@@ -122,6 +122,11 @@ public static class ElainaTrailVisualStyle
         Vector2? crossScale = null, Vector2? lineScale = null, Vector2? lineScale2 = null,
         float? lineRotation = null, Texture2D crossTexture = null, Texture2D lineTexture = null)
     {
+        if (drawInfo.shadow != 0f)
+        {
+            return;
+        }
+
         crossTexture = GetStarCrossTexture(crossTexture);
         lineTexture = GetStarLineTexture(lineTexture);
         if (crossTexture == null || lineTexture == null)
@@ -138,7 +143,7 @@ public static class ElainaTrailVisualStyle
             blinkCycle ?? DefaultStarBlinkCycle, Main.timeForVisualEffects, PingPongWaveType.SmoothStep);
         Color color = starColor * totalAlpha * blinkAlpha;
 
-        drawInfo.DrawDataCache.Add(new DrawData(
+        DrawData cross = new DrawData(
             crossTexture,
             starCenter - Main.screenPosition,
             null,
@@ -150,9 +155,9 @@ public static class ElainaTrailVisualStyle
             0)
         {
             ignorePlayerRotation = true
-        });
+        };
 
-        drawInfo.DrawDataCache.Add(new DrawData(
+        DrawData line = new DrawData(
             lineTexture,
             starCenter - Main.screenPosition,
             null,
@@ -164,9 +169,9 @@ public static class ElainaTrailVisualStyle
             0)
         {
             ignorePlayerRotation = true
-        });
+        };
 
-        drawInfo.DrawDataCache.Add(new DrawData(
+        DrawData rotatedLine = new DrawData(
             lineTexture,
             starCenter - Main.screenPosition,
             null,
@@ -178,6 +183,18 @@ public static class ElainaTrailVisualStyle
             0)
         {
             ignorePlayerRotation = true
-        });
+        };
+
+        // 玩家层之后仍会绘制技能和水花；星芒放在水花之后，避免杖尖被遮住。
+        LayerDrawRequestSystem.Request("Elaina:ActionStar", LayerDrawRequestSystem.DrawTargetLayer.Dust,
+            LayerDrawRequestSystem.DrawTiming.After, context =>
+            {
+                // DrawDust 返回时批次已关闭，本组负责 Begin/End。
+                if (context.IsFirst) BeginDraw(defferred: 1);
+                cross.Draw(Main.spriteBatch);
+                line.Draw(Main.spriteBatch);
+                rotatedLine.Draw(Main.spriteBatch);
+                if (context.IsLast) Main.spriteBatch.End();
+            }, order: LayerDrawRequestSystem.DustOrder + 1);
     }
 }

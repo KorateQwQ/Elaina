@@ -20,8 +20,6 @@ public class WaterLaser : ElainaBasicProjectile
 {
     public static float SplashRadius => 230f;
     public const float SplashDamageMultiplier = 0.5f;
-    public const float FreezeCooldownDamageBonus = 0.3f;
-    public const float OutsideFreezeCooldownDamageMultiplier = 1f / (1f + FreezeCooldownDamageBonus);
     private const float BeamWidth = 50f;
 
     private float maxDistance;
@@ -33,7 +31,8 @@ public class WaterLaser : ElainaBasicProjectile
     private bool damagePulse;
     private int primaryTarget = -1;
     private readonly HashSet<int> hitNpcIndices = new();
-    private readonly IceWaterHitBatch iceCycleBatch = new();
+    private readonly WaterExposureBatch waterBatch = new();
+    private int pulseSequence;
     private bool IsChanneling => Projectile.ai[0] == 1f;
 
     private readonly Vector2[] drawPoints = new Vector2[200];
@@ -44,6 +43,7 @@ public class WaterLaser : ElainaBasicProjectile
     {
         HeldInfo = new HeldProjInfo(true, 30, 0.2f, 30);
         InfusionElement = ElementType.Water;
+        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().SuppressBuildup = true;
         Projectile.width = Projectile.height = 10;
         Projectile.timeLeft = 30;
         Projectile.tileCollide = false;
@@ -139,7 +139,8 @@ public class WaterLaser : ElainaBasicProjectile
                     Projectile.friendly = true;
                     Array.Clear(Projectile.localNPCImmunity);
                     hitNpcIndices.Clear();
-                    iceCycleBatch.Reset();
+                    waterBatch.Reset();
+                    pulseSequence++;
                     pulseTimer = intervalFrames;
                 }
                 pulseTimer--;
@@ -221,10 +222,7 @@ public class WaterLaser : ElainaBasicProjectile
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
-        // 命中时读取目标共享的冻结 CD；冻结中尚未起算 CD，同样使用较低倍率。
-        // 在 OnHitNPC 减 CD 之前结算，每个溅射目标独立判断。
-        if (target.GetFreezeCooldown() <= 0)
-            modifiers.SourceDamage *= OutsideFreezeCooldownDamageMultiplier;
+        waterBatch.Capture(target);
         if (target.whoAmI != primaryTarget)
             modifiers.SourceDamage *= SplashDamageMultiplier;
         base.ModifyHitNPC(target, ref modifiers);
@@ -399,7 +397,7 @@ public class WaterLaser : ElainaBasicProjectile
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
         hitNpcIndices.Add(target.whoAmI);
-        iceCycleBatch.OnHit(Owner, target, damageDone, waterBall: false);
+        waterBatch.OnHit(Owner, target, damageDone, Projectile, intervalFrames, pulseSequence);
         base.OnHitNPC(target, hit, damageDone);
     }
 

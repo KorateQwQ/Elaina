@@ -226,6 +226,12 @@ public class ShardbindProj : ElainaBasicProjectile
     public override bool? CanHitNPC(NPC target) =>
         damagedEntities.Contains(target.realLife >= 0 ? target.realLife : target.whoAmI) ? false : null;
 
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        if (WaterExposureNPC.IsWet(target)) modifiers.SourceDamage *= IceCycleBalance.LockWetDamageMultiplier;
+        base.ModifyHitNPC(target, ref modifiers);
+    }
+
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
         damagedEntities.Add(target.realLife >= 0 ? target.realLife : target.whoAmI);

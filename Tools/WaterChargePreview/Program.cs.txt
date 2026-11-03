@@ -12,7 +12,7 @@ using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
 
-try { using var game = new Probe(args[0], args[1]); game.Run(); }
+try { using var game = new Probe(args[0], args[1], args.Length > 2 && args[2] == "flight"); game.Run(); }
 catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
 
 sealed class Probe : Game
@@ -20,12 +20,18 @@ sealed class Probe : Game
     readonly string root, output;
     WaterChargeFlowRenderer flow;
     Action<int, float, Vector2, float, Vector2> drawBall;
+    Action<int, float, Vector2, float, Vector2> drawFlight;
+    Action disposeFlight;
+    Func<Vector3[]> readFlightPoints;
+    Func<float> readFlightScrollSpeed;
+    readonly bool flightOnly;
     Func<int, int, float> readFlowSeconds;
     bool done;
     const int Width = 1440, Height = 1200;
-    public Probe(string root, string output)
+    public Probe(string root, string output, bool flightOnly)
     {
         this.root = root; this.output = output;
+        this.flightOnly = flightOnly;
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
@@ -52,11 +58,17 @@ sealed class Probe : Game
         method = method.RemoveNode(fly, SyntaxRemoveOptions.KeepNoTrivia);
         string source = """
         using System;
+        using System.Reflection;
         using Microsoft.Xna.Framework;
         using Microsoft.Xna.Framework.Graphics;
+        using 伊蕾娜.ElainaModSkills.Skills.Water;
         using static PreviewAssets;
         public class SphereReplay {
             int time; float WaterBallRadius, drawWidth = 1, drawHeight = 1;
+            double flightVisualStart = 3600;
+            enum State { Hold, Fly }
+            State state;
+            static WaterBallFlightRenderer flightRenderer;
             class Body { public Vector2 Center; public float rotation; }
             Body Projectile = new();
             public void Draw(int ticks, float radius, Vector2 center, float rotation, Vector2 stretch) {
@@ -64,7 +76,24 @@ sealed class Probe : Game
                 drawWidth = stretch.X; drawHeight = stretch.Y;
                 DrawBall();
             }
-        """ + method.ToFullString() + "}";
+            public void DrawFlight(int ticks, float radius, Vector2 center, float rotation, Vector2 stretch) {
+                time = 90 + ticks; state = State.Fly;
+                WaterBallRadius = radius; Projectile.Center = center; Projectile.rotation = rotation;
+                drawWidth = stretch.X; drawHeight = stretch.Y;
+                Color color = Color.White;
+                PreDraw(ref color);
+            }
+            private void DrawChargeFlow(bool foreground) { }
+            public void DisposeFlight() { flightRenderer?.Dispose(); flightRenderer = null; }
+            public Vector3[] ReadFlightPoints() => (Vector3[])((Vector3[])typeof(WaterBallFlightRenderer)
+                .GetField("points", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(flightRenderer)).Clone();
+            public float ReadFlightScrollSpeed() => ((Effect)typeof(WaterBallFlightRenderer)
+                .GetField("effect", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(flightRenderer))
+                .Parameters["TextureScrollSpeed"].GetValueSingle();
+        """ + method.ToFullString()
+            + tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawFlightFlow").ToFullString()
+            + tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "PreDraw").ToFullString()
+                .Replace("public override", "public").Replace("base.PreDraw(ref lightColor)", "false") + "}";
         // Replay the consumer's actual time argument, not a manually supplied ideal clock.
         source += "public class FlowClockReplay { int time; public int VisualTime; "
             + "public float Read(int localTicks, int globalTicks) { time = localTicks; VisualTime = globalTicks; return "
@@ -73,7 +102,8 @@ sealed class Probe : Game
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
             .Append(typeof(GraphicsDevice).Assembly.Location).Append(typeof(PreviewAssets).Assembly.Location)
             .Distinct().Select(p => MetadataReference.CreateFromFile(p));
-        var compilation = CSharpCompilation.Create("SphereReplay", [CSharpSyntaxTree.ParseText(source)], refs,
+        var compilation = CSharpCompilation.Create("SphereReplay", [CSharpSyntaxTree.ParseText(source),
+            CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Water/WaterBallFlightRenderer.cs")))], refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         using var bytes = new MemoryStream();
         var result = compilation.Emit(bytes);
@@ -90,11 +120,17 @@ sealed class Probe : Game
         }
         Console.WriteLine("PASS: actual DrawChargeFlow time argument tracks projectile age at world ages 0/60/3600 seconds.");
         Type type = assembly.GetType("SphereReplay");
-        drawBall = type.GetMethod("Draw").CreateDelegate<Action<int, float, Vector2, float, Vector2>>(Activator.CreateInstance(type));
+        object replay = Activator.CreateInstance(type);
+        drawBall = type.GetMethod("Draw").CreateDelegate<Action<int, float, Vector2, float, Vector2>>(replay);
+        drawFlight = type.GetMethod("DrawFlight").CreateDelegate<Action<int, float, Vector2, float, Vector2>>(replay);
+        disposeFlight = type.GetMethod("DisposeFlight").CreateDelegate<Action>(replay);
+        readFlightPoints = type.GetMethod("ReadFlightPoints").CreateDelegate<Func<Vector3[]>>(replay);
+        readFlightScrollSpeed = type.GetMethod("ReadFlightScrollSpeed").CreateDelegate<Func<float>>(replay);
     }
     protected override void Draw(GameTime gameTime)
     {
         if (done) { Exit(); return; } done = true;
+        if (flightOnly) { RenderFlightFrames(); Exit(); return; }
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
         using var pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
@@ -161,8 +197,79 @@ sealed class Probe : Game
         Console.WriteLine("Rendered 90 animation frames, 54 per-tick wrap closeups, day/zoom, alternate seed and sphere-only comparison using actual FNA renderer and current sphere shader method.");
         Exit();
     }
+    void RenderFlightFrames()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        Vector2 camera = new(2400, 1600);
+        PreviewAssets.Camera = camera;
+        Color[] paused = Render(18, "flight-paused", 0, 2f, new Color(36, 65, 77));
+        Color[] repeated = Render(18, "flight-paused-repeat", 0, 2f, new Color(36, 65, 77));
+        if (!paused.SequenceEqual(repeated)) throw new Exception("Repeated drawing advanced ribbons with an unchanged visual clock");
+        Color[] advanced = Render(18, "flight-paused-advanced", 0, 2f, new Color(36, 65, 77), visualTick: 30);
+        if (paused.SequenceEqual(advanced)) throw new Exception("Flight ribbons stopped with AI despite advancing visual time");
+        // Follow an actual depth crossing on the renderer's sampled helix, in flight-axis coordinates.
+        foreach (float angle in new[] { 0f, MathF.PI, -MathF.PI / 2, -.45f })
+        {
+            Render(18, "direction-before", angle, 1f, new Color(36, 65, 77), visualTick: 18);
+            float before = Crossing(readFlightPoints(), angle);
+            Render(18, "direction-after", angle, 1f, new Color(36, 65, 77), visualTick: 19);
+            float after = Crossing(readFlightPoints(), angle);
+            if (after >= before) throw new Exception("Helix travels toward the ball nose instead of the tail: " + angle);
+            if (readFlightScrollSpeed() >= 0) throw new Exception("Water material travels toward increasing tail-to-nose UV");
+        }
+        Console.WriteLine("PASS: actual helix depth crossings move tailward in right/left/up/diagonal flight; water UV scroll is tailward.");
+        for (int tick = 0; tick < 60; tick++)
+            Render(tick, $"flight-{tick:000}", 0, 2f, new Color(36, 65, 77));
+        Render(18, "flight-left", MathF.PI, 2f, new Color(36, 65, 77));
+        Render(18, "flight-up", -MathF.PI / 2, 1.35f, new Color(36, 65, 77));
+        Render(18, "flight-diagonal-day", -.45f, 2f, new Color(100, 137, 150));
+        Render(18, "flight-small", .4f, .8f, new Color(36, 65, 77));
+        for (int tick = 0; tick < 24; tick++)
+            Render(tick, $"moving-{tick:000}", 0, 1f, new Color(36, 65, 77), moving: true);
+        PreviewAssets.Camera = Vector2.Zero;
+        Console.WriteLine("PASS: production PreDraw/DrawFlightFlow paired batches; frozen AI animates with visual time, same visual timestamp redraws identically; 60 rotating frames, 24 moving frames, left/up/diagonal and zoom.");
+
+        static float Crossing(Vector3[] points, float angle)
+        {
+            Vector2 forward = new(MathF.Cos(angle), MathF.Sin(angle));
+            for (int i = 1; i < points.Length; i++)
+                if (points[i - 1].Z < 0 && points[i].Z >= 0)
+                {
+                    float t = -points[i - 1].Z / (points[i].Z - points[i - 1].Z);
+                    Vector3 point = Vector3.Lerp(points[i - 1], points[i], t);
+                    return Vector2.Dot(new Vector2(point.X, point.Y), forward);
+                }
+            throw new Exception("No depth crossing available for direction check");
+        }
+
+        Color[] Render(int tick, string name, float rotation, float zoom, Color background, bool moving = false, int? visualTick = null)
+        {
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(background);
+            Vector2 center = new(moving ? 360 + tick * 35 : Width / 2f + 110, Height / 2f);
+            Vector2 pivot = new(Width / 2f, Height / 2f);
+            PreviewAssets.Transform = Matrix.CreateTranslation(-pivot.X, -pivot.Y, 0)
+                * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(pivot.X, pivot.Y, 0);
+            // Match WaterBall.OnShoot and the subsequent fly AI deformation.
+            Vector2 stretch = new(Math.Min(1.1f, .5f + tick * .2f), Math.Max(.5f, 2.5f - tick * .25f));
+            PreviewAssets.Main.timeForVisualEffects = 3600 + (visualTick ?? tick);
+            PreviewAssets.BeginDraw();
+            drawFlight(tick, 200, center + camera, rotation, stretch);
+            // A missing Begin in either production raw-vertex pass must fail here, without a preview repair.
+            PreviewAssets.Batch.End();
+            PreviewAssets.BeginDraw();
+            PreviewAssets.Batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            using (var file = File.Create(Path.Combine(output, name + ".png"))) target.SaveAsPng(file, Width, Height);
+            Color[] pixels = new Color[Width * Height];
+            target.GetData(pixels);
+            return pixels;
+        }
+    }
+
     protected override void UnloadContent()
     {
+        disposeFlight?.Invoke();
         flow?.Dispose();
         PreviewAssets.Batch?.Dispose();
         foreach (var texture in PreviewAssets.Textures.Values) texture.Dispose();
@@ -177,6 +284,18 @@ public static class PreviewAssets
     public static SpriteBatch Batch;
     public static ContentManager Content;
     public static Matrix Transform;
+    public static Vector2 Camera;
+    public static class Main
+    {
+        public static double timeForVisualEffects;
+        public static bool dedServ => false;
+        public static SpriteBatch spriteBatch => Batch;
+        public static Vector2 screenPosition => Camera;
+        public static DeviceContext instance = new();
+        public static ViewContext GameViewMatrix = new();
+    }
+    public sealed class DeviceContext { public GraphicsDevice GraphicsDevice => Device; }
+    public sealed class ViewContext { public Matrix TransformationMatrix => Transform; }
     public static readonly Dictionary<string, Texture2D> Textures = new();
     public enum AssetRequestMode { ImmediateLoad }
     public class Asset<T> { public T Value; public Asset(T value) { Value = value; } }
@@ -184,7 +303,7 @@ public static class PreviewAssets
     {
         public static Asset<T> Request<T>(string path, AssetRequestMode mode = AssetRequestMode.ImmediateLoad)
         {
-            if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)Content.Load<Effect>("WaterBallEffect"));
+            if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)Content.Load<Effect>(Path.GetFileName(path)));
             if (!Textures.TryGetValue(path, out var texture))
             {
                 string file = path.StartsWith("KL/") ? Path.Combine(Root, "..", path + ".png")
@@ -203,11 +322,15 @@ public static class PreviewAssets
     public static void EndBeginDraw(int state = 0, int defferred = 0, SamplerState ss = null)
     {
         Batch.End();
+        BeginDraw(state, defferred, ss);
+    }
+    public static void BeginDraw(int state = 0, int defferred = 0, SamplerState ss = null)
+    {
         Batch.Begin((SpriteSortMode)defferred, state == 2 ? BlendState.NonPremultiplied : BlendState.AlphaBlend,
             ss ?? SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, null, Transform);
     }
     public static void DrawInWorld(Texture2D texture, Vector2 position, Color color, Vector2 scale, float rotation)
-        => Batch.Draw(texture, position, null, color, rotation, new Vector2(texture.Width, texture.Height) * .5f, scale, SpriteEffects.None, 0);
+        => Batch.Draw(texture, position - Camera, null, color, rotation, new Vector2(texture.Width, texture.Height) * .5f, scale, SpriteEffects.None, 0);
     public static void SetTexture(this Effect effect, int slot, Texture2D texture) => Device.Textures[slot] = texture;
     public static void SetValue(this Effect effect, string name, float value) => effect.Parameters[name]?.SetValue(value);
     public static void SetValue(this Effect effect, string name, bool value) => effect.Parameters[name]?.SetValue(value);

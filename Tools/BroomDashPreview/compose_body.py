@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 out = Path(sys.argv[1])
 labels = {'C': 'C 现状（扫帚尾部）', 'E': 'E 整体气流带', 'F': 'F 尾流扩散', 'G': 'G 速度线'}
-scenes = {'right': '水平冲刺', 'diag': '左下冲刺（截图角度）', 'turn': '右上冲刺后按下转向', 'freeze': '同上 · 冲刺后拖尾留在原地收拢'}
+scenes = {'right': '水平冲刺', 'diag': '左下冲刺（截图角度）', 'turn': '右上冲刺后按下转向', 'freeze': '同上 · 冲刺后直线拖尾随人物收拢'}
 ticks = [3, 8, 14, 22, 28, 34]
 # 转向场景冲刺在 tick 24 结束，多取转弯阶段。
 scene_ticks = {'turn': [8, 14, 22, 26, 29, 32], 'freeze': [8, 14, 22, 26, 29, 32]}

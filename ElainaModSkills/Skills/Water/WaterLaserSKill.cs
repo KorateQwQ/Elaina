@@ -50,23 +50,16 @@ public class WaterLaserSKill : ElainaSkill
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单次伤害
-        int current = GetDescriptionDamage(Math.Max(1, nextLevel - 1));
-        int next = GetDescriptionDamage(nextLevel);
+        int current = GetConfiguredDamage(skillLevel: Math.Max(1, nextLevel - 1));
+        int next = GetConfiguredDamage(skillLevel: nextLevel);
         return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
-
-    // 弹幕仍按冻结 CD 期间的伤害生成；说明与升级预览改用通常伤害作为基数。
-    private int GetDescriptionDamage(int? skillLevel = null) =>
-        SkillBalanceConfig.ToHitDamage(GetConfiguredDamage(skillLevel: skillLevel)
-            * WaterLaser.OutsideFreezeCooldownDamageMultiplier);
 
     protected override object[] SkillDescriptionArgs =>
     [
         MaxCD,
-        GetDescriptionDamage(),
+        GetConfiguredDamage(),
         WaterLaser.SplashDamageMultiplier * 100f,
-        MagicPointCost,
-        WaterLaser.FreezeCooldownDamageBonus * 100f,
-        Ice.ShardbindSkill.NameFor(Player)
+        MagicPointCost
     ];
 }

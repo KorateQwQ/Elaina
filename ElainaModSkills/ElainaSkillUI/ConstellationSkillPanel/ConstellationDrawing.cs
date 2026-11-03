@@ -55,8 +55,8 @@ internal sealed class ConstellationDrawing
     private readonly Dictionary<string, ConstellationToggleAnimation> _toggles = [];
     private readonly Dictionary<string, ConstellationToggleAnimation> _buttons = [];
     private ConstellationTween _filterMarker;
-    private static DynamicSpriteFont GetFont(bool serif) => serif
-        ? FontManager.NotoSerifSC.Value : FontManager.HarmonyOS_Sans_SC.Value;
+    private static PixelFont GetFont(bool serif) => serif
+        ? FontManager.NotoSerifSC_Pixels : FontManager.HarmonyOS_Sans_SC_Pixels;
     private readonly Dictionary<string, int[]> _icons;
     private readonly Dictionary<(int Aspect, int Waist, bool Filled), Rectangle[]> _stars = [];
     private sealed class StarRegion
@@ -71,6 +71,8 @@ internal sealed class ConstellationDrawing
     internal Matrix Transform = Matrix.Identity;
     internal Vector2 Origin;
     internal float Scale = 1;
+    // Device pixels per design unit; text ems are design sizes times this.
+    internal float Device => Scale * Transform.M11;
 
     internal ConstellationDrawing(Mod mod)
     {
@@ -233,7 +235,7 @@ internal sealed class ConstellationDrawing
         // Fit long localized labels between the sparks.
         float room = width - (gold ? 64 : 28) - tailWidth, fit = Math.Min(1, room / Math.Max(1, labelWidth));
         float start = x + (width - labelWidth * fit - tailWidth) / 2;
-        Text(label, start, y + 10.5f, 13 * fit, text, spacing: 3 * fit);
+        Text(label, start, y + 10.5f, 13, text, spacing: 3 * fit, fit: fit);
         if (tailWidth == 0) return;
         float tailX = start + labelWidth * fit + 8;
         if (studyCost)
@@ -677,7 +679,7 @@ internal sealed class ConstellationDrawing
         // Widen for long names so the type tag never overlaps them.
         float width = Math.Max(272, pad * 2 + 25 + Measure(name, 17, 1, true) + 16 + Measure(tag, 9, 2));
         var stats = term.Stats?.Invoke() ?? [];
-        var body = new ConstellationRichText(term.Description(), width - pad * 2, 12, 21, DetailText);
+        var body = new ConstellationRichText(term.Description(), width - pad * 2, 12, 21, DetailText, Device);
         float statTop = bodyTop + body.Height + 10;
         float height = (stats.Length > 0 ? statTop + 29 + 44 : bodyTop + body.Height) + pad - 2;
         var p = ConstellationTooltipPlacement.Place(new Vector2(width, height), pointer, bounds, anchor);
@@ -872,19 +874,15 @@ internal sealed class ConstellationDrawing
     {
         float measured = Measure(text, size, spacing, serif);
         float fit = measured > width ? width / measured : 1;
-        Text(text, x, y, size * fit, color, align, spacing * fit, serif);
+        Text(text, x, y, size, color, align, spacing * fit, serif, fit);
     }
 
-    // Use the font's full-width Chinese advance as one design em, not a fixed atlas resolution.
-    private static float FontScale(DynamicSpriteFont font, float size) => size / Math.Max(1f, font.MeasureString("国").X);
-
-    // Gelasio is baked at 36pt / 48px; it contains ASCII only, so do not measure a CJK em.
+    // Sizes are design ems (a full-width Chinese advance; Gelasio's 48px master em for Latin labels).
     internal float SlotLabelWidth(string text, float size)
-        => FontManager.Gelasio.Value.MeasureString(text).X * size / 48f;
+        => FontManager.Gelasio_Pixels.Measure(text, size * Device) / Device;
 
     internal void SlotLabel(string text, float x, float y, float size, Color color)
-        => Batch.DrawString(FontManager.Gelasio.Value, text, At(x, y), color, 0, Vector2.Zero,
-            size / 48f * Scale, SpriteEffects.None, 0);
+        => FontManager.Gelasio_Pixels.Draw(Batch, text, At(x, y), color, size * Device, Transform);
 
     // Masthead counterpart of character-progression in the approved level-preview HTML.
     // Share the actual drawing with the FNA fixture; only the fixture substitutes player data.
@@ -933,37 +931,42 @@ internal sealed class ConstellationDrawing
     internal void NotebookTitle(float x, float y)
         => FittedText(LocalizeUI("NotebookTitle"), x, y, 420, 30, new Color(240, 231, 244), spacing: 3, serif: true);
 
+    // Chinese text below 14px is drawn a pixel larger than the HTML reference sizes used by the layout code,
+    // fading out by 16px, so the smallest labels stay legible at 1920x1080 / 100% (13px would merge strokes).
+    internal static float Legible(float size) => size + Math.Clamp((16 - size) / 2, 0, 1);
+
     internal float Measure(string text, float size, float spacing = 0, bool serif = false)
+        => MeasureEm(text, Legible(size) * Device, spacing, serif);
+
+    private float MeasureEm(string text, float em, float spacing, bool serif)
     {
         if (string.IsNullOrEmpty(text)) return 0;
         var font = GetFont(serif);
-        float factor = FontScale(font, size);
-        if (spacing == 0) return font.MeasureString(text).X * factor;
+        if (spacing == 0) return font.Measure(text, em) / Device;
         float width = 0;
         foreach (char c in text)
-            width += font.MeasureString(c.ToString()).X * factor + spacing;
+            width += font.Measure(c.ToString(), em) / Device + spacing;
         return Math.Max(0, width - spacing);
     }
 
+    // `fit` shrinks the legible size to a measured width; `spacing` is already final.
     internal void Text(string text, float x, float y, float size, Color color,
-        float align = 0, float spacing = 0, bool serif = false)
+        float align = 0, float spacing = 0, bool serif = false, float fit = 1)
     {
         if (string.IsNullOrEmpty(text)) return;
         var font = GetFont(serif);
-        float factor = FontScale(font, size);
-        float start = x - Measure(text, size, spacing, serif) * align;
+        float em = Legible(size) * fit * Device;
+        float start = x - MeasureEm(text, em, spacing, serif) * align;
         if (spacing == 0)
         {
-            Batch.DrawString(font, text, At(start, y), color, 0, Vector2.Zero,
-                factor * Scale, SpriteEffects.None, 0);
+            font.Draw(Batch, text, At(start, y), color, em, Transform);
             return;
         }
         foreach (char c in text)
         {
             string glyph = c.ToString();
-            Batch.DrawString(font, glyph, At(start, y), color, 0, Vector2.Zero,
-                factor * Scale, SpriteEffects.None, 0);
-            start += font.MeasureString(glyph).X * factor + spacing;
+            font.Draw(Batch, glyph, At(start, y), color, em, Transform);
+            start += font.Measure(glyph, em) / Device + spacing;
         }
     }
 

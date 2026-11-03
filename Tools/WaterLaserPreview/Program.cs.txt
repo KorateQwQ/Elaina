@@ -63,6 +63,18 @@ internal static class Pipeline {
                     SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
                     RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
                 }
+                public void RunDust() {
+                    // Main ends the previous pass; DrawDust owns and ends its own batch.
+                    EndSpriteBatchIfActive(Main.spriteBatch);
+                    BeginDraw();
+                    Main.spriteBatch.End();
+                    LayerDrawRequestSystem.Flush(LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.After);
+                    if (CaptureSpriteBatchState(Main.spriteBatch) != null)
+                        throw new Exception("Dust.After left a SpriteBatch open");
+                    // Main immediately begins the next world pass after DrawDust returns.
+                    BeginDraw();
+                    Main.spriteBatch.End();
+                }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
             "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];

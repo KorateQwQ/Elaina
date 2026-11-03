@@ -1,6 +1,10 @@
 ﻿param(
     [ValidateSet('zh-Hans','en-US')][string]$Culture = 'zh-Hans',
     [switch]$LocalizationOnly,
+    [switch]$FireOnly,
+    [switch]$IceWaterOnly,
+    [switch]$ResolutionOnly,
+    [switch]$FontSizesOnly,
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
     [string]$Sources = 'D:/泰拉原版贴图与代码与其他工具/tModLoader',
     [switch]$IconsOnly,
@@ -113,6 +117,7 @@ $null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Components/$name.cs" }
 $null = Add-Item 'Compile' "$repo/../SilkyUIFramework/Helper/TextSnippetHelper.cs"
 foreach ($name in @('KLTextureSnippet','KLTextureTagHandler','KLTerms')) { $null = Add-Item 'Compile' "$repo/../KL/Drawing/Snippets/$name.cs" }
+$null = Add-Item 'Compile' "$repo/../KL/Drawing/PixelFont.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SkillUnlockCondition.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SilkyUI/SkillUIInfoAttribute.cs"
 foreach ($name in @('TextSnippet','ITagHandler')) { $null = Add-Item 'Compile' "$Sources/Terraria/UI/Chat/$name.cs" }
@@ -123,6 +128,10 @@ $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')
 $project.Save((Join-Path $out 'Preview.csproj'))
 $previewArgs = @($repo, (Join-Path $Tml '../Terraria/Content'), $Culture, "--tml=$Tml")
 if ($LocalizationOnly) { $previewArgs += '--localization-only' }
+if ($FireOnly) { $previewArgs += '--fire-only' }
+if ($IceWaterOnly) { $previewArgs += '--ice-water-only' }
+if ($ResolutionOnly) { $previewArgs += '--resolution-only' }
+if ($FontSizesOnly) { $previewArgs += '--font-sizes-only' }
 if ($IconsOnly) { $previewArgs += '--icons-only' }
 if ($HeadersOnly) { $previewArgs += '--headers-only' }
 if ($RequirementsOnly) { $previewArgs += '--requirements-only' }

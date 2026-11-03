@@ -33,11 +33,15 @@ python ./Tools/WaterLaserPreview/make_clear_textures.py --fna-comparison
 
 脚本默认在 `.vissandbox/water-laser-preview/out-clear` 输出 PNG。每次运行重新读取实际 `WaterLaserVisuals.cs`、`WaterLaserFlowRenderer.cs`、`WaterLaserDust.cs`，提取 WaterLaser 的粒子生成、请求注册和绘制方法，以及 KL 的粒子生命周期、分层队列、Bloom 捕获和合成代码。使用项目 PNG、本模组 `WaterChargeFlow.xnb` 和 KL 编译后的 XNB。没有另写一套模拟 Bloom。
 
-射线与水花现共用 `Projectiles.After`：主体 order 为 `0`，水花为 `100`。预览直接使用 KL 当前的粒子提交方法，复现弹幕绘制后、合成前的收集时机；断言粒子只申请这一组，并且随后 `Dust.PreDraw` 不重复提交。停止施法后的独立水花仍按帧收集，不依赖射线存活。
+射线主体保留 `Projectiles.After`；水流术和水球共用的 `WaterLaserDust` 水花改用 `Dust.After` 普通绘制（order 为 `100`），排在玩家和 `OverPlayers` 水球之后。粒子仍复用 KL 当前的收集入口，但提交 `Request`，不再提交 `RequestBloom`。预览断言水花只进入 `Dust.After` 普通队列、不新增 Bloom 阶段，并且随后 `Dust.PreDraw` 不重复提交。停止施法后的独立水花仍按帧收集，不依赖射线存活。
 
-`wand-*` 帧额外提取 `Action_WaterLaser` 的星芒/拖尾覆盖方法、`ElainaAction` 的默认方法与拖尾分派、完整 `ElainaTrailVisualStyle`，使用实际 KL 星芒贴图与 TrailEffect。仅适配 PlayerDrawSet/DrawData 存储和固定的杖尖运动轨迹。按本机 Main 的 `DrawProjectiles` → `DrawPlayers_AfterProjectiles` 顺序，在射线/水花之后绘制动作光效。覆盖引导第 0 帧、转向、左向、1.35 倍缩放、松手后 1/10/20 帧及其他动作的默认紫色；检查水射线第 0 帧显示蓝色、收势亮度递减到零，默认动作仍保留紫色及原有淡入。
+`Dust.After` 的 SpriteBatch 入口是关闭状态：原版 `DrawDust` 自行 Begin/End，返回后 KL 直接执行普通请求。因此水花组首项直接 `BeginDraw`，末项只 `End`，不能沿用 Bloom 回调的 `EndBeginDraw`。2026-10-30 的崩溃回归已移除预览在 Flush 前补 Begin、Flush 后自动清理的兜底；按原版边界模拟 Dust 批次结束，断言请求返回后批次仍关闭，再执行下一世界阶段的 Begin/End。修改前复现了与游戏一致的 `End was called, but Begin has not yet been called`，修改后全部预览通过，覆盖有粒子、粒子清空、连续帧、Bloom 开关与 backbuffer。仍未替代游戏实机验证。
 
-验证状态：6/18/36/60 帧、夜晚 60/90/120 帧、白天/夜晚、左向/上向、弯曲、短距离、1.35 倍缩放、直接绘制到 backbuffer、关闭 Bloom、仅粒子 Bloom、停止后 8/30 帧。射线沿用分层队列，但材质现在是正常透明混合的蓝色水体和白沫；断言开启 Bloom 不会产生大片光晕或水花光团，停止后粒子能全部消失。
+`wand-*` 帧额外提取 `Action_WaterLaser` 的星芒/拖尾覆盖方法、`ElainaAction` 的默认方法与拖尾分派、完整 `ElainaTrailVisualStyle`，使用实际 KL 星芒贴图与 TrailEffect。仅适配 PlayerDrawSet/DrawData 存储和固定的杖尖运动轨迹。按本机 Main 的 `DrawProjectiles` → `DrawPlayers_AfterProjectiles` → `DrawDust` 顺序，在射线之后绘制动作拖尾并提交星芒请求，再执行 `Dust.After` 队列：水花 order 100，动作星芒 order 101。覆盖引导第 0 帧、转向、左向、1.35 倍缩放、松手后 1/10/20 帧及其他动作的默认紫色；检查水射线第 0 帧显示蓝色、收势亮度递减到零，默认动作仍保留紫色及原有淡入。
+
+2026-11-01：共用动作星芒从玩家缓存移至水花之后，避免被技能粒子遮住。预览断言星芒不再进入玩家缓存、在 order 100 的请求之后绘制、残影不提交星芒，且离开队列时 SpriteBatch 仍关闭。已运行 FNA 离线预览与模组 Compile，查看持杖修改前后、左向及收势第 10 帧；未进行游戏实机验证。
+
+验证状态：6/18/36/60 帧、夜晚 60/90/120 帧、白天/夜晚、左向/上向、弯曲、短距离、1.35 倍缩放、直接绘制到 backbuffer、关闭 Bloom、仅粒子时切换 Bloom、停止后 8/30 帧。射线沿用分层队列，材质是正常透明混合的蓝色水体和白沫；断言开启 Bloom 不会产生大片光晕，单独水花及水球爆炸在 Bloom 开关下逐像素一致，停止后粒子能全部消失。2026-10-30 调整层级后已重新运行全部预览、查看发射第 6 帧白天与水流术持杖夜晚图，并通过模组 Compile 检查；预览不含水球本体，实际水球与水花的重叠仍需游戏内确认。
 
 移动附着回归按玩家 → 弹幕生成粒子 → Dust 更新的顺序运行，覆盖生成当帧、同帧重复更新、水平/垂直/反向移动、oldPosition 重置、owner 失活后重新激活。直接使用射线生成方法，比较静止与 24px/tick 左右移动、18px/tick 上移、斜向飞行时的杖尖粒子局部坐标，输出 moving-right-up、moving-left-up、moving-diagonal 帧。修复前零速粒子在 owner 移动 24px 的生成当帧会错误多移 24px，之后同帧 Dust 更新还会重复加一次；修复后只消费粒子保存的附着位置差。
 

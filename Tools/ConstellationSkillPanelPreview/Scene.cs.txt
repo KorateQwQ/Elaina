@@ -108,6 +108,13 @@ internal sealed class PanelScene
             if (scenario == "maxed") for (int i = 0; i < 10; i++) _state.Current.ModSkill.TryLevelUp();
         }
         if (scenario == "missing") _state.Select(nameof(WaterLaserSKill));
+        if (scenario.StartsWith("fire-"))
+        {
+            _state.Select(scenario == "fire-beam" ? nameof(FireLaserSkill)
+                : scenario == "fire-burst" ? nameof(FireBurstSkill) : nameof(WindBladeSkill));
+            _state.Current.Skill.MaxCD = scenario == "fire-burst" ? 10f : 1f;
+            _state.Current.Skill.MaxStack = scenario == "fire-burst" ? 3 : 1;
+        }
         if (scenario == "off")
         {
             _state.Select(nameof(MagicBarrierSkill)); _state.Unlock(); _state.Toggle(nameof(AshenWitchSkill));
@@ -171,6 +178,22 @@ internal sealed class PanelScene
                 : scenario == "terms-cauldron" ? typeof(伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill) : typeof(AshenWitchSkill);
             var player = Fixtures.Types.Contains(type) ? Fixtures.Player() : Fixtures.Player(type);
             player.UnlockSkill(KL.SkillSystem.Skill.NewSkill(type));
+            _state = new(player); _state.Select(type.FullName);
+        }
+        if (scenario.StartsWith("ice-water-"))
+        {
+            Type type = scenario switch {
+                "ice-water-stream" => typeof(WaterLaserSKill),
+                "ice-water-orb" => typeof(WaterBallSkill),
+                "ice-water-cone" => typeof(IceConeSkill),
+                _ => typeof(ShardbindSkill)
+            };
+            var player = type == typeof(ShardbindSkill) ? Fixtures.Player(type) : Fixtures.Player();
+            player.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().CurrentLevel = 95;
+            player.Player.GetModPlayer<伊蕾娜.System.ElainaStatePlayer>().Cap = 95;
+            var skill = KL.SkillSystem.Skill.NewSkill(type); player.UnlockSkill(skill); skill.Level = 5;
+            skill.MaxCD = (float)伊蕾娜.ElainaModSkills.SkillBalanceSystem.Entries[type.Name].BaseCooldown;
+            ((伊蕾娜.ElainaModSkills.ElainaSkill)skill.ModSkill).MagicPointCost = (float)伊蕾娜.ElainaModSkills.SkillBalanceSystem.Entries[type.Name].ManaCost;
             _state = new(player); _state.Select(type.FullName);
         }
         if (scenario.StartsWith("alchemy-"))
@@ -247,7 +270,7 @@ internal sealed class PanelScene
             _ancestors = _state.Ancestors();
         }
         UpdateButterfly(0);
-        float fit = Math.Min(1, Math.Min((width / uiScale - 32) / DesignWidth, (height / uiScale - 32) / DesignHeight));
+        float fit = Math.Min(1f, Math.Min((width / uiScale - 32) / DesignWidth, (height / uiScale - 32) / DesignHeight));
         float scale = fit * uiScale;
         Vector2 origin = (new Vector2(width, height) - new Vector2(DesignWidth, DesignHeight) * scale) / 2;
         _draw.Batch = batch; _draw.Scale = scale; _draw.Origin = origin;

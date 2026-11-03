@@ -3,7 +3,7 @@
 `bars.html` 是用户确认的视觉来源。正式入口是 `ElainaAttribute/ElainaPlayerResourceDisplaySet.cs`，
 共享绘制与状态分别在 `ResourceBarDrawing.cs`、`ResourceBarState.cs`。
 采用 A 款：生命条 262×8、魔力条 262×7，顶部 y=18/46，右侧预留 36 UI 像素。
-生命花蔓在右，魔力花蔓在左；无前沿大星光。保留普通魔力 / 独立魔力读取及悬停读数。
+生命花蔓在右，魔力花蔓在左；无前沿大星光。保留普通魔力 / 独立魔力读取；悬停不显示读数，数值改由设置开关在条上显示。
 
 ## 头像 · 等级 · 经验
 
@@ -36,6 +36,7 @@
 - 残影等待 0.4 秒，随后每秒缩短 45%；治疗平滑回升。残影比填充更暗更饱和（生命暗玫红、魔力偏紫），又亮于空槽，实战中能分清实际值；
   回复不再整条闪白，只在填充末端冒星屑。资源上限、角色或魔力类型切换会重置视觉状态。
   受伤花瓣 / 施法星屑是 UI 内的有界粒子（每条至多 96 个），不依赖世界坐标或修改游戏资源值。
+- 设置 `BasicConfig.ShowResourceValues` 开启后，`ResourceBarDrawing.DrawValue` 在两条正中绘制 `当前/上限`（四舍五入取整）：字体为 NotoSerifSC（与技能栏冷却数字同款，等高数字），12 UI 像素，银白字加 0.5 / 1 像素两圈暗边；数字字形中心与条中心偏差约 0.1 像素，斜线下伸不参与对齐。离线检查在 `.vissandbox/resource-values`。
 - tML 的 UI layer 已转换 `Main.screenWidth` 与鼠标到 UI 单位；不再次除 `UIScale`。
   绘制使用传入 SpriteBatch，恢复 vanilla UI batch 的矩阵、混合、采样、深度、光栅与裁剪状态。
   填充 Shader 与当前 FNA SpriteEffect 使用相同投影，不额外叠加 D3D9 半像素偏移；预览会在四种 UI 缩放下直接比对两者矩阵。

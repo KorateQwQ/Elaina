@@ -32,7 +32,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private ConstellationDetail _detail;
     private readonly List<(PaintView View, ConstellationDetailRow Row)> _detailRows = [];
     private bool _detailDirty = true, _resetDetailScroll = true;
-    private float _scale = 1, _zoom = .84f, _clock, _flash;
+    private float _scale = 1, _zoom = .84f, _clock, _flash, _detailDevice;
     private Vector2 _origin, _pan, _dragStart, _panStart, _lastSize;
     private bool _focusing;
     private float _focusElapsed, _focusStartZoom, _focusTargetZoom;
@@ -323,6 +323,10 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             }
             LayoutDetail();
         }
+        // Detail text is wrapped with the font for its on-screen size, so a UI scale change re-lays it out.
+        _draw.Scale = _scale;
+        _draw.Transform = Main.UIScaleMatrix;
+        if (_draw.Device != _detailDevice) { _detailDevice = _draw.Device; InvalidateDetail(false); }
         if (_detailDirty) RefreshDetail();
         if (Main.hasFocus && Main.keyState.IsKeyDown(Keys.Escape) && Main.oldKeyState.IsKeyUp(Keys.Escape))
         {

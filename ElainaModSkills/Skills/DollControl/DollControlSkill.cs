@@ -11,13 +11,15 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
 /// <summary>
 /// 技能轮盘选中时召唤玩偶并打开指令盘，不切换当前术式。独立标记键由 <see cref="DollCommandPlayer"/> 处理。
-/// 玩偶持续存在，直到“收回玩偶”指令、主人死亡或离开世界。
+/// 装备时自动召唤，卸下时收回；也可用“收回玩偶”指令收回，主人死亡或离开世界时移除。
 /// </summary>
 [SkillUIInfo(State = 2, Pixels = 400)]
 public class DollControlSkill : ElainaSkill
 {
     public const int TeamSize = DollControlProgression.TeamSize;
     private int appliedLevel;
+    private bool wasEquipped;
+    private bool summonPending;
     public override int MaxLevel => Math.Min(DollControlProgression.MaximumLevel, base.MaxLevel);
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         new CompositeSkillUnlockCondition(DefaultUnlockCost,
@@ -66,15 +68,53 @@ public class DollControlSkill : ElainaSkill
     public override void UpdateEquips(Player player)
     {
         base.UpdateEquips(player);
-        if (Main.netMode == NetmodeID.Server || player.whoAmI != Main.myPlayer || !player.active || player.dead)
+        if (Main.netMode == NetmodeID.Server || player.whoAmI != Main.myPlayer || !player.active)
             return;
+
+        bool equipped = IsEquipped(player);
+        if (!equipped)
+        {
+            if (wasEquipped || DollPetProjectile.FindOwned(player) != null)
+            {
+                player.GetModPlayer<DollCommandPlayer>().ClearTasks();
+                DollPetProjectile.DismissAll(player);
+                appliedLevel = 0;
+                summonPending = false;
+            }
+            wasEquipped = false;
+            return;
+        }
+
         int level = DollControlProgression.ClampLevel(Level);
-        if (appliedLevel == level) return;
-        // 已召出的整队随升级立即成长；弹幕池不足时保留任务，之后重试补齐。
-        if (RefreshTeam(player, level)) appliedLevel = level;
+        bool justEquipped = !wasEquipped;
+        wasEquipped = true;
+        if (player.dead)
+        {
+            if (justEquipped) summonPending = true;
+            return;
+        }
+        if (!justEquipped && !summonPending && appliedLevel == level) return;
+        // 装备时自动召唤；已召出的整队随升级立即成长。弹幕池不足时保留任务，之后重试补齐。
+        bool summonIfAbsent = justEquipped || summonPending;
+        if (RefreshTeam(player, level, summonIfAbsent))
+        {
+            appliedLevel = level;
+            summonPending = false;
+        }
+        else if (summonIfAbsent)
+            summonPending = true;
     }
 
-    private static bool RefreshTeam(Player player, int level)
+    private bool IsEquipped(Player player)
+    {
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
+        if (skills == null) return false;
+        for (int i = 0; i < skills.Count; i++)
+            if (ReferenceEquals(skills[i]?.ModSkill, this)) return true;
+        return false;
+    }
+
+    private static bool RefreshTeam(Player player, int level, bool summonIfAbsent)
     {
         int count = DollControlProgression.DollCount(level), present = 0, free = 0;
         bool hasTeam = false;
@@ -89,7 +129,7 @@ public class DollControlSkill : ElainaSkill
             present |= 1 << doll.FormationSlot;
             doll.SetSkillLevel(level);
         }
-        if (!hasTeam) return true;
+        if (!hasTeam && !summonIfAbsent) return true;
         int missing = 0;
         for (int slot = 0; slot < count; slot++) if ((present & (1 << slot)) == 0) missing++;
         if (free < missing) return false;

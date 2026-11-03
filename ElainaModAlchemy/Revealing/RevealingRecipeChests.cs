@@ -99,13 +99,14 @@ public sealed class RevealingRecipeChests : ModSystem
             Tile tile = Main.tile[point.X, point.Y];
             if (!tile.HasTile || !TileID.Sets.BasicChest[tile.TileType]) continue;
             Vector2 center = new(point.X * 16 + 16, point.Y * 16 + 16);
-            foreach (Projectile projectile in Main.ActiveProjectiles)
+            foreach (var projectile in Main.ActiveProjectiles)
             {
                 if (projectile.owner != Main.myPlayer || projectile.ModProjectile is not RevealingDustArea area
-                    || !area.Contains(center)) continue;
+                                                      || !area.Contains(center)) continue;
                 yield return point;
                 break;
             }
+
         }
     }
 
