@@ -1,0 +1,411 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+try { using var game = new FireProbe(args[0], args[1]); game.Run(); }
+catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
+
+internal static class Pipeline
+{
+    // Compiles KL's actual layered-request and Bloom code together with the production fire laser renderer.
+    internal static Assembly Compile(string kl, string root, string output)
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+        string Fields(CompilationUnitSyntax tree, Func<string, bool> select) => string.Join("\n", tree.DescendantNodes()
+            .OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables.Any(v => select(v.Identifier.Text))).Select(f => f.ToFullString()));
+        var draw = Read("Drawing/DrawSystem.cs");
+        var render = Read("Drawing/RenderHelper.cs");
+        var effects = Read("Drawing/DrawHelper.Effects.cs");
+        var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
+        string source = """
+            global using System;
+            global using System.Linq;
+            global using KL.Drawing;
+            global using System.Collections.Generic;
+            global using System.Reflection;
+            global using Microsoft.Xna.Framework;
+            global using Microsoft.Xna.Framework.Graphics;
+            global using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing {
+            public class ModSystem { public virtual void Unload() {} }
+            public sealed class DeviceContext { public GraphicsDevice GraphicsDevice; }
+            public sealed class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; public Matrix ZoomMatrix => TransformationMatrix; }
+            public static class Main {
+                public static DeviceContext instance, graphics;
+                public static SpriteBatch spriteBatch;
+                public static int screenWidth, screenHeight;
+                public static double timeForVisualEffects; public static uint GameUpdateCount;
+                public static Vector2 screenPosition; public static Matrix Transform = Matrix.Identity;
+                public static bool dedServ;
+                public static void QueueMainThreadAction(Action action) => action();
+                public static void NewText(string text, Color color) => throw new Exception(text);
+                public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+                public static ViewContext GameViewMatrix = new();
+            }
+            public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
+            public static class PreviewOptions { public static bool PreserveBackbuffer = true; }
+            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
+            public enum AssetRequestMode { ImmediateLoad }
+            public class Asset<T>(T value) { public T Value = value; }
+            public static class ModContent {
+                public static string Root;
+                public static Microsoft.Xna.Framework.Content.ContentManager ModEffects;
+                public static readonly Dictionary<string, Texture2D> Textures = new();
+                public static Asset<T> Request<T>(string path, AssetRequestMode mode = AssetRequestMode.ImmediateLoad) {
+                    if (typeof(T) == typeof(Effect)) return new Asset<T>((T)(object)ModEffects.Load<Effect>(System.IO.Path.GetFileName(path)));
+                    if (!Textures.TryGetValue(path, out var texture)) {
+                        string file = path.StartsWith("KL/") ? System.IO.Path.Combine(Root, "..", path + ".png")
+                            : System.IO.Path.Combine(Root, path[(path.IndexOf('/') + 1)..] + ".png");
+                        using var stream = System.IO.File.OpenRead(file);
+                        texture = Texture2D.FromStream(Main.graphics.GraphicsDevice, stream);
+                        // Packed rawimg is not premultiplied again; only clear fully transparent pixels.
+                        var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+                        for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+                        texture.SetData(pixels); Textures.Add(path, texture);
+                    }
+                    return new Asset<T>((T)(object)texture);
+                }
+            }
+            public partial class DrawSystem {
+                public void Run(float strength, int iterations, bool bloomEnabled) {
+                    SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
+                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
+                }
+            """;
+        string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
+            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+        source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
+        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom");
+        source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
+        source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
+        source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString();
+        source += """
+            public partial class DrawHelper {
+                public static Effect bloom, reColor, commonMagic, vertexDraw;
+                public static BlendState ReverseBS = BlendState.AlphaBlend, AlphaBlendNormal = BlendState.AlphaBlend;
+                public static void DrawInScreen(Texture2D texture, Vector2? position = null, Color? color = null,
+                    Vector2? scale = null, float rotation = 0, SpriteEffects spriteEffects = SpriteEffects.None) {
+                    Main.spriteBatch.Draw(texture, position ?? Vector2.Zero, null, color ?? Color.White, rotation,
+                        new Vector2(texture.Width, texture.Height) / 2, scale ?? Vector2.One, spriteEffects, 0);
+                }
+            """;
+        source += Methods(effects, "GaussianBlur", "GaussianBlurTwice", "DrawUnderflowColorEffect", "DrawOverflowColorEffect", "ReColorEffect", "CommonMagicEffect");
+        // Legacy FireLaser drawing helpers, taken verbatim from KL.
+        var vertex = Read("Drawing/DrawHelper.vertexDraw.cs");
+        var assets = Read("Drawing/DrawHelper.Assets.cs");
+        source += Methods(vertex, "QuickConePoints", "GetQuadraticBezierPoint", "TrailEffect");
+        source += vertex.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "VertexDrawEffect"
+            && m.ParameterList.Parameters[2].Type.ToString() == "Color").ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "DrawInWorld"
+            && m.ParameterList.Parameters[0].Type.ToString() is "TextureInfo" or "Texture2D").Aggregate("", (a, m) => a + m.ToFullString());
+        source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(x => x.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString();
+        source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(x => x.Identifier.Text == "TextureInfo").WithoutLeadingTrivia().ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "BeginDraw"
+            && m.ParameterList.Parameters[0].Type.ToString() == "int").ToFullString();
+        source += "}}\n";
+        source += File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs"));
+        source = source.Replace("namespace KL.Drawing;", "namespace KL.Drawing {") + "\n}";
+        var laser = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Fire/FireLaser.cs"))).GetCompilationUnitRoot();
+        var manager = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Managers/DrawManager.cs"))).GetCompilationUnitRoot();
+        source += """
+            namespace KL.Drawing {
+                public static class TextureAssets { public static Asset<Texture2D> MagicPixel; }
+                public static class Lighting { public static void AddLight(Vector2 p, Vector3 color) {} }
+                public static class LegacyExtensions {
+                    public static int Width(this Asset<Texture2D> a) => a.Value.Width;
+                    public static Vector2 Size(this Asset<Texture2D> a) => new(a.Value.Width, a.Value.Height);
+                    public static Vector2 Size(this Texture2D t) => new(t.Width, t.Height);
+                    public static Vector2 Origin(this Texture2D tex, int totalX = 1, int totalY = 1) => tex.Size() / new Vector2(totalX, totalY) * 0.5f;
+                    public static Rectangle GetRec(this Texture2D tex, int frame = 0, int totalX = 1, int totalY = 1) {
+                        int w = tex.Width / totalX, h = tex.Height / totalY;
+                        return new Rectangle(w * (frame % totalX), h * (frame / totalX), w, h);
+                    }
+                    public static Vector2 RotatedBy(this Vector2 v, double r) => Vector2.Transform(v, Matrix.CreateRotationZ((float)r));
+                    public static float ToRotation(this Vector2 v) => MathF.Atan2(v.Y, v.X);
+                }
+            }
+            namespace 伊蕾娜.ElainaModSkills.Skills.Fire {
+                public sealed class ReplayProjectile { public Vector2 Center, velocity; public float rotation; public bool active = true; }
+                public sealed class ReplayOwner { public Vector2 MountedCenter; }
+                public partial class FireReplay {
+                    public ReplayProjectile Projectile = new();
+                    public ReplayOwner Owner = new();
+                    bool IsChanneling = true;
+                    public int time; public float maxDistance;
+                    private int channelAge;
+                    // 预览的 tick 从爆开起算，蓄力阶段只有粒子，不经过 DrawVisual2。
+                    const int ChargeTicks = 0;
+                    private FireLaserBeamVisual beamVisual;
+                    Vector2[] windPoints, windPoints2;
+                    public void Set(int tick, Vector2 origin, Vector2 direction, float length) {
+                        // Same cone points FireLaser.OnSpawn_AllClient builds.
+                        Vector2 axis = Vector2.UnitX;
+                        windPoints = QuickConePoints(axis * 100, -axis * 200f, 100, 200, 160f, 0.2f);
+                        windPoints2 = QuickConePoints(axis * 100, -axis * 150f, 100, 120, 80f, 0.2f);
+                        time = tick; channelAge = tick; maxDistance = length; Main.GameUpdateCount = (uint)tick;
+                        Main.timeForVisualEffects = tick;
+                        Projectile.Center = origin; Projectile.velocity = direction; Projectile.rotation = MathF.Atan2(direction.Y, direction.X);
+                        Owner.MountedCenter = origin - direction * 40f;
+                    }
+                    public void Draw() => DrawVisual2();
+                    static class DrawManager {
+            """ + Methods(manager, "FrameTime") + "}\n" + Methods(laser, "DrawVisual2", "DrawVisual", "DrawRibbons", "DrawLaser", "DrawMagicBall", "DrawMuzzleFlare") + """
+                }
+                public static class Scene {
+                    public static FireReplay Laser = new();
+                    public static bool ParticlesEnabled = true;
+                    // Same request FireLaser.PreDraw submits: Projectiles.After with Bloom, callback FireLaser.DrawVisual2.
+                    public static void Queue(Vector2 origin, Vector2 direction, float length, int time, float release) {
+                        LayerDrawRequestSystem.ClearFrame();
+                        Laser.Set(time, origin, direction, length);
+                        if (release < 0f)
+                            LayerDrawRequestSystem.RequestBloom("Elaina:FireLaser", FireLaserVisuals.Layer,
+                                LayerDrawRequestSystem.DrawTiming.After, Laser.Draw);
+                        else {
+                            var visual = new FireLaserBeamVisual();
+                            LayerDrawRequestSystem.RequestBloom("Elaina:FireLaser", FireLaserVisuals.Layer,
+                                LayerDrawRequestSystem.DrawTiming.After, () => visual.Draw(origin, direction, length + 10f,
+                                    time + release * FireLaserBeamVisual.ReleaseTicks * .3f, FireLaserBeamVisual.OpeningWidth(time), release));
+                            if (ParticlesEnabled) ParticleReplay.Queue(origin, direction, length + 10f, FireLaserBeamVisual.OpeningWidth(time), release);
+                        }
+                    }
+                }
+            }
+            """;
+        source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");
+        File.WriteAllText(Path.Combine(output, "replay.cs.txt"), source);
+        string fire = Path.Combine(root, "ElainaModSkills/Skills/Fire");
+        var dustTree = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, "Dusts/LineSparkle.cs"))).GetCompilationUnitRoot();
+        var dustClass = dustTree.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "LineSparkle");
+        dustClass = dustClass.WithMembers(SyntaxFactory.List(dustClass.Members.Where(m => m is not MethodDeclarationSyntax method
+            || method.Identifier.Text is not ("OnSpawn" or "Update"))));
+        string particleSource = "namespace KL.Dusts {" + dustClass.ToFullString() + "}";
+        string beamSource = File.ReadAllText(Path.Combine(fire, "FireLaserBeamVisual.cs"));
+        if (Environment.GetEnvironmentVariable("FIRE_RELEASE_VARIANT") == "1") {
+            // Mutate only the offline compilation, never the user's production parameters.
+            foreach (var setting in new[] { ("ReleaseLineShrinkTicks", "8f"), ("ReleaseLineShrinkPower", "5f"),
+                ("ReleaseHeadShrinkTicks", "40f"), ("ReleaseNoisePeriod", "150f"), ("ReleaseMaxShrinkRate", "2.5f"),
+                ("ReleaseSparkForwardSpeed", "new(9f, 12f)"), ("ReleaseSparkSideSpeed", "new(2f, 4f)") }) {
+                string pattern = @"(\b" + setting.Item1 + @"\s*=>\s*)[^;]+;";
+                if (!System.Text.RegularExpressions.Regex.IsMatch(beamSource, pattern)) throw new Exception("Missing isolation parameter " + setting.Item1);
+                beamSource = System.Text.RegularExpressions.Regex.Replace(beamSource, pattern, m => m.Groups[1].Value + setting.Item2 + ";");
+            }
+        }
+        string[] inputs = [source, particleSource, File.ReadAllText(Path.Combine(root, "Tools/FireLaserPreview/ParticleReplay.cs.txt")),
+            beamSource, File.ReadAllText(Path.Combine(fire, "FireLaserVisuals.cs")),
+            File.ReadAllText(Path.Combine(fire, "FireLaserRibbonRenderer.cs")), File.ReadAllText(Path.Combine(fire, "FireLaserBodyRenderer.cs"))];
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create("FireLaserProbe", inputs.Select(s => CSharpSyntaxTree.ParseText(s)), references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+}
+
+sealed class FireProbe : Game
+{
+    const int Width = 1200, Height = 700;
+    readonly string root, output;
+    Assembly pipeline;
+    SpriteBatch batch;
+    ContentManager klEffects, modEffects;
+    Texture2D pixel;
+    Type main, scene, draw;
+    object renderer;
+    bool done;
+
+    public FireProbe(string root, string output)
+    {
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle); Directory.CreateDirectory(output);
+        pipeline = Pipeline.Compile(Path.GetFullPath(Path.Combine(root, "../KL")), root, output);
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        main = pipeline.GetType("KL.Drawing.Main"); draw = pipeline.GetType("KL.Drawing.DrawSystem");
+        scene = pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.Fire.Scene");
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", Width); Set(main, "screenHeight", Height);
+        klEffects = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
+        var helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        Set(helper, "bloom", klEffects.Load<Effect>("Bloom")); Set(helper, "reColor", klEffects.Load<Effect>("ReColor"));
+        Set(helper, "commonMagic", klEffects.Load<Effect>("CommonMagic")); Set(helper, "vertexDraw", klEffects.Load<Effect>("VertexDraw"));
+        var assets = pipeline.GetType("KL.Drawing.ModContent"); Set(assets, "Root", root);
+        modEffects = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        Set(assets, "ModEffects", modEffects);
+        renderer = Activator.CreateInstance(draw);
+        var assetType = pipeline.GetType("KL.Drawing.Asset`1").MakeGenericType(typeof(Texture2D));
+        Set(pipeline.GetType("KL.Drawing.TextureAssets"), "MagicPixel", Activator.CreateInstance(assetType, pixel));
+    }
+
+    protected override void Draw(GameTime time)
+    {
+        if (done) { Exit(); return; } done = true;
+        if (Environment.GetEnvironmentVariable("FIRE_FRAMES") == "1") {
+            // Consecutive 60 Hz ticks for GIF assembly (make_gif.py).
+            Directory.CreateDirectory(Path.Combine(output, "frames"));
+            for (int tick = 60; tick < 120; tick++) Render($"frames/day-{tick:D3}", tick);
+            Exit(); return;
+        }
+        if (Environment.GetEnvironmentVariable("FIRE_TRANSITIONS") == "1") {
+            Directory.CreateDirectory(Path.Combine(output, "transitions"));
+            for (int tick = 0; tick <= 90; tick++)
+                Render($"transitions/frame-{tick:D3}", Math.Min(tick, 36), night: true,
+                    release: tick < 36 ? -1f : Math.Min(1f, (tick - 36) / 42f));
+            Exit(); return;
+        }
+        CheckShortRelease();
+        foreach (int tick in new[] { 0, 2, 5, 7, 10, 14, 18, 24 }) Render($"entry-{tick:D2}", tick, night: true);
+        foreach (int age in new[] { 3, 10, 60 }) {
+            var steady = Render($"join-active-{age}", age, night: true);
+            var releaseStart = Render($"join-release-{age}", age, night: true, release: 0f, sparks: false);
+            double joinError = steady.Zip(releaseStart, (a, b) => Math.Abs(a.R - b.R) + Math.Abs(a.G - b.G) + Math.Abs(a.B - b.B)).Average() / 3;
+            if (joinError > .3) throw new Exception($"Release transition changed the beam appearance: mean RGB error {joinError}");
+            Console.WriteLine($"Release at {age} ticks: mean RGB error {joinError:F4}/255.");
+        }
+        foreach (int tick in new[] { 0, 6, 12, 18, 24, 28, 32, 36, 42 }) Render($"exit-{tick:D2}", 60, night: true, release: tick / 42f);
+        Render("exit-short", 60, night: true, length: 180, release: .6f);
+        Render("exit-left", 60, night: true, angle: 2.9f, release: .6f);
+        Render("exit-day", 60, release: .65f);
+        Render("exit-early", 3, night: true, release: .2f);
+        if (Environment.GetEnvironmentVariable("FIRE_RELEASE_VARIANT") != "1") {
+        // Default timing only; the parameter-stress variant finishes its beam before tick 28.
+        // Exclude sparks and the flame head so late-release Bloom must come from the remaining beam.
+        var lateBloom = Render("exit-light-check", 60, night: true, release: 28f / 42f, sparks: false);
+        var lateNoBloom = Render("exit-light-check-no-bloom", 60, night: true, release: 28f / 42f, sparks: false, bloom: false);
+        int glowingPixels = 0;
+        for (int y = 270; y < 440; y++)
+            for (int x = 200; x < 850; x++) {
+                int i = y * Width + x;
+                if (lateBloom[i].G - lateNoBloom[i].G > 12) glowingPixels++;
+            }
+        if (glowingPixels < 20) throw new Exception($"Late release lost beam Bloom: {glowingPixels} glowing pixels.");
+        Console.WriteLine($"Late release retains beam Bloom: {glowingPixels} glowing pixels (sparks/head excluded).");
+        }
+        foreach (int tick in new[] { 30, 60, 64, 68, 72 }) Render($"day-{tick}", tick);
+        Render("night-60", 60, night: true);
+        Render("night-75", 75, night: true);
+        Render("muzzle-zoom2", 60, night: true, zoom: 2, zoomAtOrigin: true);
+        Render("muzzle-zoom2-day", 60, zoom: 2, zoomAtOrigin: true);
+        Render("body-zoom2-day", 60, zoom: 2);
+        Render("body-zoom2", 60, night: true, zoom: 2);
+        Render("left", 60, night: true, angle: 2.9f);
+        Render("short", 60, night: true, length: 180);
+        Render("bloom-off", 60, night: true, bloom: false);
+        for (int tick = 60; tick < 64; tick++) Render($"flow-{tick}", tick, night: true);
+        Console.WriteLine("Rendered FireLaser.DrawVisual2 through KL Bloom (day/night, zoom, left, short, bloom off).");
+        Exit();
+    }
+
+    void CheckShortRelease()
+    {
+        var visual = pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.Fire.FireLaserBeamVisual");
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+        using var stream = File.OpenRead(Path.GetFullPath(Path.Combine(root, "../KL/Effects/Tex/PerlinX.png")));
+        using var noise = Texture2D.FromStream(GraphicsDevice, stream);
+        var pixels = new Color[noise.Width * noise.Height]; noise.GetData(pixels);
+        float Sample(float u) {
+            float x = (u - MathF.Floor(u)) * noise.Width - .5f, y = .417f * noise.Height - .5f;
+            int ix = (int)MathF.Floor(x), iy = (int)MathF.Floor(y);
+            float R(int a, int b) => pixels[((b + noise.Height) % noise.Height) * noise.Width + (a + noise.Width) % noise.Width].R / 255f;
+            return MathHelper.Lerp(MathHelper.Lerp(R(ix, iy), R(ix + 1, iy), x - ix),
+                MathHelper.Lerp(R(ix, iy + 1), R(ix + 1, iy + 1), x - ix), y - iy);
+        }
+        float rate = (float)visual.GetProperty("ReleaseMaxShrinkRate", flags).GetValue(null);
+        foreach (float length in new[] { 60f, 120f, 180f, 450f, 940f, 1500f }) {
+            float scale = (float)visual.GetMethod("ReleaseNoiseScale", flags).Invoke(null, new object[] { length });
+            int readableFrames = 0;
+            for (int tick = 0; tick < 42; tick++) {
+                float shrink = (float)visual.GetMethod("ReleaseShrink", flags).Invoke(null, new object[] { tick / 42f });
+                int segments = 0, run = 0;
+                for (int i = 0; i <= (int)length; i++) {
+                    float n = Sample(i / length * (299f / 300f) * scale + .173f);
+                    float t = MathHelper.Clamp((n - .32f) / .4f, 0, 1);
+                    float width = Math.Max(0, 1 - shrink * MathHelper.Lerp(1, rate, t * t * (3 - 2 * t)));
+                    if (width > .01f) run++;
+                    else { if (run >= 2) segments++; run = 0; }
+                }
+                if (run >= 2) segments++;
+                if (segments >= 3) readableFrames++;
+            }
+            if (readableFrames < 2) throw new Exception($"Short release failed at {length}px: {readableFrames} frames with 3 visible segments.");
+            Console.WriteLine($"Release {length}px: {readableFrames} frames with at least 3 visible segments.");
+            Render($"exit-distance-{length}", 60, night: true, length: length, release: 28f / 42f, sparks: false);
+        }
+    }
+
+    Color[] Render(string name, int ticks, bool night = false, float zoom = 1, bool zoomAtOrigin = false,
+        float angle = .12f, float length = 940, bool bloom = true, float release = -1f, bool sparks = true)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(night ? new Color(14, 18, 30) : new Color(132, 170, 204));
+        // Nonzero world camera origin catches missed world-to-screen conversions.
+        Vector2 camera = new(2000, 1200); Set(main, "screenPosition", camera);
+        Vector2 origin = angle > 2 ? new Vector2(1060, 260) : new Vector2(150, 300);
+        Vector2 zoomCenter = zoomAtOrigin ? origin + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 150 : new Vector2(600, 350);
+        Matrix transform = Matrix.CreateTranslation(-zoomCenter.X, -zoomCenter.Y, 0) * Matrix.CreateScale(zoom, zoom, 1)
+            * Matrix.CreateTranslation(Width / 2f, Height / 2f, 0);
+        if (!zoomAtOrigin) transform = Matrix.CreateTranslation(-zoomCenter.X, -zoomCenter.Y, 0) * Matrix.CreateScale(zoom, zoom, 1)
+            * Matrix.CreateTranslation(zoomCenter.X, zoomCenter.Y, 0);
+        Set(main, "Transform", transform);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view, transform);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, transform);
+        Color grid = night ? new Color(30, 38, 56) : new Color(112, 148, 180);
+        for (int x = 0; x < Width; x += 100) batch.Draw(pixel, new Rectangle(x, 0, 1, Height), grid);
+        for (int y = 0; y < Height; y += 100) batch.Draw(pixel, new Rectangle(0, y, Width, 1), grid);
+        // Ground strip and a wand marker at the supplied beam origin; not the player's live pose.
+        batch.Draw(pixel, new Rectangle(0, 520, Width, 180), night ? new Color(34, 30, 34) : new Color(118, 96, 74));
+        batch.Draw(pixel, origin, null, new Color(194, 165, 105), angle + MathHelper.Pi, new Vector2(0, .5f), new Vector2(60, 5), SpriteEffects.None, 0);
+        batch.End();
+        Vector2 direction = new(MathF.Cos(angle), MathF.Sin(angle));
+        Set(scene, "ParticlesEnabled", sparks);
+        scene.GetMethod("Queue").Invoke(null, [origin + camera, direction, length, ticks, release]);
+        draw.GetMethod("Run").Invoke(renderer, [1f, 5, bloom]);
+        var pixels = new Color[Width * Height];
+        target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
+        using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
+        return pixels;
+    }
+
+    protected override void UnloadContent()
+    {
+        if (pipeline != null)
+        {
+            var visuals = pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.Fire.FireLaserVisuals");
+            visuals.GetMethod("Unload").Invoke(Activator.CreateInstance(visuals), null);
+        }
+        batch?.Dispose(); pixel?.Dispose(); klEffects?.Dispose(); modEffects?.Dispose();
+    }
+}

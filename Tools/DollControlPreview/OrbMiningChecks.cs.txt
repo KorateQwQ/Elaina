@@ -1,0 +1,168 @@
+using System.Reflection;
+using MonoMod.RuntimeDetour;
+using Terraria.ID;
+using Terraria.Localization;
+using 伊蕾娜.ElainaModSkills.Skills.DollControl;
+using Host = Terraria.Main;
+
+internal static partial class FurnitureMiningChecks
+{
+    private sealed class ProtectedOrbFixture : GlobalTile
+    {
+        internal static bool Protected;
+        public override bool CanKillTile(int i, int j, int type, ref bool blockDamaged)
+            => type != TileID.ShadowOrbs || !Protected;
+    }
+
+    private static void PlaceOrb(int style)
+    {
+        Place(TileID.ShadowOrbs, 100, 100, 2, 2, support: false);
+        for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+        {
+            Tile tile = Host.tile[100 + x, 100 + y];
+            tile.TileFrameX += (short)(style * 36);
+        }
+    }
+
+    private static void CheckOrbs()
+    {
+        int before = passed;
+        List<int> bosses = [];
+        int messages = 0;
+        // Keep the native event decisions, replacing only presentation and actual boss creation.
+        using var spawnHook = new Hook(typeof(NPC).GetMethod(nameof(NPC.SpawnOnPlayer))!,
+            (Action<int, int>)((player, type) => bosses.Add(type)));
+        using var textHook = new Hook(typeof(Host).GetMethod(nameof(Host.NewText), [typeof(string), typeof(byte), typeof(byte), typeof(byte)])!,
+            (Action<string, byte, byte, byte>)((text, r, g, b) => messages++));
+        using var chatHook = new Hook(typeof(Terraria.Chat.ChatHelper).GetMethod("BroadcastChatMessage")!,
+            (Action<NetworkText, Color, int>)((text, color, except) => messages++));
+        using var sendHook = new Hook(typeof(ModPacket).GetMethod(nameof(ModPacket.Send))!, (Action<ModPacket, int, int>)CapturePacket);
+        Host.tileFrameImportant[TileID.ShadowOrbs] = Host.tileHammer[TileID.ShadowOrbs] = true;
+        Host.tileHammer[TileID.DemonAltar] = true;
+        Lang.misc[10] = Language.GetText("LegacyMisc.10"); Lang.misc[11] = Language.GetText("LegacyMisc.11");
+        Player player = Host.player[0];
+        var commands = player.GetModPlayer<DollCommandPlayer>();
+        Point target = new(101, 101);
+        void Fresh(int style, bool collect = true)
+        {
+            Reset(); network.ClearWorld(); packets.Clear(); vanilla.Clear(); bosses.Clear(); messages = 0;
+            ProtectedOrbFixture.Protected = false;
+            Host.netMode = NetmodeID.SinglePlayer; Host.myPlayer = 0;
+            WorldGen.shadowOrbSmashed = false; WorldGen.shadowOrbCount = 0;
+            player.active = true; player.dead = player.noBuilding = false; player.Center = new(1600, 1600);
+            player.hitTile = new HitTile();
+            for (int i = 0; i < player.inventory.Length; i++) player.inventory[i] = new Item();
+            player.inventory[0] = new Item(ItemID.WoodenHammer);
+            DollPetProjectile.Present = true; commands.ResetLoot(); commands.TileMarks.Clear(); commands.BringBackItems = collect;
+            PlaceOrb(style); commands.TileMarks.Add(target);
+        }
+        int Hits() => (100 + player.inventory[0].hammer - 1) / player.inventory[0].hammer;
+        void HitFully() { for (int i = 0; i < Hits(); i++) commands.Hit(target, false); }
+        foreach (int style in new[] { 0, 1 })
+        foreach (bool collect in new[] { true, false })
+        for (int hitX = 0; hitX < 2; hitX++) for (int hitY = 0; hitY < 2; hitY++)
+        {
+            Fresh(style, collect); target = new(100 + hitX, 100 + hitY);
+            int weapon = style == 0 ? ItemID.Musket : ItemID.TheUndertaker;
+            Check(DollCommandPlayer.IsMarkable(target.X, target.Y, true)
+                && !DollCommandPlayer.IsMarkable(target.X, target.Y, false), "Orb/heart belongs to Break Wall, not Mine Blocks");
+            Check(DollTileSelection.Bounds(target, true) == new Rectangle(100, 100, 2, 2), "Hammer command selects the entire orb/heart");
+            Check(DollTileSelection.Bounds(target) == new Rectangle(100, 100, 2, 2), "Every orb/heart cell resolves its complete bounds without TileObjectData");
+            Check(commands.ToolFor(target, false) == player.inventory[0], "Hammer-only inventory selects hammer for orb/heart");
+            Check(commands.HitInterval(target, false) == player.inventory[0].useTime, "Orb hammering uses the selected hammer's full swing interval");
+            for (int i = 1; i < Hits(); i++) commands.Hit(target, false);
+            Check(Host.tile[target.X, target.Y].HasTile && WorldGen.shadowOrbCount == 0, "Partial hammer damage does not break or trigger an event");
+            commands.Hit(target, false);
+            for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++)
+                Check(!Host.tile[100 + x, 100 + y].HasTile, "Native framing removes all four cells");
+            Check(WorldGen.shadowOrbCount == 1 && WorldGen.shadowOrbSmashed && messages == 1,
+                $"Native first-break progression runs once: style={style}, collect={collect}, cell={target}, count={WorldGen.shadowOrbCount}, smashed={WorldGen.shadowOrbSmashed}, messages={messages}, noTileActions={WorldGen.noTileActions}, gen={WorldGen.gen}");
+            if (collect)
+            {
+                Check(commands.Count(weapon) == 1 && commands.Count(ItemID.MusketBall) == 100, "First-break weapon and ammunition enter doll cargo");
+                Check(!Host.item.Any(i => i.active && !i.IsAir), "Captured orb loot leaves no world duplicate");
+                ContentSamples.ItemsByType[weapon] = new Item(weapon);
+                ContentSamples.ItemsByType[ItemID.MusketBall] = new Item(ItemID.MusketBall);
+                commands.DeliverLoot(player.Center, player.GetSource_Misc("OrbReturn"));
+                Check(commands.Count(weapon) == 0 && Host.item.Any(i => i.active && i.type == weapon), "Doll returns captured weapon to owner");
+            }
+            else
+                Check(commands.Count(weapon) == 0 && Host.item.Any(i => i.active && i.type == weapon), "Collection off leaves native weapon in world");
+            HitFully();
+            Check(WorldGen.shadowOrbCount == 1, "Stale cells never count as an additional broken orb");
+        }
+
+        target = new(101, 101);
+        foreach (int style in new[] { 0, 1 })
+        {
+            Fresh(style); player.inventory[0] = new Item(ItemID.CopperPickaxe);
+            commands.Hit(target, false);
+            Check(Host.tile[101, 101].HasTile && WorldGen.shadowOrbCount == 0
+                && DollMiningRules.BlockReason(player, target, false, commands.ToolFor(target, false)) == "DollNoHammer",
+                "A pickaxe cannot break an orb without a hammer");
+            Fresh(style); ProtectedOrbFixture.Protected = true; HitFully();
+            Check(Host.tile[101, 101].HasTile && WorldGen.shadowOrbCount == 0, "Single-player respects CanKillTile protection");
+            Fresh(style); WorldGen.shadowOrbSmashed = true; WorldGen.shadowOrbCount = 2; HitFully();
+            Check(WorldGen.shadowOrbCount == 0 && bosses.SequenceEqual(new int[] { style == 0 ? NPCID.EaterofWorldsHead : NPCID.BrainofCthulhu }),
+                "Third orb/heart reaches the native boss spawn decision exactly once");
+
+            Fresh(style); player.inventory[1] = new Item(ItemID.Pwnhammer);
+            Check(commands.ToolFor(target, false) == player.inventory[1]
+                && commands.HitInterval(target, false) == player.inventory[1].useTime,
+                "Orb work selects the strongest inventory hammer and its swing interval");
+
+            Fresh(style, collect: false); Client(); HitFully();
+            Check(packets.Count == 0 && WorldGen.shadowOrbCount == 0 && !Host.item.Any(i => i.active && !i.IsAir),
+                "Collection off leaves progression and drops to vanilla server handling");
+            var operation = vanilla.Single(p => p.Message == MessageID.TileManipulation && p.Number == 0 && p.N4 == 0);
+            // One shared tilemap stands in for two worlds: restore the server's unchanged object before replaying the vanilla operation.
+            PlaceOrb(style); Server(); WorldGen.KillTile((int)operation.N2, (int)operation.N3);
+            Check(WorldGen.shadowOrbCount == 1 && Host.item.Any(i => i.active && i.type == (style == 0 ? ItemID.Musket : ItemID.TheUndertaker)),
+                "Vanilla server operation produces native world loot and one progression event");
+
+            Fresh(style); WorldGen.shadowOrbSmashed = true; WorldGen.shadowOrbCount = 2;
+            Client(); HitFully();
+            byte[] thirdRequest = packets.Single().Bytes; packets.Clear(); Server(); Dispatch(thirdRequest, 0);
+            Check(WorldGen.shadowOrbCount == 0 && bosses.SequenceEqual(new int[] { style == 0 ? NPCID.EaterofWorldsHead : NPCID.BrainofCthulhu }),
+                "Server's third-break request triggers the native boss decision once");
+
+            Fresh(style); Client(); HitFully();
+            Check(packets.Count == 1 && Host.tile[101, 101].HasTile && WorldGen.shadowOrbCount == 0,
+                "Client waits for server to break orb and decide progression");
+            byte[] request = packets[0].Bytes; packets.Clear(); Server(); Dispatch(request, 0);
+            Check(WorldGen.shadowOrbCount == 1 && !Host.tile[101, 101].HasTile && messages == 1,
+                "Server performs native orb/heart destruction and event once");
+            Check(!vanilla.Any(p => p.Message == MessageID.SyncItem), "Captured orb drops are not broadcast into the world");
+            for (int x = 100; x < 102; x++) for (int y = 100; y < 102; y++)
+                Check(vanilla.Any(p => p.Message == MessageID.TileSquare && x >= p.Number && x < p.Number + p.N3
+                    && y >= p.N2 && y < p.N2 + p.N4), "Server synchronizes every removed orb cell");
+            byte[] receipt = packets.Single().Bytes; Client(); Dispatch(receipt, 256); Dispatch(receipt, 256);
+            Check(commands.Count(style == 0 ? ItemID.Musket : ItemID.TheUndertaker) == 1 && commands.Count(ItemID.MusketBall) == 100,
+                "Owner receives weapon and ammo once, including duplicate receipt");
+            Server(); packets.Clear(); Dispatch(request, 0);
+            Check(WorldGen.shadowOrbCount == 1 && packets.Count == 0, "Duplicate request cannot retrigger progression");
+
+            Fresh(style); Client();
+            DollMiningNetwork.Request(player, new(100, 100)); DollMiningNetwork.Request(player, new(101, 101));
+            var requests = packets.ToArray(); packets.Clear(); Server();
+            foreach (var queued in requests) Dispatch(queued.Bytes, 0);
+            var receipts = packets.ToArray(); Client(); foreach (var reply in receipts) Dispatch(reply.Bytes, 256);
+            Check(WorldGen.shadowOrbCount == 1 && commands.Count(style == 0 ? ItemID.Musket : ItemID.TheUndertaker) == 1,
+                "Concurrent dolls targeting separate cells still yield one event and one weapon");
+
+            foreach (string rejection in new[] { "no hammer", "protected", "changed style" })
+            {
+                Fresh(style); Client(); HitFully(); request = packets.Single().Bytes; packets.Clear();
+                if (rejection == "no hammer") player.inventory[0] = new Item(ItemID.CopperPickaxe);
+                if (rejection == "protected") ProtectedOrbFixture.Protected = true;
+                if (rejection == "changed style") PlaceOrb(1 - style);
+                Server(); Dispatch(request, 0);
+                Check(Host.tile[101, 101].HasTile && WorldGen.shadowOrbCount == 0, "Server rejects orb request: " + rejection);
+            }
+        }
+        ProtectedOrbFixture.Protected = false;
+        Host.netMode = NetmodeID.SinglePlayer; Host.myPlayer = 0;
+        Console.WriteLine($"PASS: {passed - before} orb/heart assertions; native hammer damage, object framing, loot, progression, boss trigger and intercepted multiplayer transport.");
+    }
+
+}

@@ -1,0 +1,341 @@
+using System.Collections;
+using System.Reflection;
+using KL.ActionsSystem;
+using KL.AttributeSystem;
+using KL.DamageSystem;
+using KL.Projectiles;
+using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
+using 伊蕾娜.System;
+using GameMain = Terraria.Main;
+
+static class Program
+{
+    static void Main(string[] args)
+    {
+        Terraria.Program.SavePath = Path.GetTempPath();
+        using var game = new Checks(args[0]);
+        game.Run();
+    }
+}
+
+sealed class Checks : Game
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    readonly string root;
+    Player player;
+    ActionModPlayer actions;
+    ElainaAttributeModPlayer magic;
+    FireLaser beam;
+    Action_FireLaser action;
+    int token, passed;
+    FireLaserSkill fireSkill;
+    Skill skillState;
+    Texture2D wand;
+
+
+    public Checks(string root)
+    {
+        this.root = root;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 960, PreferredBackBufferHeight = 560,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    static FieldInfo Field(Type t, string name)
+    {
+        while (t != null) {
+            var field = t.GetField(name, All);
+            if (field != null) return field;
+            t = t.BaseType;
+        }
+        throw new Exception("Missing field " + name);
+    }
+    static void Set(object obj, string name, object value) => Field(obj.GetType(), name).SetValue(obj, value);
+    static T Get<T>(object obj, string name) => (T)Field(obj.GetType(), name).GetValue(obj);
+    static object Call(object obj, string name, params object[] args) => obj.GetType().GetMethod(name, All).Invoke(obj, args);
+    void Check(bool condition, string message) { if (!condition) throw new Exception(message); passed++; }
+    static void Entity(ModType content, object entity) => content.GetType().GetProperty("Entity", All).SetValue(content, entity);
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        using (var stream = File.OpenRead(Path.Combine(root, "Items/魔杖.png"))) wand = Texture2D.FromStream(GraphicsDevice, stream);
+        typeof(ElainaAction).GetField("wandTex", All).SetValue(null, wand);
+        GameMain.dedServ = true;
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.myPlayer = 0;
+        player = new Player { active = true, whoAmI = 0, width = 20, height = 42,
+            position = new Vector2(600, 600), gravDir = 1f, statManaMax2 = 200, statLife = 1, statLifeMax2 = 100 };
+        GameMain.player[0] = player;
+        player.inventory[0] = new Item { type = ItemID.Wood, stack = 1 };
+        var mods = new ModPlayer[] { new ActionModPlayer(), new ElainaAttributeModPlayer(), new ElainaModplayer(),
+            new ElainaSkillModPlayer(), new ElainaManaElixirPlayer() };
+        for (ushort i = 0; i < mods.Length; i++) {
+            Entity(mods[i], player);
+            typeof(ModPlayer).GetProperty("Index", All).SetValue(mods[i], i);
+            ContentInstance.Register(mods[i]);
+        }
+        Set(player, "modPlayers", mods);
+        foreach (string name in new[] { "HookCanHitNPC", "HookCanHitNPCWithProj" }) {
+            var hook = typeof(PlayerLoader).GetField(name, All).GetValue(null);
+            hook.GetType().GetMethod("Update").Invoke(hook, new object[] { mods });
+        }
+        actions = (ActionModPlayer)mods[0]; magic = (ElainaAttributeModPlayer)mods[1];
+        ((ElainaModplayer)mods[2]).Elaina = true;
+        var witch = new AshenWitchSkill { BasicStatus = Skill.SKillBasicStatus.UnLock, IsEnabled = true };
+        var skill = new Skill(); typeof(Skill).GetProperty("ModSkill", All).SetValue(skill, witch); witch.Skill = skill;
+        ((ElainaSkillModPlayer)mods[3]).UnlockedSkill[nameof(AshenWitchSkill)] = skill;
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        magic.Initialize();
+        var prototype = new FireLaser(); Entity(prototype, new Projectile { type = 0 }); ContentInstance.Register(prototype);
+        AnimActionRegistry.Register(typeof(Action_FireLaser));
+        ((IDictionary)typeof(KL.KL).GetField("NetInstance", All).GetValue(null))[typeof(ActionModPlayer).FullName] = actions;
+        GameMain.npc = Enumerable.Range(0, GameMain.maxNPCs + 1).Select(i => new NPC { whoAmI = i, active = false }).ToArray();
+        RunChecks();
+    }
+
+    void Start(float mana = 30f, int interval = 12)
+    {
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.myPlayer = 0;
+        if (actions.HasAction) actions.InterruptCurrentAction();
+        player.dead = player.noItems = player.mouseInterface = player.frozen = false;
+        player.active = true; player.selectedItem = 0;
+        ElainaSkillModPlayer.CurrentSkillIndex = 0;
+        GameMain.mouseLeft = true; GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.myPlayer = 0;
+        magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, mana);
+        fireSkill = new FireLaserSkill { Stack = 0, MaxStack = 1, CurrentCD = 1f, CooldownDuration = 1f };
+        skillState = new Skill();
+        typeof(Skill).GetProperty("ModSkill", All).SetValue(skillState, fireSkill);
+        fireSkill.Skill = skillState;
+        Set(fireSkill, "channelActive", true);
+        action = new Action_FireLaser(100, 1.5f, interval, fireSkill);
+        // Spawn/world registration is supplied by the fixture; all timing, actions and mana logic are production code.
+        ((IList)Field(typeof(AnimAction), "nodes").GetValue(action)).Clear();
+        token++;
+        Call(actions, "StartActionLocal", action, true, 0f, token);
+        beam = new FireLaser();
+        var projectile = new Projectile { active = true, owner = 0, type = 0, width = 10, height = 10,
+            timeLeft = 30, damage = 100, velocity = Vector2.UnitX, tileCollide = false, penetrate = -1 };
+        projectile.DamageType = DamageClass.Magic;
+        Entity(beam, projectile);
+        Set(beam, "maxDistance", 100f);
+        beam.BindAction(token, 1.5f, interval);
+        Set(action, "beam", beam);
+    }
+
+    new bool Tick()
+    {
+        Call(actions, "UpdateCurrentAction");
+        if (beam.Projectile.active) beam.AI();
+        return beam.Projectile.active && beam.CanDamage() == true;
+    }
+
+
+    void RunChecks()
+    {
+        if (Environment.GetEnvironmentVariable("FIRE_SPARK_CHECKS") == "1") {
+            CheckReleaseParticles();
+            Console.WriteLine($"PASS: {passed} release-particle distribution, size and direction checks.");
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("FIRE_BEHAVIOR_CHECKS") != "1") CheckVisualCurves();
+        CheckWaterBlocking();
+        Check(AnimActionRegistry.TryCreate(AnimActionRegistry.GetId(typeof(Action_FireLaser)), out var remote)
+            && remote is Action_FireLaser, "Remote action construction");
+        int charge = (int)typeof(FireLaser).GetProperty("ChargeTicks", All).GetValue(null);
+        Check(charge > 0, "Beam charges before bursting");
+        Start(mana: 100f, interval: 18);
+        var pulses = new List<int>();
+        for (int frame = 0; frame < charge + 180; frame++) {
+            if (Tick()) pulses.Add(frame);
+            skillState.UpdateCD(1f / 60f);
+            Check(!fireSkill.CanUseSkill(), "Cannot retrigger while held");
+        }
+        Check(pulses.SequenceEqual(Enumerable.Range(0, 10).Select(i => charge + i * 18)), "First pulse on burst and sustained 18-frame cadence");
+        Check(Get<int>(beam, "pulseSequence") == pulses.Count, "Each paid damage pulse has exactly one ignition sequence number");
+        Check(magic.MagicPoint == 85f, "One mana payment per pulse");
+        Check(fireSkill.CurrentCD == 1f && fireSkill.Stack == 0, "Holding does not recover cooldown or charges");
+        GameMain.mouseLeft = false;
+        Check(!Tick() && !beam.Projectile.active, "Release kills beam and damage immediately");
+        Check(fireSkill.CurrentCD == 1f && fireSkill.CooldownDuration == 1f, "Release starts a full one-second cooldown");
+        for (int i = 0; i < 59; i++) {
+            Tick(); skillState.UpdateCD(1f / 60f);
+            Check(!fireSkill.CanUseSkill(), "Cannot retrigger before one second");
+        }
+        Check(!actions.HasAction, "Recovery finishes without restarting cooldown");
+        skillState.UpdateCD(1f / 30f);
+        Check(fireSkill.CurrentCD == 0f && fireSkill.Stack == 1 && fireSkill.CanUseSkill(), "Skill available after one second");
+
+        Start(); GameMain.mouseLeft = false;
+        Check(!Tick() && !beam.Projectile.active && magic.MagicPoint == 30f, "Release before first update cancels without mana or damage");
+        Check(fireSkill.CurrentCD == 1f && !Get<bool>(fireSkill, "channelActive"), "Early release starts cooldown");
+        Start();
+        for (int i = 0; i < charge; i++) Check(!Tick() && beam.Projectile.active, "Charging keeps the beam without damage");
+        Check(magic.MagicPoint == 30f && actions.IsActionHolding, "Charging spends no mana while held");
+        GameMain.mouseLeft = false;
+        Check(!Tick() && !beam.Projectile.active && magic.MagicPoint == 30f, "Release while charging cancels without mana or damage");
+        Check(fireSkill.CurrentCD == 1f && !Get<bool>(fireSkill, "channelActive"), "Release while charging starts cooldown");
+        Start(3f, 18);
+        int hits = 0; for (int i = 0; i < charge + 40; i++) if (Tick()) hits++;
+        Check(hits == 2 && magic.MagicPoint == 0f && !beam.Projectile.active && !actions.IsActionHolding,
+            "Insufficient mana stops without a free pulse");
+        Check(fireSkill.CurrentCD == 1f, "Mana exhaustion starts cooldown");
+        Start(interval: 6);
+        hits = 0; for (int i = 0; i < charge + 60; i++) if (Tick()) hits++;
+        Check(hits == 10 && magic.MagicPoint == 15f, "Configured cadence stays paired with mana");
+
+        foreach (string reason in new[] { "item", "skill", "dead", "disabled", "cc", "ui", "projectile", "action" }) {
+            Start(); Tick();
+            switch (reason) {
+                case "item": player.selectedItem = 1; break;
+                case "skill": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
+                case "dead": player.dead = true; break;
+                case "disabled": player.noItems = true; break;
+                case "cc": player.frozen = true; break;
+                case "ui": player.mouseInterface = true; break;
+                case "projectile": beam.Projectile.Kill(); break;
+                case "action": actions.InterruptCurrentAction(); break;
+            }
+            Check(!Tick() && !beam.Projectile.active && !actions.IsActionHolding, "Channel interruption: " + reason);
+            Check(fireSkill.CurrentCD == 1f && !Get<bool>(fireSkill, "channelActive"), "Cooldown on interruption: " + reason);
+        }
+
+        Start(); Tick();
+        GameMain.myPlayer = 1; float before = magic.MagicPoint;
+        beam.AI();
+        Check(beam.CanDamage() == false && magic.MagicPoint == before, "Remote instance does not spend mana or deal duplicate damage");
+        GameMain.myPlayer = 0;
+        using var memory = new MemoryStream();
+        using (var writer = new BinaryWriter(memory, System.Text.Encoding.UTF8, true)) beam.SendExtraAI(writer);
+        memory.Position = 0;
+        var received = new FireLaser(); Entity(received, new Projectile());
+        using (var reader = new BinaryReader(memory, System.Text.Encoding.UTF8, true)) received.ReceiveExtraAI(reader);
+        Check(Get<int>(received, "actionToken") == token && Get<int>(received, "intervalFrames") == 12
+            && Get<float>(received, "manaPerPulse") == 1.5f, "Action token and pulse configuration round trip");
+        Set(beam, "actionToken", token - 1);
+        Check(!Tick() && !beam.Projectile.active, "Stale action token stops beam");
+        Tick();
+        Check(!Get<bool>(fireSkill, "channelActive"), "Orphan beam exits hold");
+        Console.WriteLine($"PASS: {passed} production fire-laser action, mana, cooldown and sync checks.");
+    }
+
+    void CheckWaterBlocking()
+    {
+        float Scan(Vector2 start, Vector2 direction, float length, params (int x, int y, byte amount)[] water)
+        {
+            var map = water.ToDictionary(w => (w.x, w.y), w => w.amount);
+            Func<int, int, byte> lookup = (x, y) => map.TryGetValue((x, y), out byte a) ? a : (byte)0;
+            return (float)typeof(FireLaser).GetMethod("WaterBlockDistance", All).Invoke(null, new object[] { start, direction, length, lookup });
+        }
+        bool Near(float a, float b) => Math.Abs(a - b) < .05f;
+        Check(Scan(new(8, 8), Vector2.UnitX, 1500f) == 1500f, "Dry ray keeps full length");
+        Check(Near(Scan(new(8, 8), Vector2.UnitX, 1500f, (5, 0, 255)), 72f), "Full water tile stops the beam at its edge");
+        Check(Near(Scan(new(100, 8), -Vector2.UnitX, 1500f, (2, 0, 255)), 52f), "Water blocks rays travelling backward");
+        Check(Scan(new(8, 8), Vector2.UnitX, 60f, (5, 0, 255)) == 60f, "Water beyond terrain-clipped length is ignored");
+        Check(Scan(new(8, 4), Vector2.UnitX, 1500f, (5, 0, 128)) == 1500f, "Ray above a half-filled tile passes over the surface");
+        Check(Near(Scan(new(8, 12), Vector2.UnitX, 1500f, (5, 0, 128)), 72f), "Ray below the surface of a half-filled tile is blocked");
+        Check(Near(Scan(new(8, 8), Vector2.UnitY, 1500f, (0, 4, 128)), 80f - 128f / 255f * 16f - 8f), "Downward ray stops at the liquid surface");
+        Check(Scan(new(8, 8), Vector2.UnitX, 1500f, (0, 0, 255)) == 0f, "Beam started underwater has no length");
+        Vector2 diagonal = Vector2.Normalize(new Vector2(1f, 1f));
+        float hit = Scan(new(8, 8), diagonal, 1500f, (3, 3, 255));
+        Vector2 point = new Vector2(8, 8) + diagonal * hit;
+        Check(Near(point.X, 48f) && Near(point.Y, 48f), "Diagonal ray stops where it first enters the water tile");
+        Console.WriteLine("PASS: fire-laser water blocking geometry.");
+    }
+
+    void CheckVisualCurves()
+    {
+        Type visual = typeof(FireLaser).Assembly.GetType("伊蕾娜.ElainaModSkills.Skills.Fire.FireLaserBeamVisual");
+        float Opening(float tick) => (float)visual.GetMethod("OpeningWidth", All).Invoke(null, new object[] { tick });
+        float Shrink(float progress) => (float)visual.GetMethod("ReleaseShrink", All).Invoke(null, new object[] { progress });
+        float HeadWidth(float progress) => (float)visual.GetMethod("ReleaseHeadWidth", All).Invoke(null, new object[] { progress });
+        Check(Opening(0f) == 0f, "Entrance starts with zero width");
+        float[] widths = Enumerable.Range(0, 61).Select(i => Opening(i)).ToArray();
+        Check(widths.Take(8).Zip(widths.Skip(1).Take(7), (a, b) => b >= a).All(x => x), "Entrance first grows continuously");
+        Check(widths.Max() >= 2f && widths.Max() <= 2.5f, "Entrance has a visible bounded burst overshoot");
+        Check(widths.Count(w => w == widths.Max()) >= 4, "Opening peak persists long enough to read as a burst");
+        int entranceTicks = (int)visual.GetProperty("EntranceTicks", All).GetValue(null);
+        Check(widths.Skip(entranceTicks).All(w => w == 1f), "Sustained beam returns exactly to existing width");
+        Check(Opening(1f) >= 1f, "Burst reaches full width on its first tick");
+        float previous = 0f;
+        for (int i = 0; i <= 42; i++) {
+            float value = Shrink(i / 42f);
+            Check(value >= previous && value <= 1f, "Release never expands again");
+            Check(1f - value <= HeadWidth(i / 42f) + .00001f, "Line shrinks at least as fast as the head throughout release");
+            previous = value;
+        }
+        Check(previous == 1f, "Release reaches complete dissolution");
+        float lineDuration = (float)visual.GetProperty("ReleaseLineShrinkTicks", All).GetValue(null);
+        float totalDuration = (int)visual.GetProperty("ReleaseTicks", All).GetValue(null);
+        float previousStep = float.MaxValue;
+        for (int i = 1; i <= 10; i++) {
+            float step = Shrink(lineDuration / totalDuration * i / 10f)
+                - Shrink(lineDuration / totalDuration * (i - 1) / 10f);
+            Check(step <= previousStep + .00001f, "Line shrink slows down over equal time intervals");
+            previousStep = step;
+        }
+        Check(Shrink(lineDuration / totalDuration * .5f) > .5f, "Line loses most width in the first half of release");
+        Check(Enumerable.Range(1, 41).Any(i => Shrink(i / 42f) == 1f && HeadWidth(i / 42f) > 0f),
+            "Line fully disappears before the head, preserving end coverage");
+        CheckReleaseParticles();
+    }
+
+    void CheckReleaseParticles()
+    {
+        Type visual = typeof(FireLaser).Assembly.GetType("伊蕾娜.ElainaModSkills.Skills.Fire.FireLaserBeamVisual");
+        foreach (Vector2 direction in new[] { Vector2.UnitX, -Vector2.UnitX, Vector2.UnitY, Vector2.Normalize(new Vector2(-1, -2)) }) {
+            Vector2 start = new(1234, 5678);
+            foreach (float length in new[] { 30f, 180f, 1500f }) foreach (int seed in new[] { 0, 42, 397 }) {
+                var sparks = (Array)visual.GetMethod("ReleaseSparks", All).Invoke(null, new object[] { start, direction, length, 1f, seed });
+                var repeat = (Array)visual.GetMethod("ReleaseSparks", All).Invoke(null, new object[] { start, direction, length, 1f, seed });
+                Check(sparks.Cast<object>().SequenceEqual(repeat.Cast<object>()), "Same seed reproduces particle preview");
+                Check(sparks.Length >= 6 && sparks.Length <= 80, "Release particle count is bounded");
+                if (length >= 1000f) Check(sparks.Length >= 60, "Long beam has more residual sparks");
+                var positions = new List<Vector2>();
+                var sides = new List<float>();
+                var sizes = new List<float>();
+                foreach (object spark in sparks) {
+                    Vector2 Position(object s) => (Vector2)s.GetType().GetProperty("Position").GetValue(s);
+                    Vector2 Velocity(object s) => (Vector2)s.GetType().GetProperty("Velocity").GetValue(s);
+                    Vector2 normal = new(-direction.Y, direction.X);
+                    Vector2 delta = Position(spark) - start;
+                    positions.Add(Position(spark));
+                    sides.Add(Vector2.Dot(Velocity(spark), normal));
+                    sizes.Add(((Vector2)spark.GetType().GetProperty("Size").GetValue(spark)).X);
+                    Check(Math.Abs(Vector2.Dot(delta, normal)) < .001f, "Sparks originate along the beam centerline");
+                    Check(Vector2.Dot(delta, direction) >= 0f && Vector2.Dot(delta, direction) <= length,
+                        "Particles stay within the clipped beam length");
+                    Check(Vector2.Dot(Velocity(spark), direction) > Math.Abs(Vector2.Dot(Velocity(spark), normal)),
+                        "Particles travel forward in a cone along the beam, never sideways or backward");
+                }
+                Check(sides.Any(s => s < 0f) && sides.Any(s => s > 0f), "Both sides receive sparks without mirrored pairs");
+                Check(positions.Distinct().Count() >= sparks.Length * .9f, "Birth positions are independent rather than paired");
+                Check(sizes.Average() > .45f && sizes.Max() - sizes.Min() > .15f, "Sparks are longer with visible size variation");
+                if (length >= 1000f) {
+                    var along = positions.Select(p => Vector2.Dot(p - start, direction)).OrderBy(x => x).ToArray();
+                    var gaps = along.Zip(along.Skip(1), (a, b) => b - a).ToArray();
+                    Check(gaps.Min() < length / sparks.Length * .2f && gaps.Max() > length / sparks.Length * 1.8f,
+                        "Sparks form clusters and gaps rather than evenly occupied cells");
+                }
+            }
+        }
+    }
+
+    protected override void Draw(GameTime gameTime) => Exit();
+}

@@ -1,0 +1,66 @@
+using XPT.Core.Audio.MP3Sharp;
+
+// 用 tModLoader 自带的 MP3Sharp 解码旧版火焰射线音效，裁掉编码器前导静音后写成 WAV。
+// crossfadeMs > 0 时做首尾交叉淡化，供循环播放；当前两段都只播放一次。
+string repo = args[0];
+string source = Path.Combine(repo, "Projectiles/Flame");
+string target = Path.Combine(repo, "ElainaModSkills/Skills/Fire/Sounds");
+Directory.CreateDirectory(target);
+bool check = args.Contains("--check");
+int failures = 0;
+Export("射线施法音效.mp3", "FireLaserCharge.wav", crossfadeMs: 0);
+Export("火焰射线释放音效.mp3", "FireLaserIgnite.wav", crossfadeMs: 0);
+if (failures > 0) { Console.Error.WriteLine($"{failures} sound file(s) differ from the generator output."); return 1; }
+Console.WriteLine(check ? "Fire laser sounds match generator output." : "Fire laser sounds exported.");
+return 0;
+
+void Export(string input, string output, int crossfadeMs)
+{
+    using var stream = new MP3Stream(Path.Combine(source, input));
+    var bytes = new MemoryStream();
+    var buffer = new byte[4096];
+    int read;
+    while ((read = stream.Read(buffer, 0, buffer.Length)) > 0) bytes.Write(buffer, 0, read);
+    int rate = stream.Frequency;
+    // MP3Stream 固定输出 16 bit 立体声。
+    short[] pcm = new short[bytes.Length / 2];
+    System.Buffer.BlockCopy(bytes.GetBuffer(), 0, pcm, 0, pcm.Length * 2);
+    int frames = pcm.Length / 2;
+    int first = 0;
+    while (first < frames && Math.Abs((int)pcm[first * 2]) < 60 && Math.Abs((int)pcm[first * 2 + 1]) < 60) first++;
+    int length = frames - first;
+    int fade = rate * crossfadeMs / 1000;
+    int outFrames = length - fade;
+    short[] result = new short[outFrames * 2];
+    for (int i = 0; i < outFrames; i++)
+    for (int c = 0; c < 2; c++)
+    {
+        float value = pcm[(first + i) * 2 + c];
+        if (i < fade)
+        {
+            // 开头与被截掉的尾段交叉淡化：结尾自然接回开头。
+            float t = i / (float)fade;
+            value = value * t + pcm[(first + outFrames + i) * 2 + c] * (1f - t);
+        }
+        result[i * 2 + c] = (short)Math.Clamp(MathF.Round(value), short.MinValue, short.MaxValue);
+    }
+
+    var wav = new MemoryStream();
+    using (var writer = new BinaryWriter(wav, System.Text.Encoding.ASCII, true))
+    {
+        writer.Write("RIFF"u8); writer.Write(36 + result.Length * 2); writer.Write("WAVE"u8);
+        writer.Write("fmt "u8); writer.Write(16); writer.Write((short)1); writer.Write((short)2);
+        writer.Write(rate); writer.Write(rate * 4); writer.Write((short)4); writer.Write((short)16);
+        writer.Write("data"u8); writer.Write(result.Length * 2);
+        foreach (short sample in result) writer.Write(sample);
+    }
+    string path = Path.Combine(target, output);
+    byte[] data = wav.ToArray();
+    if (check)
+    {
+        if (!File.Exists(path) || !File.ReadAllBytes(path).AsSpan().SequenceEqual(data)) { failures++; Console.Error.WriteLine("Mismatch: " + output); }
+        return;
+    }
+    File.WriteAllBytes(path, data);
+    Console.WriteLine($"{output}: trimmed {first} frames, crossfade {fade}, {outFrames / (float)rate:F3}s");
+}

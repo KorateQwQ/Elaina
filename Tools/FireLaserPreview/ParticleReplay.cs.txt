@@ -1,0 +1,45 @@
+// Fixture for the real LineSparkle draw/request methods; only the Dust state is supplied by the host.
+namespace KL.Dusts
+{
+    public sealed class Dust
+    {
+        public int type = 1;
+        public object customData = new();
+        public bool active = true;
+        public Vector2 position, size;
+        public Color color;
+        public float rotation, progress;
+        public float LifeProgress() => progress;
+        public Vector2 Size() => size;
+        public Color GetRealColor(Color value) => value;
+    }
+    public abstract class KLBasicDust
+    {
+        public virtual bool PreDraw(Dust dust) => false;
+        public virtual void SubmitBloomDrawRequest(Dust dust) { }
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Fire
+{
+    internal static class ParticleReplay
+    {
+        private static readonly KL.Dusts.LineSparkle Kind = new();
+        internal static void Queue(Vector2 start, Vector2 direction, float length, float width, float release)
+        {
+            var texture = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/ShotLine", AssetRequestMode.ImmediateLoad).Value;
+            typeof(KL.Dusts.LineSparkle).GetField("MainTex", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, texture);
+            int age = (int)MathF.Round(release * FireLaserBeamVisual.ReleaseTicks) + 1;
+            foreach (var spark in FireLaserBeamVisual.ReleaseSparks(start, direction, length, width, 0))
+            {
+                if (age >= spark.Life) continue;
+                // KL SpawnDust updates once immediately; LineSparkle then multiplies velocity by .92 each tick.
+                float distance = .92f * (1f - MathF.Pow(.92f, age)) / (1f - .92f);
+                var dust = new KL.Dusts.Dust {
+                    position = spark.Position + spark.Velocity * distance, size = spark.Size,
+                    color = new Color(255, 120, 35, 0), rotation = spark.Velocity.ToRotation(), progress = age / (float)spark.Life
+                };
+                Kind.SubmitBloomDrawRequest(dust);
+            }
+        }
+    }
+}

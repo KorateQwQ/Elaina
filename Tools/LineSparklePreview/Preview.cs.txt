@@ -1,0 +1,174 @@
+using System;
+using System.Collections;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+internal static class LineSparklePreview
+{
+    static void Main(string[] args)
+    {
+        if (OperatingSystem.IsWindows())
+            System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
+        using var game = new SparkleProbe(args[0], args[1]);
+        game.Run();
+    }
+}
+
+internal sealed class SparkleProbe : Game
+{
+    const int Width = 800, Height = 420;
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    readonly string kl, output;
+    Assembly pipeline;
+    SpriteBatch batch;
+    Texture2D line, pixel;
+    ContentManager effects;
+    Type main, helper, queue, scene;
+    object renderer;
+    bool done;
+
+    internal SparkleProbe(string kl, string output)
+    {
+        this.kl = kl; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    string DustSource(string name)
+    {
+        var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, "Dusts", name + ".cs"))).GetCompilationUnitRoot();
+        var type = tree.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == name);
+        // Keep the real drawing methods and fields; only spawning/AI depend on Terraria's live world.
+        type = type.WithMembers(SyntaxFactory.List(type.Members.Where(m => m is not MethodDeclarationSyntax method
+            || method.Identifier.Text is not ("OnSpawn" or "Update"))));
+        return "using System; using Microsoft.Xna.Framework; using Microsoft.Xna.Framework.Graphics; using KL.Drawing; "
+            + "using static KL.Drawing.DrawHelper; namespace KL.Dusts {" + type.ToFullString() + "}";
+    }
+
+    void Set(Type type, string name, object value) => type.GetField(name, All).SetValue(null, value);
+
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        string sceneSource = """
+            using System;
+            using Microsoft.Xna.Framework;
+            using Microsoft.Xna.Framework.Graphics;
+            using KL.Drawing;
+            using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing { public static partial class Main { public static Vector2 screenPosition; } }
+            namespace KL.Dusts {
+                public sealed class Dust {
+                    public int type;
+                    public bool active = true;
+                    public object customData = new();
+                    public Vector2 position, size;
+                    public Color color;
+                    public float rotation, progress;
+                    public float LifeProgress() => progress;
+                    public Vector2 Size() => size;
+                    public Color GetRealColor(Color value) => value;
+                }
+                public abstract class KLBasicDust {
+                    public virtual bool PreDraw(Dust dust) => false;
+                    public virtual void SubmitBloomDrawRequest(Dust dust) {}
+                }
+                public static class Scene {
+                    public static readonly LineSparkle Sparkle = new();
+                    public static readonly LineRotSparkle RotSparkle = new();
+                    public static Texture2D Pixel;
+                    public static int BodyCalls;
+                    public static void Queue(float progress, bool invalidated = false) {
+                        BodyCalls = 0;
+                        LayerDrawRequestSystem.ClearFrame();
+                        LayerDrawRequestSystem.RequestBloom("Probe:Projectile", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                            LayerDrawRequestSystem.DrawTiming.After, () => {
+                                BodyCalls++;
+                                Main.spriteBatch.Draw(Pixel, new Rectangle(385, 190, 30, 30), new Color(90, 120, 180));
+                            });
+                        for (int i = 0; i < 6; i++) {
+                            float angle = MathHelper.TwoPi * i / 6f;
+                            var dust = new Dust { type = i < 4 ? 1 : 2, progress = progress,
+                                position = Main.screenPosition + new Vector2(400, 205) + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 110f,
+                                size = new Vector2(1.6f, 1f), rotation = angle, color = new Color(255, 120, 35, 0) };
+                            KLBasicDust kind = i < 4 ? Sparkle : RotSparkle;
+                            if (kind.PreDraw(dust)) throw new Exception("Particle also draws in normal dust pass");
+                            kind.SubmitBloomDrawRequest(dust);
+                            if (invalidated) { if (i % 3 == 0) dust.active = false; else if (i % 3 == 1) dust.type++; else dust.customData = new(); }
+                        }
+                    }
+                }
+            }
+            """;
+        pipeline = Program.CompilePipeline(kl, DustSource("LineSparkle"), DustSource("LineRotSparkle"), sceneSource);
+        main = pipeline.GetType("KL.Drawing.Main"); helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        queue = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem"); scene = pipeline.GetType("KL.Dusts.Scene");
+        batch = new SpriteBatch(GraphicsDevice);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        using (var stream = File.OpenRead(Path.Combine(kl, "Effects/Tex/Sparkle/ShotLine.png"))) line = Texture2D.FromStream(GraphicsDevice, stream);
+        foreach (string name in new[] { "LineSparkle", "LineRotSparkle" }) Set(pipeline.GetType("KL.Dusts." + name), "MainTex", line);
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", Width); Set(main, "screenHeight", Height); Set(main, "screenPosition", new Vector2(2000, 1200));
+        Set(scene, "Pixel", pixel);
+        effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
+        renderer = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DrawSystem"));
+    }
+
+    Color[] Render(string name, float progress, bool enabled = true, bool day = false, bool invalidated = false)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(day ? new Color(132, 170, 204) : new Color(14, 18, 30));
+        scene.GetMethod("Queue").Invoke(null, new object[] { progress, invalidated });
+        // All three groups (body and two particle types) must occupy exactly one shared target/timing.
+        var requests = (IDictionary)queue.GetField("BloomRequests", All).GetValue(null);
+        if (requests.Count != 1) throw new Exception("Particles created an extra Bloom target/timing");
+        foreach (DictionaryEntry entry in requests) {
+            if (entry.Key.ToString() != "(Projectiles, After)") throw new Exception("Wrong particle Bloom layer");
+            if (((IDictionary)entry.Value).Count != 3) throw new Exception("Expected body and two particle groups");
+        }
+        renderer.GetType().GetMethod("Run").Invoke(renderer, new object[] { 1f, 5, enabled });
+        if ((int)scene.GetField("BodyCalls").GetValue(null) != 1) throw new Exception("Body callback must run once");
+        var pixels = new Color[Width * Height]; target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
+        using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
+        return pixels;
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return; done = true;
+        var on = Render("night-bloom", 0f);
+        var off = Render("night-no-bloom", 0f, enabled: false);
+        int brighter = on.Zip(off, (a, b) => a.R > b.R + 2 || a.G > b.G + 2 || a.B > b.B + 2 ? 1 : 0).Sum();
+        if (brighter < 100) throw new Exception("Post-processing did not produce a visible halo");
+        Render("day-bloom", 0f, day: true);
+        Render("half-life", .5f);
+        Render("late-life", .9f);
+        var expired = Render("expired", 1f);
+        var invalidated = Render("invalidated", 0f, invalidated: true);
+        if (!expired.SequenceEqual(invalidated)) throw new Exception("Expired or recycled particles still draw");
+        Console.WriteLine($"PASS: one shared Projectiles.After Bloom target for body + LineSparkle + LineRotSparkle; {brighter} pixels brighten with Bloom; fade and stale requests checked.");
+        Exit();
+    }
+
+    protected override void UnloadContent()
+    {
+        batch?.Dispose(); line?.Dispose(); pixel?.Dispose(); effects?.Dispose();
+    }
+}
