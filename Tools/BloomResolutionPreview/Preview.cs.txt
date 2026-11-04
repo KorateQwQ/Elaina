@@ -1,0 +1,261 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+internal static class BloomResolutionPreview
+{
+    static void Main(string[] args)
+    {
+        if (OperatingSystem.IsWindows())
+            System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
+        using var game = new ResolutionProbe(args); game.Run();
+    }
+}
+
+internal sealed class ResolutionProbe : Game
+{
+    const BindingFlags All = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    readonly string repo, kl, source, output;
+    readonly bool check;
+    Assembly pipeline;
+    Type main, helper, targets, scene;
+    object renderer;
+    SpriteBatch batch;
+    ContentManager effects;
+    readonly List<Texture2D> textures = [];
+    bool done;
+    ResolutionProbe() { }
+    internal ResolutionProbe(string[] args)
+    {
+        (repo, kl, source, output) = (args[0], args[1], args[2], args[3]); check = args.Contains("--check");
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        SDL2.SDL.SDL_HideWindow(Window.Handle); IsFixedTimeStep = false;
+    }
+    void Set(Type type, string name, object value) => type.GetField(name, All).SetValue(null, value);
+    string ExtractVisuals()
+    {
+        var star = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(repo,
+            "ElainaModSkills/Skills/MagicMissile/MagicMissleSpawner.cs"))).GetCompilationUnitRoot()
+            .DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawStartStar").ToFullString();
+        var missile = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(repo,
+            "ElainaModSkills/Skills/MagicMissile/MagicMissile.cs"))).GetCompilationUnitRoot();
+        string trail = string.Join("\n", missile.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Where(m => m.Identifier.Text is "DrawManagedTrail" or "BeginTrailBatch").Select(m => m.ToFullString()));
+        string Dust(string path, string name)
+        {
+            var type = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl, path))).GetCompilationUnitRoot()
+                .DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == name);
+            var members = type.Members.Where(m => m is not MethodDeclarationSyntax method || method.Identifier.Text is not ("OnSpawn" or "Update"));
+            return "public class " + name + " : KLBasicDust {" + string.Join("\n", members.Select(m => m.ToFullString())) + "}";
+        }
+        return """
+            using System;
+            using Microsoft.Xna.Framework;
+            using Microsoft.Xna.Framework.Graphics;
+            using KL.Drawing;
+            using static KL.Drawing.DrawHelper;
+            using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
+            namespace KL.Drawing { public static partial class Main {
+                public static Vector2 screenPosition;
+                public static Matrix Transform => GameViewMatrix.TransformationMatrix;
+            } }
+            namespace Fixture {
+            public static class Adapters {
+                public static void SetValue(this Effect e, string n, bool v) => e.Parameters[n].SetValue(v);
+                public static void SetValue(this Effect e, string n, float v) => e.Parameters[n].SetValue(v);
+                public static void SetValue(this Effect e, string n, Vector2 v) => e.Parameters[n].SetValue(v);
+                public static void SetValue(this Effect e, string n, Vector4 v) => e.Parameters[n].SetValue(v);
+                public static void SetTexture(this Effect e, int n, Texture2D v) => Main.graphics.GraphicsDevice.Textures[n] = v;
+                public static void Apply(this Effect e) => e.CurrentTechnique.Passes[0].Apply();
+            }
+            public sealed class Dust {
+                public int type; public bool active = true; public object customData = new();
+                public Vector2 position, size; public Color color; public float rotation, progress;
+                public float LifeProgress() => progress;
+                public Vector2 Size() => size;
+                public Color GetRealColor(Color v) => v;
+            }
+            public abstract class KLBasicDust {
+                public static Texture2D MainTexture;
+                public virtual bool PreDraw(Dust d) => false;
+                public virtual void SubmitBloomDrawRequest(Dust d) { }
+            }
+            public sealed class ProjectileData { public Vector2 Center; public float rotation; }
+            public sealed class Star {
+                public static Texture2D starLine, starNoise;
+                public static Effect fuzzyEdge;
+                int time = 9;
+                ProjectileData Projectile = new();
+                public void Draw(Vector2 center) { Projectile.Center = center; Projectile.rotation = -1.24f; DrawStartStar(5); }
+            """ + star + "}" + Dust("Dusts/Fire/FireDust.cs", "FireDust") + Dust("Dusts/LineSparkle.cs", "LineSparkle") + """
+            public static class Trail {
+                public static Texture2D trail, headStamp, headNoise;
+                public static MagicMissileTrailNoise trailNoise;
+                public static Effect trailEffect;
+                public static void Draw(Vector2 center) {
+                    var points = new Vector2[50];
+                    for (int i = 0; i < points.Length; i++) {
+                        float t = i / (points.Length - 1f);
+                        points[i] = center + new Vector2(160 - 320 * t, 30 * MathF.Sin(t * MathHelper.Pi));
+                    }
+                    var visual = new MagicMissileTrailVisuals(14) { TextureOffset = .35f };
+                    DrawManagedTrail(visual, points, 1);
+                }
+            """ + trail + "}" + """
+            public static class Scene {
+                public static Texture2D Pixel;
+                public static Vector2 Offset;
+                public static string Kind;
+                public static void Queue() {
+                    LayerDrawRequestSystem.ClearFrame();
+                    Vector2 c = new Vector2(Main.screenWidth / 2f, Main.screenHeight / 2f) + Offset;
+                    if (Kind == "star")
+                        LayerDrawRequestSystem.RequestBloom("star", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                            LayerDrawRequestSystem.DrawTiming.After, () => new Star().Draw(c));
+                    else if (Kind == "trail")
+                        LayerDrawRequestSystem.RequestBloom("trail", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                            LayerDrawRequestSystem.DrawTiming.After, () => Trail.Draw(c));
+                    else if (Kind == "fire") {
+                        var fire = new FireDust();
+                        for (int i = 0; i < 7; i++) fire.SubmitBloomDrawRequest(new Dust {
+                            position = c + new Vector2((i - 3) * 43, (i % 3 - 1) * 28), size = new Vector2(.45f + i * .06f),
+                            color = new Color(255, 170, 85), progress = .1f + i * .07f, rotation = -.5f + i * .2f });
+                    } else if (Kind == "line") {
+                        var line = new LineSparkle();
+                        for (int i = 0; i < 6; i++) line.SubmitBloomDrawRequest(new Dust {
+                            position = c + new Vector2((i - 2.5f) * 60, (i % 2 == 0 ? -1 : 1) * 35), size = new Vector2(1.6f, 1f),
+                            color = new Color(255, 170, 85), rotation = -.8f, progress = 0 });
+                    } else LayerDrawRequestSystem.RequestBloom("probe", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                        LayerDrawRequestSystem.DrawTiming.After, () => {
+                            EndBeginDraw(0, 1, ss: SamplerState.LinearClamp);
+                            ReColorEffect(new Vector4(8, 4, 2, 1));
+                            Main.spriteBatch.Draw(Pixel, c, null, Color.White, 0, new Vector2(.5f),
+                                Kind == "impulse" ? new Vector2(1) : new Vector2(220, 1), SpriteEffects.None, 0);
+                        });
+                }
+            }
+            }
+            namespace KL.Drawing {
+            public partial class DrawHelper {
+                public readonly record struct TextureInfo(Texture2D Texture, int CurrentFrame, int XFrames, int YFrames);
+                public static void DrawInWorld(TextureInfo t, Vector2 position, Color color, Vector2 scale, float rotation) {
+                    int w = t.Texture.Width / t.XFrames, h = t.Texture.Height / t.YFrames;
+                    var rect = new Rectangle(t.CurrentFrame % t.XFrames * w, t.CurrentFrame / t.XFrames * h, w, h);
+                    Main.spriteBatch.Draw(t.Texture, position - Main.screenPosition, rect, color, rotation, new Vector2(w, h) / 2, scale, SpriteEffects.None, 0);
+                }
+                public static void DrawInWorld(Texture2D t, Vector2 position, Color color, Vector2 scale, float rotation)
+                    => Main.spriteBatch.Draw(t, position - Main.screenPosition, null, color, rotation, new Vector2(t.Width, t.Height) / 2, scale, SpriteEffects.None, 0);
+            }
+            }
+            """;
+    }
+    protected override void LoadContent()
+    {
+        Directory.CreateDirectory(output);
+        pipeline = Program.CompilePipeline(source, ExtractVisuals(),
+            File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Skills/MagicMissile/MagicMissileTrailVisuals.cs")),
+            File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Skills/MagicMissile/MagicMissileTrailNoise.cs")));
+        main = pipeline.GetType("KL.Drawing.Main"); helper = pipeline.GetType("KL.Drawing.DrawHelper");
+        targets = pipeline.GetType("KL.Drawing.RenderHelper"); scene = pipeline.GetType("Fixture.Scene");
+        var draw = pipeline.GetType("KL.Drawing.DrawSystem"); Set(draw, "CanUseRender", true); renderer = Activator.CreateInstance(draw);
+        batch = new SpriteBatch(GraphicsDevice);
+        var context = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, GraphicsDevice);
+        Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
+        effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
+        Texture2D Load(string path) {
+            using var file = File.OpenRead(Path.Combine(kl, path));
+            var t = Texture2D.FromStream(GraphicsDevice, file); textures.Add(t); return t;
+        }
+        var line = Load("Effects/Tex/Sparkle/ShotLine.png");
+        Set(pipeline.GetType("Fixture.Star"), "starLine", line);
+        Set(pipeline.GetType("Fixture.Star"), "starNoise", Load("Effects/Tex/voronoiOrigin.png"));
+        Set(pipeline.GetType("Fixture.Star"), "fuzzyEdge", effects.Load<Effect>("FuzzyEdge"));
+        Set(pipeline.GetType("Fixture.LineSparkle"), "MainTex", line);
+        Set(pipeline.GetType("Fixture.KLBasicDust"), "MainTexture", Load("Dusts/Fire/FireDust.png"));
+        var trailType = pipeline.GetType("Fixture.Trail");
+        Set(trailType, "trail", Load("Effects/Tex/Trail/LightTrail.png"));
+        Set(trailType, "headStamp", Load("Effects/Tex/Sparkle/T_Vfx_Stamp_HitSword_22.png"));
+        Set(trailType, "headNoise", Load("Effects/Tex/Noise/5.png"));
+        Set(trailType, "trailNoise", Activator.CreateInstance(pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.MagicMissile.MagicMissileTrailNoise"), Load("Effects/Tex/PerlinX.png")));
+        Set(trailType, "trailEffect", effects.Load<Effect>(Path.Combine(repo, "Effects/Content/MagicMissileTrail")));
+        var pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White }); textures.Add(pixel); Set(scene, "Pixel", pixel);
+    }
+    (Vector4[] Glow, Color[] Image) Render(int w, int h, string kind, bool point, Vector2 offset, bool save,
+        float zoom = 1, float bufferScale = 1, float strength = 1, bool enabled = true)
+    {
+        Set(main, "screenWidth", w); Set(main, "screenHeight", h);
+        GraphicsDevice.PresentationParameters.BackBufferWidth = (int)MathF.Round(w * bufferScale);
+        GraphicsDevice.PresentationParameters.BackBufferHeight = (int)MathF.Round(h * bufferScale);
+        Set(main, "DefaultSamplerState", point ? SamplerState.PointClamp : SamplerState.LinearClamp);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view,
+            Matrix.CreateTranslation(-w / 2f, -h / 2f, 0) * Matrix.CreateScale(zoom) * Matrix.CreateTranslation(w / 2f, h / 2f, 0));
+        Set(scene, "Kind", kind); Set(scene, "Offset", offset);
+        using var target = new RenderTarget2D(GraphicsDevice, w, h);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(65, 135, 141));
+        scene.GetMethod("Queue").Invoke(null, null);
+        GraphicsDevice.SamplerStates[1] = SamplerState.PointWrap;
+        renderer.GetType().GetMethod("Run").Invoke(renderer, new object[] { strength, 5, enabled });
+        if (check && GraphicsDevice.SamplerStates[1] != SamplerState.PointWrap)
+            throw new Exception("Bloom did not restore auxiliary sampler.");
+        var image = new Color[w * h]; target.GetData(image);
+        var glowTarget = ((RenderTarget2D[])targets.GetField("BloomUpSample", All).GetValue(null))[5];
+        var glow = new Vector4[glowTarget.Width * glowTarget.Height]; glowTarget.GetData(glow);
+        GraphicsDevice.SetRenderTarget(null);
+        if (save) {
+            string stem = $"{kind}-{w}x{h}-{(point ? "point" : "linear")}" + (zoom == 1 ? "" : $"-zoom{zoom:0.##}");
+            using (var file = File.Create(Path.Combine(output, stem + ".png"))) target.SaveAsPng(file, w, h);
+            const int cw = 480, ch = 300;
+            using var crop = new Texture2D(GraphicsDevice, cw, ch);
+            var pixels = new Color[cw * ch]; target.GetData(0, new Rectangle(w / 2 - cw / 2, h / 2 - ch / 2, cw, ch), pixels, 0, pixels.Length);
+            crop.SetData(pixels); using var cropped = File.Create(Path.Combine(output, stem + "-crop.png")); crop.SaveAsPng(cropped, cw, ch);
+        }
+        return (glow, image);
+    }
+    protected override void Update(GameTime gameTime)
+    {
+        if (done) return; done = true;
+        var report = new List<string>();
+        foreach (var (w, h) in new[] { (1366, 768), (1920, 1080), (2560, 1440), (3840, 2160) }) {
+            foreach (string kind in new[] { "star", "fire", "line", "thin", "trail" }) Render(w, h, kind, true, Vector2.Zero, true);
+            if (w == 1920)
+                foreach (string kind in new[] { "star", "fire", "trail" }) Render(w, h, kind, true, Vector2.Zero, true, 1.25f);
+            var a = Render(w, h, "thin", true, Vector2.Zero, false).Glow;
+            var b = Render(w, h, "thin", false, Vector2.Zero, false).Glow;
+            float samplerError = a.Zip(b, (x, y) => Math.Abs(x.X - y.X)).Max();
+            var energies = new List<double>();
+            for (int phase = 0; phase < 8; phase++) {
+                var g = Render(w, h, "impulse", true, new Vector2(phase, 0), false).Glow;
+                energies.Add(g.Sum(v => (double)v.X));
+            }
+            double ratio = energies.Max() / Math.Max(1e-9, energies.Min());
+            string line = $"{w}x{h}: postprocess sampler error={samplerError:F6}, impulse energy range={energies.Min():F4}..{energies.Max():F4}, phase ratio={ratio:F4}";
+            Console.WriteLine(line); report.Add(line);
+            if (check && (samplerError > .0001f || ratio > 1.15 || energies.Min() < .01)) throw new Exception("Bloom regression: " + line);
+        }
+        if (check) {
+            // Scene and physical backbuffer sizes can differ. Geometry must stay in the
+            // scene's coordinates, while only the glow pyramid changes resolution.
+            var zero = Render(1864, 977, "thin", true, new Vector2(113, -71), false, bufferScale: .8f, strength: 0).Image;
+            var disabled = Render(1864, 977, "thin", true, new Vector2(113, -71), false, bufferScale: .8f, enabled: false).Image;
+            int difference = zero.Zip(disabled, (a, b) => Math.Max(Math.Abs(a.R - b.R), Math.Max(Math.Abs(a.G - b.G), Math.Abs(a.B - b.B)))).Max();
+            if (difference > 1) throw new Exception("Mismatched scene/backbuffer shifted base visual: " + difference);
+            report.Add("PASS: auxiliary sampler restored; zero-strength base matches disabled Bloom with mismatched scene/backbuffer sizes.");
+        }
+        File.WriteAllLines(Path.Combine(output, "checks.txt"), report);
+        var detached = targets.GetMethod("DetachRenderTargets", All).Invoke(null, null);
+        targets.GetMethod("DisposeTargets", All).Invoke(null, new[] { detached });
+        Console.WriteLine("Bloom resolution preview: " + output); Exit();
+    }
+    protected override void UnloadContent() { foreach (var t in textures) t.Dispose(); effects?.Dispose(); batch?.Dispose(); }
+}

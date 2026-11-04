@@ -16,6 +16,8 @@ internal sealed class PanelGame : Game
     private static bool FireOnly;
     private static bool IceWaterOnly;
     private static bool ResolutionOnly;
+    private static bool RingsOnly;
+    internal static Effect Effect(string path) => Vanilla.Load<Effect>(Path.Combine(Repo, path[(path.IndexOf('/') + 1)..]));
     private static bool RequirementsOnly;
     private static bool ToggleOnly;
     private static bool PolishOnly;
@@ -55,6 +57,7 @@ internal sealed class PanelGame : Game
         if (_done) return; _done = true;
         string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output", Terraria.Localization.Language.Culture); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (RingsOnly) { RingPreview.Run(Device, batch, output); Exit(); return; }
         if (ResolutionOnly)
         {
             string folder = Path.Combine(output, "resolution-comparison");
@@ -168,6 +171,7 @@ internal sealed class PanelGame : Game
         FireOnly = args.Contains("--fire-only");
         IceWaterOnly = args.Contains("--ice-water-only");
         ResolutionOnly = args.Contains("--resolution-only");
+        RingsOnly = args.Contains("--rings-only");
         RequirementsOnly = args.Contains("--requirements-only");
         ToggleOnly = args.Contains("--toggle-only");
         PolishOnly = args.Contains("--polish-only");

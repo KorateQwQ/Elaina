@@ -1,0 +1,44 @@
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+internal static class RingPreview
+{
+    internal static void Run(GraphicsDevice device, SpriteBatch batch, string output)
+    {
+        string folder = Path.Combine(output, "rings");
+        Directory.CreateDirectory(folder);
+        foreach (var (width, height, ui) in new[] {
+            (1366, 768, 1f), (1864, 977, 1.25f), (1920, 1080, 1f),
+            (1920, 1080, 1.125f), (1920, 1080, 1.5f), (2560, 1440, 1.5f), (3840, 2160, 2f) })
+        foreach (var (name, age) in new[] { ("in", .08f), ("overshoot", .15f), ("hold", 1f), ("out", 1.85f) })
+        {
+            using var target = new RenderTarget2D(device, width, height);
+            device.SetRenderTarget(target); device.Clear(new Color(58, 88, 94));
+            var toast = new LevelUpToast { From = 1, To = 15, Points = 0, Age = age };
+            float scale = LevelUpToastQueue.CenterScale * LevelUpToastQueue.PopScale(toast);
+            var matrix = Matrix.CreateScale(ui);
+            // Replay LevelUpToastUI.TopLeft/Draw: logical screen, real UI matrix, fractional origin.
+            var d = new ConstellationDrawing(new()) {
+                Batch = batch, Transform = matrix, Scale = scale,
+                Origin = new Vector2((width / ui - LevelUpToastPainter.Width * scale) / 2,
+                    height / ui * LevelUpToastQueue.CenterY - LevelUpToastPainter.Height * scale / 2
+                    + LevelUpToastQueue.Rise(toast) * LevelUpToastQueue.CenterScale)
+            };
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, matrix);
+            LevelUpToastPainter.Paint(d, toast);
+            batch.End(); device.SetRenderTarget(null);
+            string stem = $"level-{width}x{height}-ui{ui * 100:0.###}-{name}";
+            using (var file = File.Create(Path.Combine(folder, stem + ".png"))) target.SaveAsPng(file, width, height);
+            // Native-pixel crop for inspection, with no resampling.
+            int x = (int)MathF.Floor(d.Origin.X * ui) - 20, y = (int)MathF.Floor(d.Origin.Y * ui) - 20;
+            int w = (int)MathF.Ceiling(LevelUpToastPainter.Width * scale * ui) + 40;
+            int h = (int)MathF.Ceiling(LevelUpToastPainter.Height * scale * ui) + 48;
+            var pixels = new Color[w * h];
+            target.GetData(0, new Rectangle(x, y, w, h), pixels, 0, pixels.Length);
+            using var crop = new Texture2D(device, w, h); crop.SetData(pixels);
+            using var cropped = File.Create(Path.Combine(folder, stem + "-crop.png"));
+            crop.SaveAsPng(cropped, w, h);
+        }
+        Console.WriteLine("FNA level-up circle previews: " + folder);
+    }
+}

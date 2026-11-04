@@ -4,7 +4,9 @@ using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using ReLogic.Graphics;
 using KL.Drawing;
+using SilkyUIFramework;
 using Terraria;
+using Terraria.ModLoader;
 using Terraria.GameContent;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
@@ -15,13 +17,15 @@ namespace Terraria.ModLoader
     public sealed class Mod { public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(PreviewAssets.Repo,path)); }
     public static class ModContent
     {
-        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(object)PreviewAssets.Load(path));
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(typeof(T) == typeof(Effect)
+            ? (object)PreviewAssets.Content.Load<Effect>(Path.Combine(PreviewAssets.Repo, path[(path.IndexOf('/')+1)..])) : PreviewAssets.Load(path)));
     }
 }
 internal static class PreviewAssets
 {
     internal static string Repo;
     internal static GraphicsDevice Device;
+    internal static Microsoft.Xna.Framework.Content.ContentManager Content;
     private static readonly Dictionary<string,Texture2D> Textures = [];
     internal static Texture2D Load(string path)
     {
@@ -50,6 +54,7 @@ internal sealed class RasterDrawing
     internal float Scale = 1;
     internal float Device => Scale * Transform.M11;
     private readonly Dictionary<string, Texture2D> _textures = [];
+    private Effect _ringEffect;
     private readonly Dictionary<(int Aspect, int Waist, bool Filled), Rectangle[]> _stars = [];
     private readonly Dictionary<string, Rectangle[]> _raster = [];
     private readonly ConstellationFont _sans, _serif, _latin;
@@ -95,7 +100,7 @@ internal sealed class RasterGame : Game
     }
     protected override void LoadContent()
     {
-        PreviewAssets.Repo = _repo; PreviewAssets.Device = GraphicsDevice;
+        PreviewAssets.Repo = _repo; PreviewAssets.Device = GraphicsDevice; PreviewAssets.Content = Content;
         Content.RootDirectory = Path.GetFullPath(Path.Combine(_repo, "../KL/Fonts"));
         Asset<DynamicSpriteFont> Load(string name, int min, int max)
         {
@@ -132,6 +137,7 @@ internal sealed class RasterGame : Game
         using var batch = new SpriteBatch(GraphicsDevice);
         var d = new RasterDrawing(batch, Path.Combine(_repo, "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets"));
         RasterChecks.Assets(_repo);
+        RingChecks.Run(d, output);
         Color[] linearPixels = null;
         foreach (float scale in new[] { .86f, 1f, 1.125f, 1.25f, 1.5f, 2f })
         foreach (bool point in new[] { false, true })

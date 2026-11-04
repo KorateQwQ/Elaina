@@ -51,6 +51,7 @@ internal sealed class ConstellationDrawing
     // The sprite body sits high in its cell; this center puts it on the ring line.
     internal static readonly Vector2 PerchOffset = Polar(NodeRadius + 2, PerchAngle);
     private readonly Dictionary<string, Texture2D> _textures = [];
+    private Effect _ringEffect;
     private readonly SkillIconVariants _skillIcons = new();
     private readonly Dictionary<string, ConstellationToggleAnimation> _toggles = [];
     private readonly Dictionary<string, ConstellationToggleAnimation> _buttons = [];
@@ -525,7 +526,31 @@ internal sealed class ConstellationDrawing
 
     internal void Ring(Vector2 center, float rx, float ry, Color color, float width = 1, bool dashed = false, float rotation = 0)
     {
+        if (rx <= 0 || ry <= 0 || width <= 0 || color.A == 0) return;
         if (dashed) { DottedRing(center, rx, ry, color, width, rotation); return; }
+        if (rx == ry)
+        {
+            // All current solid-ring consumers are circles. Evaluate coverage once per pixel:
+            // short rotated quads otherwise overlap and lose AA above Line's 1.5px threshold.
+            _ringEffect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/UICircle", AssetRequestMode.ImmediateLoad).Value;
+            Batch.End();
+            var states = Batch.BackupStates();
+            var viewport = Batch.GraphicsDevice.Viewport;
+            _ringEffect.Parameters["MatrixTransform"].SetValue(Transform *
+                Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, 0, -1));
+            _ringEffect.Parameters["Center"].SetValue(At(center.X, center.Y));
+            _ringEffect.Parameters["Radius"].SetValue(rx * Scale);
+            _ringEffect.Parameters["HalfWidth"].SetValue(width * Scale / 2);
+            // Leave room for the one-device-pixel edge footprint; retain fractional centers
+            // and radii during pop/expansion animations instead of snapping their motion.
+            float extent = rx + width / 2 + 2 / Device;
+            states.Begin(SpriteSortMode.Immediate, _ringEffect, Transform);
+            Batch.Draw(TextureAssets.MagicPixel.Value, At(center.X - extent, center.Y - extent),
+                new Rectangle(0, 0, 1, 1), color, 0, Vector2.Zero, new Vector2(extent * 2 * Scale), SpriteEffects.None, 0);
+            Batch.End();
+            states.Begin();
+            return;
+        }
         const int segments = 160;
         Vector2 Point(int i)
         {

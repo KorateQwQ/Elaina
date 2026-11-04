@@ -34,7 +34,8 @@ namespace Terraria.ModLoader
     public class Mod { public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(PanelGame.Repo, path)); }
     public static class ModContent
     {
-        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(object)PanelGame.Texture(path));
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(typeof(T) == typeof(Effect)
+            ? (object)PanelGame.Effect(path) : PanelGame.Texture(path)));
         // Only the Book of Oblivion is resolved by type in the preview.
         public static int ItemType<T>() => 90001;
         internal static int OptionalRequests;
@@ -170,7 +171,7 @@ namespace Terraria.UI.Chat
 }
 namespace SilkyUIFramework
 {
-    // Like SUI's snapshot, read from the device right after End(); preview batches use no matrix.
+    // Like SUI's snapshot, read from the device right after End(), retaining its UI matrix.
     public sealed class GraphicsDeviceStates(SpriteBatch batch)
     {
         private readonly GraphicsDevice _device = batch.GraphicsDevice;
@@ -178,7 +179,10 @@ namespace SilkyUIFramework
         private readonly SamplerState _sampler = batch.GraphicsDevice.SamplerStates[0];
         private readonly DepthStencilState _depth = batch.GraphicsDevice.DepthStencilState;
         private readonly RasterizerState _rasterizer = batch.GraphicsDevice.RasterizerState;
-        public void Begin() => batch.Begin(SpriteSortMode.Deferred, _blend, _sampler, _depth, _rasterizer);
+        private readonly Matrix _matrix = (Matrix)typeof(SpriteBatch).GetField("transformMatrix",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public).GetValue(batch);
+        public void Begin(SpriteSortMode mode = SpriteSortMode.Deferred, Effect effect = null, Matrix? matrix = null)
+            => batch.Begin(mode, _blend, _sampler, _depth, _rasterizer, effect, matrix ?? _matrix);
     }
     public static class GraphicsDeviceHelper { public static GraphicsDeviceStates BackupStates(this SpriteBatch batch) => new(batch); }
 }

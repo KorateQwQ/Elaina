@@ -81,7 +81,7 @@ sealed class Preview : Game
             "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";

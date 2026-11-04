@@ -1,4 +1,4 @@
-param([string]$Tml = 'C:/Program Files (x86)/Steam/steamapps/common/tModLoader', [string]$Label = 'after')
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [string]$Label = 'after')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $out = Join-Path $repo '.vissandbox/constellation-raster'
@@ -32,6 +32,7 @@ $project = @"
     <Compile Include="Preview.cs" />
     <Compile Include="$escapedRepo/Tools/ConstellationRasterChecks/FontBake.cs.txt" />
     <Compile Include="$escapedRepo/Tools/ConstellationRasterChecks/Checks.cs.txt" />
+    <Compile Include="$escapedRepo/Tools/ConstellationRasterChecks/RingChecks.cs.txt" />
     <Compile Include="$escapedRepo/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/ConstellationFont.cs" />
     <Reference Include="$escapedTml/Libraries/FNA/1.0.0/FNA.dll" />
     <Reference Include="$escapedTml/Libraries/ReLogic/1.0.0/ReLogic.dll" />

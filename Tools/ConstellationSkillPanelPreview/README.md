@@ -1,5 +1,7 @@
 # 正式技能面板离线验证
 
+`-RingsOnly -SkipChecks -Configuration Release` 重放正式 `LevelUpToastPainter`，使用与 `LevelUpToastUI` 相同的定位公式、1.35 倍自身缩放和真实 UI 矩阵，输出 1366×768/100%、1864×977/125%、1920×1080/100%/112.5%/150%、2560×1440/150%、3840×2160/200% 下的入场、回弹、停留、淡出共 28 张图，以及未缩放的局部裁切，位于 `output/<culture>/rings`。圆环直接加载正式 `UICircle.xnb` 在 FNA GPU 中绘制；框架圆角/阴影沿用本工具已有 CPU SDF 适配，不是游戏截图。对应面积覆盖和状态恢复检查、Shader 重建入口见 `../ConstellationRasterChecks/README.md`。预览的 SpriteBatch 状态适配现在也保留实际矩阵和自定义 Effect 参数，支持圆环绘制后恢复调用方批次。
+
 `-ResolutionOnly -SkipChecks -Configuration Release` 按原生分辨率导出治愈术详情、术语提示和水流技能三个场景，覆盖 1366×768 / 100%、1864×977 / 125%、1920×1080 / 100%、112.5%、125%、150%、2560×1440 / 150%、3840×2160 / 200%。输出在 `output/<culture>/resolution-comparison/<场景>-<宽>x<高>-ui<百分比>.png`，PNG 不做后期缩放；面板仍按游戏内规则缩放至可用屏幕。字体请在图片查看器 100% 比例下判断。2026-11-04 起技能面板使用自己的面积滤波字号图集，资源重建与细节回归见 `Tools/ConstellationRasterChecks/README.md`。旧小字号 XNB 与 `-FontSizesOnly` 探针已移除，字体范围和字符清单由新工具维护。
 
 `pwsh -File Tools/ConstellationSkillPanelPreview/run.ps1 -RecallResearchOnly` 运行回城魔法启封与研习专项检查，并导出待启封问号、已启封但缺药水、可研习、已习得四种场景，覆盖 720p、默认和 125% UI 缩放。研习和启封记录直接链接正式 `RecallSkill.Research`、`RecallDiscoveryPlayer` 与 `ConstellationState`，库存和引擎边界使用隔离桩。检查返回药水与回忆药水区分、20 点及 1 瓶药水扣费、失败不扣费、角色隔离、个人储物/鼠标物品/拾取/消耗、存档标签往返和已习得旧角色兼容。此模式独立执行专项断言，英文 Release 可加 `-Culture en-US -Configuration Release`。输出为 `.vissandbox/constellation-skill-panel/output/<culture>/recall-*.png`；真实存档序列化、游戏输入和联机仍需游戏内验证。

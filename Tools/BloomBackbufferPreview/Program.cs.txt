@@ -65,7 +65,7 @@ internal static class Program
             "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "SetBloomInfo",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render,
@@ -258,7 +258,9 @@ internal sealed class Probe : Game
         Set(options, "PreserveBackbuffer", true);
         foreach (int iteration in new[] { 2, 5, 7 }) {
             Background(); var before = Pixels(); int count = callbackCount;
+            GraphicsDevice.SamplerStates[1] = SamplerState.PointWrap;
             Enqueue(endsBatch: iteration == 7); Render(1, iteration);
+            Check(GraphicsDevice.SamplerStates[1] == SamplerState.PointWrap, "Bloom leaked auxiliary sampler");
             Check(Pixels()[4 * Width + 4] == before[4 * Width + 4], "Background lost");
             Check(callbackCount == count + 1, "Callback not executed exactly once");
             Check(GraphicsDevice.GetRenderTargets().Length == 0, "Backbuffer not restored");

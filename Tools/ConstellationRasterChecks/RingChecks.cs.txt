@@ -1,0 +1,148 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace SilkyUIFramework
+{
+    // Mirror SUI's snapshot, including the actual SpriteBatch transform.
+    public sealed class GraphicsDeviceStates
+    {
+        private readonly SpriteBatch batch;
+        private readonly BlendState blend;
+        private readonly SamplerState sampler;
+        private readonly DepthStencilState depth;
+        private readonly RasterizerState rasterizer;
+        private readonly Matrix transform;
+        internal GraphicsDeviceStates(SpriteBatch batch)
+        {
+            this.batch = batch;
+            var device = batch.GraphicsDevice;
+            blend = device.BlendState; sampler = device.SamplerStates[0];
+            depth = device.DepthStencilState; rasterizer = device.RasterizerState;
+            transform = (Matrix)typeof(SpriteBatch).GetField("transformMatrix",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public).GetValue(batch);
+        }
+        public void Begin(SpriteSortMode mode = SpriteSortMode.Deferred, Effect effect = null, Matrix? matrix = null)
+            => batch.Begin(mode, blend, sampler, depth, rasterizer, effect, matrix ?? transform);
+    }
+    public static class GraphicsDeviceHelper
+    {
+        public static GraphicsDeviceStates BackupStates(this SpriteBatch batch) => new(batch);
+    }
+}
+
+internal static class RingChecks
+{
+    // Frozen pre-fix baseline: 160 rotated Line quads. The production method is extracted afresh.
+    internal static void Legacy(RasterDrawing d, Vector2 center, float radius, float width)
+    {
+        for (int i = 0; i < 160; i++)
+        {
+            float a = i * MathHelper.TwoPi / 160, b = (i + 1) * MathHelper.TwoPi / 160;
+            d.Line(center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius,
+                center + new Vector2(MathF.Cos(b), MathF.Sin(b)) * radius, Color.White, width);
+        }
+    }
+
+    internal static void Run(RasterDrawing d, string output)
+    {
+        var device = d.Batch.GraphicsDevice;
+        var report = new List<string>();
+        (float Radius, float Width)[] shapes = [(20f, 1.2f), (4f, 1f), (29f, 1f), (32f, 1.2f), (40f, 1.2f), (72f, 1.5f)];
+        foreach (var shape in shapes)
+        foreach (float ui in new[] { .86f, 1f, 1.125f, 1.25f, 1.5f, 2f })
+        foreach (float pop in shape.Radius == 20 ? new[] { .86f, .93f, 1f, 1.06f } : new[] { 1f })
+        {
+            d.Scale = 1.35f * pop;
+            d.Transform = Matrix.CreateScale(ui);
+            d.Origin = new Vector2(8.25f, 8.375f);
+            Vector2 logical = new(shape.Radius + 8);
+            Vector2 center = Vector2.Transform(d.At(logical.X, logical.Y), d.Transform);
+            float radius = shape.Radius * d.Device, width = shape.Width * d.Device;
+            int side = (int)MathF.Ceiling((shape.Radius * 2 + 40) * d.Device + 20 * ui);
+            Color[] Render(bool legacy, bool point)
+            {
+                using var target = new RenderTarget2D(device, side, side);
+                device.SetRenderTarget(target); device.Clear(Color.Transparent);
+                d.Batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+                    point ? SamplerState.PointClamp : SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, d.Transform);
+                if (legacy) Legacy(d, logical, shape.Radius, shape.Width);
+                else d.Ring(logical, shape.Radius, shape.Radius, Color.White, shape.Width);
+                d.Batch.End();
+                var pixels = new Color[side * side]; target.GetData(pixels);
+                device.SetRenderTarget(null);
+                if (!point && pop == 1 && shape.Radius == 20)
+                {
+                    using var file = File.Create(Path.Combine(output, $"ring-{ui:0.###}-{(legacy ? "before" : "after")}.png"));
+                    target.SaveAsPng(file, side, side);
+                }
+                return pixels;
+            }
+            var old = Render(true, false); var current = Render(false, false); var point = Render(false, true);
+            if (!current.SequenceEqual(point)) throw new InvalidDataException("Circle depends on texture sampler.");
+            double oldError = 0, error = 0; int count = 0;
+            double outer2 = Math.Pow(radius + width / 2, 2), inner2 = Math.Pow(radius - width / 2, 2);
+            // Independent 16x16 area integration, not a replay of shader distance/derivatives.
+            for (int y = 0; y < side; y++)
+            for (int x = 0; x < side; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x + .5f, y + .5f), center);
+                if (Math.Abs(distance - radius) > width / 2 + 1.5) continue;
+                int inside = 0;
+                for (int sy = 0; sy < 16; sy++)
+                for (int sx = 0; sx < 16; sx++)
+                {
+                    double dx = x + (sx + .5) / 16 - center.X, dy = y + (sy + .5) / 16 - center.Y;
+                    double r2 = dx * dx + dy * dy;
+                    if (r2 >= inner2 && r2 <= outer2) inside++;
+                }
+                double expected = inside / 256.0;
+                oldError += Math.Abs(old[y * side + x].A / 255.0 - expected);
+                error += Math.Abs(current[y * side + x].A / 255.0 - expected); count++;
+            }
+            oldError /= count; error /= count;
+            string line = $"r={shape.Radius} ui={ui:0.###} pop={pop:0.##}: area error before={oldError:F4} after={error:F4}";
+            report.Add(line); Console.WriteLine(line);
+            if (error > .065 || width > 1.5f && error >= oldError * .7)
+                throw new InvalidDataException("Ring coverage regression: " + line);
+        }
+        File.WriteAllLines(Path.Combine(output, "ring-checks.txt"), report);
+        State(d);
+        Console.WriteLine("PASS: 54 circle scale/pose cases, independent area coverage, sampler invariance and batch/scissor preservation.");
+    }
+
+    private static void State(RasterDrawing d)
+    {
+        var device = d.Batch.GraphicsDevice;
+        using var target = new RenderTarget2D(device, 160, 120);
+        using var rasterizer = new RasterizerState { CullMode = CullMode.None, ScissorTestEnable = true };
+        device.SetRenderTarget(target); device.Clear(Color.Transparent);
+        var clip = new Rectangle(12, 12, 120, 90); device.ScissorRectangle = clip;
+        d.Origin = new Vector2(4.25f, 3.375f); d.Scale = 1.35f;
+        d.Transform = Matrix.CreateScale(1.125f) * Matrix.CreateTranslation(3.5f, 2.75f, 0);
+        d.Batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, rasterizer, null, d.Transform);
+        var pixel = Terraria.GameContent.TextureAssets.MagicPixel.Value;
+        d.Batch.Draw(pixel, new Rectangle(65, 16, 4, 4), Color.Red);
+        d.Ring(new Vector2(0, 35), 25, 25, Color.White, 1.2f);
+        d.Batch.Draw(pixel, new Rectangle(85, 60, 4, 4), Color.Lime);
+        d.Batch.End();
+        if (device.ScissorRectangle != clip || device.RasterizerState != rasterizer ||
+            device.BlendState != BlendState.AlphaBlend || device.SamplerStates[0] != SamplerState.PointClamp ||
+            device.DepthStencilState != DepthStencilState.None)
+            throw new InvalidDataException("Circle changed the caller's drawing state.");
+        var pixels = new Color[160 * 120]; target.GetData(pixels);
+        for (int y = 0; y < 120; y++)
+        for (int x = 0; x < 160; x++)
+            if (!clip.Contains(x, y) && pixels[y * 160 + x].A != 0)
+                throw new InvalidDataException("Circle escaped scissor clipping.");
+        foreach (var (position, expected) in new[] { (new Vector2(67, 18), Color.Red), (new Vector2(87, 62), Color.Lime) })
+        {
+            Vector2 p = Vector2.Transform(position, d.Transform);
+            if (pixels[(int)p.Y * 160 + (int)p.X] != expected)
+                throw new InvalidDataException($"Circle changed draw order or subsequent SpriteBatch transform: {p}, expected {expected}, got {pixels[(int)p.Y * 160 + (int)p.X]}.");
+        }
+        device.SetRenderTarget(null);
+        device.RasterizerState = RasterizerState.CullNone;
+    }
+}

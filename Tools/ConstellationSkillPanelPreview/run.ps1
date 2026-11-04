@@ -4,6 +4,7 @@
     [switch]$FireOnly,
     [switch]$IceWaterOnly,
     [switch]$ResolutionOnly,
+    [switch]$RingsOnly,
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
     [string]$Sources = 'D:/泰拉原版贴图与代码与其他工具/tModLoader',
     [string]$SilkySources = '',
@@ -97,6 +98,7 @@ function Add-Item([string]$kind, [string]$path) {
 }
 $null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
 $null = Add-Item 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
+$null = Add-Item 'Compile' "$PSScriptRoot/RingPreview.cs.txt"
 $null = Add-Item 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
 foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libraries/$name/1.0.0/$name.dll" }
 foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview','DiscoveryChecks','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
@@ -132,6 +134,7 @@ if ($LocalizationOnly) { $previewArgs += '--localization-only' }
 if ($FireOnly) { $previewArgs += '--fire-only' }
 if ($IceWaterOnly) { $previewArgs += '--ice-water-only' }
 if ($ResolutionOnly) { $previewArgs += '--resolution-only' }
+if ($RingsOnly) { $previewArgs += '--rings-only' }
 if ($IconsOnly) { $previewArgs += '--icons-only' }
 if ($HeadersOnly) { $previewArgs += '--headers-only' }
 if ($RequirementsOnly) { $previewArgs += '--requirements-only' }

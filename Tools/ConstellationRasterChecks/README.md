@@ -33,3 +33,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/ConstellationRasterChe
 2026-11-04 验证：12 张细节图及 24 张整页图导出成功；整页覆盖 1366×768 / 100%、1864×977 / 125%、1920×1080 / 100%、112.5%、125%、150%、2560×1440 / 150%、3840×2160 / 200%。整页入口为 `Tools/ConstellationSkillPanelPreview/run.ps1 -ResolutionOnly -SkipChecks -Configuration Release`，新电脑可用 `-Sources` 与 `-SilkySources` 指定从已安装程序集取得的匹配依赖类型。隔离预览不代表真实角色状态，也不覆盖游戏内输入树和重载。
 
 本机完整编译的现存阻塞：.NET SDK 8.0.427 在 `ElainaModAlchemy/Revealing/RevealingRecipeChests.cs:102` 报 CS8344（迭代器内使用 ref struct 枚举器）；修改前后相同。本次正式绘制、字体与富文本代码通过离线工程编译与渲染，但未关闭正在运行的游戏或替换已加载模组。
+
+## 实线圆环（2026-11-05）
+
+升级卡片的 1.2px 描边乘自身 1.35 倍后为 1.62px，原来会越过 `Line` 的 1.5px 抗锯齿分支，回到 160 段旋转硬边矩形。正式 `Ring` 的正圆路径现在使用 `Effects/Content/UICircle.fx/.xnb` 按屏幕像素覆盖率绘制，保留描边中心半径、颜色和连续的小数坐标；同时作用于显现/启封提示、技能节点和选中扩散圈。虚点环不变。非正圆、`Arc` 和其他消费者的硬边 `Line` 仍是另行排查的范围，不能据此认为所有 UI 已修复。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/ConstellationRasterChecks/compile-circle.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/ConstellationRasterChecks/run.ps1 -Label circle-aa
+```
+
+编译脚本输出正式 XNB，预览直接加载该字节码，并每次抽取正式 `Ring` 方法。没有运行时生成固定纹理；Shader 根据连续变化的半径和描边求覆盖率，复用引擎白像素作为绘制载体。
+
+新增 54 组检查：半径 4/20/29/32/40/72、86%–200% UI 缩放，升级圈另含 4 个弹出缩放姿态。用独立的 16×16 面积积分作参考，保留修改前的 160 段画法作反例；在升级停留的 100% UI 下，边缘区域平均 Alpha 误差由 0.1047 降至 0.0323，旧实现无法通过 0.065 的上限。另检查 Point/Linear 采样结果一致，以及带平移的非整数矩阵、裁剪区域、混合/采样/深度/栅格状态和圆环前后绘制顺序。输出 `ring-*-before/after.png` 与 `ring-checks.txt`；这些局部图均未缩放。
+
+2026-11-05：54 组圆环检查及原有字体/图集检查通过；完整升级提示 28 个原生画面、24 张技能面板整页和显现/启封提示成功导出，并查看低分辨率、非整数缩放和 4K/200% 代表图。完整提示入口见 `../ConstellationSkillPanelPreview/README.md`。正式 C# 使用 `dotnet msbuild 伊蕾娜.csproj -t:Compile -p:Configuration=Release -p:BuildProjectReferences=false` 编译通过（KL 依赖已先编译）。完整模组打包被运行中的 tModLoader 以 TML003 阻止；游戏内加载/视觉验证尚未执行。
