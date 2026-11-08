@@ -23,7 +23,9 @@ internal sealed class ResolutionProbe : Game
 {
     const BindingFlags All = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
     readonly string repo, kl, source, output;
-    readonly bool check;
+    readonly bool check, starTips;
+    Color background = new(65, 135, 141);
+    string frameSuffix = "";
     Assembly pipeline;
     Type main, helper, targets, scene;
     object renderer;
@@ -35,6 +37,7 @@ internal sealed class ResolutionProbe : Game
     internal ResolutionProbe(string[] args)
     {
         (repo, kl, source, output) = (args[0], args[1], args[2], args[3]); check = args.Contains("--check");
+        starTips = args.Contains("--star-tips");
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         SDL2.SDL.SDL_HideWindow(Window.Handle); IsFixedTimeStep = false;
@@ -92,9 +95,11 @@ internal sealed class ResolutionProbe : Game
             public sealed class Star {
                 public static Texture2D starLine, starNoise;
                 public static Effect fuzzyEdge;
-                int time = 9;
+                public static int Time = 9;
+                public static float Rotation = -1.24f;
+                int time;
                 ProjectileData Projectile = new();
-                public void Draw(Vector2 center) { Projectile.Center = center; Projectile.rotation = -1.24f; DrawStartStar(5); }
+                public void Draw(Vector2 center) { time = Time; Projectile.Center = center; Projectile.rotation = Rotation; DrawStartStar(5); }
             """ + star + "}" + Dust("Dusts/Fire/FireDust.cs", "FireDust") + Dust("Dusts/LineSparkle.cs", "LineSparkle") + """
             public static class Trail {
                 public static Texture2D trail, headStamp, headNoise;
@@ -202,7 +207,7 @@ internal sealed class ResolutionProbe : Game
             Matrix.CreateTranslation(-w / 2f, -h / 2f, 0) * Matrix.CreateScale(zoom) * Matrix.CreateTranslation(w / 2f, h / 2f, 0));
         Set(scene, "Kind", kind); Set(scene, "Offset", offset);
         using var target = new RenderTarget2D(GraphicsDevice, w, h);
-        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(65, 135, 141));
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(background);
         scene.GetMethod("Queue").Invoke(null, null);
         GraphicsDevice.SamplerStates[1] = SamplerState.PointWrap;
         renderer.GetType().GetMethod("Run").Invoke(renderer, new object[] { strength, 5, enabled });
@@ -213,7 +218,7 @@ internal sealed class ResolutionProbe : Game
         var glow = new Vector4[glowTarget.Width * glowTarget.Height]; glowTarget.GetData(glow);
         GraphicsDevice.SetRenderTarget(null);
         if (save) {
-            string stem = $"{kind}-{w}x{h}-{(point ? "point" : "linear")}" + (zoom == 1 ? "" : $"-zoom{zoom:0.##}");
+            string stem = $"{kind}-{w}x{h}-{(point ? "point" : "linear")}" + (zoom == 1 ? "" : $"-zoom{zoom:0.##}") + frameSuffix;
             using (var file = File.Create(Path.Combine(output, stem + ".png"))) target.SaveAsPng(file, w, h);
             const int cw = 480, ch = 300;
             using var crop = new Texture2D(GraphicsDevice, cw, ch);
@@ -225,6 +230,7 @@ internal sealed class ResolutionProbe : Game
     protected override void Update(GameTime gameTime)
     {
         if (done) return; done = true;
+        if (starTips) { CheckStarTips(); Exit(); return; }
         var report = new List<string>();
         foreach (var (w, h) in new[] { (1366, 768), (1920, 1080), (2560, 1440), (3840, 2160) }) {
             foreach (string kind in new[] { "star", "fire", "line", "thin", "trail" }) Render(w, h, kind, true, Vector2.Zero, true);
@@ -256,6 +262,45 @@ internal sealed class ResolutionProbe : Game
         var detached = targets.GetMethod("DetachRenderTargets", All).Invoke(null, null);
         targets.GetMethod("DisposeTargets", All).Invoke(null, new[] { detached });
         Console.WriteLine("Bloom resolution preview: " + output); Exit();
+    }
+    void CheckStarTips()
+    {
+        // Extract the production star each run. A luminous star may add light, but
+        // neither its tips nor its eroding fragments should occlude the backdrop.
+        var report = new List<string>();
+        long totalDark = 0;
+        int maximumDrop = 0;
+        var star = pipeline.GetType("Fixture.Star");
+        foreach (var (w, h, zoom) in new[] { (1366, 768, 1f), (1920, 1080, 1f), (1920, 1080, 1.25f), (3840, 2160, 1f) })
+        foreach (bool enabled in new[] { true, false })
+        foreach (var (name, bg) in new[] { ("day", new Color(65, 135, 141)), ("night", new Color(12, 19, 35)) })
+        foreach (int time in new[] { 9, 17, 29, 43 })
+        {
+            background = bg;
+            Set(star, "Time", time);
+            Set(star, "Rotation", time == 9 ? -1.24f : -.65f);
+            frameSuffix = $"-{name}-t{time}-bloom{enabled}";
+            var pixels = Render(w, h, "star", true, Vector2.Zero,
+                w == 1920 && zoom == 1 && enabled, zoom, enabled: enabled).Image;
+            int dark = 0, drop = 0, bright = 0;
+            foreach (var p in pixels)
+            {
+                int delta = Math.Max(bg.R - p.R, Math.Max(bg.G - p.G, bg.B - p.B));
+                if (delta > 1) dark++;
+                drop = Math.Max(drop, delta);
+                if (p.R > bg.R + 10) bright++;
+            }
+            totalDark += dark; maximumDrop = Math.Max(maximumDrop, drop);
+            string line = $"{w}x{h} zoom={zoom} {name} t={time} bloom={enabled}: darkPixels={dark}, maxDrop={drop}, brightPixels={bright}";
+            Console.WriteLine(line); report.Add(line);
+            if (time < 43 && bright == 0) throw new Exception("Star fixture produced no visible light: " + line);
+        }
+        report.Add($"totalDarkPixels={totalDark}, maximumChannelDrop={maximumDrop}");
+        File.WriteAllLines(Path.Combine(output, "star-tip-checks.txt"), report);
+        var detached = targets.GetMethod("DetachRenderTargets", All).Invoke(null, null);
+        targets.GetMethod("DisposeTargets", All).Invoke(null, new[] { detached });
+        if (check && totalDark != 0) throw new Exception("Star tips darken the backdrop; see star-tip-checks.txt.");
+        Console.WriteLine("Star tip preview: " + output);
     }
     protected override void UnloadContent() { foreach (var t in textures) t.Dispose(); effects?.Dispose(); batch?.Dispose(); }
 }

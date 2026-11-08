@@ -13,9 +13,12 @@ public static class ElainaTrailVisualStyle
     private static Texture2D defaultStarLineTexture;
     private static Texture2D defaultStarCrossTexture;
 
-    public static Color DefaultWandTrailColor = new(255, 160, 239, 0);
-    public static Color DefaultSlashTrailColor = new(255, 100, 255, 0);
-    public static Color DefaultStarColor = new(255, 100, 255, 0);
+    public static Color DefaultWandTrailColor = new(255, 160, 239, 255);
+    public static Color DefaultSlashTrailColor = new(255, 100, 255, 255);
+    public static Color DefaultStarColor => new(255, 180, 255, 255);
+    public static Color WaterWandColor => new(100, 180, 255, 255);
+    public static Color FireWandColor => new(255, 150, 40, 255);
+    public static float DefaultStarIntensity => 2.0f;
     public static float DefaultTrailMaxWidth = 5f;
     public static float DefaultTrailEndWidth = 0f;
     public static float DefaultTrailFadeInEnd = 0.2f;
@@ -92,8 +95,18 @@ public static class ElainaTrailVisualStyle
         }
 
         float totalAlpha = GetActionAlpha(actionProgress, fadeInEnd, fadeOutStart);
-        TrailEffect(texture, points, trailColor * totalAlpha, trailColor * 0f, trailMaxWidth, trailEndWidth,
-            attachPoint: attachPoint, attachRotation: attachRotation, debugPoint: debugPoint);
+        TrailEffect(texture, points, new Vector4(trailColor.ToVector3()*3.5f,totalAlpha), new Vector4(trailColor.ToVector3()*5.5f,totalAlpha), trailMaxWidth*0.5f, trailEndWidth,startAlpha:totalAlpha,endAlpha:0,
+            attachPoint: attachPoint, attachRotation: attachRotation,blendState:0, debugPoint: debugPoint);
+    }
+
+    internal static void RequestTrailBloom(Action drawTrail)
+    {
+        LayerDrawRequestSystem.RequestBloom("Elaina:ActionTrail",
+            LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After, () =>
+            {
+                drawTrail();
+                EndBeginDraw();
+            }, order: LayerDrawRequestSystem.TrailOrder);
     }
 
     public static void DrawWandTrail(Vector2[] points, float actionProgress)
@@ -127,6 +140,27 @@ public static class ElainaTrailVisualStyle
             return;
         }
 
+        QueueBloomStar(starCenter, actionProgress, starColor, fadeInEnd, fadeOutStart, blinkMin, blinkMax,
+            blinkCycle, crossScale, lineScale, lineScale2, lineRotation, crossTexture, lineTexture,
+            LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DustOrder + 1);
+    }
+
+    public static void RequestBloomStar(Vector2 starCenter, float actionProgress,
+        Color starColor, float? fadeInEnd = null, float? fadeOutStart = null,
+        float? blinkMin = null, float? blinkMax = null, float? blinkCycle = null,
+        Vector2? crossScale = null, Vector2? lineScale = null, Vector2? lineScale2 = null,
+        float? lineRotation = null, Texture2D crossTexture = null, Texture2D lineTexture = null)
+    {
+        QueueBloomStar(starCenter, actionProgress, starColor, fadeInEnd, fadeOutStart, blinkMin, blinkMax,
+            blinkCycle, crossScale, lineScale, lineScale2, lineRotation, crossTexture, lineTexture,
+            LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DustOrder);
+    }
+
+    private static void QueueBloomStar(Vector2 starCenter, float actionProgress, Color starColor,
+        float? fadeInEnd, float? fadeOutStart, float? blinkMin, float? blinkMax, float? blinkCycle,
+        Vector2? crossScale, Vector2? lineScale, Vector2? lineScale2, float? lineRotation,
+        Texture2D crossTexture, Texture2D lineTexture, LayerDrawRequestSystem.DrawTargetLayer layer, int order)
+    {
         crossTexture = GetStarCrossTexture(crossTexture);
         lineTexture = GetStarLineTexture(lineTexture);
         if (crossTexture == null || lineTexture == null)
@@ -141,60 +175,33 @@ public static class ElainaTrailVisualStyle
         float totalAlpha = GetActionAlpha(actionProgress, fadeInEnd, fadeOutStart);
         float blinkAlpha = PingPongWave(blinkMin ?? DefaultStarBlinkMin, blinkMax ?? DefaultStarBlinkMax,
             blinkCycle ?? DefaultStarBlinkCycle, Main.timeForVisualEffects, PingPongWaveType.SmoothStep);
-        Color color = starColor * totalAlpha * blinkAlpha;
+        // Keep HDR RGB in a shader uniform; Color/DrawData would clamp it to 0..1.
+        Vector4 color = new Vector4(starColor.ToVector3() * DefaultStarIntensity, starColor.A / 255f)
+            * totalAlpha * blinkAlpha;
+        Vector2 drawPosition = starCenter - Main.screenPosition;
 
-        DrawData cross = new DrawData(
-            crossTexture,
-            starCenter - Main.screenPosition,
-            null,
-            color,
-            0f,
-            crossTexture.Origin(),
-            crossScale.Value,
-            SpriteEffects.None,
-            0)
+        DrawData cross = new DrawData(crossTexture, drawPosition, null, Color.White, 0f, crossTexture.Origin(),
+            crossScale.Value, SpriteEffects.None, 0) { ignorePlayerRotation = true };
+        DrawData line = new DrawData(lineTexture, drawPosition, null, Color.White * 0.5f, 0f, lineTexture.Origin(),
+            lineScale.Value, SpriteEffects.None, 0) { ignorePlayerRotation = true };
+        DrawData rotatedLine = new DrawData(lineTexture, drawPosition, null, Color.White * 0.5f,
+            lineRotation ?? DefaultStarLineRotation, lineTexture.Origin(), lineScale2.Value,
+            SpriteEffects.None, 0) { ignorePlayerRotation = true };
+
+        LayerDrawRequestSystem.RequestBloom("Elaina:ActionStar", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.After, context =>
         {
-            ignorePlayerRotation = true
-        };
-
-        DrawData line = new DrawData(
-            lineTexture,
-            starCenter - Main.screenPosition,
-            null,
-            color * 0.5f,
-            0f,
-            lineTexture.Origin(),
-            lineScale.Value,
-            SpriteEffects.None,
-            0)
-        {
-            ignorePlayerRotation = true
-        };
-
-        DrawData rotatedLine = new DrawData(
-            lineTexture,
-            starCenter - Main.screenPosition,
-            null,
-            color * 0.5f,
-            lineRotation ?? DefaultStarLineRotation,
-            lineTexture.Origin(),
-            lineScale2.Value,
-            SpriteEffects.None,
-            0)
-        {
-            ignorePlayerRotation = true
-        };
-
-        // 玩家层之后仍会绘制技能和水花；星芒放在水花之后，避免杖尖被遮住。
-        LayerDrawRequestSystem.Request("Elaina:ActionStar", LayerDrawRequestSystem.DrawTargetLayer.Dust,
-            LayerDrawRequestSystem.DrawTiming.After, context =>
+            EndBeginDraw(0, 1);
+            try
             {
-                // DrawDust 返回时批次已关闭，本组负责 Begin/End。
-                if (context.IsFirst) BeginDraw(defferred: 1);
+                ReColorEffect(color);
                 cross.Draw(Main.spriteBatch);
                 line.Draw(Main.spriteBatch);
                 rotatedLine.Draw(Main.spriteBatch);
-                if (context.IsLast) Main.spriteBatch.End();
-            }, order: LayerDrawRequestSystem.DustOrder + 1);
+            }
+            finally
+            {
+                EndBeginDraw();
+            }
+        }, order: order);
     }
 }

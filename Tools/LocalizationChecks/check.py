@@ -34,7 +34,10 @@ for key in zh:
     # Resource paths are identifiers, not translated prose; keep checking the visible color-tag text.
     icon_pattern = r'\[klicon/[^:\]]+:[^\]]+\]'
     assert re.findall(icon_pattern, zh[key]) == re.findall(icon_pattern, en[key]), f'Icon paths differ: {key}'
-    visible_english = re.sub(icon_pattern, '', en[key])
+    # Localization references such as {$Mods.伊蕾娜.Items.X.DisplayName} are keys resolved by the game.
+    reference_pattern = r'\{\$[^}]+\}'
+    assert sorted(re.findall(reference_pattern, zh[key])) == sorted(re.findall(reference_pattern, en[key])), f'References differ: {key}'
+    visible_english = re.sub(reference_pattern, '', re.sub(icon_pattern, '', en[key]))
     assert not re.search(r'[\u4e00-\u9fff]', visible_english), f'Chinese in English value: {key}'
 
 used = set()

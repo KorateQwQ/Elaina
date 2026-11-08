@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using KL.Drawing;
 using KL.Dusts;
 using KL.Dusts.Fire;
+using KL.DamageSystem;
 using KL.Extensions;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
@@ -17,6 +18,8 @@ public class FireBurstProj : ElainaBasicProjectile
 {
     private const int StarDuration = 30;
     private const int BurstDuration = 30;
+    /// <summary>每次命中固定积攒的点燃积蓄：半条。</summary>
+    public static int IgnitionTicks => FireBurnNPC.ExposureTicks / 2;
     private int Age => (int)Projectile.ai[0];
     private bool IsBursting => Age > StarDuration;
     private int time => Math.Max(0, Age - StarDuration);
@@ -26,6 +29,17 @@ public class FireBurstProj : ElainaBasicProjectile
     private Action drawCircle;
     private Action drawRearRings;
     private Action drawFrontRings;
+    // 命中前捕获身份；同一次炎爆对同一主体（蠕虫等）只提交一次点燃积蓄。
+    private readonly Dictionary<int, FireBurnHit> pendingIgnitionHits = new();
+    private readonly HashSet<(int Index, int Generation)> ignitedAnchors = new();
+    // 仅拥有端使用：只命中一个敌人时的伤害倍率、命中冻结敌人时额外增加的倍率（相对弹幕的群体伤害）。
+    private float singleMultiplier = 1f, frozenBonus;
+
+    internal void SetDamageMultipliers(float single, float frozen)
+    {
+        singleMultiplier = single;
+        frozenBonus = frozen;
+    }
 
     public override void SetDefaults()
     {
@@ -131,7 +145,6 @@ public class FireBurstProj : ElainaBasicProjectile
         if (!Projectile.active || !IsBursting) return;
 
         Texture2D trail = ModContent.Request<Texture2D>("KL/Effects/Tex/Trail/Eff_Trail_2014", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D wave = ModContent.Request<Texture2D>("KL/Effects/Tex/光圈", AssetRequestMode.ImmediateLoad).Value;
 
         List<FrameInfo> heightInfos =
         [
@@ -172,6 +185,12 @@ public class FireBurstProj : ElainaBasicProjectile
         Vector4 outer = new(2f, 0.46f, .06f, 1f);
         Vector4 red = new(2f, 0.82f, .09f, 1f);
         Vector4 yellow = new(3.6f, 2.23f, .65f, 1f);
+        // 爆发首 tick 为 3 倍亮度，8 tick 内平滑回落，第 9 tick 恢复原值。
+        // 只增强火柱 RGB，覆盖度不变，由 Bloom 沿实际火焰轮廓扩散。
+        float burstGain = 1f + 2f * MathHelper.SmoothStep(1f, 0f, (time - 1f) / 8f);
+        outer = new Vector4(new Vector3(outer.X, outer.Y, outer.Z) * burstGain, outer.W);
+        red = new Vector4(new Vector3(red.X, red.Y, red.Z) * burstGain, red.W);
+        yellow = new Vector4(new Vector3(yellow.X, yellow.Y, yellow.Z) * burstGain, yellow.W);
 
         Effect flame = ModContent.Request<Effect>("伊蕾娜/Effects/Content/FireBurstFlame", AssetRequestMode.ImmediateLoad).Value;
         EndBeginDraw(2,1,ss:SamplerState.LinearWrap);
@@ -193,28 +212,21 @@ public class FireBurstProj : ElainaBasicProjectile
         EndBeginDraw();
 
         DrawBlackDust();
-        
     }
 
     private void DrawMagicCircle()
     {
-        //
-        //DrawSystem.SetBloomInfo(1f, 5, Vector2.Zero, true);
-
         if (!Projectile.active) return;
-        float circleRadius = 110f; // 法阵横向半径（世界像素），调大即可整体放大。
+        float circleRadius = 110f;
         EndBeginDraw();
-        try
-        {
-            Matrix transform = Main.GameViewMatrix.TransformationMatrix *
-                Matrix.CreateOrthographicOffCenter(0, Main.screenWidth, Main.screenHeight, 0, 0, 1);
-            Effect effect = ModContent.Request<Effect>("KL/Effects/Content/VertexDraw", AssetRequestMode.ImmediateLoad).Value;
-            RecallPortalDrawing.Draw(Main.graphics.GraphicsDevice, effect, transform,
-                Projectile.Center - Main.screenPosition, circleRadius, Age, StarDuration, BurstDuration,
-                destination: false, hovered: false, burstStart: StarDuration + 1,
-                tint: new Color(255, 100, 32), teleportBurst: false);
-        }
-        finally { EndBeginDraw(); }
+        Matrix transform = Main.GameViewMatrix.TransformationMatrix *
+            Matrix.CreateOrthographicOffCenter(0, Main.screenWidth, Main.screenHeight, 0, 0, 1);
+        Effect effect = ModContent.Request<Effect>("KL/Effects/Content/VertexDraw", AssetRequestMode.ImmediateLoad).Value;
+        RecallPortalDrawing.Draw(Main.graphics.GraphicsDevice, effect, transform,
+            Projectile.Center - Main.screenPosition, circleRadius, Age, StarDuration, BurstDuration,
+            destination: false, hovered: false, burstStart: StarDuration + 1,
+            tint: new Color(255, 100, 32), teleportBurst: false);
+        EndBeginDraw();
     }
 
     private void DrawRearAirRings()
@@ -226,9 +238,6 @@ public class FireBurstProj : ElainaBasicProjectile
     private void DrawFrontAirRings()
     {
         if (!Projectile.active || !IsBursting) return;
-        // DrawDust 已结束它自己的批次；普通 Dust.After 请求没有 Bloom 回调的 Begin 保证。
-        // 与水花、杖尖星芒相同，本回调自管批次，返回时保持关闭。
-        BeginDraw(defferred: 1);
         DrawAirRings(front: true);
         Main.spriteBatch.End();
     }
@@ -248,17 +257,14 @@ public class FireBurstProj : ElainaBasicProjectile
         Matrix transform = Main.GameViewMatrix.TransformationMatrix *
             Matrix.CreateOrthographicOffCenter(0, Main.screenWidth, Main.screenHeight, 0, 0, 1);
         EndBeginDraw();
-        try
-        {
-            // 同一条环分后半圈和前半圈夹住火柱；第二圈稍后从法阵升起。
-            FireBurstWindDrawing.Draw(Main.graphics.GraphicsDevice, effect, texture, transform,
-                Projectile.Center - Main.screenPosition, time, front, uvScale, uvOffset, maskFromRed,
-                innerColor, outerColor, radiusStart: 100f, radiusEnd: 225f, riseSpeed: 10f, startAngle: .3f);
-            FireBurstWindDrawing.Draw(Main.graphics.GraphicsDevice, effect, texture, transform,
+        // 同一条环分后半圈和前半圈夹住火柱；第二圈稍后从法阵升起。
+        FireBurstWindDrawing.Draw(Main.graphics.GraphicsDevice, effect, texture, transform,
+            Projectile.Center - Main.screenPosition, time, front, uvScale, uvOffset, maskFromRed,
+            innerColor, outerColor, radiusStart: 100f, radiusEnd: 225f, riseSpeed: 10f, startAngle: .3f);
+        FireBurstWindDrawing.Draw(Main.graphics.GraphicsDevice, effect, texture, transform,
                 Projectile.Center - Main.screenPosition, time - 6f, front, uvScale, uvOffset, maskFromRed,
                 innerColor, outerColor, radiusStart: 80f, radiusEnd: 180f, riseSpeed: 7f, startAngle: 2.7f);
-        }
-        finally { EndBeginDraw(); }
+        EndBeginDraw();
     }
     
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
@@ -301,7 +307,8 @@ public class FireBurstProj : ElainaBasicProjectile
         if (!Projectile.active || IsBursting) return;
         int time = Age;
         Texture2D line = ModContent.Request<Texture2D>("KL/Effects/Tex/Sparkle/HShotA", AssetRequestMode.ImmediateLoad).Value;
-        Texture2D circle = ModContent.Request<Texture2D>("KL/Effects/Tex/光圈渐变", AssetRequestMode.ImmediateLoad).Value;
+        Texture2D circle = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/Skills/MagicMissile/noi_1", AssetRequestMode.ImmediateLoad).Value;
+        Texture2D noise = ModContent.Request<Texture2D>("KL/Effects/Tex/cellnoise", AssetRequestMode.ImmediateLoad).Value;
 
         List<FrameInfo> lengthInfo = [new(1.8f, 0.6f, 10), new(0.6f, 0.5f, 20)];
         List<FrameInfo> widthInfo = [new(0.2f, 0.0f, StarDuration)];
@@ -319,18 +326,17 @@ public class FireBurstProj : ElainaBasicProjectile
 
         if (time > 0)
         {
-            EndBeginDraw(2, 1);
-            int frame = Math.Min(3, (int)MathHelper.Lerp(0, 3, time / (float)StarDuration));
-            List<FrameInfo> scaleInfos = [new(0.0f, 0.2f, 10), new(0.2f, 0.25f, 20)];
-            List<FrameInfo> circleRotateInfos = [new(0.01f, 2.5f, StarDuration)];
-            float scale = GetFrameValue(scaleInfos, time);
-            float circleRotation = GetFrameValue(circleRotateInfos, time);
+            int startTime = time - 5;
+            float radius = MathHelper.Lerp(20f, 40f, startTime / 20f) * 0.01f;
+            float scale = MathHelper.Lerp(1f, 2f, startTime / 20f);
 
-            List<FrameInfo> intensityInfos = [new(3f, 2.5f, 10), new(2.5f,1.2f, 20)];
-            float intensity = GetFrameValue(intensityInfos, time, clamp: true);
-            ReColorEffect(new Vector4(1f, 0.5f, 0.1f, 1f) * intensity * totalAlpha);
-            DrawInWorld(new TextureInfo(circle, frame, 2, 2), Projectile.Center, Color.White,
-                scale: new Vector2(2.5f) * scale, Projectile.ai[1] + circleRotation + MathF.PI / 2f);
+            float noiseStrength = MathHelper.Lerp(0f, 0.25f, startTime / 40f);
+            var ringColor = new Vector4(new Color(255, 120, 30).ToVector3() * (2.5f * totalAlpha), totalAlpha);
+
+            EndBeginDraw(1, 1, ss: SamplerState.LinearClamp);
+            CircleRingEffect(0.06f, outerRadius: radius, ringColor: ringColor, texScale: new Vector2(0.5f, 4f),
+                swapUV: true, noiseTex: noise, edgeNoiseStrength: noiseStrength);
+            DrawInWorld(circle, Projectile.Center,scale:new Vector2(1)*scale);
         }
         EndBeginDraw();
     }
@@ -390,13 +396,39 @@ public class FireBurstProj : ElainaBasicProjectile
         EndBeginDraw();
     }
 
+    /// <summary>火柱当前覆盖的敌人数（多体节敌人按主体计一个，含正被命中的目标）。</summary>
+    private int CountEnemiesInPillar(NPC target)
+    {
+        HashSet<int> bodies = [target.realLife >= 0 ? target.realLife : target.whoAmI];
+        foreach (NPC npc in Main.ActiveNPCs)
+            if (npc.CanBeChasedBy(Projectile) && Colliding(Projectile.Hitbox, npc.Hitbox) == true)
+                bodies.Add(npc.realLife >= 0 ? npc.realLife : npc.whoAmI);
+        return bodies.Count;
+    }
+
     public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
     {
         return GamePlayStatic.AABBvLineCollision(targetHitbox,Projectile.Center,Projectile.Center+new Vector2(0,-600),250);
     }
 
+    public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
+    {
+        if (Projectile.owner == Main.myPlayer)
+        {
+            float multiplier = CountEnemiesInPillar(target) <= 1 ? singleMultiplier : 1f;
+            if (PredictiveAim.IsFrozenOrAnchorFrozen(target)) multiplier += frozenBonus;
+            modifiers.SourceDamage *= multiplier;
+        }
+        if (Projectile.owner == Main.myPlayer && FireBurnNPC.CaptureHit(target) is { } snapshot)
+            pendingIgnitionHits[target.whoAmI] = snapshot;
+        base.ModifyHitNPC(target, ref modifiers);
+    }
+
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
+        if (damageDone > 0 && Projectile.owner == Main.myPlayer && pendingIgnitionHits.Remove(target.whoAmI, out var snapshot)
+            && ignitedAnchors.Add((snapshot.AnchorIndex, snapshot.AnchorGeneration)))
+            Main.player[Projectile.owner].GetModPlayer<FireCyclePlayer>().RequestBurstHit(snapshot, Projectile, damageDone);
         base.OnHitNPC(target, hit, damageDone);
     }
 

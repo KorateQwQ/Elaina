@@ -121,7 +121,7 @@ internal sealed class PanelGame : Game
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
         string[] scenes = IceWaterOnly ? ["ice-water-stream", "ice-water-orb", "ice-water-cone", "ice-water-lock"]
-            : FireOnly ? ["fire-beam", "fire-burst", "fire-wind"]
+            : FireOnly ? ["fire-beam", "fire-beam-bottom", "fire-burst", "fire-burst-bottom", "fire-wind"]
             : AlchemyOnly ? ["alchemy-stats", "alchemy-growth", "alchemy-max"]
             : ForgetOnly ? ["forget", "forget-armed", "forget-lv1"]
             : TermsOnly ? ["terms-freeze", "terms-magic", "terms-cauldron", "requirements-term"]
@@ -130,7 +130,7 @@ internal sealed class PanelGame : Game
             : OrnamentsOnly ? ["camera-350", "empty", "editor"]
             : CameraOnly ? ["camera-0", "camera-100", "camera-200", "camera-350", "camera-retarget"]
             : RequirementsOnly || PolishOnly ? ["requirements-learn", "requirements-upgrade", "requirements-ready", "requirements-tooltip", "requirements-long", "requirements-term"]
-            : ["new", "passive", "passive-stats", "active", "equipped", "missing", "off", "empty", "bottom", "editor", "editor-moved", "maxed", "growth", "growth-poor", "growth-long", "growth-maxed"];
+            : ["new", "passive", "passive-stats", "active", "equipped", "cooldown-shake", "missing", "off", "empty", "bottom", "editor", "editor-moved", "maxed", "growth", "growth-poor", "growth-long", "growth-maxed"];
         foreach (var (w, h, scale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
         foreach (string scene in scenes)
         {
@@ -193,6 +193,7 @@ internal sealed class PanelGame : Game
         Fixtures.Text();
         if (DiscoveryOnly) DiscoveryChecks.Run();
         else if (RecallResearchOnly) RecallResearchChecks.Run();
+        else if (ForgetOnly) PanelChecks.RunForgetting();
         else if (DebugToolsOnly) PanelChecks.RunDebugTools();
         else if (!HeadersOnly && !args.Contains("--localization-only") && !SkipChecks) PanelChecks.Run();
         Terraria.Localization.Language.Text.Clear();

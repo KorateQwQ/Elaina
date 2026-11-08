@@ -29,6 +29,7 @@ internal sealed class PanelScene
     private KLTerm _tooltipTerm;
     private int _slotPress = -1, _slotDropTarget = -1;
     private bool _slotDragging;
+    private readonly ConstellationDenyShake _deny = new();
     private HashSet<string> _ancestors;
     private ConstellationLayoutEditor _layoutEditor;
     private bool Editing => _layoutEditor?.IsEditing == true;
@@ -101,19 +102,21 @@ internal sealed class PanelScene
     {
         _book.Request(true); _book.Finish();
         _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long" or "requirements-term"));
-        if (scenario is "active" or "equipped" or "maxed")
+        if (scenario is "active" or "equipped" or "maxed" or "cooldown-shake")
         {
             _state.Select(nameof(MagicMissileSkill));
-            if (scenario == "equipped") { _state.TargetSlot = 7; _state.Equip(); }
+            if (scenario is "equipped" or "cooldown-shake") { _state.TargetSlot = 7; _state.Equip(); }
+            // Freeze the denial at its first peak so the slot and loadout button show their offset.
+            if (scenario == "cooldown-shake") { _deny.Start(7); _deny.Advance(.035f); }
             if (scenario == "maxed") for (int i = 0; i < 10; i++) _state.Current.ModSkill.TryLevelUp();
         }
         if (scenario == "missing") _state.Select(nameof(WaterLaserSKill));
         if (scenario.StartsWith("fire-"))
         {
-            _state.Select(scenario == "fire-beam" ? nameof(FireLaserSkill)
-                : scenario == "fire-burst" ? nameof(FireBurstSkill) : nameof(WindBladeSkill));
-            _state.Current.Skill.MaxCD = scenario == "fire-burst" ? 10f : 1f;
-            _state.Current.Skill.MaxStack = scenario == "fire-burst" ? 3 : 1;
+            _state.Select(scenario.StartsWith("fire-beam") ? nameof(FireLaserSkill)
+                : scenario.StartsWith("fire-burst") ? nameof(FireBurstSkill) : nameof(WindBladeSkill));
+            _state.Current.Skill.MaxCD = scenario.StartsWith("fire-burst") ? 60f : 1f;
+            _state.Current.Skill.MaxStack = 1;
         }
         if (scenario == "off")
         {
@@ -301,7 +304,7 @@ internal sealed class PanelScene
         batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
         float offset = scrollPosition?.Invoke(detail) ??
-            (scenario is "bottom" or "growth-long" or "healing-growth" or "alchemy-growth" or "alchemy-max" or "forget" or "forget-armed" or "forget-lv1" ? Math.Max(0, detail.ContentHeight - detail.Height)
+            (scenario is "bottom" or "fire-beam-bottom" or "fire-burst-bottom" or "growth-long" or "healing-growth" or "alchemy-growth" or "alchemy-max" or "forget" or "forget-armed" or "forget-lv1" ? Math.Max(0, detail.ContentHeight - detail.Height)
                 : scenario == "healing-description" ? 120 : 0);
         float y = detail.Top - offset;
         // Term scenes hover the first registered term, as the panel does under the pointer.

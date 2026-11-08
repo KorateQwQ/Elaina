@@ -35,14 +35,17 @@ public enum SkillBalanceKind { BasicAttack, Active }
 public enum SkillGrowthMode { Phase, Interval }
 
 /// <summary>所有技能共用的定价定义；BaseCooldown 对普攻表示完整攻击周期，HitCount 是整次预算的等额命中数。
-/// RatioCurve 为空时普攻固定使用 DpsRatio，否则按角色等级在节点间线性插值、超出两端取端点。
-/// GrowthMode 为 Interval 时，从 UnlockLevel 起每 LevelInterval 个角色等级新增一级，不使用阶段跨度或 LevelsPerPhase。
+/// RatioCurve 按角色等级在节点间线性插值、超出两端取端点，替代该技能的伤害系数：普攻与显式 ratio 的主动技能替代 DpsRatio，
+/// 其他主动技能替代 ConversionRate（K）；为空时使用固定系数。
+/// GrowthStartLevel 为 0 时沿用解锁节点；正数指定独立成长起点，阶段终点取该起点所属阶段。
+/// GrowthMode 为 Interval 时，从成长起点每 LevelInterval 个角色等级新增一级，不使用阶段跨度或 LevelsPerPhase。
 /// MaxLevel 为 0 时不设固定等级上限；正整数限制两种成长方式产生的技能等级数。
-/// MaxCharges / InitialCharges 为主动技能的储存层数上限与新习得时的可用层数，普攻固定为 1。</summary>
-// 主动技能显式配置 ratio 时按 DPS 直接定价；未迁移技能继续使用旧的魔力转换模型。
+/// MaxCharges / InitialCharges 为主动技能的储存层数上限与新习得时的可用层数，普攻固定为 1。
+/// ManaCostMaxPercent 为主动技能额外消耗的最大魔力百分比，实际耗蓝 = ManaCost + 最大魔力 × ManaCostMaxPercent%。</summary>
+// 主动技能显式配置 ratio 时按 DPS 直接定价，周期为 CD + 读条；未迁移技能继续使用旧的魔力转换模型。
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, double ManaCost,
     double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
-    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0, FlightBalance Flight = null, bool UsesDpsRatio = false);
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0, FlightBalance Flight = null, bool UsesDpsRatio = false, int GrowthStartLevel = 0, double ManaCostMaxPercent = 0);
 
 /// <summary>阶段推荐配装中的一个饰品；Id 与 Prefix 是网页键名（如 sorcerer / arcane），由 Loadout 映射到物品与前缀。</summary>
 public sealed record SkillLoadoutItem(string Id, string Prefix);
@@ -58,7 +61,7 @@ public sealed class SkillBalanceConfig
     public const int MaxJsonBytes = 64 * 1024;
     public const string Schema = "elaina-mage-balance-v2";
     public const string ResourcePath = "ElainaModSkills/Data/SkillBalance.json";
-    public const int LoadoutStages = 19;
+    public const int LoadoutStages = 18;
     private static readonly Regex IdPattern = new("^[A-Za-z][A-Za-z0-9_.-]{0,63}$", RegexOptions.CultureInvariant);
     private static readonly Regex KeyPattern = new("^[A-Za-z][A-Za-z0-9_]{0,63}$", RegexOptions.CultureInvariant);
 
@@ -86,7 +89,7 @@ public sealed class SkillBalanceConfig
     [
         new("MagicMissileSkill", "魔法飞弹", SkillBalanceKind.BasicAttack, 3, .3, 1, LevelsPerPhase: 2, DpsRatio: .6,
             RatioCurve: [(1, 1), (10, .9), (20, .8), (35, .7), (50, .6)]),
-        new("WaterBallSkill", "水球术", SkillBalanceKind.Active, 100, 10, 1, UnlockLevel: 26, UnlockStageCap: 30, ConversionRate: 3.3, OccupySeconds: 1, CdDamageRatio: 1)
+        new("WaterBallSkill", "水球术", SkillBalanceKind.Active, 100, 10, 1, UnlockLevel: 26, UnlockStageCap: 30, ConversionRate: 3.3, OccupySeconds: 1, CdDamageRatio: 1, GrowthStartLevel: 1)
     ]);
 
     public static bool TryParse(string json, out SkillBalanceConfig config, out string error)
@@ -121,7 +124,8 @@ public sealed class SkillBalanceConfig
                 skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Number(row, "cost", 0, 10000),
                     Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
                     RatioCurve: ReadRatioCurve(row), GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row)));
+                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
+                    GrowthStartLevel: OptionalInteger(row, "growthStartLevel", 0, 1000, 0)));
             }
             string reference = c.GetProperty("selectedBasicAttackId").GetString();
             if (reference == null || !ids.Contains(reference))
@@ -134,11 +138,13 @@ public sealed class SkillBalanceConfig
                 var (id, name) = ReadIdentity(row, ids);
                 skills.Add(new(id, name, SkillBalanceKind.Active, Number(row, "cost", 0, 10000),
                     Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
-                    ConversionRate: Number(row, "k", 0, 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
+                    ConversionRate: Number(row, "k", 0, 200), RatioCurve: ReadRatioCurve(row, row.TryGetProperty("ratio", out _) ? 5 : 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
                     MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
                     GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
                     FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
-                    DpsRatio: OptionalNumber(row, "ratio", 0, 5, 0), UsesDpsRatio: row.TryGetProperty("ratio", out _)));
+                    DpsRatio: OptionalNumber(row, "ratio", 0, 5, 0), UsesDpsRatio: row.TryGetProperty("ratio", out _),
+                    GrowthStartLevel: OptionalInteger(row, "growthStartLevel", 0, 1000, 0),
+                    ManaCostMaxPercent: OptionalNumber(row, "costPercent", 0, 100, 0)));
             }
             config = new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
             return true;
@@ -193,8 +199,8 @@ public sealed class SkillBalanceConfig
         return (id, name);
     }
 
-    /// <summary>可选的 [[角色等级, 倍率], ...]；等级为严格递增整数，缺省或空数组表示固定倍率。</summary>
-    private static (int Level, double Ratio)[] ReadRatioCurve(JsonElement row)
+    /// <summary>可选的 [[角色等级, 系数], ...]；等级为严格递增整数，缺省或空数组表示固定系数。maxValue 为 DPS 倍率 5 或 K 200。</summary>
+    private static (int Level, double Ratio)[] ReadRatioCurve(JsonElement row, double maxValue = 5)
     {
         if (!row.TryGetProperty("ratioCurve", out JsonElement curve) || curve.ValueKind == JsonValueKind.Null) return [];
         if (curve.ValueKind != JsonValueKind.Array || curve.GetArrayLength() > 16)
@@ -207,15 +213,15 @@ public sealed class SkillBalanceConfig
                 throw new FormatException("ratioCurve 的每项必须是 [等级, 倍率]。");
             double level = point[0].ValueKind == JsonValueKind.Number ? point[0].GetDouble() : double.NaN;
             double ratio = point[1].ValueKind == JsonValueKind.Number ? point[1].GetDouble() : double.NaN;
-            if (!(level >= 1 && level <= 1000) || level != Math.Truncate(level) || !(ratio >= 0 && ratio <= 5)
+            if (!(level >= 1 && level <= 1000) || level != Math.Truncate(level) || !(ratio >= 0 && ratio <= maxValue)
                 || index > 0 && level <= points[index - 1].Level)
-                throw new FormatException("ratioCurve 等级必须是 1..1000 的递增整数，倍率必须在 0..5 范围内。");
+                throw new FormatException($"ratioCurve 等级必须是 1..1000 的递增整数，系数必须在 0..{maxValue} 范围内。");
             points[index++] = ((int)level, ratio);
         }
         return points;
     }
 
-    /// <summary>可选的 19 阶段配装；任一项不合法时整份配置被拒绝，与网页和 server.py 的校验一致。</summary>
+    /// <summary>可选的 18 阶段配装；任一项不合法时整份配置被拒绝，与网页和 server.py 的校验一致。</summary>
     private static SkillLoadout[] ReadLoadouts(JsonElement c)
     {
         if (!c.TryGetProperty("loadouts", out JsonElement rows)) return [];
@@ -293,11 +299,15 @@ public sealed class SkillBalanceConfig
         return (int)number;
     }
 
-    /// <summary>普攻在指定角色等级的目标 DPS 倍率；无曲线时为固定 DpsRatio。</summary>
-    public static double GetDpsRatio(SkillBalanceEntry skill, double characterLevel)
+    /// <summary>普攻或显式 ratio 主动技能在指定角色等级的目标 DPS 倍率；无曲线时为固定 DpsRatio。</summary>
+    public static double GetDpsRatio(SkillBalanceEntry skill, double characterLevel) => InterpolateCurve(skill.RatioCurve, characterLevel, skill.DpsRatio);
+
+    /// <summary>魔力转换定价的主动技能在指定角色等级的 K；无曲线时为固定 ConversionRate。</summary>
+    public static double GetConversionRate(SkillBalanceEntry skill, double characterLevel) => InterpolateCurve(skill.RatioCurve, characterLevel, skill.ConversionRate);
+
+    private static double InterpolateCurve(IReadOnlyList<(int Level, double Ratio)> curve, double characterLevel, double fixedValue)
     {
-        IReadOnlyList<(int Level, double Ratio)> curve = skill.RatioCurve;
-        if (curve == null || curve.Count == 0) return skill.DpsRatio;
+        if (curve == null || curve.Count == 0) return fixedValue;
         if (characterLevel <= curve[0].Level) return curve[0].Ratio;
         for (int i = 1; i < curve.Count; i++)
         {
@@ -309,39 +319,45 @@ public sealed class SkillBalanceConfig
         return curve[^1].Ratio;
     }
 
-    /// <summary>未取整的整次基础伤害；characterLevel 是该技能等级映射出的伤害基准等级，只影响带曲线的普攻倍率。
+    /// <summary>未取整的整次基础伤害；characterLevel 是该技能等级映射出的伤害基准等级，也用于取系数曲线。
     /// 显式 ratio 的主动技能与普攻按完整周期定价；其他主动技能沿用魔力转换预算。</summary>
     public double GetSkillDamage(double baselineDps, SkillBalanceEntry skill, int characterLevel)
     {
         double baseline = Math.Max(0, baselineDps);
         if (skill.Kind == SkillBalanceKind.BasicAttack || skill.UsesDpsRatio)
-            return baseline * GetDpsRatio(skill, characterLevel) * skill.BaseCooldown;
-        double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.CdDamageRatio * skill.ConversionRate;
+            return baseline * GetDpsRatio(skill, characterLevel) * GetPricingPeriod(skill);
+        double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.CdDamageRatio * GetConversionRate(skill, characterLevel);
         return baseline * (OccupyRatio * Math.Max(1d / 60, skill.OccupySeconds) + extraRatio);
     }
 
     /// <summary>按配置完整周期折算的基础 DPS；主动技能包含 OccupyRatio 占手部分，不是净额外 DPS。</summary>
     public double GetSkillDps(double baselineDps, SkillBalanceEntry skill, int characterLevel) =>
-        GetSkillDamage(baselineDps, skill, characterLevel) / skill.BaseCooldown;
+        GetSkillDamage(baselineDps, skill, characterLevel) / GetPricingPeriod(skill);
 
-    /// <summary>技能升级节点；角色门槛同时是该技能等级的伤害基准等级，不代替 Boss 解锁条件。</summary>
+    /// <summary>定价周期：普攻为攻击间隔；显式 ratio 的主动技能为 CD + 读条；其他主动技能为 CD。</summary>
+    private static double GetPricingPeriod(SkillBalanceEntry skill) =>
+        skill.Kind == SkillBalanceKind.Active && skill.UsesDpsRatio ? skill.BaseCooldown + skill.OccupySeconds : skill.BaseCooldown;
+
+    /// <summary>技能成长节点，同时限制可购买等级并提供伤害基准；首次解锁由独立条件判断。</summary>
     public IEnumerable<int> GetSkillLevelNodes(SkillBalanceEntry skill, int maxCharacterLevel = 1000)
     {
-        if (maxCharacterLevel < skill.UnlockLevel) yield break;
+        int growthStart = skill.GrowthStartLevel > 0 ? skill.GrowthStartLevel : skill.UnlockLevel;
+        if (maxCharacterLevel < growthStart) yield break;
         int remaining = skill.MaxLevel > 0 ? skill.MaxLevel : int.MaxValue;
-        int previous = skill.UnlockLevel;
+        int previous = growthStart;
         yield return previous;
         if (--remaining == 0) yield break;
         if (skill.GrowthMode == SkillGrowthMode.Interval)
         {
-            for (long node = (long)skill.UnlockLevel + skill.LevelInterval; node <= maxCharacterLevel; node += skill.LevelInterval)
+            for (long node = (long)growthStart + skill.LevelInterval; node <= maxCharacterLevel; node += skill.LevelInterval)
             {
                 yield return (int)node;
                 if (--remaining == 0) yield break;
             }
             yield break;
         }
-        int stageStart = skill.UnlockLevel, stageEnd = skill.UnlockStageCap;
+        int stageStart = growthStart, stageEnd = skill.GrowthStartLevel > 0
+            ? ((growthStart - 1) / CharacterPhaseSize + 1) * CharacterPhaseSize : skill.UnlockStageCap;
         if (stageEnd <= stageStart)
             stageEnd += (int)Math.Ceiling((stageStart - stageEnd + 1d) / CharacterPhaseSize) * CharacterPhaseSize;
         while (stageStart < maxCharacterLevel)

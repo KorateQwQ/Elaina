@@ -1,0 +1,319 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using Forms = System.Windows.Forms;
+using Drawing = System.Drawing;
+using Color = Microsoft.Xna.Framework.Color;
+
+sealed record RangeSettings(float SpawnBackMin, float SpawnBackMax, float SpawnSideRange, float SpawnArcDegrees, float AimDegrees, float AimDistance = 600f)
+{
+    public void Validate()
+    {
+        foreach (float n in new[] { SpawnBackMin, SpawnBackMax, SpawnSideRange, SpawnArcDegrees, AimDegrees, AimDistance })
+            if (!float.IsFinite(n)) throw new InvalidDataException("参数必须是有限数值。");
+        if (SpawnBackMax < SpawnBackMin || SpawnBackMax > 1200 || SpawnSideRange < 0 || SpawnSideRange > 1200
+            || SpawnArcDegrees < 0 || SpawnArcDegrees > 180 || AimDegrees < -180 || AimDegrees > 180 || AimDistance < -2400 || AimDistance > 2400)
+            throw new InvalidDataException("范围参数超出限制，最近距离不能大于最远距离。");
+    }
+    public float[] SourceValues() => new[] { SpawnBackMin, SpawnBackMax, SpawnSideRange, SpawnArcDegrees, AimDistance };
+}
+
+static class RangeFiles
+{
+    public static readonly string[] Names = { "SpawnBackMin", "SpawnBackMax", "SpawnSideRange", "SpawnArcDegrees", "AimDistance" };
+    static string Pattern(string name) => @"(internal\s+static\s+float\s+" + name + @"\s*=>\s*)([-+]?[0-9]+(?:\.[0-9]+)?f)(\s*;)";
+    public static RangeSettings ReadSource(string path)
+    {
+        string text = File.ReadAllText(path);
+        var values = new float[Names.Length];
+        for (int i = 0; i < Names.Length; i++)
+        {
+            var matches = Regex.Matches(text, Pattern(Names[i]));
+            if (matches.Count != 1) throw new InvalidDataException("无法读取数值属性：" + Names[i]);
+            values[i] = float.Parse(matches[0].Groups[2].Value.TrimEnd('f'), CultureInfo.InvariantCulture);
+        }
+        var result = new RangeSettings(values[0], values[1], values[2], values[3], 0, values[4]);
+        result.Validate();
+        return result;
+    }
+    public static void Apply(string path, RangeSettings expected, RangeSettings next)
+    {
+        next.Validate();
+        if (!ReadSource(path).SourceValues().SequenceEqual(expected.SourceValues()))
+            throw new InvalidOperationException("源码中的参数已改变，请先点“读取代码”再调整。");
+        byte[] before = File.ReadAllBytes(path);
+        bool bom = before.Length >= 3 && before[0] == 239 && before[1] == 187 && before[2] == 191;
+        string text = new UTF8Encoding(false, true).GetString(before, bom ? 3 : 0, before.Length - (bom ? 3 : 0));
+        float[] values = next.SourceValues();
+        for (int i = 0; i < Names.Length; i++)
+        {
+            string value = values[i].ToString("0.###", CultureInfo.InvariantCulture) + "f";
+            text = Regex.Replace(text, Pattern(Names[i]), m => m.Groups[1].Value + value + m.Groups[3].Value);
+        }
+        if (!File.ReadAllBytes(path).SequenceEqual(before)) throw new IOException("源码正在被其他程序修改，请重试。");
+        File.WriteAllText(path, text, new UTF8Encoding(bom));
+    }
+    public static void Save(string path, RangeSettings value)
+    {
+        value.Validate();
+        File.WriteAllText(path, JsonSerializer.Serialize(value, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+}
+
+sealed class RangeEditor : Forms.Form
+{
+    public readonly Forms.PictureBox Canvas = new() { Dock = Forms.DockStyle.Fill, BackColor = Drawing.Color.FromArgb(18,24,33), SizeMode = Forms.PictureBoxSizeMode.Zoom };
+    readonly Dictionary<string, Forms.NumericUpDown> numbers = new();
+    readonly Dictionary<string, Forms.TrackBar> sliders = new();
+    readonly Forms.Label status = new() { AutoSize = true, MaximumSize = new Drawing.Size(300,0) };
+    readonly Forms.Label scaleLabel = new() { AutoSize = true };
+    readonly string sourcePath, savedPath;
+    RangeSettings sourceBaseline;
+    bool updating;
+    public bool Dirty = true;
+    public bool ScreenshotRequested;
+    public RangeSettings Settings => new((float)numbers["SpawnBackMin"].Value, (float)numbers["SpawnBackMax"].Value,
+        (float)numbers["SpawnSideRange"].Value, (float)numbers["SpawnArcDegrees"].Value, (float)numbers["AimDegrees"].Value, (float)numbers["AimDistance"].Value);
+
+    public RangeEditor(string root)
+    {
+        sourcePath = Path.Combine(root,"ElainaActions","Action_IceCone.cs");
+        savedPath = Path.Combine(root,"Tools","IceSpawnRangeChecks","selected-aim-range.json");
+        sourceBaseline = RangeFiles.ReadSource(sourcePath);
+        Text = "冰锥范围与发射角度 · 实时调整";
+        AutoScaleMode = Forms.AutoScaleMode.Dpi;
+        Font = new Drawing.Font("Microsoft YaHei UI",9f);
+        ClientSize = new Drawing.Size(1240,780);
+        MinimumSize = new Drawing.Size(960,660);
+        StartPosition = Forms.FormStartPosition.CenterScreen;
+        KeyPreview = true;
+        var inspector = new Forms.FlowLayoutPanel { Dock = Forms.DockStyle.Right, Width = 330, Padding = new Forms.Padding(12),
+            FlowDirection = Forms.FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+        Controls.Add(Canvas); Controls.Add(inspector);
+        inspector.Controls.Add(new Forms.Label { Text="出生范围",AutoSize=true,Margin=new Forms.Padding(3,3,3,12) });
+        AddSlider(inspector,"SpawnArcDegrees","弧度 · 0° 平直，180° 半圆",0,180);
+        AddSlider(inspector,"SpawnBackMin","轴线最近距离 / px",-1200,1200);
+        AddSlider(inspector,"SpawnBackMax","轴线最远距离 / px",0,1200);
+        AddSlider(inspector,"SpawnSideRange","左右各展开 / px",0,1200);
+        AddSlider(inspector,"AimDistance","固定瞄准距离 / px",-2400,2400);
+        AddSlider(inspector,"AimDegrees","瞄准角度 · 0° 向右",-180,180);
+        inspector.Controls.Add(new Forms.Label { Text="青线 / 圆点：出生范围 / 采样\n浅色矩形：角色位置\n金色十字：虚拟鼠标\n淡金线：初始发射方向",AutoSize=true,Margin=new Forms.Padding(3,8,3,10) });
+        inspector.Controls.Add(scaleLabel);
+        var row = new Forms.FlowLayoutPanel { Width=300,Height=38,Margin=new Forms.Padding(0,12,0,0) };
+        AddButton(row,"保存参数",()=> { RangeFiles.Save(savedPath,Settings); status.Text="参数已保存到 selected-aim-range.json。"; });
+        AddButton(row,"载入参数",()=> {
+            string path = File.Exists(savedPath) ? savedPath : Path.Combine(root,"Tools","IceSpawnRangeChecks","selected-range.json");
+            var loaded=JsonSerializer.Deserialize<RangeSettings>(File.ReadAllText(path)) ?? throw new InvalidDataException("参数文件为空。");
+            loaded.Validate(); Set(loaded); status.Text="已载入保存的参数。";
+        });
+        AddButton(row,"读取代码",()=> { sourceBaseline=RangeFiles.ReadSource(sourcePath); Set(sourceBaseline); status.Text="已读取当前代码参数。"; });
+        inspector.Controls.Add(row);
+        var row2 = new Forms.FlowLayoutPanel { Width=300,Height=38,Margin=new Forms.Padding(0) };
+        AddButton(row2,"写入属性值",()=> {
+            RangeFiles.Apply(sourcePath,sourceBaseline,Settings); sourceBaseline=Settings;
+            status.Text="已写入范围和瞄准距离，请在 IDE 应用 Hot Reload。";
+        });
+        AddButton(row2,"截图",()=> ScreenshotRequested=true);
+        inspector.Controls.Add(row2);
+        status.Margin=new Forms.Padding(3,10,3,0);
+        status.Text="拖动滑块即可预览；写入属性值后才修改游戏代码。";
+        inspector.Controls.Add(status);
+        Canvas.Resize+=(_,_)=>Dirty=true;
+        KeyDown+=(_,e)=> { if(e.KeyCode==Forms.Keys.Escape)Close(); if(e.Control && e.KeyCode==Forms.Keys.S){RangeFiles.Save(savedPath,Settings);status.Text="参数已保存。";e.SuppressKeyPress=true;} };
+        Set(sourceBaseline);
+    }
+    void AddSlider(Forms.Control parent,string key,string label,int min,int max)
+    {
+        var group=new Forms.Panel { Width=300,Height=72,Margin=new Forms.Padding(0) };
+        group.Controls.Add(new Forms.Label { Text=label,AutoSize=true,Location=new Drawing.Point(3,3) });
+        var number=new Forms.NumericUpDown { Minimum=min,Maximum=max,DecimalPlaces=1,Increment=1,Width=85,Location=new Drawing.Point(207,24) };
+        var slider=new Forms.TrackBar { Minimum=min,Maximum=max,TickStyle=Forms.TickStyle.None,LargeChange=10,Width=204,Location=new Drawing.Point(0,26) };
+        numbers[key]=number;sliders[key]=slider;
+        slider.ValueChanged+=(_,_)=>Change(key,slider.Value);
+        number.ValueChanged+=(_,_)=>Change(key,number.Value);
+        group.Controls.Add(number);group.Controls.Add(slider);parent.Controls.Add(group);
+    }
+    void Change(string key,decimal value)
+    {
+        if(updating)return;
+        updating=true;
+        numbers[key].Value=value;sliders[key].Value=(int)Math.Round(value);
+        if(numbers.TryGetValue("SpawnBackMin",out var near) && numbers.TryGetValue("SpawnBackMax",out var far) && near.Value>far.Value)
+        {
+            string other=key=="SpawnBackMax"?"SpawnBackMin":"SpawnBackMax";
+            numbers[other].Value=value;sliders[other].Value=(int)Math.Round(value);
+        }
+        updating=false;Dirty=true;
+    }
+    void AddButton(Forms.Control parent,string text,Action action)
+    {
+        var button=new Forms.Button { Text=text,AutoSize=true,Height=30 };
+        button.Click+=(_,_)=> { try{action();}catch(Exception e){status.Text=e.Message;} };
+        parent.Controls.Add(button);
+    }
+    public void Set(RangeSettings next)
+    {
+        next.Validate();updating=true;
+        var values=next.SourceValues().Concat(new[]{next.AimDegrees}).ToArray();
+        var keys=RangeFiles.Names.Concat(new[]{"AimDegrees"}).ToArray();
+        for(int i=0;i<keys.Length;i++){numbers[keys[i]].Value=(decimal)values[i];sliders[keys[i]].Value=(int)Math.Round(values[i]);}
+        updating=false;Dirty=true;
+    }
+    public void ExerciseSlider(string key,int value)=>sliders[key].Value=value;
+    public void Publish(Drawing.Bitmap bitmap,float scale)
+    {
+        var old=Canvas.Image;Canvas.Image=bitmap;old?.Dispose();
+        scaleLabel.Text=$"预览自动缩放：{scale:0.00}×";
+    }
+    public void SaveWindow(string path)
+    {
+        using var bitmap=new Drawing.Bitmap(Width,Height);
+        DrawToBitmap(bitmap,new Drawing.Rectangle(Drawing.Point.Empty,Size));
+        bitmap.Save(path,Drawing.Imaging.ImageFormat.Png);
+    }
+    protected override void Dispose(bool disposing)
+    {
+        if(disposing){Canvas.Image?.Dispose();Canvas.Image=null;}
+        base.Dispose(disposing);
+    }
+}
+
+sealed class LivePreview : Game
+{
+    readonly string output,root;
+    readonly bool check;
+    RangeEditor editor;
+    Texture2D pixel;
+    int checkFrame;
+    bool firstCapture=true;
+    byte[] initialImage;
+    public LivePreview(string output,string root,bool check)
+    {
+        this.output=output;this.root=root;this.check=check;
+        _=new GraphicsDeviceManager(this){PreferredBackBufferWidth=64,PreferredBackBufferHeight=64,GraphicsProfile=GraphicsProfile.HiDef,SynchronizeWithVerticalRetrace=false};
+        IsFixedTimeStep=true;
+        TargetElapsedTime=TimeSpan.FromSeconds(1.0/30);
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        pixel=new Texture2D(GraphicsDevice,1,1);pixel.SetData(new[]{Color.White});
+        Terraria.GameContent.TextureAssets.MagicPixel.Value=pixel;
+        Main.spriteBatch=new SpriteBatch(GraphicsDevice);
+        editor=new RangeEditor(root);
+        if(check){editor.ShowInTaskbar=false;editor.Opacity=0;}
+        editor.Show();
+    }
+    protected override void Update(GameTime gameTime)
+    {
+        Forms.Application.DoEvents();
+        if(editor.IsDisposed){Exit();return;}
+        if(check)
+        {
+            if(checkFrame==1){editor.ExerciseSlider("SpawnArcDegrees",0);editor.ExerciseSlider("SpawnBackMin",0);editor.ExerciseSlider("SpawnBackMax",204);editor.ExerciseSlider("SpawnSideRange",189);editor.ExerciseSlider("AimDistance",600);}
+            if(checkFrame==2)
+            {
+                if(editor.Settings!=new RangeSettings(0,204,189,0,0))throw new Exception("Live sliders did not update the settings.");
+                editor.SaveWindow(Path.Combine(output,"editor-flat.png"));
+                editor.ExerciseSlider("SpawnArcDegrees",150);editor.ExerciseSlider("AimDegrees",35);editor.ExerciseSlider("AimDistance",160);
+            }
+            if(checkFrame==3)
+            {
+                editor.SaveWindow(Path.Combine(output,"editor-curved.png"));
+                CheckFiles();
+                Console.WriteLine("PASS live editor: slider changes, live redraw, numeric constraints, JSON round trip, getter-only write, conflict rejection.");
+                editor.Close();Exit();return;
+            }
+        }
+        if(editor.Dirty)
+        {
+            Render();editor.Dirty=false;
+            if(firstCapture){editor.SaveWindow(Path.Combine(output,"editor-current.png"));firstCapture=false;}
+        }
+        if(editor.ScreenshotRequested)
+        {
+            editor.SaveWindow(Path.Combine(output,"editor-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".png"));
+            editor.ScreenshotRequested=false;
+        }
+        checkFrame++;
+    }
+    void Render()
+    {
+        var p=editor.Settings;
+        Fixture.SpawnBackMin=p.SpawnBackMin;Fixture.SpawnBackMax=p.SpawnBackMax;Fixture.SpawnSideRange=p.SpawnSideRange;Fixture.SpawnArcDegrees=p.SpawnArcDegrees;Fixture.AimDistance=p.AimDistance;
+        int width=Math.Max(64,editor.Canvas.ClientSize.Width),height=Math.Max(64,editor.Canvas.ClientSize.Height);
+        float rotation=MathHelper.ToRadians(p.AimDegrees);
+        Vector2 forward=rotation.ToRotationVector2(),side=forward.RotatedBy(MathHelper.PiOver2);
+        Vector2 min=new(-30,-30),max=new(30,30);
+        Vector2 aim=forward*p.AimDistance;min=Vector2.Min(min,aim);max=Vector2.Max(max,aim);
+        for(int i=0;i<=128;i++)for(int edge=0;edge<2;edge++)
+        {
+            Vector2 q=Range.GetSpawnOffset(i/128f,edge),world=-forward*q.X+side*q.Y;
+            min=Vector2.Min(min,world);max=Vector2.Max(max,world);
+        }
+        float zoom=Math.Min(2f,Math.Min((width-80)/Math.Max(1,max.X-min.X),(height-80)/Math.Max(1,max.Y-min.Y)));
+        Vector2 center=new Vector2(width,height)/(2*zoom)-(min+max)*.5f;
+        using var target=new RenderTarget2D(GraphicsDevice,width,height);
+        GraphicsDevice.SetRenderTarget(target);GraphicsDevice.Clear(new Color(18,24,33));
+        Main.GameViewMatrix.Zoom=new Vector2(zoom);
+        var batch=Main.spriteBatch;
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,RasterizerState.CullNone,null,Matrix.CreateScale(zoom));
+        float grid=zoom<.4f?160:80;
+        for(float x=center.X%grid;x<width/zoom;x+=grid)batch.Draw(pixel,new Vector2(x,0),null,new Color(34,43,54),0,Vector2.Zero,new Vector2(1/zoom,height/zoom),SpriteEffects.None,0);
+        for(float y=center.Y%grid;y<height/zoom;y+=grid)batch.Draw(pixel,new Vector2(0,y),null,new Color(34,43,54),0,Vector2.Zero,new Vector2(width/zoom,1/zoom),SpriteEffects.None,0);
+        var random=new Random(8721);
+        for(int i=0;i<400;i++)
+        {
+            Vector2 q=Range.GetSpawnOffset((float)random.NextDouble(),(float)random.NextDouble());
+            batch.Draw(pixel,center-forward*q.X+side*q.Y,null,new Color(100,180,205)*.65f,0,new Vector2(.5f),new Vector2(2/zoom),SpriteEffects.None,0);
+        }
+        Range.DrawSpawnRange(center,rotation);
+        batch.Draw(pixel,center,null,new Color(205,199,172),0,new Vector2(.5f),new Vector2(20,42),SpriteEffects.None,0);
+        batch.Draw(pixel,center+forward*22,null,Color.White*.7f,rotation,new Vector2(0,.5f),new Vector2(90,2/zoom),SpriteEffects.None,0);
+        batch.End();GraphicsDevice.SetRenderTarget(null);
+        using var stream=new MemoryStream();target.SaveAsPng(stream,width,height);
+        byte[] bytes=stream.ToArray();
+        if(check && checkFrame==0)initialImage=bytes;
+        if(check && checkFrame==1 && initialImage.SequenceEqual(bytes))throw new Exception("Slider edits did not redraw the FNA view.");
+        stream.Position=0;
+        using var loaded=Drawing.Image.FromStream(stream);
+        editor.Publish(new Drawing.Bitmap(loaded),zoom);
+    }
+    void CheckFiles()
+    {
+        editor.ExerciseSlider("SpawnBackMin",-160);
+        if(editor.Settings.SpawnBackMin!=-160)throw new Exception("Negative spawn-back distance was rejected.");
+        editor.ExerciseSlider("AimDistance",-160);
+        if(editor.Settings.AimDistance!=-160)throw new Exception("Negative aim distance was rejected.");
+        string json=Path.Combine(output,"test-settings.json");
+        RangeFiles.Save(json,editor.Settings);
+        if(JsonSerializer.Deserialize<RangeSettings>(File.ReadAllText(json))!=editor.Settings)throw new Exception("Settings round trip failed.");
+        string temp=Path.Combine(output,"test-source.txt");
+        string source=File.ReadAllText(Path.Combine(root,"ElainaActions","Action_IceCone.cs"));
+        File.WriteAllText(temp,source);
+        var expected=RangeFiles.ReadSource(temp);
+        RangeFiles.Apply(temp,expected,editor.Settings);
+        if(!RangeFiles.ReadSource(temp).SourceValues().SequenceEqual(editor.Settings.SourceValues()))throw new Exception("Getter write failed.");
+        string strip= @"(internal\s+static\s+float\s+(?:Spawn\w+|AimDistance)\s*=>\s*)[-+]?[0-9]+(?:\.[0-9]+)?f";
+        if(Regex.Replace(source,strip,"$1VALUE")!=Regex.Replace(File.ReadAllText(temp),strip,"$1VALUE"))throw new Exception("Unrelated source changed.");
+        bool rejected=false;
+        try{RangeFiles.Apply(temp,expected,editor.Settings);}catch(InvalidOperationException){rejected=true;}
+        if(!rejected)throw new Exception("Source conflict was not rejected.");
+        const string oldJson="{\"SpawnBackMin\":0,\"SpawnBackMax\":109,\"SpawnSideRange\":138,\"SpawnArcDegrees\":60,\"AimDegrees\":0}";
+        var legacy=JsonSerializer.Deserialize<RangeSettings>(oldJson);
+        if(legacy.AimDistance!=600)throw new Exception("Legacy range settings lost default aim distance.");
+        editor.ExerciseSlider("SpawnBackMin",500);
+        if(editor.Settings.SpawnBackMax!=500)throw new Exception("Near/far coupling failed.");
+    }
+    protected override void UnloadContent(){editor?.Dispose();Main.spriteBatch?.Dispose();pixel?.Dispose();}
+}

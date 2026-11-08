@@ -67,17 +67,11 @@ public abstract class ElainaAction :AnimAction
         {
             if (drawLayerType == ActionDrawLayerType.UnderArm)
             {
-                UpdateWandTrail();
                 DrawWand(ref drawInfo);
             }
             if(drawLayerType==ActionDrawLayerType.OverPlayer)
             {
                 base.Draw(actionPlayer, ref drawInfo, actionFrame, actionProgress, drawLayerType);
-                DrawAutoWandTrail(actionProgress);
-                if (DrawActionStar)
-                {
-                    DrawStar(ref drawInfo,actionProgress);
-                }
                 if (DrawWandTrail || DrawActionStar)
                 {
                     EndBeginDraw(0,1);
@@ -158,7 +152,7 @@ public abstract class ElainaAction :AnimAction
         });
 
     }
-    private void DrawAutoWandTrail(float actionProgress)
+    private void RequestAutoWandTrailBloom(float actionProgress)
     {
         if (!DrawWandTrail || wandTrailPointCount < 2)
         {
@@ -168,7 +162,7 @@ public abstract class ElainaAction :AnimAction
         Vector2[] trailPositions = new Vector2[wandTrailPointCount];
         Array.Copy(wandTrailPositions, trailPositions, wandTrailPointCount);
 
-        DrawWandTrailVisual(trailPositions, actionProgress);
+        ElainaTrailVisualStyle.RequestTrailBloom(() => DrawWandTrailVisual(trailPositions, actionProgress));
     }
 
     protected virtual void DrawWandTrailVisual(Vector2[] points, float actionProgress)
@@ -194,8 +188,30 @@ public abstract class ElainaAction :AnimAction
         owner.itemRotation = toward.ToRotation();//武器朝向
     }
  
-    protected virtual void DrawStar(ref PlayerDrawSet drawInfo,float actionProgress)
+    internal void SubmitActionVisuals(ActionModPlayer actionPlayer)
     {
-        ElainaTrailVisualStyle.DrawDefaultStar(ref drawInfo, StarCenter.Floor(), actionProgress);
+        // CacheProjDraws runs before the projectile Bloom queue is consumed and before player drawing.
+        int actionFrame = actionPlayer.CurrentActionFrame;
+        float actionProgress = GetProgress(actionFrame);
+        UpdateWandTrail();
+        RequestAutoWandTrailBloom(actionProgress);
+        foreach (ActionNode node in Nodes)
+        {
+            if (node is SlashTrailActionNode trail && node.IsActive(actionFrame))
+            {
+                trail.SubmitTrailBloom(actionPlayer, node.GetProgress(actionFrame));
+            }
+        }
+
+        if (DrawActionStar)
+        {
+            RequestActionStarBloom(actionProgress);
+        }
+    }
+
+    protected virtual void RequestActionStarBloom(float actionProgress)
+    {
+        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+            ElainaTrailVisualStyle.DefaultStarColor);
     }
 }

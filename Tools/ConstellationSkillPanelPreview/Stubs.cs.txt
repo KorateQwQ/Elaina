@@ -310,6 +310,7 @@ namespace KL.SkillSystem
         public float CurrentCD;
         public int Stack = 1, MaxStack = 1;
         public float MaxCD = .3f;
+        // LIVE_IN_CD
         public ModSkill ModSkill;
         // LIVE_SKILL_MAX_LEVEL
         public Terraria.ModLoader.Mod Mod => ModSkill.Mod;
@@ -367,11 +368,16 @@ namespace 伊蕾娜.ElainaModSkills
 
     public abstract partial class ElainaSkill : ModSkill
     {
+        internal long LegacyUpgradeRefundAdjustment { get; set; }
         protected string SkillTexturePath => Fixtures.Icon(GetType().Name);
         public float MagicPointCost = 3;
         protected virtual object[] SkillDescriptionArgs => [];
     }
-    public sealed class ElainaSkillModPlayer : KLSkillModPlayer { public static ElainaSkillModPlayer SkillModPlayer; public static int CurrentSkillIndex = -1; }
+    public sealed class ElainaSkillModPlayer : KLSkillModPlayer
+    {
+        public static ElainaSkillModPlayer SkillModPlayer; public static int CurrentSkillIndex = -1;
+        // LIVE_UNEQUIP_LOCK
+    }
 }
 
 // Isolated player fixtures. Production state, descriptions, layout and drawing are linked unchanged.
@@ -425,11 +431,11 @@ internal static class SkillBalanceConfigForPreview
     }
 }
 [SkillUIInfo(State = 4, Pixels = 400)] public class WaterLaserSKill : 伊蕾娜.ElainaModSkills.ElainaSkill { protected override object[] SkillDescriptionArgs => [.2f, 96, 50f, 1.5f]; }
-[SkillUIInfo(State = 6, Pixels = 600)] public class FireLaserSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { protected override object[] SkillDescriptionArgs => [1f, .3f, 95, 3f, 5f, 50f]; }
+[SkillUIInfo(State = 6, Pixels = 600)] public class FireLaserSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { public FireLaserSkill() { MagicPointCost = 10f / 6f; } protected override object[] SkillDescriptionArgs => [1f, 10f / 60f, 95, 10f / 6f, 5f, 50f, 40f]; }
 // Fixture damage / buildup arguments for the term preview; production values come from SkillBalance.json.
 [SkillUIInfo(State = 7, Pixels = 500)] public class IceConeSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { protected override object[] SkillDescriptionArgs => [126, 2.8f, Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.ShardbindSkill")]; }
 [SkillUIInfo(State = 6, Pixels = 400)] public class ShardbindSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { public ShardbindSkill() { MagicPointCost=250; } protected override object[] SkillDescriptionArgs => [3600]; }
-[SkillUIInfo(State = 8, Pixels = 600)] public class FireBurstSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { public FireBurstSkill() { MagicPointCost = 50; } protected override object[] SkillDescriptionArgs => [900, 50f, 3, 10f]; }
+[SkillUIInfo(State = 8, Pixels = 600)] public class FireBurstSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { public FireBurstSkill() { MagicPointCost = 350; } protected override object[] SkillDescriptionArgs => [900, 350f, 1, 60f, 10f, 1f, 1287, 1287, 15f]; }
 [SkillUIInfo(State = 12, Pixels = 400)] public class WaterBallSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { public WaterBallSkill() { MagicPointCost=100; } protected override object[] SkillDescriptionArgs => [1200]; }
 public class UnlistedSkill : 伊蕾娜.ElainaModSkills.ElainaSkill { }
 [SkillUIInfo] public class ForeignSkill : ModSkill { }

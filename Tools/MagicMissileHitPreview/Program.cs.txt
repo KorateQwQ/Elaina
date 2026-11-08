@@ -124,11 +124,7 @@ sealed class HitPreview : Game
     Effect reColor;
     Effect trailEffect;
     Texture2D trailTexture;
-    MagicMissileTrailNoise trailNoise;
     Texture2D headStamp;
-    // 拖尾消亡时的长度缩短比例；对照方案为 0（不缩短）
-    float lengthShrink = MagicMissileTrailVisuals.DefaultLengthShrink;
-    bool smoothRelease;
     float smoothFollowSpeed = 30f;
     Texture2D headNoise;
     Texture2D pixel, zombie, shockBlack, shock, burstPoint, shotLine;
@@ -179,9 +175,7 @@ sealed class HitPreview : Game
         reColor = effects.Load<Effect>("ReColor");
         trailEffect = new ContentManager(Services, Path.Combine(elaina, "Effects/Content")).Load<Effect>("MagicMissileTrail");
         trailTexture = Png("Effects/Tex/Trail/LightTrail.png");
-        // 与游戏一致保持绑定的纹理存活，拖尾收缩与头部消融都在绘制时采样
-        trailNoise = new MagicMissileTrailNoise(Png("Effects/Tex/PerlinX.png"));
-        TrailChecks.RunNoise(trailNoise);
+        TrailChecks.RunGeometry();
         headStamp = Png("Effects/Tex/Sparkle/T_Vfx_Stamp_HitSword_22.PNG");
         headNoise = Png("Effects/Tex/Noise/5.png");
         renderer = Activator.CreateInstance(draw);
@@ -220,30 +214,17 @@ sealed class HitPreview : Game
     {
         if (done) return;
         done = true;
-        int code = 1;
-        try
-        {
-            Execute();
-            code = 0;
-        }
-        catch (Exception e)
-        {
-            Console.Error.WriteLine(e);
-        }
+        Execute();
         Console.Out.Flush();
         Console.Error.Flush();
         // FNA 的 D3D11 后端在进程退出清理时会卡住，写完结果后直接终止进程
-        TerminateProcess(Process.GetCurrentProcess().Handle, (uint)code);
+        TerminateProcess(Process.GetCurrentProcess().Handle, 0);
     }
 
     Vector2 HitPoint(int lane) => new(lane * LaneWidth + 190, GroundY - zombieFrameHeight / 2f - 2);
 
     void Execute()
     {
-        if (Environment.GetEnvironmentVariable("MISSILE_EARLY_CRACKS") == "1") {
-            CheckEarlyCracks();
-            return;
-        }
         if (Environment.GetEnvironmentVariable("MISSILE_LEGACY_HITS") != "1") {
             RenderSmoothRelease();
             return;
@@ -281,11 +262,6 @@ sealed class HitPreview : Game
                 new Vector2(i * LaneWidth + 345, 330), HitAngle, 0, 400 + i, true, i == 1)).ToList();
             for (int t = 1; t <= 50; t++)
                 SavePng(Path.Combine(output, "frames", $"{bg}-trail-{t:000}.png"), RenderFrame(trails, t, night));
-            // 对照：完全不缩短，纯靠截面收窄
-            lengthShrink = 0f;
-            for (int t = 1; t <= 50; t++)
-                SavePng(Path.Combine(output, "frames", $"{bg}-noshrink-{t:000}.png"), RenderFrame(trails, t, night));
-            lengthShrink = MagicMissileTrailVisuals.DefaultLengthShrink;
             // 无爆炸遮挡的拖尾分段检查，便于观察每处缺口和全长保留。
             SavePng(Path.Combine(output, $"{bg}-trail-only.png"), RenderFrame(trails, 15, night, true));
             // 头部爆点消融序列（无命中特效遮挡）
@@ -294,12 +270,10 @@ sealed class HitPreview : Game
             foreach (float zoom in new[] { 1f, 2f })
                 SavePng(Path.Combine(output, $"{bg}-width-{zoom:0}x.png"), RenderWidthStudy(night, zoom));
         }
-        CheckEarlyCracks();
     }
 
     void RenderSmoothRelease()
     {
-        smoothRelease = true;
         var trails = Enumerable.Range(0, Lanes).Select(i => new Hit(i == 2 ? "burst" : "hit",
             new Vector2(i * LaneWidth + 345, 330), HitAngle, 0, 400 + i, true, i == 1)).ToList();
         foreach (bool night in new[] { false, true }) {
@@ -312,9 +286,9 @@ sealed class HitPreview : Game
                 foreach (int tick in new[] { 1, 3, 5, 9, 15, 23, 29 })
                     SavePng(Path.Combine(output, $"smooth-{bg}-speed{speed:0}-{tick:00}.png"), RenderFrame(trails, tick, night));
             }
-            SavePng(Path.Combine(output, $"smooth-{bg}-width.png"), RenderWidthStudy(night, 2f, smooth: true));
+            SavePng(Path.Combine(output, $"smooth-{bg}-width.png"), RenderWidthStudy(night, 2f));
         }
-        var pixels = RenderWidthStudy(true, 2f, bloom: false, smooth: true);
+        var pixels = RenderWidthStudy(true, 2f, bloom: false);
         SavePng(Path.Combine(output, "smooth-continuity-check.png"), pixels);
         for (int column = 0; column < 2; column++)
         for (int row = 1; row <= 4; row++) {
@@ -327,84 +301,10 @@ sealed class HitPreview : Game
             if (segments != 1) throw new Exception($"Smooth release split or vanished early: column {column}, row {row}, segments {segments}.");
         }
         Console.WriteLine("Smooth release GPU check passed: one continuous lit segment while narrowing and advancing.");
-        smoothRelease = false;
     }
 
-    void CheckEarlyCracks()
-    {
-        CheckProgressiveCracks();
-        foreach (bool night in new[] { false, true }) {
-            foreach (float zoom in new[] { 1f, 2f })
-                SavePng(Path.Combine(output, $"{(night ? "night" : "day")}-early-cracks-{zoom:0}x.png"),
-                    RenderWidthStudy(night, zoom, early: true));
-            var trails = Enumerable.Range(0, Lanes).Select(i => new Hit(i == 2 ? "burst" : "hit",
-                new Vector2(i * LaneWidth + 345, 330), HitAngle, 0, 400 + i, true, i == 1)).ToList();
-            foreach (int tick in new[] { 1, 2, 4, 8, 14, 17 })
-                SavePng(Path.Combine(output, $"{(night ? "night" : "day")}-early-impact-{tick:00}.png"),
-                    RenderFrame(trails, tick, night));
-        }
-        // GPU output from the production shader, without Bloom filling the small gaps.
-        // Compare live and the first expiration frame at identical local coordinates, for both seeds.
-        var pixels = RenderWidthStudy(true, 1f, early: true, bloom: false);
-        SavePng(Path.Combine(output, "early-cracks-check.png"), pixels);
-        for (int column = 0; column < 2; column++) {
-            int cutPixels = 0;
-            for (int x = column * 780 + 410; x < column * 780 + 710; x++)
-                if (pixels[45 * Width + x].R > 100 && pixels[120 * Width + x].R <= 27)
-                    cutPixels++;
-            if (cutPixels < 4) throw new Exception($"Trail has no immediate cracks for seed column {column}: {cutPixels} cut pixels.");
-            Console.WriteLine($"First expiration frame, seed column {column}: {cutPixels} formerly lit pixels fully cut.");
-        }
-    }
-
-    void CheckProgressiveCracks()
-    {
-        foreach (bool night in new[] { false, true })
-            SavePng(Path.Combine(output, $"{(night ? "night" : "day")}-progressive-cracks.png"),
-                RenderWidthStudy(night, 2f, progressive: true));
-        foreach (var seeds in new[] { (400, 403), (0, 397), (794, 1191), (1588, 1985) }) {
-        var pixels = RenderWidthStudy(true, 2f, bloom: false, progressive: true, seedA: seeds.Item1, seedB: seeds.Item2);
-        SavePng(Path.Combine(output, $"progressive-cracks-check-{seeds.Item1}-{seeds.Item2}.png"), pixels);
-        int differingPixels = 0;
-        for (int x = 80; x < 720; x++)
-            if ((pixels[120 * Width + x].R > 45) != (pixels[120 * Width + x + 780].R > 45)) differingPixels++;
-        if (differingPixels < 4) throw new Exception("Different missile seeds reused the same opening cracks.");
-        for (int column = 0; column < 2; column++) {
-            // Measure the intact head-side cross section, away from every crack and the clipped tail.
-            // Clipping only the outer texture leaves this bright core thick until late expiration.
-            int BrightWidth(int row) {
-                int count = 0;
-                for (int y = row * 75 + 45 - 24; y <= row * 75 + 45 + 24; y++)
-                    if (pixels[y * Width + column * 780 + 700].R > 140) count++;
-                return count;
-            }
-            int fullWidth = BrightWidth(0), middleWidth = BrightWidth(3);
-            if (middleWidth > fullWidth * .75f)
-                throw new Exception($"Intact trail core must narrow during fracture: {fullWidth} -> {middleWidth} pixels.");
-            Console.WriteLine($"Intact core width: {fullWidth} -> {middleWidth} pixels by 24% lifetime.");
-            int CountSegments(int row) {
-                int count = 0, runLength = 0;
-                for (int x = column * 780 + 80; x <= column * 780 + 720; x++) {
-                    bool lit = x < column * 780 + 720 && pixels[(row * 75 + 45) * Width + x].R > 45;
-                    if (lit) runLength++;
-                    else { if (runLength >= 3) count++; runLength = 0; }
-                }
-                return count;
-            }
-            int first = CountSegments(1), later = CountSegments(5);
-            if (later <= first) throw new Exception($"Cracks must keep splitting: seed column {column}, {first} -> {later} segments.");
-            for (int row = 1; row < 5; row++)
-                for (int x = column * 780 + 80; x < column * 780 + 720; x++)
-                    if (pixels[(row * 75 + 45) * Width + x].R <= 27 && pixels[((row + 1) * 75 + 45) * Width + x].R > 45)
-                        throw new Exception("A fracture moved or healed during expiration.");
-            Console.WriteLine($"Progressive fractures, seed {(column == 0 ? seeds.Item1 : seeds.Item2)}: {first} -> {later} lit segments; no healing.");
-        }
-        }
-    }
-
-    // 六个阶段、两个噪声切片；真实矩阵缩放，用于检查消亡瞬间粗细与最后的亚像素细线。
-    Color[] RenderWidthStudy(bool night, float zoom, bool early = false, bool bloom = true, bool progressive = false,
-        int seedA = 400, int seedB = 403, bool smooth = false)
+    // 六个阶段、两个种子；真实矩阵缩放，用于检查消亡时的截面宽度与亚像素细线。
+    Color[] RenderWidthStudy(bool night, float zoom, bool bloom = true)
     {
         using var scene = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None,
             0, RenderTargetUsage.PreserveContents);
@@ -413,18 +313,17 @@ sealed class HitPreview : Game
         GraphicsDevice.Clear(night ? new Color(25, 34, 54) : new Color(62, 155, 151));
         Enqueue(() =>
         {
-            float[] ages = smooth ? [-1, 0, .2f, .4f, .6f, .9f] : progressive ? [-1, 0, .12f, .24f, .36f, .48f]
-                : early ? [-1, 0, 1f / 22f, 2f / 22f, .25f, .6f] : [-1, 0, .4f, .6f, .8f, .97f];
+            float[] ages = [-1, 0, .2f, .4f, .6f, .9f];
             for (int column = 0; column < 2; column++)
             for (int row = 0; row < ages.Length; row++)
             {
                 float age = ages[row];
-                var visual = new MagicMissileTrailVisuals(column == 0 ? seedA : seedB)
-                    { Expiring = age >= 0, TextureOffset = .4f, FracturedRelease = !smooth };
+                var visual = new MagicMissileTrailVisuals(column == 0 ? 400 : 403)
+                    { Expiring = age >= 0, TextureOffset = .4f };
                 var path = Enumerable.Range(0, 24).Select(i => new Vector2(-i * 320f / 23, 0)).ToArray();
-                if (smooth && age >= 0) visual.BeginRelease(path, 30f);
+                if (age >= 0) visual.BeginRelease(path, 30f);
                 batch.End();
-                visual.Draw(GraphicsDevice, trailEffect, trailTexture, trailNoise, path, 1 - Math.Max(0, age),
+                visual.Draw(GraphicsDevice, trailEffect, trailTexture, path, 1 - Math.Max(0, age),
                     Matrix.CreateScale(zoom) * Matrix.CreateTranslation(column * 780 + 720, row * 75 + 45, 0),
                     (BlendState)forBloom.Invoke(null, [BlendState.Additive]), zoom);
                 batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
@@ -456,18 +355,17 @@ sealed class HitPreview : Game
             if (age < 1) continue;
             if (hit.Trail)
             {
-                var visual = new MagicMissileTrailVisuals(hit.Seed) { Expiring = true, TextureOffset = 0.4f, HeadRotation = hit.Angle,
-                    LengthShrink = lengthShrink, FracturedRelease = !smoothRelease };
+                var visual = new MagicMissileTrailVisuals(hit.Seed) { Expiring = true, TextureOffset = 0.4f, HeadRotation = hit.Angle };
                 // 上次绘制距命中位置 30 px，验证 FinishPath 的末段连接。
                 Vector2[] previous = Enumerable.Range(0, 24).Select(i => hit.Position
                     - Dir(hit.Angle) * (30 + i * 290f / 23)
                     + new Vector2(0, hit.Curved ? -65 * MathF.Sin(i / 23f * MathF.PI) : 0)).ToArray();
                 Vector2[] path = MagicMissileTrailVisuals.FinishPath(previous, hit.Position, 320);
-                if (smoothRelease) visual.BeginRelease(path, smoothFollowSpeed);
+                visual.BeginRelease(path, smoothFollowSpeed);
                 bloomParts.Add(() =>
                 {
                     batch.End();
-                    visual.Draw(GraphicsDevice, trailEffect, trailTexture, trailNoise, path, 1 - (age - 1f) / visual.ReleaseTicks,
+                    visual.Draw(GraphicsDevice, trailEffect, trailTexture, path, 1 - (age - 1f) / visual.ReleaseTicks,
                         Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.Additive]));
                     visual.DrawHead(GraphicsDevice, trailEffect, headStamp, headNoise, path[0], 1 - (age - 1f) / visual.ReleaseTicks,
                         Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.AlphaBlend]));

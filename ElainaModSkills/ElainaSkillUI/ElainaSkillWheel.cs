@@ -139,6 +139,9 @@ public sealed class ElainaSkillWheel : BaseBody
             if (!CanStayOpen) wheel.Close(false);
             else if (!key.Current) wheel.Close(true);
         }
+        else if (ElainaActions.Action_WaterLaser.OwnsQuickCastInput(Main.LocalPlayer)
+            || ElainaActions.Action_FireLaser.OwnsQuickCastInput(Main.LocalPlayer))
+            ClearPendingInteract();
         else if (!key.Current)
             ClearPendingInteract();
         else if (key.JustPressed && CanOpen)

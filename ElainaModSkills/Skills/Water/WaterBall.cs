@@ -38,6 +38,8 @@ public class WaterBall : ElainaBasicProjectile
     }
 
     private readonly WaterExposureBatch waterBatch = new();
+    /// <summary>施法时按技能 ratio 折算的燃烧目标伤害乘数；命中结算在拥有端，无需同步。</summary>
+    public float BurningDamageMultiplier { get; set; } = 1f;
     private Vector2 oldPosition;
 
     private float lastRotation;
@@ -126,10 +128,12 @@ public class WaterBall : ElainaBasicProjectile
     private bool needShoot = false;
     private Vector2 mousePosition;
     private int actionToken;
+    private bool usesQuickCastInput;
 
-    public void BindAction(int token)
+    public void BindAction(int token, bool quickCast = false)
     {
         actionToken = token;
+        usesQuickCastInput = quickCast;
     }
 
     public override void SendExtraAI(BinaryWriter writer)
@@ -137,6 +141,7 @@ public class WaterBall : ElainaBasicProjectile
         //writer.WriteVector2(mousePosition);
         writer.Write(needShoot);
         writer.Write(actionToken);
+        writer.Write(usesQuickCastInput);
         base.SendExtraAI(writer);
     }
 
@@ -146,6 +151,7 @@ public class WaterBall : ElainaBasicProjectile
         //mousePosition = reader.ReadVector2();
         needShoot = reader.ReadBoolean();
         actionToken = reader.ReadInt32();
+        usesQuickCastInput = reader.ReadBoolean();
         base.ReceiveExtraAI(reader);
     }
 
@@ -203,7 +209,7 @@ public class WaterBall : ElainaBasicProjectile
         {
             if (state==State.Hold)
             {
-                if(time>60&&!Main.mouseLeft)
+                if(time>60&&!Action_WaterBall.IsCastInputHeld(usesQuickCastInput))
                 {
                     needShoot = true;
                     HeldInfo.IsControlling = false;
@@ -571,13 +577,13 @@ public class WaterBall : ElainaBasicProjectile
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
-        if (waterBatch.Capture(target)) modifiers.SourceDamage *= 2f;
+        if (waterBatch.Capture(target)) modifiers.SourceDamage *= BurningDamageMultiplier;
         base.ModifyHitNPC(target, ref modifiers);
     }
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        waterBatch.OnHit(Owner, target, damageDone, Projectile, WaterExposureNPC.ExposureTicks, 1);
+        waterBatch.OnHit(Owner, target, damageDone, Projectile, WaterExposureNPC.ExposureTicks);
         base.OnHitNPC(target, hit, damageDone);
     }
 }

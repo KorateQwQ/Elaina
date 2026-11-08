@@ -126,7 +126,10 @@ internal static class Pipeline {
             .OfType<ClassDeclarationSyntax>().Single().ToFullString();
         source += "public partial class WandReplayBase {" + Methods(ReadAction("ElainaAction"), "DrawStar", "DrawAutoWandTrail", "DrawWandTrailVisual") + "}";
         source += "public class WaterWandReplay : WandReplayBase {" + Fields(ReadAction("Action_WaterLaser"), n => n == "WaterWandColor")
-            + Methods(ReadAction("Action_WaterLaser"), "DrawStar", "DrawWandTrailVisual") + "}}";
+            + Methods(ReadAction("Action_WaterLaser"), "DrawStar", "DrawWandTrailVisual") + "}";
+        source += "public class IceWandReplay : WandReplayBase {" + Fields(ReadAction("Action_IceCone"), n => n == "ChannelFrame" || n == "RecoveryFrames")
+            + Methods(ReadAction("Action_IceCone"), "DrawStar", "DrawWandTrailVisual")
+            + "public static float Progress(int frame) => frame / (float)(ChannelFrame + RecoveryFrames); } }";
         source += File.ReadAllText(Path.Combine(root, "Tools/WaterLaserPreview/WandScene.cs.txt"));
         var dust = Read("Dusts/KLBasicDust.cs");
         source += "namespace KL.Dusts { public abstract partial class KLBasicDust : ModDust {";

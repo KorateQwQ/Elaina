@@ -1,0 +1,191 @@
+using System.IO;
+using System.Linq;
+using Microsoft.Xna.Framework.Content;
+using KL.Drawing;
+using KL.Dusts;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using Queue = KL.Drawing.LayerDrawRequestSystem;
+using Layer = KL.Drawing.LayerDrawRequestSystem.DrawTargetLayer;
+using Timing = KL.Drawing.LayerDrawRequestSystem.DrawTiming;
+
+internal static class Entry
+{
+    static void Main(string[] args)
+    {
+        System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
+        using var game = new Probe(args[0], args[1]);
+        game.Run();
+    }
+}
+
+internal sealed class Probe : Game
+{
+    readonly string root, output;
+    SpriteBatch batch;
+    Texture2D texture, pixel;
+    ContentManager content;
+    Effect effect;
+    IceConeWindDust dustType;
+    bool done;
+
+    public Probe(string root, string output)
+    {
+        this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 1000, PreferredBackBufferHeight = 600,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL2.SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    protected override void LoadContent()
+    {
+        Directory.CreateDirectory(output);
+        batch = new SpriteBatch(GraphicsDevice);
+        PreviewContext.Main.instance = this;
+        PreviewContext.Main.spriteBatch = batch;
+        content = new ContentManager(Services, root);
+        effect = content.Load<Effect>("Effects/Content/FireBurstFlame");
+        ModContent.Effect = effect;
+        using var stream = File.OpenRead(Path.Combine(root, "Mounts/Assets/BroomDashWind.png"));
+        texture = Texture2D.FromStream(GraphicsDevice, stream);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        dustType = new IceConeWindDust { MainTexture = texture };
+    }
+
+    Dust Emit(Vector2 screen, float angle, float age)
+    {
+        var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+        IceConeWindDust.Emit(PreviewContext.Main.screenPosition + screen, direction);
+        Dust d = Dust.Spawned[^1];
+        dustType.OnSpawn(d);
+        ((KLBasicDust.DustInfo)d.customData).CurrentLifeTime -= age;
+        if (dustType.ShouldBloom || dustType.PreDraw(d) || !d.noLight || !d.noGravity)
+            throw new Exception("Dust must only render via ordinary layer requests.");
+        return d;
+    }
+
+    void Submit(Dust d)
+    {
+        dustType.SubmitBloomDrawRequest(d);
+        foreach (Layer layer in Enum.GetValues<Layer>()) foreach (Timing timing in Enum.GetValues<Timing>())
+            if (Queue.HasBloomRequests(layer, timing)) throw new Exception("Wind requested Bloom.");
+        if (!Queue.HasRequests(Layer.Projectiles, Timing.After) || !Queue.HasRequests(Layer.Dust, Timing.After))
+            throw new Exception("Missing rear/front layer.");
+    }
+
+    // Matches current KL FlushLayerRequests: an active immediate batch around each ordinary queue.
+    void Flush(Layer layer)
+    {
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, PreviewContext.Main.GameViewMatrix.TransformationMatrix);
+        Queue.Flush(layer, Timing.After);
+        batch.End();
+    }
+
+    void Body(Vector2 center, float angle)
+    {
+        // White bar is an occlusion probe, not a substitute ice model.
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, PreviewContext.Main.GameViewMatrix.TransformationMatrix);
+        batch.Draw(pixel, center, null, Color.White, angle, new Vector2(.5f), new Vector2(130, 9), SpriteEffects.None, 0);
+        batch.End();
+    }
+
+    Color[] Render(float age, float angle, Color background, bool body = true, bool invalid = false, bool reused = false)
+    {
+        Queue.ClearFrame(); Dust.Spawned.Clear();
+        using var target = new RenderTarget2D(GraphicsDevice, 1000, 600, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(background);
+        Dust d = Emit(new Vector2(500, 300), angle, age); Submit(d);
+        if (invalid) d.active = false;
+        if (reused) d.customData = new KLBasicDust.DustInfo(16, Vector2.One);
+        Flush(Layer.Projectiles);
+        if (body) Body(new Vector2(500, 300), angle);
+        Flush(Layer.Dust);
+        var pixels = new Color[1000 * 600]; target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        return pixels;
+    }
+
+    void Save(string name, Color[] pixels, int width, int height)
+    {
+        using var image = new Texture2D(GraphicsDevice, width, height); image.SetData(pixels);
+        using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, width, height);
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) return; done = true;
+        Color day = new(125, 169, 193), night = new(22, 29, 46);
+        int[] ages = [1, 3, 6, 10, 14, 16];
+        const int cellW = 200, cellH = 180;
+        var sheet = new Color[cellW * ages.Length * cellH * 4];
+        for (int row = 0; row < 4; row++) for (int col = 0; col < ages.Length; col++)
+        {
+            float angle = row % 2 == 0 ? -.6f : -2.55f;
+            var pixels = Render(ages[col], angle, row < 2 ? day : night);
+            for (int y = 0; y < cellH; y++) Array.Copy(pixels, (210 + y) * 1000 + 400,
+                sheet, (row * cellH + y) * cellW * ages.Length + col * cellW, cellW);
+        }
+        Save("stages", sheet, cellW * ages.Length, cellH * 4);
+        foreach (var flag in new[] { "expired", "invalid", "reused" })
+        {
+            var blank = Render(flag == "expired" ? 16 : 4, 0, day, body: false,
+                invalid: flag == "invalid", reused: flag == "reused");
+            if (blank.Any(c => c != day)) throw new Exception(flag + " dust still drew.");
+        }
+        // Check two-sided color and fixed camera-depth halves over all orientations and gap phases.
+        using var half = new RenderTarget2D(GraphicsDevice, 1000, 600);
+        var transform = Matrix.CreateOrthographicOffCenter(0, 1000, 600, 0, 0, 1);
+        for (int orientation = 0; orientation < 8; orientation++)
+        for (int phase = 0; phase < 8; phase++)
+        foreach (bool front in new[] { false, true })
+        {
+            float angle = orientation * MathHelper.TwoPi / 8;
+            var axis = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            GraphicsDevice.SetRenderTarget(half); GraphicsDevice.Clear(Color.Transparent);
+            IceConeWindDrawing.Draw(GraphicsDevice, effect, texture, transform, new Vector2(500, 300),
+                4, front, angle, phase * MathHelper.TwoPi / 8);
+            var pixels = new Color[600000]; half.GetData(pixels);
+            int visible = 0;
+            for (int y = 220; y < 380; y++) for (int x = 420; x < 580; x++)
+            {
+                Color c = pixels[y * 1000 + x]; if (c.A < 10) continue; visible++;
+                float depth = Vector2.Dot(new Vector2(x + .5f - 500, y + .5f - 300), axis);
+                if (front ? c.R != 0 || c.G != 0 || c.B != 0 || depth < -9 : c.B <= c.G || c.G <= c.R || depth > 9)
+                    throw new Exception("Ring face color/depth incorrect.");
+            }
+            if (visible < 20) throw new Exception("Missing ring face.");
+        }
+        GraphicsDevice.SetRenderTarget(null);
+        // A front black face must darken the white body after composition.
+        var occluded = Render(4, 0, day);
+        int covered = 0;
+        for (int y = 297; y <= 302; y++) for (int x = 501; x < 530; x++)
+            if (occluded[y * 1000 + x].R < 230) covered++;
+        if (covered < 6) throw new Exception("Front face failed to cover body.");
+        // Multiple instances share the two request groups; check camera translation and noninteger zoom.
+        Queue.ClearFrame(); Dust.Spawned.Clear();
+        PreviewContext.Main.GameViewMatrix.TransformationMatrix = Matrix.CreateScale(1.25f);
+        using var multi = new RenderTarget2D(GraphicsDevice, 1000, 600);
+        GraphicsDevice.SetRenderTarget(multi); GraphicsDevice.Clear(day);
+        foreach (var center in new[] { new Vector2(260, 230), new Vector2(390, 250), new Vector2(520, 270) })
+            Submit(Emit(center, -.7f, 4));
+        Flush(Layer.Projectiles);
+        foreach (Dust d in Dust.Spawned) Body(d.position - PreviewContext.Main.screenPosition, d.rotation);
+        Flush(Layer.Dust);
+        var multiple = new Color[600000]; multi.GetData(multiple);
+        GraphicsDevice.SetRenderTarget(null); Save("multiple-125", multiple, 1000, 600);
+        PreviewContext.Main.dedServ = true;
+        int count = Dust.Spawned.Count;
+        IceConeWindDust.Emit(Vector2.Zero, Vector2.UnitX);
+        if (Dust.Spawned.Count != count) throw new Exception("Server spawned visuals.");
+        Console.WriteLine("PASS: linked dust + queue + drawing; ordinary rear/front requests, no Bloom, 64 orientations/phases, fade/expiry, stale dust, foreground occlusion, multiple instances, camera offset and 125% zoom.");
+        Exit();
+    }
+
+    protected override void UnloadContent()
+    {
+        batch?.Dispose(); texture?.Dispose(); pixel?.Dispose(); content?.Dispose();
+    }
+}

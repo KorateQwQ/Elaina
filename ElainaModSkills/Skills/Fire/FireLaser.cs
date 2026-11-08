@@ -28,10 +28,12 @@ public class FireLaser : ElainaBasicProjectile
     private float maxDistance = 1000f;
     private int actionToken;
     private float manaPerPulse;
-    private int intervalFrames = 18;
+    private float domainDamageMultiplier = 1f;
+    private int intervalFrames = 10;
     private int pulseTimer;
-    private int pulseSequence;
     private readonly Dictionary<int, FireBurnHit> pendingIgnitionHits = new();
+    // 本次付费脉冲已提交附着的元素主体；多体节只由首个命中部位提交，不影响各部位伤害。
+    private readonly HashSet<(int Index, int Generation)> ignitedAnchors = new();
     private bool damagePulse;
     private bool IsChanneling => Projectile.ai[0] == 1f;
     private Vector2[] windPoints;
@@ -47,7 +49,7 @@ public class FireLaser : ElainaBasicProjectile
     internal static int ChargeTicks => 60;
     /// <summary>爆开后经过的 tick；蓄力期间不大于 0。</summary>
     private int FiringAge => channelAge - ChargeTicks;
-    private bool IsFiring => IsChanneling && channelAge >= ChargeTicks;
+    internal bool IsFiring => IsChanneling && channelAge >= ChargeTicks;
 
     public override bool ShouldUpdatePosition() => false;
 
@@ -69,11 +71,12 @@ public class FireLaser : ElainaBasicProjectile
         base.SetDefaults();
     }
 
-    public void BindAction(int token, float manaCost, int tickInterval)
+    public void BindAction(int token, float manaCost, int tickInterval, float domainMultiplier = 1f)
     {
         actionToken = token;
         manaPerPulse = Math.Max(0f, manaCost);
         intervalFrames = Math.Max(1, tickInterval);
+        domainDamageMultiplier = domainMultiplier;
         Projectile.netUpdate = true;
     }
 
@@ -82,6 +85,7 @@ public class FireLaser : ElainaBasicProjectile
         writer.Write(actionToken);
         writer.Write(manaPerPulse);
         writer.Write(intervalFrames);
+        writer.Write(domainDamageMultiplier);
         base.SendExtraAI(writer);
     }
 
@@ -90,6 +94,7 @@ public class FireLaser : ElainaBasicProjectile
         actionToken = reader.ReadInt32();
         manaPerPulse = Math.Max(0f, reader.ReadSingle());
         intervalFrames = Math.Max(1, reader.ReadInt32());
+        domainDamageMultiplier = reader.ReadSingle();
         base.ReceiveExtraAI(reader);
     }
 
@@ -160,11 +165,11 @@ public class FireLaser : ElainaBasicProjectile
                         action.FinishChannel(Owner.GetModPlayer<ActionModPlayer>());
                         return;
                     }
-                    pulseSequence++;
                     damagePulse = true;
                     Projectile.friendly = true;
                     Array.Clear(Projectile.localNPCImmunity);
                     pendingIgnitionHits.Clear();
+                    ignitedAnchors.Clear();
                     pulseTimer = intervalFrames;
                 }
                 pulseTimer--;
@@ -593,6 +598,8 @@ public class FireLaser : ElainaBasicProjectile
     
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
+        if (FireBurstDomain.FindContainingOwner(Owner) != null)
+            modifiers.SourceDamage *= domainDamageMultiplier;
         if (HasAuthority() && FireBurnNPC.CaptureHit(target) is { } snapshot)
             pendingIgnitionHits[target.whoAmI] = snapshot;
         base.ModifyHitNPC(target, ref modifiers);
@@ -600,8 +607,9 @@ public class FireLaser : ElainaBasicProjectile
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        if (damageDone > 0 && HasAuthority() && pendingIgnitionHits.Remove(target.whoAmI, out var snapshot))
-            Owner.GetModPlayer<FireCyclePlayer>().RequestBeamHit(snapshot, Projectile, intervalFrames, pulseSequence, damageDone);
+        if (damageDone > 0 && HasAuthority() && pendingIgnitionHits.Remove(target.whoAmI, out var snapshot)
+            && ignitedAnchors.Add((snapshot.AnchorIndex, snapshot.AnchorGeneration)))
+            Owner.GetModPlayer<FireCyclePlayer>().RequestBeamHit(snapshot, Projectile, intervalFrames, damageDone);
         base.OnHitNPC(target, hit, damageDone);
     }
 

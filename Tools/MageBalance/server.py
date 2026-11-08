@@ -25,8 +25,8 @@ def read_dps_curve(path=DPS_SOURCE_PATH):
     if match is None:
         raise ValueError("未找到 KL 的 float[] stateDps 数组；需要保留数值字面量数组格式。")
     tokens = match[1].strip().rstrip(",").split(",")
-    if len(tokens) != 20:
-        raise ValueError("KL DPS 曲线需要 20 个节点（初始值及 19 个阶段）。")
+    if len(tokens) != 19:
+        raise ValueError("KL DPS 曲线需要 19 个节点（初始值及 18 个阶段）。")
     values = []
     for token in tokens:
         token = token.strip()
@@ -47,6 +47,8 @@ def number(obj, key, lo, hi, integer=False):
     return value
 
 def skill_growth(row):
+    if "growthStartLevel" in row:
+        number(row, "growthStartLevel", 0, 1000, True)
     # Optional v2 fields; legacy files retain the exact phase-based progression.
     mode = row.get("growthMode", "phase")
     if mode not in ("phase", "interval"):
@@ -69,7 +71,8 @@ def skill_growth(row):
         if flight.get("dashCooldownSeconds", 1) < flight.get("dashSeconds", .4):
             raise ValueError("冲刺冷却不能短于冲刺持续时间。")
 
-def ratio_curve(row):
+def ratio_curve(row, hi=5):
+    """Optional [[level, coefficient], ...]; hi is 5 for DPS ratios and 200 for K."""
     curve = row.get("ratioCurve")
     if curve is None:
         return
@@ -80,12 +83,12 @@ def ratio_curve(row):
         if not isinstance(point, list) or len(point) != 2:
             raise ValueError("ratioCurve 的每项必须是 [等级, 倍率]。")
         level = number({"level": point[0]}, "level", 1, 1000, True)
-        number({"ratio": point[1]}, "ratio", 0, 5)
+        number({"ratio": point[1]}, "ratio", 0, hi)
         if level <= previous:
             raise ValueError("ratioCurve 等级必须严格递增。")
         previous = level
 
-LOADOUT_STAGES = 19
+LOADOUT_STAGES = 18
 TOKEN = r"[A-Za-z][A-Za-z0-9_]{0,63}"
 
 def loadouts(c):
@@ -127,8 +130,6 @@ def validate_payload(payload):
     c = payload.get("configuration")
     if not isinstance(c, dict) or c.get("version") != 2:
         raise ValueError("配置版本无效。")
-    if "baseDpsMode" in c and c["baseDpsMode"] not in ("stage", "manual"):
-        raise ValueError("baseDpsMode 必须是 stage 或 manual。")
     number(c, "rate", 0, 20)
     if "occupyRatio" not in c:
         c["occupyRatio"] = 0
@@ -137,15 +138,7 @@ def validate_payload(payload):
     if not isinstance(progression, dict): raise ValueError("progression 缺失。")
     number(progression, "phaseSize", 1, 20, True)
     number(progression, "previewLevel", 1, 1000, True)
-    if "stage" in c:
-        number(c, "stage", 1, LOADOUT_STAGES, True)
     loadouts(c)
-    combat = c.get("combat")
-    if not isinstance(combat, dict):
-        raise ValueError("combat 缺失。")
-    if "regenPercent" not in combat:
-        combat["regenPercent"] = 2
-    number(combat, "regenPercent", 0, 100)
     rows = c.get("skills")
     if not isinstance(rows, list) or len(rows) > 32:
         raise ValueError("skills 必须是最多 32 项的数组。")
@@ -186,6 +179,9 @@ def validate_payload(payload):
             raise ValueError("技能名称不能为空或超过 64 字符。")
         ids.add(key)
         number(row, "cost", 0, 10000)
+        if "costPercent" not in row:
+            row["costPercent"] = 0
+        number(row, "costPercent", 0, 100)
         number(row, "cd", .1, 600)
         if "ratio" in row:
             number(row, "ratio", 0, 5)
@@ -195,6 +191,7 @@ def validate_payload(payload):
             row["cdRatio"] = 1
         number(row, "cdRatio", 0, 1)
         number(row, "k", 0, 200)
+        ratio_curve(row, 5 if "ratio" in row else 200)
         number(row, "cast", 0, 60)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)

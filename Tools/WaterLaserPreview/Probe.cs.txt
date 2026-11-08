@@ -51,6 +51,32 @@ sealed class LaserProbe : Game
         if (done) { Exit(); return; } done = true;
         scene.GetMethod("CheckAttachment").Invoke(null, null);
         pipeline.GetType("伊蕾娜.ElainaActions.WandScene").GetMethod("Check").Invoke(null, null);
+        pipeline.GetType("伊蕾娜.ElainaActions.WandScene").GetMethod("CheckIce").Invoke(null, null);
+        foreach (bool night in new[] { false, true }) {
+            string sky = night ? "night" : "day";
+            Color[] before = RenderIce($"ice-wand-{sky}-before", 1, night, legacy: true);
+            Color[] held = RenderIce($"ice-wand-{sky}-hold", 1, night);
+            Color background = night ? new Color(12, 23, 34) : new Color(67, 134, 141);
+            long TrailLight(Color[] pixels) {
+                long sum = 0;
+                // Tail-only region, outside the star: catch a missing trail override independently.
+                for (int y = 390; y < 450; y++) for (int x = 470; x < 560; x++) {
+                    Color c = pixels[y * Width + x];
+                    sum += Math.Max(0, c.R - background.R) + Math.Max(0, c.G - background.G) + Math.Max(0, c.B - background.B);
+                }
+                return sum;
+            }
+            long oldLight = TrailLight(before), newLight = TrailLight(held);
+            if (oldLight <= 0 || newLight < oldLight * 3)
+                throw new Exception("Ice Cone held trail is still stuck in the default fade-in: " + sky);
+            Console.WriteLine($"PASS Ice Cone trail {sky}: tail light {oldLight} -> {newLight}.");
+        }
+        RenderIce("ice-wand-up", 1, false, angle: -MathHelper.PiOver2);
+        RenderIce("ice-wand-down", 1, false, angle: MathHelper.PiOver2);
+        RenderIce("ice-wand-zoom", 1, false, zoom: 1.35f);
+        RenderIce("ice-wand-release-1", 2, false);
+        RenderIce("ice-wand-release-10", 11, false);
+        RenderIce("ice-wand-release-20", 21, false);
         foreach (int tick in new[] { 6, 18, 36, 60 }) Render($"day-{tick}", tick);
         Render("night", 60, night: true);
         Render("night-90", 90, night: true);
@@ -156,6 +182,29 @@ sealed class LaserProbe : Game
         GraphicsDevice.SetRenderTarget(null);
         using var image = new Texture2D(GraphicsDevice, Width, Height); image.SetData(pixels);
         using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, Width, Height);
+        return pixels;
+    }
+    Color[] RenderIce(string name, int frame, bool night, bool legacy = false, float angle = 0f, float zoom = 1f) {
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(night ? new Color(12, 23, 34) : new Color(67, 134, 141));
+        Vector2 origin = new(600, 350), camera = new(2000, 1200);
+        Set(main, "screenPosition", camera);
+        Matrix transform = Matrix.CreateTranslation(-origin.X, -origin.Y, 0) * Matrix.CreateScale(zoom)
+            * Matrix.CreateTranslation(origin.X, origin.Y, 0);
+        Set(main, "Transform", transform);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view, transform);
+        pipeline.GetType("伊蕾娜.ElainaActions.WandScene").GetMethod("DrawIce").Invoke(null,
+            [origin + camera, angle, frame, 15, legacy]);
+        draw.GetMethod("RunDust").Invoke(renderer, null);
+        var pixels = new Color[Width * Height];
+        target.GetData(pixels);
+        if (frame == 21 && pixels.Any(c => c != (night ? new Color(12, 23, 34) : new Color(67, 134, 141))))
+            throw new Exception("Ice Cone star/trail survived the final recovery frame.");
+        GraphicsDevice.SetRenderTarget(null);
+        using var stream = File.Create(Path.Combine(output, name + ".png"));
+        target.SaveAsPng(stream, Width, Height);
         return pixels;
     }
     const float FullRadius = 200;

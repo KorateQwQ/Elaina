@@ -26,13 +26,12 @@ public class WaterLaser : ElainaBasicProjectile
     private int time;
     private int actionToken;
     private float manaPerPulse;
-    private int intervalFrames = 12;
+    private int intervalFrames = 10;
     private int pulseTimer;
     private bool damagePulse;
     private int primaryTarget = -1;
     private readonly HashSet<int> hitNpcIndices = new();
     private readonly WaterExposureBatch waterBatch = new();
-    private int pulseSequence;
     private bool IsChanneling => Projectile.ai[0] == 1f;
 
     private readonly Vector2[] drawPoints = new Vector2[200];
@@ -140,7 +139,6 @@ public class WaterLaser : ElainaBasicProjectile
                     Array.Clear(Projectile.localNPCImmunity);
                     hitNpcIndices.Clear();
                     waterBatch.Reset();
-                    pulseSequence++;
                     pulseTimer = intervalFrames;
                 }
                 pulseTimer--;
@@ -397,7 +395,7 @@ public class WaterLaser : ElainaBasicProjectile
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
         hitNpcIndices.Add(target.whoAmI);
-        waterBatch.OnHit(Owner, target, damageDone, Projectile, intervalFrames, pulseSequence);
+        waterBatch.OnHit(Owner, target, damageDone, Projectile, intervalFrames);
         base.OnHitNPC(target, hit, damageDone);
     }
 

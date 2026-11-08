@@ -3,7 +3,9 @@ using KL.ActionsSystem;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 using 伊蕾娜.ElainaModSkills.Skills.Fire;
+using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaActions;
 
@@ -19,17 +21,22 @@ public sealed class Action_FireLaser : ElainaAction
     private int castingSkillSlot;
     private FireLaser beam;
     private bool ending;
+    private bool rightWasDown;
     private readonly FireLaserSkill castingSkill;
 
     public bool IsChanneling { get; private set; }
+    internal bool CanQuickCast => !ending && CanContinueCasting()
+        && (!IsChanneling || beam?.Projectile.active == true);
+    internal bool SustainsDomain => !ending && IsChanneling && CanContinueCasting()
+        && beam?.Projectile.active == true && beam.IsFiring;
     public Vector2 BeamOrigin => WandCenter;
 
-    private static readonly Color FireWandColor = new(255, 150, 40, 0);
+    private static readonly Color FireWandColor = ElainaTrailVisualStyle.FireWandColor;
 
-    protected override void DrawStar(ref PlayerDrawSet drawInfo, float actionProgress)
+    protected override void RequestActionStarBloom(float actionProgress)
     {
         // 引导保持第 0 帧：立即显示；松手后进度走完 20 帧收势，光晕随之淡出。
-        ElainaTrailVisualStyle.DrawStar(ref drawInfo, StarCenter.Floor(), actionProgress,
+        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
             FireWandColor, fadeInEnd: 0f, fadeOutStart: 0f);
     }
 
@@ -41,9 +48,10 @@ public sealed class Action_FireLaser : ElainaAction
     }
 
     // 动作注册器与远端重建需要真正的无参构造函数。
-    public Action_FireLaser() : this(0, 0f, 18) { }
+    public Action_FireLaser() : this(0, 0f, 10) { }
 
-    public Action_FireLaser(int damage, float manaPerPulse, int intervalFrames, FireLaserSkill skill = null)
+    public Action_FireLaser(int damage, float manaPerPulse, int intervalFrames, FireLaserSkill skill = null,
+        float domainDamageMultiplier = 1f)
         : base(ChannelStartFrame + RecoveryFrames + 1)
     {
         castingSkill = skill;
@@ -55,7 +63,7 @@ public sealed class Action_FireLaser : ElainaAction
                 if (projectile.ModProjectile is FireLaser fireLaser)
                 {
                     beam = fireLaser;
-                    fireLaser.BindAction(actionToken, manaPerPulse, intervalFrames);
+                    fireLaser.BindAction(actionToken, manaPerPulse, intervalFrames, domainDamageMultiplier);
                 }
             }));
     }
@@ -84,6 +92,7 @@ public sealed class Action_FireLaser : ElainaAction
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
+        TryQuickCast();
         if (!ending && owner.whoAmI == Main.myPlayer
             && (!CanContinueCasting() || (actionFrame > ChannelStartFrame && beam?.Projectile.active != true)))
         {
@@ -102,8 +111,36 @@ public sealed class Action_FireLaser : ElainaAction
 
     public override void OnHoldUpdate(ActionModPlayer actionPlayer, int actionFrame, int holdTime)
     {
+        TryQuickCast();
         ApplyAimPose();
         SyncItemRotationToArmRotation();
+    }
+
+    private bool TryQuickCast()
+    {
+        if (owner.whoAmI != Main.myPlayer) return false;
+        bool pressed = Main.mouseRight && !rightWasDown;
+        rightWasDown = Main.mouseRight;
+        if (!pressed || !CanQuickCast
+            || !Main.hasFocus || Main.gameMenu || Main.gamePaused || Main.drawingPlayerChat
+            || Main.ingameOptionsWindow || Main.inFancyUI || Main.editSign || Main.editChest
+            || owner.mouseInterface || ElainaSkillWheel.IsShowing || ElainaHealingWheel.OwnsPointer
+            || ElainaModSkills.Skills.DollControl.DollCommandWheel.OwnsPointer
+            || owner.HeldItem.ModItem is not ElainaWand)
+            return false;
+
+        return FireBurstSkill.TryGetEquipped(owner, out var skill) && skill.TryQuickCast();
+    }
+
+    internal static bool OwnsQuickCastInput(Player player)
+    {
+        if (!Main.mouseRight || !FireBurstSkill.TryGetEquipped(player, out _)) return false;
+        var current = player.GetModPlayer<ActionModPlayer>().CurrentAnimAction;
+        if (current is Action_FireLaser laser) return laser.CanQuickCast;
+        if (current != null || !Main.mouseLeft) return false;
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
+        int index = ElainaSkillModPlayer.CurrentSkillIndex;
+        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is FireLaserSkill;
     }
 
     public override void OnHoldExit(ActionModPlayer actionPlayer, int actionFrame) => StopBeam();

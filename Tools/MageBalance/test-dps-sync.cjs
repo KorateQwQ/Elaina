@@ -9,22 +9,14 @@ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const ctx={module:{exports:{}}};
 vm.runInNewContext(html.match(/<script id="balance-engine">([\s\S]*?)<\/script>/)[1],ctx);
 const B=ctx.module.exports,original=Array.from(B.stageDps),buffed=[30,40,...original.slice(2)];
-const stage=B.defaults(1),manual=B.defaults(1);
-manual.baseDps=37;manual.baseDpsMode='manual';
-assert.equal(B.setDpsCurve(buffed),true);
-B.syncBaseDps(stage);B.syncBaseDps(manual);
-assert.equal(stage.baseDps,40);assert.equal(manual.baseDps,37);
-assert.equal(B.levelDps(1),32);assert.equal(B.levelDps(3),36);assert.equal(B.levelDps(5),40);
-assert.equal(B.levelDps(10),50);assert.equal(B.dpsLevel(36),3);
-assert.equal(B.defaults(1).baseDps,40);
-const legacy={stage:1,baseDps:30};B.normalizeBaseDps(legacy);B.syncBaseDps(legacy);assert.equal(legacy.baseDps,40);
-const custom={stage:1,baseDps:37};B.normalizeBaseDps(custom);B.syncBaseDps(custom);assert.equal(custom.baseDps,37);
-const row=stage.basicAttacks[0];assert.equal(B.progressionBudget(stage,row,1).baseline,32);
+assert.equal(B.setDpsCurve(buffed),true);assert.equal(B.setDpsCurve(buffed),false);
+assert.equal(B.levelDps(1),32);assert.equal(B.levelDps(3),36);assert.equal(B.levelDps(5),40);assert.equal(B.levelDps(10),50);
+const s=B.defaults(),row=s.basicAttacks[0];assert.equal(B.progressionBudget(s,row,1).baseline,32);
 for(const invalid of [[],[40,30,...original.slice(2)],[NaN,...original.slice(1)],[0,...original.slice(1)]]){
  assert.throws(()=>B.setDpsCurve(invalid));assert.deepEqual(Array.from(B.stageDps),buffed);
 }
 B.setDpsCurve(original);
-console.log('PASS curve replacement, stage/manual modes, old saved values, interpolation, inverse, invalid curve retention.');
+console.log('PASS curve replacement, interpolation, progression baseline, invalid curve retention.');
 
 async function browserTest(){
  const runtime=process.env.CODEX_NODE_MODULES||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
@@ -35,7 +27,8 @@ async function browserTest(){
  const source='float[] stateDps = [\n20f, //initial\n30f,   //升级\n'+original.slice(2).map(v=>v+'f').join(',')+'];';
  const writeCurve=(first,second)=>fs.writeFileSync(sourcePath,source.replace('20f,',first+'f,').replace(/30f,(\s*\/\/升级)/,second+'f,$1'));
  writeCurve(20,30);
- const config=B.defaults(1);delete config.baseDpsMode; // old saved stage baseline
+ // Old saved config with lab fields and a stale stage B; the page must ignore them.
+ const config={...B.defaults(),stage:1,baseDpsMode:'stage',baseDps:20,combat:{duration:120}};
  fs.writeFileSync(configPath,JSON.stringify({schema:'elaina-mage-balance-v2',configuration:config}));
  const child=spawn('python',['-u','-c','import server,sys; s=server.make_server(0,sys.argv[1],sys.argv[2]); print("PORT="+str(s.server_port),flush=True); s.serve_forever()',configPath,sourcePath],{cwd:__dirname,windowsHide:true});
  let browser;
@@ -49,45 +42,37 @@ async function browserTest(){
   browser=await chromium.launch({headless:true,channel:process.env.BALANCE_BROWSER_CHANNEL||'chrome'});
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://127.0.0.1:'+port);
+  const stageB=()=>page.locator('#stageDamageRows tr').first().locator('td').nth(2).textContent();
+  const firstHit=()=>page.locator('#progressionDetailRows tr').first().locator('td').nth(2).textContent();
+  await page.goto('http://127.0.0.1:'+port+'/#progression');
   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已读取'));
-  assert.equal(await page.locator('#baseDps').inputValue(),'30');
-  const initial=await page.locator('#simActual').innerText();
+  assert.equal(await stageB(),'30');assert.equal(await firstHit(),'22');
   writeCurve(30,40);
-  await page.waitForFunction(()=>document.getElementById('baseDps').value==='40');
-  assert.notEqual(await page.locator('#simActual').innerText(),initial);
-  assert.equal(await page.evaluate(()=>Balance.levelDps(1)),32);
-  assert.equal(await page.evaluate(()=>Balance.progressionBudget(Balance.defaults(1),Balance.defaults(1).basicAttacks[0],1).baseline),32);
-  // Reloading an old JSON must not restore its old stage B.
+  await page.waitForFunction(()=>document.querySelector('#stageDamageRows tr td:nth-child(3)').textContent==='40');
+  assert.equal(await firstHit(),'32','Per-level preview follows the live curve');
+  assert.match(await page.locator('#dpsSourceStatus').innerText(),/已同步/);
+  // Reloading the JSON keeps the live curve; the B curve is never stored in the config.
   await page.locator('#fileStatus').evaluate(el=>el.textContent='');
   await page.locator('#loadMod').click();
   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已读取'));
-  assert.equal(await page.locator('#baseDps').inputValue(),'40');
-  await page.locator('#baseDps').fill('37');
-  writeCurve(35,45);
-  await page.waitForFunction(()=>Balance.stageDps[1]===45);
-  assert.equal(await page.locator('#baseDps').inputValue(),'37');
+  assert.equal(await stageB(),'40');
   await page.locator('#saveMod').click();
   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已保存'));
-  await page.reload();
-  await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已读取'));
-  assert.equal(await page.locator('#baseDps').inputValue(),'37');
-  await page.locator('#followDps').click();
-  assert.equal(await page.locator('#baseDps').inputValue(),'45');
+  const savedConfig=JSON.parse(fs.readFileSync(configPath,'utf8')).configuration;
+  assert.deepEqual(Object.keys(savedConfig).sort(),Object.keys(B.defaults()).sort(),'Saving drops the old lab fields');
   fs.writeFileSync(sourcePath,'invalid');
   await page.waitForFunction(()=>document.getElementById('dpsSourceStatus').textContent.includes('同步失败'));
-  assert.equal(await page.locator('#baseDps').inputValue(),'45');
+  assert.equal(await stageB(),'40','An invalid source keeps the last valid curve');
   writeCurve(20,30);
-  await page.waitForFunction(()=>document.getElementById('baseDps').value==='30');
-  await page.locator('#preset').selectOption('2');
-  assert.equal(await page.locator('#baseDps').inputValue(),'50');
+  await page.waitForFunction(()=>document.querySelector('#stageDamageRows tr td:nth-child(3)').textContent==='30');
+  assert.match(await page.locator('#dpsSourceStatus').innerText(),/已同步/);
   assert.deepEqual(errors,[]);
   fs.mkdirSync(path.join(__dirname,'test-output'),{recursive:true});
   await page.screenshot({path:path.join(__dirname,'test-output/dps-sync-desktop.png')});
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:path.join(__dirname,'test-output/dps-sync-mobile.png')});
-  console.log('PASS browser: live temporary C# edits -> DPS recalculation; stale JSON, manual save/reload, error recovery, stage switching, no JS errors or mobile overflow.');
+  console.log('PASS browser: live temporary C# edits -> stage damage and per-level baseline; stale JSON, save, error recovery, no JS errors or mobile overflow.');
  }finally{
   if(browser)await browser.close();
   if(child.exitCode===null&&child.signalCode===null)await new Promise(resolve=>{child.once('exit',resolve);child.kill();});

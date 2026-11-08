@@ -1,0 +1,195 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+static class Entry
+{
+    [STAThread] static void Main(string[] args)
+    {
+        if (args.Length > 1 && (args[1] == "--live" || args[1] == "--live-check"))
+        {
+            if(args[1] == "--live-check") Checks.Aim();
+            System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.SystemAware);
+            System.Windows.Forms.Application.EnableVisualStyles();
+            System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+            using var live = new LivePreview(args[0], args[2], args[1] == "--live-check");
+            live.Run();
+            return;
+        }
+        Checks.Run();
+        using var game = new Preview(args[0]);
+        game.Run();
+    }
+}
+
+static class Checks
+{
+    static void Require(bool condition, string name) { if (!condition) throw new Exception(name); }
+    public static void Run()
+    {
+        Aim();
+        float original = Fixture.SpawnArcDegrees;
+        var rng = new Random(8721);
+        foreach (float angle in new[] { 0f, .001f, 30f, 90f, 180f })
+        {
+            Fixture.SpawnArcDegrees = angle;
+            float near = Fixture.SpawnBackMin, far = Math.Max(Fixture.SpawnBackMin, Fixture.SpawnBackMax), width = Fixture.SpawnSideRange;
+            double half = angle * Math.PI / 360, radius = angle == 0 ? 0 : width / Math.Sin(half);
+            double mid = (near + far) * .5, thick = (far - near) * .5;
+            double inner = Math.Max(0, radius - thick), outer = radius + thick, sum = 0;
+            for (int i = 0; i < 20000; i++)
+            {
+                float u = (float)rng.NextDouble(), v = (float)rng.NextDouble();
+                Vector2 p = Range.GetSpawnOffset(u, v), mirror = Range.GetSpawnOffset(1-u, v);
+                Require(float.IsFinite(p.X) && float.IsFinite(p.Y), "finite position");
+                Require(Math.Abs(p.X-mirror.X)<.002 && Math.Abs(p.Y+mirror.Y)<.002, "symmetry");
+                if (angle == 0)
+                    Require(Math.Abs(p.X-MathHelper.Lerp(near,far,v))<.001 && Math.Abs(p.Y-MathHelper.Lerp(-width,width,u))<.001, "flat rectangle");
+                else
+                {
+                    double x = p.X-mid+radius, y=p.Y, r2=x*x+y*y;
+                    Require(r2 >= inner*inner-.1 && r2 <= outer*outer+.1, "radial bounds");
+                    Require(Math.Abs(Math.Atan2(y,x)) <= half+.00001, "angular bounds");
+                    sum += (r2-inner*inner)/(outer*outer-inner*inner);
+                    if (angle == .001f)
+                        Require(Vector2.Distance(p,new Vector2(MathHelper.Lerp(near,far,v),MathHelper.Lerp(-width,width,u))) < .01, "flat limit continuity");
+                }
+            }
+            if (angle > 0) Require(Math.Abs(sum/20000-.5)<.015,"area uniformity");
+        }
+        Fixture.SpawnArcDegrees = 180;
+        float savedWidth=Fixture.SpawnSideRange;
+        Fixture.SpawnSideRange=20;
+        Require(float.IsFinite(Range.GetSpawnOffset(.5f,0).X),"collapsed inner edge");
+        Fixture.SpawnSideRange=0;
+        Require(Range.GetSpawnOffset(0,0).Y==0,"zero width");
+        Fixture.SpawnSideRange=savedWidth;
+        Fixture.SpawnArcDegrees=original;
+        Console.WriteLine("PASS: 100000 samples; bounds, symmetry, area distribution, flat limit, degenerate ranges.");
+    }
+    public static void Aim()
+    {
+        float original=Fixture.AimDistance;
+        Vector2 center=new(250,370);
+        bool oldFails=false;
+        foreach(float angle in new[]{0f,.7f,MathHelper.Pi,-1.9f})
+        {
+            Vector2 forward=angle.ToRotationVector2(),side=forward.RotatedBy(MathHelper.PiOver2);
+            foreach(float lateral in new[]{-138f,0f,138f})
+            {
+                Vector2 spawn=center-forward*55+side*lateral;
+                Vector2 baseline=Range.LaunchVelocity(center,forward,spawn,center+forward*10);
+                foreach(float distance in new[]{10f,100f,600f,2400f})
+                {
+                    Vector2 cursor=center+forward*distance;
+                    Vector2 actualForward=(cursor-center).SafeNormalize(Vector2.UnitX);
+                    Vector2 velocity=Range.LaunchVelocity(center,actualForward,spawn,cursor);
+                    Require(Vector2.Distance(baseline,velocity)<.0001f,"real cursor distance must not affect shot angle");
+                    Require(Math.Abs(velocity.Length()-35)<.0001,"shot speed preserved");
+                }
+                Vector2 oldNear=Range.GetShotDirection(forward,spawn,center+forward*10);
+                Vector2 oldFar=Range.GetShotDirection(forward,spawn,center+forward*2400);
+                oldFails|=Vector2.Distance(oldNear,oldFar)>.01f;
+            }
+        }
+        Require(oldFails,"old real-cursor implementation must fail distance invariance");
+        Fixture.AimDistance=100;
+        Vector2 nearDirection=Range.LaunchVelocity(center,Vector2.UnitX,center+new Vector2(-55,138),center+Vector2.UnitX*900);
+        Fixture.AimDistance=1600;
+        Vector2 farDirection=Range.LaunchVelocity(center,Vector2.UnitX,center+new Vector2(-55,138),center+Vector2.UnitX*900);
+        Require(Math.Abs(nearDirection.ToRotation())>Math.Abs(farDirection.ToRotation())+.01,"fixed aim distance changes convergence");
+        Require(Math.Abs(nearDirection.ToRotation())<=.12001,"existing correction cap preserved");
+        Fixture.AimDistance=original;
+        Console.WriteLine("PASS fixed aim: extracted production launch expression; distance invariance, rotations, speed, tunable distance, correction cap, old-code counterexample.");
+    }
+}
+
+sealed class Preview : Game
+{
+    readonly string output;
+    Texture2D pixel;
+    bool done;
+    public Preview(string output)
+    {
+        this.output=output;
+        _=new GraphicsDeviceManager(this) { PreferredBackBufferWidth=960,PreferredBackBufferHeight=720,GraphicsProfile=GraphicsProfile.HiDef,SynchronizeWithVerticalRetrace=false };
+        IsFixedTimeStep=false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        Directory.CreateDirectory(output);
+        pixel=new Texture2D(GraphicsDevice,1,1);
+        pixel.SetData(new[]{Color.White}); // Isolated preview only; game uses TextureAssets.MagicPixel.
+        Terraria.GameContent.TextureAssets.MagicPixel.Value=pixel;
+        Main.spriteBatch=new SpriteBatch(GraphicsDevice);
+    }
+    protected override void Update(GameTime time)
+    {
+        if(done)return;
+        done=true;
+        float original=Fixture.SpawnArcDegrees;
+        Capture("current",1366,768,1f,0f);
+        foreach(float angle in new[]{0f,45f,90f,180f})
+        {
+            Fixture.SpawnArcDegrees=angle;
+            Capture("arc-"+angle,1366,800,1f,0f);
+        }
+        Fixture.SpawnArcDegrees=original;
+        Capture("rotated-1125",1864,977,1.125f,-.6f);
+        Capture("high-150",2560,1440,1.5f,MathHelper.Pi);
+        Exit();
+    }
+    void Capture(string name,int width,int height,float zoom,float rotation)
+    {
+        using var target=new RenderTarget2D(GraphicsDevice,width,height);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(18,24,33));
+        Main.GameViewMatrix.Zoom=new Vector2(zoom);
+        Vector2 center=new Vector2(width/2f,height/2f)/zoom;
+        var batch=Main.spriteBatch;
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,RasterizerState.CullNone,null,Matrix.CreateScale(zoom));
+        for(float x=0;x<width/zoom;x+=80)batch.Draw(pixel,new Vector2(x,0),null,new Color(34,43,54),0,Vector2.Zero,new Vector2(1/zoom,height/zoom),SpriteEffects.None,0);
+        for(float y=0;y<height/zoom;y+=80)batch.Draw(pixel,new Vector2(0,y),null,new Color(34,43,54),0,Vector2.Zero,new Vector2(width/zoom,1/zoom),SpriteEffects.None,0);
+        Vector2 forward=rotation.ToRotationVector2(),side=forward.RotatedBy(MathHelper.PiOver2);
+        var rng=new Random(8721);
+        for(int i=0;i<300;i++)
+        {
+            Vector2 p=Range.GetSpawnOffset((float)rng.NextDouble(),(float)rng.NextDouble());
+            batch.Draw(pixel,center-forward*p.X+side*p.Y,null,new Color(100,180,205)*.5f,0,new Vector2(.5f),new Vector2(2/zoom),SpriteEffects.None,0);
+        }
+        Range.DrawSpawnRange(center,rotation);
+        // Reference player bounds and aim direction, not a player appearance preview.
+        batch.Draw(pixel,center,null,new Color(205,199,172),0,new Vector2(.5f),new Vector2(20,42),SpriteEffects.None,0);
+        batch.Draw(pixel,center+forward*22,null,Color.White*.65f,rotation,new Vector2(0,.5f),new Vector2(90,2/zoom),SpriteEffects.None,0);
+        batch.End();
+        GraphicsDevice.SetRenderTarget(null);
+        using var stream=File.Create(Path.Combine(output,name+".png"));
+        target.SaveAsPng(stream,width,height);
+        Console.WriteLine(name+".png");
+    }
+    protected override void UnloadContent(){Main.spriteBatch?.Dispose();pixel?.Dispose();}
+}
+
+static class Main
+{
+    public static SpriteBatch spriteBatch;
+    public static Vector2 screenPosition=Vector2.Zero;
+    public static Camera GameViewMatrix=new();
+}
+sealed class Camera { public Vector2 Zoom=Vector2.One; }
+static class Extensions
+{
+    public static Vector2 ToRotationVector2(this float angle)=>new(MathF.Cos(angle),MathF.Sin(angle));
+    public static float ToRotation(this Vector2 vector)=>MathF.Atan2(vector.Y,vector.X);
+    public static Vector2 RotatedBy(this Vector2 v,double a)=>new((float)(v.X*Math.Cos(a)-v.Y*Math.Sin(a)),(float)(v.X*Math.Sin(a)+v.Y*Math.Cos(a)));
+    public static Vector2 SafeNormalize(this Vector2 v,Vector2 fallback)=>v.LengthSquared()>0.00000001f?Vector2.Normalize(v):fallback;
+}
+namespace Terraria.GameContent
+{
+    static class TextureAssets { public static Asset MagicPixel=new(); }
+    sealed class Asset { public Texture2D Value; }
+}

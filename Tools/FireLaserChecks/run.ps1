@@ -21,6 +21,8 @@ $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
+$domainCheck = Add-CheckItem 'Compile' "$PSScriptRoot/DomainChecks.cs.txt"
+$domainCheck.SetAttribute('Link', 'DomainChecks.cs')
 $native = Add-CheckItem 'None' "$Tml/Libraries/Native/Windows/*.dll"
 $native.SetAttribute('Link', '%(Filename)%(Extension)')
 $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')

@@ -81,7 +81,8 @@ public sealed class SkillBalanceSystem : ModSystem
 
     public static bool TryGetSkill(string id, out SkillBalanceEntry entry) => Current.Skills.TryGetValue(id, out entry);
 
-    private static double GetCharacterBaselineDps(int characterLevel)
+    /// <summary>角色等级对应的基准 DPS（不含装备），用于技能按基准倍率换算频率等。</summary>
+    public static double GetCharacterBaselineDps(int characterLevel)
     {
         if (characterLevel <= 0) return 0;
         // KL 曲线每 5 级一个节点；用双精度插值，避免 float 误差导致整数伤害少 1。

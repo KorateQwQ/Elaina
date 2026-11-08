@@ -1,0 +1,127 @@
+using System;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using KL.Drawing;
+
+namespace KL.Drawing {
+    public static partial class Main {
+        public static Vector2 screenPosition;
+        public static bool gamePaused;
+        public static double timeForVisualEffects;
+        public static Matrix Transform => GameViewMatrix.TransformationMatrix;
+        public static void NewText(string message, Color color) => throw new Exception(message);
+    }
+    public sealed class Asset(Texture2D value) { public Texture2D Value = value; }
+    public static class TextureAssets { public static Asset MagicPixel; }
+    public static class Extensions {
+        public static Vector2 RotatedBy(this Vector2 v, double angle) => Vector2.Transform(v, Matrix.CreateRotationZ((float)angle));
+        public static Vector2 Origin(this Texture2D t) => new(t.Width / 2f, t.Height / 2f);
+    }
+}
+namespace Fixture {
+    public struct DrawData(Texture2D texture, Vector2 position, Rectangle? source, Color color,
+        float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, int shader) {
+        public bool ignorePlayerRotation;
+        public void Draw(SpriteBatch batch) => batch.Draw(texture, position, source, color, rotation, origin, scale, effects, 0);
+    }
+    public enum ActionDrawLayerType { OverPlayer }
+    public sealed class Player { public Vector2 MountedCenter; public float fullRotation, gravDir = 1; public int direction = 1; }
+    public sealed class ActionModPlayer { public Player Player = new(); public int CurrentActionFrame; }
+    public static partial class ElainaTrailVisualStyle {
+        public static Texture2D Texture;
+        public static Texture2D StarCross, StarLine;
+        public static Texture2D GetTrailTexture(Texture2D texture = null) => texture ?? Texture;
+        public static Texture2D GetStarCrossTexture(Texture2D texture = null) => texture ?? StarCross;
+        public static Texture2D GetStarLineTexture(Texture2D texture = null) => texture ?? StarLine;
+    }
+    public partial class ActionReplay {
+        public bool DrawWandTrail = true;
+        bool DrawActionStar => false;
+        int WandTrailLength => 30;
+        Vector2[] wandTrailPositions = Array.Empty<Vector2>();
+        int wandTrailPointCount;
+        public Vector2 WandCenter;
+        public readonly List<ActionNode> Nodes = new();
+        public ActionReplay() => ResetWandTrail();
+        float GetProgress(int frame) => frame / 100f;
+        void RequestActionStarBloom(float progress) => throw new Exception("Unexpected star call");
+        public void Seed(Vector2 origin) {
+            for (int i = 29; i >= 1; i--) {
+                float t = i / 29f;
+                WandCenter = origin + new Vector2(-220 * t, 40 * MathF.Sin(t * MathHelper.Pi)); UpdateWandTrail();
+            }
+            WandCenter = origin;
+        }
+        public int Count => wandTrailPointCount;
+        public void Overwrite() => Array.Fill(wandTrailPositions, new Vector2(-5000));
+    }
+    public sealed class CheckedAction : ActionReplay {
+        public static int Draws;
+        protected override void DrawWandTrailVisual(Vector2[] points, float progress) {
+            if (points[0].X < 0) throw new Exception("Queued trail retained mutable history array");
+            Draws++;
+            base.DrawWandTrailVisual(points, progress);
+        }
+    }
+    public static class Scene {
+        public static void QueueStars(float progress) {
+            LayerDrawRequestSystem.ClearFrame();
+            ElainaTrailVisualStyle.RequestBloomStar(new Vector2(140, 180), progress,
+                ElainaTrailVisualStyle.DefaultStarColor, blinkMin: 1, blinkMax: 1,
+                lineScale: Vector2.Zero, lineScale2: Vector2.Zero);
+            ElainaTrailVisualStyle.RequestBloomStar(new Vector2(320, 180), progress,
+                new Color(100, 180, 255, 0), blinkMin: 1, blinkMax: 1);
+            ElainaTrailVisualStyle.RequestBloomStar(new Vector2(500, 180), progress,
+                new Color(255, 150, 40, 0), blinkMin: 1, blinkMax: 1);
+            LayerDrawRequestSystem.RequestBloom("AfterStar", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.After, () =>
+                    Main.spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle(20, 20, 20, 20), Color.White),
+                order: LayerDrawRequestSystem.DustOrder + 10);
+        }
+        const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
+        const LayerDrawRequestSystem.DrawTiming Timing = LayerDrawRequestSystem.DrawTiming.After;
+        public static void Queue(float progress) {
+            LayerDrawRequestSystem.ClearFrame(); CheckedAction.Draws = 0;
+            var player = new ActionModPlayer { CurrentActionFrame = (int)(progress * 100) };
+            var auto = new CheckedAction();
+            auto.Seed(new Vector2(390, 100)); auto.SubmitActionVisuals(player);
+            auto.Overwrite();
+            if (CheckedAction.Draws != 0) throw new Exception("Trail drew during early submission");
+            LayerDrawRequestSystem.ClearFrame();
+            auto.Seed(new Vector2(390, 100));
+            Main.gamePaused = true; int samples = auto.Count;
+            auto.SubmitActionVisuals(player);
+            if (auto.Count != samples) throw new Exception("Paused frame sampled trail");
+            auto.Overwrite(); Main.gamePaused = false;
+            var slash = new ActionReplay { DrawWandTrail = false };
+            slash.Nodes.Add(new SlashTrailActionNode(10, 20, new SlashTrailActionNode.SlashTrailSegment {
+                StartPosition = new(-100, 0), EndPosition = new(100, 0),
+                ControlPointA = new(-40, 80), ControlPointB = new(40, 80), TrailLength = .9f
+            }));
+            player.Player.MountedCenter = new Vector2(310, 230);
+            // Only the active node interval may queue this trail.
+            foreach (int frame in new[] { 9, 20 }) {
+                LayerDrawRequestSystem.ClearFrame(); player.CurrentActionFrame = frame; slash.SubmitActionVisuals(player);
+                if (LayerDrawRequestSystem.HasBloomRequests(Layer, Timing)) throw new Exception("Inactive slash node submitted");
+            }
+            auto.Seed(new Vector2(390, 100)); player.CurrentActionFrame = (int)(progress * 100);
+            auto.SubmitActionVisuals(player); auto.Overwrite();
+            player.CurrentActionFrame = 15; slash.SubmitActionVisuals(player);
+            player.Player.MountedCenter = new Vector2(-5000); // queued transform must be a snapshot
+            if (!LayerDrawRequestSystem.HasBloomRequests(Layer, Timing)) throw new Exception("Missing projectile bloom trail");
+            foreach (var layer in Enum.GetValues<LayerDrawRequestSystem.DrawTargetLayer>())
+                foreach (var timing in Enum.GetValues<LayerDrawRequestSystem.DrawTiming>())
+                    if ((layer != Layer || timing != Timing) && LayerDrawRequestSystem.HasBloomRequests(layer, timing))
+                        throw new Exception("Trail opened an extra Bloom layer");
+            LayerDrawRequestSystem.RequestBloom("FollowingProjectile", Layer, Timing, () => {
+                if (CheckedAction.Draws != 1) throw new Exception("Trail order/count mismatch");
+                Main.spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle(20, 20, 20, 20), Color.White);
+            }, order: LayerDrawRequestSystem.ProjectileOrder);
+        }
+        public static void CheckConsumed() {
+            if (CheckedAction.Draws != 1 || LayerDrawRequestSystem.HasBloomRequests(Layer, Timing))
+                throw new Exception("Shared queue was not consumed exactly once");
+        }
+    }
+}

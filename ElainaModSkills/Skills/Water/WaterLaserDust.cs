@@ -76,12 +76,11 @@ public sealed class WaterLaserDust : KLBasicDust
             info.DustData = state = new ParticleState(false, info.AttachedEntity?.position ?? Vector2.Zero);
         state.Draw ??= context =>
         {
-            // DrawDust 返回时已 End；本组自管 Begin/End，离开时仍保持批次关闭。
-            if (context.IsFirst) BeginDraw(state: 2, defferred: 1, ss: SamplerState.LinearClamp);
+            if (context.IsFirst) EndBeginDraw(state: 2, defferred: 1, ss: SamplerState.LinearClamp);
             if (dust.active && ReferenceEquals(dust.customData, info))
                 WaterLaserVisuals.DrawParticle(dust.position, dust.rotation, info.scale,
                     info.LifeProgress, info.randFrame, state.Foam, dust.color);
-            if (context.IsLast) Main.spriteBatch.End();
+            if (context.IsLast) EndBeginDraw();
         };
         LayerDrawRequestSystem.Request("Elaina:WaterLaser:Particles", LayerDrawRequestSystem.DrawTargetLayer.Dust,
             LayerDrawRequestSystem.DrawTiming.After, state.Draw, order: LayerDrawRequestSystem.DustOrder);

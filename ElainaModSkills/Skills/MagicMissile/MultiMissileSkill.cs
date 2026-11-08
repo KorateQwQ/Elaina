@@ -26,10 +26,8 @@ public class MultiMissileSkill : ElainaSkill
     // 用于识别超时后才执行的旧回调，避免旧动作占用已被重新分配的位置。
     private readonly int[] reservationVersions = new int[MissileCount];
 
-    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel)
-    {
-        return SkillUnlockCondition.BySkillPoint(15);
-    }
+    // 上一次占用的位置；补球从它的下一个位置开始循环查找，保证按 1→5 顺序轮换。
+    private int lastSlot = -1;
 
     public override Type[] PrerequisiteSkills =>new[] { typeof(MagicMissileSkill)};
 
@@ -55,11 +53,20 @@ public class MultiMissileSkill : ElainaSkill
             reservationTimers[i] = 0;
             reservationVersions[i] = 0;
         }
+        lastSlot = -1;
 
         base.Initialize();
     }
 
     public override bool CanUseSkill()
+    {
+        return Player.whoAmI == Main.myPlayer
+            && !Player.GetModPlayer<ActionModPlayer>().HasAction
+            && CanSummonSpawner()
+            && base.CanUseSkill();
+    }
+
+    private bool CanSummonSpawner()
     {
         // 即使技能状态曾被重置，也不允许场上该玩家的spawner总数超过上限。
         if (CountActiveSpawners() >= MissileCount)
@@ -67,44 +74,43 @@ public class MultiMissileSkill : ElainaSkill
             return false;
         }
 
-        // 找到最右边（索引最小）的空闲位置
-        int emptySlot = -1;
+        // 如果所有位置都被占满，无法使用技能
+        return FindNextSlot() != -1;
+    }
+
+    /// <summary>
+    /// 从上次位置的下一个开始循环查找空位。若取编号最小的空位，1 号发射与 5 号补位只要差一帧，
+    /// 补位就会抢回 1 号，5 号永远空着。
+    /// </summary>
+    private int FindNextSlot()
+    {
+        // 场上全空时从最右侧重新开始。
+        int start = Array.IndexOf(slotOccupied, true) == -1 ? 0 : lastSlot + 1;
         for (int i = 0; i < MissileCount; i++)
         {
-            if (!slotOccupied[i])
-            {
-                emptySlot = i;
-                break;
-            }
-        } 
-        // 如果所有位置都被占满，无法使用技能
-        if (emptySlot == -1)
-        {
-            return false;
+            int slot = (start + i) % MissileCount;
+            if (!slotOccupied[slot])
+                return slot;
         }
-
-        return base.CanUseSkill();
+        return -1;
     }
 
     public override bool PreUseSkill(IEntitySource source)
     {
-        if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
+        var actionPlayer = Player.GetModPlayer<ActionModPlayer>();
+        bool continuing = actionPlayer.CurrentAnimAction is Action_MultiMissile channel
+            && channel.IsChannelingSkill(this);
+        if (Player.whoAmI != Main.myPlayer || Stack <= 0
+            || (continuing ? !CanSummonSpawner() : !CanUseSkill()))
             return false;
-        
+
         UpdateSpawnerSlots();
+        int slotIndex = FindNextSlot();
+        if (slotIndex == -1
+            || !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
+            return false;
 
-        // 找到最右边（索引最小）的空闲位置
-        int emptySlot = -1;
-        for (int i = 0; i < MissileCount; i++)
-        {
-            if (!slotOccupied[i])
-            {
-                emptySlot = i;
-                break;
-            }
-        }
-
-        int slotIndex = emptySlot;
+        lastSlot = slotIndex;
         int reservationVersion = ++reservationVersions[slotIndex];
 
         // 必须在启动延迟动作前预留，否则快速释放会重复选中同一位置。
@@ -114,9 +120,8 @@ public class MultiMissileSkill : ElainaSkill
 
         Vector2 spawnPosition = GetSlotPosition(Player, slotIndex);
 
-        // 创建动作并生成单个spawner
-        AnimAction animAction = new Action_SimpleShoot(10);
-        animAction.AddNode(new ShootActionNode(
+        // 首枚仍在第 1 帧生成，后续补球沿用射击钩子，但不重复启动物品和挥杖动作。
+        var shot = new ShootActionNode(
             1,
             ModContent.ProjectileType<MagicMissleSpawner>(),
             _ => spawnPosition,
@@ -124,12 +129,36 @@ public class MultiMissileSkill : ElainaSkill
             2,
             _ => Vector2.Zero,
             configureProjectile: projectile =>
-                OnSpawnerCreated(projectile, slotIndex, reservationVersion)));
+                OnSpawnerCreated(projectile, slotIndex, reservationVersion));
 
-        float startRotation = (Main.MouseWorld - Player.MountedCenter).ToRotation();
-        Player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
+        if (continuing)
+        {
+            shot.Update(actionPlayer, 1, 0f);
+        }
+        else
+        {
+            var animAction = new Action_MultiMissile(this);
+            animAction.AddNode(shot);
+            float startRotation = (Main.MouseWorld - Player.MountedCenter).ToRotation() * Player.gravDir;
+            actionPlayer.StartAction(animAction, interruptCurrentAction: false, rotation: startRotation);
+        }
 
         return base.PreUseSkill(source);
+    }
+
+    internal bool UpdateChannelShot(out bool fired)
+    {
+        fired = false;
+        // 满槽或尚未恢复层数时只保持动作，不扣魔力，也不重置冷却。
+        if (Stack <= 0 || !CanSummonSpawner())
+            return true;
+        if (!base.CanUseSkill())
+            return false;
+
+        int previousStack = Stack;
+        Skill.UseSkill(null, Player.GetModPlayer<ElainaSkillModPlayer>().Attributes);
+        fired = Stack < previousStack;
+        return fired;
     }
 
     internal static Vector2 GetSlotPosition(Player player, int slotIndex)

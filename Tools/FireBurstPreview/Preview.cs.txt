@@ -16,14 +16,15 @@ internal static class FireBurstPreview
     {
         if (OperatingSystem.IsWindows())
             System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
-        using var game = new BurstProbe(args[0], args[1], args[2]);
+        using var game = new BurstProbe(args[0], args[1], args[2], args.Contains("--glow-comparison"), args.Contains("--domain"));
         game.Run();
     }
 }
 
 internal sealed class BurstProbe : Game
 {
-    const int Width = 1100, Height = 1000;
+    // 领域预览按 1920×1080 渲染，使半径 1000 的领域与游戏画面比例一致。
+    readonly int Width = 1100, Height = 1000;
     const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
     readonly string kl, root, output;
     Assembly pipeline;
@@ -34,11 +35,15 @@ internal sealed class BurstProbe : Game
     object renderer;
     bool done;
     int LastParticles;
+    readonly bool glowComparison, domainMode;
     static readonly Vector2 ScreenPosition = new(1200, 800);
 
-    internal BurstProbe(string kl, string root, string output)
+    internal BurstProbe(string kl, string root, string output, bool glowComparison, bool domainMode)
     {
         this.kl = kl; this.root = root; this.output = output;
+        this.glowComparison = glowComparison;
+        this.domainMode = domainMode;
+        if (domainMode) { Width = 1920; Height = 1080; }
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
@@ -54,7 +59,7 @@ internal sealed class BurstProbe : Game
         var burst = Read(Path.Combine(root, "ElainaModSkills/Skills/Fire/FireBurstProj.cs"));
         var assets = Read(Path.Combine(kl, "Drawing/DrawHelper.Assets.cs"));
         var drawing = Read(Path.Combine(kl, "Drawing/DrawHelper.DrawingMethod.cs"));
-        string prefix = "using System; using System.Collections.Generic; using Microsoft.Xna.Framework; using Microsoft.Xna.Framework.Graphics; using 伊蕾娜.ElainaModSkills.Skills.Fire; using 伊蕾娜.ElainaModSkills.Skills.Recall; using static KL.Drawing.DrawHelper; namespace KL.Drawing {";
+        string prefix = "using System; using System.Collections.Generic; using Microsoft.Xna.Framework; using Microsoft.Xna.Framework.Graphics; using 伊蕾娜.ElainaModSkills.Skills.Fire; using 伊蕾娜.ElainaModSkills.Skills.Recall; namespace KL.DamageSystem { public enum ElementType { Fire } public sealed class ElementalGlobalProjectile { public bool SuppressBuildup; } public readonly record struct FireBurnHit(int TargetIndex, int TargetGeneration, int AnchorIndex, int AnchorGeneration, bool WasBurning); public static class FireBurnNPC { public const int ExposureTicks = 180; } } namespace KL.Drawing { using KL.DamageSystem; using static KL.Drawing.DrawHelper;";
         string source = prefix + """
             public static partial class Main { public static Vector2 screenPosition = new(1200, 800); public static bool dedServ; public static PreviewRandom rand = new(77); }
             public static class Lighting {
@@ -82,9 +87,11 @@ internal sealed class BurstProbe : Game
                 public Vector2 Center;
                 public float[] ai = new float[3];
                 public DamageClass DamageType;
+                public T GetGlobalProjectile<T>() where T : new() => new();
             }
             public class VisualBase {
                 public ProjectileState Projectile = new();
+                public KL.DamageSystem.ElementType InfusionElement;
                 public virtual void SetDefaults() {}
                 public virtual void AI() {}
                 public virtual bool? CanDamage() => null;
@@ -99,6 +106,18 @@ internal sealed class BurstProbe : Game
                 public static bool OnlyRings;
                 public static int RingSide;
                 public static bool LayerProbe;
+                public static bool LegacyImpactGlow;
+                public static float BodyPeakGain = 3f;
+                // 历史贴图方案仅供三列对照，正式游戏已删除此绘制。
+                private void DrawLegacyImpactGlow() {
+                    float strength = MathHelper.SmoothStep(1f, 0f, (time - 1f) / 8f);
+                    if (strength <= 0f) return;
+                    Texture2D glow = ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/UICore/Assets/GlowDot", AssetRequestMode.ImmediateLoad).Value;
+                    EndBeginDraw(0, 1, ss: SamplerState.LinearClamp);
+                    ReColorEffect(new Vector4(9.5f, 4.8f, 0.9f, 1f) * strength);
+                    DrawInWorld(glow, Projectile.Center + new Vector2(0f, -100f), scale: new Vector2(3.6f, 4.2f));
+                    EndBeginDraw();
+                }
                 private int burstEffectsCount;
                 private void SpawnBurstEffects() { burstEffectsCount++; }
                 public static void CheckStages() {
@@ -118,6 +137,14 @@ internal sealed class BurstProbe : Game
                     Main.dedServ = false;
                     var synced = new BurstVisual(); synced.Projectile.ai[0] = 40; synced.AI(); synced.AI();
                     if (synced.burstEffectsCount != 1 || synced.CanDamage() == false) throw new Exception("Late synced stage did not resume");
+                }
+                public void SubmitAt(int frame, Vector2 world) {
+                    Projectile.ai[0] = frame;
+                    Projectile.ai[1] = 0.4f + world.X * 0.013f;
+                    Projectile.Center = world;
+                    Projectile.active = true;
+                    var lists = new List<int>();
+                    DrawBehind(0, lists, lists, lists, lists, lists);
                 }
                 public void Submit(int frame, float x, bool active) {
                     Projectile.ai[0] = frame;
@@ -153,22 +180,38 @@ internal sealed class BurstProbe : Game
                 "DrawFrontAirRings" => code.Replace("if (!Projectile.active || !IsBursting) return;", "if (!Projectile.active || !IsBursting) return; FrontCalls++; if (OnlyRings && RingSide < 0) return;"),
                 _ => code
             };
+            // 普通检查直接使用正式倍率；只有显式对照模式才改成可选倍率并补历史光斑。
+            if (glowComparison && method.Identifier.Text == "DrawVisual") {
+                const string gainSource = "float burstGain = 1f + 2f *";
+                if (!code.Contains(gainSource) || !code.Contains("DrawBlackDust();"))
+                    throw new Exception("Glow comparison adapter no longer matches the production drawing");
+                code = code.Replace(gainSource, "float burstGain = 1f + (BodyPeakGain - 1f) *")
+                    .Replace("DrawBlackDust();", "DrawBlackDust(); if (LegacyImpactGlow) DrawLegacyImpactGlow();");
+            }
             source += code;
         }
         source += "}" + DustSource(burst);
         // 默认直接执行游戏配置的参数绑定，禁止预览另设更宽的 Bloom。
         string bloomSettings = Read(Path.Combine(kl, "Configs/BloomConfig.cs")).DescendantNodes().OfType<InvocationExpressionSyntax>()
             .Single(m => m.Expression.ToString() == "DrawSystem.SetBloomInfo").ToString().Replace("ShouldBloom", "enabled");
-        source += " public partial class DrawSystem { public static int PreviewBloomIterations; public void RunLayer(bool enabled, int layer) { "
+        // 普通队列必须经过正式层包装；当前 KL 会在每个回调前保证 Begin，并在层结束时恢复状态。
+        string flushLayer = Methods(Read(Path.Combine(kl, "Drawing/DrawSystem.cs")), "FlushLayerRequests")
+            .Replace("Stopwatch.GetTimestamp()", "System.Diagnostics.Stopwatch.GetTimestamp()")
+            .Replace("RenderPerformanceDiagnostics.RecordBloom(start, layer, timing);", "");
+        source += " public partial class DrawSystem { " + flushLayer + " public static int PreviewBloomIterations; public void RunLayer(bool enabled, int layer) { "
             + bloomSettings + "; if (PreviewBloomIterations > 0) SetBloomInfo(bloomStr, PreviewBloomIterations, shouldBloom: enabled); "
-            + "RenderRequestedBloom((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After); } public void RunPlainLayer(int layer) { LayerDrawRequestSystem.Flush((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After); } }";
+            + "RenderRequestedBloom((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After); } public void RunPlainLayer(int layer) { FlushLayerRequests((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After); } }";
         source += "public static class DrawManager {" + Read(Path.Combine(root, "Managers/DrawManager.cs")).DescendantNodes()
             .OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "FrameTime" && m.ParameterList.Parameters.Count == 4).ToFullString() + "}";
-        source += "public partial class DrawHelper { public static Effect commonMagic;";
+        source += "public partial class DrawHelper { public static Effect commonMagic, texturedRing; public static Texture2D PerLinNoiseX; static void SetEffectValue(Effect e, string n, float v) => e.Parameters[n].SetValue(v); static void SetEffectValue(Effect e, string n, bool v) => e.Parameters[n].SetValue(v); static void SetEffectValue(Effect e, string n, Vector2 v) => e.Parameters[n].SetValue(v); static void SetEffectValue(Effect e, string n, Vector4 v) => e.Parameters[n].SetValue(v); static void SetEffectTexture(Effect e, int i, Texture2D v) => e.Parameters[i].SetValue(v); static void ApplyEffect(Effect e) => e.CurrentTechnique.Passes[0].Apply();";
         source += string.Join("\n", assets.DescendantNodes().OfType<BaseTypeDeclarationSyntax>()
             .Where(t => new[] { "TextureInfo", "FrameInfo", "FrameType", "TweenEase" }.Contains(t.Identifier.Text)).Select(t => t.ToFullString()));
         source += Methods(assets, "GetFrameValue", "EvaluateTween", "EvaluateTweenSegment", "ApplyEase");
-        source += Methods(Read(Path.Combine(kl, "Drawing/DrawHelper.Effects.cs")), "CommonMagicEffect");
+        string effectMethods = Methods(Read(Path.Combine(kl, "Drawing/DrawHelper.Effects.cs")), "CommonMagicEffect", "CircleRingEffect")
+            .Replace("texturedRing.SetValue(", "SetEffectValue(texturedRing, ")
+            .Replace("texturedRing.SetTexture(", "SetEffectTexture(texturedRing, ")
+            .Replace("texturedRing.Apply()", "ApplyEffect(texturedRing)");
+        source += effectMethods;
         source += Methods(drawing, "DrawInWorld");
         source += Methods(drawing, "BeginDraw");
         return source + "}}";
@@ -285,6 +328,19 @@ internal sealed class BurstProbe : Game
                         foreach (Dust dust in Dust.All.ToArray())
                             if (dust.active) DustLoader.GetDust(dust.type).Update(dust);
                 }
+                // 领域预览：各炎爆年龄不同，粒子分别按各自年龄推进
+                public static void RunMixed(List<Vector2> centers, List<int> ages) {
+                    Dust.All.Clear();
+                    Main.rand = new PreviewRandom(77);
+                    for (int k = 0; k < centers.Count; k++) {
+                        if (ages[k] <= 30) continue;
+                        int start = Dust.All.Count;
+                        BurstParticles.Spawn(new ProjectileState { Center = centers[k] });
+                        for (int tick = 0; tick < ages[k] - 30; tick++)
+                            for (int i = start; i < Dust.All.Count; i++)
+                                if (Dust.All[i].active) DustLoader.GetDust(Dust.All[i].type).Update(Dust.All[i]);
+                    }
+                }
                 // 同 KLBasicDust.SubmitBloomDrawRequests：在 Projectiles.After 刷新前收集粒子的 Bloom 请求
                 public static void Submit() {
                     foreach (Dust dust in Dust.All)
@@ -319,7 +375,9 @@ internal sealed class BurstProbe : Game
             SharedSource("ElainaModSkills/Skills/Fire/FireBurstWindDrawing.cs"),
             SharedSource("ElainaModSkills/Skills/Recall/RecallPortalDrawing.cs"),
             SharedSource("ElainaModSkills/Skills/Recall/RecallPortalPattern.cs"),
-            SharedSource("ElainaModSkills/Skills/Recall/RecallPortalScript.cs"));
+            SharedSource("ElainaModSkills/Skills/Recall/RecallPortalScript.cs"),
+            SharedSource("ElainaModSkills/Skills/Fire/FireBurstDomainRingDrawing.cs"),
+            File.ReadAllText(Path.Combine(root, "Tools/FireBurstPreview/DomainRingAdapter.cs.txt")));
         main = pipeline.GetType("KL.Drawing.Main"); helper = pipeline.GetType("KL.Drawing.DrawHelper");
         queue = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem"); visual = pipeline.GetType("KL.Drawing.BurstVisual");
         visual.GetMethod("CheckStages").Invoke(null, null);
@@ -330,10 +388,14 @@ internal sealed class BurstProbe : Game
         Set(main, "instance", context); Set(main, "graphics", context); Set(main, "spriteBatch", batch);
         Set(main, "screenWidth", Width); Set(main, "screenHeight", Height);
         var textures = (System.Collections.IDictionary)pipeline.GetType("KL.Drawing.ModContent").GetField("Textures").GetValue(null);
-        foreach (string path in new[] { "Effects/Tex/Noise/5", "Effects/Tex/Noise/6", "Effects/Tex/lightMask", "Effects/Tex/Trail/Eff_Trail_2014", "Effects/Tex/光圈", "Effects/Tex/Sparkle/HShotA", "Effects/Tex/光圈渐变", "Effects/Tex/PerlinX",
+        foreach (string path in new[] { "Effects/Tex/Noise/5", "Effects/Tex/Noise/6", "Effects/Tex/lightMask", "Effects/Tex/Trail/Eff_Trail_2014", "Effects/Tex/光圈", "Effects/Tex/Sparkle/HShotA", "Effects/Tex/光圈渐变", "Effects/Tex/PerlinX", "Effects/Tex/cellnoise",
             "Dusts/Fire/FireDust", "Dusts/Fire/FireDust2", "Dusts/Fire/FireDust2_Premultiplied", "Dusts/Spark", "Dusts/Spark_Premultiplied", "Effects/Tex/Sparkle/ShotLine" }) {
             using var stream = File.OpenRead(Path.Combine(kl, path + ".png"));
             textures.Add("KL/" + path, Texture2D.FromStream(GraphicsDevice, stream));
+        }
+        foreach (string path in new[] { "ElainaModSkills/Skills/MagicMissile/noi_1", "ElainaModSkills/UICore/Assets/GlowDot", "ElainaModSkills/UICore/Assets/Star4" }) {
+            using var stream = File.OpenRead(Path.Combine(root, path + ".png"));
+            textures.Add("伊蕾娜/" + path, Texture2D.FromStream(GraphicsDevice, stream));
         }
         using (var stream = File.OpenRead(Path.Combine(root, "ElainaModSkills/Skills/Fire/FireBurstFlameDust.png")))
             textures.Add("伊蕾娜/ElainaModSkills/Skills/Fire/FireBurstFlameDust", Texture2D.FromStream(GraphicsDevice, stream));
@@ -345,6 +407,7 @@ internal sealed class BurstProbe : Game
         effects = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
         Set(helper, "bloom", effects.Load<Effect>("Bloom")); Set(helper, "reColor", effects.Load<Effect>("ReColor"));
         Set(helper, "commonMagic", effects.Load<Effect>("CommonMagic"));
+        Set(helper, "texturedRing", effects.Load<Effect>("TexturedRing"));
         // 正式 Effects/Content/FireBurstFlame.xnb（由 compile.ps1 从 .fx 编译）
         var ownEffects = (System.Collections.IDictionary)pipeline.GetType("KL.Drawing.ModContent").GetField("Effects").GetValue(null);
         ownEffects.Add("KL/Effects/Content/VertexDraw", effects.Load<Effect>("VertexDraw"));
@@ -354,7 +417,8 @@ internal sealed class BurstProbe : Game
     }
 
     Color[] Render(string name, int frame, bool enabled = true, bool day = false, int count = 1, bool active = true, bool save = true,
-        float zoom = 1f, bool onlyRings = false, int ringSide = 0, bool layerProbe = false, int bloomIterations = 0)
+        float zoom = 1f, bool onlyRings = false, int ringSide = 0, bool layerProbe = false, int bloomIterations = 0,
+        bool legacyImpactGlow = false, float bodyPeakGain = 3f, bool keepParticles = false)
     {
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
         GraphicsDevice.SetRenderTarget(target);
@@ -367,6 +431,8 @@ internal sealed class BurstProbe : Game
         Set(visual, "OnlyRings", onlyRings);
         Set(visual, "RingSide", ringSide);
         Set(visual, "LayerProbe", layerProbe);
+        Set(visual, "LegacyImpactGlow", legacyImpactGlow);
+        Set(visual, "BodyPeakGain", bodyPeakGain);
         object view = main.GetField("GameViewMatrix").GetValue(null);
         view.GetType().GetField("TransformationMatrix").SetValue(view,
             Matrix.CreateTranslation(-550, -870, 0) * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(550, 870, 0));
@@ -379,7 +445,7 @@ internal sealed class BurstProbe : Game
             centers.Add(ScreenPosition + new Vector2(x, 870));
         }
         // 失效弹幕的检查不含粒子（粒子生命周期独立于弹幕）
-        if (!active || onlyRings) centers.Clear();
+        if ((!active && !keepParticles) || onlyRings) centers.Clear();
         pipeline.GetType("KL.Drawing.ParticleSim").GetMethod("Run").Invoke(null, new object[] { centers, frame });
         pipeline.GetType("KL.Drawing.ParticleSim").GetMethod("Submit").Invoke(null, null);
         var requests = (System.Collections.IDictionary)queue.GetField("BloomRequests", All).GetValue(null);
@@ -427,6 +493,9 @@ internal sealed class BurstProbe : Game
     protected override void Draw(GameTime gameTime)
     {
         if (done) return; done = true;
+        if (glowComparison) { SaveGlowComparison(); Exit(); return; }
+        if (domainMode) { SaveDomainPreview(); Exit(); return; }
+        CheckBodyGlow();
         CheckFixedRingHalves();
         // 强 HDR 火柱与较晚的粒子层必须被前侧黑面遮挡，而不能把黑面重新冲亮。
         foreach (bool bloomEnabled in new[] { false, true }) {
@@ -504,6 +573,43 @@ internal sealed class BurstProbe : Game
         if (invalidated[Width * 500 + 550] != new Color(14, 18, 30)) throw new Exception("Inactive projectile still draws");
         Console.WriteLine($"PASS: actual FireBurst + circle + two-sided ribbons + KL Bloom; {brighter} brighter burst pixels; black={black}, orange={orange}; rear/body share one ordered Bloom layer; Dust.After enters/exits with no active SpriteBatch; fixed halves through 360 degrees; foreground covers late HDR content with Bloom on/off; harmless windup, server guard, synced age, invalidation, 125% zoom and multiple instances checked.");
         Exit();
+    }
+
+    // 倍率只改正式火柱三段颜色的 RGB，保持 alpha、粒子、随机种子和 Bloom 配置一致。
+    void SaveGlowComparison()
+    {
+        foreach (bool day in new[] { false, true })
+        foreach (int variant in new[] { 0, 2, 3 })
+        {
+            string folder = $"glow-comparison/{(day ? "day" : "night")}/{(variant == 0 ? "texture" : "body" + variant)}";
+            Directory.CreateDirectory(Path.Combine(output, folder));
+            for (int age = 1; age <= 78; age++)
+                Render($"{folder}/f{age:00}", age, day: day, active: age < 60, keepParticles: true,
+                    legacyImpactGlow: variant == 0, bodyPeakGain: variant == 0 ? 1f : variant);
+            Console.WriteLine($"Rendered {folder}: 78 frames");
+        }
+    }
+
+    // 读取正式绘制实际写入 Shader 的色带值，验证峰值、淡出及 alpha 不变。
+    void CheckBodyGlow()
+    {
+        float[] expected = [3f, 2.9140625f, 2.6875f, 2.3671875f, 2f, 1.6328125f, 1.3125f, 1.0859375f, 1f, 1f];
+        var shaders = (System.Collections.IDictionary)pipeline.GetType("KL.Drawing.ModContent").GetField("Effects").GetValue(null);
+        var flame = (Effect)shaders["伊蕾娜/Effects/Content/FireBurstFlame"];
+        (string name, Vector3 rgb)[] bands = [
+            ("BandOuter", new(2f, .46f, .06f)), ("BandMid", new(2f, .82f, .09f)), ("BandInner", new(3.6f, 2.23f, .65f))];
+        foreach (bool day in new[] { false, true })
+        for (int tick = 1; tick <= 10; tick++)
+        {
+            Render($"body-glow-{(day ? "day" : "night")}-t{tick:00}", 30 + tick, day: day);
+            foreach (var band in bands) {
+                Vector4 actual = flame.Parameters[band.name].GetValueVector4();
+                Vector4 wanted = new(band.rgb * expected[tick - 1], 1f);
+                if (Vector4.Distance(actual, wanted) > .0001f)
+                    throw new Exception($"Body glow/coverage regression: tick={tick}, band={band.name}, actual={actual}, expected={wanted}");
+            }
+            Console.WriteLine($"Body glow: day={day}, tick={tick}, gain={expected[tick - 1]:F4}, all three bands preserve alpha=1");
+        }
     }
 
     // 同一帧、同一尺寸的参数对照：左侧游戏配置，右侧以前预览误用的 5 层采样。
@@ -636,6 +742,136 @@ internal sealed class BurstProbe : Game
         }
         using var texture = new Texture2D(GraphicsDevice, w * ages.Length, h * 2); texture.SetData(sheet);
         using var stream = File.Create(Path.Combine(output, "particles-sheet.png")); texture.SaveAsPng(stream, w * ages.Length, h * 2);
+    }
+
+    // ---------------- 炎爆领域外观候选 ----------------
+    static readonly Vector2 DomainCenter = new(6000, 3000);
+    const float DomainRadius = 1400f;
+    // 敌人相对领域中心的位置：地面行走（脚底在地面）与飞行。
+    static readonly Vector2[] GroundEnemies = [new(-820, 0), new(-560, 0), new(-300, 0), new(280, 0), new(520, 0), new(760, 0), new(900, 0)];
+    static readonly Vector2[] FlyingEnemies = [new(-650, -260), new(-200, -380), new(420, -300), new(700, -180)];
+    static readonly string[] VariantNames = ["Ring"];
+
+    Color[] RenderDomain(int variant, int domainAge, int remaining, bool day, Vector2 camera, string name = null)
+    {
+        float groundY = DomainCenter.Y + 21f; // 玩家中心 + 半身高
+        Vector2 screen = DomainCenter + camera - new Vector2(Width / 2f, Height / 2f);
+        main.GetField("screenPosition").SetValue(null, screen);
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(day ? new Color(132, 170, 204) : new Color(14, 18, 30));
+        queue.GetMethod("ClearFrame").Invoke(null, null);
+        Set(renderer.GetType(), "PreviewBloomIterations", 0);
+        Set(visual, "OnlyRings", false); Set(visual, "LayerProbe", false); Set(visual, "LegacyImpactGlow", false); Set(visual, "BodyPeakGain", 3f);
+        object view = main.GetField("GameViewMatrix").GetValue(null);
+        view.GetType().GetField("TransformationMatrix").SetValue(view, Matrix.Identity);
+        for (int slot = 1; slot < 4; slot++) GraphicsDevice.SamplerStates[slot] = SamplerState.PointClamp;
+
+        // 领域外观：与炎爆同在 Projectiles.After 的 Bloom 组内，排在火柱之前。
+        Type layerType = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer");
+        Type timingType = pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming");
+        var request = queue.GetMethods().Single(m => m.Name == "RequestBloom" && m.GetParameters().Length == 5
+            && m.GetParameters()[3].ParameterType == typeof(Action));
+        // 正式范围圈：半径须与 FireBurstDomain.Radius 一致（预览无法引用 ModProjectile，改半径时同步这里）
+        var drawDomain = pipeline.GetType("KL.Drawing.DomainRingPreview").GetMethod("Draw");
+        Action domainDraw = () => drawDomain.Invoke(null, new object[] { DomainCenter, DomainRadius, (float)domainAge, (float)remaining });
+        request.Invoke(null, new object[] { "Elaina:FireBurstDomain:Ring", Enum.Parse(layerType, "Projectiles"), Enum.Parse(timingType, "After"), domainDraw, -101 });
+
+        // 炎爆：展开时中心一次；之后每 4 帧锁定一名敌人，同一敌人每 75 帧重新锁定（与正式调度一致）。
+        var centers = new List<Vector2>(); var ages = new List<int>();
+        void Strike(Vector2 world, int age) {
+            if (age < 1) return;
+            if (age <= 60) visual.GetMethod("SubmitAt").Invoke(Activator.CreateInstance(visual), new object[] { age, world });
+            if (age <= 75) { centers.Add(world); ages.Add(age); }
+        }
+        Strike(DomainCenter + new Vector2(0, 21), domainAge);
+        var enemies = GroundEnemies.Select(e => DomainCenter + new Vector2(e.X, 21)).Concat(FlyingEnemies.Select(e => DomainCenter + e + new Vector2(0, 13))).ToArray();
+        for (int j = 0; j < enemies.Length; j++) {
+            int t = domainAge - 2 - j * 4;
+            if (t < 0 || remaining <= 0) continue;
+            Strike(enemies[j], t % 75 + 1);
+        }
+        var sim = pipeline.GetType("KL.Drawing.ParticleSim");
+        sim.GetMethod("RunMixed").Invoke(null, new object[] { centers, ages });
+        sim.GetMethod("Submit").Invoke(null, null);
+
+        // 地形、敌人剪影、玩家位置：均在弹幕层之前绘制。
+        batch.Begin();
+        int groundScreen = (int)(groundY - screen.Y);
+        batch.Draw(pixel, new Rectangle(0, groundScreen, Width, Height - groundScreen), day ? new Color(74, 62, 46) : new Color(30, 27, 24));
+        batch.Draw(pixel, new Rectangle(0, groundScreen, Width, 6), day ? new Color(70, 120, 50) : new Color(32, 52, 30));
+        foreach (Vector2 e in GroundEnemies) {
+            Vector2 p = DomainCenter + new Vector2(e.X, 21) - screen;
+            batch.Draw(pixel, new Rectangle((int)p.X - 16, (int)p.Y - 44, 32, 44), new Color(40, 30, 52));
+        }
+        foreach (Vector2 e in FlyingEnemies) {
+            Vector2 p = DomainCenter + e - screen;
+            batch.Draw(pixel, new Rectangle((int)p.X - 20, (int)p.Y - 13, 40, 26), new Color(40, 30, 52));
+        }
+        Vector2 player = DomainCenter - screen;
+        batch.Draw(pixel, new Rectangle((int)player.X - 10, (int)player.Y - 21, 20, 42), new Color(96, 80, 150));
+        batch.End();
+
+        renderer.GetType().GetMethod("RunLayer").Invoke(renderer, new object[] { true, 3 });
+        renderer.GetType().GetMethod("RunLayer").Invoke(renderer, new object[] { true, 5 });
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, null, Matrix.Identity);
+        pipeline.GetType("KL.Drawing.ParticleSim").GetMethod("Draw").Invoke(null, null);
+        batch.End();
+        renderer.GetType().GetMethod("RunPlainLayer").Invoke(renderer, new object[] { 6 });
+        var pixels = new Color[Width * Height]; target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        if (name != null) SavePixels(name, pixels, Width, Height);
+        return pixels;
+    }
+
+    void SavePixels(string name, Color[] pixels, int w, int h)
+    {
+        string path = Path.Combine(output, name + ".png");
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using var image = new Texture2D(GraphicsDevice, w, h); image.SetData(pixels);
+        using var stream = File.Create(path); image.SaveAsPng(stream, w, h);
+    }
+
+    static Color[] Half(Color[] src, int w, int h)
+    {
+        int hw = w / 2, hh = h / 2;
+        var dst = new Color[hw * hh];
+        for (int y = 0; y < hh; y++) for (int x = 0; x < hw; x++) {
+            Vector4 sum = Vector4.Zero;
+            for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 2; dx++) sum += src[(y * 2 + dy) * w + x * 2 + dx].ToVector4();
+            dst[y * hw + x] = new Color(sum / 4);
+        }
+        return dst;
+    }
+
+    void SaveDomainPreview()
+    {
+        int duration = 600;
+        Vector2 offset = new(DomainRadius - 500, 0); // 玩家右移，右侧边界在画面 x≈1460
+        int hw = Width / 2, hh = Height / 2;
+        for (int v = 0; v < VariantNames.Length; v++) {
+            string n = VariantNames[v];
+            // 展开过程：火环从玩家处扩到边界（0～24 帧）、火势升起、常驻；半尺寸拼成 3×2
+            int[] seq = [6, 14, 24, 40, 80, 130];
+            var sheet = new Color[hw * 3 * hh * 2];
+            for (int k = 0; k < seq.Length; k++) {
+                var half = Half(RenderDomain(v, seq[k], duration - seq[k], false, offset), Width, Height);
+                for (int y = 0; y < hh; y++) Array.Copy(half, y * hw, sheet, (k / 3 * hh + y) * hw * 3 + k % 3 * hw, hw);
+            }
+            SavePixels($"domain/{n}-spread-sequence", sheet, hw * 3, hh * 2);
+            foreach (bool day in new[] { false, true }) {
+                RenderDomain(v, 300, 300, day, Vector2.Zero, $"domain/{n}-steady-{(day ? "day" : "night")}-center");
+                RenderDomain(v, 300, 300, day, offset, $"domain/{n}-steady-{(day ? "day" : "night")}-offset");
+                // 飞到高处：可见顶部弧（领域上缘在中心上方 1000 像素）
+                RenderDomain(v, 300, 300, day, offset + new Vector2(0, 400 - DomainRadius), $"domain/{n}-steady-{(day ? "day" : "night")}-high");
+            }
+            RenderDomain(v, 600, 25, false, offset, $"domain/{n}-ending-night-offset");
+            // 动画帧：0～240 帧每 3 帧一张（半尺寸，夜晚，偏离中心的镜头），由 compose_domain.py 合成 GIF
+            for (int age = 0; age <= 240; age += 3)
+                SavePixels($"domain/frames-{n}/{age:000}", Half(RenderDomain(v, age, duration - age, false, offset), Width, Height), hw, hh);
+            Console.WriteLine($"Domain variant {n} rendered");
+        }
+        Console.WriteLine("PASS: domain candidates rendered with actual FireBurst strikes and KL Bloom");
     }
 
     protected override void UnloadContent()

@@ -12,7 +12,7 @@ import server
 
 class DpsCurveTests(unittest.TestCase):
     # Controlled fixtures: users can change the real KL nodes without invalidating these tests.
-    VALUES = [20, 30, 50, 80, 110, 150, 200, 250, 350, 400, 450, 500, 650, 900, 1100, 1200, 1300, 1550, 1800, 3500]
+    VALUES = [20, 30, 50, 80, 110, 150, 200, 250, 350, 400, 450, 500, 650, 900, 1100, 1200, 1300, 1800, 3500]
     SOURCE = "float[] stateDps = [\n20f, //initial\n30f,   //升级\n" + ",".join(str(v) + "f" for v in VALUES[2:]) + "];"
 
     def test_source_literals_and_comments(self):
@@ -65,6 +65,7 @@ class DpsCurveTests(unittest.TestCase):
 class BasicDesignTests(unittest.TestCase):
     def test_flight_configuration_round_trip_and_validation(self):
         row = next(row for row in self.c["skills"] if row["id"] == "FlightSkill")
+        row.setdefault("flight", {})
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "balance.json"
             server.atomic_save(path, self.payload)
@@ -78,6 +79,20 @@ class BasicDesignTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     server.validate_payload(bad)
 
+    def test_independent_growth_origin_round_trip_and_validation(self):
+        for category in ("basicAttacks", "skills"):
+            for origin in (0, 1, 55, 1000):
+                payload = copy.deepcopy(self.payload)
+                row = payload["configuration"][category][0]
+                row["growthStartLevel"] = origin
+                server.validate_payload(payload)
+                self.assertEqual(row["growthStartLevel"], origin)
+            for origin in (-1, 1.5, 1001, None, True, "1"):
+                payload = copy.deepcopy(self.payload)
+                payload["configuration"][category][0]["growthStartLevel"] = origin
+                with self.assertRaises(ValueError):
+                    server.validate_payload(payload)
+
     def setUp(self):
         self.payload = json.loads(server.CONFIG_PATH.read_text(encoding="utf-8-sig"))
         self.c = self.payload["configuration"]
@@ -88,14 +103,12 @@ class BasicDesignTests(unittest.TestCase):
         self.c["selectedBasicAttackId"] = "IceConeBasic1"
 
     def test_atomic_round_trip_preserves_basic_drafts_and_missile(self):
-        original = copy.deepcopy(self.c["combat"])
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "balance.json"
             server.atomic_save(path, self.payload)
             restored = json.loads(path.read_text(encoding="utf-8"))["configuration"]
         self.assertEqual(restored["basicAttacks"], self.c["basicAttacks"])
         self.assertEqual(restored["selectedBasicAttackId"], "IceConeBasic1")
-        self.assertEqual(restored["combat"], original)
 
     def test_legacy_payload_rejected(self):
         self.c["version"] = 1
@@ -152,18 +165,19 @@ class BasicDesignTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.validate_payload(self.payload)
 
-    def test_regen_percent_defaults_and_validates(self):
-        self.c["combat"].pop("regenPercent", None)
+    def test_active_curve_limit_follows_pricing(self):
+        k_skill = next(row for row in self.c["skills"] if "ratio" not in row)
+        ratio_skill = next(row for row in self.c["skills"] if "ratio" in row)
+        k_skill["ratioCurve"] = [[1, 150], [50, 200]]
+        ratio_skill["ratioCurve"] = [[1, .1], [50, 5]]
         server.validate_payload(self.payload)
-        self.assertEqual(self.c["combat"]["regenPercent"], 2)
-        self.c["combat"]["regenPercent"] = 1.5
-        server.validate_payload(self.payload)
-        self.assertEqual(self.c["combat"]["regenPercent"], 1.5)
-        for value in [-.1, 100.1, "2"]:
-            self.c["combat"]["regenPercent"] = value
-            with self.subTest(value=value):
+        for row, value in [(k_skill, 200.5), (ratio_skill, 5.5)]:
+            original = row["ratioCurve"]
+            row["ratioCurve"] = [[1, value]]
+            with self.subTest(id=row["id"]):
                 with self.assertRaises(ValueError):
                     server.validate_payload(self.payload)
+            row["ratioCurve"] = original
 
     def test_cd_ratio_defaults_and_validates(self):
         self.c["skills"][0].pop("cdRatio", None)
@@ -229,7 +243,6 @@ class BasicDesignTests(unittest.TestCase):
             restored = json.loads(path.read_text(encoding="utf-8"))["configuration"]
         self.assertEqual(restored["loadouts"], self.c["loadouts"])
         self.c.pop("loadouts")
-        self.c.pop("stage", None)
         server.validate_payload(self.payload)
 
     def test_reject_invalid_loadouts(self):
@@ -243,8 +256,6 @@ class BasicDesignTests(unittest.TestCase):
         cases = [
             lambda c: c["loadouts"].pop(),
             lambda c: c.update(loadouts={}),
-            lambda c: c.update(stage=20),
-            lambda c: c.update(stage=1.5),
             edit([3, "stage"], 5),
             edit([0, "stage"], True),
             edit([0, "name"], " "),

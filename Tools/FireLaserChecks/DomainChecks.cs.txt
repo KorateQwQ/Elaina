@@ -1,0 +1,223 @@
+using KL.ActionsSystem;
+using KL.SkillSystem;
+using Microsoft.Xna.Framework;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
+using 伊蕾娜.Items;
+using GameMain = Terraria.Main;
+
+sealed partial class Checks
+{
+    FireBurstSkill burstSkill;
+    ElainaSkillModPlayer Skills => player.GetModPlayer<ElainaSkillModPlayer>();
+
+    FireBurstDomain Domain(int index, int owner = 0)
+    {
+        var domain = new FireBurstDomain();
+        var projectile = new Projectile { active = true, whoAmI = index, identity = 100 + index, owner = owner, type = 0 };
+        Entity(domain, projectile);
+        typeof(Projectile).GetProperty("ModProjectile", All).SetValue(projectile, domain);
+        domain.SetDefaults();
+        projectile.Center = player.Center;
+        GameMain.projectile[index] = projectile;
+        return domain;
+    }
+
+    int Remaining(FireBurstDomain domain) => (int)typeof(FireBurstDomain).GetProperty("RemainingTicks", All).GetValue(domain);
+    void Lifetime(FireBurstDomain domain) => Call(domain, "UpdateLifetime");
+    void Extend(FireBurstDomain domain, int ticks) => Call(domain, "Extend", ticks);
+    bool OwnsRight() => (bool)typeof(Action_FireLaser).GetMethod("OwnsQuickCastInput", All).Invoke(null, new object[] { player });
+
+    void PrepareDomainQuickCast()
+    {
+        GameMain.hasFocus = true;
+        GameMain.gameMenu = GameMain.gamePaused = GameMain.drawingPlayerChat = false;
+        GameMain.ingameOptionsWindow = GameMain.inFancyUI = GameMain.editSign = GameMain.editChest = false;
+        GameMain.mouseRight = false;
+        for (int i = 0; i < GameMain.projectile.Length; i++) GameMain.projectile[i] = new Projectile { whoAmI = i };
+        var wandItem = new Item { type = Terraria.ID.ItemID.Wood, stack = 1 };
+        var wandMod = new ElainaWand(); Entity(wandMod, wandItem);
+        typeof(Item).GetProperty("ModItem", All).SetValue(wandItem, wandMod);
+        player.inventory[0] = wandItem;
+        player.statManaMax2 = 2000;
+        Start(2000f);
+        fireSkill.Level = 1;
+        burstSkill = new FireBurstSkill { Level = 1, BasicStatus = Skill.SKillBasicStatus.UnLock };
+        var state = new Skill();
+        typeof(Skill).GetProperty("ModSkill", All).SetValue(state, burstSkill);
+        burstSkill.Skill = state;
+        Skills.UnlockedSkill[nameof(FireBurstSkill)] = state;
+        Skills.ActiveSkill.Clear(); Skills.ActiveSkill.Add(skillState); Skills.ActiveSkill.Add(state);
+        burstSkill.SkillSlot = 1;
+        burstSkill.Initialize();
+    }
+
+    void CheckDomainInteraction()
+    {
+        string json = File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath));
+        ((SkillBalanceFileStore)typeof(SkillBalanceSystem).GetField("store", All).GetValue(null)).Apply(json);
+        ContentInstance.Register(new ElainaBasicDamage());
+        var prototype = new FireBurstDomain(); Entity(prototype, new Projectile { type = 0 }); ContentInstance.Register(prototype);
+        PrepareDomainQuickCast();
+        var entry = SkillBalanceSystem.Current.Skills[nameof(FireLaserSkill)];
+        Check(entry.DpsRatio == .5, "Current production JSON has the user's 0.5 base ratio");
+        foreach (int level in new[] { 1, 3, 10 }) {
+            fireSkill.Level = level;
+            int characterLevel = SkillBalanceSystem.Current.GetSkillCharacterLevel(entry, level);
+            float multiplier = (float)Call(fireSkill, "GetDomainDamageMultiplier");
+            double baseline = SkillBalanceSystem.GetCharacterBaselineDps(characterLevel);
+            Check(Math.Abs(SkillBalanceSystem.GetBaseDps(level, nameof(FireLaserSkill)) / baseline - .5) < 1e-6,
+                "Actual runtime DPS uses 0.5 at skill level " + level);
+            Check(Math.Abs(entry.DpsRatio * multiplier - .7) < 1e-6,
+                "Domain adds 0.2 to the configured ratio at skill level " + level);
+        }
+        float bonus = (float)Call(fireSkill, "GetDomainDamageMultiplier");
+        beam.BindAction(token, 1.5f, 12, bonus);
+        using (var memory = new MemoryStream()) {
+            using (var writer = new BinaryWriter(memory, System.Text.Encoding.UTF8, true)) beam.SendExtraAI(writer);
+            memory.Position = 0;
+            var received = new FireLaser(); Entity(received, new Projectile());
+            using (var reader = new BinaryReader(memory, System.Text.Encoding.UTF8, true)) received.ReceiveExtraAI(reader);
+            Check(Get<float>(received, "domainDamageMultiplier") == bonus, "Domain damage multiplier survives projectile sync");
+        }
+
+        var own = Domain(0);
+        var other = Domain(1, 1);
+        float DamageScale() {
+            // 非拥有端不提交点燃；仍调用正式伤害修饰入口。
+            GameMain.myPlayer = 1;
+            var modifiers = new NPC.HitModifiers { SourceDamage = StatModifier.Default };
+            beam.ModifyHitNPC(new NPC(), ref modifiers);
+            GameMain.myPlayer = 0;
+            return modifiers.SourceDamage.ApplyTo(100);
+        }
+        Check(Math.Abs(DamageScale() - 140f) < .001f, "Own domain grants 40 percent source damage with current ratio");
+        own.Projectile.active = false;
+        Check(DamageScale() == 100f, "Another player's domain grants no damage bonus");
+        own.Projectile.active = true;
+        own.Projectile.Center = player.Center + new Vector2(FireBurstDomain.Radius + 1f, 0);
+        Check(DamageScale() == 100f, "Leaving own domain removes damage even with another domain present");
+        own.Projectile.Center = player.Center;
+
+        int charge = (int)typeof(FireLaser).GetProperty("ChargeTicks", All).GetValue(null);
+        Tick();
+        Lifetime(own);
+        Check(Remaining(own) == FireBurstDomain.BaseTicks - 1, "Charging does not sustain duration");
+        Set(beam, "channelAge", charge + 1);
+        int held = Remaining(own);
+        for (int i = 0; i < 1800; i++) Lifetime(own);
+        Check(Remaining(own) == held, "Thirty seconds of firing keeps the same remaining lifetime");
+        Extend(own, int.MaxValue);
+        Check(Remaining(own) == 900, "Large extension clamps remaining duration to fifteen seconds");
+        for (int i = 0; i < 120; i++) { Extend(own, FireBurstDomain.ExtendTicks); Lifetime(own); }
+        Check(Remaining(own) == 900, "Ignition and beam sustain together never exceed the cap");
+        GameMain.myPlayer = 2;
+        Lifetime(other);
+        GameMain.myPlayer = 0;
+        Check(Remaining(other) == 599, "Your beam does not sustain another owner's domain");
+        own.Projectile.Center += new Vector2(FireBurstDomain.Radius + 1f, 0);
+        Lifetime(own);
+        Check(Remaining(own) == 899 && own.Projectile.ai[2] == 0, "Leaving domain resumes countdown and syncs stop");
+        own.Projectile.Center = player.Center;
+        Lifetime(own);
+        Check(Remaining(own) == 899 && own.Projectile.ai[2] == 1, "Reentry resumes sustain without increasing remaining time");
+        GameMain.mouseLeft = false;
+        Tick(); Lifetime(own);
+        Check(Remaining(own) == 898 && own.Projectile.ai[2] == 0, "Releasing beam immediately resumes countdown");
+        own.Projectile.ai[0] = own.Projectile.ai[1] + 1 - FireBurstDomain.BaseTicks;
+        Lifetime(own);
+        Check(Remaining(own) == 0, "Last remaining tick expires normally after release");
+
+        // 远端仅重放拥有者同步的状态；AI 的过期判断也使用正式入口。
+        GameMain.myPlayer = 1;
+        var remoteDomain = Domain(2);
+        remoteDomain.Projectile.ai[1] = 10;
+        remoteDomain.Projectile.ai[2] = 1;
+        int remoteRemaining = Remaining(remoteDomain);
+        for (int i = 0; i < 120; i++) remoteDomain.AI();
+        Check(Remaining(remoteDomain) == remoteRemaining, "Remote domain extrapolates synchronized sustain without local input");
+        remoteDomain.Projectile.ai[2] = 0;
+        for (int i = 0; i < remoteRemaining; i++) remoteDomain.AI();
+        Check(!remoteDomain.Projectile.active, "Remote domain expires after synchronized sustain ends");
+        GameMain.myPlayer = 0;
+
+        int spawned = 0;
+        var spawnMethod = typeof(Projectile).GetMethod("NewProjectile", new[] { typeof(IEntitySource), typeof(Vector2),
+            typeof(Vector2), typeof(int), typeof(int), typeof(float), typeof(int), typeof(float), typeof(float), typeof(float) });
+        using var spawnHook = new Hook(spawnMethod,
+            (Func<IEntitySource, Vector2, Vector2, int, int, float, int, float, float, float, int>)
+            ((source, position, velocity, type, damage, knockback, owner, ai0, ai1, ai2) => {
+                Check(type == 0 && owner == 0 && position == player.Center, "Quick cast spawns own domain at player center");
+                var domain = Domain(3 + spawned++);
+                domain.Projectile.damage = damage;
+                domain.OnSpawn(source);
+                return domain.Projectile.whoAmI;
+            }));
+        foreach (string phase in new[] { "simultaneous", "charging", "firing" }) {
+            PrepareDomainQuickCast();
+            var old = Domain(0); var foreign = Domain(1, 1);
+            if (phase != "simultaneous") Tick();
+            if (phase == "firing") Set(beam, "channelAge", charge + 1);
+            float mana = magic.MagicPoint;
+            int stack = burstSkill.Stack, before = spawned, oldToken = actions.CurrentActionToken;
+            GameMain.mouseRight = true;
+            Check(OwnsRight(), phase + ": reserves right click from wheel");
+            Call(actions, "UpdateCurrentAction");
+            Check(spawned == before + 1 && !old.Projectile.active && foreign.Projectile.active,
+                $"{phase}: replaces only own domain exactly once (spawned={spawned - before}, old={old.Projectile.active}, foreign={foreign.Projectile.active}, stack={burstSkill.Stack}, mana={magic.MagicPoint}, quick={Get<bool>(action, "rightWasDown")})");
+            Check(ReferenceEquals(actions.CurrentAnimAction, action) && actions.CurrentActionToken == oldToken
+                && beam.Projectile.active && actions.IsActionHolding, phase + ": beam and action continue unchanged");
+            Check(magic.MagicPoint == mana - burstSkill.MagicPointCost && burstSkill.Stack == stack - 1
+                && burstSkill.CurrentCD == burstSkill.MaxCD, phase + ": normal mana charge and cooldown");
+            Check(Get<float>((FireBurstDomain)GameMain.projectile[3 + before].ModProjectile, "singleMultiplier") > 1f,
+                phase + ": shortcut uses normal domain damage configuration");
+            burstSkill.Stack = stack;
+            for (int i = 0; i < 30; i++) Call(actions, "UpdateCurrentAction");
+            Check(spawned == before + 1 && magic.MagicPoint == mana - burstSkill.MagicPointCost,
+                phase + ": holding right does not repeat even if charges recover");
+            GameMain.mouseRight = false; Call(actions, "UpdateCurrentAction");
+            GameMain.mouseRight = true; Call(actions, "UpdateCurrentAction");
+            Check(spawned == before + 2, phase + ": fresh press can recast");
+        }
+        foreach (string blocked in new[] { "unlearned", "unequipped", "charges", "mana", "ui", "focus", "chat", "menu",
+            "dead", "cc", "no-items", "item", "slot", "remote", "released", "recovery", "beam-lost" }) {
+            PrepareDomainQuickCast(); Tick();
+            switch (blocked) {
+                case "unlearned": Skills.UnlockedSkill.Remove(nameof(FireBurstSkill)); break;
+                case "unequipped": Skills.ActiveSkill[1] = null; break;
+                case "charges": burstSkill.Stack = 0; break;
+                case "mana": magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0f); break;
+                case "ui": player.mouseInterface = true; break;
+                case "focus": GameMain.hasFocus = false; break;
+                case "chat": GameMain.drawingPlayerChat = true; break;
+                case "menu": GameMain.gameMenu = true; break;
+                case "dead": player.dead = true; break;
+                case "cc": player.frozen = true; break;
+                case "no-items": player.noItems = true; break;
+                case "item": player.selectedItem = 1; break;
+                case "slot": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
+                case "remote": GameMain.myPlayer = 1; break;
+                case "released": GameMain.mouseLeft = false; break;
+                case "recovery": action.FinishChannel(actions); break;
+                case "beam-lost": beam.Projectile.Kill(); break;
+            }
+            float mana = magic.MagicPoint; int stack = burstSkill.Stack, before = spawned;
+            GameMain.mouseRight = true;
+            Check(!(bool)Call(action, "TryQuickCast") && spawned == before && magic.MagicPoint == mana && burstSkill.Stack == stack,
+                blocked + ": rejected shortcut has no spawn or cost");
+        }
+        PrepareDomainQuickCast();
+        actions.InterruptCurrentAction(); GameMain.mouseRight = true;
+        Check(OwnsRight(), "Simultaneous input reserves right before action creation");
+        GameMain.mouseLeft = false;
+        Check(!OwnsRight(), "Idle right click remains available for wheel");
+        Console.WriteLine("PASS: current 0.5 -> 0.7 ratio, own-domain damage, capped lifetime, remote countdown and quick-cast checks.");
+    }
+}

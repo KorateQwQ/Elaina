@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$GeometryOnly)
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$GeometryOnly, [switch]$QuickCastOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $modName = Split-Path $repo -Leaf
@@ -21,11 +21,18 @@ $reference = Add-CheckItem 'Reference' "$Tml/Libraries/**/*.dll"
 $reference.SetAttribute('Exclude', "$Tml/Libraries/Native/**;$Tml/Libraries/**/runtime*/**;$Tml/Libraries/**/*.resources.dll;$Tml/Libraries/tModCodeAssist/**")
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/QuickCastChecks.cs.txt"
+$check.SetAttribute('Link', 'QuickCastChecks.cs')
 $native = Add-CheckItem 'None' "$Tml/Libraries/Native/Windows/*.dll"
 $native.SetAttribute('Link', '%(Filename)%(Extension)')
 $native.SetAttribute('CopyToOutputDirectory', 'PreserveNewest')
 $path = Join-Path $output 'Checks.csproj'
 $project.Save($path)
 $mode = if ($GeometryOnly) { 'geometry' } else { 'all' }
-dotnet run --project $path --configuration Release --verbosity quiet -- $repo "$output/out" $mode
+$previousQuickCast = $env:WATER_QUICK_CAST_CHECKS
+try {
+    if ($QuickCastOnly) { $env:WATER_QUICK_CAST_CHECKS = '1' }
+    dotnet run --project $path --configuration Release --verbosity quiet -- $repo "$output/out" $mode
+}
+finally { $env:WATER_QUICK_CAST_CHECKS = $previousQuickCast }
 if ($LASTEXITCODE -ne 0) { throw 'Water laser checks failed.' }

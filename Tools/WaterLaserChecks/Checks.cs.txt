@@ -31,7 +31,7 @@ static class Program
     }
 }
 
-sealed class Checks : Game
+sealed partial class Checks : Game
 {
     const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
     readonly string root, output;
@@ -114,13 +114,25 @@ sealed class Checks : Game
         typeof(ModType).GetProperty("Mod", All).SetValue(template, new CheckMod());
         typeof(GlobalNPC).GetMethod("Register", All).Invoke(template, null);
         ContentInstance.Register(template);
-        foreach (var npc in GameMain.npc) Set(npc, "_globals", new GlobalNPC[] { new ElementalGlobalNPC() });
+        foreach (GlobalNPC state in new GlobalNPC[] { new FireBurnNPC(), new WaterExposureNPC() }) {
+            typeof(ModType).GetProperty("Mod", All).SetValue(state, new CheckMod());
+            typeof(GlobalNPC).GetMethod("Register", All).Invoke(state, null);
+            ContentInstance.Register(state);
+        }
+        foreach (var npc in GameMain.npc) {
+            var burn = new FireBurnNPC(); burn.SetDefaults(npc);
+            Set(npc, "_globals", new GlobalNPC[] { new ElementalGlobalNPC(), burn, new WaterExposureNPC() });
+        }
         GameMain.maxTilesX = 200; GameMain.maxTilesY = 120;
         GameMain.tile = (Tilemap)Activator.CreateInstance(typeof(Tilemap), All, null, new object[] { (ushort)200, (ushort)120 }, null);
         GameMain.tileSolid[TileID.Stone] = true;
         // 原版在 NPC 默认值初始化期间填充该表；隔离宿主只补本用例需要的小动物。
         NPCID.Sets.CountsAsCritter[NPCID.Bunny] = true;
-        if (geometryOnly) {
+        if (Environment.GetEnvironmentVariable("WATER_QUICK_CAST_CHECKS") == "1") {
+            QuickCastChecks();
+            Console.WriteLine($"PASS: {passed} production water quick-cast checks.");
+        }
+        else if (geometryOnly) {
             BlockingChecks();
             GeometryChecks();
             Console.WriteLine($"PASS: {passed} production water-laser AOE checks.");
@@ -128,7 +140,7 @@ sealed class Checks : Game
         else RunChecks();
     }
 
-    void Start(float mana = 30f, int interval = 12)
+    void Start(float mana = 30f, int interval = 12, float manaCost = 1.5f)
     {
         GameMain.netMode = NetmodeID.SinglePlayer;
         GameMain.myPlayer = 0;
@@ -139,7 +151,7 @@ sealed class Checks : Game
         GameMain.mouseLeft = true; GameMain.netMode = NetmodeID.SinglePlayer;
         GameMain.myPlayer = 0;
         magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, mana);
-        action = new Action_WaterLaser(100, 1.5f, interval);
+        action = new Action_WaterLaser(100, manaCost, interval);
         // Spawn/world registration is supplied by the fixture; all timing, actions and mana logic are production code.
         ((IList)Field(typeof(AnimAction), "nodes").GetValue(action)).Clear();
         token++;
@@ -150,7 +162,7 @@ sealed class Checks : Game
         projectile.DamageType = DamageClass.Magic;
         Entity(beam, projectile);
         Set(beam, "maxDistance", 100f);
-        beam.BindAction(token, 1.5f, interval);
+        beam.BindAction(token, manaCost, interval);
         Set(action, "beam", beam);
     }
 
@@ -163,9 +175,11 @@ sealed class Checks : Game
 
     void RunChecks()
     {
+        CheckConfiguredCadence();
         Check(AnimActionRegistry.TryCreate(actionId(), out var remote) && remote is Action_WaterLaser, "Remote action construction");
+        int charge = (int)Field(typeof(Action_WaterLaser), "ChannelStartFrame").GetRawConstantValue();
         Start();
-        for (int frame = 0; frame < 60; frame++) Check(!Tick(), "No damage during charge " + frame);
+        for (int frame = 0; frame < charge; frame++) Check(!Tick(), "No damage during charge " + frame);
         Check(magic.MagicPoint == 30f, "Charging is free");
         var pulses = new List<int>();
         for (int frame = 0; frame < 60; frame++) if (Tick()) pulses.Add(frame);
@@ -175,17 +189,17 @@ sealed class Checks : Game
         for (int i = 0; i < 22; i++) Tick();
         Check(!actions.HasAction, "Recovery ends");
 
-        Start(); for (int i = 0; i < 20; i++) Tick();
+        Start();
         GameMain.mouseLeft = false; Check(!Tick() && !beam.Projectile.active && magic.MagicPoint == 30f, "Early release cancels without damage or mana");
-        Start(3f); for (int i = 0; i < 60; i++) Tick();
+        Start(3f); for (int i = 0; i < charge; i++) Tick();
         int hits = 0; for (int i = 0; i < 40; i++) if (Tick()) hits++;
         Check(hits == 2 && magic.MagicPoint == 0f && !beam.Projectile.active && !actions.IsActionHolding, "Insufficient mana exits hold without a free pulse");
-        Start(interval: 6); for (int i = 0; i < 60; i++) Tick();
+        Start(interval: 6); for (int i = 0; i < charge; i++) Tick();
         hits = 0; for (int i = 0; i < 60; i++) if (Tick()) hits++;
         Check(hits == 10 && magic.MagicPoint == 15f, "Configured cadence and mana remain paired");
 
         foreach (string interruption in new[] { "item", "skill", "dead", "disabled", "projectile", "action" }) {
-            Start(); for (int i = 0; i < 61; i++) Tick();
+            Start(); for (int i = 0; i < charge + 1; i++) Tick();
             switch (interruption) {
                 case "item": player.selectedItem = 1; break;
                 case "skill": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
@@ -197,7 +211,7 @@ sealed class Checks : Game
             Check(!Tick() && !beam.Projectile.active && !actions.IsActionHolding, "Channel interruption: " + interruption);
         }
 
-        Start(); for (int i = 0; i < 61; i++) Tick();
+        Start(); for (int i = 0; i < charge + 1; i++) Tick();
         GameMain.myPlayer = 1; float before = magic.MagicPoint;
         beam.AI(); Check(beam.CanDamage() == false && magic.MagicPoint == before, "Remote instance neither spends mana nor deals damage");
         GameMain.myPlayer = 0;
@@ -206,6 +220,25 @@ sealed class Checks : Game
         GeometryChecks();
         Console.WriteLine($"PASS: {passed} checks against production actions/projectile and tModLoader collision/mana APIs.");
         int actionId() => AnimActionRegistry.GetId(typeof(Action_WaterLaser));
+    }
+
+    void CheckConfiguredCadence()
+    {
+        Check(SkillBalanceConfig.TryParse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)),
+            out var config, out var error), "Production balance parses: " + error);
+        var entry = config.Skills[nameof(WaterLaserSKill)];
+        int interval = (int)Math.Round(entry.BaseCooldown * 60);
+        Check(interval == 10, "Configured water interval is ten frames");
+        var previous = entry with { BaseCooldown = .2, ManaCost = 1.5 };
+        foreach (int level in new[] { 1, 30, 60, 95 })
+            Check(Math.Abs(config.GetSkillDamage(1000, entry, level) * 6
+                - config.GetSkillDamage(1000, previous, level) * 5) < 1e-8,
+                "Water damage budget per second is unchanged at level " + level);
+        Start(interval: interval, manaCost: (float)entry.ManaCost);
+        var pulses = new List<int>();
+        for (int frame = 0; frame < 60; frame++) if (Tick()) pulses.Add(frame);
+        Check(pulses.SequenceEqual(new[] { 0, 10, 20, 30, 40, 50 }), "Production water AI emits six ten-frame pulses");
+        Check(Math.Abs(magic.MagicPoint - 22.5f) < .0001f, "Water still spends 7.5 mana per second; remaining: " + magic.MagicPoint);
     }
 
     NPC Target(int index, Vector2 position, int realLife = -1)
@@ -348,7 +381,7 @@ sealed class Checks : Game
     {
         if (finished) return;
         finished = true;
-        if (geometryOnly) { Exit(); return; }
+        if (geometryOnly || Environment.GetEnvironmentVariable("WATER_QUICK_CAST_CHECKS") == "1") { Exit(); return; }
         foreach (float gravity in new[] { 1f, -1f }) RenderPoses(gravity);
         Exit();
     }

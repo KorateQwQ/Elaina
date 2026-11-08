@@ -25,7 +25,6 @@ public class MagicMissile : KLProjectile
     private const float SplashRadius = 160f;
 
     private int count = 0;
-    private bool draw = false;
     private TrailManager.TrailHandle managedTrail;
     private MagicMissileTrailVisuals trailVisuals;
     // 撞墙时沿入射方向找回的接触点与入射角；为空表示命中敌人或寿命结束
@@ -45,7 +44,6 @@ public class MagicMissile : KLProjectile
     private static Texture2D innerNoise;
     private static Texture2D headClip;
     private static Texture2D trail;
-    private static MagicMissileTrailNoise trailNoise;
     private static Texture2D flower;
     private static Texture2D headStamp;
     private static Texture2D headNoise;
@@ -61,7 +59,6 @@ public class MagicMissile : KLProjectile
             innerNoise = AssetManager.GetTexture("KL/Effects/Tex/Noise/Eff_Noise_11");
             headClip = AssetManager.GetTexture("KL/Effects/Tex/射灯_alpha");
             trail = AssetManager.GetTexture("KL/Effects/Tex/Trail/LightTrail");
-            trailNoise = new MagicMissileTrailNoise(AssetManager.GetTexture("KL/Effects/Tex/PerlinX"));
             trailEffect = AssetManager.GetEffect("伊蕾娜/Effects/Content/MagicMissileTrail");
             flower = AssetManager.GetTexture("伊蕾娜.ElainaModSkills.Skills.MagicMissile.Flo_1");
             // 直接请求：缺失时报错，而不是返回 null 让头部静默不画
@@ -221,20 +218,14 @@ public class MagicMissile : KLProjectile
             return;
 
         Main.spriteBatch.End();
-        try
-        {
-            Matrix transform = Matrix.CreateTranslation(-Main.screenPosition.X, -Main.screenPosition.Y, 0) * Main.Transform;
-            visual.Draw(Main.graphics.GraphicsDevice, trailEffect, trail, trailNoise, points, remaining, transform,
-                DrawSystem.GetBlendStateForBloom(BlendState.Additive), Main.GameViewMatrix.TransformationMatrix.M11);
-            // 飞行中由飞弹本体盖住拖尾头部；消失后改由消融的爆点遮住截断端口
-            if (visual.Expiring)
-                visual.DrawHead(Main.graphics.GraphicsDevice, trailEffect, headStamp, headNoise, points[0], remaining, transform,
-                    DrawSystem.GetBlendStateForBloom(BlendState.AlphaBlend));
-        }
-        finally
-        {
-            BeginTrailBatch();
-        }
+        Matrix transform = Matrix.CreateTranslation(-Main.screenPosition.X, -Main.screenPosition.Y, 0) * Main.Transform;
+        visual.Draw(Main.graphics.GraphicsDevice, trailEffect, trail, points, remaining, transform,
+            DrawSystem.GetBlendStateForBloom(BlendState.Additive), Main.GameViewMatrix.TransformationMatrix.M11);
+        // 飞行中由飞弹本体盖住拖尾头部；消失后改由消融的爆点遮住截断端口
+        if (visual.Expiring)
+            visual.DrawHead(Main.graphics.GraphicsDevice, trailEffect, headStamp, headNoise, points[0], remaining, transform,
+                DrawSystem.GetBlendStateForBloom(BlendState.AlphaBlend));
+        BeginTrailBatch();
     }
 
     private static void BeginTrailBatch() =>
@@ -288,11 +279,12 @@ public class MagicMissile : KLProjectile
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
-        // 被动：同一目标累计命中5次后，对周围其他敌人造成一次溅射伤害
-        if (target.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark(target))
+        // 被动：同一主体累计命中5次后，对周围其他敌人造成一次溅射伤害
+        NPC markTarget = target.GetRealNpc();
+        if (markTarget.GetGlobalNPC<MagicMissileNpcMark>().ApplyMark())
         {
             SplashDamage(target);
-            // 命中后飞弹随即消失，由 OnKill 在目标中心播放花印爆发
+            // 命中后飞弹随即消失，由 OnKill 在实际命中的体节位置播放花印爆发
             burstCenter = target.Center;
         }
 
@@ -382,7 +374,7 @@ public class MagicMissile : KLProjectile
             base.Load();
         }
 
-        public bool ApplyMark(NPC npc)
+        public bool ApplyMark()
         {
             markSpawnFrames[markCount] = Main.GameUpdateCount;
             markCount++;

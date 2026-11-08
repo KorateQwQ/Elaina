@@ -15,6 +15,7 @@ using 伊蕾娜.ElainaModSkills.Skills.Ice;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
 using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaActions;
 using 伊蕾娜.Items;
 using GameMain = Terraria.Main;
 
@@ -92,6 +93,17 @@ static partial class Checks
         var cycle = player.GetModPlayer<IceCyclePlayer>();
         var skill = player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)];
         var otherSkill = otherPlayer.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)];
+        if (args.Contains("--ice-action")) {
+            CheckIceConeAction(player);
+            Console.WriteLine($"Ice Cone action: {passed} checks passed against compiled action/node/shoot code.");
+            return;
+        }
+        if (args.Contains("--rays")) {
+            CheckWaterExposure(player, skill);
+            CheckActualWaterCallbacks();
+            Console.WriteLine($"Ray attachment integration: {passed} checks passed against compiled KL/Elaina and real tML entities.");
+            return;
+        }
         var target = NpcFixture(0); var part = NpcFixture(1, 0); var other = NpcFixture(2);
 
         var renamedSkillTag = new Terraria.ModLoader.IO.TagCompound {
@@ -151,7 +163,7 @@ static partial class Checks
         for (int i = 0; i < 36; i++) global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 2.8f);
         Check(freezeEvents == previousEvents, "Freeze cooldown blocks buildup");
         player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill.Clear();
-        Clock(150); WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(target)!.Value, 0, 180, 700, 155, 1);
+        Clock(150); WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(target)!.Value, 0, 180);
         Near(target.GetFreezeCooldown(), 600, "Water cannot reduce freeze cooldown even without learning lock");
 
         var burst = Attach(new ShardbindProj()); burst.Projectile.Center = Vector2.Zero;
@@ -181,9 +193,25 @@ static partial class Checks
         var entry = config.Skills[nameof(ShardbindSkill)];
         Near(entry.FreezeBuildup, 0, "Shardbind config chooses zero buildup per hit");
         using var savedJson = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)));
-        double savedIceBuildup = savedJson.RootElement.GetProperty("configuration").GetProperty("basicAttacks")
-            .EnumerateArray().Single(row => row.GetProperty("id").GetString() == nameof(IceConeSkill)).GetProperty("freezeBuildup").GetDouble();
+        var savedIceCone = savedJson.RootElement.GetProperty("configuration").GetProperty("basicAttacks")
+            .EnumerateArray().Single(row => row.GetProperty("id").GetString() == nameof(IceConeSkill));
+        double savedIceBuildup = savedIceCone.GetProperty("freezeBuildup").GetDouble();
         Near(config.Skills[nameof(IceConeSkill)].FreezeBuildup, savedIceBuildup, "Ice Cone parser preserves user-saved per-hit buildup");
+        var iceCone = config.Skills[nameof(IceConeSkill)];
+        Near(iceCone.DpsRatio, savedIceCone.GetProperty("ratio").GetDouble(), "Ice Cone parser preserves configured DPS ratio");
+        Near(iceCone.BaseCooldown, savedIceCone.GetProperty("interval").GetDouble(), "Ice Cone parser preserves per-shard interval");
+        Near(iceCone.ManaCost, savedIceCone.GetProperty("cost").GetDouble(), "Ice Cone parser preserves per-shard mana cost");
+        Check(iceCone.HitCount == savedIceCone.GetProperty("shots").GetInt32() && iceCone.HitCount == 1,
+            "Ice Cone channel emits one shard per interval");
+        Vector2 forward = Vector2.UnitX;
+        Vector2 cursor = new Vector2(MathF.Cos(.5f), MathF.Sin(.5f)) * 500f;
+        Vector2 ShotDirection(Vector2 aimPoint) => (Vector2)typeof(Action_IceCone)
+            .GetMethod("GetShotDirection", All)!.Invoke(null, [forward, Vector2.Zero, aimPoint])!;
+        Vector2 shotDirection = ShotDirection(cursor);
+        Near(MathF.Atan2(shotDirection.Y, shotDirection.X), .1, "Ice Cone bends slightly toward the cursor");
+        cursor = new Vector2(0, 500);
+        shotDirection = ShotDirection(cursor);
+        Near(MathF.Atan2(shotDirection.Y, shotDirection.X), .12, "Ice Cone cursor correction stays capped");
         var waterBall = config.Skills["WaterBallSkill"];
         Near(waterBall.ManaCost, 100, "Water Ball costs one hundred mana");
         Near(config.GetSkillDamage(1, waterBall, 95), 2, "Water Ball ordinary budget is two baseline seconds");
@@ -243,6 +271,7 @@ static partial class Checks
         skills.UnlockedSkill[nameof(ShardbindSkill)] = shard;
         skills.UnlockedSkill[nameof(AshenWitchSkill)] = Owned(new AshenWitchSkill());
         skills.ActiveSkill = [cone, null];
+        KLSkillManager.EquipSkill(skills.ActiveSkill, shard, 1);
         ElainaSkillModPlayer.CurrentSkillIndex = 0;
         var wand = new ElainaWand();
         var heldWand = new Item();
@@ -254,11 +283,14 @@ static partial class Checks
         for (int i = 0; i < GameMain.npc.Length; i++) GameMain.npc[i].active = false;
         new IceConeTargetSystem().OnWorldUnload();
         var target = NpcFixture(0); target.Center = GameMain.MouseWorld;
-        Check(IceConeTargetSystem.ResolveTarget() == target, "Shared resolver selects cursor target");
+        Check(!(bool)typeof(IceConeTargetSystem).GetMethod("ShardbindSelected", All)!.Invoke(null, null)!,
+            "Selecting Ice Cone does not enable enemy lock targeting");
+        Check(IceConeTargetSystem.ResolveTarget() == null, "Ice Cone selection does not resolve a locked target");
+        ElainaSkillModPlayer.CurrentSkillIndex = 1;
+        Check(IceConeTargetSystem.ResolveTarget() == target, "Shardbind resolves the cursor target");
         typeof(IceConeTargetSystem).GetField("targetIndex", All)!.SetValue(null, target.whoAmI);
-        Check(IceConeTargetSystem.ResolveTarget() == IceConeTargetSystem.LockedTarget, "Both spells reuse the reticle target");
+        Check(IceConeTargetSystem.ResolveTarget() == IceConeTargetSystem.LockedTarget, "Shardbind reuses its reticle target");
         Check(shard.ModSkill.CanDragInSkillPanel(), "Learned Shardbind is equippable");
-        KLSkillManager.EquipSkill(skills.ActiveSkill, shard, 1);
         Check(skills.ActiveSkill[1] == shard && shard.SkillSlot == 1, "Shardbind occupies a normal skill slot");
 
         int casts = 0;
@@ -274,8 +306,8 @@ static partial class Checks
         Check(!wand.CanUseItem(player), "Ice Cone still checks its own cooldown");
         ElainaSkillModPlayer.CurrentSkillIndex = 1;
         Check(!wand.AltFunctionUse(player), "Shardbind is a normal primary-use spell");
-        Check((bool)typeof(IceConeTargetSystem).GetMethod("IceConeSelected", All)!.Invoke(null, null)!,
-            "Selecting independent Shardbind enables the shared reticle");
+        Check((bool)typeof(IceConeTargetSystem).GetMethod("ShardbindSelected", All)!.Invoke(null, null)!,
+            "Selecting independent Shardbind enables its reticle");
         var sealedSkill = (ShardbindSkill)shard.ModSkill;
         Check(!wand.CanUseItem(player), "Ready but sealed skill cannot cast");
         wand.UseItem(player); Check(casts == 0 && shard.Stack == 1, "Sealed attempt spends no charge");

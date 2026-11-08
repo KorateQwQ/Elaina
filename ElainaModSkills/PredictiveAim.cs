@@ -17,10 +17,27 @@ internal static class PredictiveAim
         return target.Center + target.velocity * leadTime;
     }
 
+    /// <summary>
+    /// 以固定帧数预判目标在 <paramref name="leadTicks"/> 帧后的位置（基于 <paramref name="point"/>，如脚底）；
+    /// 冻结、时停等定身状态不预判。用于从出现到生效有固定延迟、且之后不追踪的攻击。
+    /// </summary>
+    internal static Vector2 GetLeadPoint(NPC target, Vector2 point, float leadTicks)
+    {
+        if (leadTicks <= 0f || IsTargetMovementPaused(target))
+            return point;
+        return point + target.velocity * leadTicks;
+    }
+
     private static bool IsTargetMovementPaused(NPC target)
     {
         // KL 冻结和时停会保留 velocity，暂停期间不能把它当作实际移动速度。
-        if (TimeStopManager.timeStop || IsFrozen(target))
+        return TimeStopManager.timeStop || IsFrozenOrAnchorFrozen(target);
+    }
+
+    /// <summary>目标自身或其元素锚点（多部位 Boss）处于 KL 冻结。</summary>
+    internal static bool IsFrozenOrAnchorFrozen(NPC target)
+    {
+        if (IsFrozen(target))
             return true;
 
         // 多部位 Boss 共用元素锚点；不能只依赖 PostAI 中会被清除的 IsLogicFrozen。

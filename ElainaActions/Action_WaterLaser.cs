@@ -3,7 +3,9 @@ using KL.ActionsSystem;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
+using 伊蕾娜.Items;
 
 namespace 伊蕾娜.ElainaActions;
 
@@ -19,16 +21,20 @@ public sealed class Action_WaterLaser : ElainaAction
     private int castingSkillSlot;
     private WaterLaser beam;
     private bool ending;
+    private bool rightWasDown;
 
     public bool IsChanneling { get; private set; }
+    // 第 0 帧尚未进入保持时也接受同帧双键；一旦松手或收势便关闭快捷入口。
+    internal bool CanQuickCast => !ending && CanContinueCasting()
+        && (!IsChanneling || beam?.Projectile.active == true);
     public Vector2 BeamOrigin => WandCenter;
 
-    private static readonly Color WaterWandColor = new(100, 180, 255, 0);
+    private static readonly Color WaterWandColor = ElainaTrailVisualStyle.WaterWandColor;
 
-    protected override void DrawStar(ref PlayerDrawSet drawInfo, float actionProgress)
+    protected override void RequestActionStarBloom(float actionProgress)
     {
         // 引导保持第 0 帧：立即显示；松手后进度走完 20 帧收势，光晕随之淡出。
-        ElainaTrailVisualStyle.DrawStar(ref drawInfo, StarCenter.Floor(), actionProgress,
+        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
             WaterWandColor, fadeInEnd: 0f, fadeOutStart: 0f);
     }
 
@@ -40,7 +46,7 @@ public sealed class Action_WaterLaser : ElainaAction
     }
 
     // 动作注册器与远端重建需要真正的无参构造函数。
-    public Action_WaterLaser() : this(0, 0f, 12) { }
+    public Action_WaterLaser() : this(0, 0f, 10) { }
 
     public Action_WaterLaser(int damage, float manaPerPulse, int intervalFrames)
         : base(ChannelStartFrame + RecoveryFrames + 1)
@@ -82,6 +88,8 @@ public sealed class Action_WaterLaser : ElainaAction
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
+        if (TryQuickCast()) return;
+
         if (!ending && owner.whoAmI == Main.myPlayer
             && (!CanContinueCasting() || (actionFrame > ChannelStartFrame && beam?.Projectile.active != true)))
         {
@@ -100,8 +108,42 @@ public sealed class Action_WaterLaser : ElainaAction
 
     public override void OnHoldUpdate(ActionModPlayer actionPlayer, int actionFrame, int holdTime)
     {
+        if (TryQuickCast()) return;
+
         ApplyAimPose();
         SyncItemRotationToArmRotation();
+    }
+
+    private bool TryQuickCast()
+    {
+        if (owner.whoAmI != Main.myPlayer) return false;
+        bool pressed = Main.mouseRight && !rightWasDown;
+        rightWasDown = Main.mouseRight;
+        if (!pressed || !CanQuickCast
+            || !Main.hasFocus || Main.gameMenu || Main.gamePaused || Main.drawingPlayerChat
+            || Main.ingameOptionsWindow || Main.inFancyUI || Main.editSign || Main.editChest
+            || owner.mouseInterface || ElainaSkillWheel.IsShowing || ElainaHealingWheel.OwnsPointer
+            || ElainaModSkills.Skills.DollControl.DollCommandWheel.OwnsPointer
+            || !ReferenceEquals(owner.HeldItem, castingItem) || owner.HeldItem.ModItem is not ElainaWand
+            || ElainaSkillModPlayer.CurrentSkillIndex != castingSkillSlot)
+            return false;
+
+        return WaterBallSkill.TryGetEquipped(owner, out var skill)
+            && skill.TryQuickCast();
+    }
+
+    // 右键默认也会开技能轮盘；同帧双键发生在动作创建前，也须为快捷施法保留输入。
+    internal static bool OwnsQuickCastInput(Player player)
+    {
+        if (!Main.mouseRight) return false;
+        var current = player.GetModPlayer<ActionModPlayer>().CurrentAnimAction;
+        if (current is Action_WaterBall { UsesQuickCastInput: true }) return true;
+        if (!WaterBallSkill.TryGetEquipped(player, out _)) return false;
+        if (current is Action_WaterLaser laser) return laser.CanQuickCast;
+        if (current != null || !Main.mouseLeft) return false;
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
+        int index = ElainaSkillModPlayer.CurrentSkillIndex;
+        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is WaterLaserSKill;
     }
 
     public override void OnHoldExit(ActionModPlayer actionPlayer, int actionFrame) => StopBeam();

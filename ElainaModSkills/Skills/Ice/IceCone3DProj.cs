@@ -473,7 +473,7 @@ public class IceCone3DProj : ElainaBasicProjectile
 
             if (ctx.IsFirst)
             {
-                BeginDraw3D();
+                EndBeginDraw3D();
             }
 
             if (drawTrail)
@@ -519,7 +519,7 @@ public class IceCone3DProj : ElainaBasicProjectile
 
             if (ctx.IsLast)
             {
-                Main.spriteBatch.End();
+                EndBeginDraw();
             }
         });
     }

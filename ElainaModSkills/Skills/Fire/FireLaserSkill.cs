@@ -12,7 +12,18 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 public class FireLaserSkill : ElainaSkill
 {
     public const float ReleaseCooldown = 1f;
+    public static double DomainBonusRatio => .2;
     private bool channelActive;
+
+    internal float GetDomainDamageMultiplier()
+    {
+        if (!SkillBalanceSystem.TryGetSkill(BalanceId, out var entry))
+            throw new InvalidOperationException($"缺少技能平衡配置：{BalanceId}");
+        double ratio = SkillBalanceConfig.GetDpsRatio(entry,
+            SkillBalanceSystem.Current.GetSkillCharacterLevel(entry, Math.Max(1, Level)));
+        if (ratio <= 0) throw new InvalidOperationException($"{BalanceId} 的 ratio 必须大于 0，当前为 {ratio}");
+        return (float)((ratio + DomainBonusRatio) / ratio);
+    }
 
     private SkillUnlockCondition unlockCondition;
     public override SkillUnlockCondition UnlockCondition
@@ -29,11 +40,12 @@ public class FireLaserSkill : ElainaSkill
     [
         FireLaser.ChargeTicks / 60f,
         SkillBalanceSystem.TryGetSkill(BalanceId, out var entry)
-            ? Math.Max(1, (int)Math.Round(entry.BaseCooldown * 60)) / 60f : 0.3f,
+            ? Math.Max(1, (int)Math.Round(entry.BaseCooldown * 60)) / 60f : 10f / 60f,
         GetConfiguredDamage(),
         MagicPointCost,
         KL.DamageSystem.FireBurnNPC.ExposureTicks / 60f,
-        KL.DamageSystem.FireBurnNPC.DamageIgnitionFraction * 100
+        KL.DamageSystem.FireBurnNPC.DamageIgnitionFraction * 100,
+        (GetDomainDamageMultiplier() - 1f) * 100f
     ];
 
     public override void Initialize()
@@ -63,7 +75,7 @@ public class FireLaserSkill : ElainaSkill
         int intervalFrames = Math.Max(1, (int)Math.Round(balance.Entry.BaseCooldown * 60));
         float rotation = (Main.MouseWorld - Player.MountedCenter).ToRotation() * Player.gravDir;
         if (!Player.GetModPlayer<ActionModPlayer>().StartAction(
-                new Action_FireLaser(balance.DamagePerHit, (float)balance.Entry.ManaCost, intervalFrames, this),
+                new Action_FireLaser(balance.DamagePerHit, (float)balance.Entry.ManaCost, intervalFrames, this, GetDomainDamageMultiplier()),
                 interruptCurrentAction: false, rotation: rotation))
             return false;
 

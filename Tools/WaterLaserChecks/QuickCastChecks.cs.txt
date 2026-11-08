@@ -1,0 +1,174 @@
+using System.Collections;
+using KL.ActionsSystem;
+using KL.SkillSystem;
+using Terraria;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaDamageClass;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+using 伊蕾娜.Items;
+using GameMain = Terraria.Main;
+
+sealed partial class Checks
+{
+    WaterBallSkill ballSkill;
+    ElainaSkillModPlayer Skills => player.GetModPlayer<ElainaSkillModPlayer>();
+
+    void PrepareQuickCast(float mana = 200f)
+    {
+        GameMain.hasFocus = true;
+        GameMain.gameMenu = GameMain.gamePaused = GameMain.drawingPlayerChat = false;
+        GameMain.ingameOptionsWindow = GameMain.inFancyUI = GameMain.editSign = GameMain.editChest = false;
+        GameMain.mouseRight = false;
+        player.frozen = false;
+        var wandItem = new Item { type = Terraria.ID.ItemID.Wood, stack = 1 };
+        var wandMod = new ElainaWand();
+        Entity(wandMod, wandItem);
+        typeof(Item).GetProperty("ModItem", All).SetValue(wandItem, wandMod);
+        player.inventory[0] = wandItem;
+        ballSkill = new WaterBallSkill { Stack = 1, MaxStack = 1, MaxCD = 10f, MagicPointCost = 100f,
+            Level = 1, BasicStatus = Skill.SKillBasicStatus.UnLock };
+        var state = new Skill();
+        typeof(Skill).GetProperty("ModSkill", All).SetValue(state, ballSkill);
+        ballSkill.Skill = state;
+        Skills.UnlockedSkill[nameof(WaterBallSkill)] = state;
+        var laserSkill = new Skill();
+        typeof(Skill).GetProperty("ModSkill", All).SetValue(laserSkill, new WaterLaserSKill());
+        Skills.ActiveSkill.Clear();
+        Skills.ActiveSkill.Add(laserSkill);
+        Skills.ActiveSkill.Add(state);
+        ballSkill.SkillSlot = 1;
+        Start(mana);
+        Set(actions, "nextActionToken", token);
+    }
+
+    bool OwnsRight() => (bool)typeof(Action_WaterLaser).GetMethod("OwnsQuickCastInput", All).Invoke(null, new object[] { player });
+
+    void QuickCastChecks()
+    {
+        // 与游戏一致加载正式数值；默认配置不含水球后来加入的 ratio 定价。
+        ((SkillBalanceFileStore)typeof(SkillBalanceSystem).GetField("store", All).GetValue(null))
+            .Apply(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)));
+        ContentInstance.Register(new ElainaBasicDamage());
+        var prototype = new WaterBall(); Entity(prototype, new Projectile { type = 1 }); ContentInstance.Register(prototype);
+        AnimActionRegistry.Register(typeof(Action_WaterBall));
+
+        foreach (string phase in new[] { "simultaneous", "channel" }) {
+            PrepareQuickCast();
+            if (phase != "simultaneous") Call(actions, "UpdateCurrentAction");
+            GameMain.mouseRight = true;
+            Check(OwnsRight(), phase + ": quick cast owns right input before wheel opening");
+            int oldToken = actions.CurrentActionToken;
+            Call(actions, "UpdateCurrentAction");
+            Check(actions.CurrentAnimAction is Action_WaterBall && actions.CurrentActionToken != oldToken,
+                phase + ": switches in the same action update");
+            Check(!beam.Projectile.active && beam.CanDamage() == false, phase + ": old beam stops immediately");
+            Check(magic.MagicPoint == 100f && ballSkill.Stack == 0 && ballSkill.CurrentCD == 10f,
+                phase + ": exactly one mana payment, charge and cooldown");
+            Check(ElainaSkillModPlayer.CurrentSkillIndex == 0 && OwnsRight(), phase + ": selection retained and wheel stays closed");
+
+            // Leave spawning to the game fixture; advance the real action timeline and hold checks.
+            ((IList)Field(typeof(AnimAction), "nodes").GetValue(actions.CurrentAnimAction)).Clear();
+            for (int i = 0; i <= Action_WaterBall.HoldFrame; i++) Call(actions, "UpdateCurrentAction");
+            Check(actions.IsActionHolding && actions.CurrentAnimAction is Action_WaterBall, phase + ": holds at charge end");
+            GameMain.mouseLeft = false;
+            Call(actions, "UpdateCurrentAction");
+            Check(actions.IsActionHolding, phase + ": right alone sustains charge");
+            GameMain.mouseLeft = true; GameMain.mouseRight = false;
+            Call(actions, "UpdateCurrentAction");
+            Check(actions.IsActionHolding, phase + ": left alone sustains charge");
+            GameMain.mouseLeft = false;
+            Call(actions, "UpdateCurrentAction");
+            Check(!actions.IsActionHolding && magic.MagicPoint == 100f && ballSkill.Stack == 0,
+                phase + ": releasing both exits hold without duplicate costs");
+        }
+
+        foreach (string phase in new[] { "release-frame", "recovery", "recovery-repress", "ended-with-left-held" }) {
+            PrepareQuickCast();
+            Call(actions, "UpdateCurrentAction");
+            if (phase == "ended-with-left-held") action.FinishChannel(actions);
+            else {
+                GameMain.mouseLeft = false;
+                if (phase != "release-frame") Call(actions, "UpdateCurrentAction");
+                if (phase == "recovery-repress") GameMain.mouseLeft = true;
+            }
+            GameMain.mouseRight = true;
+            Check(!OwnsRight(), phase + ": no quick-cast ownership after channel ends or left releases");
+            Check(!(bool)Call(ballSkill, "TryQuickCast"), phase + ": skill entry rejects ended channel");
+            Call(actions, "UpdateCurrentAction");
+            Check(ReferenceEquals(actions.CurrentAnimAction, action) && !actions.IsActionHolding,
+                phase + ": right click leaves laser in recovery");
+            Check(magic.MagicPoint == 200f && ballSkill.Stack == 1 && ballSkill.CurrentCD == 0f,
+                phase + ": no cost or cooldown");
+        }
+
+        PrepareQuickCast();
+        Skills.ActiveSkill[1] = null; // 故意留下 SkillSlot，验证以实际技能栏内容为准。
+        GameMain.mouseRight = true;
+        Check(!OwnsRight(), "Learned but unequipped water ball does not reserve right input");
+        Check(!(bool)Call(ballSkill, "TryQuickCast"), "Skill entry rejects learned but unequipped water ball");
+        Call(actions, "UpdateCurrentAction");
+        Check(ReferenceEquals(actions.CurrentAnimAction, action) && actions.IsActionHolding,
+            "Unequipped water ball leaves laser channeling");
+        Check(magic.MagicPoint == 200f && ballSkill.Stack == 1 && ballSkill.CurrentCD == 0f,
+            "Unequipped water ball consumes nothing");
+        actions.InterruptCurrentAction();
+        Check(!OwnsRight(), "Unequipped water ball does not reserve simultaneous startup input");
+
+        foreach (string blocked in new[] { "unlearned", "cooldown", "mana", "ui", "focus", "dead", "crowd-control", "no-items", "item", "slot", "remote" }) {
+            PrepareQuickCast();
+            switch (blocked) {
+                case "unlearned": Skills.UnlockedSkill.Remove(nameof(WaterBallSkill)); break;
+                case "cooldown": ballSkill.Stack = 0; ballSkill.CurrentCD = 5f; break;
+                case "mana": magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0f); break;
+                case "ui": player.mouseInterface = true; break;
+                case "focus": GameMain.hasFocus = false; break;
+                case "dead": player.dead = true; break;
+                case "crowd-control": player.frozen = true; break;
+                case "no-items": player.noItems = true; break;
+                case "item": player.selectedItem = 1; break;
+                case "slot": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
+                case "remote": GameMain.myPlayer = 1; break;
+            }
+            float mana = magic.MagicPoint;
+            int stack = ballSkill.Stack;
+            GameMain.mouseRight = true;
+            Check(!(bool)Call(action, "TryQuickCast") && ReferenceEquals(actions.CurrentAnimAction, action),
+                blocked + ": unavailable quick cast does not interrupt the action");
+            Check(magic.MagicPoint == mana && ballSkill.Stack == stack, blocked + ": no payment on rejected input");
+        }
+
+        PrepareQuickCast();
+        GameMain.mouseRight = true; ballSkill.Stack = 0;
+        Check(!(bool)Call(action, "TryQuickCast"), "Unavailable initial press");
+        ballSkill.Stack = 1;
+        Check(!(bool)Call(action, "TryQuickCast"), "Holding a rejected press does not auto-cast after cooldown");
+        GameMain.mouseRight = false; Call(action, "TryQuickCast");
+        GameMain.mouseRight = true;
+        Check((bool)Call(action, "TryQuickCast"), "Fresh press can retry");
+
+        PrepareQuickCast();
+        actions.InterruptCurrentAction();
+        GameMain.mouseRight = true;
+        Check(OwnsRight(), "Simultaneous click reserves right before the laser action exists");
+        GameMain.mouseLeft = false;
+        Check(!OwnsRight(), "Idle right click still opens skill wheel");
+        var normal = new Action_WaterBall();
+        Check(!normal.ShouldContinueHolding(actions, 60), "Normal water ball still uses left only");
+        GameMain.mouseLeft = true;
+        Check(normal.ShouldContinueHolding(actions, 60), "Normal left charge preserved");
+
+        var source = new WaterBall(); Entity(source, new Projectile()); source.BindAction(123, true);
+        var receiver = new WaterBall(); Entity(receiver, new Projectile());
+        using var data = new MemoryStream();
+        using (var writer = new BinaryWriter(data, System.Text.Encoding.UTF8, true)) source.SendExtraAI(writer);
+        data.Position = 0;
+        using (var reader = new BinaryReader(data, System.Text.Encoding.UTF8, true)) receiver.ReceiveExtraAI(reader);
+        Check(Get<int>(receiver, "actionToken") == 123 && Get<bool>(receiver, "usesQuickCastInput"),
+            "Projectile sync preserves token and quick-cast input mode");
+        Check(AnimActionRegistry.TryCreate(AnimActionRegistry.GetId(typeof(Action_WaterBall)), out var remote)
+            && remote is Action_WaterBall, "Remote ball action reconstruction remains valid");
+    }
+}

@@ -27,10 +27,9 @@ input:hover,select:hover{border-color:var(--line2)}
 button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
 input[type=number],input[type=text],select{width:100%;min-width:0}
 input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--purple)}
-textarea{color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:9px;padding:10px;resize:vertical;width:100%}
 .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .hidden{display:none!important}
-.warn{color:var(--orange)}.good{color:var(--green)}.vanilla{color:var(--blue)}.elaina{color:var(--purple)}
+.warn{color:var(--orange)}
 
 /* header */
 .appbar{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:12px}
@@ -63,50 +62,35 @@ textarea{color:var(--text);background:var(--field);border:1px solid var(--line);
 .section{margin-top:20px}
 .title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
 .tag{font-size:11.5px;color:var(--muted);padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:#ffffff05;white-space:nowrap}
-.pill{font-size:11px;color:var(--purple);padding:1px 8px;border:1px solid #b99bff55;border-radius:999px;background:#b99bff14;white-space:nowrap}
 label.field{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px}
 label.field small{margin-top:-2px}
 .fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 14px;margin:14px 0}
 .fields4{grid-template-columns:repeat(4,minmax(0,1fr))}
-.topbar{display:grid;grid-template-columns:2fr 1fr 1fr .8fr;gap:16px;align-items:start}
-.topbar #preset{font-weight:600;border-color:#b99bff55}
-.columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
-.columns>.panel{border-top:3px solid var(--line2)}
-.columns>.panel:first-child{border-top-color:#7fb2ff99}
-.columns>.panel:last-child{border-top-color:#b99bff99}
 .slot{display:grid;grid-template-columns:24px minmax(0,1fr) 128px;align-items:center;gap:8px;margin:6px 0}
 .slot.inactive{opacity:.4}
 .slotnum{color:var(--faint);font:12px Consolas,monospace;text-align:center}
 .slot select{font-size:12.5px;padding:6px 9px}
-.summary{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:12px;margin-top:14px}
-.summary strong,.stageinfo strong{color:var(--text)}
-.stageinfo{margin-top:8px}
 .note{font-size:12.5px;color:var(--muted);line-height:1.8}
 .check{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;margin:10px 0;color:var(--muted)}
-.check input{margin-top:5px}
-.callout{border-left:3px solid var(--purple);padding:10px 14px;background:#b99bff0d;border-radius:0 10px 10px 0;margin-top:12px;font-size:12.5px;color:var(--muted)}
+#stageDamageTable th,#stageDamageTable td{white-space:nowrap;font-variant-numeric:tabular-nums}
+#stageDamageTable td.na{color:var(--faint)}
+.stagefields{grid-template-columns:minmax(0,220px) minmax(0,220px) minmax(0,180px) minmax(0,1fr);align-items:end}
+.stagedamage{display:grid;grid-template-columns:max-content minmax(360px,1fr);gap:16px;align-items:stretch}
+.stagedamage .tablewrap{max-width:100%}
+.lvtag{color:var(--faint);font:11px Consolas,monospace;margin-left:6px}
+.stagedamage .tablewrap{margin-top:0}
+.chartbox{border:1px solid var(--line);border-radius:10px;background:#0f141d80;min-height:360px;padding:6px}
+.chart{display:block;width:100%;height:100%}
+.chart text{fill:var(--muted);font:12px 'Segoe UI','Microsoft YaHei',sans-serif}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.stagefields .check{margin:0 0 8px}
 .smallbtn{font-size:12px;padding:5px 10px;border-radius:8px}
 details{margin-top:14px}
 summary{cursor:pointer;color:var(--muted)}
 summary:hover{color:var(--text)}
 
-/* metrics */
-.results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:20px}
-.metric{padding:18px 20px;background:linear-gradient(180deg,#1b2333,var(--panel));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
-.metric .number{font-size:34px;font-weight:650;line-height:1.25;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
-.metric .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-.metric .detail{font-size:12px;color:var(--muted);margin-top:8px}
-.combatfields{grid-template-columns:repeat(5,minmax(0,1fr))}
-.combatstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:18px}
-.combatstats>div,.statgrid>div{background:var(--field);border:1px solid var(--line);padding:12px 14px;border-radius:10px;color:var(--muted);font-size:12px}
-.combatstats strong,.statgrid strong{display:block;color:var(--text);font-size:19px;margin-top:4px;font-variant-numeric:tabular-nums}
-.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:12px}
-.dot{display:inline-block;width:9px;height:9px;margin-right:6px;border-radius:3px}
-.chart{width:100%;height:260px;display:block}
-.chart text{fill:var(--muted);font:12px 'Segoe UI','Microsoft YaHei',sans-serif}
-.chart .grid{stroke:var(--line);stroke-width:1}
-#manaTimeline{height:290px}
-#basicCurve{height:220px;margin-top:10px}
+.statgrid>div{background:var(--field);border:1px solid var(--line);padding:12px 14px;border-radius:10px;color:var(--muted);font-size:12px}
+.statgrid strong{display:block;color:var(--text);font-size:19px;margin-top:4px;font-variant-numeric:tabular-nums}
 
 /* tables */
 .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:10px;background:#0f141d80}
@@ -117,44 +101,20 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:#ffffff05}
 td input[type=number]{min-width:70px;max-width:96px;padding:5px 8px}
 td:last-child{text-align:right;font-variant-numeric:tabular-nums}
-.rotationtable{min-width:1320px}
-.rotationtable td:nth-child(2){min-width:185px}
+.rotationtable{min-width:1360px}
+.rotationtable .curveinput{width:160px;font:12px Consolas,monospace}
+.rotationtable td:first-child{min-width:185px}
 .rotationtable .skillname,.rotationtable .skillid{display:block;width:170px;font-size:12px;padding:4px 8px;margin:2px 0}
 .rotationtable .skillid,#basicTable .skillid{color:var(--muted);font:11px Consolas,monospace}
 .rotationtable td input[type=number]{width:78px}
-.eventtable{max-height:340px}
 #basicTable .curveinput{width:180px;max-width:100%;font:12px Consolas,monospace}
 #basicTable .skillname,#basicTable .skillid{display:block;width:180px;max-width:100%}
 #basicTable .skillid{margin-top:5px}
-#basicTable input[readonly]{opacity:.7}
 .mutedid{display:block;color:var(--faint);font:11px Consolas,monospace;margin-top:2px}
-.ladder-summary p{margin:4px 0}
-.ladder-summary p.duel{font-size:14px;color:var(--text);padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--line)}
-.ladder-summary strong{color:var(--text)}
-.laddertable{min-width:1100px}
-.laddertable th[title]{cursor:help}
-.laddertable td:last-child{text-align:left;min-width:320px;line-height:1.7}
-.laddertable .tip{display:block}
-.laddertable .tip.info{color:var(--purple)}
-.laddertable tr.marginal td{background:#2a234080}
-.widetag{display:inline-block;min-width:26px;padding:1px 7px;border-radius:10px;border:1px solid var(--line);font-size:11px;text-align:center}
-.widetag.wide{color:var(--green);border-color:var(--green)}
-.widetag.narrow{color:var(--muted)}
-.glossary dl{margin:10px 0 0;font-size:12.5px;color:var(--muted);line-height:1.8}
-.glossary dt{color:var(--text);margin-top:8px}
-.glossary dd{margin:2px 0 0 14px}
-.glossary b{color:var(--text);font-weight:600}
-.sourcesbox>summary{color:var(--text);list-style:none;display:flex;align-items:center;gap:12px}
-.sourcesbox>summary::-webkit-details-marker{display:none}
-.sourcesbox>summary::before{content:"▸";color:var(--purple);transition:transform .15s}
-.sourcesbox[open]>summary::before{transform:rotate(90deg)}
 #progressionTable{min-width:1700px}
 #progressionTable td:first-child{white-space:nowrap}
 #progressionTable [data-progression-mode]{min-width:140px}
 #progressionTable input:disabled{opacity:.4;cursor:not-allowed}
-.sourcesbox{margin-top:20px}
-.sources{font-size:12.5px;overflow-wrap:anywhere}
-.sources li{margin:7px 0;color:var(--muted)}
 .footer{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);color:var(--faint);font-size:12px}
 
 /* loadout page */
@@ -173,23 +133,22 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .editorhead h2{font-size:21px}
 .subhead{margin-top:20px;margin-bottom:8px;color:var(--text)}
 .loadoutslots{margin-top:8px;max-width:760px}
-.slot.tri{grid-template-columns:24px minmax(0,1fr) 168px 168px;margin:4px 0}
+.slot.duo{grid-template-columns:24px minmax(0,1fr) 168px;margin:4px 0}
 .slothead{color:var(--faint);font-size:12px;margin-bottom:0}
 .prefixgroup{align-items:center;margin-top:6px}
-.groupname{color:var(--muted);font-size:12px;min-width:5.5em}
 .statgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:12px}
 .statgrid small{display:block;margin-top:2px}
 .statgrid p{grid-column:1/-1;font-size:12.5px}
 
-@media(max-width:1100px){.combatfields{grid-template-columns:repeat(3,minmax(0,1fr))}.combatstats{grid-template-columns:1fr 1fr}.statgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.fields4{grid-template-columns:1fr 1fr}}
-@media(max-width:1000px){main{padding:20px}.appbar{flex-direction:column;align-items:flex-start}.toolbar{align-items:flex-start}.topbar{grid-template-columns:1fr 1fr}.fields{grid-template-columns:1fr 1fr}.slot{grid-template-columns:20px minmax(0,1fr) 110px}.loadout-layout{grid-template-columns:1fr}.stagelist{position:static;max-height:320px}}
-@media(max-width:720px){.tabs{width:100%;flex-wrap:wrap}.tabs [role=tab]{flex:1 1 auto;padding:8px 12px}main{padding:14px}h1{font-size:22px}.columns,.results{grid-template-columns:1fr}.panel{padding:15px}.metric .number{font-size:28px}.topbar{grid-template-columns:1fr}.combatfields{grid-template-columns:1fr 1fr}.combatstats strong{font-size:16px}.fields4,.statgrid{grid-template-columns:1fr 1fr}.slot.tri{grid-template-columns:18px minmax(0,1fr) 96px 96px;gap:5px}}
+@media(max-width:1100px){.statgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.fields4{grid-template-columns:1fr 1fr}}
+@media(max-width:1000px){.stagedamage{grid-template-columns:1fr}.chartbox{height:320px;min-height:0}.stagefields{grid-template-columns:1fr 1fr}main{padding:20px}.appbar{flex-direction:column;align-items:flex-start}.toolbar{align-items:flex-start}.fields{grid-template-columns:1fr 1fr}.slot{grid-template-columns:20px minmax(0,1fr) 110px}.loadout-layout{grid-template-columns:1fr}.stagelist{position:static;max-height:320px}}
+@media(max-width:720px){.tabs{width:100%;flex-wrap:wrap}.tabs [role=tab]{flex:1 1 auto;padding:8px 12px}main{padding:14px}h1{font-size:22px}.panel{padding:15px}.fields4,.statgrid,.stagefields{grid-template-columns:1fr 1fr}.slot.duo{grid-template-columns:18px minmax(0,1fr) 120px;gap:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body><main>
 <header class="appbar">
- <div class="brand"><div class="eyebrow">ELAINA · BALANCE LAB</div><h1>法师配装成长实验室</h1><p class="sub">共同阶段基准 · 普攻按目标 DPS 定价 · 伊蕾娜用魔力购买技能输出</p></div>
+ <div class="brand"><div class="eyebrow">ELAINA · SKILL CONFIG</div><h1>法师配装成长实验室</h1><p class="sub">技能参数 · 成长区间与各阶段伤害 · 阶段配装</p></div>
  <div class="toolbar">
   <div class="actions" aria-label="配置操作">
    <button id="saveMod" type="button" class="primary" title="将当前参数写入关联的模组配置文件（Ctrl+S）">保存到模组</button>
@@ -206,173 +165,70 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  </div>
 </header>
 <p id="fileStatus" class="filestatus" role="status">首次保存或读取时选择模组 ElainaModSkills/Data/SkillBalance.json 并授权；关联后直接使用。</p>
-<p class="filestatus"><span id="dpsSourceStatus" role="status">正在连接 KL DPS 曲线…</span> <button id="followDps" type="button" class="smallbtn">跟随阶段基准</button></p>
+<p id="dpsSourceStatus" class="filestatus" role="status">正在连接 KL DPS 曲线…</p>
 <div id="status" role="status"></div>
 <nav class="tabs" role="tablist" aria-label="页面">
- <button type="button" role="tab" id="tabLab" data-tab="lab" aria-controls="labPage" aria-selected="true">平衡实验室</button>
+ <button type="button" role="tab" id="tabSkills" data-tab="skills" aria-controls="skillsPage" aria-selected="true">技能配置</button>
+ <button type="button" role="tab" id="tabProgression" data-tab="progression" aria-controls="progressionPage" aria-selected="false" tabindex="-1">成长与阶段伤害</button>
  <button type="button" role="tab" id="tabLoadouts" data-tab="loadouts" aria-controls="loadoutPage" aria-selected="false" tabindex="-1">配装与属性配置</button>
- <button type="button" role="tab" id="tabProgression" data-tab="progression" aria-controls="progressionPage" aria-selected="false" tabindex="-1">技能等级成长区间</button>
 </nav>
 
-<div id="labPage" class="tabpage" role="tabpanel" aria-labelledby="tabLab">
-<section class="panel topbar" aria-label="共同基准">
-<label class="field">当前阶段<select id="preset"></select><small>读取“配装与属性配置”：换护甲、饰品、双方前缀、基础魔力与 B，并启用已解锁技能</small></label>
-<label class="field">双方裸装 DPS · B<input id="baseDps" type="number" min="1" max="1000000" step="10"></label>
-<label class="field">裸装暴击率（已含在 B 内）%<input id="baseCrit" type="number" min="0" max="100" step="1"></label>
-<label class="field">饰品槽数量<select id="slots"><option value="5">5 格</option><option value="6">6 格</option><option value="7">7 格</option></select></label>
+<div id="skillsPage" class="tabpage" role="tabpanel" aria-labelledby="tabSkills">
+<section class="panel" aria-label="普通攻击">
+ <div class="title"><h2>普通攻击</h2><button id="addBasic" type="button">添加普通攻击</button></div>
+ <p class="note">整次伤害 = 基准 B × DPS 倍率 × 动作时长，按每次发数等额分摊。倍率曲线写成“等级:倍率”并用逗号分隔（如 1:1, 10:0.9, 50:0.6），按技能等级对应的角色等级插值，超出两端取端点；留空则用固定倍率。</p>
+ <div class="tablewrap"><table id="basicTable"><thead><tr><th>名称 / ID</th><th>DPS 倍率</th><th>倍率曲线</th><th>整次耗蓝</th><th>动作时长 / 秒</th><th>每次发数</th><th title="每次有效命中增加的冻结点数，冻结条为 100 点">冻结积蓄</th><th>操作</th></tr></thead><tbody id="basicRows"></tbody></table></div>
 </section>
 
-<section class="columns section">
-<div class="panel"><div class="title"><h2 class="vanilla">原版法师</h2><span class="tag">武器输出路线</span></div><label class="field">护甲套装<select id="vArmor"></select></label><div id="vNebula" class="hidden">
-<div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="v" aria-label="原版法师星云强化全满">三种全满</button></div>
-<div class="fields"><label class="field">伤害强化<select id="vNebulaDamage" data-nebula-side="v" data-nebula-kind="damage" aria-label="原版法师伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="vNebulaMana" data-nebula-side="v" data-nebula-kind="mana" aria-label="原版法师魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="vNebulaLife" data-nebula-side="v" data-nebula-kind="life" aria-label="原版法师生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><p class="note" id="vNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="原版法师批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="damage" aria-label="原版法师全增伤" title="按当前伤害与暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-prefix-side="v" data-prefix-value="arcane" aria-label="原版法师全奥秘">全奥秘</button></div><p class="note" id="vPrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="vSlots"></div><div class="fields">
-<label class="field">额外伤害加成 %<input id="vDamage" type="number" min="-90" max="1000" step="1"></label>
-<label class="field">额外暴击百分点<input id="vCrit" type="number" min="-100" max="100" step="1"></label>
-<label class="field">套装特效额外 DPS<input id="vProc" type="number" min="0" max="1000000" step="10"></label>
-</div><p class="note">额外项可填药剂、增益、武器前缀等。武器前缀若已计入 B，不要重复填写。保留槽与空槽均不计属性和前缀；不为原版加入攻速轴。</p><div class="summary" id="vSummary"></div></div>
-<div class="panel"><div class="title"><h2 class="elaina">伊蕾娜</h2><button id="copy" class="smallbtn">复制左侧装备 · 前缀转奥秘</button></div><label class="field">护甲套装<select id="eArmor"></select></label><div id="eNebula" class="hidden">
-<div class="title" style="margin-top:14px;margin-bottom:4px"><h3>星云强化 · 持续层数</h3><button type="button" class="smallbtn" data-nebula-full="e" aria-label="伊蕾娜星云强化全满">三种全满</button></div>
-<div class="fields"><label class="field">伤害强化<select id="eNebulaDamage" data-nebula-side="e" data-nebula-kind="damage" aria-label="伊蕾娜伤害强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">魔力强化<select id="eNebulaMana" data-nebula-side="e" data-nebula-kind="mana" aria-label="伊蕾娜魔力强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label><label class="field">生命强化<select id="eNebulaLife" data-nebula-side="e" data-nebula-kind="life" aria-label="伊蕾娜生命强化"><option value="0">0 层</option><option value="1">1 层</option><option value="2">2 层</option><option value="3">3 层</option></select></label></div><label class="check"><input id="nebulaManaBridge" type="checkbox">将星云回蓝转为特殊魔力（仅预览适配假设，当前代码未接入）</label><p class="note" id="eNebulaInfo"></p></div><div class="actions" style="margin-top:12px" role="group" aria-label="伊蕾娜批量设置前缀"><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="damage" aria-label="伊蕾娜全增伤" title="按当前伤害与暴击，逐条选择险恶或幸运中收益更高的一个">全增伤</button><button type="button" class="smallbtn" data-prefix-side="e" data-prefix-value="arcane" aria-label="伊蕾娜全奥秘">全奥秘</button></div><p class="note" id="ePrefixStatus" role="status">仅修改当前启用的非空饰品槽，不更换装备。</p><div id="eSlots"></div><div class="fields">
-<label class="field">额外伤害加成 %<input id="eDamage" type="number" min="-90" max="1000" step="1"></label>
-<label class="field">额外暴击百分点<input id="eCrit" type="number" min="-100" max="100" step="1"></label>
-<label class="field">套装特效额外 DPS<input id="eProc" type="number" min="0" max="1000000" step="10"></label>
-<label class="field">基础魔力（随阶段读取）<input id="baseMana" type="number" min="0" max="2000" step="20"></label>
-<label class="field">最大生命（随阶段读取）<input id="maxLife" type="number" min="100" max="2000" step="5"></label>
-<label class="field">额外特殊魔力上限<input id="extraMana" type="number" min="0" max="10000" step="20"></label>
-</div><label class="check"><input id="ashenWitch" type="checkbox">开启灰之魔女：超出 100 的最大生命只保留一半，减少的生命上限按 1:1 转为特殊魔力上限</label><p class="note">原版最大魔力按当前模组的 1:1 转换率计入特殊魔力；伊蕾娜的帽子只加特殊魔力上限（不加原版魔力），原版对照一侧留空且不计前缀。灰之魔女只按上方最大生命计算，护甲、饰品额外提供的生命未计入，结果可能略低于游戏内。额外特殊魔力可填生命转化等；不会自动认为这部分资源没有生存代价。</p><div class="summary" id="eSummary"></div><p class="note stageinfo" id="eStageInfo"></p></div>
+<section class="panel section" id="skillPanel" aria-label="主动技能">
+ <div class="title"><h2>主动技能</h2><button id="addSkill" type="button">添加主动技能</button></div>
+ <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label><label class="field">占手补偿倍率<input id="occupyRatio" type="number" min="0" max="5" step="0.05"></label></div>
+ <p class="note">整次伤害 = B × (占手补偿倍率 × 占手秒 + 增幅% ÷ 100 ÷ 20 × 蓝耗 × CD × CD 伤害折算率 × K)；配置了 DPS 倍率的技能改为 B × 倍率 × (CD + 占手秒)。系数曲线写法同普攻，按等级替代伤害系数（DPS 倍率 0–5，K 0–200）。实际耗蓝 = 蓝耗 + 最大魔力 × 最大魔力%。技能 ID 与游戏内类名对应。</p>
+ <div class="tablewrap"><table class="rotationtable"><thead><tr><th>技能</th><th>命中数</th><th>蓝耗</th><th title="每次释放额外消耗最大魔力的百分比">+最大魔力%</th><th>CD / 充能秒</th><th>CD 伤害折算率</th><th>占手秒</th><th title="配置 ratio 的技能为 DPS 倍率，其余为魔力转换率 K">伤害系数</th><th title="“等级:系数”，替代左侧伤害系数；留空则用固定系数">系数曲线</th><th>充能上限</th><th>初始充能</th><th title="每次有效命中增加的冻结点数，冻结条为 100 点">冻结积蓄</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
 </section>
-
-<section id="combatPanel" class="section" aria-label="战斗续航模拟">
-<div class="title"><h2>战斗续航 · 五瓶药能撑多久？</h2><span class="tag">60 Hz 资源时间轴 · 与上方配装实时联动</span></div>
-<div class="results" aria-live="polite">
- <div class="metric"><div class="label">原版法师 · 同期配装参考 DPS</div><div class="number vanilla" id="simVanilla">—</div><div class="detail">按正常持续攻击，不模拟原版补蓝停手</div></div>
- <div class="metric"><div class="label">伊蕾娜 · 受魔力约束的平均 DPS</div><div class="number elaina" id="simActual">—</div><div class="detail" id="simActualDetail"></div></div>
- <div class="metric"><div class="label">同时间、同策略 · 不限魔力参考 DPS</div><div class="number" id="simIdeal">—</div><div class="detail" id="simIdealDetail"></div></div>
-</div>
-<div class="panel">
- <div class="fields combatfields">
-  <label class="field">战斗时长 / 秒<input id="battleDuration" data-combat="duration" type="number" min="1" max="600" step="10"></label>
-  <label class="field">开场魔力 / 上限 %<input id="battleStart" data-combat="startPercent" type="number" min="0" max="100" step="10"></label>
-  <label class="field">携带药剂 / 瓶<input id="battlePotions" data-combat="potions" type="number" min="0" max="5" step="1"></label>
-  <label class="field">每瓶回复 / 最大魔力 %<input id="battlePotionPercent" data-combat="potionPercent" type="number" min="0" max="100" step="5"></label>
-  <label class="field">回蓝方式<select id="battleRegenMode" data-combat="regenMode"><option value="mod">模组规则：5 + 上限 × 可调百分比/秒</option><option value="manual">手动指定</option></select></label>
-  <label class="field">模组规则百分比回蓝 / 上限每秒 %<input id="battleRegenPercent" data-combat="regenPercent" type="number" min="0" max="100" step="0.1"></label>
-  <label class="field">手动基础回蓝 / 魔力每秒<input id="battleRegen" data-combat="regen" type="number" min="0" max="1000" step="1"></label>
-
-
-  <label class="field">主动技能保留魔力<input id="battleReserve" data-combat="reserve" type="number" min="0" max="10000" step="20"></label>
-  <label class="field">技能释放策略<select id="battlePolicy" data-combat="policy"><option value="flow">按优先级：尝试其他技能，或继续普攻</option><option value="save">按优先级：缺蓝时停止低优先级输出，攒蓝等待</option><option value="efficiency">节约型：优先保证普攻，余蓝按性价比释放技能</option></select></label>
- </div>
- <div class="actions"><button class="smallbtn" data-battle-duration="60">短战 60 秒</button><button class="smallbtn" data-battle-duration="120">标准 120 秒</button><button class="smallbtn" data-battle-duration="180">长战 180 秒</button><button class="smallbtn" data-battle-duration="300">持久战 300 秒</button></div>
- <p class="note" style="margin-top:10px">付款不足时自动尝试用药，可连续用多瓶；全部药剂仍不足则不浪费药。主动技能预留限制不约束普攻或受伤损蓝。节约型先为普通攻击留足打到战斗结束所需的魔力（剩余时长 × 普攻耗蓝扣除回蓝，计入已知受伤损蓝），余量（含未用药剂）按净性价比释放技能：净性价比 = （整次伤害 − 同等占手时长少打的普攻伤害）÷ 耗蓝，净收益不为正的技能不放。同效率时优先 CD 更长的技能；净回蓝为正时，为暂时付不起的高性价比技能留蓝，否则让给更便宜的技能。生命转魔力关闭，不计算脱战回满或受伤暂停回复。</p>
- <details><summary>受伤损蓝：均匀损失、周期受击或指定时间</summary>
- <div class="fields">
-  <label class="field">损蓝模式<select id="battleHurtMode" data-combat="hurtMode"><option value="uniform">全场总损失，均匀分摊</option><option value="periodic">周期受击</option><option value="events">指定时间事件</option></select></label>
-  <label class="field" data-hurt-mode="uniform">全场请求损蓝总量<input id="battleHurtTotal" data-combat="hurtTotal" type="number" min="0" max="100000" step="20"></label>
-  <label class="field" data-hurt-mode="periodic">受击间隔 / 秒<input id="battleHurtInterval" data-combat="hurtInterval" type="number" min="0.1" max="600" step="1"></label>
-  <label class="field" data-hurt-mode="periodic">每次请求损蓝<input id="battleHurtPerHit" data-combat="hurtPerHit" type="number" min="0" max="100000" step="20"></label>
- </div>
- <label class="field" data-hurt-mode="events">每行“秒数:损蓝量”，例如 15:100<textarea id="battleHurtEvents" data-combat="hurtEvents" rows="4" maxlength="5000"></textarea></label>
- <p class="note">这里填实际时间轴上请求扣除的魔力，不提前减去后续回复。蓝不足时只能扣到 0，剩余部分记为“防御未承担”。受伤不会自动触发药剂或产生负魔力。</p>
- </details>
- <div class="callout" id="simWarnings"></div>
-</div>
-<div class="panel section">
- <div class="title"><h2>魔力与药剂时间轴</h2><span class="tag" id="simCapacity"></span></div>
- <svg id="manaTimeline" class="chart" role="img" aria-label="战斗中当前魔力随时间变化，标出药剂使用时间"></svg>
- <div class="legend"><span><i class="dot" style="background:var(--purple)"></i>当前魔力</span><span><i class="dot" style="background:var(--green)"></i>用药时刻（竖线）</span><span>受伤与施法明细见下方事件表</span></div>
- <div class="combatstats">
-  <div>首次缺蓝延误<strong id="simFirstShortage">—</strong></div><div>最后一瓶药耗尽<strong id="simPotionEnd">—</strong></div><div>剩余魔力 / 药剂<strong id="simRemaining">—</strong></div><div>回复溢出 / 防御未承担<strong id="simWaste">—</strong></div>
- </div>
- <div id="simLedger" class="callout"></div>
-</div>
-</section>
-
-<section class="panel section" aria-label="普通攻击设计">
- <div class="title"><h2>普通攻击设计 · 直接按目标 DPS 定价</h2><div class="actions"><button id="addBasic" type="button">添加普通攻击</button><button id="addIceBasic" type="button">添加冰锥示例</button></div></div>
- <p class="note">每个普攻独立设置倍率、整次耗蓝、动作时长和发射数量。动作时长按连续施法的完整周期定价，不读取游戏动画；3 发表示同一目标预期吃到的 3 次等额命中，不是每发各领一份整次伤害。</p>
- <div class="tablewrap"><table id="basicTable"><thead><tr><th>参考普攻</th><th>名称 / ID</th><th>目标 DPS / B</th><th title="按角色等级插值的倍率，格式“等级:倍率”，逗号分隔；超出两端取端点。留空则固定使用左侧倍率">倍率曲线 ⓘ</th><th>整次耗蓝</th><th>动作时长 / 秒</th><th>每次发数</th><th>裸装 DPS</th><th>整次基础伤害</th><th>每发基础伤害</th><th>每秒耗蓝</th><th title="倍率 × 动作时长 ÷ 整次耗蓝 ÷ (基准循环增幅% / 100 / 20)，与技能每蓝价值使用相同的基础伤害单位；不含配装倍率">每蓝价值 ⓘ</th><th title="整次基础伤害 × 当前伊蕾娜配装倍率 ÷ 整次耗蓝，包含页面暴击期望">每蓝伤害（当前配装）ⓘ</th><th>操作</th></tr></thead><tbody id="basicRows"></tbody></table></div>
- <div id="basicSummary" class="callout" aria-live="polite"></div>
- <p class="note">整次伤害 = B × DPS 倍率 × 动作时长；每发伤害 = 整次伤害 ÷ 发数。填写倍率曲线后，倍率按该技能等级对应的角色等级插值（例如“1:1, 10:0.9, 50:0.6”），超出两端取端点；配装/续航区按当前 B 反推等级取值。蓝耗单独定价，不反向决定普攻伤害。普攻每蓝价值 = 倍率 × 动作时长 ÷ 整次耗蓝 ÷ (基准循环增幅% / 100 / 20)，乘 B × 基准循环增幅% / 100 / 20 × 普攻装备倍率即为当前配装每蓝伤害；技能每蓝净伤害还扣除了占手损失。零耗蓝显示“无消耗”，基准增幅为 0 时每蓝价值无法折算，显示“—”，每蓝伤害仍可查看。上方配装/续航区一次只使用一个参考普攻，不把多个普攻的 DPS 叠加。保存后所有条目均可由 C# 按 ID 读取。发数必须与技能实际命中数对应，配置不会自动生成弹幕或修改动画。</p>
- <svg id="basicCurve" class="chart" role="img" aria-label="参考普攻倍率随角色等级变化的曲线"></svg>
-</section>
-
-<section class="panel section" id="skillPanel" aria-label="主动技能设计">
- <div class="title"><h2>主动技能设计 · 释放计划</h2><div class="actions"><span class="tag">已接入飞弹、水球 · 其他技能仍需迁移</span><button id="addSkill" type="button">添加主动技能</button></div></div>
- <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label><label class="field" title="主动技能每秒占手给予 B × 该倍率的伤害；0 = 不补偿占手，读条少打的普攻需靠 K 或手动调高伤害弥补">占手补偿倍率 ⓘ<input id="occupyRatio" type="number" min="0" max="5" step="0.05"></label></div>
- <label class="check"><input id="skillStats" type="checkbox">技能伤害继承装备伤害与暴击；CD 伤害折算率只影响魔力额外伤害，不影响占手补偿；占手补偿 = B × 占手补偿倍率 × 占手秒，与参考普攻无关。</label>
- <div class="tablewrap"><table class="rotationtable"><thead><tr><th>启用</th><th>技能</th><th>等额命中数</th><th>蓝耗</th><th>CD/充能秒</th><th>CD伤害折算率</th><th>占手秒</th><th>离手延迟秒</th><th>伤害持续秒</th><th title="配置 ratio 的技能使用 DPS 倍率；其他技能使用魔力转换率 K">伤害系数</th><th>命中 %</th><th>储存上限</th><th>开场次数</th><th>首次释放秒</th><th>优先级 ↑</th><th title="按当前配装计算，不扣命中率；多段或持续技能为整次施放的总预算">单次伤害预算</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
- <p class="note">技能 ID 与游戏内类名对应，不能重复；名称仅用于展示。普通飞弹 MagicMissileSkill 是普攻，不添加到主动技能表：其 DPS 倍率、蓝耗、动作时长和发数在上方“普通攻击设计”调整，避免重复计算。炎爆的伤害系数为 DPS 倍率，单次伤害按基准 DPS × 倍率 × 充能时间计算。其余技能的魔力转换率 K 只控制主动技能额外伤害的定价（1 = 采用当前每 20 魔力基准增幅），不是普攻的 DPS 倍率。“单次伤害预算”按当前配装、不扣命中率；多段或持续技能显示整次施放总预算，不是每一段各获得此伤害。</p>
- <p class="note">优先级数字越小越先释放。CD 从施放开始计时，储存次数按顺序逐层恢复；首次释放时间不阻止提前充能。零占手仍占 1 帧；伤害预算使用相同的有效占手时长。持续伤害从占手结束＋延迟后均匀结算，战斗结束后的伤害不计。命中率只影响伤害，不减少蓝耗。</p>
- <h3 style="margin-top:18px">实际释放与伤害</h3><div class="tablewrap"><table><thead><tr><th>技能</th><th>实际 / 不限蓝次数</th><th>实际耗蓝</th><th>已兑现伤害</th><th>缺蓝等待段数</th></tr></thead><tbody id="rotationResults"></tbody></table></div>
- <h3 style="margin-top:22px">魔力价值阶梯 · 加技能、改数值前先看这里</h3>
- <div id="ladderSummary" class="callout ladder-summary" role="status"></div>
- <div class="tablewrap"><table class="laddertable"><thead><tr>
-  <th title="按每蓝净伤害从高到低排列；理想打法下蓝先给排在前面的技能">顺位</th><th>技能</th>
-  <th title="CD × CD伤害折算率 × K。每花 1 点蓝换到多少额外伤害，只用来比较技能谁更值得花蓝。与蓝耗大小、占手时长无关">每蓝价值 ⓘ</th>
-  <th title="整次伤害扣除占手期间本来能打的普攻、再乘命中率后，除以蓝耗。已含当前配装倍率">每蓝净伤害 ⓘ</th>
-  <th title="蓝耗 ÷ CD：冷却一好就放时，这个技能每秒吃掉多少蓝">蓝需求 /秒 ⓘ</th>
-  <th title="蓝需求占“技能可用蓝/秒”的比例。宽 ≥ 50%：一个技能就能吃掉大半余蓝，适合当蓄水池；窄 &lt; 15%：吃得少，很快放满；中：介于两者">宽 / 窄 ⓘ</th>
-  <th title="把技能可用蓝按顺位倒进去后，这个技能理论上能放满 CD 的比例">理论分到 ⓘ</th>
-  <th title="上方实际模拟次数 / 不限蓝时的次数">实际 / 满 CD ⓘ</th>
-  <th>提示</th>
- </tr></thead><tbody id="ladderRows"></tbody></table></div>
- <details open class="glossary"><summary>名词说明（鼠标悬停表头 ⓘ 也能看到）</summary><dl>
-  <dt>每蓝价值 = CD × CD伤害折算率 × K</dt><dd>每花 1 点蓝换到的额外伤害（乘 B × 0.002 × 装备倍率就是伤害值）。蓝耗大小不改变它；占手时长不计入它，读条时少打的普攻（扣除占手补偿后）在“每蓝净伤害”中扣除。命中率低于 100% 会扣减，表中“每蓝净伤害”已扣。K 统一时，<b>CD 越短的技能每蓝越不值钱</b>。</dd>
-  <dt>蓝需求 = 蓝耗 ÷ CD</dt><dd>CD 一好就放时，这个技能每秒吃掉多少蓝。它决定技能“能吸多少蓝”，与它“每蓝值多少”是两回事。</dd>
-  <dt>宽 / 窄</dt><dd><b>宽</b>：蓝需求 ≥ 技能可用蓝的 50%，余蓝再多也消化得了，适合当“蓄水池”，奥秘多出来的蓝就靠它变成伤害。<b>窄</b>：蓝需求 &lt; 15%，奥秘和增伤都很容易放满，主要抬升整体强度，几乎不拉开两者差距。<b>中</b>：介于两者。</dd>
-  <dt>技能可用蓝 / 秒</dt><dd>回蓝 − 普攻每秒耗蓝 − 受伤损蓝每秒 + （开场蓝 + 全部药剂）÷ 战斗时长。普攻优先，剩下的才轮到技能。</dd>
-  <dt>阶梯与边际技能</dt><dd>把技能可用蓝按顺位从高到低“倒”进技能，每个技能最多吃到它的蓝需求。蓝在哪一级用完，那一级就是<b>边际技能</b>：多出来的蓝（例如奥秘带来的）都流向它，所以<b>奥秘的收益由边际技能的价值决定</b>，而不是由最强的技能决定。</dd>
-  <dt>盈亏线</dt><dd>把一个饰品从增伤（按当前伤害与暴击取险恶或幸运中更高的一个）换成奥秘刚好打平时，边际技能需要的每蓝价值。边际技能 ≥ 盈亏线 → 奥秘占优；低于 → 增伤占优。回蓝百分比越高、战斗越短、药越多，盈亏线越低；普攻越强、其他伤害越多，盈亏线越高。</dd>
-  <dt>溢出</dt><dd>全部技能按 CD 放满后蓝还有剩。多出的魔力没有去处，奥秘必然落后。解决办法：加一个宽的、价值高于盈亏线的技能当蓄水池，或提高现有技能的蓝耗。</dd>
-  <dt>新增技能会怎样</dt><dd><b>价值高于边际技能</b>：拿走低价值技能的蓝，DPS 上升；蓝变得更紧缺，奥秘优势变大。<b>价值低于边际技能</b>：节约型打法下基本不放，DPS 不变；按优先级打法时如果排在前面，会抢走高价值技能的蓝，DPS 反而下降，此时不如一个无消耗的 buff。<b>蓝溢出时</b>：任何正收益技能都有用，宽的最好。</dd>
-  <dt>局限</dt><dd>这是稳态估算，按“蓝先给价值高的技能”的理想打法计算；“按优先级”策略实际按优先级花蓝，以上方实际模拟次数为准。盈亏线按当前配装估算，通常略偏保守（实测奥秘打平所需的价值略低）。短战斗主要在花开场蓝，阶梯只作参考。</dd>
- </dl></details>
- <details><summary>查看施法、用药、受伤与缺蓝事件</summary><p id="simEventCount" class="note"></p><div class="tablewrap eventtable"><table><thead><tr><th>时间 / 秒</th><th>事件</th><th>事件后魔力</th></tr></thead><tbody id="combatEvents"></tbody></table></div></details>
- <details><summary>模拟口径与局限</summary><p class="note" style="margin-top:10px">采用 1/60 秒步长。普攻按完整攻击间隔占手，成功付款后在动作结束造成伤害；技能占手时不普攻。普攻倍率按当前 B 反推的等级取倍率曲线。炎爆总伤害 = 阶段 B × DPS 倍率 × 充能时间 × 技能装备倍率；模拟不包含首次点燃赠送的层数或溢出炎爆。其他技能总伤害 = 阶段 B × (占手补偿倍率 × 占手 + 0.002 × 单次蓝耗 × 基准 CD × CD伤害折算率 × 魔力转换率 K) × 技能装备倍率，整次再乘命中率。药剂与扣费同时结算，余额再裁剪上限。星云所选强化假定开场即有且全程保持；可选特殊回蓝适配按平均每秒回复模拟，不额外应用原版减耗。不模拟死亡、击退、打断、敌人防御或生命转魔力；手填套装特效按持续背景 DPS 计入。不限蓝仅移除资源限制，仍遵守时长、占手、CD、优先级、命中和伤害落点，不代表全局最优输出；不同实际调度可能使其不是严格上界。</p></details>
-</section>
-
-<details class="panel section sourcesbox"><summary>读取本地源码的装备数据与模型边界</summary><div class="sources"><p class="note" style="margin-top:12px">版本依据：工作区提供的 tML 2025.06 源码；不是声称与其他版本完全一致。预设是合法阶段的参考组合，不声称是最优配装；手动改装不强制限制进度和饰品兼容性。相同非占位饰品重复装备会给出警告。</p><ul>
-<li>Terraria/Player.cs：丛林套 +6% 伤害、+12 暴击、+80 魔力；精金法师套 +20%、+19、+80；神圣法师套 +19%、+19、+100；幽灵面具套 +25%、+17、+60。仅静态属性。</li>
-<li>全流程预设参考 terraria.wiki.gg Guide:Class_setups 法师路线，数值取同一源码：巫师帽 5%（配长袍 +10 暴击）、魔法帽 6%/6（配长袍 +60 魔力）；宝石长袍魔力 紫晶 20、黄玉 40、钻石 80；陨石每件 9%；钴 13/14/40、钯金 14/12/60、秘银 22/10/60、山铜 8/24/80、钛金 23/13/100、禁戒 25/0/80、叶绿 21/15/80、暗黑艺术家 25/25/0（伤害%/暴击/魔力，均为部件静态和，只计伤害、暴击、魔力相关套装加成）。混搭件不触发套装效果。</li>
-<li>同文件：毁灭者徽章 +10% 伤害、+8 暴击；石巨人之眼 +10 暴击；天界石／天界壳 +10% 伤害、+2 暴击；魔力花、大自然的恩赐只减耗（工具不计）。</li>
-<li>同文件：巫师徽章 +15% 魔法伤害；复仇者徽章 +12% 伤害；天界徽章 +15% 魔法伤害；星力手环、魔力再生手环、魔法手铐、天界手铐均 +20 最大魔力。</li>
-<li>星云依据：Player.cs 11442–11456（装备），8514、8541（生命和伤害强化），16394–16407（星云魔力计数器每 6/层数 帧回 1 蓝），16281、16302（每 120 生命回复计数回 1 HP）。Item.cs 29649–29674：防御 14+18+14=46。</li>
-<li>同文件 GrantPrefixBenefits：险恶 +4% 伤害；幸运 +4 暴击；奥秘 +20 魔力；护佑 +4 防御（只显示，不直接换算生存 DPS）。</li>
-<li>KL/Utils/KLDpsHelper.cs：本地服务直接读取 stateDps 数组，每 2 秒同步；直接打开 HTML 时使用离线快照。伊蕾娜/ElainaAttribute/ElainaMagicAttributes.cs：原版魔力 1:1 转换、战斗回复 5 + 最大魔力 × 可调百分比/秒（只展示，不加到 DPS）。</li>
-<li>星云套静态 +26% 伤害、+16 暴击、+60 魔力；满层伤害强化 +45%（与装备加算），原版回蓝 +30/秒，生命回复 +9/秒。默认不桥接特殊魔力；可显式启用预览适配。幽灵追击仍需手填。</li>
-</ul><p class="note" id="sourcePath"></p></div></details>
-
 </div>
 
 <div id="progressionPage" class="tabpage" role="tabpanel" aria-labelledby="tabProgression" hidden>
+<section class="panel" id="stageDamagePanel" aria-label="各阶段伤害">
+ <div class="title"><h2>各阶段伤害</h2><span class="tag">按各时期角色等级上限可升到的最高技能等级</span></div>
+ <div class="fields stagefields">
+  <label class="field">技能<select id="stageDamageSkill"></select></label>
+  <label class="field">对比<select id="stageDamageCompare"></select></label>
+  <label class="field">显示数值<select id="stageDamageMetric"><option value="hit">每发伤害</option><option value="total">整次伤害</option><option value="dps">基础周期 DPS</option></select></label>
+  <label class="check"><input id="stageDamageGear" type="checkbox">计入该阶段推荐配装的伤害加成（不含暴击）</label>
+ </div>
+ <div class="stagedamage">
+  <div class="tablewrap"><table id="stageDamageTable"><thead id="stageDamageHead"></thead><tbody id="stageDamageRows"></tbody></table></div>
+  <div class="chartbox"><svg id="stageDamageChart" class="chart" role="img" aria-label="所选技能各阶段伤害曲线"></svg></div>
+ </div>
+ <p class="note">“—”表示该时期未达到解锁等级。列表只含造成伤害的技能。</p>
+</section>
+
 <section class="panel section" id="progressionPanel" aria-label="技能等级成长区间">
  <div class="title"><h2>技能等级成长区间</h2><span class="tag">角色等级只决定技能可升到哪里</span></div>
  <div class="fields">
   <label class="field">完整阶段角色等级跨度（仅按阶段成长）<input id="progressionPhaseSize" type="number" min="1" max="20" step="1"></label>
   <label class="field">预览角色等级<input id="progressionPreviewLevel" type="number" min="1" max="1000" step="1"></label>
  </div>
- <p class="note">“解锁阶段上限”区分初始 1–5 级阶段与史莱姆王后 6–10 级阶段，不是必须练到阶段上限才解锁。“首级角色等级”定义技能 Lv1 的角色门槛和伤害基准。飞弹默认 5 / 1，冰锥示例默认 10 / 6；如果想让冰锥必须角色 10 级才开放，可把首级改为 10。每阶段 2 次升级不含解锁自带的 Lv1。“解锁时期”是快捷选项：第 k 个时期（击败对应 Boss 后）写入上限 5k、首级 5k−4；手填非 5 的倍数时显示为自定义。切换参考配装会把预览角色等级设为该时期上限，并只启用此时已解锁的主动技能。</p>
- <p class="note">成长方式可逐技能选择：“按阶段成长”沿用公共阶段跨度；“固定等级间隔”从首级角色等级起，每隔指定角色等级新增 1 个技能等级，与公共阶段跨度及每阶段新增数量无关。例如角色 1 级解锁、间隔 10：Lv1→1、Lv2→11、Lv3→21；间隔 7：Lv1→1、Lv2→8、Lv3→15。解锁时期仍用于设置首级门槛与阶段标记。</p>
- <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>首级角色等级</th><th>成长方式</th><th>每阶段新增技能等级</th><th>每级角色等级间隔</th><th>最高技能等级<br><small>0 = 不封顶</small></th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
+ <p class="note">输出技能的成长起点为 1，晚解锁不会赠送高阶段伤害；解锁后可花研习点逐级升到当前角色等级允许的上限。成长起点为 0 时沿用解锁节点。解锁时期快捷选项只修改解锁门槛。</p>
+ <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>解锁角色等级</th><th>成长起点（0随解锁）</th><th>成长方式</th><th>每阶段新增技能等级</th><th>每级角色等级间隔</th><th>最高技能等级<br><small>0 = 不封顶</small></th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
  <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
  <p id="progressionNotice" class="note"></p>
- <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>普攻倍率</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>伤害系数</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
 </section>
 </div>
 
 <div id="loadoutPage" class="tabpage" role="tabpanel" aria-labelledby="tabLoadouts" hidden>
 <section class="panel intro">
  <div class="title"><h2>配装与属性配置 · 按 Boss 阶段</h2><span class="tag">随 SkillBalance.json 保存 · 游戏内按 L 打开快捷配装</span></div>
- <p class="note">每个阶段一套伊蕾娜推荐配装与角色属性。实验室切换阶段时读取这里的护甲、饰品、槽位、伊蕾娜前缀、原版对照前缀与基础魔力；实验室里的临时改动不会写回此页。游戏内按快捷键（默认 L，可在“控制”中改键）选择 Boss 阶段即可一键换装：删除当前功能护甲与饰品，再按预设生成带前缀的新装备，空槽也会清空，不取用或写入背包；基础魔力与最大生命直接设为本阶段数值，可升可降。仅单人模式可用，第 6、7 饰品槽需要专家／大师模式。</p>
- <p class="note">默认按专家模式、伊蕾娜扫帚承担机动、兼顾输出与生存选择；开局是低资源起步，其后允许在已解锁阶段刷齐材料，不要求刚击杀就立即拥有。钛金世界用钛金套，精金世界可选精金法师套；猩红世界可把蠕虫围巾换为混乱之脑。首只机械 Boss 后可重复刷神圣锭，三王后才推荐天界徽章；花后冰冻护盾适合 Boss 战，十字章护盾保留为探索选项。原版手铐受伤回蓝不视为伊蕾娜特殊魔力回复。<a href="LOADOUT-AUDIT.md" target="_blank" rel="noopener">逐阶段依据与源码核对</a></p>
+ <p class="note">每个阶段一套伊蕾娜推荐配装与角色属性。游戏内按快捷键（默认 L）选择阶段即可一键换装：删除当前功能护甲与饰品，按预设生成带前缀的新装备，空槽也会清空，不取用或写入背包；基础魔力与最大生命直接设为本阶段数值。仅单人模式可用，第 6、7 饰品槽需要专家／大师模式。<a href="LOADOUT-AUDIT.md" target="_blank" rel="noopener">逐阶段依据与源码核对</a></p>
 </section>
 <div class="loadout-layout">
  <nav class="panel stagelist" aria-label="阶段列表"><ol id="loadoutList"></ol></nav>
  <section class="panel loadout-editor" id="loadoutEditor" aria-label="阶段配装编辑"></section>
 </div>
 </div>
-<footer class="footer">纯本机工具 · 浏览器自动备份与模组 JSON 分开保存 · 新 C# 接入需重编译模组一次，之后仅 Debug 构建会热读取固定 JSON，Release 使用打包配置，配置不参与联机同步；已生成的弹幕和正在进行的冷却不回溯改变。</footer>
+<footer class="footer">纯本机工具 · 浏览器自动备份与模组 JSON 分开保存 · 仅 Debug 构建热读取 JSON，Release 使用打包配置；已生成的弹幕和正在进行的冷却不回溯改变。</footer>
 </main>
 <script id="balance-engine">
 'use strict';
@@ -383,7 +239,7 @@ const accessories={utility:{name:'空槽（旧版占位；换装时清空）',da
 const sideItem=(id,side)=>side==='v'&&accessories[id]?.elainaOnly?'empty':id;
 const prefixes={warding:{name:'护佑 · +4 防御',damage:0,crit:0,mana:0,defense:4},menacing:{name:'险恶 · +4% 伤害',damage:4,crit:0,mana:0,defense:0},arcane:{name:'奥秘 · +20 魔力',damage:0,crit:0,mana:20,defense:0},lucky:{name:'幸运 · +4 暴击',damage:0,crit:4,mana:0,defense:0},none:{name:'无前缀',damage:0,crit:0,mana:0,defense:0}};
 // 时期 k：击败对应 Boss 后 KL 等级上限为 5k，基础 DPS = stageDps[k]（声明后补写 base）。
-const periods=['开局','史莱姆王后','克苏鲁之眼后','世吞／克脑后','蜂王后','骷髅王后','独眼巨鹿后','血肉墙后（困难模式）','史莱姆皇后后','双子魔眼后','毁灭者后','机械骷髅王后','世纪之花后','石巨人后','猪龙鱼公爵后','光之女皇后','光女后 · 拜月前','拜月教邪教徒后','月亮领主后'].map((label,i)=>({stage:i+1,label,cap:5*(i+1),level:5*(i+1)-4}));
+const periods=['开局','史莱姆王后','克苏鲁之眼后','世吞／克脑后','蜂王后','骷髅王后','独眼巨鹿后','血肉墙后（困难模式）','史莱姆皇后后','双子魔眼后','毁灭者后','机械骷髅王后','世纪之花后','石巨人后','猪龙鱼公爵后','光之女皇后','拜月教邪教徒后','月亮领主后'].map((label,i)=>({stage:i+1,label,cap:5*(i+1),level:5*(i+1)-4}));
 // Terraria 1.4.4.9；阶段按可获取且允许重复刷材料，详见 LOADOUT-AUDIT.md 的来源与取舍。
 // 扫帚承担机动；默认使用实际输出、魔力和生存饰品。第七项供手动启用大师槽使用。
 const presets={
@@ -403,9 +259,8 @@ const presets={
  golem:{stage:14,name:'14 石巨人后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']},
  fishron:{stage:15,name:'15 猪龙鱼公爵后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']},
  empress:{stage:16,name:'16 光之女皇后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']},
- preCultist:{stage:17,name:'17 光女后 · 拜月前 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']},
- spectre:{stage:18,name:'18 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']},
- nebula:{stage:19,name:'19 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']}};
+ spectre:{stage:17,name:'17 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']},
+ nebula:{stage:18,name:'18 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','frozenShield','celestialShell','sorcerer']}};
 // Revision 1 原始默认值：只迁移完全未编辑过的阶段，不覆盖自定义配装。
 const legacyPresetsV1={
  start:{stage:1,name:'01 开局 · 巫师帽紫晶长袍',armor:'wizardAmethyst',slots:5,items:['elainaHat','regenLife','shackle','empty','empty','empty','empty']},
@@ -424,19 +279,15 @@ const legacyPresetsV1={
  golem:{stage:14,name:'14 石巨人后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
  fishron:{stage:15,name:'15 猪龙鱼公爵后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
  empress:{stage:16,name:'16 光之女皇后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
- preCultist:{stage:17,name:'17 光女后 · 拜月前 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
- spectre:{stage:18,name:'18 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
- nebula:{stage:19,name:'19 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']}};
+ spectre:{stage:17,name:'17 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
+ nebula:{stage:18,name:'18 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']}};
 const clone=x=>JSON.parse(JSON.stringify(x));
-const newSkill=(id,name)=>({id,name,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,enabled:false,cost:100,k:1,cd:10,cdRatio:1,cast:.5,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:9,hit:100});
+const newSkill=(id,name)=>({id,name,growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,cost:100,costPercent:0,k:1,cd:10,cdRatio:1,cast:.5,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]});
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
-function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1};}
-function basicRows(s){return s.basicAttacks;}
-function selectedBasic(s){const rows=basicRows(s);return rows.find(row=>row.id===s.selectedBasicAttackId)||rows[0];}
-// Same rule as SkillBalanceConfig.GetDpsRatio: linear between points, endpoints clamp, empty curve = fixed ratio.
-function basicRatio(row,level){
- const c=row.ratioCurve;
- if(!Array.isArray(c)||!c.length)return row.ratio;
+function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1,freezeBuildup:0};}
+// Same rule as SkillBalanceConfig.InterpolateCurve: linear between points, endpoints clamp, empty curve = fixed value.
+function curveAt(c,level,fixed){
+ if(!Array.isArray(c)||!c.length)return fixed;
  if(level<=c[0][0])return c[0][1];
  for(let i=1;i<c.length;i++){
   if(level>c[i][0])continue;
@@ -445,35 +296,35 @@ function basicRatio(row,level){
  }
  return c[c.length-1][1];
 }
-function validCurve(c){
+function basicRatio(row,level){return curveAt(row.ratioCurve,level,row.ratio);}
+// 曲线替代技能自身的伤害系数：普攻与显式 ratio 的主动技能为 DPS 倍率（0–5），其他主动技能为 K（0–200）。
+function curveLimit(row){return Number.isFinite(row.ratio)?5:200;}
+function validCurve(c,max=5){
  if(!Array.isArray(c)||c.length>16)return false;
  let previous=0;
  for(const p of c){
   if(!Array.isArray(p)||p.length!==2)return false;
   const [level,ratio]=p;
-  if(!Number.isInteger(level)||level<1||level>1000||level<=previous||typeof ratio!=='number'||!Number.isFinite(ratio)||ratio<0||ratio>5)return false;
+  if(!Number.isInteger(level)||level<1||level>1000||level<=previous||typeof ratio!=='number'||!Number.isFinite(ratio)||ratio<0||ratio>max)return false;
   previous=level;
  }
  return true;
 }
 // Editor text "1:1, 10:0.9" <-> [[1,1],[10,.9]]; null means the text is not a valid curve.
-function parseCurve(text){
+function parseCurve(text,max=5){
  const curve=[];
  for(const part of String(text).replace(/\s*[:：]\s*/g,':').split(/[\s,，、;；]+/).filter(Boolean)){
   const m=/^(\d+):(\d+(?:\.\d+)?|\.\d+)$/.exec(part);
   if(!m)return null;
   curve.push([Number(m[1]),Number(m[2])]);
  }
- return validCurve(curve)?curve:null;
+ return validCurve(curve,max)?curve:null;
 }
 function formatCurve(curve){return (curve||[]).map(([level,ratio])=>`${level}:${ratio}`).join(', ');}
-function basicBudget(s,row=selectedBasic(s)){
- const level=dpsLevel(s.baseDps),ratio=basicRatio(row,level),dps=s.baseDps*ratio,total=dps*row.interval;
- return {dps,total,perShot:total/row.shots,manaPerSecond:row.cost/row.interval,ratio,level};
-}
 // New growth fields are optional for old v2 files; explicit invalid values are rejected.
 function validGrowth(row){
- return (row.growthMode===undefined||['phase','interval'].includes(row.growthMode))&&
+ return (row.growthStartLevel===undefined||(Number.isInteger(row.growthStartLevel)&&row.growthStartLevel>=0&&row.growthStartLevel<=1000))&&
+  (row.growthMode===undefined||['phase','interval'].includes(row.growthMode))&&
   (row.levelInterval===undefined||(Number.isInteger(row.levelInterval)&&row.levelInterval>=1&&row.levelInterval<=1000))&&
   (row.maxLevel===undefined||(Number.isInteger(row.maxLevel)&&row.maxLevel>=0&&row.maxLevel<=1000));
 }
@@ -490,26 +341,20 @@ function validBasics(s){
  }
  return ids.has(s.selectedBasicAttackId)&&Array.isArray(s.skills)&&s.skills.every(r=>r&&!ids.has(r.id));
 }
-const stageDps=[20,30,50,80,110,150,200,250,350,400,450,500,650,900,1100,1200,1300,1550,1800,3500];
+const stageDps=[20,30,50,80,110,150,200,250,350,400,450,500,650,900,1100,1200,1300,1800,3500];
 // Offline snapshot only. The local server replaces these nodes from KL source.
 const offlineStageDps=stageDps.slice();
 function setDpsCurve(values){
- if(!Array.isArray(values)||values.length!==periods.length+1||values.some((v,i)=>!Number.isFinite(v)||v<1||v>1000000||(i>0&&v<=values[i-1])))throw new Error('KL DPS 曲线需要 20 个严格递增的正数节点。');
+ if(!Array.isArray(values)||values.length!==periods.length+1||values.some((v,i)=>!Number.isFinite(v)||v<1||v>1000000||(i>0&&v<=values[i-1])))throw new Error('KL DPS 曲线需要 19 个严格递增的正数节点。');
  const changed=values.some((v,i)=>v!==stageDps[i]);
  stageDps.splice(0,stageDps.length,...values);
  for(const p of Object.values(presets))p.base=stageDps[p.stage];
  return changed;
 }
-function normalizeBaseDps(s){
- // Legacy files have no mode. Preserve custom trials, migrate old stage values.
- if(s.baseDpsMode==null)s.baseDpsMode=s.baseDps===offlineStageDps[s.stage]||s.baseDps===stageDps[s.stage]?'stage':'manual';
- return s;
-}
-function syncBaseDps(s){if(s.baseDpsMode==='stage')s.baseDps=stageDps[s.stage];}
 for(const p of Object.values(presets))p.base=stageDps[p.stage];
 // 阶段推荐配装与属性：默认由 presets 生成，在“配装与属性配置”页编辑，随 JSON 保存并供游戏内快捷换装读取。
 // 基础魔力按魔力水晶 20 一档；最大生命 400 以内按生命水晶 20 一档，之后按生命果 5 一档。克眼后 200 生命可触发来袭事件。
-const stageLife=[100,160,200,240,280,300,340,400,400,400,420,440,500,500,500,500,500,500,500];
+const stageLife=[100,160,200,240,280,300,340,400,400,400,420,440,500,500,500,500,500,500];
 const roundLife=life=>{const n=clamp(life,100,500);return n<=400?Math.round(n/20)*20:400+Math.round((n-400)/5)*5;};
 const roundMana=mana=>Math.round(clamp(mana,20,200)/20)*20;
 // 每阶段带输出前缀的饰品数（未列出的阶段全部重铸）。哥布林工匠要砸过暗影珠／猩红之心且有 200 生命才会来袭，
@@ -527,6 +372,21 @@ function loadoutDefault(stage,p=Object.values(presets).find(x=>x.stage===stage))
  return {stage,name:p.name.split(' · ').pop(),armor:p.armor,slots:p.slots,items,baseMana:stage===1?100:200,maxLife:stageLife[stage-1]};
 }
 function loadoutDefaults(){return periods.map(p=>loadoutDefault(p.stage));}
+// 双足翼龙不再计为阶段：旧版 19 阶段配置删去“光女后 · 拜月前”，其后阶段编号减 1，80 级以上的等级门槛前移 5 级。
+const removedStage=17,removedLevelFrom=80;
+function migrateStageLayout(value){
+ if(!value||!Array.isArray(value.loadouts)||value.loadouts.length!==periods.length+1)return value;
+ value.loadouts.splice(removedStage-1,1);
+ value.loadouts.forEach((l,i)=>{if(l&&typeof l==='object')l.stage=i+1;});
+ if(Number.isInteger(value.stage)&&value.stage>=removedStage)value.stage--;
+ const shift=n=>Number.isInteger(n)&&n>removedLevelFrom?n-5:n;
+ for(const row of [...(Array.isArray(value.basicAttacks)?value.basicAttacks:[]),...(Array.isArray(value.skills)?value.skills:[])]){
+  if(!row||typeof row!=='object')continue;
+  for(const k of ['unlockStageCap','unlockLevel','growthStartLevel'])if(k in row)row[k]=shift(row[k]);
+ }
+ if(value.progression&&typeof value.progression==='object')value.progression.previewLevel=shift(value.progression.previewLevel);
+ return value;
+}
 // 补齐最早的 utility 占位，并升级 revision 1 未编辑过的默认配装；自定义阶段保持不变。
 function migrateLoadouts(value){
  const legacy=value.loadoutRevision==null;
@@ -544,25 +404,11 @@ function migrateLoadouts(value){
    else if(r.id==='elainaHat')r.vPrefix='none';
   });
  }
- for(const side of ['v','e']){
-  const g=value[side];if(!g)continue;
-  if(g.armor==='spectreDarkArtist')g.armor='spectre';
-  const l=value.loadouts?.[value.stage-1];
-  if(legacy&&l&&Array.isArray(g.items)&&g.items.some(x=>x?.id==='utility'))
-   g.items=l.items.map(x=>({id:sideItem(x.id,side),prefix:side==='e'?x.prefix:x.vPrefix}));
- }
  if((value.loadoutRevision??0)<2){
   for(const old of Object.values(legacyPresetsV1)){
    const i=old.stage-1,l=value.loadouts?.[i],expected=loadoutDefault(old.stage,old);
    if(!l||!Array.isArray(l.items)||l.items.length!==7||!['stage','name','armor','slots','baseMana','maxLife'].every(k=>l[k]===expected[k])||!l.items.every((x,j)=>['id','prefix','vPrefix'].every(k=>x?.[k]===expected.items[j][k])))continue;
-   const next=loadoutDefault(old.stage);
-   if(value.stage===old.stage)for(const side of ['v','e']){
-    const g=value[side],prefix=side==='e'?'prefix':'vPrefix';
-    if(g?.armor===l.armor&&g.items?.length===7&&g.items.every((x,j)=>x.id===sideItem(l.items[j].id,side)&&x.prefix===l.items[j][prefix])){
-     g.armor=next.armor;g.items=next.items.map(x=>({id:sideItem(x.id,side),prefix:x[prefix]}));
-    }
-   }
-   value.loadouts[i]=next;
+   value.loadouts[i]=loadoutDefault(old.stage);
   }
   value.loadoutRevision=2;
  }
@@ -573,29 +419,17 @@ function validLoadouts(list){
   &&Object.hasOwn(armors,x.armor)&&[5,6,7].includes(x.slots)&&Array.isArray(x.items)&&x.items.length===7&&x.items.every(r=>r&&Object.hasOwn(accessories,r.id)&&Object.hasOwn(prefixes,r.prefix)&&Object.hasOwn(prefixes,r.vPrefix))
   &&Number.isInteger(x.baseMana)&&roundMana(x.baseMana)===x.baseMana&&Number.isInteger(x.maxLife)&&roundLife(x.maxLife)===x.maxLife);
 }
-// 读取阶段配装：双方换护甲、饰品和槽位，伊蕾娜用 prefix、原版用 vPrefix，写入基础魔力、最大生命与该阶段 B。
-function applyLoadout(s,stage,unlock=true){
- const l=s.loadouts[stage-1];
- s.stage=stage;s.baseDpsMode='stage';s.baseDps=stageDps[stage];s.baseMana=l.baseMana;s.maxLife=l.maxLife;s.slots=l.slots;
- for(const side of ['v','e']){s[side].armor=l.armor;l.items.forEach((item,i)=>{s[side].items[i].id=sideItem(item.id,side);s[side].items[i].prefix=side==='e'?item.prefix:item.vPrefix;});}
- return unlock?applyStageUnlocks(s,stage):null;
-}
 function levelDps(level){const state=clamp(level/5,0,stageDps.length-1),lo=Math.floor(state),hi=Math.min(lo+1,stageDps.length-1);return stageDps[lo]+(stageDps[hi]-stageDps[lo])*(state-lo);}
-// Inverse of levelDps: the character level whose baseline equals this B (clamped to the KL table).
-function dpsLevel(dps){
- if(!(dps>stageDps[0]))return 0;
- for(let i=1;i<stageDps.length;i++)if(dps<=stageDps[i])return 5*(i-1+(dps-stageDps[i-1])/(stageDps[i]-stageDps[i-1]));
- return 5*(stageDps.length-1);
-}
 function progressionNodes(row,phaseSize=5,limit=1000){
- if(row.unlockLevel>limit)return [];
+ const origin=row.growthStartLevel>0?row.growthStartLevel:row.unlockLevel;
+ if(origin>limit)return [];
  const maxLevel=row.maxLevel>0?row.maxLevel:Infinity;
  if(row.growthMode==='interval'){
   const nodes=[],interval=row.levelInterval??5;
-  for(let level=row.unlockLevel;level<=limit&&nodes.length<maxLevel;level+=interval)nodes.push(level);
+  for(let level=origin;level<=limit&&nodes.length<maxLevel;level+=interval)nodes.push(level);
   return nodes;
  }
- const nodes=[row.unlockLevel];let start=row.unlockLevel,end=row.unlockStageCap;
+ const nodes=[origin];let start=origin,end=row.growthStartLevel>0?(Math.floor((origin-1)/phaseSize)+1)*phaseSize:row.unlockStageCap;
  if(end<=start)end+=Math.ceil((start-end+1)/phaseSize)*phaseSize;
  while(start<limit&&nodes.length<maxLevel){
   for(let i=1;i<=row.levelsPerPhase&&nodes.length<maxLevel;i++){
@@ -610,34 +444,24 @@ function skillLevelAt(row,characterLevel,phaseSize=5){return progressionNodes(ro
 // 解锁时期由 unlockStageCap 推导，不新增 JSON 字段；非 5 的倍数或超出表格视为自定义（返回 0）。
 function periodOf(row){const p=periods.find(x=>x.cap===row.unlockStageCap);return p?p.stage:0;}
 function setPeriod(row,stage){const p=periods[stage-1];if(!p)return false;row.unlockStageCap=p.cap;row.unlockLevel=p.level;return true;}
-// 切换配装时期：角色等级取该时期上限 5k，已解锁的技能全部启用、未解锁的停用；参考普攻未解锁时退回第一个已解锁普攻。
-function applyStageUnlocks(s,stage){
- const level=5*stage,phase=s.progression.phaseSize,unlocked=row=>skillLevelAt(row,level,phase)>0;
- for(const row of s.skills)row.enabled=unlocked(row);
- const basics=s.basicAttacks.filter(unlocked);
- if(!basics.some(row=>row.id===s.selectedBasicAttackId)&&basics.length)s.selectedBasicAttackId=basics[0].id;
- s.progression.previewLevel=level;
- return {level,skills:s.skills.filter(row=>row.enabled).map(row=>row.name),locked:s.skills.filter(row=>!row.enabled).map(row=>row.name),basics:basics.map(row=>row.name)};
-}
+// 角色达到解锁阶段上限与解锁等级后才算解锁；实际游戏另有 Boss 与前置条件。
+function unlockedAt(row,level){return level>=row.unlockLevel&&level>=row.unlockStageCap;}
 function progressionBudget(s,row,level){
- const baseline=levelDps(level),basic=s.basicAttacks.includes(row),period=basic?row.interval:row.cd,ratio=basic?basicRatio(row,level):(Number.isFinite(row.ratio)?row.ratio:null);
- const total=basic?baseline*ratio*period:Number.isFinite(row.ratio)?baseline*row.ratio*period:baseline*(s.occupyRatio*Math.max(1/60,row.cast)+(s.rate/100/20)*row.cost*row.cd*row.cdRatio*row.k);
- return {baseline,ratio,total,dps:total/period,perShot:total/row.shots,integerHit:total>0?Math.max(1,Math.floor(total/row.shots)):0};
+ const baseline=levelDps(level),basic=s.basicAttacks.includes(row),ratio=basic||Number.isFinite(row.ratio)?basicRatio(row,level):null,k=ratio===null?curveAt(row.ratioCurve,level,row.k):null;
+ // 显式 ratio 的主动技能按 CD + 读条的完整循环定价。
+ const period=basic?row.interval:ratio!==null?row.cd+row.cast:row.cd;
+ const total=ratio!==null?baseline*ratio*period:baseline*(s.occupyRatio*Math.max(1/60,row.cast)+(s.rate/100/20)*row.cost*row.cd*row.cdRatio*k);
+ return {baseline,ratio,k,coef:ratio??k,total,dps:total/period,perShot:total/row.shots,integerHit:total>0?Math.max(1,Math.floor(total/row.shots)):0};
 }
-// stage 为 1..19；也接受旧的 presets 键名（如 'jungle'）。
-function defaults(stage=13){
- if(typeof stage==='string')stage=presets[stage]?.stage||13;
- stage=Math.round(clamp(stage,1,periods.length));
- const loadouts=loadoutDefaults(),l=loadouts[stage-1];
- const build=(side)=>({armor:l.armor,damage:0,crit:0,proc:0,nebula:{damage:3,mana:3,life:3},items:l.items.map(item=>({id:sideItem(item.id,side),prefix:side==='e'?item.prefix:item.vPrefix}))});
- return {version:2,loadoutRevision:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',stage,baseDpsMode:'stage',baseDps:stageDps[stage],baseCrit:4,slots:l.slots,v:build('v'),e:build('e'),baseMana:l.baseMana,maxLife:l.maxLife,ashenWitch:true,extraMana:0,rate:4,occupyRatio:0,skillStats:true,nebulaManaBridge:false,combat:{duration:120,startPercent:100,potions:5,potionPercent:50,regenMode:"mod",regenPercent:2,regen:12.6,reserve:0,policy:"flow",hurtMode:"uniform",hurtTotal:0,hurtInterval:10,hurtPerHit:40,hurtEvents:"15:100\n45:80"},skills:[
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',enabled:true,cost:100,k:1,cd:20,cdRatio:1,cast:1,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:2,hit:100},
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',enabled:false,cost:100,k:.55,cd:25,cdRatio:1,cast:0.3,delay:0,duration:5,maxCharges:1,initialCharges:1,first:0,priority:4,hit:100},
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',enabled:true,cost:60,k:.95,cd:12,cdRatio:1,cast:0.1,delay:0,duration:0,maxCharges:5,initialCharges:5,first:0,priority:3,hit:100},
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'ShardbindSkill',name:'冰凌锁',enabled:false,cost:100,k:.75,cd:25,cdRatio:1,cast:0.4,delay:1,duration:0,maxCharges:1,initialCharges:1,first:0,priority:1,hit:100},
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',enabled:false,cost:120,k:1,cd:25,cdRatio:1,cast:3,delay:0,duration:0,maxCharges:1,initialCharges:1,first:0,priority:5,hit:100},
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',enabled:false,cost:300,k:1.2,cd:75,cdRatio:1,cast:1,delay:0.2,duration:8,maxCharges:1,initialCharges:1,first:15,priority:6,hit:75},
- {growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',enabled:false,cost:400,k:1,cd:90,cdRatio:1,cast:2,delay:1,duration:10,maxCharges:1,initialCharges:1,first:20,priority:7,hit:90}],loadouts};
+function defaults(){
+ return {version:2,loadoutRevision:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',rate:4,occupyRatio:0,skills:[
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',cost:100,costPercent:0,k:1,cd:20,cdRatio:1,cast:1,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',cost:100,costPercent:0,k:.55,cd:25,cdRatio:1,cast:0.3,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',cost:60,costPercent:0,k:.95,cd:12,cdRatio:1,cast:0.1,maxCharges:5,initialCharges:5,freezeBuildup:0,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'ShardbindSkill',name:'冰凌锁',cost:100,costPercent:0,k:.75,cd:25,cdRatio:1,cast:0.4,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',cost:120,costPercent:0,k:1,cd:25,cdRatio:1,cast:3,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',cost:300,costPercent:0,k:1.2,cd:75,cdRatio:1,cast:1,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',cost:400,costPercent:0,k:1,cd:90,cdRatio:1,cast:2,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]}],loadouts:loadoutDefaults()};
 }
 function gear(s,side){
  const g=s[side],a=armors[g.armor]||armors.none;
@@ -653,6 +477,8 @@ function gear(s,side){
  const multiplier=Math.max(0,1+damage/100)*(1+finalCrit/100)/(1+s.baseCrit/100);
  return {damage,crit:finalCrit,mana,magic,defense,multiplier,nebulaDamage,nebulaManaRegen,nebulaLifeRegen,armorDefense:a.armorDefense||0,manaReduction:a.manaReduction||0,moveSpeed:a.moveSpeed||0};
 }
+// 只含配装本身的属性：无额外加成，星云强化按 nebula 层数（默认 0 层，只计静态属性）。
+function loadoutProbe(l,side='e',nebula={damage:0,mana:0,life:0}){return {slots:l.slots,baseCrit:4,[side]:{armor:l.armor,damage:0,crit:0,proc:0,nebula,items:l.items.map(x=>({id:sideItem(x.id,side),prefix:x[side==='e'?'prefix':'vPrefix']}))}};}
 // 增伤前缀：在当前总伤害与封顶后暴击下，再加一条险恶或幸运时倍率更高的那个；打平取险恶。
 function damagePrefixStep(s,side){
  const g=gear(s,side),base=Math.max(0,1+g.damage/100);
@@ -670,217 +496,9 @@ function applyDamagePrefixes(s,side,slots=equippedSlots(s,side)){
 // 灰之魔女（AshenWitchSkill）：超出 100 的生命上限只保留一半（向下取整），减少的部分按 1:1 转为特殊魔力上限。
 // 页面只用阶段配装的最大生命，护甲／饰品额外提供的生命未计入，因此可能略低于游戏内。
 function ashenWitchMana(maxLife){const extra=Math.max(0,Math.floor(maxLife)-100);return extra-Math.floor(extra*.5);}
-function calculate(s){
- const v=gear(s,'v'),e=gear(s,'e');
- const witchMana=s.ashenWitch?ashenWitchMana(s.maxLife):0;
- const maxMana=Math.max(0,s.baseMana+e.mana+e.magic+witchMana+s.extraMana);
- const skillMultiplier=s.skillStats?e.multiplier:1;
- const vanilla=s.baseDps*v.multiplier+s.v.proc,auto=basicBudget(s).dps*e.multiplier;
- return {v,e,maxMana,witchMana,skillMultiplier,vanilla,auto,recovery:5+maxMana*(Number(s.combat.regenPercent)||0)/100+(s.nebulaManaBridge?e.nebulaManaRegen:0)};
-}
-// One cast's expected total damage, before hit-rate and timing truncation; not per projectile/hit.
-function skillDamageBudget(s,skill,result=calculate(s)){
- return s.baseDps*(Number.isFinite(skill.ratio)?skill.ratio*skill.cd:s.occupyRatio*Math.max(1/60,skill.cast)+(s.rate/100/20)*skill.cost*skill.cd*skill.cdRatio*skill.k)*result.skillMultiplier;
-}
-return {levelDps,setDpsCurve,normalizeBaseDps,syncBaseDps,dpsLevel,progressionNodes,skillLevelAt,periods,periodOf,setPeriod,applyStageUnlocks,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,migrateLoadouts,validLoadouts,applyLoadout,clone,clamp,newSkill,newBasic,basicRows,selectedBasic,basicRatio,validCurve,parseCurve,formatCurve,basicBudget,validBasics,validGrowth,defaults,gear,damagePrefixStep,equippedSlots,applyDamagePrefixes,calculate,skillDamageBudget};
+return {levelDps,migrateStageLayout,setDpsCurve,progressionNodes,skillLevelAt,unlockedAt,periods,periodOf,setPeriod,progressionBudget,armors,accessories,prefixes,presets,stageDps,roundLife,roundMana,ashenWitchMana,sideItem,loadoutDefault,loadoutDefaults,migrateLoadouts,validLoadouts,clone,clamp,newSkill,newBasic,basicRatio,curveAt,curveLimit,validCurve,parseCurve,formatCurve,validBasics,validGrowth,defaults,gear,loadoutProbe,damagePrefixStep,equippedSlots,applyDamagePrefixes};
 })();
 if(typeof module!=='undefined')module.exports=Balance;
-</script>
-
-<script id="combat-engine">
-'use strict';
-const Combat=(()=>{
- const EPS=1e-8,STEP=1/60;
- function injuries(c){
-  const events=[],errors=[];
-  if(c.hurtMode==='periodic')for(let t=c.hurtInterval;t<c.duration-EPS;t+=c.hurtInterval)events.push({time:t,amount:c.hurtPerHit});
-  if(c.hurtMode==='events')c.hurtEvents.split(/\n/).forEach((line,i)=>{
-   if(!line.trim())return;
-   const m=line.trim().match(/^(\d+(?:\.\d+)?)\s*[:：,，]\s*(\d+(?:\.\d+)?)$/);
-   if(!m){errors.push(`第 ${i+1} 行格式错误，需“秒数:损蓝量”`);return;}
-   const time=+m[1],amount=+m[2];
-   if(!Number.isFinite(time)||!Number.isFinite(amount)||amount>100000){errors.push(`第 ${i+1} 行数值超限`);return;}
-   if(time>=c.duration){errors.push(`第 ${i+1} 行在战斗结束后，不计入`);return;}
-   events.push({time,amount});
-  });
-  return {events:events.sort((a,b)=>a.time-b.time),errors};
- }
- function run(s,unlimited=false){
-  const basic=Balance.selectedBasic(s),c=s.combat,T=c.duration,b=Balance.calculate(s),M=b.maxMana;
-  const baseRegen=c.regenMode==='mod'?5+M*(Number(c.regenPercent)||0)/100:c.regen;
-  const nebulaRegen=s.nebulaManaBridge?b.e.nebulaManaRegen:0;
-  const regen=baseRegen+nebulaRegen;
-  let mana=M*c.startPercent/100,potions=Math.floor(c.potions),busyUntil=0;
-  let autoDamage=0,skillDamage=0,autoCount=0,autoMana=0,skillMana=0;
-  let regenEffective=0,regenWaste=0,potionEffective=0,potionWaste=0,hurtPaid=0,hurtRequested=0;
-  let firstShortage=null,lastPotionTime=null,fifthPotionTime=null,usedPotions=0,autoBlocked=false;
-  const initialMana=mana,inj=injuries(c),events=[],samples=[],pending=[],dots=[];
-  let injuryIndex=0;
-  const skills=s.skills.map((x,i)=>({...x,index:i,charges:Math.min(x.maxCharges,x.initialCharges),rechargeAt:x.initialCharges<x.maxCharges?x.cd:Infinity,count:0,damage:0,mana:0,blocks:0,blocked:false}));
-  const priority=skills.filter(x=>x.enabled).sort((a,b)=>a.priority-b.priority||a.index-b.index);
-  // Efficiency policy: ordinary attacks keep first claim on mana; only the surplus funds skills, best net gain per mana first.
-  const restore=M*c.potionPercent/100,basicRate=basic.cost/Math.max(STEP,basic.interval);
-  const hurtRate=c.hurtMode==='uniform'?c.hurtTotal/T:0,netRegen=regen-basicRate-hurtRate;
-  // Net gain subtracts the autos lost while casting; any occupyRatio compensation is already inside the budget.
-  const netGain=(x)=>Balance.skillDamageBudget(s,x,b)*x.hit/100-b.auto*Math.max(STEP,x.cast);
-  const efficiency=(x)=>x.cost>EPS?netGain(x)/x.cost:Infinity;
-  const actionOrder=()=>c.policy==='efficiency'?priority.filter(x=>netGain(x)>EPS).sort((a,b)=>efficiency(b)-efficiency(a)||b.cd-a.cd||a.index-b.index):priority;
-  // Mana that must stay in the pool so autos last until T: net drain over the remaining time plus known injury events.
-  function basicNeed(time){
-   let future=0;for(let i=injuryIndex;i<inj.events.length;i++)future+=inj.events[i].amount;
-   return Math.max(basic.cost,-netRegen*(T-time)+future);
-  }
-  // Pool counts unused potions at face value (ignores overfill waste); surplus is what skills may spend.
-  const surplus=(time)=>unlimited?Infinity:mana+potions*restore-basicNeed(time)-c.reserve;
-  // With non-positive net regen the surplus never grows while autos run, so waiting for an unaffordable skill would starve the rest.
-  const attainable=(x,time)=>netRegen>EPS||x.cost<=surplus(time)+EPS;
-  function futureReserve(x,time){
-   if(c.policy!=='efficiency')return 0;
-   const score=efficiency(x);let reserve=0;
-   for(const other of priority){
-    if(other===x||netGain(other)<=EPS||efficiency(other)<=score+EPS||other.cost>M+EPS||other.cost+c.reserve>M+EPS||!attainable(other,time))continue;
-    const becomesReady=other.charges<1&&other.rechargeAt<Infinity&&other.rechargeAt<T-EPS&&other.rechargeAt>=time-EPS;
-    const unlocks=other.charges<1&&time+EPS<other.first&&other.first<T-EPS;
-    if(becomesReady||unlocks)reserve+=other.cost;
-   }
-   return reserve;
-  }
-  const invalid=priority.filter(x=>x.cost>M+EPS||x.cost+c.reserve>M+EPS).map(x=>x.name);
-  const log=(time,type,text,amount=0)=>events.push({time,type,text,amount,mana});
-  function shortage(time,row){
-   if(firstShortage===null)firstShortage=time;
-   if(row){if(!row.blocked){row.blocked=true;row.blocks++;log(time,'shortage',`${row.name}缺蓝，暂缓释放`);}}
-   else if(!autoBlocked){autoBlocked=true;log(time,'shortage','普攻缺蓝，等待回复');}
-  }
-  function pay(cost,time,reserve=0){
-   if(unlimited)return true;
-   if(cost>M+EPS||cost+reserve>M+EPS)return false;
-   const target=cost+reserve,restore=M*c.potionPercent/100;
-   const needed=mana+EPS>=target?0:restore>0?Math.ceil((target-mana-EPS)/restore):Infinity;
-   // Match transactional Check/Consume: never drink if all available charges cannot fund this action.
-   if(needed>potions)return false;
-   const balance=mana+needed*restore-cost;
-   const waste=Math.max(0,balance-M);
-   mana=Math.min(M,Math.max(0,balance));
-   potionEffective+=needed*restore-waste;potionWaste+=waste;
-   for(let n=0;n<needed;n++){
-    potions--;usedPotions++;lastPotionTime=potions===0?time:lastPotionTime;
-    if(usedPotions===5)fifthPotionTime=time;
-    log(time,'potion',`使用第 ${usedPotions} 瓶药（${Math.round(restore)} 魔力）`,restore);
-   }
-   return true;
-  }
-  function hit(d){if(d.index<0)autoDamage+=d.damage;else{skills[d.index].damage+=d.damage;skillDamage+=d.damage;}}
-  function settle(time){for(let i=pending.length-1;i>=0;i--)if(pending[i].time<=time+EPS){hit(pending[i]);pending.splice(i,1);}}
-  function hurt(time,amount,emit=true){
-   if(unlimited)return;
-   const paid=Math.min(mana,amount);mana-=paid;hurtPaid+=paid;hurtRequested+=amount;
-   if(emit)log(time,'hurt',`受伤：请求损蓝 ${amount.toFixed(1)}，实际 ${paid.toFixed(1)}`,paid);
-  }
-  function sample(time){samples.push({time,mana,damage:autoDamage+skillDamage+s.e.proc*time,potions});}
-  sample(0);
-  const sampleEvery=Math.max(1,Math.ceil(T/STEP/360));
-  const steps=Math.ceil(T/STEP-EPS);
-  for(let tick=0;tick<steps;tick++){
-   const t=tick*STEP,dt=Math.min(STEP,T-t),end=t+dt;
-   settle(t);
-   while(injuryIndex<inj.events.length&&inj.events[injuryIndex].time<=t+EPS){const v=inj.events[injuryIndex++];hurt(t,v.amount);}
-   for(const x of priority)while(x.rechargeAt<=t+EPS&&x.charges<x.maxCharges){x.charges++;x.rechargeAt=x.charges<x.maxCharges?x.rechargeAt+x.cd:Infinity;}
-   if(t+EPS>=busyUntil){
-    let acted=false,hold=false,held=0;
-    for(const x of actionOrder()){
-     if(t+EPS<x.first||x.charges<1)continue;
-     if(!unlimited&&(x.cost>M+EPS||x.cost+c.reserve>M+EPS))continue;
-     if(c.policy==='efficiency'){
-      // A hit landing after T earns nothing inside the window but would still cost mana and autos.
-      if(t+Math.max(STEP,x.cast)+x.delay>=T-EPS)continue;
-      // Ready but unaffordable better skills keep their share only if the surplus can still grow to cover them.
-      if(x.cost+futureReserve(x,t)+held>surplus(t)+EPS||!pay(x.cost,t,c.reserve)){
-       shortage(t,x);
-       if(attainable(x,t))held+=x.cost;
-       continue;
-      }
-     }else if(!pay(x.cost,t,c.reserve+futureReserve(x,t))){
-      shortage(t,x);
-      if(c.policy==='save'){hold=true;break;}
-      continue;
-     }
-     x.blocked=false;x.count++;x.mana+=x.cost;skillMana+=x.cost;
-     if(x.charges===x.maxCharges)x.rechargeAt=t+x.cd;
-     x.charges--;
-     const occupy=Math.max(STEP,x.cast);
-     const damage=Balance.skillDamageBudget(s,x,b)*x.hit/100;
-     const start=t+occupy+x.delay;
-     if(x.duration>0)dots.push({index:x.index,start,end:start+x.duration,rate:damage/x.duration});
-     else pending.push({index:x.index,time:start,damage});
-     busyUntil=t+occupy;acted=true;
-     log(t,'cast',`释放${x.name} · 消耗 ${x.cost}`,x.cost);break;
-    }
-    if(!acted&&!hold){
-     if(pay(basic.cost,t)){
-      const interval=Math.max(STEP,basic.interval);autoCount++;autoMana+=basic.cost;autoBlocked=false;
-      pending.push({index:-1,time:t+interval,damage:b.auto*interval});busyUntil=t+interval;
-     }else shortage(t,null);
-    }
-   }
-   // Continuous effects contribute only within [0,T]. No credit for future impacts.
-   for(let i=dots.length-1;i>=0;i--){const d=dots[i],overlap=Math.max(0,Math.min(end,d.end)-Math.max(t,d.start));if(overlap>0)hit({index:d.index,damage:overlap*d.rate});if(d.end<=end+EPS)dots.splice(i,1);}
-   while(injuryIndex<inj.events.length&&inj.events[injuryIndex].time<end-EPS){const v=inj.events[injuryIndex++];hurt(v.time,v.amount);}
-   if(!unlimited&&c.hurtMode==='uniform')hurt(t,c.hurtTotal/T*dt,false);
-   if(!unlimited){const gain=Math.min(M-mana,regen*dt);mana+=gain;regenEffective+=gain;regenWaste+=regen*dt-gain;}
-   settle(end);
-   if(tick%sampleEvery===0)sample(end);
-  }
-  if(samples[samples.length-1].time<T-EPS)sample(T);
-  const totalDamage=autoDamage+skillDamage+s.e.proc*T;
-  return {unlimited,T,maxMana:M,regen,baseRegen,nebulaRegen,initialMana,endMana:mana,potionsLeft:potions,usedPotions,firstShortage,lastPotionTime,fifthPotionTime,autoDamage,skillDamage,procDamage:s.e.proc*T,totalDamage,dps:totalDamage/T,autoCount,autoMana,skillMana,regenEffective,regenWaste,potionEffective,potionWaste,hurtPaid,hurtRequested,uncoveredHurt:Math.max(0,hurtRequested-hurtPaid),skills:skills.map(x=>({name:x.name,enabled:x.enabled,count:x.count,damage:x.damage,mana:x.mana,blocks:x.blocks})),events,samples,invalid,injuryErrors:inj.errors};
- }
- function compare(s){return {actual:run(s),ideal:run(s,true),vanilla:Balance.calculate(s).vanilla};}
- // Same Elaina loadout and combat settings, every equipped accessory set to arcane vs the best damage prefix per slot.
- function prefixDuel(s){
-  const slots=Balance.equippedSlots(s,'e');
-  const arcaneCopy=Balance.clone(s),damageCopy=Balance.clone(s);
-  for(const i of slots)arcaneCopy.e.items[i].prefix='arcane';
-  const picks=Balance.applyDamagePrefixes(damageCopy,'e',slots);
-  const arcane=run(arcaneCopy),damage=run(damageCopy),diff=arcane.dps-damage.dps;
-  return {slots:slots.length,arcane,damage,menacingCount:picks.filter(x=>x==='menacing').length,luckyCount:picks.filter(x=>x==='lucky').length,diff,lead:damage.dps>EPS?diff/damage.dps:0};
- }
- // Steady-state mana ladder: rank skills by net damage per mana, pour the mana flow left for skills down the ranks,
- // and compare the rung where it runs out against the break-even value of swapping one damage-prefix slot for arcane.
- function ladder(s,a=run(s),ideal=run(s,true)){
-  const c=s.combat,T=c.duration,b=Balance.calculate(s),basic=Balance.selectedBasic(s),M=a.maxMana;
-  const unit=s.baseDps*(s.rate/100/20)*b.skillMultiplier;
-  const restore=M*c.potionPercent/100,inj=injuries(c);
-  const hurtTotal=(c.hurtMode==='uniform'?c.hurtTotal:0)+inj.events.reduce((sum,e)=>sum+e.amount,0);
-  const basicRate=basic.cost/Math.max(STEP,basic.interval);
-  const poolRate=(a.initialMana+Math.floor(c.potions)*restore)/T;
-  const income=Math.max(0,a.regen-basicRate-hurtTotal/T+poolRate);
-  const rows=s.skills.map((x,index)=>{
-   const value=x.cd*x.cdRatio*x.k,demand=x.cd>EPS?x.cost/x.cd:Infinity;
-   const net=Balance.skillDamageBudget(s,x,b)*x.hit/100-b.auto*Math.max(STEP,x.cast);
-   const perMana=x.cost>EPS?net/x.cost:Infinity;
-   const full=ideal.skills[index].count,count=a.skills[index].count;
-   return {index,name:x.name,enabled:x.enabled,priority:x.priority,value,effective:unit>EPS?perMana/unit:0,perMana,demand,
-    share:income>EPS?demand/income:Infinity,usable:x.cost<=M+EPS&&x.cost+c.reserve<=M+EPS,positive:net>EPS,count,full,fill:0};
-  }).filter(x=>x.enabled).sort((p,q)=>q.perMana-p.perMana||s.skills[q.index].cd-s.skills[p.index].cd||p.index-q.index);
-  let left=income,marginal=null;
-  for(const x of rows){
-   if(!x.usable||!x.positive)continue;
-   const take=Math.min(x.demand,left);x.fill=x.demand>EPS?take/x.demand:1;left-=take;
-   if(!marginal&&x.fill<1-1e-6)marginal=x;
-  }
-  // One slot swap: +arcane mana raises regen, potion size and the opening pool; the better of menacing/lucky scales every multiplied hit.
-  const dm=Balance.prefixes.arcane.mana,step=Balance.damagePrefixStep(s,'e');
-  const extraFlow=(c.regenMode==='mod'?dm*(Number(c.regenPercent)||0)/100:0)+dm*(c.startPercent/100+Math.floor(c.potions)*c.potionPercent/100)/T;
-  const multiplied=(a.autoDamage+(s.skillStats?a.skillDamage:0))/T;
-  const damageGain=multiplied*(step.ratio-1);
-  const threshold=extraFlow*unit>EPS?damageGain/(extraFlow*unit):Infinity;
-  return {income,basicRate,hurtRate:hurtTotal/T,poolRate,regen:a.regen,demand:rows.filter(x=>x.usable&&x.positive).reduce((sum,x)=>sum+x.demand,0),
-   overflow:marginal?0:left,marginal,threshold,extraFlow,damageGain,damagePrefix:step.prefix,unit,rows};
- }
- return {injuries,run,compare,ladder,prefixDuel,STEP};
-})();
-if(typeof module!=='undefined')module.exports=Combat;
 </script>
 
 <script id="balance-ui">
@@ -889,29 +507,23 @@ const $=id=>document.getElementById(id),fmt=(n,d=0)=>Number.isFinite(n)?n.toLoca
 const escapeHtml=value=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const key='elaina-mage-balance-v2';let s=Balance.defaults(),editRevision=0;
 let curveConnected=false,curveError='',curveRequest=null;
-try{const saved=normalizeProgression(JSON.parse(localStorage.getItem(key)));if(validSaved(saved))s=saved;}catch(_){}
+// 旧缓存可能带有已删除的实验室／战斗模拟字段，keepKnown 只保留当前配置项。
+try{const saved=normalizeProgression(JSON.parse(localStorage.getItem(key)));if(validSaved(saved))s=keepKnown(Balance.defaults(),saved);}catch(_){}
 
 function normalizeProgression(value){
  if(!value||typeof value!=='object')return value;
  value.progression=value.progression||{phaseSize:5,previewLevel:10};
-  if(value.combat&&typeof value.combat==='object'&&value.combat.regenPercent==null)value.combat.regenPercent=2;
  if(value.occupyRatio==null)value.occupyRatio=0;
- if(value.extraMana==null)value.extraMana=0;
- // 旧版：preset 键名 → stage；快速预算字段不再使用，keepKnown 会丢弃。
- if(value.stage==null)value.stage=Balance.presets[value.preset]?.stage??13;
- Balance.normalizeBaseDps(value);
+ Balance.migrateStageLayout(value);
  if(value.loadouts==null)value.loadouts=Balance.loadoutDefaults();
  Balance.migrateLoadouts(value);
- if(value.ashenWitch==null)value.ashenWitch=true;
- if(value.maxLife==null)value.maxLife=Array.isArray(value.loadouts)?value.loadouts[value.stage-1]?.maxLife??100:100;
- // 旧版配装没有原版前缀 vPrefix：按同阶段同槽位的默认值补齐。
+ // 旧版配装没有 vPrefix：按同阶段同槽位的默认值补齐（游戏不读取，仅保持文件格式一致）。
  if(Array.isArray(value.loadouts))value.loadouts.slice(0,Balance.periods.length).forEach((l,i)=>{if(!l||!Array.isArray(l.items))return;const d=Balance.loadoutDefault(i+1);l.items.forEach((r,j)=>{if(r&&typeof r==='object'&&r.vPrefix==null)r.vPrefix=d.items[j]?.vPrefix??'none';});});
- for(const k of ['preset','mode','budgetSource','reserve','manualBudget','quality','use','hurtMana'])delete value[k];
- for(const row of (Array.isArray(value.skills)?value.skills:[]))if(row&&typeof row==='object')delete row.realization;
  for(const row of (Array.isArray(value.basicAttacks)?value.basicAttacks:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=row.id==='IceConeSkill'?10:5;if(!('unlockLevel' in row))row.unlockLevel=row.id==='IceConeSkill'?6:1;if(row.levelsPerPhase==null)row.levelsPerPhase=2;if(row.ratioCurve==null)row.ratioCurve=[];}
- for(const row of (Array.isArray(value.skills)?value.skills:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=5;if(!('unlockLevel' in row))row.unlockLevel=1;if(row.levelsPerPhase==null)row.levelsPerPhase=1;if(row.cdRatio==null)row.cdRatio=1;}
+ for(const row of (Array.isArray(value.skills)?value.skills:[])){if(!row||typeof row!=='object')continue;if(!('unlockStageCap' in row))row.unlockStageCap=5;if(!('unlockLevel' in row))row.unlockLevel=1;if(row.levelsPerPhase==null)row.levelsPerPhase=1;if(row.cdRatio==null)row.cdRatio=1;if(row.costPercent==null)row.costPercent=0;if(row.maxCharges==null)row.maxCharges=1;if(row.initialCharges==null)row.initialCharges=1;if(row.ratioCurve==null)row.ratioCurve=[];}
  for(const row of [...(Array.isArray(value.basicAttacks)?value.basicAttacks:[]),...(Array.isArray(value.skills)?value.skills:[])]){
   if(!row||typeof row!=='object')continue;
+  if(!Object.hasOwn(row,'growthStartLevel'))row.growthStartLevel=0;
   if(!Object.hasOwn(row,'growthMode'))row.growthMode='phase';
   if(!Object.hasOwn(row,'levelInterval'))row.levelInterval=5;
   if(!Object.hasOwn(row,'maxLevel'))row.maxLevel=0;
@@ -920,8 +532,7 @@ function normalizeProgression(value){
  return value;
 }
 function validSaved(x){
- if(!x||x.version!==2||typeof x.nebulaManaBridge!=='boolean'||typeof x.ashenWitch!=='boolean')return false;
- if(!['stage','manual'].includes(x.baseDpsMode))return false;
+ if(!x||x.version!==2)return false;
  for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])]){
   if(!Object.hasOwn(row,'flight'))continue;
   const f=row.flight;if(!f||typeof f!=='object'||Array.isArray(f))return false;
@@ -932,230 +543,110 @@ function validSaved(x){
  for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])])if(row.freezeBuildup!=null&&(typeof row.freezeBuildup!=='number'||!Number.isFinite(row.freezeBuildup)||row.freezeBuildup<0||row.freezeBuildup>100))return false;
  const d=Balance.defaults();
  for(const k of Object.keys(d))if(!(k in x))return false;
- for(const k of ['baseDps','baseCrit','slots','baseMana','maxLife','extraMana','rate','occupyRatio'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
- if(x.occupyRatio<0||x.occupyRatio>5||x.maxLife<100||x.maxLife>2000)return false;
- if(x.baseDps<1||x.baseDps>1000000||x.baseMana>2000||x.extraMana>10000||x.baseCrit<0||x.baseCrit>100||![5,6,7].includes(x.slots)||x.rate<0||x.rate>20||x.baseMana<0||x.extraMana<0)return false;
- if(!Number.isInteger(x.stage)||x.stage<1||x.stage>Balance.periods.length||!Balance.validLoadouts(x.loadouts))return false;
+ for(const k of ['rate','occupyRatio'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
+ if(x.occupyRatio<0||x.occupyRatio>5||x.rate<0||x.rate>20||!Balance.validLoadouts(x.loadouts))return false;
  const p=x.progression;if(!p||!Number.isInteger(p.phaseSize)||p.phaseSize<1||p.phaseSize>20||!Number.isInteger(p.previewLevel)||p.previewLevel<1||p.previewLevel>1000)return false;
- const c=x.combat;if(!c||typeof c!=='object'||!Balance.validBasics(x))return false;
- const bounds={duration:[1,600],startPercent:[0,100],potions:[0,5],potionPercent:[0,100],regenPercent:[0,100],regen:[0,1000],reserve:[0,10000],hurtTotal:[0,100000],hurtInterval:[.1,600],hurtPerHit:[0,100000]};
- for(const [key,[min,max]] of Object.entries(bounds))if(typeof c[key]!=='number'||!Number.isFinite(c[key])||c[key]<min||c[key]>max)return false;
- if(!Number.isInteger(c.potions)||!['mod','manual'].includes(c.regenMode)||!['flow','save','efficiency'].includes(c.policy)||!['uniform','periodic','events'].includes(c.hurtMode)||typeof c.hurtEvents!=='string'||c.hurtEvents.length>5000)return false;
- const skillBounds={unlockStageCap:[1,1000],unlockLevel:[1,1000],levelsPerPhase:[1,10],shots:[1,100],cd:[.1,600],cdRatio:[0,1],cast:[0,60],delay:[0,120],duration:[0,120],maxCharges:[1,99],initialCharges:[0,99],first:[0,600],priority:[1,99],hit:[0,100]};
- if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Balance.validGrowth(r)&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&Number.isInteger(r.priority)))return false;
- if(typeof x.skillStats!=='boolean')return false;
- for(const side of ['v','e']){const g=x[side];if(!g||!g.nebula||!['damage','mana','life'].every(k=>Number.isInteger(g.nebula[k])&&g.nebula[k]>=0&&g.nebula[k]<=3)||!Object.hasOwn(Balance.armors,g.armor)||!Array.isArray(g.items)||g.items.length!==7)return false;if(!['damage','crit','proc'].every(k=>typeof g[k]==='number'&&Number.isFinite(g[k]))||g.damage< -90||g.damage>1000||g.crit< -100||g.crit>100||g.proc<0||g.proc>1000000)return false;if(!g.items.every(r=>r&&Object.hasOwn(Balance.accessories,r.id)&&Object.hasOwn(Balance.prefixes,r.prefix)))return false;}
- return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>(!('ratio' in r)||(typeof r.ratio==='number'&&Number.isFinite(r.ratio)&&r.ratio>=0&&r.ratio<=5))&&typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&typeof r.enabled==='boolean'&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=200&&r.cdRatio>=0&&r.cdRatio<=1);
+ if(!Balance.validBasics(x))return false;
+ const skillBounds={costPercent:[0,100],unlockStageCap:[1,1000],unlockLevel:[1,1000],levelsPerPhase:[1,10],shots:[1,100],cd:[.1,600],cdRatio:[0,1],cast:[0,60],maxCharges:[1,99],initialCharges:[0,99]};
+ if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Balance.validGrowth(r)&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&(r.ratioCurve===undefined||Balance.validCurve(r.ratioCurve,Balance.curveLimit(r)))))return false;
+ return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>(!('ratio' in r)||(typeof r.ratio==='number'&&Number.isFinite(r.ratio)&&r.ratio>=0&&r.ratio<=5))&&typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=200&&r.cdRatio>=0&&r.cdRatio<=1);
 }
 function keepKnown(template,input,property=''){
- if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0,...(v.flight?{flight:Balance.clone(v.flight)}:{})}));
+ if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0,...(property==='skills'?{costPercent:v.costPercent??0}:{}),...(Number.isFinite(v.ratio)?{ratio:v.ratio}:{}),...(v.flight?{flight:Balance.clone(v.flight)}:{})}));
  if(property==='ratioCurve')return input; // variable-length points, already checked by validBasics
  if(Array.isArray(template))return ['skills','basicAttacks','loadouts'].includes(property)?input.map(v=>keepKnown(template[0],v)):template.map((v,i)=>keepKnown(v,input[i]));
  if(template&&typeof template==='object')return Object.fromEntries(Object.keys(template).map(k=>[k,keepKnown(template[k],input[k],k)]));
  return input;
 }
 function options(data){return Object.entries(data).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');}
-const vanillaAccessories=Object.fromEntries(Object.entries(Balance.accessories).filter(([,v])=>!v.elainaOnly));
-for(const side of ['v','e'])$(side+'Armor').innerHTML=options(Balance.armors);
-const direct=['baseDps','baseCrit','slots','baseMana','maxLife','extraMana','ashenWitch','rate','occupyRatio','skillStats','nebulaManaBridge'];
+const direct=['rate','occupyRatio'];
 const two=n=>String(n).padStart(2,'0'),periodLabel=stage=>Balance.periods[stage-1].label;
-function stageOptions(){
- $('preset').innerHTML=s.loadouts.map(l=>`<option value="${l.stage}">${two(l.stage)} ${escapeHtml(periodLabel(l.stage))} · ${escapeHtml(l.name)}</option>`).join('');
- $('preset').value=String(s.stage);
-}
+const validId=value=>/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value);
 
-let latestCombat;
-const rotationFields=[['shots',1,100,1,'等额命中数'],['cost',0,10000,'any','蓝耗'],['cd',.1,600,.1,'CD'],['cdRatio',0,1,.05,'CD伤害折算率'],['cast',0,60,.1,'占手'],['delay',0,120,.1,'延迟'],['duration',0,120,.5,'持续'],['k',0,200,.05,'魔力转换率'],['hit',0,100,5,'命中'],['maxCharges',1,99,1,'储存上限'],['initialCharges',0,99,1,'开场次数'],['first',0,600,1,'首次释放'],['priority',1,99,1,'优先级']];
+// ---- 技能配置页 ----
+// 主动技能的系数曲线与普攻倍率曲线同格式；按技能等级映射的角色等级替代固定伤害系数。
+const rotationFields=[['shots',1,100,1,'命中数'],['cost',0,10000,'any','蓝耗'],['costPercent',0,100,'any','最大魔力百分比耗蓝'],['cd',.1,600,.1,'CD'],['cdRatio',0,1,.05,'CD伤害折算率'],['cast',0,60,.1,'占手'],['k',0,200,.05,'魔力转换率'],['maxCharges',1,99,1,'充能上限'],['initialCharges',0,99,1,'初始充能'],['freezeBuildup',0,100,'any','冻结积蓄']];
 function rowRotationFields(row){return rotationFields.map(field=>field[0]==='k'&&Number.isFinite(row.ratio)?['ratio',0,5,.05,'DPS倍率']:field);}
 function rotation(){
- $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input type="checkbox" aria-label="模拟启用${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="enabled" ${row.enabled?'checked':''}></td><td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>${rowRotationFields(row).map(([key,min,max,step,label])=>`<td><input type="number" aria-label="模拟${escapeHtml(row.name)}${label}" min="${min}" max="${max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"></td>`).join('')}<td id="skillDamage${i}"></td><td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('');
- $('rotationRows').querySelectorAll('input').forEach(el=>el.addEventListener(el.type==='text'?'change':'input',()=>{
-  if(el.type==='number'&&el.value==='')return;
-  const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
-  if(el.type==='text'){
-   const value=el.value.trim();
-   if(!value||value.length>64||(key==='id'&&(!/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value)||(s.skills.some(other=>other!==row&&other.id===value)||s.basicAttacks.some(other=>other.id===value))))){
-    el.value=row[key];$('status').textContent='技能名称不能为空；ID 必须唯一，且只能使用英文字母、数字、点、下划线或连字符（以字母开头）。';return;
-   }
-   row[key]=value;
-   const tr=el.closest('tr');
-   tr.querySelector('[data-skill-field="enabled"]').setAttribute('aria-label','模拟启用'+row.name);
-   for(const [field,,,,label] of rowRotationFields(row))tr.querySelector(`[data-skill-field="${field}"]`).setAttribute('aria-label','模拟'+row.name+label);
-   tr.querySelector('[data-remove-skill]').setAttribute('aria-label','删除'+row.name);
-   skills();update();return;
-  }
-  let value=el.type==='checkbox'?el.checked:Balance.clamp(el.value,+el.min,+el.max);
-  if(['shots','maxCharges','initialCharges','priority'].includes(key))value=Math.floor(value);
-  row[key]=value;row.initialCharges=Math.min(row.maxCharges,row.initialCharges);update();
- }));
- $('rotationRows').querySelectorAll('[data-remove-skill]').forEach(el=>el.addEventListener('click',()=>{
-  s.skills.splice(+el.dataset.removeSkill,1);skills();rotation();update();
- }));
+ $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>${rowRotationFields(row).map(([key,min,max,step,label])=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="${min}" max="${key==='initialCharges'?row.maxCharges:max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"${['k','ratio'].includes(key)&&row.ratioCurve?.length?' disabled title="已使用系数曲线；清空曲线后才使用此固定系数"':''}></td>${['k','ratio'].includes(key)?`<td><input class="curveinput" type="text" aria-label="${escapeHtml(row.name)}系数曲线" maxlength="400" placeholder="留空 = 固定系数" value="${escapeHtml(Balance.formatCurve(row.ratioCurve))}" data-skill-index="${i}" data-skill-field="ratioCurve"></td>`:''}`).join('')}<td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('')||'<tr><td colspan="13">没有主动技能。</td></tr>';
+ $('addSkill').disabled=s.skills.length>=32;
 }
-function syncRotationInputs(){
- for(const el of document.querySelectorAll('[data-skill-index]')){
-  const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
-  if(key==='enabled')el.checked=row[key];
-  else if(el!==document.activeElement)el.value=row[key];
-  if(key==='initialCharges')el.max=row.maxCharges;
- }
-}
-function combatSync(){for(const el of document.querySelectorAll('[data-combat]'))el.value=s.combat[el.dataset.combat];rotation();}
-for(const el of document.querySelectorAll('[data-combat]'))el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{
- if(el.type==='number'&&el.value==='')return;
- const key=el.dataset.combat;
- s.combat[key]=el.type==='number'?Balance.clamp(el.value,+el.min,+el.max):el.value;
- if(key==='potions')s.combat[key]=Math.floor(s.combat[key]);update();
+$('rotationRows').addEventListener('input',event=>{
+ const el=event.target;if(el.type!=='number'||el.value==='')return;
+ const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
+ let value=Balance.clamp(el.value,+el.min,+el.max);
+ if(['shots','maxCharges','initialCharges'].includes(key))value=Math.floor(value);
+ row[key]=value;row.initialCharges=Math.min(row.maxCharges,row.initialCharges);
+ if(key==='maxCharges'){const input=el.closest('tr').querySelector('[data-skill-field="initialCharges"]');input.max=row.maxCharges;input.value=row.initialCharges;}
+ update();
 });
-for(const button of document.querySelectorAll('[data-battle-duration]'))button.addEventListener('click',()=>{s.combat.duration=+button.dataset.battleDuration;$('battleDuration').value=s.combat.duration;update();});
-function drawTimeline(){
- if(!latestCombat)return;
- const r=latestCombat.actual,svg=$('manaTimeline'),w=Math.max(290,svg.clientWidth||700),h=290,l=58,right=18,top=25,bottom=42;
- const x=t=>l+t/r.T*(w-l-right),y=m=>h-bottom-m/Math.max(1,r.maxMana)*(h-top-bottom);
- let out='<title>当前魔力时间轴，绿色竖线标记自动用药时间</title>';
- for(let i=0;i<=4;i++){const value=r.maxMana*i/4;out+=`<line class="grid" x1="${l}" x2="${w-right}" y1="${y(value)}" y2="${y(value)}"/><text x="${l-8}" y="${y(value)+4}" text-anchor="end">${fmt(value)}</text>`;}
- for(let i=0;i<=4;i++){const t=r.T*i/4;out+=`<text x="${x(t)}" y="${h-bottom+21}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${fmt(t,1)}</text>`;}
- for(const e of r.events.filter(x=>x.type==='potion'))out+=`<line x1="${x(e.time)}" x2="${x(e.time)}" y1="${top}" y2="${h-bottom}" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"><title>${fmt(e.time,2)} 秒：${escapeHtml(e.text)}</title></line>`;
- out+=`<path d="${r.samples.map((p,i)=>`${i?'L':'M'}${x(p.time)},${y(p.mana)}`).join(' ')}" fill="none" stroke="var(--purple)" stroke-width="2.3"/>`;
- for(let i=0;i<r.samples.length;i+=Math.max(1,Math.floor(r.samples.length/24))){const p=r.samples[i];out+=`<circle tabindex="0" cx="${x(p.time)}" cy="${y(p.mana)}" r="3" fill="var(--purple)" aria-label="${fmt(p.time,1)} 秒，魔力 ${fmt(p.mana,1)}"><title>${fmt(p.time,1)} 秒 · 魔力 ${fmt(p.mana,1)} · 剩 ${p.potions} 瓶药</title></circle>`;}
- out+=`<text x="${l}" y="14">魔力</text><text x="${w/2}" y="${h-3}" text-anchor="middle">战斗时间 / 秒</text>`;
- svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML=out;
-}
-// Plain-language reading of the mana ladder; these hints are the main guide when adding or retuning skills.
-function duelLine(D,vanilla){
- if(!D.slots)return '<p class="warn">奥秘 vs 增伤：伊蕾娜当前没有已装备饰品，无法对比。先在下方伊蕾娜配装中装备饰品。</p>';
- const sign=x=>(x>=0?'+':'−')+fmt(Math.abs(x),1),ahead=D.diff>=0,per=D.lead/D.slots;
- const rel=x=>vanilla>0?'，原版的 '+fmt(x/vanilla*100,1)+'%':'';
- const close=Math.abs(D.lead)<.02?' 差距小于 2%，战斗时长、受伤或药剂数量稍有变化就可能翻转。':'';
- return `<p class="duel">奥秘 vs 增伤（伊蕾娜 ${D.slots} 个已装备饰品全部换成奥秘，或按当前伤害与暴击逐条选险恶／幸运，其余设置不变，逐帧模拟）：全奥秘 <strong>${fmt(D.arcane.dps,1)}</strong> DPS${rel(D.arcane.dps)}；全增伤（险恶 ${D.menacingCount}、幸运 ${D.luckyCount}）<strong>${fmt(D.damage.dps,1)}</strong> DPS${rel(D.damage.dps)} → <span class="${ahead?'good':'warn'}">奥秘${ahead?'领先':'落后'} <strong>${fmt(Math.abs(D.lead)*100,1)}%</strong>（${sign(D.diff)} DPS，平均每条 ${sign(per*100)}%）</span>。${close}</p>`;
-}
-function renderLadder(L,D,vanilla){
- const V=L.threshold,hasV=Number.isFinite(V),pct=x=>fmt(x*100)+'%';
- const quote=x=>'「'+escapeHtml(x.name)+'」';
- const live=L.rows.filter(x=>x.usable&&x.positive);
- const lines=[duelLine(D,vanilla),`<p>技能可用蓝 ≈ <strong>${fmt(L.income,1)}/秒</strong>（回蓝 ${fmt(L.regen,1)} − 普攻 ${fmt(L.basicRate,1)} − 受伤 ${fmt(L.hurtRate,1)} + 开场蓝与药剂摊到每秒 ${fmt(L.poolRate,1)}）；全部技能按 CD 放满共需 <strong>${fmt(L.demand,1)}/秒</strong>。</p>`];
- if(!live.length)lines.push('<p class="warn">没有可释放且净收益为正的技能，魔力只能用于普攻，奥秘没有收益。</p>');
- else if(L.income<=1e-6)lines.push('<p class="warn">普攻和受伤已经吃光回蓝，技能只能花开场蓝和药剂。可提高回蓝、降低普攻蓝耗，或减少受伤损蓝。</p>');
- else if(!L.marginal)lines.push(`<p class="warn">⚠ 蓝溢出：全部技能放满后每秒还剩约 ${fmt(L.overflow,1)} 蓝没有去处，多出的魔力不再变成伤害，奥秘必然落后增伤。建议加入一个<b>宽</b>的、每蓝价值 ≥ ${hasV?fmt(V,1):'盈亏线'} 的技能当蓄水池，或提高现有技能的蓝耗。</p>`);
- else{
-  const m=L.marginal,ok=hasV&&m.effective>=V;
-  lines.push(`<p>蓝在 ${quote(m)} 这一级用完（理论分到 ${pct(m.fill)}），它是<b>边际技能</b>：每蓝价值 <strong>${fmt(m.effective,1)}</strong> ${ok?'≥':'&lt;'} 盈亏线 <strong>${hasV?fmt(V,1):'—'}</strong> → <span class="${ok?'good':'warn'}">持续战斗中${ok?'奥秘占优':'奥秘不如增伤'}</span>。</p>`);
-  if(!ok&&hasV)lines.push(`<p>想让奥秘占优：把 ${quote(m)} 的 K 或 CD 提高到每蓝价值 ≥ ${fmt(V,1)}，或加入价值更高的技能让蓝更紧缺。</p>`);
+$('rotationRows').addEventListener('change',event=>{
+ const el=event.target;if(el.type!=='text')return;
+ const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField,value=el.value.trim();
+ if(key==='ratioCurve'){
+  const limit=Balance.curveLimit(row),curve=Balance.parseCurve(value,limit);
+  if(!curve){el.value=Balance.formatCurve(row.ratioCurve);$('status').textContent=`系数曲线格式为“等级:系数”，用逗号分隔，例如 1:1, 50:0.8；等级为 1–1000 的递增整数、系数 0–${limit}、最多 16 点；留空表示使用固定系数。`;return;}
+  row.ratioCurve=curve;rotation();update();return;
  }
- const inverted=live.filter(x=>live.some(y=>y.perMana>x.perMana+1e-9&&y.priority>x.priority));
- if(s.combat.policy!=='efficiency'&&inverted.length)lines.push(`<p class="warn">当前策略按优先级花蓝：${inverted.map(quote).join('、')} 价值较低却排在更高价值技能前面，实际会先抢走蓝（见下表提示）。可改用节约型，或调整优先级。</p>`);
- if(hasV)lines.push(`<p class="note">盈亏线怎么来的：按当前伤害与暴击，增伤每条选${L.damagePrefix==='lucky'?'幸运 +4 暴击':'险恶 +4% 伤害'}，约多 ${fmt(L.damageGain,1)} DPS；奥秘每条 +20 上限约多 ${fmt(L.extraFlow,2)} 蓝/秒，每蓝价值 1 点 ≈ ${fmt(L.unit,2)} 伤害。两者相等时的每蓝价值就是盈亏线。</p>`);
- $('ladderSummary').innerHTML=lines.join('');
- $('ladderRows').innerHTML=L.rows.map((x,n)=>{
-  const tips=[],tip=(cls,text)=>tips.push(`<span class="tip ${cls}">${text}</span>`);
-  const width=x.share>=.5?['wide','宽']:x.share<.15?['narrow','窄']:['','中'];
-  if(!x.usable)tip('warn','单次蓝耗（含主动技能保留魔力）超过魔力上限，无法释放。');
-  else if(!x.positive)tip('warn','净收益 ≤ 0：命中损失抵掉了额外伤害，节约型不会释放。');
-  else{
-   if(x===L.marginal)tip('info','边际技能：多出来的蓝都流向这里，奥秘的收益看它。');
-   else if(L.marginal&&Math.abs(x.perMana-L.marginal.perMana)<=1e-6*Math.max(1,Math.abs(x.perMana)))tip('info',`与边际技能 ${quote(L.marginal)} 每蓝价值相同：余蓝在它们之间怎么分都不影响 DPS。`);
-   else if(L.marginal&&x.fill<=1e-6)tip('warn','排在边际技能之后，理论上分不到蓝：节约打法基本不放；按优先级先放它会抢走高价值技能的蓝、降低 DPS，此时不如一个无消耗 buff。');
-   if(hasV&&x.effective<V)tip('warn',`每蓝价值低于盈亏线 ${fmt(V,1)}：一旦靠它消化余蓝，奥秘就不如增伤。可提高 K 或 CD。`);
-   const better=live.filter(y=>y.perMana>x.perMana+1e-9&&y.priority>x.priority);
-   if(better.length)tip(s.combat.policy==='efficiency'?'':'warn',`优先级排在价值更高的 ${better.map(quote).join('、')} 前面：按优先级释放时会先抢走它们的蓝。`);
-   if(width[1]==='宽'&&(!hasV||x.effective>=V))tip('good',x.fill<=1e-6?'宽且价值够：后备蓄水池，蓝变多后由它接住余蓝，防止溢出。':'宽且价值够：合格的蓄水池，能把奥秘多出来的蓝变成伤害。');
-   if(width[1]==='窄'&&x.fill>=1-1e-6)tip('','窄：很快放满，主要抬升整体强度，不拉开奥秘与增伤的差距。');
-  }
-  return `<tr class="${x===L.marginal?'marginal':''}"><td>${n+1}</td><td>${escapeHtml(x.name)}</td><td>${fmt(x.value,1)}${Math.abs(x.effective-x.value)>.05?`<br><span class="note">净 ${fmt(x.effective,1)}</span>`:''}</td><td>${Number.isFinite(x.perMana)?fmt(x.perMana,1):'—'}</td><td>${Number.isFinite(x.demand)?fmt(x.demand,2):'—'}</td><td><span class="widetag ${width[0]}">${width[1]}</span> ${Number.isFinite(x.share)?pct(x.share):''}</td><td>${x.usable&&x.positive?pct(x.fill):'不放'}</td><td>${x.count} / ${x.full}</td><td>${tips.join('')||'<span class="tip">—</span>'}</td></tr>`;
- }).join('')||'<tr><td colspan="9">没有启用的主动技能。</td></tr>';
-}
-function updateCombat(){
- syncRotationInputs();latestCombat=Combat.compare(s);
- const {actual:a,ideal:i,vanilla:v}=latestCombat,when=t=>t===null?'未发生':fmt(t,2)+' 秒';
- $('simVanilla').textContent=fmt(v,1);$('simActual').textContent=fmt(a.dps,1);$('simIdeal').textContent=fmt(i.dps,1);
- $('simActualDetail').textContent=`普攻 ${fmt(a.autoDamage/a.T)} + 技能 ${fmt(a.skillDamage/a.T)} + 特效 ${fmt(s.e.proc)}；${v>0?'相对原版 '+fmt(a.dps/v*100,1)+'%':'原版基准为 0'}`;
- $('simIdealDetail').textContent=`同策略移除资源限制；${i.dps>0?'实际 / 参考 '+fmt(a.dps/i.dps*100,1)+'%':'参考伤害为 0'}，非最优解保证`;
- $('simFirstShortage').textContent=when(a.firstShortage);
- $('simPotionEnd').textContent=s.combat.potions===0?'未携带':a.lastPotionTime===null?`尚余 ${a.potionsLeft} 瓶`:when(a.lastPotionTime);
- $('simRemaining').textContent=`${fmt(a.endMana,1)} / ${a.potionsLeft} 瓶`;
- $('simWaste').textContent=`${fmt(a.regenWaste+a.potionWaste,1)} / ${fmt(a.uncoveredHurt,1)}`;
- $('simCapacity').textContent=`魔力上限 ${fmt(a.maxMana)} · 回蓝 ${fmt(a.regen,1)}/秒${a.nebulaRegen>0?'（基础 '+fmt(a.baseRegen,1)+' + 星云 '+fmt(a.nebulaRegen,1)+'）':''}`;
- $('simLedger').textContent=`资源账：开场 ${fmt(a.initialMana,1)} + 有效自然回复 ${fmt(a.regenEffective,1)} + 有效药剂回复 ${fmt(a.potionEffective,1)} − 普攻 ${fmt(a.autoMana,1)} − 技能 ${fmt(a.skillMana,1)} − 受伤实际损蓝 ${fmt(a.hurtPaid,1)} = 结束 ${fmt(a.endMana,1)}。${a.firstShortage===null?'本次策略未因可支付技能或普攻缺蓝而等待；不代表所有被禁用或超上限的技能可持续。':'存在资源延误；第五瓶药用完与第一次缺蓝不是同一件事。'}`;
- const warnings=[...a.injuryErrors,...(a.invalid.length?['无法支付（费用或费用＋预留超过上限）：'+a.invalid.join('、')+'。已跳过实际施放。']:[]),...(Balance.selectedBasic(s).cost>a.maxMana?['普攻单次蓝耗超过魔力上限，无法释放。']:[])];
- $('simWarnings').textContent=warnings.length?warnings.join('；'):'设置有效。模拟只统计已付款、在战斗结束前实际命中的伤害；可添加更多技能观察资源竞争，而不是直接叠加纸面 DPS。';
- $('simWarnings').classList.toggle('warn',warnings.length>0);
- if(s.e.armor==='nebula')$('simWarnings').textContent+=' 星云：按所选强化全程维持；'+(s.nebulaManaBridge?'已启用特殊回蓝适配假设（并非当前游戏实装）。':'当前代码的星云强化只回原版魔力，未给特殊魔力加回复；可在伊蕾娜配装中打开适配开关。');
- $('battleRegen').disabled=s.combat.regenMode!=='manual';
-  $('battleRegenPercent').disabled=s.combat.regenMode!=='mod';
-  $('battleRegenMode').options[0].textContent=`模组规则：5 + 上限 × ${fmt(s.combat.regenPercent,1)}%/秒`;
- for(const el of document.querySelectorAll('[data-hurt-mode]'))el.classList.toggle('hidden',el.dataset.hurtMode!==s.combat.hurtMode);
- $('rotationResults').innerHTML=a.skills.map((x,n)=>x.enabled?`<tr><td>${escapeHtml(x.name)}</td><td>${x.count} / ${i.skills[n].count}</td><td>${fmt(x.mana,1)}</td><td>${fmt(x.damage,1)}</td><td>${x.blocks}</td></tr>`:'').join('')+`<tr><td>普攻 · ${escapeHtml(Balance.selectedBasic(s).name)}</td><td>${a.autoCount} / ${i.autoCount}</td><td>${fmt(a.autoMana,1)}</td><td>${fmt(a.autoDamage,1)}</td><td>—</td></tr>`;
- renderLadder(Combat.ladder(s,a,i),Combat.prefixDuel(s),v);
- $('simEventCount').textContent=`共 ${a.events.length} 条事件，显示前 120 条。结果随参数实时重算；均匀损蓝以总账显示，不逐帧列事件。`;
- $('combatEvents').innerHTML=a.events.slice(0,120).map(e=>`<tr><td>${fmt(e.time,2)}</td><td>${escapeHtml(e.text)}</td><td>${fmt(e.mana,1)}</td></tr>`).join('');
- drawTimeline();
-}
-
+ if(!value||value.length>64||(key==='id'&&(!validId(value)||s.skills.some(other=>other!==row&&other.id===value)||s.basicAttacks.some(other=>other.id===value)))){
+  el.value=row[key];$('status').textContent='技能名称不能为空；ID 必须唯一，且只能使用英文字母、数字、点、下划线或连字符（以字母开头）。';return;
+ }
+ row[key]=value;rotation();progressionRows();update();
+});
+$('rotationRows').addEventListener('click',event=>{
+ const el=event.target.closest('[data-remove-skill]');if(!el)return;
+ s.skills.splice(+el.dataset.removeSkill,1);rotation();progressionRows();update();
+});
 $('addSkill').addEventListener('click',()=>{
  if(s.skills.length>=32){$('status').textContent='最多添加 32 个主动技能。';return;}
  let n=1;while([...s.skills,...s.basicAttacks].some(row=>row.id==='CustomSkill'+n))n++;
- s.skills.push(Balance.newSkill('CustomSkill'+n,'新技能 '+n));skills();rotation();update();
+ s.skills.push(Balance.newSkill('CustomSkill'+n,'新技能 '+n));rotation();progressionRows();update();
  $('rotationRows').querySelector(`[data-skill-index="${s.skills.length-1}"][data-skill-field="name"]`).focus();
 });
-const basicFields=[['ratio','目标DPS倍率',0,5,.05],['cost','整次耗蓝',0,10000,'any'],['interval','动作时长',.05,10,.05],['shots','每次发数',1,100,1]];
+const basicFields=[['ratio','DPS倍率',0,5,.05],['cost','整次耗蓝',0,10000,'any'],['interval','动作时长',.05,10,.05],['shots','每次发数',1,100,1],['freezeBuildup','冻结积蓄',0,100,'any']];
 function renderBasics(){
- progressionRows();
- $('basicRows').innerHTML=Balance.basicRows(s).map((r,i)=>`<tr><td><input type="radio" name="referenceBasic" aria-label="使用${escapeHtml(r.name)}作为参考普攻" data-select-basic="${i}" ${r.id===s.selectedBasicAttackId?'checked':''}></td><td><input class="skillname" aria-label="普攻名称 ${i+1}" maxlength="64" value="${escapeHtml(r.name)}" data-basic-index="${i}" data-basic-field="name"><input class="skillid" aria-label="普攻 ID ${i+1}" maxlength="64" value="${escapeHtml(r.id)}" data-basic-index="${i}" data-basic-field="id"></td>${basicFields.map(([k,label,min,max,step])=>`<td><input type="number" aria-label="${escapeHtml(r.name)}${label}" min="${min}" max="${max}" step="${step}" value="${r[k]}" data-basic-index="${i}" data-basic-field="${k}"${k==='ratio'&&r.ratioCurve?.length?' disabled title="已使用倍率曲线；清空曲线后才使用此固定倍率"':''}></td>${k==='ratio'?`<td><input class="curveinput" type="text" aria-label="${escapeHtml(r.name)}倍率曲线" maxlength="400" placeholder="留空 = 固定倍率" value="${escapeHtml(Balance.formatCurve(r.ratioCurve))}" data-basic-index="${i}" data-basic-field="ratioCurve"></td>`:''}`).join('')}<td id="basicDps${i}"></td><td id="basicTotal${i}"></td><td id="basicHit${i}"></td><td id="basicMana${i}"></td><td id="basicValue${i}"></td><td id="basicPerMana${i}"></td><td><button type="button" class="smallbtn" data-remove-basic="${i}" aria-label="删除普攻${escapeHtml(r.name)}" ${s.basicAttacks.length===1?'disabled':''}>删除</button></td></tr>`).join('');
- $('basicRows').querySelectorAll('[data-select-basic]').forEach(el=>el.addEventListener('change',()=>{s.selectedBasicAttackId=s.basicAttacks[+el.dataset.selectBasic].id;update();}));
- $('basicRows').querySelectorAll('[data-basic-field]').forEach(el=>el.addEventListener(el.type==='number'?'input':'change',()=>{
-  const i=+el.dataset.basicIndex,k=el.dataset.basicField,row=s.basicAttacks[i];
-  if(k==='ratioCurve'){
-   const curve=Balance.parseCurve(el.value);
-   if(!curve){el.value=Balance.formatCurve(row.ratioCurve);$('status').textContent='倍率曲线格式为“等级:倍率”，用逗号分隔，例如 1:1, 10:0.9, 50:0.6；等级为 1–1000 的递增整数、倍率 0–5、最多 16 点；留空表示使用固定倍率。';return;}
-   row.ratioCurve=curve;renderBasics();update();return;
-  }
-  if(el.value==='')return;
-  let value=el.type==='number'?Balance.clamp(el.value,+el.min,+el.max):el.value.trim();
-  if(k==='shots')value=Math.floor(value);
-  if(k==='name'&&!value){el.value=row.name;return;}
-  if(k==='id'&&(!/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value)||s.basicAttacks.some((r,n)=>n!==i&&r.id===value)||s.skills.some(r=>r.id===value))){el.value=row.id;$('status').textContent='普攻 ID 必须合法，且不能与普攻或主动技能重复。';return;}
-  if(k==='id'&&s.selectedBasicAttackId===row.id)s.selectedBasicAttackId=value;
-  row[k]=value;
-  if(el.type!=='number')renderBasics();update();
- }));
- $('basicRows').querySelectorAll('[data-remove-basic]').forEach(el=>el.addEventListener('click',()=>{const [removed]=s.basicAttacks.splice(+el.dataset.removeBasic,1);if(s.selectedBasicAttackId===removed.id)s.selectedBasicAttackId=s.basicAttacks[0].id;renderBasics();update();}));
+ $('basicRows').innerHTML=s.basicAttacks.map((r,i)=>`<tr><td><input class="skillname" aria-label="普攻名称 ${i+1}" maxlength="64" value="${escapeHtml(r.name)}" data-basic-index="${i}" data-basic-field="name"><input class="skillid" aria-label="普攻 ID ${i+1}" maxlength="64" value="${escapeHtml(r.id)}" data-basic-index="${i}" data-basic-field="id"></td>${basicFields.map(([k,label,min,max,step])=>`<td><input type="number" aria-label="${escapeHtml(r.name)}${label}" min="${min}" max="${max}" step="${step}" value="${r[k]}" data-basic-index="${i}" data-basic-field="${k}"${k==='ratio'&&r.ratioCurve?.length?' disabled title="已使用倍率曲线；清空曲线后才使用此固定倍率"':''}></td>${k==='ratio'?`<td><input class="curveinput" type="text" aria-label="${escapeHtml(r.name)}倍率曲线" maxlength="400" placeholder="留空 = 固定倍率" value="${escapeHtml(Balance.formatCurve(r.ratioCurve))}" data-basic-index="${i}" data-basic-field="ratioCurve"></td>`:''}`).join('')}<td><button type="button" class="smallbtn" data-remove-basic="${i}" aria-label="删除普攻${escapeHtml(r.name)}" ${s.basicAttacks.length===1?'disabled':''}>删除</button></td></tr>`).join('');
+ $('addBasic').disabled=s.basicAttacks.length>=32;
 }
-function updateBasicResults(){
- const gear=Balance.gear(s,'e').multiplier,rate=s.rate/100/20;
- const manaValue=(row,r)=>row.cost===0?'无消耗':rate>0?fmt(r.ratio*row.interval/row.cost/rate,2):'—';
- const damagePerMana=(row,r)=>row.cost===0?'无消耗':fmt(r.total*gear/row.cost,2);
- s.basicAttacks.forEach((row,i)=>{const r=Balance.basicBudget(s,row);$('basicDps'+i).textContent=fmt(r.dps,2);$('basicTotal'+i).textContent=fmt(r.total,2);$('basicHit'+i).textContent=fmt(r.perShot,2);$('basicMana'+i).textContent=fmt(r.manaPerSecond,2);$('basicValue'+i).textContent=manaValue(row,r);$('basicPerMana'+i).textContent=damagePerMana(row,r);});
- const row=Balance.selectedBasic(s),r=Balance.basicBudget(s,row);
- $('basicSummary').textContent=`参考普攻：${row.name} · ${fmt(r.ratio,3)}B = ${fmt(r.dps,2)} 裸装 DPS${row.ratioCurve?.length?`（当前 B ${fmt(s.baseDps)} ≈ 角色 Lv${fmt(r.level,1)}，按倍率曲线取值）`:'（固定倍率）'}；每 ${fmt(row.interval,2)} 秒消耗 ${row.cost} 魔力、发射 ${row.shots} 发，整次 ${fmt(r.total,2)} / 每发 ${fmt(r.perShot,2)} 基础伤害，耗蓝 ${fmt(r.manaPerSecond,2)}/秒，每蓝价值 ${manaValue(row,r)}、当前配装每蓝伤害 ${damagePerMana(row,r)}。当前配装期望 DPS ${fmt(r.dps*gear,2)}，每发期望伤害 ${fmt(r.perShot*gear,2)}（包含页面暴击口径，不是直接传给弹幕的 damage）。`;
- $('addBasic').disabled=$('addIceBasic').disabled=s.basicAttacks.length>=32;
- drawBasicCurve(row,r.level);
-}
-function drawBasicCurve(row,currentLevel){
- const svg=$('basicCurve'),w=Math.max(290,svg.clientWidth||700),h=220,l=52,right=18,top=22,bottom=40;
- const curve=row.ratioCurve||[],last=curve.length?curve[curve.length-1][0]:0,maxLevel=Math.max(60,Math.ceil((last+10)/10)*10,Math.ceil(currentLevel/10)*10);
- const samples=Array.from({length:121},(_,i)=>{const level=1+(maxLevel-1)*i/120;return [level,Balance.basicRatio(row,level)];});
- const maxRatio=Math.max(.1,...samples.map(p=>p[1]))*1.15;
- const x=level=>l+(level-1)/(maxLevel-1)*(w-l-right),y=ratio=>h-bottom-ratio/maxRatio*(h-top-bottom);
- let out=`<title>${escapeHtml(row.name)} 的目标 DPS 倍率随角色等级变化</title>`;
- for(let i=0;i<=4;i++){const value=maxRatio*i/4;out+=`<line class="grid" x1="${l}" x2="${w-right}" y1="${y(value)}" y2="${y(value)}"/><text x="${l-8}" y="${y(value)+4}" text-anchor="end">${fmt(value,2)}</text>`;}
- for(let i=0;i<=6;i++){const level=1+(maxLevel-1)*i/6;out+=`<text x="${x(level)}" y="${h-bottom+20}" text-anchor="${i===0?'start':i===6?'end':'middle'}">${fmt(level)}</text>`;}
- out+=`<path d="${samples.map((p,i)=>`${i?'L':'M'}${x(p[0])},${y(p[1])}`).join(' ')}" fill="none" stroke="#8970b5" stroke-width="2.5"/>`;
- for(const [level,ratio] of curve)out+=`<circle tabindex="0" cx="${x(level)}" cy="${y(ratio)}" r="4" fill="#8970b5" aria-label="角色 ${level} 级，倍率 ${ratio}"><title>Lv${level} · ${ratio}B</title></circle>`;
- const cx=x(Math.min(maxLevel,Math.max(1,currentLevel))),cy=y(Balance.basicRatio(row,currentLevel));
- out+=`<line x1="${cx}" x2="${cx}" y1="${top}" y2="${h-bottom}" stroke="var(--green)" stroke-dasharray="4 4"/><circle cx="${cx}" cy="${cy}" r="5" fill="var(--green)"><title>当前 B ≈ Lv${fmt(currentLevel,1)} · ${fmt(Balance.basicRatio(row,currentLevel),3)}B</title></circle>`;
- out+=`<text x="${l}" y="13">${escapeHtml(row.name)} · DPS 倍率${curve.length?'':'（固定）'}</text><text x="${w/2}" y="${h-3}" text-anchor="middle">角色等级（绿线 = 当前 B 对应等级）</text>`;
- svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML=out;
-}
-function addBasic(ice=false){
+$('basicRows').addEventListener('input',event=>{
+ const el=event.target;if(el.type!=='number'||el.value==='')return;
+ const row=s.basicAttacks[+el.dataset.basicIndex],k=el.dataset.basicField;
+ let value=Balance.clamp(el.value,+el.min,+el.max);
+ if(k==='shots')value=Math.floor(value);
+ row[k]=value;update();
+});
+$('basicRows').addEventListener('change',event=>{
+ const el=event.target;if(el.type==='number')return;
+ const i=+el.dataset.basicIndex,k=el.dataset.basicField,row=s.basicAttacks[i];
+ if(k==='ratioCurve'){
+  const curve=Balance.parseCurve(el.value);
+  if(!curve){el.value=Balance.formatCurve(row.ratioCurve);$('status').textContent='倍率曲线格式为“等级:倍率”，用逗号分隔，例如 1:1, 10:0.9, 50:0.6；等级为 1–1000 的递增整数、倍率 0–5、最多 16 点；留空表示使用固定倍率。';return;}
+  row.ratioCurve=curve;renderBasics();update();return;
+ }
+ const value=el.value.trim();
+ if(k==='name'&&(!value||value.length>64)){el.value=row.name;return;}
+ if(k==='id'&&(!validId(value)||s.basicAttacks.some((r,n)=>n!==i&&r.id===value)||s.skills.some(r=>r.id===value))){el.value=row.id;$('status').textContent='普攻 ID 必须合法，且不能与普攻或主动技能重复。';return;}
+ if(k==='id'&&s.selectedBasicAttackId===row.id)s.selectedBasicAttackId=value;
+ row[k]=value;renderBasics();progressionRows();update();
+});
+$('basicRows').addEventListener('click',event=>{
+ const el=event.target.closest('[data-remove-basic]');if(!el||s.basicAttacks.length===1)return;
+ const [removed]=s.basicAttacks.splice(+el.dataset.removeBasic,1);
+ if(s.selectedBasicAttackId===removed.id)s.selectedBasicAttackId=s.basicAttacks[0].id;
+ renderBasics();progressionRows();update();
+});
+$('addBasic').addEventListener('click',()=>{
  if(s.basicAttacks.length>=32)return;
- const prefix=ice?'IceConeSkill':'CustomBasic';let n=ice?0:1;
- while([...s.basicAttacks,...s.skills].some(r=>r.id===prefix+(n||'')))n++;
- const row=Balance.newBasic(prefix+(n||''),ice?'冰锥普攻':'新普攻 '+n);
- if(ice)Object.assign(row,{cost:10,interval:.5,shots:3,unlockStageCap:10,unlockLevel:6});
- s.basicAttacks.push(row);s.selectedBasicAttackId=row.id;renderBasics();update();
-}
-$('addBasic').addEventListener('click',()=>addBasic());
-$('addIceBasic').addEventListener('click',()=>addBasic(true));
+ let n=1;while([...s.basicAttacks,...s.skills].some(r=>r.id==='CustomBasic'+n))n++;
+ s.basicAttacks.push(Balance.newBasic('CustomBasic'+n,'新普攻 '+n));renderBasics();progressionRows();update();
+ $('basicRows').querySelector(`[data-basic-index="${s.basicAttacks.length-1}"][data-basic-field="name"]`).focus();
+});
+for(const id of direct)$(id).addEventListener('input',()=>{
+ const el=$(id);if(el.value==='')return;
+ s[id]=Balance.clamp(el.value,+el.min,+el.max);update();
+});
+
+// ---- 成长与阶段伤害页 ----
 function progressionRows(){
  const rows=[...s.basicAttacks.map((row,index)=>({row,index,kind:'普攻'})),...s.skills.map((row,index)=>({row,index,kind:'主动'}))];
  const previous=$('progressionDetailSkill').value;
@@ -1165,7 +656,7 @@ function progressionRows(){
  $('progressionRows').innerHTML=rows.map(({row,index,kind})=>{
   const attrs=`data-progression-kind="${kind==='普攻'?'basic':'active'}" data-progression-index="${index}"`;
   const numberField=(key,label,max,min=1)=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="${min}" max="${max}" step="1" value="${row[key]}" ${attrs} data-progression-field="${key}"></td>`;
-  return `<tr><td>${kind}</td><td>${escapeHtml(row.name)}<small class="mutedid">${escapeHtml(row.id)}</small></td><td><select aria-label="${escapeHtml(row.name)}解锁时期" ${attrs} data-progression-period>${periodOptions}</select></td>${numberField('unlockStageCap','解锁阶段上限',1000)}${numberField('unlockLevel','首级角色等级',1000)}<td><select aria-label="${escapeHtml(row.name)}成长方式" ${attrs} data-progression-mode><option value="phase">按阶段成长</option><option value="interval">固定等级间隔</option></select></td>${numberField('levelsPerPhase','每阶段新增技能等级',10)}${numberField('levelInterval','每级角色等级间隔',1000)}${numberField('maxLevel','最高技能等级（0为不封顶）',1000,0)}<td data-progression-nodes></td><td data-progression-cap></td></tr>`;
+  return `<tr><td>${kind}</td><td>${escapeHtml(row.name)}<small class="mutedid">${escapeHtml(row.id)}</small></td><td><select aria-label="${escapeHtml(row.name)}解锁时期" ${attrs} data-progression-period>${periodOptions}</select></td>${numberField('unlockStageCap','解锁阶段上限',1000)}${numberField('unlockLevel','解锁角色等级',1000)}${numberField('growthStartLevel','成长起点（0随解锁）',1000,0)}<td><select aria-label="${escapeHtml(row.name)}成长方式" ${attrs} data-progression-mode><option value="phase">按阶段成长</option><option value="interval">固定等级间隔</option></select></td>${numberField('levelsPerPhase','每阶段新增技能等级',10)}${numberField('levelInterval','每级角色等级间隔',1000)}${numberField('maxLevel','最高技能等级（0为不封顶）',1000,0)}<td data-progression-nodes></td><td data-progression-cap></td></tr>`;
  }).join('');
  updateProgression();
 }
@@ -1183,9 +674,9 @@ function updateProgression(){
  const nodes=Balance.progressionNodes(row,s.progression.phaseSize),cap=Balance.skillLevelAt(row,s.progression.previewLevel,s.progression.phaseSize);
  let previous=null;
  $('progressionDetailRows').innerHTML=nodes.slice(0,20).map((level,i)=>{const r=Balance.progressionBudget(s,row,level),change=previous&&previous.total>0?(r.total/previous.total-1)*100:null,flat=previous&&r.integerHit===previous.integerHit;previous=r;
-  return `<tr><td>Lv${i+1}${i+1<=cap?' · 可达':''}</td><td>${level}</td><td>${fmt(r.baseline,2)}</td><td>${r.ratio===null?'—':fmt(r.ratio,3)}</td><td>${fmt(r.dps,2)}</td><td>${fmt(r.total,2)}</td><td>${fmt(r.perShot,2)}</td><td>${r.integerHit}${flat?' · 未增长':''}</td><td>${change===null?'—':'+'+fmt(change,1)+'%'}</td></tr>`;
+  return `<tr><td>Lv${i+1}${i+1<=cap?' · 可达':''}</td><td>${level}</td><td>${fmt(r.baseline,2)}</td><td>${fmt(r.coef,3)}</td><td>${fmt(r.dps,2)}</td><td>${fmt(r.total,2)}</td><td>${fmt(r.perShot,2)}</td><td>${r.integerHit}${flat?' · 未增长':''}</td><td>${change===null?'—':'+'+fmt(change,1)+'%'}</td></tr>`;
  }).join('');
- $('progressionNotice').textContent=`${row.name}：解锁阶段角色上限 ${row.unlockStageCap}，首级对应角色 ${row.unlockLevel}；${row.growthMode==='interval'?`固定等级间隔：从首级起每 ${row.levelInterval} 个角色等级新增 1 级`:`按阶段成长：每阶段最多新增 ${row.levelsPerPhase} 级`}（不含解锁所得 Lv1）。${row.maxLevel>0?`最高技能等级 Lv${row.maxLevel}，达到后停止升级。`:'不设固定技能等级上限，随角色等级继续成长。'}相同角色门槛不重复计级。展示前 20 级；基准取本地 KL 等级曲线，95 级后曲线封顶。保存配置后，游戏按技能实际等级映射对应角色等级读取 B，角色实际等级仅限制可升级上限；解锁阶段标记不能代替 Boss 解锁条件。此预览不改变实验室当前 B。`;
+ $('progressionNotice').textContent=`${row.name}：解锁阶段角色上限 ${row.unlockStageCap}，解锁角色等级 ${row.unlockLevel}，首级伤害基准 ${row.growthStartLevel||row.unlockLevel}；${row.growthMode==='interval'?`固定等级间隔：从首级起每 ${row.levelInterval} 个角色等级新增 1 级`:`按阶段成长：每阶段最多新增 ${row.levelsPerPhase} 级`}（不含解锁所得 Lv1）。${row.maxLevel>0?`最高技能等级 Lv${row.maxLevel}，达到后停止升级。`:'不设固定技能等级上限，随角色等级继续成长。'}展示前 20 级；基准取 KL 等级曲线，90 级后封顶。`;
 }
 $('progressionDetailSkill').addEventListener('change',updateProgression);
 $('progressionPhaseSize').addEventListener('input',()=>{if($('progressionPhaseSize').value==='')return;s.progression.phaseSize=Math.floor(Balance.clamp($('progressionPhaseSize').value,1,20));update();});
@@ -1193,78 +684,73 @@ $('progressionPreviewLevel').addEventListener('input',()=>{if($('progressionPrev
 $('progressionRows').addEventListener('input',event=>{const el=event.target;if(!el.matches('[data-progression-field]')||el.value==='')return;const list=el.dataset.progressionKind==='basic'?s.basicAttacks:s.skills,row=list[+el.dataset.progressionIndex];row[el.dataset.progressionField]=Math.floor(Balance.clamp(el.value,+el.min,+el.max));update();});
 $('progressionRows').addEventListener('change',event=>{const el=event.target;if(!el.matches('[data-progression-period],[data-progression-mode]'))return;const list=el.dataset.progressionKind==='basic'?s.basicAttacks:s.skills,row=list[+el.dataset.progressionIndex];if(el.matches('[data-progression-mode]')){row.growthMode=el.value;update();return;}if(!Balance.setPeriod(row,+el.value))return;
  const tr=el.closest('tr');for(const field of ['unlockStageCap','unlockLevel'])tr.querySelector(`[data-progression-field="${field}"]`).value=row[field];update();});
+// 每个时期取角色等级上限可买到的最高技能等级；伤害基准按该技能等级映射的角色等级读取。
+function stageDamageCell(row,period,metric,multiplier){
+ if(!Balance.unlockedAt(row,period.cap))return null;
+ const nodes=Balance.progressionNodes(row,s.progression.phaseSize,period.cap);
+ if(!nodes.length)return null;
+ const node=nodes[nodes.length-1],r=Balance.progressionBudget(s,row,node);
+ const value=metric==='total'?r.total*multiplier:metric==='dps'?r.dps*multiplier:Math.max(1,Math.floor(r.perShot*multiplier));
+ return {level:nodes.length,node,value};
+}
+let stageChart=null,stageOptions='',compareOptions='';
+const skillOption=row=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)} · ${s.basicAttacks.includes(row)?'普攻':'主动'}</option>`;
+function stageDamage(){
+ const rows=[...s.basicAttacks,...s.skills].filter(row=>Balance.progressionBudget(s,row,1).total>0),select=$('stageDamageSkill'),compare=$('stageDamageCompare'),previous=select.value,previousCompare=compare.value;
+ const options=rows.map(skillOption).join('');
+ if(stageOptions!==options){stageOptions=options;select.innerHTML=options;if(rows.some(row=>row.id===previous))select.value=previous;}
+ const row=rows.find(r=>r.id===select.value)||rows[0],others=rows.filter(r=>r!==row);
+ const otherOptions='<option value="">不对比</option>'+others.map(skillOption).join('');
+ if(compareOptions!==otherOptions){compareOptions=otherOptions;compare.innerHTML=otherOptions;compare.value=others.some(r=>r.id===previousCompare)?previousCompare:'';}
+ const other=others.find(r=>r.id===compare.value),metric=$('stageDamageMetric').value,withGear=$('stageDamageGear').checked;
+ const label={hit:'每发伤害',total:'整次伤害',dps:'基础周期 DPS'}[metric],digits=metric==='hit'?0:1;
+ $('stageDamageHead').innerHTML=`<tr><th>时期</th><th>角色等级上限</th><th>基准 B</th>${withGear?'<th>配装伤害加成</th>':''}<th>技能等级</th><th>${label}</th>${other?`<th>对比：${escapeHtml(other.name)}</th><th>比值</th>`:''}</tr>`;
+ if(!row){$('stageDamageRows').innerHTML='<tr><td colspan="6">没有造成伤害的技能。</td></tr>';stageChart=null;drawStageChart();return;}
+ const points=Balance.periods.map(p=>{
+  const bonus=withGear?Balance.gear(Balance.loadoutProbe(s.loadouts[p.stage-1]),'e').damage:0,multiplier=Math.max(0,1+bonus/100);
+  return {period:p,bonus,cell:stageDamageCell(row,p,metric,multiplier),other:other?stageDamageCell(other,p,metric,multiplier):null};
+ });
+ $('stageDamageRows').innerHTML=points.map(({period:p,bonus,cell:c,other:o})=>`<tr><td>${two(p.stage)} ${escapeHtml(p.label)}</td><td>${p.cap}</td><td>${fmt(Balance.levelDps(p.cap),1)}</td>${withGear?`<td>+${fmt(bonus,1)}%</td>`:''}${c?`<td title="按角色 ${c.node} 级基准">Lv${c.level}</td><td>${fmt(c.value,digits)}</td>`:'<td class="na">—</td><td class="na">—</td>'}${other?(o?`<td title="技能 Lv${o.level}，按角色 ${o.node} 级基准">${fmt(o.value,digits)}<small class="lvtag">Lv${o.level}</small></td>`:'<td class="na">—</td>')+(c&&o&&o.value>0?`<td>${fmt(c.value/o.value,2)}×</td>`:'<td class="na">—</td>'):''}</tr>`).join('');
+ const series=[{name:row.name,color:'var(--purple)',points:points.map(p=>({period:p.period,cell:p.cell}))}];
+ if(other)series.push({name:other.name,color:'var(--blue)',dash:'6 4',points:points.map(p=>({period:p.period,cell:p.other}))});
+ stageChart={label,digits,series};drawStageChart();
+}
+// 曲线只画已解锁的时期；隐藏标签页时没有尺寸，切回成长页和窗口缩放时重绘。
+function drawStageChart(){
+ const svg=$('stageDamageChart');
+ if(!stageChart){svg.innerHTML='';return;}
+ const {label,digits,series}=stageChart,w=Math.max(320,svg.clientWidth||640),h=Math.max(240,svg.clientHeight||360),l=62,right=18,top=36,bottom=46;
+ const values=series.flatMap(x=>x.points.filter(p=>p.cell).map(p=>p.cell.value)),max=Math.max(1,...values)*1.1,n=series[0].points.length;
+ const x=stage=>l+(stage-1)/(n-1)*(w-l-right),y=v=>h-bottom-v/max*(h-top-bottom);
+ let out=`<title>${series.map(x=>escapeHtml(x.name)).join(' 对比 ')} 各阶段${label}</title>`;
+ for(let i=0;i<=4;i++){const v=max*i/4;out+=`<line class="grid" x1="${l}" x2="${w-right}" y1="${y(v)}" y2="${y(v)}"/><text x="${l-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,max<10?1:0)}</text>`;}
+ for(const {period:p} of series[0].points)out+=`<text x="${x(p.stage)}" y="${h-bottom+18}" text-anchor="middle">${p.stage}</text>`;
+ for(const {name,color,dash,points} of [...series].reverse()){
+  const live=points.filter(p=>p.cell);
+  if(live.length)out+=`<path d="${live.map((p,i)=>`${i?'L':'M'}${x(p.period.stage)},${y(p.cell.value)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2.4"${dash?` stroke-dasharray="${dash}"`:''}/>`;
+  for(const {period:p,cell:c} of live)out+=`<circle tabindex="0" cx="${x(p.stage)}" cy="${y(c.value)}" r="4" fill="${color}" aria-label="${escapeHtml(name)} ${two(p.stage)} ${escapeHtml(p.label)}：Lv${c.level}，${fmt(c.value,digits)}"><title>${escapeHtml(name)} · ${two(p.stage)} ${escapeHtml(p.label)} · Lv${c.level} · ${fmt(c.value,digits)}</title></circle>`;
+ }
+ let lx=l;
+ for(const {name,color,dash} of series){out+=`<line x1="${lx}" x2="${lx+22}" y1="14" y2="14" stroke="${color}" stroke-width="2.4"${dash?` stroke-dasharray="${dash}"`:''}/><text x="${lx+28}" y="18">${escapeHtml(name)}</text>`;lx+=40+[...name].length*13;}
+ out+=`<text x="${w-right}" y="18" text-anchor="end">${label}</text><text x="${(l+w-right)/2}" y="${h-6}" text-anchor="middle">时期</text>`;
+ svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML=out;
+}
+for(const id of ['stageDamageSkill','stageDamageCompare','stageDamageMetric','stageDamageGear'])$(id).addEventListener('change',stageDamage);
+let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(drawStageChart,100);});
+
 function save(){try{localStorage.setItem(key,JSON.stringify(s));}catch(_){$('status').textContent='浏览器未允许记住页面参数；请使用“保存到模组”保留配置。';}}
-function slots(){for(const side of ['v','e']){
- $(side+'Slots').innerHTML=s[side].items.slice(0,s.slots).map((r,i)=>`<div class="slot"><span class="slotnum">${i+1}</span><select aria-label="${side==='v'?'原版':'伊蕾娜'}饰品 ${i+1}" data-side="${side}" data-index="${i}" data-prop="id">${options(side==='v'?vanillaAccessories:Balance.accessories)}</select><select aria-label="${side==='v'?'原版':'伊蕾娜'}前缀 ${i+1}" data-side="${side}" data-index="${i}" data-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('');
- $(side+'Slots').querySelectorAll('select').forEach(el=>{el.value=s[side].items[el.dataset.index][el.dataset.prop];el.addEventListener('change',()=>{s[side].items[el.dataset.index][el.dataset.prop]=el.value;update();});});
-}}
-function skills(){progressionRows();}
-function syncNebula(){
- for(const el of document.querySelectorAll('[data-nebula-side]'))el.value=s[el.dataset.nebulaSide].nebula[el.dataset.nebulaKind];
-}
-for(const el of document.querySelectorAll('[data-nebula-side]'))el.addEventListener('change',()=>{s[el.dataset.nebulaSide].nebula[el.dataset.nebulaKind]=+el.value;update();});
-for(const button of document.querySelectorAll('[data-nebula-full]'))button.addEventListener('click',()=>{s[button.dataset.nebulaFull].nebula={damage:3,mana:3,life:3};syncNebula();update();});
-// 实验室页全部控件按 s 重绘；配装页单独由 renderLoadouts 负责，避免编辑配装时打断输入焦点。
-function syncLab(persist=false){
- Balance.syncBaseDps(s);
- syncNebula();
- for(const side of ['v','e'])$(side+'PrefixStatus').textContent='仅修改当前启用的非空饰品槽，不更换装备。';
- stageOptions();$('progressionPhaseSize').value=s.progression.phaseSize;$('progressionPreviewLevel').value=s.progression.previewLevel;
- for(const id of direct){if($(id).type==='checkbox')$(id).checked=s[id];else $(id).value=s[id];}
- for(const side of ['v','e']){ $(side+'Armor').value=s[side].armor;for(const prop of ['damage','crit','proc'])$(side+prop[0].toUpperCase()+prop.slice(1)).value=s[side][prop];}
- slots();renderBasics();combatSync();update(persist);
-}
-function sync(){loadoutStage=s.stage;syncLab();renderLoadouts();}
-function duplicates(side){const items=s[side].items.slice(0,s.slots).map(x=>x.id).filter(x=>!['utility','empty'].includes(x));return [...new Set(items.filter((v,i)=>items.indexOf(v)!==i))].map(id=>Balance.accessories[id].name.split(' · ')[0]);}
 function update(persist=true){
  if(persist)editRevision++;
- showDpsSource();
- updateBasicResults();
- updateProgression();
- const r=Balance.calculate(s),l=s.loadouts[s.stage-1];
- for(const side of ['v','e']){
-  const g=r[side];$(side+'Nebula').classList.toggle('hidden',s[side].armor!=='nebula');
-  $(side+'NebulaInfo').textContent=`套装静态：+26% 魔法伤害、+16 暴击、+60 魔力、46 防御、+10% 移速、−15% 原版魔力消耗。强化：+${g.nebulaDamage}% 加算伤害、+${g.nebulaManaRegen} 原版魔力/秒、+${g.nebulaLifeRegen} 生命/秒。${side==='e'?(s.nebulaManaBridge?'当前额外加入 '+g.nebulaManaRegen+' 特殊魔力/秒，属于预览适配假设。':'当前不恢复特殊魔力；勾选开关可测试未来适配。'):'原版默认持续攻击，回蓝不再额外乘到 DPS。'}生命回复、护甲防御和移速仅展示，不转为伤害或自动抵消受伤；−15% 减耗不作用于特殊魔力。所选层数假定开场已收集、全程维持，不模拟掉落、拾取与掉层。`;
- }
- for(const side of ['v','e']){const g=r[side],dupes=duplicates(side);$(side+'Summary').innerHTML=`伤害 <strong>+${fmt(g.damage,1)}%</strong> · 总暴击 <strong>${fmt(g.crit,1)}%</strong> · 装备魔力 <strong>+${fmt(g.mana)}</strong> · 前缀防御 <strong>+${g.defense}</strong>${dupes.length?`<br><span class="warn">重复装备：${dupes.join('、')}。此配置仅作属性试算，不是合法配装。</span>`:''}${s[side].armor==='spectre'?'<br><span class="warn">幽灵追击未自动计入；左、右额外特效均可手动补充。</span>':''}`;}
- $("eStageInfo").innerHTML=`魔力上限 <strong>${fmt(r.maxMana)}</strong> = 基础 ${fmt(s.baseMana)} + 装备 ${fmt(r.e.mana)}${r.e.magic?` + 帽子 ${fmt(r.e.magic)}`:""}${s.ashenWitch?` + 灰之魔女 ${fmt(r.witchMana)}（最大生命 ${fmt(s.maxLife)} → ${fmt(s.maxLife-r.witchMana)}）`:" · 灰之魔女未开启"}${s.extraMana?` + 额外 ${fmt(s.extraMana)}`:""} · 阶段 ${two(s.stage)} 推荐：基础魔力 ${l.baseMana}、最大生命 ${l.maxLife}`;
- s.skills.forEach((row,i)=>{$("skillDamage"+i).textContent=fmt(Balance.skillDamageBudget(s,row,r),1);});
- updateCombat();if(persist)save();
+ showDpsSource();updateProgression();stageDamage();
+ if(persist)save();
 }
-// Opening more slots: if every visible equipped slot is a damage prefix ("all damage"), the new slots pick menacing/lucky
-// for the grown loadout; otherwise if they share one prefix (e.g. "all arcane"), the new slots follow it.
-function resizeSlots(count){
- const old=s.slots,used={};
- for(const side of ['v','e'])used[side]=[...new Set(s[side].items.slice(0,old).filter(x=>x.id!=='empty').map(x=>x.prefix))];
- s.slots=count;
- for(const side of ['v','e']){
-  const u=used[side];
-  if(u.length&&u.every(p=>p==='menacing'||p==='lucky'))Balance.applyDamagePrefixes(s,side,Balance.equippedSlots(s,side).filter(i=>i>=old));
-  else if(u.length===1)s[side].items.slice(old,count).forEach(x=>{x.prefix=u[0];});
- }
+// 按 s 重绘全部页面；配装页编辑时只局部刷新，避免打断输入焦点。
+function sync(){
+ for(const id of direct)$(id).value=s[id];
+ $('progressionPhaseSize').value=s.progression.phaseSize;$('progressionPreviewLevel').value=s.progression.previewLevel;
+ renderBasics();rotation();progressionRows();renderLoadouts();update(false);
 }
-for(const id of direct)$(id).addEventListener($(id).tagName==='SELECT'?'change':'input',()=>{
- const el=$(id);if(el.type==='number'&&el.value==='')return;
- if(id==='slots'){resizeSlots(+el.value);slots();update();return;}
- s[id]=el.type==='checkbox'?el.checked:el.type==='number'||el.type==='range'?Balance.clamp(el.value,el.min===''?-Infinity:+el.min,el.max===''?Infinity:+el.max):el.value;
- if(id==='baseDps')s.baseDpsMode='manual';
- update();
-});
-for(const side of ['v','e']){
- $(side+'Armor').addEventListener('change',()=>{s[side].armor=$(side+'Armor').value;update();});
- for(const prop of ['damage','crit','proc']){const el=$(side+prop[0].toUpperCase()+prop.slice(1));el.addEventListener('input',()=>{if(el.value==='')return;s[side][prop]=Balance.clamp(el.value,+el.min,+el.max);update();});}
-}
-// 阶段切换读取配装页数据：护甲、饰品、槽位、双方前缀、基础魔力、最大生命与该阶段 B；战斗与其他设置保持不变。
-function switchStage(stage){
- const unlock=Balance.applyLoadout(s,stage);
- loadoutStage=stage;syncLab(true);renderLoadouts();
- $('status').textContent=`已切换到阶段 ${two(stage)} ${periodLabel(stage)}：读取配装页的护甲、饰品、槽位、双方前缀、基础魔力与最大生命，并按角色 ${unlock.level} 级启用已解锁技能（${unlock.skills.join('、')||'无'}）${unlock.locked.length?`，停用未解锁技能（${unlock.locked.join('、')}）`:''}。`;
-}
-$('preset').addEventListener('change',()=>switchStage(+$('preset').value));
 
-// ---- 配装与属性配置页 ----
-let loadoutStage=null;
-const currentLoadout=()=>s.loadouts[loadoutStage-1];
 function showTab(name,focus=true){
  for(const tab of document.querySelectorAll('[data-tab]')){
   const on=tab.dataset.tab===name;
@@ -1272,8 +758,8 @@ function showTab(name,focus=true){
   if(on&&focus)tab.focus();
  }
  window.scrollTo({top:0,behavior:'instant'});
- if(name==='lab'&&latestCombat){drawTimeline();updateBasicResults();}
- try{history.replaceState(null,'',location.pathname+location.search+(name==='lab'?'':'#'+name));}catch(_){}
+ if(name==='progression')drawStageChart();
+ try{history.replaceState(null,'',location.pathname+location.search+(name==='skills'?'':'#'+name));}catch(_){}
 }
 for(const tab of document.querySelectorAll('[data-tab]')){
  tab.addEventListener('click',()=>showTab(tab.dataset.tab,false));
@@ -1284,23 +770,27 @@ for(const tab of document.querySelectorAll('[data-tab]')){
   event.preventDefault();showTab(tabs[next].dataset.tab);
  });
 }
+
+// ---- 配装与属性配置页 ----
+let loadoutStage=1;
+const currentLoadout=()=>s.loadouts[loadoutStage-1];
 function renderLoadouts(){renderLoadoutList();renderLoadoutEditor();}
 function renderLoadoutList(){
- $('loadoutList').innerHTML=s.loadouts.map(l=>`<li><button type="button" class="stagebtn" data-loadout-stage="${l.stage}"${l.stage===loadoutStage?' aria-current="true"':''}><span class="stagenum">${two(l.stage)}</span><span class="stagetext"><b>${escapeHtml(periodLabel(l.stage))}</b><small>${escapeHtml(l.name)}</small></span>${l.stage===s.stage?'<span class="pill">实验室</span>':''}</button></li>`).join('');
+ $('loadoutList').innerHTML=s.loadouts.map(l=>`<li><button type="button" class="stagebtn" data-loadout-stage="${l.stage}"${l.stage===loadoutStage?' aria-current="true"':''}><span class="stagenum">${two(l.stage)}</span><span class="stagetext"><b>${escapeHtml(periodLabel(l.stage))}</b><small>${escapeHtml(l.name)}</small></span></button></li>`).join('');
 }
 function renderLoadoutEditor(){
  const l=currentLoadout(),p=Balance.periods[l.stage-1];
  $('loadoutEditor').innerHTML=`<div class="editorhead"><div><div class="eyebrow">阶段 ${two(l.stage)} · 击败对应 Boss 后 · 角色等级上限 ${p.cap}</div><h2>${escapeHtml(p.label)}</h2></div>
- <div class="actions"><button type="button" class="smallbtn" id="loadoutCopyPrev"${l.stage===1?' disabled':''}>复制上一阶段</button><button type="button" class="smallbtn" id="loadoutReset">恢复本阶段默认</button><button type="button" class="smallbtn primary" id="loadoutUse">在实验室中查看</button></div></div>
+ <div class="actions"><button type="button" class="smallbtn" id="loadoutCopyPrev"${l.stage===1?' disabled':''}>复制上一阶段</button><button type="button" class="smallbtn" id="loadoutReset">恢复本阶段默认</button></div></div>
  <div class="fields fields4">
   <label class="field">配装名称<input id="loadoutName" type="text" maxlength="64" value="${escapeHtml(l.name)}"></label>
   <label class="field">护甲套装<select id="loadoutArmor">${options(Balance.armors)}</select></label>
   <label class="field">饰品槽数量<select id="loadoutSlots"><option value="5">5 格</option><option value="6">6 格（专家 · 恶魔之心）</option><option value="7">7 格（大师）</option></select></label>
  </div>
  <h3 class="subhead">饰品与前缀</h3>
- ${[['e','伊蕾娜',['arcane','damage','warding','none']],['v','原版对照',['damage','warding','none']]].map(([side,label,keys])=>`<div class="actions prefixgroup" role="group" aria-label="本阶段${label}批量设置前缀"><span class="groupname">${label}</span>${keys.map(k=>{const text={arcane:'全奥秘',damage:'全增伤',warding:'全护佑',none:'全无前缀'}[k];return `<button type="button" class="smallbtn" data-loadout-side="${side}" data-loadout-prefix="${k}" aria-label="本阶段${label}${text}"${k==='damage'?' title="按本阶段装备与实验室额外加成的伤害、暴击，逐条选择险恶或幸运中收益更高的一个"':''}>${text}</button>`;}).join('')}</div>`).join('')}
- <div class="loadoutslots"><div class="slot tri slothead" aria-hidden="true"><span></span><span>饰品</span><span>伊蕾娜前缀</span><span>原版前缀</span></div>${l.items.map((item,i)=>`<div class="slot tri${i>=l.slots?' inactive':''}"><span class="slotnum">${i+1}</span><select aria-label="阶段配装饰品 ${i+1}" data-loadout-index="${i}" data-loadout-prop="id">${options(Balance.accessories)}</select><select aria-label="阶段配装伊蕾娜前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="prefix">${options(Balance.prefixes)}</select><select aria-label="阶段配装原版前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="vPrefix">${options(Balance.prefixes)}</select></div>`).join('')}</div>
- <p class="note">灰色槽位超出当前槽数，不参与计算也不会在游戏中装备。“空槽”和旧版占位均清空该槽位，预览不计属性或前缀。默认围绕扫帚配置实际饰品，无需额外翅膀／跑鞋。蠕虫围巾需要专家腐化世界；猩红可改选混乱之脑，普通模式可改选再生手环或鲨牙项链（避免重复）。护盾、减伤、生命回复、护甲穿透及条件触发效果不折算成静态 DPS。原版前缀只用于实验室的原版对照，游戏换装只使用伊蕾娜前缀；“无前缀”会生成没有前缀的新物品。默认前缀按进度估计：哥布林工匠到来前只有随机前缀，开局视为没有输出前缀，之后逐阶段增加重铸条数，骷髅王后起全部重铸。</p>
+ <div class="actions prefixgroup" role="group" aria-label="本阶段批量设置前缀">${['arcane','damage','warding','none'].map(k=>{const text={arcane:'全奥秘',damage:'全增伤',warding:'全护佑',none:'全无前缀'}[k];return `<button type="button" class="smallbtn" data-loadout-prefix="${k}" aria-label="本阶段${text}"${k==='damage'?' title="按本阶段装备的伤害与暴击，逐条选择险恶或幸运中收益更高的一个"':''}>${text}</button>`;}).join('')}</div>
+ <div class="loadoutslots"><div class="slot duo slothead" aria-hidden="true"><span></span><span>饰品</span><span>前缀</span></div>${l.items.map((item,i)=>`<div class="slot duo${i>=l.slots?' inactive':''}"><span class="slotnum">${i+1}</span><select aria-label="阶段配装饰品 ${i+1}" data-loadout-index="${i}" data-loadout-prop="id">${options(Balance.accessories)}</select><select aria-label="阶段配装前缀 ${i+1}" data-loadout-index="${i}" data-loadout-prop="prefix">${options(Balance.prefixes)}</select></div>`).join('')}</div>
+ <p class="note">灰色槽位超出当前槽数，游戏中不装备。“空槽”会清空该槽位；“无前缀”生成没有前缀的新物品。</p>
  <h3 class="subhead">角色属性</h3>
  <div class="fields fields4">
   <label class="field">基础魔力（20–200，每 20 = 1 魔力水晶）<input id="loadoutMana" type="number" min="20" max="200" step="20" value="${l.baseMana}"></label>
@@ -1311,20 +801,16 @@ function renderLoadoutEditor(){
  for(const el of $('loadoutEditor').querySelectorAll('[data-loadout-index]'))el.value=l.items[+el.dataset.loadoutIndex][el.dataset.loadoutProp];
  updateLoadoutStats();
 }
-// The lab state with this stage's gear on one side (Elaina prefix or vanilla vPrefix), so manual extras, base crit and nebula stacks still count.
-const loadoutPrefixKey=side=>side==='e'?'prefix':'vPrefix';
-function loadoutProbe(l,side='e'){const probe=Balance.clone(s);probe.slots=l.slots;probe[side].armor=l.armor;probe[side].items=l.items.map(x=>({id:Balance.sideItem(x.id,side),prefix:x[loadoutPrefixKey(side)]}));return probe;}
 function updateLoadoutStats(){
- const l=currentLoadout(),probe=loadoutProbe(l),vg=Balance.gear(loadoutProbe(l,'v'),'v');
- const g=Balance.gear(probe,'e'),crystals=(l.baseMana-20)/20,life=Math.min(15,Math.floor((Math.min(l.maxLife,400)-100)/20)),fruit=Math.max(0,Math.floor((l.maxLife-400)/5));
- const witch=s.ashenWitch?Balance.ashenWitchMana(l.maxLife):0;
+ const l=currentLoadout(),g=Balance.gear(Balance.loadoutProbe(l),'e');
+ const crystals=(l.baseMana-20)/20,life=Math.min(15,Math.floor((Math.min(l.maxLife,400)-100)/20)),fruit=Math.max(0,Math.floor((l.maxLife-400)/5)),witch=Balance.ashenWitchMana(l.maxLife);
  const used=l.items.slice(0,l.slots).map(x=>x.id).filter(x=>!['utility','empty'].includes(x)),dupes=[...new Set(used.filter((x,i)=>used.indexOf(x)!==i))].map(id=>Balance.accessories[id].name.split(' · ')[0]);
- $('loadoutStats').innerHTML=`<div>装备伤害<strong>+${fmt(g.damage,1)}%</strong><small>原版对照 +${fmt(vg.damage,1)}%</small></div><div>装备暴击<strong>+${fmt(g.crit-s.baseCrit,1)}</strong><small>原版对照 +${fmt(vg.crit-s.baseCrit,1)}</small></div><div>特殊魔力上限<strong>${fmt(l.baseMana+g.mana+g.magic+witch)}</strong><small>基础 ${l.baseMana} + 装备 ${fmt(g.mana)}${g.magic?` + 帽子 ${fmt(g.magic)}`:''}${s.ashenWitch?` + 灰之魔女 ${fmt(witch)}`:''}</small></div><div>最大生命<strong>${l.maxLife}</strong><small>生命水晶 ${life} · 生命果 ${fruit}${s.ashenWitch?` · 灰之魔女后 ${l.maxLife-witch}`:''}</small></div><div>魔力水晶<strong>${crystals}</strong><small>/ 9</small></div><div>前缀防御<strong>+${g.defense}</strong></div>${dupes.length?`<p class="warn">重复装备：${dupes.join('、')}。游戏内不能同时装备相同饰品，换装时会跳过重复项。</p>`:''}`;
+ $('loadoutStats').innerHTML=`<div>装备伤害<strong>+${fmt(g.damage,1)}%</strong></div><div>装备暴击<strong>+${fmt(g.crit-4,1)}</strong></div><div>特殊魔力上限<strong>${fmt(l.baseMana+g.mana+g.magic)}</strong><small>基础 ${l.baseMana} + 装备 ${fmt(g.mana)}${g.magic?` + 帽子 ${fmt(g.magic)}`:''} · 灰之魔女另 +${fmt(witch)}</small></div><div>最大生命<strong>${l.maxLife}</strong><small>生命水晶 ${life} · 生命果 ${fruit}</small></div><div>魔力水晶<strong>${crystals}</strong><small>/ 9</small></div><div>前缀防御<strong>+${g.defense}</strong></div>${dupes.length?`<p class="warn">重复装备：${dupes.join('、')}。游戏内不能同时装备相同饰品，换装时会跳过重复项。</p>`:''}`;
 }
 function loadoutChanged(rerender=false){
- if(loadoutStage===s.stage){Balance.applyLoadout(s,s.stage,false);syncLab(true);}else{stageOptions();update();}
  renderLoadoutList();
  if(rerender)renderLoadoutEditor();else updateLoadoutStats();
+ update();
 }
 $('loadoutList').addEventListener('click',event=>{
  const button=event.target.closest('[data-loadout-stage]');if(!button)return;
@@ -1349,15 +835,15 @@ $('loadoutEditor').addEventListener('click',event=>{
  const el=event.target.closest('button');if(!el)return;
  const l=currentLoadout();
  if(el.dataset.loadoutPrefix){
-  const side=el.dataset.loadoutSide,key=loadoutPrefixKey(side);
-  if(el.dataset.loadoutPrefix==='damage'){const probe=loadoutProbe(l,side);Balance.applyDamagePrefixes(probe,side);probe[side].items.forEach((item,i)=>{l.items[i][key]=item.prefix;});}
-  else for(const item of l.items.slice(0,l.slots))if(!['empty','utility'].includes(Balance.sideItem(item.id,side)))item[key]=el.dataset.loadoutPrefix;
+  if(el.dataset.loadoutPrefix==='damage'){const probe=Balance.loadoutProbe(l);Balance.applyDamagePrefixes(probe,'e');probe.e.items.forEach((item,i)=>{l.items[i].prefix=item.prefix;});}
+  else for(const item of l.items.slice(0,l.slots))if(!['empty','utility'].includes(item.id))item.prefix=el.dataset.loadoutPrefix;
   loadoutChanged(true);
  }
  else if(el.id==='loadoutReset'){s.loadouts[l.stage-1]=Balance.loadoutDefault(l.stage);loadoutChanged(true);$('status').textContent=`已恢复阶段 ${two(l.stage)} 的默认配装与属性。`;}
  else if(el.id==='loadoutCopyPrev'&&l.stage>1){const prev=s.loadouts[l.stage-2];Object.assign(l,Balance.clone({armor:prev.armor,slots:prev.slots,items:prev.items,baseMana:prev.baseMana,maxLife:prev.maxLife}));loadoutChanged(true);$('status').textContent=`已将阶段 ${two(l.stage-1)} 的护甲、饰品、前缀与属性复制到阶段 ${two(l.stage)}（名称保留）。`;}
- else if(el.id==='loadoutUse'){switchStage(l.stage);showTab('lab');}
 });
+
+// ---- 工具栏与文件读写 ----
 const moreActions=$('moreActions');
 function closeMore(restoreFocus=false){moreActions.open=false;if(restoreFocus)moreActions.querySelector('summary').focus();}
 document.addEventListener('click',event=>{if(moreActions.open&&!moreActions.contains(event.target))closeMore();});
@@ -1367,17 +853,6 @@ $('reset').addEventListener('click',()=>{
  if(!window.confirm('恢复页面默认参数（含全部阶段配装与属性）？当前页面修改将被替换，但不会改写模组 JSON。'))return;
  s=Balance.defaults();sync();save();$('status').textContent='已恢复页面默认参数并记住到浏览器；尚未写入模组文件。';
 });
-for(const button of document.querySelectorAll('[data-prefix-side]'))button.addEventListener('click',()=>{
- const side=button.dataset.prefixSide,prefix=button.dataset.prefixValue;
- let count=0,label='奥秘';
- if(prefix==='damage'){
-  const picks=Balance.applyDamagePrefixes(s,side);count=picks.length;
-  label=`增伤（险恶 ${picks.filter(x=>x==='menacing').length} 个、幸运 ${picks.filter(x=>x==='lucky').length} 个，按当前伤害与暴击选择）`;
- }else for(const item of s[side].items.slice(0,s.slots))if(item.id!=='empty'){item.prefix=prefix;count++;}
- slots();update();
- $(side+'PrefixStatus').textContent=count?`已将 ${count} 个已装备饰品设为${label}，结果已更新并保存。`:'当前没有已装备饰品，未修改前缀。';
-});
-$('copy').addEventListener('click',()=>{s.e=Balance.clone(s.v);s.e.items.forEach(r=>{if(['menacing','lucky'].includes(r.prefix))r.prefix='arcane';});sync();save();$('status').textContent='已复制装备，输出前缀替换为奥秘。';});
 let modConnected=false,localFile=null;
 const isFilePage=location.protocol==='file:';
 function handleStore(mode,handle){
@@ -1410,7 +885,7 @@ async function localModRequest(method,payload){
  if(await handle.queryPermission(permission)!=='granted'&&await handle.requestPermission(permission)!=='granted')throw new Error('未获得所选文件的写入/读取授权，文件未修改。');
  if(method==='GET')return {path:'已授权文件 '+handle.name,data:JSON.parse((await (await handle.getFile()).text()).replace(/^\uFEFF/,''))};
  const text=JSON.stringify(payload,null,2)+'\n';
- if(new TextEncoder().encode(text).length>64*1024)throw new Error('参数超过 64 KiB，请减少技能条目或事件文本。');
+ if(new TextEncoder().encode(text).length>64*1024)throw new Error('参数超过 64 KiB，请减少技能条目。');
  const writable=await handle.createWritable();
  try{await writable.write(text);await writable.close();}catch(error){try{await writable.abort();}catch(_){}throw error;}
  return {saved:true,path:'已授权文件 '+handle.name};
@@ -1434,7 +909,7 @@ async function loadMod(initial=false){
   const result=await modRequest();
   if(result.data.schema!=='elaina-mage-balance-v2')throw new Error('模组配置版本不兼容。');
   const value=normalizeProgression(result.data.configuration);
-  if(!validSaved(value))throw new Error('模组 JSON 的预览参数不完整或超出范围。');
+  if(!validSaved(value))throw new Error('模组 JSON 的参数不完整或超出范围。');
   modConnected=true;
   if(initial&&revision!==editRevision){$('fileStatus').textContent='已连接 '+result.path+'；当前页面已有新编辑，未自动覆盖。';return;}
   s=keepKnown(Balance.defaults(),value);sync();save();editRevision++;
@@ -1454,8 +929,7 @@ $('saveMod').addEventListener('click',async()=>{
 });
 document.addEventListener('keydown',event=>{if((modConnected||isFilePage)&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();if(!$('saveMod').disabled)$('saveMod').click();}});
 function showDpsSource(){
- const mode=s.baseDpsMode==='manual'?'当前 B 为手动试算值；点击“跟随阶段基准”恢复同步。':'当前 B 跟随所选阶段。';
- $('dpsSourceStatus').textContent=location.protocol==='file:'?'离线快照，未同步 KL；请通过 Tools/MageBalance/run.ps1 打开自动同步页面。':curveError?'KL 同步失败，保留上次曲线：'+curveError:curveConnected?'已同步 KL 源码，每 2 秒检查变化。'+mode:'正在连接 KL DPS 曲线…';
+ $('dpsSourceStatus').textContent=location.protocol==='file:'?'KL DPS 曲线：离线快照，未同步 KL；请通过 Tools/MageBalance/run.ps1 打开自动同步页面。':curveError?'KL 同步失败，保留上次曲线：'+curveError:curveConnected?'KL DPS 曲线：已同步源码，每 2 秒检查变化。':'正在连接 KL DPS 曲线…';
 }
 function refreshDpsCurve(){
  if(location.protocol!=='http:'||!['127.0.0.1','localhost'].includes(location.hostname))return Promise.resolve();
@@ -1466,21 +940,18 @@ function refreshDpsCurve(){
    if(!response.ok)throw new Error(result.error||'请重启本地页面服务。');
    const changed=Balance.setDpsCurve(result.values),first=!curveConnected;
    curveConnected=true;curveError='';
-   if(changed||first){Balance.syncBaseDps(s);$('baseDps').value=s.baseDps;update(false);save();}
+   if(changed||first)update(false);
   }catch(error){curveError=error.message;}
   finally{curveRequest=null;showDpsSource();}
  })();
  return curveRequest;
 }
-$('followDps').addEventListener('click',()=>{s.baseDpsMode='stage';Balance.syncBaseDps(s);$('baseDps').value=s.baseDps;update();});
 if(location.protocol==='http:'){
  loadMod(true);
  setInterval(()=>{if(!document.hidden)refreshDpsCurve();},2000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDpsCurve();});
 }
-$('sourcePath').textContent='装备核验文件：C:/Users/korateleng/Downloads/tML 2025.06源码与ExampleMod/tModLoader/Terraria/Player.cs（护甲约 10819–11456 行；饰品约 12205–12660 行；前缀 GrantPrefixBenefits）。';
-let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{drawTimeline();updateBasicResults();},100);});
-showTab(location.hash==='#progression'?'progression':location.hash==='#loadouts'?'loadouts':'lab',false);sync();
+showTab(location.hash==='#progression'?'progression':location.hash==='#loadouts'?'loadouts':'skills',false);sync();
 })();
 </script>
 </body></html>

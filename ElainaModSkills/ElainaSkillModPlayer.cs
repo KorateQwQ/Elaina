@@ -2,6 +2,7 @@ using 伊蕾娜.Config;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 using KL.SkillSystem;
 using KL.AttributeSystem;
+using KL.Extensions;
 using Terraria.DataStructures;
 using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
@@ -96,6 +97,18 @@ public class ElainaSkillModPlayer : KLSkillModPlayer
             ConstellationSkillPanel.TogglePanel();
         base.PostUpdate();
     }
+
+    /// <summary>手持伊蕾娜的法杖或未持武器（工具不算武器，沿用 KL 的判定）时，已装备技能才恢复冷却。</summary>
+    public bool CooldownsRecovering => ElainaModplayer.IsWand(Player.HeldItem.type) || !Player.HeldItem.IsWeapon();
+
+    protected override void UpdateSkillCooldowns(float deltaTime)
+    {
+        if (!CooldownsRecovering) return;
+        base.UpdateSkillCooldowns(deltaTime);
+    }
+
+    /// <summary>冷却中的技能不能离开技能栏，避免换下技能绕过冷却；在栏内换位不受限制。</summary>
+    public static bool IsUnequipLocked(Skill skill) => skill?.ModSkill != null && skill.InCD;
     public ElainaSkill GetCurrentSkill()
     {
         return null;

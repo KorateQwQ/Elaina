@@ -82,6 +82,17 @@ static class Checks
         Check(SkillBalanceConfig.TryParse(json, out var config, out var error), "configuration parses: " + error);
         var store = (SkillBalanceFileStore)typeof(SkillBalanceSystem).GetField("store", All)!.GetValue(null)!;
         store.Apply(json);
+        if (args.Contains("--rays")) {
+            var rayBurst = new FireBurstSkill { Level=1, BasicStatus=Skill.SKillBasicStatus.UnLock };
+            var raySkill = new Skill();
+            typeof(Skill).GetProperty("ModSkill", All)!.SetValue(raySkill, rayBurst);
+            rayBurst.Skill = raySkill;
+            p.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(FireBurstSkill)] = raySkill;
+            rayBurst.Initialize();
+            CheckDamageIgnition(p.GetModPlayer<FireCyclePlayer>(), Proj(2, new FireLaser()));
+            Console.WriteLine($"PASS {passed} fire-ray damage attachment and actual hit callback assertions.");
+            return;
+        }
         var entry = config.Skills[nameof(FireBurstSkill)];
         Check(entry.MaxCharges == 3 && entry.InitialCharges == 3 && entry.BaseCooldown == 10, "three charges / ten seconds");
         Check(entry.UsesDpsRatio && Math.Abs(config.GetSkillDps(100, entry, 50) - 30) < 1e-6, "burst 0.3 DPS");
@@ -164,10 +175,10 @@ static class Checks
         var elementRoot=worm.GetGlobalNPC<ElementalGlobalNPC>();
         for(int i=0;i<9;i++) {
             Clock((uint)(2000+i*18));
-            bodyA.GetGlobalNPC<FireBurnNPC>().ApplyExposure(bodyA,0,18,5,sourceIdentity:123,pulseSequence:i+1);
-            // 同一脉冲的另一个体节包晚一个服务器 tick 到达。
+            bodyA.GetGlobalNPC<FireBurnNPC>().ApplyExposure(bodyA,0,18,5);
+            // 另一个体节包晚一个服务器 tick 到达：发起端本应只提交一次，服务器两帧附着冷却兜底。
             Clock((uint)(2001+i*18));
-            bodyB.GetGlobalNPC<FireBurnNPC>().ApplyExposure(bodyB,0,18,5,sourceIdentity:123,pulseSequence:i+1);
+            bodyB.GetGlobalNPC<FireBurnNPC>().ApplyExposure(bodyB,0,18,5);
             Check(elementRoot.ElementAccumulation[ElementType.Fire].Current==(i+1)*18,
                 "one root accumulation per paid pulse, even across ticks and body parts");
         }
@@ -181,12 +192,12 @@ static class Checks
         Check(ReferenceEquals(selected,elementRoot.ElementAccumulation[ElementType.Fire]),
             "body health bar reads the actual root progress object");
         Clock(2288);
-        bodyB.GetGlobalNPC<FireBurnNPC>().ApplyExposure(bodyB,0,18,5,sourceIdentity:123,pulseSequence:10);
+        bodyB.GetGlobalNPC<FireBurnNPC>().ApplyExposure(bodyB,0,18,5);
         Check(FireBurnNPC.IsBurning(worm) && bodyA.HasBuff<ElementalAffliction_Fire>()
             && bodyB.HasBuff<ElementalAffliction_Fire>() && rewards==2,"tenth pulse ignites the shared root and notifies once");
         Check(ProgressRoundTrip(worm).InAffliction,"root burning progress synchronizes to clients");
         Clock(2289);
-        wormState.ApplyExposure(worm,0,18,5,sourceIdentity:123,pulseSequence:10);
+        wormState.ApplyExposure(worm,0,18,5);
         Check(rewards==2,"late duplicate pulse after ignition cannot give a second charge");
         worm.DelBuff(worm.FindBuffIndex(ModContent.BuffType<ElementalAffliction_Fire>()));
         Check(bodyA.HasBuff<ElementalAffliction_Fire>() && !FireBurnNPC.IsBurning(bodyA),
@@ -197,25 +208,25 @@ static class Checks
         Check(!lateBody.HasBuff<ElementalAffliction_Fire>() && FireBurnNPC.IsBurning(lateBody),
             "late body uses its root's burning state before receiving a local buff");
         var otherWorm=Npc(15); var otherBody=Npc(16,15);
-        otherBody.GetGlobalNPC<FireBurnNPC>().ApplyExposure(otherBody,0,18,5,sourceIdentity:123,pulseSequence:10);
+        otherBody.GetGlobalNPC<FireBurnNPC>().ApplyExposure(otherBody,0,18,5);
         Check(!FireBurnNPC.IsBurning(otherWorm) && otherWorm.GetGlobalNPC<ElementalGlobalNPC>().ElementAccumulation[ElementType.Fire].Current==18,
             "separate worm instances do not share heat or pulse deduplication");
         otherWorm.active=false;
         otherBody.GetGlobalNPC<FireBurnNPC>().ApplyExposure(otherBody,0,300,5,true);
         Check(!FireBurnNPC.IsBurning(otherBody) && rewards==2,"orphan body cannot become an independent ignition target");
         var rpcWorm=Npc(17); var rpcBody=Npc(18,17); var rpcBeam=Proj(2,new FireLaser());
-        void BeamReceipt(NPC target,int sequence) {
+        void BeamReceipt(NPC target) {
             var receipt=FireBurnNPC.CaptureHit(target)!.Value;
             cycle.ApplyBeamHit(receipt.TargetIndex,receipt.TargetGeneration,receipt.AnchorIndex,receipt.AnchorGeneration,
-                receipt.WasBurning,rpcBeam.identity,rpcBeam.type,18,5,1,sequence);
+                receipt.WasBurning,rpcBeam.identity,rpcBeam.type,18,5,1);
         }
         Clock(2300);
-        BeamReceipt(rpcBody,1);
+        BeamReceipt(rpcBody);
         Clock(2301);
-        BeamReceipt(rpcWorm,1);
+        BeamReceipt(rpcWorm);
         var rpcProgress=rpcWorm.GetGlobalNPC<ElementalGlobalNPC>().ElementAccumulation[ElementType.Fire];
-        Check(rpcProgress.Current==18 && rpcWorm.netUpdate,"real hit receiver preserves pulse identity and synchronizes the root");
-        BeamReceipt(rpcBody,2);
+        Check(rpcProgress.Current==18 && rpcWorm.netUpdate,"real hit receiver attaches to and synchronizes the root");
+        BeamReceipt(rpcBody);
         Check(rpcProgress.Current==18,"different pulses still obey the shared two-frame attachment cooldown");
         var prime=Npc(20); prime.type=NPCID.SkeletronPrime;
         var arm=Npc(21); arm.type=NPCID.PrimeSaw; arm.ai[1]=20;
@@ -258,10 +269,6 @@ static class Checks
         Check(refreshedShown.Current==100,"refreshed deadline is measured from the last gain");
         Clock(3799); refreshedState.PostAI(refreshed);
         Check(refreshedShown.Current==0,"refreshed progress expires at fifteen seconds after the last gain");
-        Clock(4000); refreshedState.ApplyExposure(refreshed,0,18,5,sourceIdentity:777,pulseSequence:1);
-        Clock(4899); refreshedState.ApplyExposure(refreshed,0,18,5,sourceIdentity:777,pulseSequence:1);
-        Clock(4900); refreshedState.PostAI(refreshed);
-        Check(refreshedShown.Current==0,"duplicate hit packet cannot refresh the idle deadline without new buildup");
         for(int i=0;i<6;i++) {
             Clock((uint)(5000+i*840)); refreshedState.ApplyExposure(refreshed,0,20,5);
             Check(refreshedShown.Current==(i+1)*20,"repeated valid gains preserve accumulation beyond the first fifteen seconds");
@@ -347,24 +354,24 @@ static class Checks
         void Reward(NPC _,int __)=>events++;
         FireBurnSystem.Ignited+=Reward;
         try {
-            void Hit(FireBurnHit hit,int damage,int pulse) => cycle.ApplyBeamHit(hit.TargetIndex,hit.TargetGeneration,
-                hit.AnchorIndex,hit.AnchorGeneration,hit.WasBurning,beam.identity,beam.type,18,5,damage,pulse);
+            void Hit(FireBurnHit hit,int damage) => cycle.ApplyBeamHit(hit.TargetIndex,hit.TargetGeneration,
+                hit.AnchorIndex,hit.AnchorGeneration,hit.WasBurning,beam.identity,beam.type,18,5,damage);
             float Progress(NPC npc)=>npc.GetGlobalNPC<ElementalGlobalNPC>().ElementAccumulation[ElementType.Fire].Current;
             var low=Npc(30); low.life=low.lifeMax=1000;
-            for(int i=1;i<=9;i++) {Clock((uint)(10000+i*18));Hit(FireBurnNPC.CaptureHit(low)!.Value,1,i);}
+            for(int i=1;i<=9;i++) {Clock((uint)(10000+i*18));Hit(FireBurnNPC.CaptureHit(low)!.Value,1);}
             Check(Progress(low)==162 && !FireBurnNPC.IsBurning(low),"low damage keeps the original nine-pulse progress");
-            Clock(10306);Hit(FireBurnNPC.CaptureHit(low)!.Value,1,10);
+            Clock(10306);Hit(FireBurnNPC.CaptureHit(low)!.Value,1);
             Check(FireBurnNPC.IsBurning(low) && events==1,"low damage still ignites on the tenth pulse");
 
             var high=Npc(31);high.life=high.lifeMax=1000;
-            Clock(11000);Hit(FireBurnNPC.CaptureHit(high)!.Value,250,1);
+            Clock(11000);Hit(FireBurnNPC.CaptureHit(high)!.Value,250);
             Check(Progress(high)==90 && !FireBurnNPC.IsBurning(high),"twenty-five percent damage gives fifty percent buildup, without adding time on top");
             CaptureProgress("damage-25percent",high);
-            Clock(11018);Hit(FireBurnNPC.CaptureHit(high)!.Value,250,2);
+            Clock(11018);Hit(FireBurnNPC.CaptureHit(high)!.Value,250);
             Check(FireBurnNPC.IsBurning(high) && events==2,"fifty percent total damage ignites after two hits");
 
             var fraction=Npc(32);fraction.life=fraction.lifeMax=1001;
-            for(int i=1;i<=8;i++){Clock((uint)(12000+i*18));Hit(FireBurnNPC.CaptureHit(fraction)!.Value,60,i);}
+            for(int i=1;i<=8;i++){Clock((uint)(12000+i*18));Hit(FireBurnNPC.CaptureHit(fraction)!.Value,60);}
             Check(Math.Abs(Progress(fraction)-8*60*360d/1001)<.0001 && !FireBurnNPC.IsBurning(fraction),
                 "fractional percentage buildup accumulates without per-hit integer truncation");
 
@@ -372,11 +379,11 @@ static class Checks
             FireBurnHit lethal=FireBurnNPC.CaptureHit(dead)!.Value;
             dead.life=0;dead.active=false;
             int before=events;
-            Clock(13000);Hit(lethal,100,1);Hit(lethal,100,1);
+            Clock(13000);Hit(lethal,100);Hit(lethal,100);
             Check(events==before+1 && !dead.active && dead.life==0 && !dead.HasBuff<ElementalAffliction_Fire>(),
                 "confirmed one-shot kill rewards once without reviving or applying buffs to the corpse");
             var reused=Npc(33);reused.life=reused.lifeMax=100;
-            Hit(lethal,100,2);
+            Hit(lethal,100);
             Check(events==before+1 && !reused.GetGlobalNPC<ElementalGlobalNPC>().ElementAccumulation.ContainsKey(ElementType.Fire),
                 "late lethal receipt cannot ignite a reused NPC slot");
 
@@ -384,54 +391,67 @@ static class Checks
             var a=Npc(35,34);var b=Npc(36,34);
             a.lifeMax=20;b.lifeMax=50;
             var ha=FireBurnNPC.CaptureHit(a)!.Value;var hb=FireBurnNPC.CaptureHit(b)!.Value;
-            Clock(14000);Hit(ha,20,1);
+            Clock(14000);Hit(ha,20);
             Check(Progress(root)==18,"small body damage uses root maximum health and retains the time minimum");
-            Clock(14001);Hit(hb,20,1);Hit(hb,20,1);
+            Clock(14001);Hit(hb,20);Hit(hb,20);
             Check(Progress(root)==18,"later body hits do not add another attachment or damage compensation");
-            Clock(14018);Hit(FireBurnNPC.CaptureHit(a)!.Value,230,2);
+            Clock(14018);Hit(FireBurnNPC.CaptureHit(a)!.Value,230);
             var last=FireBurnNPC.CaptureHit(b)!.Value;
             root.life=0;root.active=false;b.life=0;b.active=false;
             before=events;
-            Clock(14019);Hit(last,230,2);
+            Clock(14019);Hit(last,230);
             Check(events==before && !root.active,"same-pulse lethal body hit cannot add a second attachment or ignition reward");
 
             var immune=Npc(37);immune.dontTakeDamage=true;
             Check(FireBurnNPC.CaptureHit(immune)==null,"immune targets cannot produce a valid hit snapshot");
             var zero=Npc(38);var hz=FireBurnNPC.CaptureHit(zero)!.Value;
-            Hit(hz,0,1);Hit(hz,-1,2);
+            Hit(hz,0);Hit(hz,-1);
             Check(!zero.GetGlobalNPC<ElementalGlobalNPC>().ElementAccumulation.ContainsKey(ElementType.Fire),"zero or negative actual damage cannot add time or percentage progress");
             GameMain.netMode=NetmodeID.MultiplayerClient;
-            Hit(hz,zero.lifeMax,3);
+            Hit(hz,zero.lifeMax);
             Check(!zero.HasBuff<ElementalAffliction_Fire>(),"clients cannot settle damage ignition locally");
             GameMain.netMode=NetmodeID.SinglePlayer;
 
             // 检查真实弹幕入口：ModifyHitNPC 在存活时取身份，OnHitNPC 在死亡后提交实际 damageDone。
             var actual=(FireLaser)beam.ModProjectile;
-            typeof(FireLaser).GetField("pulseSequence",All)!.SetValue(actual,40);
             var target=Npc(39);target.life=target.lifeMax=100;
-            int requests=0;FireBurnHit submitted=default;int submittedDamage=0;
+            int requests=0;FireBurnHit submitted=default;int submittedDamage=0;int submittedTicks=0;
             using var requestHook=new Hook(typeof(FireCyclePlayer).GetMethod("RequestBeamHit")!,
-                (Action<FireCyclePlayer,FireBurnHit,Projectile,int,int,int>)((self,snapshot,proj,ticks,pulse,damage)=>{
-                    requests++;submitted=snapshot;submittedDamage=damage;Hit(snapshot,damage,pulse);
+                (Action<FireCyclePlayer,FireBurnHit,Projectile,int,int>)((self,snapshot,proj,ticks,damage)=>{
+                    requests++;submitted=snapshot;submittedDamage=damage;submittedTicks=ticks;Hit(snapshot,damage);
                 }));
             var modifiers=new NPC.HitModifiers();actual.ModifyHitNPC(target,ref modifiers);
             target.life=0;target.active=false;before=events;
             actual.OnHitNPC(target,new NPC.HitInfo {Damage=99999},100);
             actual.OnHitNPC(target,new NPC.HitInfo {Damage=99999},100);
-            Check(requests==1 && submitted.AnchorIndex==target.whoAmI && submittedDamage==100 && events==before+1,
+            Check(requests==1 && submitted.AnchorIndex==target.whoAmI && submittedDamage==100 && submittedTicks==10 && events==before+1,
                 "real lethal callback forwards actual damage and consumes its pre-hit snapshot once");
+
+            // 回归：附着去重只针对“同一脉冲 × 同一元素主体”，在发起端完成，与弹幕 identity/脉冲序号无关。
+            // 旧实现由服务器按 identity + 序号判断，重新施法复用旧槽位时会把整段新脉冲当成重复包。
+            var ignited=(HashSet<(int Index,int Generation)>)typeof(FireLaser).GetField("ignitedAnchors",All)!.GetValue(actual)!;
+            var pulseRoot=Npc(43);var pulseBody=Npc(44,43);var pulseOther=Npc(45);
+            foreach(var n in new[]{pulseRoot,pulseBody,pulseOther}) n.life=n.lifeMax=100000;
+            void BeamHit(NPC n) {var m=new NPC.HitModifiers();actual.ModifyHitNPC(n,ref m);actual.OnHitNPC(n,new NPC.HitInfo{Damage=10},10);}
+            ignited.Clear();requests=0;
+            Clock(15000);BeamHit(pulseBody);BeamHit(pulseOther);
+            Clock(15003);BeamHit(pulseRoot);
+            Check(requests==2 && Progress(pulseRoot)==18 && Progress(pulseOther)==18,
+                "one pulse submits one attachment per element anchor; separate enemies each get their own");
+            for(int i=1;i<=3;i++){ignited.Clear();Clock((uint)(15000+i*10));BeamHit(i%2==0?pulseRoot:pulseBody);}
+            Check(requests==5 && Progress(pulseRoot)==72,"every new paid pulse attaches again under the same projectile identity");
 
             var weakFinish=Npc(40);weakFinish.lifeMax=1000;weakFinish.life=10;
             var finish=FireBurnNPC.CaptureHit(weakFinish)!.Value;
             weakFinish.life=0;weakFinish.active=false;before=events;
-            Hit(finish,10,1);
+            Hit(finish,10);
             Check(events==before,"a lethal hit below both buildup thresholds does not receive an unconditional kill bonus");
 
             var serverKill=Npc(41);serverKill.life=serverKill.lifeMax=100;
             var serverReceipt=FireBurnNPC.CaptureHit(serverKill)!.Value;
             serverKill.life=0;serverKill.active=false;before=events;
             GameMain.netMode=NetmodeID.Server;GameMain.myPlayer=255;
-            Hit(serverReceipt,100,1);Hit(serverReceipt,100,1);
+            Hit(serverReceipt,100);Hit(serverReceipt,100);
             Check(events==before+1 && !serverKill.active,"server accepts the matching defeated instance once after the strike packet");
             GameMain.netMode=NetmodeID.SinglePlayer;GameMain.myPlayer=0;
 
@@ -439,7 +459,7 @@ static class Checks
             skill.Stack=2;skill.CurrentCD=4;
             var small=Npc(42);small.life=small.lifeMax=100;
             var receipt=FireBurnNPC.CaptureHit(small)!.Value;small.life=0;small.active=false;
-            Hit(receipt,100,1);Hit(receipt,100,1);
+            Hit(receipt,100);Hit(receipt,100);
             Check(skill.Stack==2 && skill.CurrentCD==4,"lethal ignition does not grant a Flame Burst charge or change recovery");
         }
         finally {FireBurnSystem.Ignited-=Reward;GameMain.netMode=NetmodeID.SinglePlayer;GameMain.myPlayer=0;}
@@ -465,7 +485,7 @@ static class Checks
                 var target=Npc(50+charges); var body=Npc(60+charges,50+charges);
                 Clock((uint)(20000+charges*100));
                 var hit=FireBurnNPC.CaptureHit(body)!.Value;
-                Check(FireBurnNPC.ApplyBeamHit(hit,player.whoAmI,18,1,5000,900+charges,1),"actual beam ignition still succeeds");
+                Check(FireBurnNPC.ApplyBeamHit(hit,player.whoAmI,18,1,5000),"actual beam ignition still succeeds");
                 Check(FireBurnNPC.IsBurning(target),"removing rewards preserves burning");
                 Check(burst.Stack==charges && burst.CurrentCD==cooldown,"ignition at "+charges+" charges does not grant charges or alter cooldown");
                 Check(spawned==0,"ignition never spawns an automatic Flame Burst, including at full charges");

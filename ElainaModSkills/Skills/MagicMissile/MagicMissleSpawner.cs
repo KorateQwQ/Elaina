@@ -253,7 +253,8 @@ public class MagicMissleSpawner : KLProjectile
         Vector2 edgeNoiseOffset = new Vector2(0.4f, 0);
         int edgeDirection = 0;
 
-        EndBeginDraw(2,1);
+        // 星芒只叠加光；普通透明混合会让贴图低亮度尖端及消融残片压暗背景。
+        EndBeginDraw(1,1);
         effect.SetValue("ImageColor", imageColor);
         effect.SetValue("Intensity", edgeNoiseStrength);
         effect.SetValue("NoiseOffset", new Vector2(0.0f,0));
@@ -265,7 +266,7 @@ public class MagicMissleSpawner : KLProjectile
         effect.Apply();
         DrawInWorld(line,Projectile.Center,color,totalScale,Projectile.rotation+rotation);
 
-        EndBeginDraw(2,1);
+        EndBeginDraw(1,1);
         effect.SetValue("NoiseOffset", new Vector2(0.5f,0));
         effect.Apply();
 

@@ -1,16 +1,9 @@
 sampler uImage0 : register(s0);
-sampler uImage1 : register(s1); // 正式 PerlinX
-
+sampler uImage1 : register(s1); // 头部消融噪声
 float4x4 uTransform;
 float uTimex;
 float2 NoiseOffset;
-float2 NoiseScale;
-float4 CrackSites[8]; // 位置、出现时刻、最终半宽、收尖宽度，按每发种子固定
 float TrailAge;
-float MaxShrinkRate;
-float ShrinkExponent;
-bool UseShrink;
-bool UseFracture;
 
 struct VSInput
 {
@@ -38,40 +31,12 @@ PSInput VertexShaderFunction(VSInput input)
 float4 PixelShaderFunction(PSInput input) : COLOR0
 {
     float3 coord = input.Texcoord;
-    float width = 1.0;
-    if (UseShrink)
-    {
-        width = saturate(1.0 - TrailAge);
-        if (UseFracture)
-        {
-        float noise = tex2D(uImage1, frac(float2(coord.x * NoiseScale.x + NoiseOffset.x,
-            0.5 * NoiseScale.y + NoiseOffset.y))).r;
-        float rate = lerp(1.0, MaxShrinkRate, smoothstep(0.34, 0.70, noise));
-        width = pow(saturate(1.0 - TrailAge * rate), ShrinkExponent);
-        // 初始少量裂口，后续在剩余长线中不断出现新裂口；位置固定，数量随时间增加。
-        // 新断点先局部收细再贯穿，不通过整体淡出来隐藏新增裂口。
-        [unroll]
-        for (int i = 0; i < 8; i++)
-        {
-            float4 crack = CrackSites[i];
-            float elapsed = TrailAge - crack.y;
-            float open = saturate(elapsed / 0.12);
-            float halfWidth = lerp(0.006, crack.z, saturate(elapsed / 0.6));
-            float localWidth = smoothstep(halfWidth, halfWidth + crack.w, abs(coord.x - crack.x));
-            width *= lerp(1.0, localWidth, open);
-        }
-        }
-    }
+    float width = saturate(1.0 - TrailAge);
     if (width <= 0.0) return 0;
-    float sampleWidth = width;
-    float coverage = 1.0;
-    if (UseShrink && !UseFracture)
-    {
-        // 连续版的细亮芯不足一像素时扩大采样核、按实际覆盖率补偿能量，避免斜线采成虚线。
-        float minimumSampleWidth = 4.0 * (abs(ddx(coord.y)) + abs(ddy(coord.y)));
-        sampleWidth = max(width, minimumSampleWidth);
-        coverage = width / sampleWidth;
-    }
+    // 亚像素宽度扩大采样核并按覆盖率补偿，避免收尾时斜线变成虚线。
+    float minimumSampleWidth = 4.0 * (abs(ddx(coord.y)) + abs(ddy(coord.y)));
+    float sampleWidth = max(width, minimumSampleWidth);
+    float coverage = width / sampleWidth;
     if (abs(coord.y - 0.5) * 2.0 > sampleWidth) return 0;
     // 压缩整个横截面（包括亮芯），而非仅裁掉原贴图外缘；宽度变化从退场开始就可见。
     // 轴向纹理坐标保持不动，RGB/alpha 不随时间淡化，残线继续保持光感。

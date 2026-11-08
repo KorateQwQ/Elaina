@@ -30,8 +30,7 @@ public static class LoadoutItems
         LocalizeUI("LoadoutStages.Stage15"),
         LocalizeUI("LoadoutStages.Stage16"),
         LocalizeUI("LoadoutStages.Stage17"),
-        LocalizeUI("LoadoutStages.Stage18"),
-        LocalizeUI("LoadoutStages.Stage19")
+        LocalizeUI("LoadoutStages.Stage18")
     ];
 
     /// <summary>头、身、腿；0 表示清空该部位。长袍仍可同时获得护腿属性。</summary>

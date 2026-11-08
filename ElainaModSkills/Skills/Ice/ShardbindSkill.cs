@@ -23,7 +23,7 @@ public class ShardbindSkill : ElainaSealedSkill
         return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
-    // 当前成长配置下，花后角色等级上限 Lv.65 对应冰锥术最高 Lv.13。
+    // 冰锥需投入到 Lv.13；花后霜月及女王的探索门槛独立判断。
     public override SkillUnlockCondition UnlockCondition { get; set; } =
         new CompositeSkillUnlockCondition(DefaultUnlockCost, RequireSkillLevel<IceConeSkill>(13),
             // 霜月事件在花后开放，按角色等级上限判断阶段。

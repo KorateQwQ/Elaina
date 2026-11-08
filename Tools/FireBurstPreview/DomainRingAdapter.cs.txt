@@ -1,0 +1,20 @@
+using Microsoft.Xna.Framework;
+
+namespace KL.Drawing
+{
+    using static KL.Drawing.DrawHelper;
+
+    /// <summary>预览适配：等同 FireBurstDomain.DrawRing，调用正式 FireBurstDomainRingDrawing 与 FireBurstFlame.fx 的 DomainRing 通道。</summary>
+    public static class DomainRingPreview
+    {
+        public static void Draw(Vector2 worldCenter, float radius, float age, float remaining)
+        {
+            Matrix transform = Main.GameViewMatrix.TransformationMatrix *
+                Matrix.CreateOrthographicOffCenter(0, Main.screenWidth, Main.screenHeight, 0, 0, 1);
+            EndBeginDraw();
+            伊蕾娜.ElainaModSkills.Skills.Fire.FireBurstDomainRingDrawing.Draw(Main.graphics.GraphicsDevice, transform,
+                worldCenter - Main.screenPosition, radius, age, remaining);
+            EndBeginDraw();
+        }
+    }
+}

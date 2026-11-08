@@ -15,11 +15,28 @@ public sealed class Action_WaterBall : ElainaAction
     private float worldAimRotation;
     private bool freezeAimRotation;
     private int actionToken;
+    internal bool UsesQuickCastInput { get; }
+    internal static bool IsCastInputHeld(bool quickCast) => Main.mouseLeft || quickCast && Main.mouseRight;
 
-    public Action_WaterBall() : this(10) { }
-
-    public Action_WaterBall(int damage) : base(HoldFrame + RecoveryFrame + 1)
+    protected override void RequestActionStarBloom(float actionProgress)
     {
+        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+            ElainaTrailVisualStyle.WaterWandColor);
+    }
+
+    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    {
+        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+            ElainaTrailVisualStyle.WaterWandColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
+            ElainaTrailVisualStyle.DefaultTrailEndWidth, ElainaTrailVisualStyle.DefaultTrailFadeInEnd,
+            ElainaTrailVisualStyle.DefaultTrailFadeOutStart);
+    }
+
+    public Action_WaterBall() : this(10, 1.5f) { }
+
+    public Action_WaterBall(int damage, float burningDamageMultiplier, bool quickCast = false) : base(HoldFrame + RecoveryFrame + 1)
+    {
+        UsesQuickCastInput = quickCast;
         AddNode(new ShootActionNode(
             1,
             ModContent.ProjectileType<WaterBall>(),
@@ -31,7 +48,8 @@ public sealed class Action_WaterBall : ElainaAction
             {
                 if (projectile.ModProjectile is WaterBall waterBall)
                 {
-                    waterBall.BindAction(actionToken);
+                    waterBall.BindAction(actionToken, UsesQuickCastInput);
+                    waterBall.BurningDamageMultiplier = burningDamageMultiplier;
                 }
             }));
     }
@@ -51,7 +69,7 @@ public sealed class Action_WaterBall : ElainaAction
 
     public override bool ShouldContinueHolding(ActionModPlayer actionPlayer, int actionFrame)
     {
-        return Main.mouseLeft;
+        return IsCastInputHeld(UsesQuickCastInput);
     }
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)

@@ -38,6 +38,10 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public float MagicPointCost = 0;
 
+    // JSON costPercent：额外消耗的最大魔力百分比，随魔力上限变化，每帧刷新到 MagicPointCost。
+    private float magicPointCostBase;
+    private float magicPointCostMaxPercent;
+
     /// <summary>
     /// 按技能类名自动使用 JSON 配置；特殊技能可关闭或覆写对应接口。
     /// </summary>
@@ -64,7 +68,10 @@ public abstract partial class ElainaSkill : ModSkill
         if (!UsesLiveBalance) return;
         if (SkillBalanceSystem.TryGetSkill(BalanceId, out SkillBalanceEntry entry))
         {
-            MagicPointCost = (float)entry.ManaCost;
+            magicPointCostBase = (float)entry.ManaCost;
+            magicPointCostMaxPercent = (float)entry.ManaCostMaxPercent;
+            MagicPointCost = magicPointCostBase;
+            RefreshMaxPercentMagicPointCost();
             MaxCD = (float)entry.BaseCooldown;
             MaxStack = entry.MaxCharges;
             if (Stack > MaxStack) Stack = MaxStack;
@@ -73,6 +80,14 @@ public abstract partial class ElainaSkill : ModSkill
                 CurrentCD = CooldownDuration = MaxCD;
         }
         // 不修改正在进行的 CurrentCD / CooldownDuration：已开始的冷却继续，新一轮才使用新的基准 CD。
+    }
+
+    private void RefreshMaxPercentMagicPointCost()
+    {
+        // 模组加载阶段的技能实例挂在尚未初始化 ModPlayer 的玩家上，需安全跳过。
+        if (magicPointCostMaxPercent <= 0f || Player == null
+            || !Player.TryGetModPlayer(out ElainaAttributeModPlayer attributes)) return;
+        MagicPointCost = magicPointCostBase + attributes.MaxMagicPoint * magicPointCostMaxPercent / 100f;
     }
 
     /// <summary>
@@ -106,9 +121,22 @@ public abstract partial class ElainaSkill : ModSkill
         base.Initialize();
     }
 
+    // 旧等级按原费用退款；后续新买的等级按新费用退款，不免费补等级，也不吞掉旧投入。
+    internal long LegacyUpgradeRefundAdjustment { get; set; }
+
+    public override void SerializeData(TagCompound tag)
+    {
+        base.SerializeData(tag);
+        tag["legacyUpgradeRefundAdjustment"] = LegacyUpgradeRefundAdjustment;
+    }
+
     public override void DeserializeData(TagCompound tag)
     {
         base.DeserializeData(tag);
+        var costs = CombatSkillProgression.UpgradeCosts(GetType().Name);
+        LegacyUpgradeRefundAdjustment = tag.ContainsKey("legacyUpgradeRefundAdjustment")
+            ? tag.GetLong("legacyUpgradeRefundAdjustment")
+            : (long)(costs.Current - costs.Previous) * Math.Max(0, Level - 1);
         // 存档里的 MaxCD / MaxStack 是旧版本数值，以当前配置为准，只保留层数与剩余冷却。
         ApplyBalanceConfiguration();
     }
@@ -211,6 +239,7 @@ public abstract partial class ElainaSkill : ModSkill
         // 配置只在 Debug 下热重载，同步耗蓝、基准 CD 与层数上限；Release 配置加载后不变。
         ApplyBalanceConfiguration();
 #endif
+        RefreshMaxPercentMagicPointCost();
         return base.PreUpdateCD();
     }
 

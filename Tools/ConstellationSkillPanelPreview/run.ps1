@@ -73,10 +73,13 @@ $modSkillSource = [IO.File]::ReadAllText((Join-Path $repo '../KL/SkillSystem/Mod
 $skillSource = [IO.File]::ReadAllText((Join-Path $repo '../KL/SkillSystem/Skill.cs'))
 $playerSource = [IO.File]::ReadAllText((Join-Path $repo '../KL/SkillSystem/KLSkillModPlayer.cs'))
 $stateSource = [IO.File]::ReadAllText((Join-Path $repo 'System/ElainaStatePlayer.cs'))
+$skillPlayerSource = [IO.File]::ReadAllText((Join-Path $repo 'ElainaModSkills/ElainaSkillModPlayer.cs'))
 $members = @{
     '// LIVE_MAX_LEVEL' = [regex]::Match($modSkillSource, '(?m)^    public virtual int MaxLevel =>[^\r\n]+').Value
     '// LIVE_TRY_LEVEL_UP' = [regex]::Match($modSkillSource, '(?s)    public virtual void TryLevelUp\(\)\s*\{.*?\n    \}').Value
     '// LIVE_SKILL_MAX_LEVEL' = [regex]::Match($skillSource, '(?m)^    public int MaxLevel =>[^\r\n]+').Value
+    '// LIVE_IN_CD' = [regex]::Match($skillSource, '(?m)^    public bool InCD =>[^\r\n]+').Value
+    '// LIVE_UNEQUIP_LOCK' = [regex]::Match($skillPlayerSource, '(?m)^    public static bool IsUnequipLocked\(Skill skill\) =>[^\r\n]+').Value
     '// LIVE_UNLOCK_SKILL' = [regex]::Match($playerSource, '(?s)    public virtual void UnlockSkill\(Skill skill\)\s*\{.*?\n    \}').Value
     '// LIVE_NORMALIZE_LEVEL' = [regex]::Match($stateSource, '(?s)    private void NormalizeLevel\(\)\s*\{.*?\n    \}').Value
     '// LIVE_GRANT_LEVEL_STUDY_POINTS' = [regex]::Match($stateSource, '(?s)    private long GrantLevelStudyPoints\(int previousLevel, int reachedLevel\)\s*\{.*?\n    \}').Value
@@ -104,7 +107,7 @@ foreach ($name in @('FNA','ReLogic')) { $null = Add-Item 'Reference' "$Tml/Libra
 foreach ($name in @('Program','Stubs','Checks','IconChecks','TogglePreview','PolishPreview','PrimaryButtonPreview','BookPreview','OrnamentPreview','ScrollPreview','DiscoveryChecks','Scene')) { $null = Add-Item 'Compile' "$out/$name.cs" }
 $null = Add-Item 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
 $null = Add-Item 'Compile' "$repo/System/UI/ScrollHint.cs"
-foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
+foreach ($name in @('ConstellationButterflyMotion','ConstellationUIClock','ConstellationBookMotion','ConstellationBookRenderer','ConstellationDenyShake')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 foreach ($name in @('ConstellationState','ConstellationDrawing','ConstellationDetail','ConstellationRichText','ConstellationRequirements','ConstellationToggleAnimation','ConstellationPolishMotion','ConstellationLayout','ConstellationNodeStars','ConstellationNodeEffects','ConstellationSky','SkillIconVariants','ConstellationDiscovery','LevelUpToast')) { $null = Add-Item 'Compile' "$ui/$name.cs" }
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Heal/HealSkill.Values.cs"
@@ -113,6 +116,7 @@ $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyEfficiency.cs
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillBalanceConfig.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillStageGate.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillForgetting.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/CombatSkillProgression.cs"
 $null = Add-Item 'Compile' "$repo/System/Experience/ExperienceRules.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallSkill.Research.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Recall/RecallDiscoveryPlayer.cs"

@@ -45,6 +45,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private KLTerm _tooltipTerm;
     private readonly ConstellationTooltipDelay _tooltipDelay = new();
     private float _toastLife, _lastBlankClick = -1;
+    private bool _toastWarning;
+    private readonly ConstellationDenyShake _deny = new();
     private float _refreshTimer;
     private readonly ConstellationUIClock _controlsClock = new();
     private readonly ConstellationButterflyMotion _butterfly = new();
@@ -300,6 +302,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _clock += delta;
         _flash = Math.Max(0, _flash - delta);
         _toastLife = Math.Max(0, _toastLife - delta);
+        _deny.Advance(delta);
         _refreshTimer -= delta;
         if (_refreshTimer <= 0)
         {
@@ -465,9 +468,21 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         _bookClock.Stop();
         _controlsClock.Stop();
         _controlsHadFocus = false;
+        _deny.Reset();
         Enabled = false; StopDragging(); _lastBlankClick = -1; _toastLife = 0;
     }
-    private void Notify(string text) { _toast = text; _toastLife = 3.5f; }
+    private void Notify(string text, bool warning = false) { _toast = text; _toastLife = 3.5f; _toastWarning = warning; }
+
+    /// <summary>装卸因冷却被拒绝：提示原因并晃动仍留在栏内的技能槽与装卸按钮。</summary>
+    private void DenyCooldown()
+    {
+        if (_state.CooldownLocked is not { } locked) return;
+        string name = _state.Find(locked.ModSkill.GetType().FullName)?.name ?? LocalizeUI("OtherSkill");
+        // Only explain the recovery condition while it is the reason the cooldown is not moving.
+        bool paused = !ElainaSkillModPlayer.SkillModPlayer.CooldownsRecovering;
+        Notify(LocalizeUI(paused ? "UnequipOnCooldownPaused" : "UnequipOnCooldown", name), true);
+        _deny.Start(locked.SkillSlot);
+    }
     private void PrimaryAction()
     {
         if (Editing || _state.EmptyFilter) return;
@@ -485,8 +500,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
                 Notify($"{_state.Current.name} · Lv. {_state.Level(id)}");
                 return;
             // The slot bar already reflects loadout changes, so they are not announced.
-            case "unequip": _state.ClearSlot(); return;
-            case "equip": _state.Equip(); return;
+            case "unequip": if (!_state.ClearSlot()) DenyCooldown(); return;
+            case "equip": if (!_state.Equip()) DenyCooldown(); return;
             case not "learn": return;
         }
         var before = _state.Skills.Where(_state.Discovered).Select(s => s.id).ToHashSet();
@@ -528,7 +543,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             float width = Math.Min(650, _draw.Measure(_toast, 12) + 50);
             // A ghost pill above the bottom rule, centered on the map.
             _draw.RoundRect(390 - width / 2, 680, width, 34, 17, new Color(26, 22, 35) * (.92f * alpha), Lavender * (.5f * alpha), 1);
-            _draw.FittedText(_toast, 390, 689, width - 30, 12, Ink * alpha, .5f);
+            _draw.FittedText(_toast, 390, 689, width - 30, 12, (_toastWarning ? new Color(232, 184, 158) : Ink) * alpha, .5f);
         }
         if (!_book.IsOpen || !Main.hasFocus || Main.mouseLeft || _dragging || string.IsNullOrEmpty(_tooltip)) { _tooltipDelay.Reset(); return; }
         if (!_tooltipDelay.Ready(_tooltipKey, _clock)) return;
@@ -832,7 +847,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         {
             var pill = pills[i];
             var area = ConstellationDetail.PillArea(pill);
-            _draw.ActionPill(pill.Kind, area.X, area.Y, area.Width, pill.Label, pill.Tail, pill.StudyCost, pill.Gold, pill.Enabled, i == hovered);
+            float shake = pill.Kind is "equip" or "unequip" ? _deny.SnappedOffset(_draw.Device) : 0;
+            _draw.ActionPill(pill.Kind, area.X + shake, area.Y, area.Width, pill.Label, pill.Tail, pill.StudyCost, pill.Gold, pill.Enabled, i == hovered);
             if (i == hovered && pill.Tooltip != null) RequestTooltip(pill.Tooltip, area, pill.Kind + ":" + _state.Selected);
         }
     }
@@ -840,7 +856,8 @@ public sealed partial class ConstellationSkillPanel : BaseBody
     private void DrawSlot(int slot, bool hover)
     {
         var d = _draw;
-        float x = SlotLeft + slot * SlotStride;
+        // Only the drawing shakes; the slot's hit area stays put.
+        float x = SlotLeft + slot * SlotStride + (_deny.Slot == slot ? _deny.SnappedOffset(d.Device) : 0);
         float y = SlotTop;
         var center = new Vector2(x + SlotSize / 2f, y + SlotSize / 2f);
         bool selected = _state.TargetSlot == slot;

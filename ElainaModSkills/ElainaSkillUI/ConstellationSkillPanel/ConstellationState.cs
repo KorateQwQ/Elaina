@@ -345,12 +345,21 @@ internal sealed class ConstellationState
     internal bool CanUnequip => IsCurrentPlayer && !EmptyFilter && Current is { Active: true } && IsLearned(Selected)
         && TargetSlot >= 0 && TargetSlot < _player.ActiveSkill.Count && TargetSlot < Slots.Length && Slots[TargetSlot] == Selected;
     private int SlotCount => Math.Min(_player.ActiveSkill.Count, Slots.Length);
+    /// <summary>上一次装配或卸下因冷却被拒绝时，留在栏内的技能；供界面提示。</summary>
+    internal Skill CooldownLocked { get; private set; }
     internal bool Equip()
     {
+        CooldownLocked = null;
         Refresh();
         if (!CanEquip) return false;
         int source = Array.IndexOf(Slots, Selected);
         var displaced = _player.ActiveSkill[TargetSlot];
+        // Swapping keeps the occupant on the bar; replacing it from outside would unequip it.
+        if (displaced != null && source < 0 && ElainaSkillModPlayer.IsUnequipLocked(displaced))
+        {
+            CooldownLocked = displaced;
+            return false;
+        }
         KLSkillManager.EquipSkill(_player.ActiveSkill, Current.Skill, TargetSlot);
         // An already-equipped skill trades places with the occupant instead of unequipping it.
         if (displaced != null && source >= 0) KLSkillManager.EquipSkill(_player.ActiveSkill, displaced, source);
@@ -371,7 +380,13 @@ internal sealed class ConstellationState
     }
     internal bool ClearSlot()
     {
+        CooldownLocked = null;
         if (!IsCurrentPlayer || TargetSlot < 0 || TargetSlot >= _player.ActiveSkill.Count || _player.ActiveSkill[TargetSlot] is not { } skill) return false;
+        if (ElainaSkillModPlayer.IsUnequipLocked(skill))
+        {
+            CooldownLocked = skill;
+            return false;
+        }
         skill.SkillSlot = -1;
         KLSkillManager.UnEquipSkill(_player.ActiveSkill, TargetSlot);
         Refresh();

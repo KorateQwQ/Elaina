@@ -38,6 +38,18 @@ cases.push((()=>{
  return fixture(s);
 })());
 cases.push(fixture(JSON.parse(fs.readFileSync(path.join(root,'ElainaModSkills/Data/SkillBalance.json'),'utf8').replace(/^\uFEFF/, '')).configuration));
+// Active coefficient curves: K curves may exceed 5, ratio curves replace the DPS ratio over CD + cast.
+cases.push((()=>{
+ const s = B.defaults();
+ s.skills[0].ratioCurve = [[1,.5],[30,150],[60,40]];
+ Object.assign(s.skills[1],{ratio:.3,ratioCurve:[[5,.1],[40,1.5]]});
+ return fixture(s);
+})());
+// Explicit-ratio actives price over CD + cast, so ratio stays the DPS over the full cycle; C# is pinned to this via the fixtures.
+{
+ const s = B.defaults(), row = {...s.skills.find(r => r.id === 'WaterBallSkill'), ratio:.2, cd:10, cast:1}, b = B.progressionBudget(s,row,30);
+ assert.ok(Math.abs(b.total - b.baseline*.2*11) < 1e-9 && Math.abs(b.dps - b.baseline*.2) < 1e-9, 'Explicit-ratio active must price over cd + cast');
+}
 
 const parent = fs.readFileSync(path.join(root,'ElainaModSkills/ElainaSkill.cs'),'utf8');
 assert.match(parent,/public override int MaxLevel => GetConfiguredMaxLevel\(\)/);
@@ -57,6 +69,13 @@ for(const growthMode of ['phase','interval'])for(const maxLevel of [0,1,8,1000])
  const s=B.defaults();
  Object.assign(s.basicAttacks[0],{growthMode,maxLevel,unlockLevel:6,unlockStageCap:10});
  Object.assign(s.skills[0],{growthMode,maxLevel});
+ cases.push(fixture(s));
+}
+// Independent growth origins must remain identical across the editor and game.
+for(const growthMode of ['phase','interval'])for(const growthStartLevel of [1,7,1000]){
+ const s=B.defaults();
+ Object.assign(s.basicAttacks[0],{growthMode,growthStartLevel,unlockLevel:61,unlockStageCap:65});
+ Object.assign(s.skills[0],{growthMode,growthStartLevel,unlockLevel:55,unlockStageCap:60});
  cases.push(fixture(s));
 }
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(),'mage-balance-runtime-'));
@@ -109,6 +128,25 @@ foreach (var fixture in fixtures.EnumerateArray())
         }
     });
 }
+Test("Official combat skills start at initial DPS and can buy all prior stages immediately", () =>
+{
+    store.Apply(fixtures[6].GetProperty("json").GetString());
+    var config = SkillBalanceSystem.Current;
+    foreach (var entry in config.Skills.Values.Where(x => x.GrowthStartLevel == 1))
+    {
+        Check(config.GetSkillCharacterLevel(entry, 1) == 1, entry.Id + " grants unlock-stage damage");
+        int cap = config.GetSkillLevelCap(entry, 65);
+        Check(cap == (entry.Kind == SkillBalanceKind.BasicAttack ? 27 : 14), entry.Id + " skipped historical levels");
+        Check(config.GetSkillCharacterLevel(entry, cap) == 65, entry.Id + " cannot catch up immediately");
+        var changedUnlock = entry with { UnlockLevel = 86, UnlockStageCap = 90 };
+        Check(config.GetSkillLevelNodes(entry).SequenceEqual(config.GetSkillLevelNodes(changedUnlock)), "Unlock changes damage progression");
+        Near(SkillBalanceSystem.GetBaseDps(1, entry.Id), config.GetSkillDps(KLDpsHelper.GetLevelDps(1), entry, 1));
+    }
+    var shard = config.Skills["ShardbindSkill"] with {UnlockLevel = 55, UnlockStageCap = 55};
+    Check(config.GetSkillLevelCap(shard, 55) == 12, "Lv55 unlock needs eleven purchased upgrades");
+    Check(config.GetSkillCharacterLevel(shard, 12) == 55, "Lv55 purchase cap wrong");
+    Check(config.GetSkillLevelNodes(config.Skills["AlchemySkill"],40).SequenceEqual(new[]{6,10,15,20,25,30,35,40}), "Utility progression changed");
+});
 store.Apply(fixtures[2].GetProperty("json").GetString());
 var current = SkillBalanceSystem.Current;
 var missile = current.Skills["MagicMissileSkill"];
@@ -140,7 +178,7 @@ Test("Legacy growth fields default to phase and malformed fields do not replace 
 {
     foreach (string category in new[]{"basicAttacks","skills"})
     {
-        foreach (var (key,value) in new[]{("growthMode","\"bad\""),("growthMode","null"),("growthMode","1"),("levelInterval","0"),("levelInterval","1.5"),("levelInterval","1001"),("levelInterval","null"),("levelInterval","\"7\""),("levelInterval","true"),("maxLevel","-1"),("maxLevel","1.5"),("maxLevel","1001"),("maxLevel","null"),("maxLevel","\"8\""),("maxLevel","true")})
+        foreach (var (key,value) in new[]{("growthStartLevel","-1"),("growthStartLevel","1.5"),("growthStartLevel","1001"),("growthStartLevel","null"),("growthStartLevel","true"),("growthMode","\"bad\""),("growthMode","null"),("growthMode","1"),("levelInterval","0"),("levelInterval","1.5"),("levelInterval","1001"),("levelInterval","null"),("levelInterval","\"7\""),("levelInterval","true"),("maxLevel","-1"),("maxLevel","1.5"),("maxLevel","1001"),("maxLevel","null"),("maxLevel","\"8\""),("maxLevel","true")})
         {
             var payload=JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
             payload["configuration"][category][0][key]=JsonNode.Parse(value);
@@ -159,7 +197,7 @@ Test("Legacy growth fields default to phase and malformed fields do not replace 
     Check(SkillBalanceSystem.Current.GetSkillCharacterLevel(SkillBalanceSystem.Current.Skills[missile.Id],2)==3, "Legacy nodes changed");
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });
-Test("Delayed unlock maps Ice Lv1 to character 6, not character 1", () =>
+Test("Legacy entry without an independent growth origin keeps its unlock-based nodes", () =>
 {
     Check(current.GetSkillCharacterLevel(ice,1) == 6, "Wrong Ice Lv1 gate");
     Near(SkillBalanceSystem.GetBaseDps(1,ice.Id), KLDpsHelper.GetLevelDps(6)*ice.DpsRatio);
@@ -286,8 +324,8 @@ Test("Stage loadouts are parsed in order, optional, and invalid rows reject the 
         Check(!store.Apply(next.ToJsonString()), $"Accepted bad loadout {key}={value}");
     }
     var shortList = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
-    shortList["configuration"]["loadouts"].AsArray().RemoveAt(18);
-    Check(!store.Apply(shortList.ToJsonString()), "Accepted 18 loadouts");
+    shortList["configuration"]["loadouts"].AsArray().RemoveAt(17);
+    Check(!store.Apply(shortList.ToJsonString()), "Accepted 17 loadouts");
     var missing = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
     missing["configuration"].AsObject().Remove("loadouts");
     Check(store.Apply(missing.ToJsonString()) && SkillBalanceSystem.Current.Loadouts.Count == 0, "Missing loadouts were not optional");

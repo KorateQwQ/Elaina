@@ -55,9 +55,9 @@ Bloom 开关亮度差及每个实例的绘制次数。
 
 ## 底部法阵与双面气流条带（2026-11-01）
 
-炎爆前摇时在落点描绘橙红法阵，随爆发淡出。炎爆传入 `teleportBurst: false`，只画平面阵纹，关闭回城专用的向上光幕和竖线；回城的默认传送效果保持开启。
-法阵大小在 `FireBurstProj.DrawMagicCircle` 的 `circleRadius` 调整，当前横向半径为 210 世界像素；纵向半径随之按 0.3 倍缩放。
-实际复用 `RecallPortalDrawing`、`RecallPortalPattern`、`RecallPortalScript` 和预制 `PortalLine.png`；
+炎爆前摇时在落点描绘橙红法阵，随爆发淡出，仍复用 `RecallPortalDrawing`。星芒外圈改用多重射击球体起始光圈的 `CircleRingEffect` Shader、`noi_1.png` 和 KL `cellnoise.png`，替换原低分辨率渐变圈贴图。
+爆发最初 8 帧在火柱前景叠加预制 `GlowDot.png` 暖色大光晕，随后平滑退去，以遮掩主体刚展开时的贴图轮廓。
+此处为原设计意图；2026-11-08 已改用火柱自身峰值 ×3 的 Bloom，正式绘制已移除光斑，见下文。
 法阵始终位于 `Projectiles.After` 的 `TrailOrder`，火柱在其上方，原星芒仍在 `OverPlayers.After`。
 气流环沿用冲刺效果的开口椭圆思路，两圈相隔 6 tick 从底部扩张、旋转并上升，
 每圈是一条绕火柱弯曲的竖直条带，宽度沿世界竖直方向展开，再按俯视角投影。
@@ -88,7 +88,7 @@ Bloom 开关亮度差及每个实例的绘制次数。
 这些是源码调参入口，修改后需使用现有 C# 调试流程或重新构建/加载模组；本工具不提供游戏内热重载。
 固定贴图直接请求现有正式资产，不在游戏中生成纹理。
 
-预览直接编译当前正式环几何和回城法阵代码，加载本次编译的 `FireBurstFlame.xnb` 的 `WindRing` 通道。
+预览直接编译当前正式环几何、圆环 Shader 与回城法阵绘制代码，加载 KL `TexturedRing.xnb`、`VertexDraw.xnb` 和本次编译的 `FireBurstFlame.xnb` 的 `WindRing` 通道。
 新增输出：
 
 - `circle-rings-stages.png`：年龄 15 / 33 / 42 / 52，原尺寸底部裁切，上排夜晚、下排白天。
@@ -105,9 +105,53 @@ Bloom 开关亮度差及每个实例的绘制次数。
 HDR 遮挡回归在修复前实测失败：后绘高亮白柱穿过黑面，遮挡像素为 0；分离前景请求后通过。
 检查登记层、每实例前后圈回调次数与多炎爆叠放，避免按单个弹幕交错绘制前后圈。
 按原版完整调用边界回放：`OverPlayers` 在 `DrawDust` 之前；`DrawDust` 完成 Begin/End 后，再执行普通 `Dust.After` 请求。
-前景回调自行 Begin，并在 finally 中 End；验证每次离开时批次仍关闭，后续请求可以正常 Begin。
+当前 KL 在每个请求前确保活动批次，并由正式 `FlushLayerRequests` 包装保存/恢复外部批次状态；前景回调结束自身批次。预览提取该正式包装，检查整个 Dust.After 层结束后批次关闭、后续请求可以正常 Begin。
 此前预览错误地在原版粒子的活动批次内执行 `Dust.After`，遗漏了真实游戏的崩溃。
 改正预览后，旧实现已复现 `End was called, but Begin has not yet been called`；补齐前景批次所有权后通过。
 同类调用点 `WaterLaserDust` 和 `ElainaTrailVisualStyle` 已自行配对 Begin/End，本次未修改公共绘制管线。
 已查看本次生成的明暗背景、多阶段和独立气流环；正式 C# 编译及 FNA 检查通过。
 没有在运行中的 Terraria 内验证材质、UV 或实际场景遮挡，后续仍由游戏内调试定稿。
+
+## 爆点光晕修复与 GIF 对照（2026-11-08）
+
+原 `1 - SmoothStep(0, 8, time - 1)` 把 tick 当成归一化进度，爆发第 1 tick 强度为 1，第 2 tick 起变为 -7，实际只画一帧。
+修复阶段曾用 `CheckImpactGlow` 从正式绘制捕获提交强度，对照白天/夜晚、有/无光晕的逐帧图；旧实现实测无法通过 8 帧连续淡出断言。选定火柱增亮后，该检查改为下文的 `CheckBodyGlow`。
+修复为 `SmoothStep(1, 0, (time - 1) / 8)`，第 1～8 tick 的强度依次为 1、0.9570、0.8438、0.6836、0.5、0.3164、0.1562、0.0430，第 9 tick 归零。
+RGB 与 alpha 同步衰减，防止低亮度末段仍保留高覆盖度。
+
+原光斑的 128×128 预乘贴图放大至约 922×1075 世界像素，中心在爆点上方 150 像素；它是固定椭圆覆盖，并不匹配火柱轮廓。
+贴图对照方案改为约 461×538、中心上移 100 像素，收束在根部，保留火柱上半部本身的轮廓。仍加载正式 `GlowDot`，没有运行时生成固定纹理；该方案现仅保留在预览工具中。
+
+三列依次为缩小后的历史贴图光晕、无光斑且火柱峰值 ×2、无光斑且峰值 ×3。用户已选定右列，正式 `DrawVisual` 直接给 `BandOuter/Mid/Inner` 的 RGB 乘以 `1 + 2 * SmoothStep(1, 0, (time - 1) / 8)`，alpha 不变；第 9 tick 起倍率为 1，不增强碎石、粒子或全局 Bloom。
+正式 `DrawImpactGlow` 及其调用已删除。普通检查直接抽取正式色带增亮代码，不注入额外倍率；`CheckBodyGlow` 读取实际写入 Shader 的三段颜色，覆盖白天/夜晚爆发前 10 tick 的 RGB 倍率与 alpha。
+显式 `-GlowComparison` 模式才替换峰值参数并启用工具内的历史光斑夹具。三列使用相同随机种子、阶段、正式 Shader、当前 KL Bloom 配置和批次包装，避免正式代码已乘 ×3 后预览再次叠乘。
+
+```powershell
+& ./Tools/FireBurstPreview/run.ps1 -SkipShader
+& ./Tools/FireBurstPreview/run.ps1 -SkipShader -GlowComparison
+python Tools/FireBurstPreview/glow_comparison.py
+```
+
+- `body-glow-day/night-t01` 至 `t10`：正式 ×3 方案的前 10 tick 原生帧；旧的 `impact-*.png` 属于贴图修复阶段留档。
+- `glow-comparison/{day,night}/{texture,body2,body3}/f01.png` 至 `f78.png`：完整 FNA 原始帧；年龄 60 起停止弹幕绘制，继续模拟残余粒子。
+- `glow-comparison-day/night-normal.gif`：三列同步、正常 60 tick/s，GIF 以交替 10/20 ms 延时保持总时长。
+- `glow-comparison-day/night-slow.gif`：前摇末段至爆发第 15 tick，四分之一速度。
+- `glow-comparison-day/night-sheet.png`：爆发第 1、3、6 tick 的静态对照。
+
+GIF 将原生帧裁切缩小用于并排比较，原尺寸 PNG 可单独检查细节。背景与地面仍为色块，不能代替真实地图光照和游戏内观感。
+选定 ×3 后，普通 FNA 套件及正式 C# Compile 通过；白天/夜晚爆发前 10 tick 共 20 张正式输出与用户选中的 ×3 候选逐像素一致。
+已尝试完整构建，C# 构建成功，但打包被运行中的 tModLoader 占用阻止（TML003）；尚未重载模组或做游戏内验证。
+
+## 炎爆领域范围圈（`-Domain`）
+
+```powershell
+& ./Tools/FireBurstPreview/run.ps1 -Domain
+```
+
+按 1920×1080 渲染（领域半径 `DomainRadius` 须与 `FireBurstDomain.Radius` 一致，当前 1400），场景为地面、敌人剪影与玩家位置色块；领域中心降一次正式炎爆，之后每 4 帧锁定一名敌人、同一敌人每 75 帧重锁，与 `FireBurstDomain` 调度一致。炎爆绘制、粒子与 Bloom 均为正式代码，粒子按各炎爆自己的年龄推进（只模拟当前一轮）。
+
+范围圈为正式 `FireBurstDomainRingDrawing.cs` + `FireBurstFlame.fx` 的 `DomainRing` 通道，`DomainRingAdapter.cs.txt` 等同 `FireBurstDomain.DrawRing`。只显示领域边界：沿半径 1000 的圆燃烧一圈火环，火舌沿半径向外舔出。着色同火柱（火势 = 包络 × 噪声，0.06/0.15/0.42 三阈值 暗红 → 红 → 黄，黄层由 Bloom 晕出白芯）；噪声为可平铺的 `PerlinX`，沿火舌方向拉长并向外流动，根部连续燃烧，噪声决定火舌长短。展开 24 帧内火环从中心扩到边界，火舌 30 帧内长到全长；结束前 40 帧火势减弱熄灭。可调参数在 `FireBurstDomainRingDrawing.Draw` 开头。
+
+定稿过程（2026-11-08）：否决显迹尘式火星飞散（粉尘外观来自"尘"本身）与地面大法阵；火环比较了火舌向外 / 向上，用户选向外，并从两档细淡程度中选定"细一档"（火舌 80 像素、根部 0.6、原亮度；更淡一档为 60 像素、0.5、亮度 ×0.7）。不要用 `Eff_Trail_2014` 沿圆周平铺：它的横向是单条流纹截面，会断成一段段火块。
+
+输出 `out/domain/`：`Ring-spread-sequence.png`（6/14/24/40/80/130 帧）、`Ring-steady-{night,day}-{center,offset,high}.png`（offset 为玩家右移 半径−500 像素，可见右侧边界；high 再上移到可见顶部弧）、`Ring-ending-night-offset.png`、`Ring-domain.gif`（0～240 帧）。

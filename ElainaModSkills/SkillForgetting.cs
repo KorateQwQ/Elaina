@@ -28,13 +28,13 @@ internal static class SkillForgetting
         return (int)Math.Min(int.MaxValue, total);
     }
 
-    /// <summary>当前等级各次进修花费的研习点之和，按技能现有的进修条件计算。</summary>
+    /// <summary>新费用计算的总额扣除旧档差价，返还实际投入；首次研习不计入。</summary>
     internal static int Refund(ElainaSkill skill, int level)
     {
         long total = 0;
         for (int next = 2; next <= level; next++)
             total += Points(skill.GetConstellationUpgradeCondition(next));
-        return (int)Math.Min(int.MaxValue, total);
+        return (int)Math.Clamp(total - skill.LegacyUpgradeRefundAdjustment, 0, int.MaxValue);
     }
 
     private static long Points(SkillUnlockCondition condition) => condition switch
@@ -62,6 +62,7 @@ internal static class SkillForgetting
         refund = Refund((ElainaSkill)owned.ModSkill, owned.Level);
         if (!Cost.TryUnlock(player, owned.ModSkill)) { refund = 0; return false; }
         owned.Level = 1;
+        ((ElainaSkill)owned.ModSkill).LegacyUpgradeRefundAdjustment = 0;
         player.SkillPoint = (int)Math.Min(int.MaxValue, (long)player.SkillPoint + refund);
         return true;
     }

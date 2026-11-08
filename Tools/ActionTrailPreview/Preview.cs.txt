@@ -1,0 +1,188 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+internal static class ActionTrailPreview
+{
+    static void Main(string[] args)
+    {
+        if (OperatingSystem.IsWindows())
+            System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
+        using var game = new TrailProbe(args[0], args[1]);
+        game.Run();
+    }
+}
+
+internal sealed class TrailProbe : Game
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    readonly string root, output, kl;
+    Assembly pipeline;
+    Type main, helper, scene;
+    object renderer;
+    SpriteBatch batch;
+    ContentManager content;
+    Texture2D trail, pixel, starCross, starLine;
+    bool done;
+
+    public TrailProbe(string root, string output)
+    {
+        this.root = root; this.output = output; kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 640, PreferredBackBufferHeight = 360,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        SDL2.SDL.SDL_HideWindow(Window.Handle); IsFixedTimeStep = false;
+    }
+
+    string Extract()
+    {
+        CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.WithoutLeadingTrivia().ToFullString()));
+        var vertex = Read(Path.Combine(kl, "Drawing/DrawHelper.vertexDraw.cs"));
+        var drawing = Read(Path.Combine(kl, "Drawing/DrawHelper.DrawingMethod.cs"));
+        var style = Read(Path.Combine(root, "ElainaActions/ElainaTrailVisualStyle.cs"));
+        var action = Read(Path.Combine(root, "ElainaActions/ElainaAction.cs"));
+        var slash = Read(Path.Combine(root, "ElainaActions/SlashTrailActionNode.cs")).DescendantNodes()
+            .OfType<ClassDeclarationSyntax>().First();
+        slash = slash.WithMembers(new(slash.Members.Where(m => m is not MethodDeclarationSyntax method
+            || method.Identifier.Text is not ("Draw" or "DrawDebugPoint" or "GetStarCenter"))));
+        var fields = style.DescendantNodes().OfType<FieldDeclarationSyntax>().Where(f => f.Declaration.Variables
+            .Any(v => v.Identifier.Text.StartsWith("Default")));
+        string source = """
+            using System;
+            using System.Collections.Generic;
+            using Microsoft.Xna.Framework;
+            using Microsoft.Xna.Framework.Graphics;
+            using KL.Drawing;
+            using static KL.Drawing.DrawHelper;
+            namespace KL.Drawing { public partial class DrawHelper {
+            public static Effect vertexDraw;
+            """ + Methods(vertex, "TrailEffect") + Methods(drawing, "PingPongWave")
+            + drawing.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "PingPongWaveType").ToFullString()
+            + Read(Path.Combine(kl, "Drawing/DrawHelper.Assets.cs")).DescendantNodes().OfType<StructDeclarationSyntax>()
+                .Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString() + "}}"
+            + "namespace Fixture { public static partial class ElainaTrailVisualStyle {"
+            + string.Join("\n", fields.Select(f => f.ToFullString()))
+            + Methods(style, "RequestTrailBloom", "GetActionAlpha", "DrawTrail", "DrawWandTrail", "DrawSlashTrail", "RequestBloomStar", "QueueBloomStar")
+            + "} public partial class ActionReplay {"
+            + Methods(action, "SubmitActionVisuals", "ResetWandTrail", "UpdateWandTrail", "RequestAutoWandTrailBloom", "DrawWandTrailVisual")
+            + "}" + slash.ToFullString()
+            + "public class ActionNode { public int StartFrame, EndFrame; public int DurationFrame => EndFrame - StartFrame;"
+            + Methods(Read(Path.Combine(kl, "ActionsSystem/ActionNode.cs")), "IsActive", "GetProgress", "Clamp01")
+            + "} public class ElainaNode : ActionNode { public ElainaNode(int start, int end) { StartFrame = start; EndFrame = end; }"
+            + Methods(Read(Path.Combine(root, "ElainaActions/ElainaNode.cs")), "GetOwner", "GetLocalDrawOffset")
+            + "} public static class KLMathF {"
+            + Methods(Read(Path.Combine(kl, "Utils/KLMathF.cs")), "ClampLerp") + "}}";
+        return source;
+    }
+
+    void Set(Type type, string field, object value) => type.GetField(field, All).SetValue(null, value);
+    protected override void LoadContent()
+    {
+        Directory.CreateDirectory(output);
+        pipeline = Program.CompilePipeline(kl, Extract(), File.ReadAllText(Path.Combine(root, "Tools/ActionTrailPreview/Scene.cs.txt")));
+        main = pipeline.GetType("KL.Drawing.Main"); helper = pipeline.GetType("KL.Drawing.DrawHelper"); scene = pipeline.GetType("Fixture.Scene");
+        Type draw = pipeline.GetType("KL.Drawing.DrawSystem"); Set(draw, "CanUseRender", true); renderer = Activator.CreateInstance(draw);
+        var device = Activator.CreateInstance(pipeline.GetType("KL.Drawing.DeviceContext"));
+        device.GetType().GetField("GraphicsDevice").SetValue(device, GraphicsDevice);
+        batch = new SpriteBatch(GraphicsDevice);
+        Set(main, "graphics", device); Set(main, "instance", device); Set(main, "spriteBatch", batch);
+        Set(main, "screenWidth", 640); Set(main, "screenHeight", 360);
+        content = new ContentManager(Services, Path.Combine(kl, "Effects/Content"));
+        foreach (string name in new[] { "bloom", "reColor", "vertexDraw" })
+            Set(helper, name, content.Load<Effect>(char.ToUpperInvariant(name[0]) + name[1..]));
+        using var stream = File.OpenRead(Path.Combine(kl, "Effects/Tex/Trail/LightTrail.png"));
+        trail = Texture2D.FromStream(GraphicsDevice, stream);
+        Set(pipeline.GetType("Fixture.ElainaTrailVisualStyle"), "Texture", trail);
+        Texture2D Load(string path) {
+            using var file = File.OpenRead(Path.Combine(kl, path));
+            return Texture2D.FromStream(GraphicsDevice, file);
+        }
+        starCross = Load("Effects/Tex/Sparkle/T_StartFlare001.png");
+        starLine = Load("Effects/Tex/Sparkle/ShotLine.png");
+        Set(pipeline.GetType("Fixture.ElainaTrailVisualStyle"), "StarCross", starCross);
+        Set(pipeline.GetType("Fixture.ElainaTrailVisualStyle"), "StarLine", starLine);
+        pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+        Set(pipeline.GetType("KL.Drawing.TextureAssets"), "MagicPixel", Activator.CreateInstance(pipeline.GetType("KL.Drawing.Asset"), pixel));
+    }
+
+    Color[] Render(float progress, bool bloom)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 640, 360);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(25, 35, 50));
+        // Queue while no SpriteBatch is active, matching CacheProjDraws.
+        scene.GetMethod("Queue").Invoke(null, [progress]);
+        renderer.GetType().GetMethod("Run").Invoke(renderer, [1f, 5, bloom]);
+        scene.GetMethod("CheckConsumed").Invoke(null, null);
+        var pixels = new Color[640 * 360]; target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(Path.Combine(output, $"trail-{progress:0.00}-{(bloom ? "bloom" : "plain")}.png"));
+        target.SaveAsPng(file, 640, 360);
+        // This opaque sprite is drawn after trails without resetting the batch in its callback.
+        if (!bloom && pixels[30 * 640 + 30] != Color.White) throw new Exception("Trail leaked vertex shader/batch state into next request.");
+        return pixels;
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        if (done) return; done = true;
+        foreach (float progress in new[] { .1f, .5f, .9f }) {
+            var plain = Render(progress, false); var glow = Render(progress, true);
+            // Exclude the following projectile marker; only the two trail regions count.
+            if (!Enumerable.Range(70 * 640, 240 * 640).Any(i => plain[i] != glow[i]))
+                throw new Exception("Bloom did not change trail rendering.");
+        }
+        foreach (float progress in new[] { 0f, .5f, 1f }) {
+            var plain = RenderStars(progress, false);
+            var glow = RenderStars(progress, true);
+            bool changed = Enumerable.Range(70 * 640, 240 * 640).Any(i => plain[i] != glow[i]);
+            if (changed != (progress == .5f)) throw new Exception("Star Bloom or fade endpoints incorrect");
+        }
+        Console.WriteLine("PASS: early auto/slash submission, snapshots, paused samples, active node bounds, shared queue, batch chaining; star HDR >1 without overlap, Bloom and fade endpoints; 12 FNA images.");
+        Exit();
+    }
+
+    Color[] RenderStars(float progress, bool bloom)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 640, 360);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(25, 35, 50));
+        scene.GetMethod("QueueStars").Invoke(null, [progress]);
+        Type draw = renderer.GetType();
+        draw.GetMethod("SetBloomInfo", All).Invoke(null, [1f, 5, Vector2.Zero, bloom]);
+        var layer = Enum.Parse(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), "OverPlayers");
+        var timing = Enum.Parse(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), "After");
+        draw.GetMethod("RenderRequestedBloom", All).Invoke(renderer, [layer, timing]);
+        if (bloom) {
+            var capture = (RenderTarget2D)pipeline.GetType("KL.Drawing.RenderHelper").GetField("BloomRender", All).GetValue(null);
+            var hdr = new Vector4[640 * 360]; capture.GetData(hdr);
+            // The left star contains only the cross texture, so HDR cannot come from stacking.
+            float peak = Enumerable.Range(70 * 640, 240 * 640).Where(i => i % 640 < 220)
+                .Max(i => Math.Max(hdr[i].X, Math.Max(hdr[i].Y, hdr[i].Z)));
+            if (progress == .5f ? peak <= 1 : peak != 0) throw new Exception($"Unexpected isolated star HDR: {peak}");
+            Console.WriteLine($"Star progress={progress}: isolated cross HDR peak={peak:0.000}");
+        }
+        var pixels = new Color[640 * 360]; target.GetData(pixels);
+        GraphicsDevice.SetRenderTarget(null);
+        using var file = File.Create(Path.Combine(output, $"star-{progress:0.00}-{(bloom ? "bloom" : "plain")}.png"));
+        target.SaveAsPng(file, 640, 360);
+        if (!bloom && pixels[30 * 640 + 30] != Color.White) throw new Exception("Star ReColorEffect leaked into next callback");
+        return pixels;
+    }
+
+    protected override void UnloadContent()
+    {
+        if (pipeline != null) {
+            Type targets = pipeline.GetType("KL.Drawing.RenderHelper");
+            object detached = targets.GetMethod("DetachRenderTargets", All).Invoke(null, null);
+            targets.GetMethod("DisposeTargets", All).Invoke(null, [detached]);
+        }
+        batch?.Dispose(); trail?.Dispose(); pixel?.Dispose(); starCross?.Dispose(); starLine?.Dispose(); content?.Dispose();
+    }
+}

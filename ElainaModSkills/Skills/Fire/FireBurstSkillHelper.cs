@@ -12,11 +12,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 public class FireBurstSkillHelper
 {
     /// <summary>
-    /// 从目标位置往下检测到第一个实体物块，如果未检测到
+    /// 从目标位置往下检测到第一个实心物块（或岩浆），找到时把 <paramref name="validPosition"/> 的 Y 改为该格顶面并返回 true。
     /// </summary>
-    /// <param name="validPosition"></param>
-    /// <param name="checkDistance"></param>
-    /// <returns></returns>
     public static bool GetValidPositionForFireBurst(ref Vector2 validPosition,float checkDistance = 2000f)
     {
         float y = validPosition.Y;
@@ -27,7 +24,7 @@ public class FireBurstSkillHelper
             if (IsSolidBrick(tile))
             {
                 //Main.NewText(tile.IsSnowBiomeTile());
-                validPosition.Y = y + i;
+                validPosition.Y = (int)((y + i) / 16f) * 16f;
                 return true;
             }
         }
@@ -38,7 +35,8 @@ public class FireBurstSkillHelper
     public static bool IsSolidBrick(Tile tile)
     {
         if(tile == null)return false;
-        if (tile.HasTile)
+        // 被制动器关闭的物块可以穿过，不算地面。
+        if (tile.HasTile && !tile.IsActuated)
         {
             return Main.tileSolid[tile.TileType];
         }

@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$RayOnly, [switch]$IceActionOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $modName = Split-Path $repo -Leaf
@@ -25,8 +25,11 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/Checks.cs.txt"
 $check.SetAttribute('Link', 'Checks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/WaterChecks.cs.txt"
 $check.SetAttribute('Link', 'WaterChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/IceConeActionChecks.cs.txt"
+$check.SetAttribute('Link', 'IceConeActionChecks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
-dotnet run --project $projectPath --configuration Release --verbosity quiet -- $repo *> "$output/checks.log"
+$mode = if ($IceActionOnly) { '--ice-action' } elseif ($RayOnly) { '--rays' } else { '--all' }
+dotnet run --project $projectPath --configuration Release --verbosity quiet -- $repo $mode *> "$output/checks.log"
 if ($LASTEXITCODE -ne 0) { Get-Content "$output/checks.log" -Tail 20; throw 'Ice cycle checks failed.' }
 Get-Content "$output/checks.log" -Tail 1

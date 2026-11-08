@@ -1,0 +1,82 @@
+global using System;
+global using System.Collections.Generic;
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using static PreviewContext;
+using KL.Dusts;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+namespace KL.Drawing
+{
+    public static class DrawSystem
+    {
+        public static void EnsureSpriteBatchActive(SpriteBatch batch)
+        {
+            if (!(bool)typeof(SpriteBatch).GetField("beginCalled", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(batch))
+                throw new Exception("Preview requests must enter with an active SpriteBatch.");
+        }
+    }
+}
+
+// Only game context is adapted; the dust callbacks, renderer and request queue are linked unchanged.
+public static class PreviewContext
+{
+    public static class Main
+    {
+        public static bool dedServ;
+        public static Game instance;
+        public static SpriteBatch spriteBatch;
+        public static int screenWidth = 1000, screenHeight = 600;
+        public static Vector2 screenPosition = new(1200, 800);
+        public static readonly View GameViewMatrix = new();
+        public static readonly PreviewRandom rand = new();
+    }
+    public sealed class View { public Matrix TransformationMatrix = Matrix.Identity; }
+    public sealed class PreviewRandom { public float NextFloat(float max) => .3f * max; }
+    public class ModSystem { }
+    public enum AssetRequestMode { ImmediateLoad }
+    public sealed record Asset<T>(T Value);
+    public static class ModContent
+    {
+        public static Effect Effect;
+        public static Asset<T> Request<T>(string path, AssetRequestMode mode) => new((T)(object)Effect);
+        public static int DustType<T>() => 1;
+    }
+    public sealed class Dust
+    {
+        public static readonly List<Dust> Spawned = new();
+        public bool active = true, noGravity, noLight;
+        public int type = 1;
+        public object customData;
+        public Vector2 position, velocity;
+        public float rotation;
+        public static Dust NewDustDirect(Vector2 position, int w, int h, int type)
+        {
+            var d = new Dust(); Spawned.Add(d); return d;
+        }
+    }
+    public static void EndBeginDraw()
+    {
+        Main.spriteBatch.End();
+        Main.spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, Main.GameViewMatrix.TransformationMatrix);
+    }
+}
+namespace KL.Dusts
+{
+    public class KLBasicDust
+    {
+        public int Type => 1;
+        public bool ShouldBloom;
+        public Texture2D MainTexture;
+        public virtual string Texture => "";
+        public sealed class DustInfo(float lifetime, Vector2 size)
+        {
+            public float LifeTime = lifetime, CurrentLifeTime = lifetime;
+            public object DustData;
+        }
+        public virtual void OnSpawn(Dust dust) { }
+        public virtual void SubmitBloomDrawRequest(Dust dust) { }
+        public virtual bool PreDraw(Dust dust) => true;
+    }
+}

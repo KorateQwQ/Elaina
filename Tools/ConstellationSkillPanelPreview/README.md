@@ -1,5 +1,7 @@
 # 正式技能面板离线验证
 
+`-FireOnly -LocalizationOnly` 检查火焰射线与炎爆领域的中英文正式说明，包含新增的领域增伤、维持、15 秒剩余上限和右键快捷施法。`fire-beam-bottom` / `fire-burst-bottom` 同时导出详情滚动到底部，覆盖长英文说明末尾；每种语言覆盖 720p、默认及 125% UI。参数是与 2026-11-09 配置对应的预览夹具（射线 40% 领域增伤，炎爆 350 魔力/1 层/60 秒恢复），实际玩法验证见 `Tools/FireLaserChecks`。
+
 `-RingsOnly -SkipChecks -Configuration Release` 重放正式 `LevelUpToastPainter`，使用与 `LevelUpToastUI` 相同的定位公式、1.35 倍自身缩放和真实 UI 矩阵，输出 1366×768/100%、1864×977/125%、1920×1080/100%/112.5%/150%、2560×1440/150%、3840×2160/200% 下的入场、回弹、停留、淡出共 28 张图，以及未缩放的局部裁切，位于 `output/<culture>/rings`。圆环直接加载正式 `UICircle.xnb` 在 FNA GPU 中绘制；框架圆角/阴影沿用本工具已有 CPU SDF 适配，不是游戏截图。对应面积覆盖和状态恢复检查、Shader 重建入口见 `../ConstellationRasterChecks/README.md`。预览的 SpriteBatch 状态适配现在也保留实际矩阵和自定义 Effect 参数，支持圆环绘制后恢复调用方批次。
 
 `-ResolutionOnly -SkipChecks -Configuration Release` 按原生分辨率导出治愈术详情、术语提示和水流技能三个场景，覆盖 1366×768 / 100%、1864×977 / 125%、1920×1080 / 100%、112.5%、125%、150%、2560×1440 / 150%、3840×2160 / 200%。输出在 `output/<culture>/resolution-comparison/<场景>-<宽>x<高>-ui<百分比>.png`，PNG 不做后期缩放；面板仍按游戏内规则缩放至可用屏幕。字体请在图片查看器 100% 比例下判断。2026-11-04 起技能面板使用自己的面积滤波字号图集，资源重建与细节回归见 `Tools/ConstellationRasterChecks/README.md`。旧小字号 XNB 与 `-FontSizesOnly` 探针已移除，字体范围和字符清单由新工具维护。
@@ -82,3 +84,8 @@
 正式贴图和图集索引统一位于 `ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets`，炼金共用的 Glow/Disc 也从此处加载。
 `GenerateAssets.py` 重建 Icons 图集、Disc、Glow 和连线贴图；`GenerateBackground.py` 只重建 Glow，`GenerateLinks.py` 只重建连线；`GenerateHeaderHat.py` 从正式目录中的 HeaderHat.svg 重建徽记。星形仍由 `bake_stars.py` 重建/检查。
 上述生成脚本位于 Tools，不参与游戏加载；不会再生成演示技能、独立点数或旧演示底图。字体和图标检查由本工具覆盖，旧 TypographyPreview 已删除。
+
+
+2026-11-05：`-ForgetOnly` 使用独立退款交互回归，再绘制忘却界面。覆盖缺书、一本退款、保留习得、重复退款拒绝、旧费用高于/低于新费用的差价、忘却清零差价及重新进修；避免被其他调试功能的旧固定数值断言阻断。技能旧存档反序列化与真实费用在 `Tools/CharacterProgressChecks` 中另外验证。
+
+冷却锁定（2026-11-08）：通用检查覆盖冷却中技能不能清空槽位或被栏外技能替换、可在栏内拖动或装配互换、冷却结束后正常卸下；`InCD` 与 `IsUnequipLocked` 每次从 KL `Skill.cs` 与正式 `ElainaSkillModPlayer.cs` 抽取。`ConstellationDenyShake` 检查零间隔与重复零间隔不推进、峰值落在整设备像素、按真实经过时间收敛及关闭重置。`cooldown-shake` 场景冻结在第一次峰值，对照 `equipped` 只应看到 08 槽与装卸按钮的水平偏移。提示文字、实际点击和冷却随手持物暂停需在游戏内验证。

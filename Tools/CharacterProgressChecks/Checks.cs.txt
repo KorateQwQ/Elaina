@@ -86,7 +86,7 @@ static class Checks
         Original(NPCID.BrainofCthulhu, 3);
         Original(NPCID.Retinazer, 9);
         Original(NPCID.Spazmatism, 9);
-        Original(NPCID.MoonLordCore, 18);
+        Original(NPCID.MoonLordCore, 17);
         Check(player.GetMaxLevel() == 5, "Reset cap is 5.");
         Check(player.DebugGetNextBoss(out var name, out var state) && state == 1 && name == "NPC50", "Empty external list uses original King Slime.");
         Check(player.DebugGetNextBossTooltip().Contains("5 → Lv. 10"), "Tooltip predicts the new cap.");
@@ -113,7 +113,7 @@ static class Checks
         Check(player.DebugAdvanceMaxLevel(out name, out state) && state == 9 && name.Contains(" / "), "Segments and equal states are skipped; twins share a stage.");
         player.DebugAdvanceMaxLevel(out _, out _);
         int finalPoints = skills.SkillPoint;
-        Check(!player.DebugAdvanceMaxLevel(out _, out _) && player.Progress == 18 && skills.SkillPoint == finalPoints,
+        Check(!player.DebugAdvanceMaxLevel(out _, out _) && player.Progress == 17 && skills.SkillPoint == finalPoints,
             "Final boss is a non-mutating no-op without repeated points.");
         player.DebugResetProgress();
         Check(player.DebugGetNextBoss(out _, out state) && state == 1 && player.CurrentLevel == 1 && player.Experience == 0, "Reset returns to first boss.");
@@ -147,9 +147,29 @@ static class Checks
         legacyRemainder.LoadData(converted);
         Check(legacyRemainder.CurrentLevel == 12 && legacyRemainder.Experience == 50,
             "Converted remainder survives actual TagCompound save/load without repeated level grants.");
+        // 双足翼龙是可跳过的事件终点：剔除出阶段，进度不低于它的条目整体前移 1。
+        bosses.Clear();
+        Boss("Terraria HallowBoss", 15);
+        var betsy = Boss("Terraria DD2Betsy", 16);
+        typeof(KLGameStateManager.BossChecklistBossInfo).GetField("npcIDs", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(betsy, new List<int> { NPCID.DD2Betsy });
+        Boss("BetweenBetsyAndCultist", 16.5f);
+        Boss("Terraria CultistBoss", 17);
+        Boss("Terraria MoonLordCore", 18);
+        manager.GetMethod("RemoveIgnoredStages", flags)!.Invoke(null, null);
+        Check(!betsy.isBoss && bosses["Terraria HallowBoss"].progression == 15 && bosses["BetweenBetsyAndCultist"].progression == 15.5f
+            && bosses["Terraria CultistBoss"].progression == 16 && bosses["Terraria MoonLordCore"].progression == 17,
+            "Betsy is removed as a stage and later progression shifts down by one.");
+        Check(KLGameStateManager.GetBossState(new NPC { type = NPCID.DD2Betsy }) == -1f, "Betsy kills do not advance character progress.");
+        Check(KLGameStateManager.TryGetNextBoss(15, out _, out state) && state == 15.5f, "Next stage after Empress skips Betsy.");
+        Check(KLGameStateManager.GetWorldMaxBossValue() == KLGameStateManager.Moonlord && KLGameStateManager.GetLevelCap(KLGameStateManager.Moonlord) == 90
+            && KLGameStateManager.GetLevelCap(KLGameStateManager.LunaticCultist) == 85,
+            "Moon Lord is stage 17 with a level cap of 90.");
+        Check(KLDpsHelper.GetLevelDps(80) == 1300 && KLDpsHelper.GetLevelDps(85) == 1800 && KLDpsHelper.GetLevelDps(90) == 3500,
+            "KL DPS nodes follow the shifted Cultist and Moon Lord caps.");
         bosses.Clear();
         CheckStudyPoints();
         CheckStudyCosts();
+        CheckCombatProgression();
         CheckBalanceMigration();
         Console.WriteLine($"PASS: {passed} character progress checks against production assemblies.");
     }
@@ -280,25 +300,86 @@ static class Checks
     static IEnumerable<SkillUnlockCondition> Leaves(SkillUnlockCondition condition) =>
         condition is CompositeSkillUnlockCondition group ? group.Conditions.SelectMany(Leaves) : [condition];
 
+    static void CheckCombatProgression()
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var store = typeof(SkillBalanceSystem).GetField("store", flags)!.GetValue(null)!;
+        Check((bool)store.GetType().GetMethod("Apply")!.Invoke(store, [File.ReadAllText(SkillBalanceConfig.ResourcePath)])!, "Load actual combat config");
+        var config = SkillBalanceSystem.Current;
+        // Even the cheapest 2+2 leaves too little for a third maxed skill of either kind.
+        for (int level = 30; level <= 90; level++) {
+            int basic = config.GetSkillLevelCap(config.Skills["MagicMissileSkill"], level);
+            int active = config.GetSkillLevelCap(config.Skills["WaterBallSkill"], level);
+            long income = ExperienceRules.StudyPointsForLevels(1, level);
+            int cheapest = 20 + 2 * (basic - 1) * 10 + 40 + 2 * (active - 1) * 30;
+            int expensive = 50 + 2 * (basic - 1) * 10 + 50 + 2 * (active - 1) * 30;
+            Check(expensive <= income, $"Lv{level}: two basics and two actives affordable");
+            Check(cheapest + 20 + (basic - 1) * 10 > income, $"Lv{level}: third full basic requires giving up investment");
+            Check(cheapest + 20 + (active - 1) * 30 > income, $"Lv{level}: third full active requires giving up investment");
+        }
+        var previousPlayer = GameMain.player[0];
+        bool previousMenu = GameMain.gameMenu;
+        var (character, skillPlayer) = CharacterFixture();
+        GameMain.player[0] = character.Player;
+        GameMain.myPlayer = 0; GameMain.gameMenu = false;
+        character.Progress = 17; character.CurrentLevel = 55;
+        var lateSkill = new 伊蕾娜.ElainaModSkills.Skills.Ice.ShardbindSkill {Level = 1};
+        Check(lateSkill.MaxLevel == 12, "Production skill exposes all twelve levels immediately at character Lv55");
+        var lateOwned = new Skill();
+        typeof(Skill).GetProperty("ModSkill", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(lateOwned, lateSkill);
+        lateSkill.Skill = lateOwned;
+        skillPlayer.SkillPoint = 330;
+        for (int next = 2; next <= 12; next++) {
+            Check(lateSkill.GetConstellationUpgradeCondition(next).TryUnlock(skillPlayer, lateSkill), "Pay for every catch-up level");
+            lateSkill.TryLevelUp();
+        }
+        Check(lateSkill.Level == 12 && skillPlayer.SkillPoint == 0, "Eleven purchases cost 330 points without waiting for character levels");
+        lateSkill.TryLevelUp();
+        Check(lateSkill.Level == 12, "Production upgrade stops at the current cap");
+        character.CurrentLevel = 65;
+        Check(lateSkill.Level == 12 && lateSkill.MaxLevel == 14, "Character leveling opens cap without granting learned levels");
+        GameMain.player[0] = previousPlayer; GameMain.gameMenu = previousMenu;
+        var refundType = typeof(ElainaSkill).Assembly.GetType("伊蕾娜.ElainaModSkills.SkillForgetting")!;
+        var refund = refundType.GetMethod("Refund", flags)!;
+        int Refund(ElainaSkill skill) => (int)refund.Invoke(null, [skill, skill.Level])!;
+        var cases = new (ElainaSkill Skill, int OldCost, int NewCost)[] {
+            (new MagicMissileSkill(),5,10), (new WaterBallSkill(),15,30),
+            (new 伊蕾娜.ElainaModSkills.Skills.Ice.ShardbindSkill(),20,30),
+            (new 伊蕾娜.ElainaModSkills.Skills.Ice.IceConeSkill(),20,10) };
+        foreach (var (skill, oldCost, newCost) in cases) {
+            skill.DeserializeData(new TagCompound { ["Level"] = 4 });
+            Check(skill.Level == 4 && Refund(skill) == 3 * oldCost, "Old level and invested points preserved: " + skill.GetType().Name);
+            skill.Level++;
+            Check(Refund(skill) == 3 * oldCost + newCost, "New upgrades refund at the new price");
+            var tag = new TagCompound(); skill.SerializeData(tag);
+            var restored = (ElainaSkill)Activator.CreateInstance(skill.GetType())!;
+            restored.DeserializeData(tag);
+            Check(Refund(restored) == Refund(skill), "Save/load preserves the old-price adjustment without repeating migration");
+        }
+        var fresh = new WaterBallSkill {Level = 4};
+        Check(Refund(fresh) == 90, "Fresh skills use only the new refund price");
+    }
+
     static void CheckStudyCosts()
     {
         var (_, skills) = CharacterFixture();
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(SkillBalanceConfig.ResourcePath), out var config, out var error), error);
         int total = 0;
         var plan = new (ElainaSkill Skill, int Unlock, int Upgrade, int Level)[] {
-            (new AshenWitchSkill(), 0, 0, 1), (new MagicMissileSkill(), 0, 5, 15),
-            (new MagicBarrierSkill(), 10, 0, 1), (new MultiMissileSkill(), 20, 15, 7),
+            (new AshenWitchSkill(), 0, 0, 1), (new MagicMissileSkill(), 0, 10, 15),
+            (new MagicBarrierSkill(), 10, 0, 1), (new MultiMissileSkill(), 20, 30, 8),
             (new AlchemySkill(), 10, 15, 7), (new DollControlSkill(), 20, 5, 7),
-            (new FlightSkill(), 15, 10, 3), (new WindSlashSkill(), 20, 5, 9),
-            (new HealSkill(), 20, 15, 2), (new WaterLaserSKill(), 25, 5, 5),
-            (new WaterBallSkill(), 25, 15, 3), (new RecallSkill(), 20, 0, 1) };
+            (new FlightSkill(), 15, 10, 3), (new WindSlashSkill(), 20, 10, 15),
+            (new HealSkill(), 20, 15, 2), (new WaterLaserSKill(), 25, 10, 15),
+            (new WaterBallSkill(), 25, 30, 8), (new RecallSkill(), 20, 0, 1) };
         foreach (var (skill, unlock, upgrade, level) in plan) {
             string id = skill.GetType().Name;
             var leaves = Leaves(skill.UnlockCondition).ToArray();
             Check(leaves.OfType<SkillPointUnlockCondition>().Sum(c => c.SkillPointCost) == unlock, id + " planned unlock cost");
             var items = leaves.OfType<ItemSkillUnlockCondition>().SelectMany(c => c.Items).ToArray();
-            Check(skill is RecallSkill ? items.Length == 1 && items[0].ItemType == ItemID.PotionOfReturn && items[0].Stack == 1
-                : items.Length == 0, id + " no placeholder materials; only Recall consumes a return potion");
+            Check(skill is RecallSkill ? items.Length == 1 && items[0].ItemType == ItemID.RecallPotion && items[0].Stack == 1
+                : skill is WaterLaserSKill ? items.Length == 1 && items[0].ItemType == ModContent.ItemType<伊蕾娜.ElainaModSkills.item.WaterSpellbook>() && items[0].Stack == 1
+                : items.Length == 0, id + " required materials only: Recall potion or water spellbook");
             if (level > 1) {
                 Check(config.GetSkillLevelCap(config.Skills[id], 35) == level, id + " meat-pre progression nodes match budget");
                 var owned = new Skill();
@@ -315,7 +396,7 @@ static class Checks
             }
             total += unlock + (level - 1) * upgrade;
         }
-        Check(total == 590, "All planned pre-Hardmode skills at Lv35 cost 590 points including Recall");
+        Check(total == 1180, "All planned pre-Hardmode skills at Lv35 cost 1180 points including Recall");
         foreach (int characterLevel in Enumerable.Range(5, 31)) {
             int budget = 0;
             foreach (var (skill, unlock, upgrade, _) in plan) {
@@ -325,7 +406,7 @@ static class Checks
                 } else budget += unlock;
             }
             long earned = ExperienceRules.StudyPointsForLevels(1, characterLevel);
-            Check(earned >= budget, $"Lv{characterLevel}: {earned} points cover all available skills ({budget}), including Recall");
+            if (characterLevel >= 26) Check(earned < budget, $"Lv{characterLevel}: all skills must exceed the budget");
             Console.WriteLine($"Study budget Lv{characterLevel}: earned {earned}, all available skills {budget}, spare {earned - budget}.");
         }
         Check(!Enum.GetNames<DollCommand>().Contains("Attack") && !Enum.GetNames<DollCommand>().Contains("PlacePlanters")

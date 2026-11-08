@@ -130,14 +130,32 @@ public class SlashTrailActionNode : ElainaNode
         EnsureTrailArrays();
         BuildSegmentTrail(owner, segment, nodeProgress);
 
-        ElainaTrailVisualStyle.DrawSlashTrail(GetSlashTrailDrawPositions(owner), owner.MountedCenter,
-            owner.fullRotation, nodeProgress, DebugPoint);
+        if (DebugPoint)
+        {
+            DrawDebugPoint(owner, ApplyDirection(owner, segment, segment.StartPosition),
+                ApplyDirection(owner, segment, segment.EndPosition),
+                ApplyDirection(owner, segment, segment.ControlPointA),
+                ApplyDirection(owner, segment, segment.ControlPointB));
+        }
 
-        RestoreActionDrawBatch();
         if (DrawStar)
         {
             ElainaTrailVisualStyle.DrawDefaultStar(ref drawInfo, GetStarCenter(owner).Floor(), nodeProgress);
         }
+    }
+
+    internal void SubmitTrailBloom(ActionModPlayer actionPlayer, float nodeProgress)
+    {
+        Player owner = GetOwner(actionPlayer);
+        EnsureTrailArrays();
+        BuildSegmentTrail(owner, GetCurrentSegment(nodeProgress), nodeProgress);
+        // Snapshot both geometry and transform before the shared projectile queue runs.
+        Vector2[] points = (Vector2[])GetSlashTrailDrawPositions(owner).Clone();
+        Vector2 attachPoint = owner.MountedCenter;
+        float attachRotation = owner.fullRotation;
+        bool debugPoint = DebugPoint;
+        ElainaTrailVisualStyle.RequestTrailBloom(() =>
+            ElainaTrailVisualStyle.DrawSlashTrail(points, attachPoint, attachRotation, nodeProgress, debugPoint));
     }
 
     private SlashTrailSegment GetCurrentSegment(float nodeProgress)
@@ -199,11 +217,6 @@ public class SlashTrailActionNode : ElainaNode
             float trailProgress = i / (slashTrailPositions.Length - 1f);
             float pointProgress = MathHelper.Clamp(headProgress - trailLength * trailProgress, 0f, 1f);
             slashTrailPositions[i] = GetBezierPoint(pointProgress, startPosition, endPosition, pointA, pointB);
-        }
-
-        if (DebugPoint)
-        {
-            DrawDebugPoint(owner, startPosition, endPosition, pointA, pointB);
         }
     }
 

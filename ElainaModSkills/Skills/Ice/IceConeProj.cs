@@ -52,7 +52,7 @@ public class IceConeProj : ElainaBasicProjectile
         TrailSampleCount = 0;
         
         Projectile.friendly = true;
-        Projectile.penetrate = -1;
+        Projectile.penetrate = 1;
         Projectile.localNPCHitCooldown = 60;
         Projectile.usesLocalNPCImmunity = true;
         Projectile.DamageType = ModContent.GetInstance<ElainaBasicDamage>();
@@ -80,9 +80,8 @@ public class IceConeProj : ElainaBasicProjectile
             Projectile.position += playerMovement;
             if (time == BackwardFlyTime - 1)
             {
-                Vector2 dir = new Vector2(1, 0).RotatedBy(Projectile.rotation);
-                KLBasicDust.SpawnDust(Projectile.Center+dir*-50,ModContent.DustType<BurstCircle>(),velocity:dir,lifeTime:12,
-                    color:new Color(150,220,255,0),scale:new Vector2(0.3f,1.5f)*1.5f);
+                Vector2 direction = forwardVelocity.SafeNormalize(Vector2.UnitX);
+                IceConeWindDust.Emit(Projectile.Center - direction * 50f, direction);
             }
         }
 
@@ -223,7 +222,7 @@ public class IceConeProj : ElainaBasicProjectile
         Vector3 lightDirection = Vector3.Normalize(position - sunPosition);
         // HDR brightness belongs in RGB; alpha remains coverage in the 0-1 range.
         Vector4 baseColor = new(new Color(200, 220, 255).ToVector3() * 1.10f, 1f);
-        Vector3 fresnelColor = (new Color(255, 255, 255)).ToVector3();
+        Vector3 fresnelColor = (new Color(100, 100, 100)).ToVector3();
         //底光
         float ambientStrength = 0.8f;
         //光照影响强度
@@ -233,7 +232,9 @@ public class IceConeProj : ElainaBasicProjectile
 
         // 消融参数
         float dissolveNoiseScale = 1.0f;
-        float dissolveEdgeWidth = 0.2f;
+        float dissolveEdgeWidth = 0.3f;
+        float dissolveBloomStr = 10f;
+        Color dissolveColor = new Color(50, 155, 255);
 
         // 后撤阶段通过消融效果逐渐出现，后撤到一半时完全显现
         float dissolveThreshold;
@@ -263,7 +264,7 @@ public class IceConeProj : ElainaBasicProjectile
         iceConeEffect.Parameters["uCameraPosition"].SetValue(cameraPosition);
         iceConeEffect.Parameters["uBaseColor"].SetValue(baseColor);
         iceConeEffect.Parameters["uFresnelColor"].SetValue(fresnelColor);
-        iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Vector4(new Color(100, 200, 255).ToVector3() * 4.5f, 1f));
+        iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Vector4(dissolveColor.ToVector3() *dissolveBloomStr, 1f));
         iceConeEffect.Parameters["uAmbientStrength"].SetValue(ambientStrength);
         iceConeEffect.Parameters["uDiffuseStrength"].SetValue(diffuseStrength);
         iceConeEffect.Parameters["uFresnelStrength"].SetValue(fresnelStrength);

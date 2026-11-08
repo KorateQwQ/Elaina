@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using KL.SkillSystem;
 using Terraria.GameContent;
@@ -8,7 +8,7 @@ using 伊蕾娜.Items;
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
 /// <summary>
-/// 冰锥/冰凌锁的客户端索敌：锁定碰撞箱距离鼠标最近的敌人，
+/// 冰凌锁的客户端索敌：锁定碰撞箱距离鼠标最近的敌人，
 /// 并在目标身上绘制「寒霜菱形框」准星（Effects/Content/IceReticle.fx）。
 /// </summary>
 public class IceConeTargetSystem : ModSystem
@@ -38,10 +38,10 @@ public class IceConeTargetSystem : ModSystem
     private static float reticleRadius;
     private static Texture2D noiseTexture;
 
-    /// <summary>当前准星锁定的目标；未手持魔杖、未选中冰锥或冰凌锁、准星没有在追踪时返回 null。</summary>
+    /// <summary>当前准星锁定的目标；未手持魔杖、未选中冰凌锁或准星没有在追踪时返回 null。</summary>
     public static NPC LockedTarget => CanTrack && targetIndex >= 0 && IsValidTarget(Main.npc[targetIndex]) ? Main.npc[targetIndex] : null;
 
-    /// <summary>冰锥与冰凌锁共用目标：优先沿用准星锁定，否则按同样规则即时查找一次。</summary>
+    /// <summary>优先沿用准星锁定，否则按同样规则即时查找一次。</summary>
     public static NPC ResolveTarget() => CanTrack ? LockedTarget ?? FindTarget(Main.MouseWorld, -1) : null;
 
     public static NPC FindTarget(Vector2 mouseWorld, int currentIndex)
@@ -80,13 +80,13 @@ public class IceConeTargetSystem : ModSystem
 
     private static bool CanTrack => !Main.dedServ && !Main.gameMenu
         && Main.LocalPlayer is { active: true, dead: false, ghost: false }
-        && Main.LocalPlayer.HeldItem.ModItem is ElainaWand && IceConeSelected();
+        && Main.LocalPlayer.HeldItem.ModItem is ElainaWand && ShardbindSelected();
 
-    private static bool IceConeSelected()
+    private static bool ShardbindSelected()
     {
         List<Skill> skills = ElainaSkillModPlayer.GetActiveSkill;
         int index = ElainaSkillModPlayer.CurrentSkillIndex;
-        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is IceConeSkill or ShardbindSkill;
+        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is ShardbindSkill;
     }
 
     public override void OnWorldUnload() => ResetTracking();
@@ -161,6 +161,20 @@ public class IceConeTargetSystem : ModSystem
 
     private static void DrawReticle()
     {
+        if (ElainaActions.Action_IceCone.PreviewSpawnRange && !Main.dedServ && !Main.gameMenu
+            && Main.LocalPlayer is { active: true, dead: false, ghost: false }
+            && Main.LocalPlayer.HeldItem.ModItem is ElainaWand)
+        {
+            List<Skill> previewSkills = ElainaSkillModPlayer.GetActiveSkill;
+            int previewIndex = ElainaSkillModPlayer.CurrentSkillIndex;
+            if (previewIndex >= 0 && previewIndex < previewSkills.Count
+                && previewSkills[previewIndex]?.ModSkill is IceConeSkill)
+            {
+                Vector2 center = Main.LocalPlayer.MountedCenter;
+                ElainaActions.Action_IceCone.DrawSpawnRange(center, (Main.MouseWorld - center).ToRotation());
+            }
+        }
+
         if (alpha <= 0f || !CanTrack)
             return;
 

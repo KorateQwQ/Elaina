@@ -28,8 +28,8 @@ SkillName: {
 }
 
 SkillDesc: {
-	FireBurstSkill: Erupt at the target location, dealing {0} Fire damage and consuming {1:0.##} {$Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint}. Stores up to {2} charges and restores one every {3:0.##} seconds.
-	FireLaserSkill: Hold to charge for {0:0.##}s, then channel a flame beam. Every {1:0.##}s, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {2} Fire damage to enemies along the beam. Hits ignite enemies in about {4:0.##}s. Higher damage speeds up ignition, requiring at most {5:0.##}% of their maximum life in damage. Burning lasts 10s and further hits refresh it.
+	FireBurstSkill: Unleash a Flame Burst domain around yourself for {4:0.##}s, consuming {1:0.##} {$Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint}. Enemies inside are repeatedly struck by Flame Bursts, which fall faster the more enemies there are. Each deals {0} Fire damage and ignites within two hits. A burst that hits only one enemy deals {6} instead, and [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] enemies take {7} extra. Each enemy ignited inside extends the domain by {5:0.##}s, up to {8:0.##}s remaining. Casting again replaces the previous domain. Stores up to {2} charges and restores one every {3:0.##} seconds.
+	FireLaserSkill: Hold to charge for {0:0.##}s, then channel a flame beam. Every {1:0.##}s, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {2} Fire damage to enemies along the beam. Hits ignite enemies in about {4:0.##}s. Higher damage speeds up ignition, requiring at most {5:0.##}% of their maximum life in damage. Burning lasts 10s and further hits refresh it. Inside your own Flame Burst domain, beam damage increases by {6:0.#}% and its remaining duration does not decrease while firing. Right-click while channeling to quick-cast an equipped Flame Burst.
 	FlightSkill:
 		'''
 		While riding the broom, increases flight speed by {0:0.##}% and enables the Broom Acceleration key:
@@ -74,7 +74,7 @@ SkillDesc: {
 		'''
 	IceConeSkill:
 		'''
-		Fires three ice cones, each dealing {0} Ice damage and adding {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] buildup.
+		Continuously fires ice cones, each dealing {0} Ice damage and adding {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] buildup.
 		Deals 12.5% more damage and doubles Freeze buildup against [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
 		Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] yourself unseals one use of {2}.
 		'''
@@ -82,7 +82,7 @@ SkillDesc: {
 		'''
 		Hold to conjure a water orb, then release to launch it, dealing {0} damage.
 		After traveling a certain distance, the orb bursts in a wide splash behind the target along its flight direction. At close range, it bursts in a circular splash instead.
-		Inflicts [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] on non-burning enemies. Deals double damage to burning enemies and consumes their burn.
+		Inflicts [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] on non-burning enemies. Deals {1:0.#}% more damage to burning enemies and heavily consumes their burn.
 		'''
 	WaterLaserSKill:
 		'''
@@ -96,7 +96,7 @@ SkillDesc: {
 		'''
 	MultiMissileSkill:
 		'''
-		Summons a floating magic orb that follows you, up to {0} at a time.
+		Channels to summon floating magic orbs that follow you, up to {0} at a time.
 		Each orb fires a Magic Missile at the nearest enemy, dealing {1} magic damage.
 		'''
 	AshenWitchSkill:

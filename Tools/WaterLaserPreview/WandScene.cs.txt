@@ -59,6 +59,31 @@ namespace 伊蕾娜.ElainaActions {
         }
     }
     public static class WandScene {
+        public static void DrawIce(Vector2 origin, float angle, int frame, int tick, bool legacy) {
+            Main.timeForVisualEffects = tick;
+            WandReplayBase action = legacy ? new WandReplayBase() : new IceWandReplay();
+            action.Replay(origin, angle, IceWandReplay.Progress(frame), true);
+        }
+        public static void CheckIce() {
+            Main.timeForVisualEffects = 15;
+            var ice = new IceWandReplay();
+            var normal = new WandReplayBase();
+            Color full = normal.ReadStar(.5f);
+            Color hold = ice.ReadStar(IceWandReplay.Progress(1));
+            if (hold != full || ice.ReadStar(0) != full)
+                throw new Exception("Ice Cone star must reach normal brightness at start and while held.");
+            Color legacy = normal.ReadStar(IceWandReplay.Progress(1));
+            if (legacy.R >= hold.R / 3) throw new Exception("Legacy brightness regression no longer reproduced.");
+            int last = hold.R;
+            for (int frame = 2; frame <= 21; frame++) {
+                Color current = ice.ReadStar(IceWandReplay.Progress(frame));
+                if (current.R >= last) throw new Exception("Ice Cone star must fade throughout recovery.");
+                last = current.R;
+            }
+            if (last != 0) throw new Exception("Ice Cone star must disappear at recovery end.");
+            ice.ReadStar(IceWandReplay.Progress(1), shadow: .5f);
+            Console.WriteLine("PASS Ice Cone star: full held brightness, original purple/blink, 20-frame fade and no shadow duplicate.");
+        }
         public static void Draw(Vector2 origin, float angle, float progress, int tick, bool moving, bool water) {
             Main.timeForVisualEffects = tick;
             WandReplayBase action = water ? new WaterWandReplay() : new WandReplayBase();

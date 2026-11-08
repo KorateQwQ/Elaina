@@ -5,21 +5,15 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
-/// <summary>消亡后沿原轨迹追至死亡位置并收细；保留断裂模式供两版预览比较。</summary>
+/// <summary>消亡后沿原轨迹追至死亡位置并连续收细。</summary>
 public sealed class MagicMissileTrailVisuals
 {
     public const int FadeTicks = 22;
-    // 低频截面变化保留长亮线，独立裂口从撞击首帧开始扩开。
-    private const float ReleaseNoisePeriod = 1300f;
-    private const float ReleaseMaxShrinkRate = 1.25f;
-    private float noiseAlongScale;
     private TrailVertex[] vertices = Array.Empty<TrailVertex>();
     private readonly Vector2 noiseOffset;
-    private readonly Vector4[] crackSites = new Vector4[8];
     private readonly int headFrame;
     private readonly float headSpin;
     public bool Expiring;
-    public bool FracturedRelease;
     public float ReleaseSpeed { get; private set; }
     public int ReleaseTicks { get; private set; } = FadeTicks;
     private float followDuration = FadeTicks;
@@ -35,7 +29,7 @@ public sealed class MagicMissileTrailVisuals
         Expiring = true;
         ReleaseSpeed = Math.Max(0f, speedPerTick);
         followDuration = ReleaseSpeed > .01f ? Math.Max(.01f, length / ReleaseSpeed) : FadeTicks;
-        ReleaseTicks = FracturedRelease ? FadeTicks : Math.Max(1, (int)MathF.Ceiling(followDuration));
+        ReleaseTicks = Math.Max(1, (int)MathF.Ceiling(followDuration));
     }
 
     internal float ReleaseElapsed(float remaining) => (1f - Math.Clamp(remaining, 0f, 1f)) * ReleaseTicks;
@@ -60,27 +54,6 @@ public sealed class MagicMissileTrailVisuals
         noiseOffset = new Vector2((float)random.NextDouble(), (float)random.NextDouble());
         headFrame = random.Next(4);
         headSpin = (float)random.NextDouble() * MathHelper.TwoPi;
-        // 每发疏密不同的裂口，位置与开启时刻一次确定；不按固定区段排布，也不随时间移动。
-        // x=完整快照 U，y=开始收尖的时刻，z=最终半宽，w=尖端过渡宽度。
-        Array.Fill(crackSites, new Vector4(-10f, 2f, .01f, .02f));
-        int count = random.Next(6, 9), immediate = random.Next(1, 3);
-        for (int i = 0; i < count; i++)
-        {
-            float center = 0f;
-            bool placed = false;
-            for (int attempt = 0; attempt < 128 && !placed; attempt++)
-            {
-                center = .10f + (float)random.NextDouble() * .76f;
-                placed = true;
-                for (int j = 0; j < i; j++)
-                    if (MathF.Abs(center - crackSites[j].X) < .075f) { placed = false; break; }
-            }
-            if (!placed) break;
-            float onset = i < immediate ? -.12f : .03f + (i - immediate) * .48f / Math.Max(1, count - immediate - 1)
-                + (float)random.NextDouble() * .035f;
-            crackSites[i] = new Vector4(center, onset, .012f + (float)random.NextDouble() * .008f,
-                .014f + (float)random.NextDouble() * .014f);
-        }
     }
 
     /// <summary>
@@ -120,15 +93,8 @@ public sealed class MagicMissileTrailVisuals
     }
 
     /// <summary>
-    /// 消亡结束时从尾端缩掉的长度比例，按 age² 集中在后段；0 为完全不缩短、纯靠截面消融。
-    /// TrailManager 的线性缩短会在半程砍掉一半长度，提交时关闭，改由 BuildGeometry 只截掉尾端几何。
-    /// </summary>
-    public const float DefaultLengthShrink = .45f;
-    public float LengthShrink = DefaultLengthShrink;
-
-    // 独立几何入口供预览检查：几何中心线和原始宽度保持不变，局部收缩交给 PerlinX Shader。
-    // 缩短时只停止生成尾端几何，U 仍按完整路径计算：先截路径再重算 U 会让噪声图案在每次越过采样点时整体跳动。
-    internal int BuildGeometry(Vector2[] points, float remaining, float viewWidthScale, MagicMissileTrailNoise noise)
+    /// <summary>沿原路径追尾，连续收细截面。</summary>
+    internal int BuildGeometry(Vector2[] points, float remaining, float viewWidthScale)
     {
         if (points.Length < 2 || remaining <= 0) return 0;
         int subdivisions = 0;
@@ -140,13 +106,9 @@ public sealed class MagicMissileTrailVisuals
             subdivisions += Expiring ? Math.Max(1, (int)MathF.Ceiling(segmentLength / 1.5f)) : 1;
         }
         if (length < .01f) return 0;
-        // 使用完整快照长度，尾端截短时不改变噪声密度或已有断口的位置。
-        noiseAlongScale = length / ReleaseNoisePeriod;
-        float age = Expiring ? 1f - Math.Clamp(remaining, 0f, 1f) : 0f;
-        bool following = Expiring && !FracturedRelease;
-        float advance = following ? ReleaseSpeed * ReleaseElapsed(remaining) : 0f;
-        float visibleLength = following ? Math.Max(0f, length - advance) : length * (1f - LengthShrink * age * age);
-        if (visibleLength < .01f || (following && FollowProgress(remaining) >= 1f)) return 0;
+        float advance = Expiring ? ReleaseSpeed * ReleaseElapsed(remaining) : 0f;
+        float visibleLength = Expiring ? Math.Max(0f, length - advance) : length;
+        if (visibleLength < .01f || (Expiring && FollowProgress(remaining) >= 1f)) return 0;
         int count = 3 + subdivisions * 6;
         if (vertices.Length < count) vertices = new TrailVertex[count];
         float distance = 0;
@@ -155,8 +117,7 @@ public sealed class MagicMissileTrailVisuals
         {
             float segmentLength = Vector2.Distance(points[i], points[i + 1]);
             int steps = Expiring ? Math.Max(1, (int)MathF.Ceiling(segmentLength / 1.5f)) : 1;
-            // 可见长度在本段内结束时，保留原有细分点，只在截断处补一个顶点，保留部分完全不动
-            float end = segmentLength > 0f && distance + segmentLength > visibleLength
+            float end = Expiring && segmentLength > 0f && distance + segmentLength > visibleLength
                 ? Math.Clamp((visibleLength - distance) / segmentLength, 0f, 1f) : 1f;
             bool clipped = false;
             // 插值旧网格的两侧边，而非重算法线；增加采样不会改变未收缩时的轮廓。
@@ -173,7 +134,7 @@ public sealed class MagicMissileTrailVisuals
                 Vector2 center = Vector2.Lerp(points[i], points[i + 1], t);
                 Vector2 offset = Vector2.Lerp(offsetA, offsetB, t);
                 float u = (i + t) / points.Length;
-                if (following)
+                if (Expiring)
                 {
                     float materialU = PathUAtDistance(points, distance + segmentLength * t + advance);
                     offset *= MathHelper.Lerp(6f, 2f, materialU) / MathHelper.Lerp(6f, 2f, u);
@@ -222,32 +183,21 @@ public sealed class MagicMissileTrailVisuals
         return normal * MathHelper.Lerp(6, 2, i / (float)points.Length) * viewWidthScale;
     }
 
-    /// <summary>调用方结束 SpriteBatch 并恢复批次。固定贴图只读，顶点宽度完成全部消亡效果。</summary>
-    public void Draw(GraphicsDevice device, Effect effect, Texture2D texture, MagicMissileTrailNoise noise, Vector2[] points,
+    /// <summary>调用方结束 SpriteBatch 并恢复批次。</summary>
+    public void Draw(GraphicsDevice device, Effect effect, Texture2D texture, Vector2[] points,
         float remaining, Matrix transform, BlendState blend, float viewWidthScale = 1f)
     {
-        int count = BuildGeometry(points, remaining, viewWidthScale, noise);
+        int count = BuildGeometry(points, remaining, viewWidthScale);
         if (count == 0) return;
         device.BlendState = blend;
         device.DepthStencilState = DepthStencilState.Default;
         device.RasterizerState = RasterizerState.CullNone;
         device.SamplerStates[0] = SamplerState.LinearWrap;
-        device.SamplerStates[1] = SamplerState.LinearWrap;
         device.Textures[0] = texture;
         var viewport = device.Viewport;
         effect.Parameters["uTransform"].SetValue(transform * Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, 0, 1));
-        effect.Parameters["uTimex"].SetValue(TextureOffset - (Expiring && !FracturedRelease ? ReleaseElapsed(remaining) / 30f : 0f));
-        effect.Parameters["NoiseOffset"].SetValue(noiseOffset);
-        effect.Parameters["NoiseScale"].SetValue(new Vector2(noiseAlongScale, 0.55f));
-        effect.Parameters["CrackSites"].SetValue(crackSites);
-        float age = Expiring ? 1f - Math.Clamp(remaining, 0, 1) : 0f;
-        // 截面缓慢收细，裂口独立从首帧扩开；72% 寿命时与头部一起收完。
-        effect.Parameters["TrailAge"].SetValue(Expiring ? (FracturedRelease ? Math.Min(1f, age / HeadDissolveLife) : FollowProgress(remaining)) : 0f);
-        effect.Parameters["UseFracture"].SetValue(FracturedRelease);
-        effect.Parameters["MaxShrinkRate"].SetValue(ReleaseMaxShrinkRate);
-        effect.Parameters["ShrinkExponent"].SetValue(1.0f);
-        effect.Parameters["UseShrink"].SetValue(Expiring);
-        device.Textures[1] = noise.Texture;
+        effect.Parameters["uTimex"].SetValue(TextureOffset - (Expiring ? ReleaseElapsed(remaining) / 30f : 0f));
+        effect.Parameters["TrailAge"].SetValue(Expiring ? FollowProgress(remaining) : 0f);
         effect.CurrentTechnique.Passes[0].Apply();
         device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, count / 3);
     }

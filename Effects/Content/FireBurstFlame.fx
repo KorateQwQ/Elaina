@@ -119,6 +119,36 @@ float4 RingPixel(float4 color : COLOR0, float2 coords : TEXCOORD0) : COLOR0
     return color * mask;
 }
 
+// DomainRing 通道：炎爆领域的范围圈，沿领域边界燃烧的火环，火舌沿半径向外舔出。
+// 顶点同 WindRing（RingVertex），贴图坐标为相对圆心的像素偏移（y 向下）；uImage0 为可平铺噪声 PerlinX（LinearWrap）。
+// 着色同火柱：火势 = 包络 × 噪声，按 ClipOuter/ClipMid/ClipInner 三阈值着色。根部连续燃烧，噪声决定火舌长短；
+// 噪声沿火舌方向拉长并向外流动。
+float RingTime;        // 帧
+float RingRadius;      // 像素
+float FlameHeight;     // 火舌基准长度（像素），按噪声在 0.2～1.5 倍间起伏
+float InnerWidth;      // 根部向圆内的余辉宽度（像素）
+float2 FlowScale;      // 噪声采样：x 沿火舌方向、y 沿圆周（贴图单位 / 像素）
+float FlowSpeed;       // 噪声向外流动速度（贴图单位 / 帧）
+float RootLevel;       // 根部火势：越低黄色亮芯越细
+float RingStrength;    // 整体强度 0..1（展开、熄灭）
+
+float4 DomainRingPixel(float4 color : COLOR0, float2 local : TEXCOORD0) : COLOR0
+{
+    float arc = atan2(local.y, local.x) * RingRadius;
+    float h = length(local) - RingRadius;
+    float n = tex2D(uImage0, float2(arc * FlowScale.y, h * FlowScale.x - RingTime * FlowSpeed)).r;
+    float height = FlameHeight * (0.2 + 1.3 * n * n);
+    float env = h < 0 ? exp(-pow(h / InnerWidth, 2))
+        : exp(-2.6 * h / height) * (1 - smoothstep(0.4, 1.0, h / height));
+    env *= RootLevel * RingStrength;
+    float field = env * (0.25 + 0.75 * n);
+    float edge = saturate((field - ClipOuter) / max(fwidth(field), 1e-4) + 0.5);
+    float midT = saturate((field - ClipOuter) / (ClipMid - ClipOuter));
+    float innerT = saturate((field - ClipMid) / (ClipInner - ClipMid));
+    float3 rgb = lerp(lerp(BandOuter.rgb, BandMid.rgb, midT), BandInner.rgb, innerT);
+    return float4(rgb, saturate(env / ClipOuter)) * edge * color;
+}
+
 technique Technique1
 {
     pass Apply
@@ -133,5 +163,10 @@ technique Technique1
     {
         VertexShader = compile vs_3_0 RingVertex();
         PixelShader = compile ps_3_0 RingPixel();
+    }
+    pass DomainRing
+    {
+        VertexShader = compile vs_3_0 RingVertex();
+        PixelShader = compile ps_3_0 DomainRingPixel();
     }
 }

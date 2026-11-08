@@ -24,7 +24,6 @@ public class WaterLaserSKill : ElainaSkill
         set => unlockCondition = value;
     }
 
-    public override SkillUnlockCondition GetConstellationUpgradeCondition(int nextLevel) => SkillUnlockCondition.BySkillPoint(5);
 
     public override bool CanUseSkill()
     {

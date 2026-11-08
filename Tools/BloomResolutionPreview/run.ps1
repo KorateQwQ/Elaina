@@ -3,7 +3,8 @@ param(
     [string]$Dotnet = 'C:/Users/PC/.dotnet/dotnet.exe',
     [string]$Label = 'after',
     [string]$BaselineRevision = '',
-    [switch]$Check
+    [switch]$Check,
+    [switch]$StarTips
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -26,5 +27,6 @@ Copy-Item -LiteralPath "$PSScriptRoot/../BloomBackbufferPreview/Program.cs.txt" 
 Copy-Item -LiteralPath "$PSScriptRoot/Preview.cs.txt" -Destination "$work/Preview.cs"
 $previewArgs = @($repo, $kl, $pipelineRoot, "$work/$Label")
 if ($Check) { $previewArgs += '--check' }
+if ($StarTips) { $previewArgs += '--star-tips' }
 & $Dotnet run --project "$work/Preview.csproj" '-p:StartupObject=BloomResolutionPreview' "-p:TmlPath=$TmlPath" -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Bloom resolution preview failed' }

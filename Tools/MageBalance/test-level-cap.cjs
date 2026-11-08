@@ -18,11 +18,26 @@ let payload=JSON.parse(fs.readFileSync(path.join(__dirname,'../../ElainaModSkill
   });
   await page.goto('http://127.0.0.1:18768/#progression');
   await page.waitForFunction(()=>document.querySelector('#fileStatus').textContent.includes('已读取'));
+  const shard=page.locator('#progressionRows tr').filter({hasText:'ShardbindSkill'});
+  await page.locator('#progressionDetailSkill').selectOption('ShardbindSkill');
+  assert.equal(await shard.locator('[data-progression-field="growthStartLevel"]').inputValue(),'1');
+  await page.locator('#progressionPreviewLevel').fill('55');
+  assert.match(await shard.locator('[data-progression-cap]').innerText(),/Lv12/);
+  assert.match(await page.locator('#progressionDetailRows tr').first().innerText(),/Lv1\s*· 可达\s+1\s/);
+  await shard.locator('[data-progression-period]').selectOption('18');
+  assert.match(await shard.locator('[data-progression-cap]').innerText(),/Lv12/);
+  await page.locator('#saveMod').click();
+  await page.waitForFunction(()=>document.querySelector('#fileStatus').textContent.includes('已保存'));
+  assert.equal(payload.configuration.skills.find(x=>x.id==='ShardbindSkill').growthStartLevel,1);
+  assert.equal(payload.configuration.skills.find(x=>x.id==='ShardbindSkill').ratio,.2);
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#fileStatus').textContent.includes('已读取'));
+  assert.equal(await shard.locator('[data-progression-field="growthStartLevel"]').inputValue(),'1');
   const row=()=>page.locator('#progressionRows tr').filter({hasText:'AlchemySkill'});
   const cap=()=>row().locator('[data-progression-field="maxLevel"]');
   assert.equal(await cap().inputValue(),'8');
   await page.locator('#progressionDetailSkill').selectOption('AlchemySkill');
-  for(const level of [39,40,95,1000]){
+  for(const level of [39,40,90,1000]){
    await page.locator('#progressionPreviewLevel').fill(String(level));
    assert.match(await row().locator('[data-progression-cap]').innerText(),new RegExp(`Lv${level===39?7:8}（角色 ${level}）`));
   }

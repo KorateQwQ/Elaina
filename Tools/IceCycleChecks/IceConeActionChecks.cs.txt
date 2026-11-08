@@ -1,0 +1,85 @@
+using System.Runtime.CompilerServices;
+using KL.ActionsSystem;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using GameMain = Terraria.Main;
+
+static partial class Checks
+{
+    delegate void ModifyStats(Player p, Item item, ref Vector2 position, ref Vector2 velocity,
+        ref int type, ref int damage, ref float knockback);
+
+    static void CheckIceConeAction(Player player)
+    {
+        // No GPU resources are accessed: this sentinel only bypasses the constructor's texture load.
+        var wandField = typeof(ElainaAction).GetField("wandTex", All)!;
+        object savedWand = wandField.GetValue(null);
+        wandField.SetValue(null, RuntimeHelpers.GetUninitializedObject(typeof(Texture2D)));
+        try {
+            player.width = 20; player.height = 42; player.bodyFrame = new Rectangle(0, 0, 40, 56);
+            player.inventory[0] = new Item { type = ItemID.Wood, stack = 1, ChangePlayerDirectionOnShoot = true };
+            ContentInstance.Register(Attach(new IceConeProj()));
+            ModContent.GetInstance<IceConeProj>().Projectile.type = 1;
+            var actions = player.GetModPlayer<ActionModPlayer>();
+            int shots = 0, oppositeShots = 0, expectedFacing = 1;
+            using var canContinue = new Hook(typeof(Action_IceCone).GetMethod("CanContinueCasting", All)!,
+                (Action_IceCone _) => true);
+            using var aimInput = new Hook(typeof(Action_IceCone).GetMethod("UpdateLocalAim", All)!,
+                (Action_IceCone _) => { });
+            using var canShoot = new Hook(typeof(CombinedHooks).GetMethod("CanShoot")!,
+                (Player p, Item item) => true);
+            using var stats = new Hook(typeof(CombinedHooks).GetMethod("ModifyShootStats")!,
+                (ModifyStats)((Player p, Item item, ref Vector2 position, ref Vector2 velocity,
+                    ref int type, ref int damage, ref float knockback) => { }));
+            // Stop before world projectile allocation, AFTER real ShootFromAction has changed facing.
+            using var shoot = new Hook(typeof(CombinedHooks).GetMethod("Shoot")!,
+                (Player p, Item item, EntitySource_ItemUse_WithAmmo source, Vector2 position,
+                    Vector2 velocity, int type, int damage, float knockback) => {
+                    shots++;
+                    Check(p.direction == (velocity.X < 0 ? -1 : 1), "Real shot callback changes facing from projectile velocity");
+                    if (p.direction != expectedFacing) oppositeShots++;
+                    return false;
+                });
+
+            foreach (float gravity in new[] { 1f, -1f })
+            foreach (float angle in new[] { -MathHelper.PiOver2, MathHelper.PiOver2,
+                -MathHelper.PiOver2 - .02f, -MathHelper.PiOver2 + .02f,
+                MathHelper.PiOver2 - .02f, MathHelper.PiOver2 + .02f, 0f, MathHelper.Pi }) {
+                player.gravDir = gravity;
+                var action = new Action_IceCone(null, 10, 0, 1, 0);
+                action.OnStart(actions);
+                typeof(Action_IceCone).GetField("worldAimRotation", All)!.SetValue(action, angle);
+                typeof(Action_IceCone).GetMethod("ApplyPose", All)!.Invoke(action, null);
+                typeof(ElainaAction).GetMethod("SyncItemRotationToArmRotation", All)!.Invoke(action, null);
+                expectedFacing = player.direction;
+                float arm = player.compositeFrontArm.rotation, itemRotation = player.itemRotation;
+                Vector2 itemLocation = player.itemLocation;
+                GameMain.rand = new UnifiedRandom(7351);
+                for (int frame = 0; frame < 120; frame++) {
+                    // Repeated first-shot nodes, then automatic channel callbacks.
+                    if (frame < 40) action.Update(actions, 1, action.GetProgress(1));
+                    else action.OnHoldUpdate(actions, 1, frame - 40);
+                    Check(player.direction == expectedFacing, $"Ice pose facing survives shot: angle={angle}, gravity={gravity}, frame={frame}");
+                    Near(player.compositeFrontArm.rotation, arm, "Arm stays aligned after shot");
+                    Near(MathHelper.WrapAngle(player.itemRotation - itemRotation), 0, "Wand stays aligned after shot");
+                    Near(Vector2.Distance(player.itemLocation, itemLocation), 0, "Wand grip stays in place after shot");
+                }
+                int beforeRelease = shots;
+                action.OnHoldExit(actions, 1);
+                for (int frame = 2; frame <= 21; frame++) action.Update(actions, frame, action.GetProgress(frame));
+                Check(shots == beforeRelease, "Recovery emits no extra shards");
+            }
+            Check(shots == 1920 && oppositeShots > 200, "Regression covers many shots whose facing opposes the aim");
+            Console.WriteLine($"Exercised {shots} real shooting callbacks, including {oppositeShots} opposing-facing shards.");
+        }
+        finally { wandField.SetValue(null, savedWand); }
+    }
+}
