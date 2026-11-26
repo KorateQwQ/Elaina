@@ -41,4 +41,4 @@ for path, size, compressed in entries:
         assert hashlib.sha256(data[12:]).hexdigest() == item['Sha256'], f'Packing changed texture RGBA: {path}'
         found.add(path)
 assert found == set(expected), set(expected) - found
-print(f'PASS package: all {len(found)} rawimg assets exactly match old runtime pixels; current DLL included; tools excluded; TMOD hash valid.')
+print(f'PASS package: all {len(found)} rawimg assets exactly match manifest pixels; current DLL included; tools excluded; TMOD hash valid.')

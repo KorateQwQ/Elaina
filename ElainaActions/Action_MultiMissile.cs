@@ -7,19 +7,20 @@ using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
 namespace 伊蕾娜.ElainaActions;
 
-/// <summary>保持一次挥杖动作，由原技能的层数与冷却驱动持续补球。</summary>
+/// <summary>保持挥杖姿势，按施法时的间隔依次生成整组法球。</summary>
 public sealed class Action_MultiMissile : ElainaAction
 {
     private const int ChannelFrame = 1;
-    // 补球最短间隔（帧），实际间隔取它与技能冷却中较长者。写成属性便于热重载微调。
-    private static int MinimumShotInterval => 10;
+    private static int ShotInterval => 10;
     // 朝向联机同步的节流：角度变化超过阈值且距上次发送足够久才发包。
     private const float AimSyncThreshold = 0.04f;
     private const int AimSyncInterval = 3;
-    private readonly MultiMissileSkill castingSkill;
+    private readonly int shotInterval;
+    private readonly int damage;
+    internal bool UsesQuickCastInput { get; }
     private Item castingItem;
     private int castingSlot;
-    private int framesSinceShot;
+    private int shotsFired;
     private bool ending;
     private int actionToken;
     private float worldAimRotation;
@@ -27,24 +28,26 @@ public sealed class Action_MultiMissile : ElainaAction
     private int framesSinceAimSync;
 
     // 引导停在第 1 帧，默认淡入会让星芒与杖尾一直半亮；改为立即全亮，松手后在收势中淡出。
-    protected override void RequestActionStarBloom(float actionProgress)
+    protected override void RequestActionStar(float actionProgress)
     {
-        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+        ElainaTrailVisualStyle.RequestStar(StarCenter.Floor(), actionProgress,
             ElainaTrailVisualStyle.DefaultStarColor, fadeInEnd: 0f, fadeOutStart: GetProgress(ChannelFrame));
     }
 
-    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    protected override ElainaTrailSnapshot CreateWandTrailVisual(Vector2[] points, float actionProgress)
     {
-        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+        return new ElainaTrailSnapshot(points, Vector2.Zero, 0f, actionProgress,
             ElainaTrailVisualStyle.DefaultWandTrailColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
             ElainaTrailVisualStyle.DefaultTrailEndWidth, fadeInEnd: 0f, fadeOutStart: GetProgress(ChannelFrame));
     }
 
-    public Action_MultiMissile() : this(null) { }
+    public Action_MultiMissile() : this(0, false) { }
 
-    public Action_MultiMissile(MultiMissileSkill skill) : base(10)
+    public Action_MultiMissile(int damage, bool quickCast) : base(10)
     {
-        castingSkill = skill;
+        this.damage = damage;
+        UsesQuickCastInput = quickCast;
+        shotInterval = Math.Max(1, ShotInterval);
     }
 
     public override void OnStart(ActionModPlayer actionPlayer)
@@ -55,23 +58,13 @@ public sealed class Action_MultiMissile : ElainaAction
         lastSentAimRotation = worldAimRotation;
         castingItem = owner.HeldItem;
         castingSlot = ElainaSkillModPlayer.CurrentSkillIndex;
-        // 首枚在释放当帧预留位置，第 0 帧到保持点已过去 1 帧；间隔从预留时算起，与旧版挥杖节奏一致。
-        framesSinceShot = ChannelFrame;
     }
-
-    internal bool IsChannelingSkill(MultiMissileSkill skill) =>
-        !ending && ReferenceEquals(castingSkill, skill)
-        && owner.GetModPlayer<ActionModPlayer>().IsActionHolding && CanContinueCasting();
 
     private bool CanContinueCasting()
     {
-        var skills = owner.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
         return owner.active && !owner.dead && !owner.CCed && !owner.noItems
-            && Main.mouseLeft && !owner.mouseInterface
             && ReferenceEquals(owner.HeldItem, castingItem)
             && ElainaSkillModPlayer.CurrentSkillIndex == castingSlot
-            && castingSlot >= 0 && castingSlot < skills.Count
-            && ReferenceEquals(skills[castingSlot]?.ModSkill, castingSkill)
             && owner.GetModPlayer<ElainaAttributeModPlayer>().UniqueMagicEnabled;
     }
 
@@ -79,7 +72,7 @@ public sealed class Action_MultiMissile : ElainaAction
         !ending && actionFrame == ChannelFrame;
 
     public override bool ShouldContinueHolding(ActionModPlayer actionPlayer, int actionFrame) =>
-        !ending && CanContinueCasting();
+        !ending && shotsFired < MultiMissileSkill.MissileCount && CanContinueCasting();
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
@@ -88,7 +81,8 @@ public sealed class Action_MultiMissile : ElainaAction
 
         UpdateLocalAim();
         ApplyPose();
-        // 松手或换物品发生在首枚延迟节点前时，不再执行该节点。
+        if (!ending && actionFrame == ChannelFrame && owner.whoAmI == Main.myPlayer)
+            SpawnNextOrb();
         if (!ending)
             base.Update(actionPlayer, actionFrame, actionProgress);
         else
@@ -103,17 +97,29 @@ public sealed class Action_MultiMissile : ElainaAction
         if (owner.whoAmI != Main.myPlayer || ending || !CanContinueCasting())
             return;
 
-        if (++framesSinceShot < MinimumShotInterval)
-            return;
-        if (!castingSkill.UpdateChannelShot(out bool fired))
-            ending = true;
-        if (fired)
-            framesSinceShot = 0;
+        if ((holdTime + 1) % shotInterval == 0)
+            SpawnNextOrb();
+    }
+
+    private void SpawnNextOrb()
+    {
+        int slot = shotsFired++;
+        ShootFromAction(owner, ModContent.ProjectileType<MagicMissleSpawner>(),
+            MultiMissileSkill.GetSlotPosition(owner, slot), Vector2.Zero, damage, 2f,
+            projectile => projectile.ai[1] = slot + 1);
     }
 
     public override void OnHoldExit(ActionModPlayer actionPlayer, int actionFrame) => ending = true;
-    public override void OnInterrupt(ActionModPlayer actionPlayer) => ending = true;
-    public override void OnFinish(ActionModPlayer actionPlayer) => ending = true;
+    public override void OnInterrupt(ActionModPlayer actionPlayer)
+    {
+        ending = true;
+        base.OnInterrupt(actionPlayer);
+    }
+    public override void OnFinish(ActionModPlayer actionPlayer)
+    {
+        ending = true;
+        base.OnFinish(actionPlayer);
+    }
 
     /// <summary>引导期间魔杖跟随鼠标；收势时停在最后的朝向。</summary>
     private void UpdateLocalAim()

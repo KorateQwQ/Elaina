@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.UICore;
 using static 伊蕾娜.ElainaModSkills.ElainaSkillUI.SkillWheelDrawing;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
@@ -116,21 +116,11 @@ internal static class HealingWheelDrawing
 
     private static Color Dim(Color color, float amount) => Color.Lerp(color, new Color(120, 112, 136), .6f * amount);
 
-    internal static void Text(SpriteBatch batch, DynamicSpriteFont font, string text, Vector2 position,
+    internal static void Text(SpriteBatch batch, UIRasterFont font, string text, Vector2 position,
         float size, float width, Color color)
     {
-        // Clamp long player names instead of shrinking them into unreadable text; use the same font to measure and draw.
-        float scale = size / Math.Max(1, font.MeasureString("国").X);
-        string shown = text;
-        while (shown.Length > 1 && font.MeasureString(shown).X * scale > width)
-        {
-            int length = shown.EndsWith("…", StringComparison.Ordinal) ? shown.Length - 2 : shown.Length - 1;
-            if (length > 0 && char.IsHighSurrogate(shown[length - 1])) length--;
-            shown = shown[..Math.Max(0, length)] + "…";
-        }
-        Vector2 origin = font.MeasureString(shown) / 2;
-        batch.DrawString(font, shown, position + new Vector2(.7f, 1), Color.Black * (.65f * color.A / 255f),
-            0, origin, scale, SpriteEffects.None, 0);
-        batch.DrawString(font, shown, position, color, 0, origin, scale, SpriteEffects.None, 0);
+        float pixels = UIRasterText.Pixels(batch, size);
+        string shown = UIRasterText.Fit(font, text, width * UIBatch.Scale(batch), ref pixels, pixels);
+        UIRasterText.Draw(batch, font, shown, position, color, pixels, new Vector2(.5f), Color.Black * (.5f * color.A / 255f));
     }
 }

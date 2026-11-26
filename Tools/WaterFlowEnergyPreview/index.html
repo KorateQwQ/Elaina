@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>水流术 · 鼠标水圈</title>
+<style>
+:root{color-scheme:dark;font:15px/1.5 'Microsoft YaHei',sans-serif;color:#e1eef6;background:#101b25;accent-color:#80bfff}*{box-sizing:border-box}body{margin:0}main{max-width:1080px;padding:clamp(18px,4vw,50px);margin:auto}h1{font-size:25px;margin:0 0 18px}section{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,290px);border:1px solid #3e5362}.scene{position:relative;display:grid;place-items:center;min-height:335px;background:#41918c;overflow:hidden;touch-action:manipulation}.scene canvas{pointer-events:none}.panel{padding:20px;background:#192935;display:grid;gap:14px}label{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px}input[type=range]{grid-column:span 2;width:100%;margin:0}input[type=color]{width:42px;height:26px;border:0;padding:0;background:none}output{font-variant-numeric:tabular-nums;color:#acd2e8}footer{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}button,select{font:inherit;color:inherit;border:1px solid #526c80;background:#203442;padding:6px 12px;border-radius:4px}button{cursor:pointer}button:hover{background:#304b60}#error{color:#ffb9ae;white-space:pre-wrap}@media(max-width:700px){section{grid-template-columns:1fr}.scene{min-height:235px}}
+.water-layer{position:absolute;top:50%;left:50%}#ring{position:relative}
+</style></head><body><main><h1>水流术 · 鼠标水圈</h1>
+<section><div class="scene" id="scene" title="点击模拟命中"><canvas id="ring" aria-label="鼠标水圈动画"></canvas></div><div class="panel">
+<label>能量 <output for="fill"></output><input id="fill" type="range" min="0" max="100" value="60"></label>
+<label>最大弧角 <output for="sweep"></output><input id="sweep" type="range" min="0" max="360" value="130"></label>
+<label>曲率（0% 为直线） <output for="curvature"></output><input id="curvature" type="range" min="0" max="100" value="65"></label>
+<label>起始角偏移（顺时针为正） <output for="startAngle"></output><input id="startAngle" type="range" min="-180" max="180" value="25"></label>
+<label>圆心 X 偏移（向右为正） <output for="offsetX"></output><input id="offsetX" type="range" min="-64" max="64" value="9"></label>
+<label>圆心 Y 偏移（向下为正） <output for="offsetY"></output><input id="offsetY" type="range" min="-64" max="64" value="0"></label>
+<label>水体 <input id="WaterColor" type="color"></label><label>白沫 <input id="FoamColor" type="color"></label>
+<label>边框 <input id="BorderColor" type="color"></label><label>底槽 <input id="TrackColor" type="color"></label>
+<label>波峰速度 <output for="crest"></output><input id="crest" type="range" min="0" max="4" step="0.05"></label>
+<label>表层泡沫速度 <output for="surface"></output><input id="surface" type="range" min="0" max="6" step="0.05"></label>
+<label>内层泡沫速度 <output for="inner"></output><input id="inner" type="range" min="0" max="6" step="0.05"></label>
+<label>显示倍率 <select id="zoom"><option>1</option><option selected>1.5</option><option>2</option><option>3</option></select></label>
+<label>背景 <input id="backdrop" type="color" value="#41918c"></label></div></section>
+<footer><button id="hit">模拟命中</button><button id="full">满蓄力</button><button id="spend">水球蓄力</button><button id="pause">暂停</button><button id="step">单帧</button><button id="reset">恢复默认</button></footer><p id="error" role="alert"></p>
+<script type="module" src="./ring-preview.js"></script></main></body></html>

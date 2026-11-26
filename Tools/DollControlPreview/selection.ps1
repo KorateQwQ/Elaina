@@ -1,4 +1,4 @@
-﻿param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/doll-selection'
@@ -24,6 +24,12 @@ $source.Substring(0, $end) + $source.Substring($saveStart, $saveEnd - $saveStart
     Set-Content -LiteralPath (Join-Path $output 'SelectionPlayer.cs') -Encoding utf8
 $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup /></Project>'
 foreach ($entry in @(
+    @('Compile', (Join-Path $repo 'ElainaModSkills/UICore/UIBatch.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/UICore/UIRasterText.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/UICore/UIRasterFont.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/UICore/UIRasterShapes.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/UICore/UIRasterStar.cs')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/UICore/UIRasterTexture.cs')),
     @('Reference', (Join-Path $Tml 'Libraries/FNA/1.0.0/FNA.dll')),
     @('Reference', (Join-Path $Tml 'Libraries/ReLogic/1.0.0/ReLogic.dll')),
     @('Reference', (Join-Path $Tml 'Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll')),

@@ -13,6 +13,7 @@ public class WindBlade : ElainaBasicProjectile
 
     public override void SetDefaults()
     {
+        InfusionElement = new(KL.DamageSystem.ElementType.Wind, SkillHitBalance.WindSlashBuildup);
         Projectile.timeLeft = 600;
         Projectile.friendly = true;
         Projectile.damage = 10;

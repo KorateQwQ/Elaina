@@ -9,17 +9,44 @@ sealed partial class Probe
     void DrawWindAlignmentFrames()
     {
         var draw = replay.GetType("Preview.BlendChecks").GetMethod("DrawWindLayer");
+        var tailBrightness = replay.GetType("Preview.WindSlash").GetField("OverrideLongTrailBrightness");
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
         void Render(int layer, int age, float rotation, bool bloom, string name, bool night = false) {
+            AssertHidden();
             Color background = night ? new Color(10,16,25) : new Color(79,160,161);
             GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(background);
+            // Measure the original fringe independently of the tail-root contribution.
+            tailBrightness.SetValue(null, layer == 2 ? 0f : (float?)null);
             draw.Invoke(null, new object[] { layer, age, rotation, bloom });
             GraphicsDevice.SetRenderTarget(null);
             using var file = File.Create(Path.Combine(output, name + ".png")); target.SaveAsPng(file, Width, Height);
             var pixels = new Color[Width*Height]; target.GetData(pixels);
             int darkened = pixels.Count(p => p.R+2 < background.R || p.G+2 < background.G || p.B+2 < background.B);
             if (darkened != 0) throw new Exception(name + $": grayscale mask darkened {darkened} background pixels");
+            if (layer == 2) CheckFringeFalloff(pixels, background);
+            if (layer == 3) {
+                // 单独绘制中央长尾；两翼应完全透出背景。
+                float halfWidth = (float)replay.GetType("Preview.WindSlash").GetProperty("TrailHalfWidth", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null);
+                int Peak(int x, int y, int count) => Enumerable.Range(y, count).Max(row => pixels[row*Width+x].R - background.R);
+                if (pixels.Where((p, i) => Math.Abs(i/Width + .5f - 320) > halfWidth).Any(p => p != background))
+                    throw new InvalidOperationException("Wind trail is visible outside the central ribbon");
+                if (Peak(679, 298, 44) > 2)
+                    throw new InvalidOperationException("Wind ribbon opacity is visible at a mesh edge");
+                if (Peak(550, 298, 44) < 90)
+                    throw new InvalidOperationException("Wind ribbon interior dimmed with its edge");
+                if (Peak(650, 298, 44) > 18 || Peak(670, 298, 44) > 3)
+                    throw new InvalidOperationException("Wind ribbon stays too bright immediately before the tail edge");
+            }
+            if (layer == 0 && night && age == 30 && !bloom) {
+                Color rim = pixels[320*Width + 421]; // 8 px ahead of the arc, outside all three original layers.
+                if (rim.R - background.R < 25 || rim.B - background.B < 20 || rim.R <= rim.G + 12)
+                    throw new InvalidOperationException("Wind lost its pink leading edge with Bloom disabled");
+            }
         }
+        foreach (bool night in new[] { false, true })
+        foreach (int age in new[] { 5, 10, 30 })
+        foreach (bool bloom in new[] { false, true })
+            Render(0, age, MathHelper.Pi, bloom, $"compare-{(night ? "night" : "day")}-{age}-{(bloom ? "on" : "off")}", night);
         for (int layer = 1; layer <= 3; layer++) Render(layer, 30, MathHelper.Pi, false, $"layer-{layer}");
         foreach (int age in new[] { 5, 10, 30 }) {
             Render(0, age, MathHelper.Pi, true, $"combined-{age:00}-left");
@@ -28,8 +55,67 @@ sealed partial class Probe
             Render(0, age, -MathHelper.PiOver2, true, $"combined-{age:00}-up");
         }
         Render(0, 30, MathHelper.Pi, true, "combined-30-night", true);
+        Render(0, 30, MathHelper.Pi, false, "combined-30-no-bloom");
+        foreach (int phase in new[] { 46, 77 }) {
+            Render(2, phase, MathHelper.Pi, false, $"fringe-{phase}");
+            Render(0, phase, MathHelper.Pi, true, $"combined-{phase}-left");
+        }
+        CheckTrailBloom(target);
         Console.WriteLine("PASS shader ellipse centers/radii and mesh tip/front contour agree at all sampled ages and directions");
-        Console.WriteLine("PASS grayscale mask: no dark fringe on separated layers or composites; NonPremultiplied preserved");
+        Console.WriteLine("PASS grayscale mask: no dark fringe on separated layers or composites");
         Console.WriteLine("Rendered actual WindSlash layers and composites at ages 5/10/30, four directions and day/night backgrounds. Uses the current source blend settings.");
+    }
+
+    void CheckTrailBloom(RenderTarget2D target)
+    {
+        var type = replay.GetType("Preview.WindSlash");
+        var front = type.GetField("OverrideTrailFrontColor");
+        var end = type.GetField("OverrideTrailEndColor");
+        var draw = replay.GetType("Preview.BlendChecks").GetMethod("DrawWindLayer");
+        foreach (bool backbuffer in new[] {false, true}) {
+            Color[] Render(float f, float e, bool bloom) {
+                front.SetValue(null, new Vector4(f, f, f, 1)); end.SetValue(null, new Vector4(e, e, e, 1));
+                GraphicsDevice.SetRenderTarget(backbuffer ? null : target);
+                GraphicsDevice.Clear(new Color(10,16,25));
+                draw.Invoke(null, [3, 30, MathHelper.Pi, bloom]);
+                Color[] pixels = new Color[Width*Height];
+                if (backbuffer) GraphicsDevice.GetBackBufferData(pixels); else target.GetData(pixels);
+                GraphicsDevice.SetRenderTarget(null);
+                return pixels;
+            }
+            var f = Render(3,0,false); var e = Render(0,3,false);
+            long Difference(int x0, int x1) => Enumerable.Range(300,40).Sum(y =>
+                Enumerable.Range(x0,x1-x0).Sum(x => (long)f[y*Width+x].R-e[y*Width+x].R));
+            if (Difference(429,465) <= 0 || Difference(590,675) >= 0)
+                throw new InvalidOperationException("Endpoint RGB gains did not change their respective trail sections");
+            var direct = Render(16,8,false); var bloom = Render(16,8,true);
+            if (!Enumerable.Range(0,bloom.Length).Any(i => direct[i].R == 10 && bloom[i].R > 12))
+                throw new InvalidOperationException("HDR trail failed to generate a native KL halo outside the ribbon");
+            Console.WriteLine($"PASS endpoint RGB gains with Bloom off and native KL halo with Bloom on (backbuffer={backbuffer})");
+        }
+        front.SetValue(null,null); end.SetValue(null,null);
+    }
+
+    // 沿飞行反方向测量风纹的平均可见长度及渐隐宽度，排除独立的中央长拖尾。
+    static void CheckFringeFalloff(Color[] pixels, Color background)
+    {
+        float[] reach = new float[3];
+        float[] feather = new float[3];
+        int[] centers = { -62, 0, 62 };
+        for (int band = 0; band < centers.Length; band++) {
+            for (int row = centers[band]-10; row <= centers[band]+10; row++) {
+                float side = (row+.5f)/80f;
+                int start = (int)(505 - 76*MathF.Sqrt(1-side*side));
+                var profile = Enumerable.Range(0, 70).Select(dx => pixels[(320+row)*Width+start+dx].R - background.R).ToArray();
+                int peak = profile.Max();
+                reach[band] += Array.FindLastIndex(profile, value => value > 35) / 21f;
+                feather[band] += profile.Count(value => value > peak*.15f && value < peak*.8f) / 21f;
+            }
+        }
+        // Flowing noise and the wing bias intentionally vary reach. Check that each band still has a soft edge.
+        if (reach.Min() < 18 || reach.Max() / reach.Min() > 2.5f ||
+            Enumerable.Range(0, 3).Any(i => feather[i] < reach[i] * .20f))
+            throw new InvalidOperationException($"Wind fringe reach {string.Join(", ",reach)}, feather {string.Join(", ",feather)}");
+        Console.WriteLine("PASS soft wind fringe (mean visible px): " + string.Join(" / ", reach.Select(x => x.ToString("F1"))));
     }
 }

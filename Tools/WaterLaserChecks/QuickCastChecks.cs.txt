@@ -40,6 +40,7 @@ sealed partial class Checks
         Skills.ActiveSkill.Add(laserSkill);
         Skills.ActiveSkill.Add(state);
         ballSkill.SkillSlot = 1;
+        player.GetModPlayer<ChargePointPlayer>().Points.Restore(ChargePoints.Maximum);
         Start(mana);
         Set(actions, "nextActionToken", token);
     }
@@ -65,24 +66,19 @@ sealed partial class Checks
             Check(actions.CurrentAnimAction is Action_WaterBall && actions.CurrentActionToken != oldToken,
                 phase + ": switches in the same action update");
             Check(!beam.Projectile.active && beam.CanDamage() == false, phase + ": old beam stops immediately");
-            Check(magic.MagicPoint == 100f && ballSkill.Stack == 0 && ballSkill.CurrentCD == 10f,
-                phase + ": exactly one mana payment, charge and cooldown");
+            Check(magic.MagicPoint == 100f && ballSkill.Stack == 0 && ballSkill.CurrentCD == ballSkill.MaxCD
+                && player.GetModPlayer<ChargePointPlayer>().Points.Current == ChargePoints.Maximum - ballSkill.ChargePointCost,
+                $"{phase}: expected one cast, got mana={magic.MagicPoint}, stacks={ballSkill.Stack}, cooldown={ballSkill.CurrentCD}");
             Check(ElainaSkillModPlayer.CurrentSkillIndex == 0 && OwnsRight(), phase + ": selection retained and wheel stays closed");
 
             // Leave spawning to the game fixture; advance the real action timeline and hold checks.
             ((IList)Field(typeof(AnimAction), "nodes").GetValue(actions.CurrentAnimAction)).Clear();
             for (int i = 0; i <= Action_WaterBall.HoldFrame; i++) Call(actions, "UpdateCurrentAction");
             Check(actions.IsActionHolding && actions.CurrentAnimAction is Action_WaterBall, phase + ": holds at charge end");
-            GameMain.mouseLeft = false;
-            Call(actions, "UpdateCurrentAction");
-            Check(actions.IsActionHolding, phase + ": right alone sustains charge");
-            GameMain.mouseLeft = true; GameMain.mouseRight = false;
-            Call(actions, "UpdateCurrentAction");
-            Check(actions.IsActionHolding, phase + ": left alone sustains charge");
-            GameMain.mouseLeft = false;
+            GameMain.mouseLeft = GameMain.mouseRight = false;
             Call(actions, "UpdateCurrentAction");
             Check(!actions.IsActionHolding && magic.MagicPoint == 100f && ballSkill.Stack == 0,
-                phase + ": releasing both exits hold without duplicate costs");
+                phase + ": automatic recovery at configured duration, paid once");
         }
 
         foreach (string phase in new[] { "release-frame", "recovery", "recovery-repress", "ended-with-left-held" }) {
@@ -155,19 +151,68 @@ sealed partial class Checks
         Check(OwnsRight(), "Simultaneous click reserves right before the laser action exists");
         GameMain.mouseLeft = false;
         Check(!OwnsRight(), "Idle right click still opens skill wheel");
-        var normal = new Action_WaterBall();
-        Check(!normal.ShouldContinueHolding(actions, 60), "Normal water ball still uses left only");
-        GameMain.mouseLeft = true;
-        Check(normal.ShouldContinueHolding(actions, 60), "Normal left charge preserved");
+        foreach (bool quick in new[] { false, true })
+        foreach (int streamTicks in new[] { 0, 90, 180 }) {
+            PrepareQuickCast();
+            for (int frame = 0; frame < streamTicks; frame++) {
+                if (Tick()) beam.OnHitNPC(GameMain.npc[1], default, 100);
+            }
+            if (quick) {
+                GameMain.mouseRight = true;
+                Check((bool)Call(ballSkill, "TryQuickCast"), "Quick cast after stream hits");
+            } else {
+                actions.InterruptCurrentAction();
+                ballSkill.PreUseSkill();
+            }
+            var cast = (Action_WaterBall)actions.CurrentAnimAction;
+            var orb = new WaterBall();
+            var projectile = new Projectile { owner=player.whoAmI, active=true };
+            projectile.Center = player.MountedCenter + Microsoft.Xna.Framework.Vector2.UnitX * 100;
+            Entity(orb,projectile);
+            typeof(Projectile).GetProperty("ModProjectile",All).SetValue(projectile,orb);
+            var nodes = (IList)Field(typeof(AnimAction),"nodes").GetValue(cast);
+            var configure=(Action<Projectile>)Field(typeof(ShootActionNode),"configureProjectile").GetValue(nodes[0]);
+            configure(projectile);
+            nodes.Clear(); // 弹幕已由正式节点配置，避免再次生成。
+            bool hold = streamTicks == 90;
+            GameMain.mouseLeft = hold;
+            GameMain.mouseRight = false;
+            Call(actions, "UpdateCurrentAction"); // 第 0 帧，弹幕从动作第 1 帧开始更新。
+            for (int tick = 1; tick <= (hold ? 160 : 60); tick++) {
+                if (quick && hold && tick == 50) {
+                    GameMain.mouseRight = true;
+                    GameMain.mouseLeft = false;
+                }
+                Call(actions, "UpdateCurrentAction");
+                Set(orb,"oldPosition",projectile.Center);
+                orb.AI();
+                if (tick < 60 && (orb.state != WaterBall.State.Hold || orb.WaterBallRadius >= 200))
+                    throw new InvalidOperationException($"Orb charged early at tick {tick} (quick={quick}, stream={streamTicks})");
+                if (hold && tick >= 60 && (orb.state != WaterBall.State.Hold || orb.WaterBallRadius != 200))
+                    throw new InvalidOperationException($"Expected fully charged orb at tick {tick} (quick={quick})");
+            }
+            if (hold) {
+                Check(actions.IsActionHolding, "Holding keeps the fully charged orb aimed");
+                GameMain.mouseLeft = false;
+                GameMain.mouseRight = !quick; // 普通水球只认左键。
+                orb.AI();
+                GameMain.mouseLeft = true; // 发射决定不受下一次输入影响。
+                Call(actions, "UpdateCurrentAction");
+            }
+            Check(orb.state == WaterBall.State.Fly && orb.WaterBallRadius == 200 && projectile.friendly
+                && Math.Abs(projectile.velocity.Length() - 35) < .001f && !actions.IsActionHolding,
+                $"Full-size launch and recovery (quick={quick}, stream={streamTicks}, held={hold})");
+            GameMain.mouseLeft = GameMain.mouseRight = false;
+        }
 
-        var source = new WaterBall(); Entity(source, new Projectile()); source.BindAction(123, true);
+        var source = new WaterBall(); Entity(source, new Projectile()); source.BindAction(123, 150);
         var receiver = new WaterBall(); Entity(receiver, new Projectile());
         using var data = new MemoryStream();
         using (var writer = new BinaryWriter(data, System.Text.Encoding.UTF8, true)) source.SendExtraAI(writer);
         data.Position = 0;
         using (var reader = new BinaryReader(data, System.Text.Encoding.UTF8, true)) receiver.ReceiveExtraAI(reader);
-        Check(Get<int>(receiver, "actionToken") == 123 && Get<bool>(receiver, "usesQuickCastInput"),
-            "Projectile sync preserves token and quick-cast input mode");
+        Check(Get<int>(receiver, "actionToken") == 123 && Get<int>(receiver, "chargeTicks") == 150,
+            "Projectile sync preserves token and the charge snapshot");
         Check(AnimActionRegistry.TryCreate(AnimActionRegistry.GetId(typeof(Action_WaterBall)), out var remote)
             && remote is Action_WaterBall, "Remote ball action reconstruction remains valid");
     }

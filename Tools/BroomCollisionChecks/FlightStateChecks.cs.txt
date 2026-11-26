@@ -25,7 +25,8 @@ internal static class FlightStateChecks
             var doc = JsonNode.Parse(json)!;
             var row = doc["configuration"]!["skills"]!.AsArray().First(n=>n!["id"]!.GetValue<string>()=="FlightSkill")!;
             row["flight"]![field]=value;
-            Check(!SkillBalanceConfig.TryParse(doc.ToJsonString(),out _,out _), "Reject invalid flight field "+field);
+            var validation = Task.Run(() => SkillBalanceConfig.Parse(doc.ToJsonString()));
+            Check(validation.ContinueWith(t => t.IsFaulted && t.Exception.GetBaseException() is FormatException).GetAwaiter().GetResult(), "Reject invalid flight field "+field);
         }
         float spent=0; int payments=0;
         bool Pay(float cost) { spent+=cost; payments++;return true; }

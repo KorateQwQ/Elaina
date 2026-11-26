@@ -10,8 +10,10 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 
-try { using var game = new Probe(args[0], args[1], args.Length > 2 ? args[2] : "depth"); game.Run(); }
-catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
+using var game = new Probe(args[0], args[1], args.Length > 2 ? args[2] : "depth",
+    args.Length > 3 && bool.Parse(args[3]));
+game.RunOneFrame();
+if (!game.Exported) throw new InvalidOperationException("离线导出未完成。");
 
 sealed partial class Probe : Game
 {
@@ -21,14 +23,16 @@ sealed partial class Probe : Game
     ContentManager content;
     SpriteBatch batch;
     bool done;
+    public bool Exported => done;
     readonly bool single;
     readonly bool bloomPreview;
     readonly bool trailPreview;
     readonly bool trackingPreview;
     readonly bool launchPreview;
-    public Probe(string root, string output, string mode)
+    readonly bool legacyBatch;
+    public Probe(string root, string output, string mode, bool legacyBatch)
     {
-        this.root = root; this.output = output; single = mode == "single"; bloomPreview = mode == "bloom";
+        this.root = root; this.output = output; this.legacyBatch = legacyBatch; single = mode == "single"; bloomPreview = mode == "bloom";
         trailPreview = mode == "trail";
         trackingPreview = mode == "tracking";
         launchPreview = mode == "launch";
@@ -36,6 +40,14 @@ sealed partial class Probe : Game
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
+    }
+
+    void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if ((flags & SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) == 0 || (flags & SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN) != 0)
+            throw new InvalidOperationException($"离线窗口意外显示：{flags}");
     }
 
     Assembly Compile()
@@ -112,16 +124,21 @@ sealed partial class Probe : Game
         string unitSource = "namespace 伊蕾娜.ElainaModSkills.Skills.Ice { public class IceCone3DUnit : VisualUnit {";
         var type = unit.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
         unitSource += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax or ConstructorDeclarationSyntax));
-        unitSource += Methods(unit, "Draw", "RequestIceConeDraw", "UpdateMovement", "GetModelMatrix", "GetStableModelForward", "GetDissolveThreshold",
+        unitSource += Methods(unit, "Draw", "RequestIceConeDraw", "UpdateLegacyMovement", "GetModelMatrix", "GetLegacyModelForward", "GetDissolveThreshold", "ApplyLockGrowth", "GetLockLengthScale",
             "GetModelOriginScreenPosition", "DrawTrail3D", "EnsureTrailEffect", "CreateRotationFromTo", "MoveWithTarget");
         unitSource += """
+            // This isolated depth probe uses the legacy, unprepared cone constructor.
+            private bool Prepared => false;
+            private int MotionTime => Timer - Delay;
+            private Vector3 GetStableModelForward(bool backward) => GetLegacyModelForward(backward);
             public static void Setup(ObjModel model, Texture2D color, Effect effect, Texture2D noise) {
                 iceCone = model; texture = color; iceConeEffect = effect; dissolveNoiseTexture = noise;
             }
-            public void Advance(int age) { Timer = Delay + age; for (int t = 0; t <= age; t++) UpdateMovement(t); }
+            public void Advance(int age) { Timer = Delay + age; for (int t = 0; t <= age; t++) UpdateLegacyMovement(t); }
             } public static class PreviewScene {
                 public static bool DisableDepth;
                 public static bool Tracking;
+                public static bool Occluder, SkipFront;
                 public static Vector2 TargetOffset;
                 static Texture2D marker;
                 public static void Setup(GraphicsDevice gd, SpriteBatch sb, string obj, Texture2D color, Effect effect, Texture2D noise) {
@@ -143,6 +160,14 @@ sealed partial class Probe : Game
                         cone.Advance(age); cone.MoveWithTarget(TargetOffset); cone.Draw();
                     }
                     BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles);
+                    if (Occluder) {
+                        Main.spriteBatch.Begin();
+                        Main.spriteBatch.Draw(marker, new Rectangle(0, 0, 480, 640), new Color(65, 52, 44));
+                        Main.spriteBatch.End();
+                    }
+                    if (SkipFront) { LayerDrawRequestSystem.ClearFrame(); return; }
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
                     BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers);
                     if (Tracking) {
                         var p = center + TargetOffset;
@@ -156,11 +181,20 @@ sealed partial class Probe : Game
                     }
                 }
             """;
+        var projection = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceCone3DUnit.Projection.cs"));
+        unitSource = unitSource.Replace("private bool Prepared => false;", "private bool Prepared => false; private Vector3 preparedCameraOffset;" +
+            Methods(projection, "GetProjectionCamera", "GetProjectionTransform", "GetViewProjectionMatrix", "ProjectToWorldPlane"));
+        var settings = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/ShardbindVisualSettings.cs"));
         unitSource += Methods(controller, "BuildIceCone3DSpawnData", "BuildIceConeFixedRotations", "GetIceConeSphereDirection");
         unitSource += string.Join("\n", controller.DescendantNodes().Where(n => n is StructDeclarationSyntax or RecordDeclarationSyntax).Select(n => n.ToFullString())) + "}}";
+        unitSource += "namespace 伊蕾娜.ElainaModSkills.Skills.Ice { static class ShardbindVisualSettings {" +
+            string.Join("\n", settings.DescendantNodes().OfType<PropertyDeclarationSyntax>().Where(p => p.Identifier.Text is "SphereBaseHdrGain" or "SphereFresnelGain" or "DissolveEdgeHdr")) + "}}";
         // Negative control changes only the depth-test state in the extracted real draw method.
         unitSource = unitSource.Replace("gd.DepthStencilState = DepthStencilState.Default;",
             "gd.DepthStencilState = PreviewScene.DisableDepth ? DepthStencilState.None : DepthStencilState.Default;");
+        // 仅恢复旧的批次结束条件，使用当前正式请求队列复现多枚冰锥的重复 Begin。
+        if (legacyBatch)
+            unitSource = unitSource.Insert(unitSource.IndexOf("Main.spriteBatch.End();", StringComparison.Ordinal), "if (ctx.IsFirst) ");
         var trees = new[] { preamble, unitSource, SingleSource(), BloomSource(), TrailSource(), LaunchSource(),
             File.ReadAllText(Path.Combine(kl, "Projectiles/TrailManager.cs")),
             File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeDepthRenderer.cs")),
@@ -200,6 +234,7 @@ sealed partial class Probe : Game
     Type Scene => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewScene");
     Color[] Render(int frame, bool reverse, RenderTargetUsage usage, string name)
     {
+        AssertHidden();
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, 0, usage);
         GraphicsDevice.SetRenderTarget(target);
         var bg = new Color(33, 48, 64);
@@ -216,6 +251,7 @@ sealed partial class Probe : Game
     }
     protected override void Draw(GameTime time)
     {
+        AssertHidden();
         if (done) { Exit(); return; } done = true;
         if (trackingPreview) {
             Scene.GetField("Tracking").SetValue(null, true);

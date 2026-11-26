@@ -45,11 +45,27 @@ canvas{display:block;border:1px solid #ffffff12;border-radius:2px}
 .card-foot li::marker{content:"✦  ";color:#c5ae91;font-size:9px}
 .note{color:var(--faint);font-size:12px;border-top:1px solid var(--line);padding-top:14px}
 .note code{color:#d8c6e4;font-size:11px}
+#charge-study .views{overflow-x:auto}
+.charge-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;padding:2px 22px 18px}
+.charge-controls label{color:var(--muted)}
+.charge-controls output{min-width:3em;font:15px var(--num);color:#ddd6f3}
+.charge-controls button:disabled{opacity:.45;cursor:default}
 </style>
 </head>
 <body>
 <main>
  <header><div class="crest"></div><div><h1>资源条 · 本体设计</h1><p>ELAINA HUD · BAR MATERIAL &amp; ORNAMENT STUDY</p></div></header>
+
+ <section class="card" id="charge-study">
+  <div class="card-head"><h2>充能点</h2></div>
+  <div class="views" id="charge-view"></div>
+  <div class="charge-controls">
+   <label for="charge-count">当前点数</label><input id="charge-count" type="range" min="0" max="8" value="5"><output for="charge-count" id="charge-value"></output>
+   <button id="charge-cast">试放技能（消耗 3 点）</button>
+   <button id="charge-gain">恢复 1 点</button>
+   <label><input type="checkbox" id="charge-night"> 夜景</label>
+  </div>
+ </section>
 
  <div class="lessons">
   <div><b>材质</b>填充是一种有内容的材质（碎羽、雪夜），不是纯色渐变</div>
@@ -445,7 +461,7 @@ function portraitGlint(c){const g=c.createRadialGradient(0,0,0,0,0,2.6);
 // 经验两侧同高上升，所以按进度水平裁出经验带下半部分即可得到两条臂。
 function xpCut(frac){return frac>=1?-PH.outer*2:PH.band*(1-2*frac)}
 function drawPortraitHud(c,ox,t){
- const{band,outer}=PH,G=outer,capped=X.lv>=X.cap,shown=XA.shown,frac=Math.max(0,Math.min(1,XA.disp-(shown-1)));
+ const{band,outer}=PH,G=outer,capped=X.lv>=X.cap&&X.xp>=XPL,shown=XA.shown,frac=Math.max(0,Math.min(1,XA.disp-(shown-1)));
  c.save();c.translate(ox+PR.x,PR.y);c.scale(PR.scale,PR.scale);
  portraitBase(c);
  // 低血量：经验槽上泛起蔷薇色脉冲（游戏中为白色底形着色）。
@@ -472,6 +488,110 @@ function drawPortraitHud(c,ox,t){
 const cardsEl=document.getElementById('cards');const views=[];
 const DPR=Math.min(2,devicePixelRatio||1);
 function mkCanvas(w,h,scale){const cv=document.createElement('canvas');cv.width=w*scale*DPR;cv.height=h*scale*DPR;cv.style.width=w*scale+'px';cv.style.height=h*scale+'px';return cv}
+
+// 每个槽只播放最近一次变化，滑块、施法和恢复按钮共用同一入口。
+const chargeInput=document.getElementById('charge-count');
+const chargeMax=Number(chargeInput.max);
+const chargeCost=3;
+const chargeCast=document.getElementById('charge-cast');
+const chargeGain=document.getElementById('charge-gain');
+const chargeNight=document.getElementById('charge-night');
+const chargeChangedAt=Array(chargeMax).fill(-Infinity);
+let shownCharge=chargeInput.valueAsNumber;
+function updateCharge(){
+ const count=chargeInput.valueAsNumber;
+ const now=performance.now()/1000;
+ for(let i=count;i<shownCharge;i++)chargeChangedAt[i]=now+.045*(shownCharge-1-i);
+ for(let i=shownCharge;i<count;i++)chargeChangedAt[i]=now+.045*(i-shownCharge);
+ shownCharge=count;
+ document.getElementById('charge-value').value=`${count} / ${chargeMax}`;
+ chargeCast.disabled=count<chargeCost;
+ chargeGain.disabled=count===chargeMax;
+}
+chargeCast.textContent=`试放技能（消耗 ${chargeCost} 点）`;
+chargeInput.oninput=updateCharge;
+chargeCast.onclick=()=>{chargeInput.stepDown(chargeCost);updateCharge()};
+chargeGain.onclick=()=>{chargeInput.stepUp();updateCharge()};
+updateCharge();
+
+function drawChargeStar(c,scale,flare){
+ c.save();c.scale(scale,scale);
+ star4(c,0,0,4.6,5.9,'#a594d6');
+ star4(c,0,0,2.7,3.8,'#cab4ef');
+ if(flare>0){
+  c.save();c.globalAlpha=flare;
+  star4(c,0,0,6.8,8,'#fffbff');
+  c.restore();
+ }
+ star4(c,0,0,2.45,3.6,'#fbf5ff');
+ c.restore();
+}
+
+const chargeDust=Array.from({length:chargeMax},(_,i)=>{
+ const random=rng((i+1)*1297);
+ return Array.from({length:7},(_,j)=>{
+  const angle=(j+.55*random())*TAU/7;
+  return {dx:Math.cos(angle)*(8+random()*10),dy:Math.sin(angle)*(4+random()*6)-3,
+   size:j%3===0?1.75:1.05,life:.32+random()*.27,delay:random()*.055};
+ });
+});
+function drawSpentDust(c,index,age){
+ for(const p of chargeDust[index]){
+  const u=(age-.105-p.delay)/p.life;
+  if(u<=0||u>=1)continue;
+  const travel=1-(1-u)**2;
+  const px=p.dx*travel,py=p.dy*travel-2.5*u*u;
+  const size=p.size*(1-.48*u);
+  c.globalAlpha=Math.min(1,u*14)*(1-u*u);
+  star4(c,px,py,size*1.45,size*1.95,'rgba(255,255,255,.55)');
+  star4(c,px,py,size,size*1.55,'#fff');
+ }
+}
+function drawChargeGain(c,age){
+ if(age<0)return;
+ const joinTime=.32;
+ if(age<joinTime){
+  const u=age/joinTime;
+  const remaining=1-u*u;
+  c.save();c.globalAlpha=Math.sin(Math.PI*u);
+  for(const side of [-1,1]){
+   const x=side*9*remaining;
+   const y=side*3*Math.sin(Math.PI*u);
+   star4(c,x,y,1.55,2.2,'#fff');
+  }
+  c.restore();
+ }
+ const grow=Math.max(0,Math.min(1,(age-.12)/.30));
+ if(grow>0){
+  const settle=Math.min(1,Math.max(0,(age-.42)/.16));
+  const scale=(1-(1-grow)**2)*(1+.16*(1-settle)**2);
+  drawChargeStar(c,scale,0);
+ }
+}
+function drawChargePoints(c,x,y,t){
+ const pitch=16;
+ const end=(chargeMax-1)*pitch;
+ c.save();c.translate(x,y);
+ c.beginPath();c.moveTo(0,0);c.lineTo(end,0);
+ c.strokeStyle='#626181';c.lineWidth=1;c.stroke();
+ for(let i=0;i<chargeMax;i++){
+  c.save();c.translate(i*pitch,0);
+  star4(c,0,0,5.7,7,'#524d70');
+  star4(c,0,0,3.8,4.9,'#6b6488');
+  const age=t-chargeChangedAt[i];
+  if(i<shownCharge)drawChargeGain(c,age);
+  else if(age<0)drawChargeStar(c,1,0);
+  else if(age<.34){
+   const rise=Math.min(1,age/.105);
+   const collapse=Math.max(0,(age-.105)/.235);
+   const scale=(1+.5*Math.sin(rise*Math.PI/2))*(1-collapse)**1.45;
+   drawChargeStar(c,scale,rise*(1-collapse));
+  }
+  if(i>=shownCharge&&age>=.105&&age<.76)drawSpentDust(c,i,age);
+  c.restore();
+ }
+ c.restore();
+}
 for(const st of state){const c=st.c;
  const el=document.createElement('section');el.className='card';
  el.innerHTML=`<div class="card-head"><span class="no">${c.no}</span><h2>${c.name}</h2><span class="en">${c.en}</span></div><div class="views"></div>
@@ -484,7 +604,7 @@ for(const st of state){const c=st.c;
 // 头像与等级只叠加在 A 款上，资源条本体及其烘焙来源保持不变。
 {const el=document.createElement('section');el.className='card';
  const notes=[['头像',['使用 PortraitSource.png，裁进菱形；由内到外为深色内线、发光经验带、留白、白色细外线，外线顶点缀一颗小星','头像在两条左侧，与资源条之间留白；魔力花蔓正好落在菱形与魔力条之间','生命低于 25% 时经验带泛起蔷薇色脉冲，不额外占位']],
-  ['等级 · 经验',['星徽：白边凹四芒星压在外线底点，黑底内缩一圈铺薰衣草芯、露出一道黑边，芯上放数字，左右各一颗小星横排成小大小；花饰（默认）为无框数字配两枝端部同款卷须小花；另保留银胶囊 / 星芒以便对比','经验带从底点沿两侧同时上升，薰衣草渐入淡粉并带柔光，前端一粒光点，顶点汇合即升级：经验带闪白、星屑散开','到达 Boss 进度上限时经验带褪成灰银、光点熄灭，表示经验暂存（最多一条，与 ExperienceRules 一致）']]];
+  ['等级 · 经验',['星徽：白边凹四芒星压在外线底点，黑底内缩一圈铺薰衣草芯、露出一道黑边，芯上放数字，左右各一颗小星横排成小大小；花饰（默认）为无框数字配两枝端部同款卷须小花；另保留银胶囊 / 星芒以便对比','经验带从底点沿两侧同时上升，薰衣草渐入淡粉并带柔光，前端一粒光点，顶点汇合即升级：经验带闪白、星屑散开','达到等级上限且暂存经验也已满时，经验带变为灰银色']]];
  el.innerHTML=`<div class="card-head"><span class="no">A+</span><h2>头像 · 等级</h2><span class="en">Portrait, Level &amp; Experience</span></div><div class="views"></div>
   <div class="card-foot">${notes.map(([h,li])=>`<div><h3>${h}</h3><ul>${li.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>`;
  cardsEl.insertBefore(el,cardsEl.children[1]);const vw=el.querySelector('.views');
@@ -492,10 +612,15 @@ for(const st of state){const c=st.c;
   const box=document.createElement('div');box.className='view';box.innerHTML=`<span>${v.kind==='detail'?'特写 ×3':'游戏内 · UI 150% · 右上角，含原版小地图'}</span>`;
   const cv=mkCanvas(v.w,v.h,v.scale);box.appendChild(cv);vw.appendChild(box);views.push({st:state[0],v,cv,ctx:cv.getContext('2d')})}}
 
+const chargeView={w:428,h:128,scale:2,kind:'game',hud:true,charge:true};
+const chargeCanvas=mkCanvas(chargeView.w,chargeView.h,chargeView.scale);
+document.getElementById('charge-view').appendChild(chargeCanvas);
+views.push({st:state[0],v:chargeView,cv:chargeCanvas,ctx:chargeCanvas.getContext('2d')});
+
 function render(t){
  for(const {st,v,ctx,cv} of views){
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);ctx.setTransform(v.scale*DPR,0,0,v.scale*DPR,0,0);
-  const day=v.kind==='game'||S.bg==='day';
+  const day=v.charge?!chargeNight.checked:v.kind==='game'||S.bg==='day';
   if(day){const g=ctx.createLinearGradient(0,0,0,v.h);g.addColorStop(0,'#6a9cf4');g.addColorStop(1,'#86b0f7');ctx.fillStyle=g}else ctx.fillStyle='#14121d';
   ctx.fillRect(0,0,v.w,v.h);
   let ox,oy1,oy2;
@@ -504,6 +629,7 @@ function render(t){
    ox=v.w-16-FRAME[st.c.frame].pad[1]-L;oy1=18;oy2=46}
   ctx.save();ctx.translate(ox,oy1);drawBar(ctx,st.hp,t,A.hp);ctx.restore();
   ctx.save();ctx.translate(ox,oy2);drawBar(ctx,st.mp,t+.7,A.mp);ctx.restore();
+  if(v.charge)drawChargePoints(ctx,ox+12,oy2+25,t);
   if(v.hud)drawPortraitHud(ctx,ox,t);
  }
 }

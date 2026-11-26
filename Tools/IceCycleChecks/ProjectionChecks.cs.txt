@@ -1,0 +1,68 @@
+using System.Reflection;
+using Microsoft.Xna.Framework;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+static partial class Checks
+{
+    static void CheckShardbindCameraMotion()
+    {
+        var create = typeof(IceCone3DUnit).GetMethod("CreatePrepared", All)!;
+        var spawn = typeof(ShardbindProj).GetMethod("BuildIceCone3DSpawnData", All)!;
+        var transform = typeof(IceCone3DUnit).GetMethod("GetProjectionTransform", All)!;
+        var project = typeof(IceCone3DUnit).GetMethod("ProjectToWorldPlane", All)!;
+        var model = typeof(IceCone3DUnit).GetMethod("GetModelMatrix", All)!;
+        var motionTime = typeof(IceCone3DUnit).GetProperty("MotionTime", All)!;
+        static Vector2 Project(Vector3 p, Vector3 camera) => new Vector2(camera.X, camera.Y)
+            + new Vector2(p.X - camera.X, p.Y - camera.Y) * (camera.Z / (camera.Z - p.Z));
+        float oldDrift = 0;
+        foreach (Vector2 center in new[] { new Vector2(1280, 720), new Vector2(130000, 35000) })
+        foreach (float cameraZ in new[] { -1343.5f, -1791.4f, -2687.1f, -4030.6f })
+        {
+            var spawns = (System.Collections.IEnumerable)spawn.Invoke(null, [center, 200f])!;
+            Vector3 target = new(center, 0), initialCamera = new(center + new Vector2(-400, -70), cameraZ);
+            int index = 0;
+            foreach (object data in spawns)
+            {
+                Vector2 xy = (Vector2)data.GetType().GetProperty("SpawnWorldPosition")!.GetValue(data)!;
+                float z = (float)data.GetType().GetProperty("StartDepth")!.GetValue(data)!;
+                Vector3 position = new(xy, z), velocity = Vector3.Normalize(target - position) * 58;
+                var unit = (IceCone3DUnit)create.Invoke(null, [position, target, velocity, 15, index, 0, (Vector3?)initialCamera])!;
+                unit.OnSpawn();
+                for (int tick = 1; tick <= 112; tick++)
+                {
+                    unit.Update();
+                    if (tick != 60 && tick != 75 + ShardbindSequence.ShotOffset(index)
+                        && tick != 78 + ShardbindSequence.ShotOffset(index) && tick != 112) continue;
+                    Matrix world = (Matrix)model.Invoke(unit, [motionTime.GetValue(unit)])!;
+                    foreach (Vector3 local in new[] { Vector3.Zero, new Vector3(0, 3, 0), new Vector3(1, -3, 1) })
+                    {
+                        Vector3 point = Vector3.Transform(local, world);
+                        Vector2 expected = Project(point, initialCamera);
+                        Check(Vector2.Distance((Vector2)project.Invoke(unit, [point])!, expected) < .1f,
+                            "Trail/wind projection preserves the original stationary composition");
+                        foreach (Vector2 movement in new[] { Vector2.Zero, new Vector2(400, 0), new Vector2(800, 200), new Vector2(-500, -300) })
+                        foreach (float depthScale in new[] { 1f, .8f, 1.25f })
+                        {
+                            Vector3 camera = initialCamera + new Vector3(movement, 0); camera.Z *= depthScale;
+                            Matrix warp = (Matrix)transform.Invoke(unit, [camera])!;
+                            Check(Vector2.Distance(Project(Vector3.Transform(point, warp), camera), expected) < .1f,
+                                "GPU projection stays aligned with world-space trail through camera motion/zoom");
+                            Check(Vector3.Distance(Vector3.Transform(target, warp), target) < .001f,
+                                "Camera correction leaves the NPC plane unchanged");
+                            if (index == 5 && tick == 60 && depthScale == 1f)
+                                oldDrift = Math.Max(oldDrift, Vector2.Distance(Project(point, camera), expected));
+                        }
+                    }
+                }
+                Vector2 projectedBefore = (Vector2)project.Invoke(unit, [unit.Position3D])!;
+                Vector2 targetMove = new(137, -83);
+                unit.MoveWithTarget(targetMove);
+                Check(Vector2.Distance((Vector2)project.Invoke(unit, [unit.Position3D])!, projectedBefore + targetMove) < .1f,
+                    "Moving target carries the anchored perspective by the same world offset");
+                index++;
+            }
+        }
+        Check(oldDrift > 500, "Negative control reproduces foreground drift with the old live-camera projection");
+        Console.WriteLine($"PASS camera regression: 15 cones, waiting/launch/impact/settled, four depths, camera crossing/vertical motion/zoom, target movement; old foreground drift={oldDrift:F1}px.");
+    }
+}

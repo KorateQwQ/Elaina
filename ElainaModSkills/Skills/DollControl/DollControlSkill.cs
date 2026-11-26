@@ -188,7 +188,7 @@ public class DollControlSkill : ElainaSkill
     // 兼容旧的术式选择入口；指令操作已独立于魔杖左键。
     public override bool BeginWandUse() => DollPetProjectile.FindOwned(Player) == null;
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         // 技能属于本地玩家；只有生成端支付魔力并创建弹幕，其他端使用原版同步。
         if (!CanUseSkill() || DollPetProjectile.FindOwned(Player) != null ||
@@ -203,6 +203,6 @@ public class DollControlSkill : ElainaSkill
         var first = DollPetProjectile.FindOwned(Player);
         if (first != null)
             Player.GetModPlayer<DollCommandPlayer>().DeliverLoot(first.Projectile.Center, first.Projectile.GetSource_FromThis());
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 }

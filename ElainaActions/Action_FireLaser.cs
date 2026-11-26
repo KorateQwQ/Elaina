@@ -33,16 +33,16 @@ public sealed class Action_FireLaser : ElainaAction
 
     private static readonly Color FireWandColor = ElainaTrailVisualStyle.FireWandColor;
 
-    protected override void RequestActionStarBloom(float actionProgress)
+    protected override void RequestActionStar(float actionProgress)
     {
         // 引导保持第 0 帧：立即显示；松手后进度走完 20 帧收势，光晕随之淡出。
-        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+        ElainaTrailVisualStyle.RequestStar(StarCenter.Floor(), actionProgress,
             FireWandColor, fadeInEnd: 0f, fadeOutStart: 0f);
     }
 
-    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    protected override ElainaTrailSnapshot CreateWandTrailVisual(Vector2[] points, float actionProgress)
     {
-        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+        return new ElainaTrailSnapshot(points, Vector2.Zero, 0f, actionProgress,
             FireWandColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
             ElainaTrailVisualStyle.DefaultTrailEndWidth, fadeInEnd: 0f, fadeOutStart: 0f);
     }
@@ -92,7 +92,8 @@ public sealed class Action_FireLaser : ElainaAction
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
-        TryQuickCast();
+        // 快速施放已打断本动作并换成炎爆施法动作，不能再继续处理本动作
+        if (TryQuickCast()) return;
         if (!ending && owner.whoAmI == Main.myPlayer
             && (!CanContinueCasting() || (actionFrame > ChannelStartFrame && beam?.Projectile.active != true)))
         {
@@ -111,7 +112,7 @@ public sealed class Action_FireLaser : ElainaAction
 
     public override void OnHoldUpdate(ActionModPlayer actionPlayer, int actionFrame, int holdTime)
     {
-        TryQuickCast();
+        if (TryQuickCast()) return;
         ApplyAimPose();
         SyncItemRotationToArmRotation();
     }
@@ -136,6 +137,7 @@ public sealed class Action_FireLaser : ElainaAction
     {
         if (!Main.mouseRight || !FireBurstSkill.TryGetEquipped(player, out _)) return false;
         var current = player.GetModPlayer<ActionModPlayer>().CurrentAnimAction;
+        if (current is Action_FireBurst { UsesQuickCastInput: true }) return true;
         if (current is Action_FireLaser laser) return laser.CanQuickCast;
         if (current != null || !Main.mouseLeft) return false;
         var skills = player.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
@@ -144,8 +146,16 @@ public sealed class Action_FireLaser : ElainaAction
     }
 
     public override void OnHoldExit(ActionModPlayer actionPlayer, int actionFrame) => StopBeam();
-    public override void OnInterrupt(ActionModPlayer actionPlayer) => StopBeam();
-    public override void OnFinish(ActionModPlayer actionPlayer) => StopBeam();
+    public override void OnInterrupt(ActionModPlayer actionPlayer)
+    {
+        StopBeam();
+        base.OnInterrupt(actionPlayer);
+    }
+    public override void OnFinish(ActionModPlayer actionPlayer)
+    {
+        StopBeam();
+        base.OnFinish(actionPlayer);
+    }
 
     public void FinishChannel(ActionModPlayer actionPlayer)
     {

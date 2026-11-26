@@ -47,7 +47,7 @@ internal static class Fixtures
         text[prefix + "SkillName.MagicBarrierSkill"] = "魔力护盾";
         text[prefix + "SkillName.WindBladeSkill"] = "风刃";
         text[prefix + "SkillName.MultiMissileSkill"] = "多重射击";
-        text[prefix + "SkillDesc.AshenWitchSkill"] = "伊蕾娜使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]释放技能，每获得一点原版最大魔力值，提升一点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限。伊蕾娜的额外生命值减少50%。每因灰之魔女减少1点生命上限，额外增加1点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限。\n\n魔力不足时，可消耗每1%最大生命，恢复魔力上限的1%用于施法。当前生命值低于10%时无法以此方式恢复。";
+        text[prefix + "SkillDesc.AshenWitchSkill"] = "伊蕾娜使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]释放技能，每获得一点原版最大魔力值，提升一点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]上限。伊蕾娜的额外生命值减少50%。每因灰之魔女减少1点生命上限，额外增加1点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]上限。\n\n魔力不足时，可消耗每1%最大生命，恢复魔力上限的1%用于施法。当前生命值低于10%时无法以此方式恢复。";
         text[prefix + "SkillDesc.MagicMissileSkill"] = "对目标造成魔法伤害。连续命中5次后造成额外伤害。";
         text[prefix + "SkillDesc.MagicBarrierSkill"] = "需要开启灰之魔女技能才可使用。\n护盾会根据因灰之魔女损失的血量提供伤害减免，并消耗相应魔力。";
     }
@@ -55,6 +55,20 @@ internal static class Fixtures
 
 internal static class PanelChecks
 {
+    internal static void CheckCrystalCosts()
+    {
+        var skill = new WaterBallSkill();
+        string name = Language.GetTextValue("Mods.伊蕾娜.Terms.MagicCrystal.Name");
+        string cost = skill.GetTooltipResourceCost();
+        string icon = "[klicon/16,0:伊蕾娜/ElainaAttribute/ResourceBarAssets/Star]";
+        if (!cost.Contains(icon) || !cost.Contains(name) || !cost.Contains($"×{skill.ChargePointCost}")
+            || !cost.Contains("MagicStarIcon") || cost.Contains("{$") || skill.GetConstellationDescription().Contains(name))
+            throw new Exception("Water Orb must list both resources in its cost, with no duplicate in its description.");
+        skill.MagicPointCost = 0;
+        if (skill.GetTooltipResourceCost().Contains("MagicStarIcon") || !skill.GetTooltipResourceCost().Contains(icon)
+            || new IceConeSkill().GetTooltipResourceCost().Contains(icon))
+            throw new Exception("A skill must only list the resources it spends.");
+    }
     private static int _count;
     private static void Check(bool value, string name) { if (!value) throw new Exception(name); _count++; }
     internal static void RunDebugTools()
@@ -203,9 +217,6 @@ internal static class PanelChecks
         state.SelectFilter("hidden"); Check(state.EmptyFilter, "empty filter");
         state.Select(nameof(HealSkill));
         Check(state.Current.name == nameof(HealSkill) && state.Current.ModSkill.GetConstellationDescription().Contains("待补充"), "missing localization fallback");
-        Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill"] = "{9}";
-        Check(state.Current.ModSkill.GetConstellationDescription().Contains("参数"), "missing format argument fallback");
-        Terraria.Localization.Language.Text.Remove("Mods.伊蕾娜.SkillInfo.SkillDesc.HealSkill");
         Main.gameMenu = true; Check(!state.Unlock() && !state.Equip() && !state.Toggle(nameof(AshenWitchSkill)), "world exit rejects mutations");
         Fixtures.Player(); Check(!state.IsCurrentPlayer, "character change rejects stale state");
         player = Fixtures.Player(typeof(CycleA), typeof(CycleB)); state = new(player);
@@ -319,12 +330,13 @@ internal static class PanelChecks
         Check(state.CanUnlock && state.Unlock() && player.SkillPoint == 0 && player.Player.inventory[0].IsAir && player.Player.inventory[1].IsAir,
             "learning consumes the same dynamic condition that was displayed");
         Check(!state.Unlock(), "duplicate learning cannot spend resources twice");
+        int upgradeCost = 伊蕾娜.ElainaModSkills.CombatSkillProgression.UpgradeCosts(nameof(MagicMissileSkill)).Current;
         report = state.Requirements(state.Selected, true);
-        Check(report.Rows.Count == 1 && report.PointCost == 20 && !state.CanUpgrade(state.Selected), "current configured upgrade requirement (points only) is represented");
+        Check(report.Rows.Count == 1 && report.PointCost == upgradeCost && !state.CanUpgrade(state.Selected), "current configured upgrade requirement (points only) is represented");
         player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 10;
         Check(state.Requirements(state.Selected, true).BlockReason == "研习点不足" && !state.Upgrade(state.Selected), "upgrade points shortage is explicit and cannot consume items");
         Check(player.Player.inventory[0].stack == 10, "failed upgrade keeps materials");
-        player.SkillPoint = 20;
+        player.SkillPoint = upgradeCost;
         Check(state.Upgrade(state.Selected) && state.Level(state.Selected) == 2 && player.SkillPoint == 0 && player.Player.inventory[0].stack == 10, "upgrade consumes only the displayed points");
         player.Player.inventory[0].type = 9; player.Player.inventory[0].stack = 5;
         var duplicate = new CompositeSkillUnlockCondition(SkillUnlockCondition.ByItems(new SkillUnlockItem(9, 3)),

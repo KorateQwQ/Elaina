@@ -29,13 +29,13 @@ public sealed class FrostVeilSkill : ElainaSkill
     public override bool CanUseSkill() => Main.netMode != NetmodeID.Server && Player.whoAmI == Main.myPlayer
         && Player.active && !Player.dead && Stack > 0 && base.CanUseSkill();
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (!CanUseSkill()) return false;
         var attributes = Player.GetModPlayer<ElainaAttributeModPlayer>();
         float absorption = attributes.MaxMagicPoint / 20f;
         if (absorption <= 0f || !attributes.ConsumeMagicPoint(MagicPointCost)) return false;
         FrostVeilSystem.Cast(Player, absorption);
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 }

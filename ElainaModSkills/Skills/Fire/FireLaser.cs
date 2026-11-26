@@ -31,9 +31,7 @@ public class FireLaser : ElainaBasicProjectile
     private float domainDamageMultiplier = 1f;
     private int intervalFrames = 10;
     private int pulseTimer;
-    private readonly Dictionary<int, FireBurnHit> pendingIgnitionHits = new();
     // 本次付费脉冲已提交附着的元素主体；多体节只由首个命中部位提交，不影响各部位伤害。
-    private readonly HashSet<(int Index, int Generation)> ignitedAnchors = new();
     private bool damagePulse;
     private bool IsChanneling => Projectile.ai[0] == 1f;
     private Vector2[] windPoints;
@@ -56,8 +54,8 @@ public class FireLaser : ElainaBasicProjectile
     public override void SetDefaults()
     {
         HeldInfo = new HeldProjInfo(true, 30, 0.2f, 100);
-        InfusionElement = ElementType.Fire;
-        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().SuppressBuildup = true;
+        InfusionElement = new(ElementType.Fire, SkillHitBalance.FireLaserBuildup);
+        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
         Projectile.width = Projectile.height = 10;
         Projectile.timeLeft = 30;
         Projectile.tileCollide = false;
@@ -130,7 +128,7 @@ public class FireLaser : ElainaBasicProjectile
     {
         if (!Main.dedServ && IsFiring)
         {
-            KLBasicDust.SpawnDustsCircle(Projectile.Center,
+            KLBasicDust.SpawnDustsCircle(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center,
                 ModContent.DustType<LineSparkle>(), 1, -Projectile.velocity * 12.1f,
                 6.28f, 20, new Color(255, 120, 35, 0), new Vector2(1,0.7f), 0, 0, new Vector2(0.8f, 0f), 7,attachedEntity:Projectile);
         }
@@ -168,8 +166,7 @@ public class FireLaser : ElainaBasicProjectile
                     damagePulse = true;
                     Projectile.friendly = true;
                     Array.Clear(Projectile.localNPCImmunity);
-                    pendingIgnitionHits.Clear();
-                    ignitedAnchors.Clear();
+                    Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
                     pulseTimer = intervalFrames;
                 }
                 pulseTimer--;
@@ -239,7 +236,7 @@ public class FireLaser : ElainaBasicProjectile
         {
             Vector2 offset = Main.rand.NextVector2Unit() * MathHelper.Lerp(radius.X, radius.Y, Main.rand.NextFloat());
             Vector2 velocity = -offset * 0.9f / travel;
-            KLBasicDust.SpawnDust(Projectile.Center + offset, ModContent.DustType<LineSparkle>(), velocity, life,
+            KLBasicDust.SpawnDust(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center + offset, ModContent.DustType<LineSparkle>(), velocity, life,
                 color, scale * MathHelper.Lerp(0.7f, 1.2f, progress), attachedEntity: Projectile);
         }
     }
@@ -253,7 +250,7 @@ public class FireLaser : ElainaBasicProjectile
         for (int i = 0; i < count; i++)
         {
             Vector2 direction = (MathHelper.TwoPi * (i + Main.rand.NextFloat(-0.35f, 0.35f)) / count).ToRotationVector2();
-            KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<LineSparkle>(),
+            KLBasicDust.SpawnDust(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center, ModContent.DustType<LineSparkle>(),
                 direction * MathHelper.Lerp(speed.X, speed.Y, Main.rand.NextFloat()), Main.rand.Next(16, 26),
                 color, new Vector2(Main.rand.NextFloat(1.2f, 1.8f), 0.8f));
         }
@@ -295,7 +292,7 @@ public class FireLaser : ElainaBasicProjectile
         maxDistance = laserLength;
         if (hitTerrain && IsFiring && !Main.dedServ)
         {
-            KLBasicDust.SpawnDustsCircle(Projectile.Center + Projectile.velocity * laserLength,
+            KLBasicDust.SpawnDustsCircle(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center + Projectile.velocity * laserLength,
                 ModContent.DustType<LineRotSparkle>(), 1, -Projectile.velocity * 12.1f,
                 1.3f, 20, new Color(255, 120, 35, 255), new Vector2(1,0.6f), 0, 150, new Vector2(0.8f, 0f), 7);
         }
@@ -378,7 +375,7 @@ public class FireLaser : ElainaBasicProjectile
         // HDR 颜色依赖 KL Bloom；直接在原版弹幕批次里绘制会被截断成白色且没有光晕。
         drawVisual ??= DrawVisual2;
         LayerDrawRequestSystem.RequestBloom("Elaina:FireLaser", FireLaserVisuals.Layer,
-            LayerDrawRequestSystem.DrawTiming.After, drawVisual);
+            LayerDrawRequestSystem.DrawTiming.Before, drawVisual);
         return false;
     }
 
@@ -442,10 +439,10 @@ public class FireLaser : ElainaBasicProjectile
             FireLaserBeamVisual.ReleaseTicks,
             new ReleaseState(beamVisual, direction, time, width, new ReleaseAnchor(Owner.whoAmI, actionToken, start)),
             DrawReleasedBeam,
-            layer: FireLaserVisuals.Layer, bloom: true, shrinkPathOnExpire: false,
+            layer: FireLaserVisuals.Layer, timing: LayerDrawRequestSystem.DrawTiming.Before, bloom: true, shrinkPathOnExpire: false,
             order: LayerDrawRequestSystem.ProjectileOrder);
         foreach (var spark in FireLaserBeamVisual.ReleaseSparks(start, direction, length, width, Projectile.identity * 397 ^ Projectile.owner))
-            KLBasicDust.SpawnDust(spark.Position, ModContent.DustType<LineSparkle>(), spark.Velocity,
+            KLBasicDust.SpawnDust(KLBasicDust.BloomPlacement.BeforeOverPlayers, spark.Position, ModContent.DustType<LineSparkle>(), spark.Velocity,
                 spark.Life, new Color(255, 120, 35, 0), spark.Size);
     }
     
@@ -598,20 +595,13 @@ public class FireLaser : ElainaBasicProjectile
     
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
+        if (ElementalStatusRules.IsFrozenOrFrostFractured(target))
+            modifiers.SourceDamage *= SkillHitBalance.FireLaserFrostDamageMultiplier;
         if (FireBurstDomain.FindContainingOwner(Owner) != null)
             modifiers.SourceDamage *= domainDamageMultiplier;
-        if (HasAuthority() && FireBurnNPC.CaptureHit(target) is { } snapshot)
-            pendingIgnitionHits[target.whoAmI] = snapshot;
         base.ModifyHitNPC(target, ref modifiers);
     }
 
-    public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
-    {
-        if (damageDone > 0 && HasAuthority() && pendingIgnitionHits.Remove(target.whoAmI, out var snapshot)
-            && ignitedAnchors.Add((snapshot.AnchorIndex, snapshot.AnchorGeneration)))
-            Owner.GetModPlayer<FireCyclePlayer>().RequestBeamHit(snapshot, Projectile, intervalFrames, damageDone);
-        base.OnHitNPC(target, hit, damageDone);
-    }
 
     public override void OnKill(int timeLeft)
     {

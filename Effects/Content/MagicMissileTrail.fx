@@ -41,8 +41,9 @@ float4 PixelShaderFunction(PSInput input) : COLOR0
     // 压缩整个横截面（包括亮芯），而非仅裁掉原贴图外缘；宽度变化从退场开始就可见。
     // 轴向纹理坐标保持不动，RGB/alpha 不随时间淡化，残线继续保持光感。
     float sampleY = 0.5 + (coord.y - 0.5) / max(sampleWidth, 0.0001);
-    float4 color = tex2D(uImage0, float2(coord.x + uTimex, sampleY));
-    return color * input.Color * coord.z * coverage;
+    // LightTrail 是灰度亮带；材质和亚像素宽度只决定覆盖度，直通 RGB 保留 HDR 色。
+    float mask = tex2D(uImage0, float2(coord.x + uTimex, sampleY)).a;
+    return float4(input.Color.rgb, saturate(mask * input.Color.a * coverage));
 }
 
 // 头部爆点：与拖尾同样用自带顶点着色器的四边形绘制图集中的一帧（不经 SpriteBatch，避免沿用不确定的顶点着色器），

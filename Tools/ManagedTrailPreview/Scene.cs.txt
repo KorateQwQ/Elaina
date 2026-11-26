@@ -25,7 +25,7 @@ namespace Terraria.ModLoader {
     }
 }
 namespace Terraria {
-    public class Projectile { public Vector2 Center, velocity = Vector2.UnitX; public float rotation; public float[] localAI = new float[2]; }
+    public class Projectile { public Vector2 Center, velocity = Vector2.UnitX; public float rotation; public int identity, owner; public float[] localAI = new float[2]; }
     public enum LightMode { Color, Retro, Trippy }
     public static class Lighting { public static LightMode Mode = LightMode.Color; }
     public class Player { public bool active; }
@@ -98,6 +98,8 @@ namespace KL.Drawing {
             RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.After);
         }
         public void RunBloom() => RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
+        public void RunForeground() => RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
+        public void RunHdrReference(LayerDrawRequestSystem.DrawTargetLayer layer, LayerDrawRequestSystem.DrawTiming timing) => RenderBloomRequestsWithoutPostProcess(layer, timing);
         public void Cache(Action prepare) => On_Main_CacheProjDraws(_ => prepare(), Main.instance);
         public void DrawLayers(Action preDraw) {
             On_Main_DrawCachedProjs((_, _, _) => {}, Main.instance, Main.instance.DrawCacheProjsBehindProjectiles, true);

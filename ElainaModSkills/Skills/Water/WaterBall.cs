@@ -80,8 +80,7 @@ public class WaterBall : ElainaBasicProjectile
     private float drawHeight = 1;
 
     private Vector2[] windPoints;
-    //伊蕾娜以自身魔力凝聚的水，用于计算水球大小
-    private int selfChargeWater = 0;
+    private int chargeTicks = WaterBallSkill.ChargeTicks;
 
     private bool born = false;
     private int TotalWaterBallCount = 0;
@@ -89,8 +88,8 @@ public class WaterBall : ElainaBasicProjectile
     public override void SetDefaults()
     {
         HoldDistance = 150;
-        InfusionElement = ElementType.Water;
-        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().SuppressBuildup = true;
+        InfusionElement = new(ElementType.Water, SkillHitBalance.WaterBallBuildup);
+        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
         state = State.Hold;
         TrailLength = 30;
         time2 = 60;
@@ -109,7 +108,7 @@ public class WaterBall : ElainaBasicProjectile
         Projectile.usesLocalNPCImmunity = true;
         Projectile.localNPCHitCooldown = 30;
         
-        selfChargeWater = 0;
+        time = 0;
 
         //手持弹幕配置，设置后此弹幕设置为手持属性
         HeldInfo = new HeldProjInfo(true, 360, 0.5f, 100);
@@ -128,30 +127,28 @@ public class WaterBall : ElainaBasicProjectile
     private bool needShoot = false;
     private Vector2 mousePosition;
     private int actionToken;
-    private bool usesQuickCastInput;
-
-    public void BindAction(int token, bool quickCast = false)
+    public void BindAction(int token, int duration)
     {
         actionToken = token;
-        usesQuickCastInput = quickCast;
+        chargeTicks = duration;
+        Projectile.netUpdate = true;
     }
 
     public override void SendExtraAI(BinaryWriter writer)
     {
-        //writer.WriteVector2(mousePosition);
-        writer.Write(needShoot);
         writer.Write(actionToken);
-        writer.Write(usesQuickCastInput);
+        writer.Write(chargeTicks);
+        writer.Write(time);
+        writer.Write(state == State.Fly);
         base.SendExtraAI(writer);
     }
 
-
     public override void ReceiveExtraAI(BinaryReader reader)
     {
-        //mousePosition = reader.ReadVector2();
-        needShoot = reader.ReadBoolean();
         actionToken = reader.ReadInt32();
-        usesQuickCastInput = reader.ReadBoolean();
+        chargeTicks = reader.ReadInt32();
+        time = reader.ReadInt32();
+        needShoot = reader.ReadBoolean() && state == State.Hold;
         base.ReceiveExtraAI(reader);
     }
 
@@ -194,48 +191,35 @@ public class WaterBall : ElainaBasicProjectile
         }*/
         return base.PreAI();
     }
-    //蓄力至少一秒后射出水球，水球在移动一定距离后会造成锥形范围伤害，否则造成圆形范围伤害
+    // 蓄满后松手发射，飞行距离决定爆炸形状。
     //水球仅靠自身凝聚成长，不受场地水源或天气影响
     public override void AI()
     {
-        if(needShoot)OnShoot();
-
         Projectile.oldPosition = Projectile.position;
-
-        //Main.NewText(Projectile.whoAmI+" " + Projectile.Center);
-        //Main.NewText(Owner.ownedProjectileCounts[Projectile.type]);
-        
-        if (HasAuthority())
+        if (state == State.Hold && HasAuthority() && (Owner.dead || !Owner.active ||
+            Owner.GetModPlayer<ActionModPlayer>().CurrentActionToken != actionToken))
         {
-            if (state==State.Hold)
-            {
-                if(time>60&&!Action_WaterBall.IsCastInputHeld(usesQuickCastInput))
-                {
-                    needShoot = true;
-                    HeldInfo.IsControlling = false;
-                    HeldInfo.IsHeld = false;
-                    Projectile.netUpdate = true;
-                }
-            }
+            Projectile.Kill();
+            return;
         }
-        
+        if (needShoot) OnShoot();
+
         //根据旋转位置控制弹幕位置
         if (state == State.Hold)
         {
 
+            WaterBallRadius = 50f + 150f * Math.Min(1f, (time + 1f) / chargeTicks);
             Projectile.Resize((int)(WaterBallRadius*0.8f), (int)(WaterBallRadius*0.8f));
 
             Projectile.rotation = HeldInfo.RealRotation;
 
             UpdateWaterBallActionRotation();
             
-            Projectile.velocity = Projectile.Center - Owner.MountedCenter;
-            Projectile.velocity.Normalize();
+            Projectile.velocity = (Projectile.Center - Owner.MountedCenter).SafeNormalize(new Vector2(Owner.direction, 0));
 
-            if(selfChargeWater<=147)
-            {
-                selfChargeWater+=3;
-            }
+            if (HasAuthority() && time + 1 >= chargeTicks &&
+                Owner.GetModPlayer<ActionModPlayer>().CurrentAnimAction is Action_WaterBall cast && cast.ShouldRelease(time + 1))
+                OnShoot();
         }
         else
         {
@@ -269,7 +253,7 @@ public class WaterBall : ElainaBasicProjectile
         }
         
         time++;
-        WaterBallRadius = 50 + selfChargeWater;
+
         
         base.AI();
     }
@@ -295,17 +279,22 @@ public class WaterBall : ElainaBasicProjectile
         Projectile.friendly = true;
         state = State.Fly;
         flightVisualStart = time;
-        Projectile.velocity *= 35f;
+        WaterBallRadius = 200f;
+        HeldInfo.IsControlling = false;
+        HeldInfo.IsHeld = false;
+        Projectile.Resize(160, 160);
+        Projectile.velocity = Projectile.velocity.SafeNormalize(new Vector2(Owner.direction, 0)) * 35f;
+        if (HasAuthority()) Projectile.netUpdate = true;
         needShoot = false;
         Projectile.tileCollide = true;
-        if (HasAuthority())
+        if (!Main.dedServ && HasAuthority())
         {
             CreateRadialBlur(Projectile.Center,0.01f,4,decay:DecayType.SmoothStep);
             ShakeScreen(Projectile.Center,Projectile.velocity,10f,5f,16);
         }
         
         // 发射水花按较小半径复用锥形爆炸，分量轻于命中爆炸。
-        SpawnBurstParticles(Projectile.Center, WaterBallRadius * LaunchBurstScale, Projectile.velocity.ToRotation(), true);
+        if (!Main.dedServ) SpawnBurstParticles(Projectile.Center, WaterBallRadius * LaunchBurstScale, Projectile.velocity.ToRotation(), true);
 
         Vector2 move = new Vector2(1,0);
         int arrayLength = 250;
@@ -316,31 +305,33 @@ public class WaterBall : ElainaBasicProjectile
         
 
     }
-
-
+    
     public override bool PreDraw(ref Color lightColor)
+    {
+        DrawFlightWind();
+        DrawFlightFlow(true);
+        DrawChargeFlow(true);
+        return base.PreDraw(ref lightColor);
+    }
+
+    private void DrawRearFlow()
     {
         DrawChargeFlow(false);
         DrawFlightFlow(false);
-        DrawBall();
-        DrawFlightFlow(true);
-        DrawChargeFlow(true);
-        EndBeginDraw();
-        return base.PreDraw(ref lightColor);
     }
 
     private void DrawChargeFlow(bool foreground)
     {
-        if (Main.dedServ || state != State.Hold) return;
+        if (Main.dedServ || state != State.Hold || time >= chargeTicks) return;
         chargeFlowRenderer ??= new WaterChargeFlowRenderer(Main.instance.GraphicsDevice,
             ModContent.Request<Effect>("伊蕾娜/Effects/Content/WaterChargeFlow", AssetRequestMode.ImmediateLoad).Value,
             path => ModContent.Request<Texture2D>(path, AssetRequestMode.ImmediateLoad).Value);
         Main.spriteBatch.End();
         try
         {
-            // 一次性汇聚必须使用本水球年龄；VisualTime 是全局时钟，会立即超过结束时间。
+            // 弹幕年龄驱动出流与行进，蓄力时长决定何时收尾。
             chargeFlowRenderer.Draw(Projectile.Center - Main.screenPosition, WaterBallRadius,
-                time / 60f, Projectile.identity, foreground, Main.GameViewMatrix.TransformationMatrix);
+                time, chargeTicks, Projectile.identity, foreground, Main.GameViewMatrix.TransformationMatrix);
         }
         finally
         {
@@ -365,6 +356,14 @@ public class WaterBall : ElainaBasicProjectile
 
     }
 
+    // 凝聚显形的光边。宽度以近似屏幕像素计，颜色用线性数值 RGB（0–1）。
+    private static float RevealHaloWidth =>0.5f;       // 透明侧的柔光宽度
+    private static float RevealEdgeWidth => 1.0f;       // 水面侧的亮边宽度
+    private static Vector3 RevealEdgeColor => new Vector3(0.88f, 2.25f, 5f);
+    private static float RevealEdgeBrightness => 3f;    // 边光颜色的亮度倍率
+    private static float RevealHaloOpacity => 0.62f;    // 柔光的不透明度（0–1）
+    private static float RevealFadeFraction => 0.09f;   // 起止渐变各占蓄力进度的比例
+
     void DrawBall()
     {
         float radius = WaterBallRadius/255;
@@ -377,13 +376,11 @@ public class WaterBall : ElainaBasicProjectile
 
         Asset<Texture2D> circle = ModContent.Request<Texture2D>("KL/Effects/Tex/光圈");
 
-        Texture2D wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/windNoi", AssetRequestMode.ImmediateLoad).Value;
-
         Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/WaterBallEffect", AssetRequestMode.ImmediateLoad).Value;
         
         EndBeginDraw(2,1,ss:SamplerState.LinearWrap);
 
-        float fadeThreshold = MathF.Min(1,1-time / 60f);
+        float fadeThreshold = Math.Max(0f, 1f - time / (float)chargeTicks);
         //time = (int)Main.timeForVisualEffects;
         Vector2 totalShapeNoiseTime = new Vector2(time % 12000 / 100f);
         
@@ -441,34 +438,37 @@ public class WaterBall : ElainaBasicProjectile
         effect.SetValue("ImageUTime", new Vector2(0, -imageUTime));
         
         //整体消融参数
+        effect.Parameters["RevealContour"].SetValue(new Vector4(
+            1f / MathF.Max(RevealHaloWidth, 0.001f), 1f / MathF.Max(RevealEdgeWidth, 0.001f),
+            Math.Clamp(RevealHaloOpacity, 0f, 1f), 1f / MathF.Max(RevealFadeFraction, 0.001f)));
+        effect.Parameters["RevealTint"].SetValue(RevealEdgeColor * RevealEdgeBrightness);
         effect.SetValue("FadeThreshold", fadeThreshold);
         effect.SetValue("FadeTiling", new Vector2(1f));
         
         effect.Apply();
         DrawInWorld(waterNoise.Value,Projectile.Center,color:Color.White*0.9f,scale:new Vector2(drawWidth,drawHeight)*radius*0.35f/sphereDrawSize,rotation:Projectile.rotation);
 
-
-        if (state == State.Fly)
-        {
-
-            VertexDrawEffect(wind,windPoints,Color.White,Color.White,startAlpha:0.5f, endAlpha:0,blendState:1,
-                uTime:new Vector2((float)(Main.timeForVisualEffects%60)/20f,0),
-                attachPoint:Projectile.Center,attachRotation:Projectile.rotation,
-                debugPoint:false);
-            
-            VertexDrawEffect(waterNoise2.Value,windPoints,Color.White,Color.White,startAlpha:0.5f, endAlpha:0f,blendState:1,
-                uTime:new Vector2((float)(Main.timeForVisualEffects%60)/30f,0),
-                clipMask:waterNoise.Value,threshold:0.9f, maskTime:new Vector2((float)(Main.timeForVisualEffects%60)/30f,0),
-                useRforAlpha:true, debugPoint:false,
-                attachPoint:Projectile.Center,attachRotation:Projectile.rotation);
-        }
-
         EndBeginDraw();
-        
-
     }
 
-    
+    private void DrawFlightWind()
+    {
+        if (state != State.Fly) return;
+        Texture2D wind = ModContent.Request<Texture2D>("KL/Effects/Tex/Wind/windNoi", AssetRequestMode.ImmediateLoad).Value;
+        Texture2D mask = ModContent.Request<Texture2D>("KL/Effects/Tex/Noise/WaterNoise").Value;
+        VertexDrawEffect(wind,windPoints,Color.White,Color.White,startAlpha:0.5f, endAlpha:0,blendState:1,
+            uTime:new Vector2((float)(Main.timeForVisualEffects%60)/20f,0),
+            attachPoint:Projectile.Center,attachRotation:Projectile.rotation,
+            debugPoint:false);
+        
+        VertexDrawEffect(waterNoise2.Value,windPoints,Color.White,Color.White,startAlpha:0.5f, endAlpha:0f,blendState:1,
+            uTime:new Vector2((float)(Main.timeForVisualEffects%60)/30f,0),
+            clipMask:mask,threshold:0.9f, maskTime:new Vector2((float)(Main.timeForVisualEffects%60)/30f,0),
+            useRforAlpha:true, debugPoint:false,
+            attachPoint:Projectile.Center,attachRotation:Projectile.rotation);
+        EndBeginDraw();
+    }
+
     public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
     {
         if (time2 <= 52&&Projectile.penetrate == -1)
@@ -488,6 +488,11 @@ public class WaterBall : ElainaBasicProjectile
         List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
+        const LayerDrawRequestSystem.DrawTargetLayer layer = LayerDrawRequestSystem.DrawTargetLayer.OverPlayers;
+        const LayerDrawRequestSystem.DrawTiming timing = LayerDrawRequestSystem.DrawTiming.Before;
+        // 同一时机先执行普通请求，再合成 Bloom，随后 PreDraw 绘制前景水流。
+        LayerDrawRequestSystem.Request("Elaina:WaterBall:RearFlow", layer, timing, DrawRearFlow);
+        LayerDrawRequestSystem.RequestBloom("Elaina:WaterBall", layer, timing, DrawBall);
         overPlayers.Add(index);
 
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
@@ -495,6 +500,7 @@ public class WaterBall : ElainaBasicProjectile
 
     public override void OnKill(int timeLeft)
     {
+        if (state == State.Hold) return;
         // 保留飞行计时，让爆炸伤害与特效都按命中时的飞行阶段选择形状。
         Projectile.penetrate = -1;
         if (time2 > 52)
@@ -581,9 +587,4 @@ public class WaterBall : ElainaBasicProjectile
         base.ModifyHitNPC(target, ref modifiers);
     }
 
-    public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
-    {
-        waterBatch.OnHit(Owner, target, damageDone, Projectile, WaterExposureNPC.ExposureTicks);
-        base.OnHitNPC(target, hit, damageDone);
-    }
 }

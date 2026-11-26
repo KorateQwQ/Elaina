@@ -13,6 +13,10 @@ using 伊蕾娜.ElainaModSkills.Skills.Heal;
 static class BehaviorChecks
 {
     static int passed;
+    sealed class ChargedHeal : HealSkill { public override int ChargePointCost => 3; }
+    sealed class WaterBallSkill : HealSkill { }
+    sealed class FireBurstSkill : HealSkill { }
+    sealed class ShardbindSkill : HealSkill { }
     static void Check(bool condition, string label)
     {
         if (!condition) throw new Exception(label);
@@ -37,6 +41,24 @@ static class BehaviorChecks
         string json = System.IO.File.ReadAllText(System.IO.Path.Combine(args[0], SkillBalanceConfig.ResourcePath));
         Check(SkillBalanceConfig.TryParse(json, out var config, out _), "Production balance configuration parses");
         SkillBalanceSystem.Current = config;
+        var owner = Setup(true).Player;
+        var charged = new ChargedHeal { Player = owner, MagicPointCost = 120 };
+        var pool = owner.GetModPlayer<ChargePointPlayer>().Points;
+        Check(!charged.CanUseSkill() && !charged.PreUseSkill() && Actions(charged).Calls == 0, "Insufficient charge blocks preview and direct activation");
+        pool.Restore(3);
+        Check(charged.CanUseSkill() && charged.CanUseSkill() && pool.Current == 3, "Checking charge is read-only");
+        Check(!charged.PreUseSkill() && pool.Current == 3, "Target selection keeps charge");
+        ElainaHealingWheel.CancelOpen();
+        Terraria.Main.player[1].active = false;
+        Check(charged.PreUseSkill() && pool.Current == 0 && Actions(charged).Calls == 1, "Confirmed cast commits charge exactly once");
+        var orb = new WaterBallSkill { Player = owner };
+        var fire = new FireBurstSkill { Player = owner };
+        var ice = new ShardbindSkill { Player = owner };
+        pool.Restore(8);
+        Check(orb.PreUseSkill() && fire.PreUseSkill() && pool.Current == 1, "Configured skills share one pool: 8 - 2 - 5");
+        Check(!ice.CanUseSkill() && !ice.PreUseSkill() && pool.Current == 1, "Cannot fund a three-point cast with one point");
+        for (int tick = 0; tick < 480; tick++) pool.RecoverTick((float)(1 / SkillBalanceConfig.BaseSecondsPerEnergyPoint));
+        Check(ice.PreUseSkill() && pool.Current == 0, "Eight seconds restore the two missing points");
         var entry = config.Skills[nameof(HealSkill)];
         Check(entry.UnlockStageCap == 25 && entry.UnlockLevel == 21 && entry.LevelInterval == 10
             && entry.GrowthMode == SkillGrowthMode.Interval && entry.MaxLevel == 8, "Healing unlock and growth configuration");
@@ -299,9 +321,10 @@ namespace KL.ActionsSystem
         }
     }
 }
-namespace 伊蕾娜.ElainaActions { public sealed class Action_SimpleShoot : AnimAction { } }
+namespace 伊蕾娜.ElainaActions { public sealed class Action_SupportShoot : AnimAction { } }
 namespace 伊蕾娜.ElainaAttribute
 {
+    public sealed class ChargePointPlayer { public ChargePoints Points { get; } = new(); }
     public sealed class ElainaAttributeModPlayer
     {
         public float Available = 1000, Spent;
@@ -324,7 +347,11 @@ namespace 伊蕾娜.ElainaModSkills
 {
     public static class SkillBalanceSystem { public static SkillBalanceConfig Current; }
     public sealed class SkillStub { public int SkillSlot; }
-    public class ElainaSkill
+    public class ActivationStub
+    {
+        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+    }
+    public abstract partial class ElainaSkill : ActivationStub
     {
         public Player Player;
         public SkillStub Skill = new();
@@ -339,14 +366,14 @@ namespace 伊蕾娜.ElainaModSkills
         protected virtual object[] SkillDescriptionArgs => [];
         public virtual (string Label, string Value, string Unit)[] GetConstellationStats(int level) => [];
         public virtual (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int level) => [];
-        public virtual bool CanUseSkill() => MagicPointCost <= 0 ||
-            Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false, AllowsLifeConversion);
+        protected string BalanceId => GetType().Name;
+        public virtual bool CanUseSkill() => HasRequiredChargePoints() && (MagicPointCost <= 0 ||
+            Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false, AllowsLifeConversion));
         public virtual void Initialize()
         {
             var entry = SkillBalanceSystem.Current.Skills[GetType().Name];
             MaxCD = (float)entry.BaseCooldown; MagicPointCost = (float)entry.ManaCost;
         }
-        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
         public virtual bool BeginWandUse() => true;
         public virtual void UpdateEquips(Player player) { }
     }
@@ -368,6 +395,7 @@ namespace KL.SkillSystem
 namespace 伊蕾娜.Localization
 {
     internal static class UIText { internal static string LocalizeUI(string key) => key; }
+    internal static class SkillValueText { internal static string Heal(int value) => value.ToString(); }
 }
 namespace Terraria.ID { public static class NetmodeID { public const int Server = 2; } }
 namespace 伊蕾娜.ElainaModSkills.Skills

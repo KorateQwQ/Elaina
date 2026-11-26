@@ -56,7 +56,6 @@ public class FireTornado : ElainaBasicProjectile
         Projectile.velocity = new Vector2(2, 0);
 
         tornadoScale = 1f;
-        if(Main.mouseRight)Projectile.Kill();
         time++;
         if (Projectile.timeLeft <= fadeNeedTime)
         {
@@ -232,8 +231,8 @@ public class FireTornado : ElainaBasicProjectile
         //DrawBehind 在这两者之间调用，在这里提交才能让背面气流圈画到图块后面。
         LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles,
             LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
-        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireTornado", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, DrawVisual);
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
 }

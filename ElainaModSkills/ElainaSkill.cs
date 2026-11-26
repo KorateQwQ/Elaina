@@ -38,6 +38,7 @@ public abstract partial class ElainaSkill : ModSkill
     /// </summary>
     public float MagicPointCost = 0;
 
+
     // JSON costPercent：额外消耗的最大魔力百分比，随魔力上限变化，每帧刷新到 MagicPointCost。
     private float magicPointCostBase;
     private float magicPointCostMaxPercent;
@@ -96,12 +97,9 @@ public abstract partial class ElainaSkill : ModSkill
     protected int GetConfiguredDamage(int? hitCount = null, int? skillLevel = null) =>
         SkillBalanceSystem.GetPlayerDamage(Player, BalanceId, skillLevel ?? Math.Max(1, Level), ModContent.GetInstance<ElainaBasicDamage>(), hitCount);
 
-    protected float GetConfiguredFreezeBuildup() => SkillBalanceSystem.TryGetSkill(BalanceId, out var entry)
-        ? (float)entry.FreezeBuildup : 0f;
-
     /// <summary>每发弹幕保存施法时的积蓄配置；发数不会重复放大单发点数。</summary>
-    protected void ConfigureFreezeBuildup(Projectile projectile, float amount) =>
-        projectile.GetGlobalProjectile<ElementalGlobalProjectile>().FreezeBuildup = amount;
+    protected void ConfigureBuildup(Projectile projectile, ElementType element, float amount) =>
+        projectile.GetGlobalProjectile<ElementalGlobalProjectile>().InfusionElement = new(element, amount);
 
     /// <summary>按技能实际等级读取基础周期 DPS，不含装备；可指定等级预览。</summary>
     protected float GetConfiguredDps(int? skillLevel = null) =>
@@ -249,6 +247,7 @@ public abstract partial class ElainaSkill : ModSkill
     public override bool CanUseSkill()
     {
         // 数值配置只覆盖已有参数；没有配置的技能仍按自身规则判断能否使用。
+        if (!HasRequiredChargePoints()) return false;
         ElainaAttributeModPlayer attributePlayer = Player.GetModPlayer<ElainaAttributeModPlayer>();
         if (MagicPointCost > 0 && !attributePlayer.ConsumeMagicPoint(MagicPointCost, false, AllowsLifeConversion))
         {
@@ -306,10 +305,7 @@ public abstract partial class ElainaSkill : ModSkill
         if(IsPassiveSkill) type = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillType.Passive").Value;
         
         string maxCD = MaxCD <0 ? "--" : $"{MaxCD}s";
-        string magicPointName = Language.GetText(
-            "Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint").Value;
-        string magicPointCost = MagicPointCost < 0 ? "--" : $"{MagicPointCost:0.##} {magicPointName}";
-        desc = Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillTotalInfo").WithFormatArgs(type, maxCD, magicPointCost).Value;
+        desc = Language.GetText("Mods.伊蕾娜.SkillInfo.SkillTotalInfo").WithFormatArgs(type, maxCD, GetTooltipResourceCost()).Value;
         desc += AppendDescriptionNotes(Language.GetText($"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}")
             .WithFormatArgs(SkillDescriptionArgs).Value);
         //level = $"Lv. {Level}";

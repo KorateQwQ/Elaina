@@ -1,3 +1,4 @@
+using 伊蕾娜.ElainaModSkills.UICore;
 using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
@@ -427,23 +428,11 @@ internal sealed class ConstellationDrawing
         CrossStar(center, new Vector2(34, 12), new Color(244, 234, 252), .2f);
     }
 
+    private UIRasterShapes _shapes;
+    private UIRasterShapes Shapes => _shapes ??= new(TextureAssets.MagicPixel.Value,
+        ModContent.Request<Effect>("伊蕾娜/Effects/Content/UIShape", AssetRequestMode.ImmediateLoad).Value);
     internal void Line(Vector2 a, Vector2 b, Color color, float width = 1)
-    {
-        var delta = b - a;
-        if (delta.LengthSquared() < .001f) return;
-        if (width * Device <= 1.5f)
-        {
-            // A one-pixel opaque quad has no edge coverage when rotated. Transparent padding lets
-            // linear sampling integrate the thin stroke instead of dropping diagonal fragments.
-            Batch.Draw(Texture("LineAA"), Origin + a * Scale, null, color * Math.Min(1, width * Device),
-                MathF.Atan2(delta.Y, delta.X), new Vector2(0, 1.5f),
-                new Vector2(delta.Length() * Scale / 3, Math.Max(1, width * Device) * Scale / Device), SpriteEffects.None, 0);
-            return;
-        }
-        Batch.Draw(TextureAssets.MagicPixel.Value, Origin + a * Scale, new Rectangle(0, 0, 1, 1), color,
-            MathF.Atan2(delta.Y, delta.X), new Vector2(0, .5f), new Vector2(delta.Length(), width) * Scale,
-            SpriteEffects.None, 0);
-    }
+        => Shapes.Line(Batch, Origin + a * Scale, Origin + b * Scale, width * Scale, color);
 
     internal void Dash(Vector2 a, Vector2 b, Color color, float width = 1, float dash = 4, float gap = 5)
     {
@@ -551,16 +540,7 @@ internal sealed class ConstellationDrawing
             states.Begin();
             return;
         }
-        const int segments = 160;
-        Vector2 Point(int i)
-        {
-            float angle = i * MathHelper.TwoPi / segments;
-            var v = new Vector2(MathF.Cos(angle) * rx, MathF.Sin(angle) * ry);
-            float c = MathF.Cos(rotation), s = MathF.Sin(rotation);
-            return center + new Vector2(v.X * c - v.Y * s, v.X * s + v.Y * c);
-        }
-        for (int i = 0; i < segments; i++)
-            Line(Point(i), Point(i + 1), color, width);
+        Shapes.Ring(Batch, At(center.X, center.Y), new Vector2(rx, ry) * Scale, width * Scale, color, rotation);
     }
 
     private void DottedRing(Vector2 center, float rx, float ry, Color color, float width, float rotation)
@@ -581,17 +561,7 @@ internal sealed class ConstellationDrawing
 
     // Circular arc from `from` degrees, sweeping `sweep` degrees clockwise on screen.
     internal void Arc(Vector2 center, float radius, float from, float sweep, Color color, float width = 1)
-    {
-        if (sweep <= 0 || radius <= 0) return;
-        int segments = Math.Max(2, (int)MathF.Ceiling(sweep / 360 * 160));
-        Vector2 previous = center + Polar(radius, from);
-        for (int i = 1; i <= segments; i++)
-        {
-            Vector2 next = center + Polar(radius, from + sweep * i / segments);
-            Line(previous, next, color, width);
-            previous = next;
-        }
-    }
+        => Shapes.Arc(Batch, At(center.X, center.Y), radius * Scale, from, sweep, width * Scale, color);
 
     internal void Dot(Vector2 center, float radius, Color color)
     {

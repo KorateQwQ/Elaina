@@ -1,0 +1,72 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+
+internal static class Program
+{
+    static void Main(string[] args) { using var game = new ComboPreview(args[0],args[1]); game.Run(); }
+}
+sealed class ComboPreview : Game
+{
+    readonly string output, root;
+    IceShardScene particles;
+    ComboReplay weapon;
+    RenderTarget2D target;
+    bool exported;
+    public ComboPreview(string output, string root)
+    {
+        this.output=output; this.root=root;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth=960,PreferredBackBufferHeight=480,
+            GraphicsProfile=GraphicsProfile.HiDef,SynchronizeWithVerticalRetrace=false };
+        IsFixedTimeStep=false; SDL.SDL_HideWindow(Window.Handle);
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        particles=new IceShardScene(GraphicsDevice);
+        weapon=new ComboReplay(GraphicsDevice,Services,root);
+        target=new RenderTarget2D(GraphicsDevice,960,480,false,SurfaceFormat.Color,DepthFormat.None);
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        if(exported) return;
+        Directory.CreateDirectory(output);
+        foreach(int tick in new[] { 1, 7, 12, 25, 40, 51 })
+        {
+            Color[] actual = weapon.RenderIsolated(tick,0,1);
+            using var capture=new Texture2D(GraphicsDevice,960,480);capture.SetData(actual);
+            using var file=File.Create(Path.Combine(output,$"shards-tick-{tick:D2}.png"));
+            capture.SaveAsPng(file,960,480);
+        }
+
+        foreach(float angle in new[] { 0f,MathHelper.PiOver2,MathHelper.Pi })
+        {
+            var data=weapon.RenderIsolated(12,angle,1.25f);
+            using var capture=new Texture2D(GraphicsDevice,960,480);capture.SetData(data);
+            using var file=File.Create(Path.Combine(output,$"shards-125-{angle:0.00}.png"));
+            capture.SaveAsPng(file,960,480);
+        }
+        foreach(string mode in new[] { "single", "continuous", "dark" })
+        {
+            string frames=Path.Combine(output,mode); Directory.CreateDirectory(frames);
+            int count=mode=="continuous"?108:66;
+            for(int frame=0;frame<count;frame++)
+            {
+                float time=frame/30f;
+                GraphicsDevice.SetRenderTarget(target);
+                particles.DrawComboBackground(mode=="dark");
+                weapon.DrawWeapons(time,mode=="continuous");
+                weapon.DrawHits(time,mode=="continuous");
+                GraphicsDevice.SetRenderTarget(null);
+                using var stream=File.Create(Path.Combine(frames,$"{frame:D3}.png"));
+                target.SaveAsPng(stream,960,480);
+            }
+        }
+        exported=true;
+        Console.WriteLine("Combined FNA export complete: 240 frames; actual model, trail, Bloom, impact dust plus proposed ice stones.");
+        Exit();
+    }
+    protected override void UnloadContent() { weapon.Dispose(); particles.Dispose(); target.Dispose(); }
+}

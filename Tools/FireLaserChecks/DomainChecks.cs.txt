@@ -148,43 +148,59 @@ sealed partial class Checks
         Check(!remoteDomain.Projectile.active, "Remote domain expires after synchronized sustain ends");
         GameMain.myPlayer = 0;
 
+        // 快捷施放：射线按松手结束（保留已有冷却进度、光束消失），同一次动作更新内衔接炎爆施法动作；
+        // 魔力与层数在施放时结算，领域在动作的爆燃帧由动作生成。夹具只替换动作的弹幕生成边界。
+        AnimActionRegistry.Register(typeof(Action_FireBurst));
         int spawned = 0;
-        var spawnMethod = typeof(Projectile).GetMethod("NewProjectile", new[] { typeof(IEntitySource), typeof(Vector2),
-            typeof(Vector2), typeof(int), typeof(int), typeof(float), typeof(int), typeof(float), typeof(float), typeof(float) });
-        using var spawnHook = new Hook(spawnMethod,
-            (Func<IEntitySource, Vector2, Vector2, int, int, float, int, float, float, float, int>)
-            ((source, position, velocity, type, damage, knockback, owner, ai0, ai1, ai2) => {
-                Check(type == 0 && owner == 0 && position == player.Center, "Quick cast spawns own domain at player center");
+        var shootMethod = typeof(AnimAction).GetMethod("ShootFromAction", new[] { typeof(Player), typeof(int), typeof(Vector2),
+            typeof(Vector2), typeof(int), typeof(float), typeof(Action<Projectile>) });
+        using var spawnHook = new Hook(shootMethod,
+            (Action<Player, int, Vector2, Vector2, int, float, Action<Projectile>>)
+            ((owner, type, position, velocity, damage, knockback, configure) => {
+                Check(type == 0 && owner == player && position == player.Center, "Quick cast spawns own domain at player center");
                 var domain = Domain(3 + spawned++);
                 domain.Projectile.damage = damage;
-                domain.OnSpawn(source);
-                return domain.Projectile.whoAmI;
+                configure?.Invoke(domain.Projectile);
+                domain.OnSpawn(null);
             }));
+        int totalFrames = (int)typeof(Action_FireBurst).GetMethod("GetTotalFrames", All).Invoke(null, null);
+        int impactFrame = (int)MathF.Ceiling(FireBurstCastVisuals.Timeline.Impact * totalFrames / FireBurstCastVisuals.Timeline.Total);
+        bool QuickBurst(AnimAction a) => a is Action_FireBurst
+            && (bool)typeof(Action_FireBurst).GetProperty("UsesQuickCastInput", All).GetValue(a);
         foreach (string phase in new[] { "simultaneous", "charging", "firing" }) {
             PrepareDomainQuickCast();
             var old = Domain(0); var foreign = Domain(1, 1);
             if (phase != "simultaneous") Tick();
             if (phase == "firing") Set(beam, "channelAge", charge + 1);
             float mana = magic.MagicPoint;
+            skillState.UpdateCD(0.1f);
+            float beamCooldown = fireSkill.CurrentCD;
             int stack = burstSkill.Stack, before = spawned, oldToken = actions.CurrentActionToken;
             GameMain.mouseRight = true;
             Check(OwnsRight(), phase + ": reserves right click from wheel");
             Call(actions, "UpdateCurrentAction");
-            Check(spawned == before + 1 && !old.Projectile.active && foreign.Projectile.active,
-                $"{phase}: replaces only own domain exactly once (spawned={spawned - before}, old={old.Projectile.active}, foreign={foreign.Projectile.active}, stack={burstSkill.Stack}, mana={magic.MagicPoint}, quick={Get<bool>(action, "rightWasDown")})");
-            Check(ReferenceEquals(actions.CurrentAnimAction, action) && actions.CurrentActionToken == oldToken
-                && beam.Projectile.active && actions.IsActionHolding, phase + ": beam and action continue unchanged");
+            Check(QuickBurst(actions.CurrentAnimAction) && actions.CurrentActionToken != oldToken,
+                phase + ": switches to the burst cast action in the same update");
+            Check(!beam.Projectile.active && !Get<bool>(fireSkill, "channelActive") && fireSkill.CurrentCD == beamCooldown,
+                phase + ": beam ends without restarting cooldown");
             Check(magic.MagicPoint == mana - burstSkill.MagicPointCost && burstSkill.Stack == stack - 1
                 && burstSkill.CurrentCD == burstSkill.MaxCD, phase + ": normal mana charge and cooldown");
-            Check(Get<float>((FireBurstDomain)GameMain.projectile[3 + before].ModProjectile, "singleMultiplier") > 1f,
-                phase + ": shortcut uses normal domain damage configuration");
+            Check(spawned == before && old.Projectile.active, phase + ": domain waits for the impact frame");
+            Check(OwnsRight(), phase + ": held right stays reserved during the cast action");
             burstSkill.Stack = stack;
-            for (int i = 0; i < 30; i++) Call(actions, "UpdateCurrentAction");
-            Check(spawned == before + 1 && magic.MagicPoint == mana - burstSkill.MagicPointCost,
-                phase + ": holding right does not repeat even if charges recover");
-            GameMain.mouseRight = false; Call(actions, "UpdateCurrentAction");
-            GameMain.mouseRight = true; Call(actions, "UpdateCurrentAction");
-            Check(spawned == before + 2, phase + ": fresh press can recast");
+            int castToken = actions.CurrentActionToken;
+            int updates = 0;
+            while (spawned == before && updates < totalFrames) {
+                Call(actions, "UpdateCurrentAction"); updates++;
+                Check(actions.CurrentActionToken == castToken, phase + ": holding right does not recast during the action");
+            }
+            Check(Math.Abs(updates - impactFrame) <= 1, $"{phase}: domain spawns at the impact frame ({updates} updates, impact {impactFrame})");
+            Check(spawned == before + 1 && !old.Projectile.active && foreign.Projectile.active,
+                $"{phase}: impact replaces only own domain exactly once (spawned={spawned - before}, old={old.Projectile.active}, foreign={foreign.Projectile.active})");
+            var spawnedDomain = (FireBurstDomain)GameMain.projectile[3 + before].ModProjectile;
+            Check(Get<float>(spawnedDomain, "singleMultiplier") > 1f && !Get<bool>(spawnedDomain, "PlayImpact"),
+                phase + ": shortcut uses normal domain configuration and the action's impact");
+            Check(magic.MagicPoint == mana - burstSkill.MagicPointCost, phase + ": holding right does not repeat even if charges recover");
         }
         foreach (string blocked in new[] { "unlearned", "unequipped", "charges", "mana", "ui", "focus", "chat", "menu",
             "dead", "cc", "no-items", "item", "slot", "remote", "released", "recovery", "beam-lost" }) {

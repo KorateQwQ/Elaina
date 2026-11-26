@@ -19,11 +19,11 @@ internal static class BloomResolutionPreview
     }
 }
 
-internal sealed class ResolutionProbe : Game
+internal sealed partial class ResolutionProbe : Game
 {
     const BindingFlags All = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
     readonly string repo, kl, source, output;
-    readonly bool check, starTips;
+    readonly bool check, starTips, benchmark;
     Color background = new(65, 135, 141);
     string frameSuffix = "";
     Assembly pipeline;
@@ -38,6 +38,7 @@ internal sealed class ResolutionProbe : Game
     {
         (repo, kl, source, output) = (args[0], args[1], args[2], args[3]); check = args.Contains("--check");
         starTips = args.Contains("--star-tips");
+        benchmark = args.Contains("--benchmark");
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         SDL2.SDL.SDL_HideWindow(Window.Handle); IsFixedTimeStep = false;
@@ -45,9 +46,10 @@ internal sealed class ResolutionProbe : Game
     void Set(Type type, string name, object value) => type.GetField(name, All).SetValue(null, value);
     string ExtractVisuals()
     {
-        var star = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(repo,
-            "ElainaModSkills/Skills/MagicMissile/MagicMissleSpawner.cs"))).GetCompilationUnitRoot()
-            .DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawStartStar").ToFullString();
+        var spawner = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(repo,
+            "ElainaModSkills/Skills/MagicMissile/MagicMissleSpawner.cs"))).GetCompilationUnitRoot();
+        string star = spawner.DescendantNodes().OfType<PropertyDeclarationSyntax>().Single(p => p.Identifier.Text == "StarHdrColor").ToFullString()
+            + spawner.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawStartStar").ToFullString();
         var missile = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(repo,
             "ElainaModSkills/Skills/MagicMissile/MagicMissile.cs"))).GetCompilationUnitRoot();
         string trail = string.Join("\n", missile.DescendantNodes().OfType<MethodDeclarationSyntax>()
@@ -87,6 +89,8 @@ internal sealed class ResolutionProbe : Game
                 public Color GetRealColor(Color v) => v;
             }
             public abstract class KLBasicDust {
+                protected static void RequestDustBloom(Dust dust, string id, Action<LayerDrawRequestSystem.DrawRequestContext> draw)
+                    => LayerDrawRequestSystem.RequestBloom(id, LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After, draw, LayerDrawRequestSystem.DustOrder);
                 public static Texture2D MainTexture;
                 public virtual bool PreDraw(Dust d) => false;
                 public virtual void SubmitBloomDrawRequest(Dust d) { }
@@ -103,7 +107,6 @@ internal sealed class ResolutionProbe : Game
             """ + star + "}" + Dust("Dusts/Fire/FireDust.cs", "FireDust") + Dust("Dusts/LineSparkle.cs", "LineSparkle") + """
             public static class Trail {
                 public static Texture2D trail, headStamp, headNoise;
-                public static MagicMissileTrailNoise trailNoise;
                 public static Effect trailEffect;
                 public static void Draw(Vector2 center) {
                     var points = new Vector2[50];
@@ -166,8 +169,7 @@ internal sealed class ResolutionProbe : Game
     {
         Directory.CreateDirectory(output);
         pipeline = Program.CompilePipeline(source, ExtractVisuals(),
-            File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Skills/MagicMissile/MagicMissileTrailVisuals.cs")),
-            File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Skills/MagicMissile/MagicMissileTrailNoise.cs")));
+            File.ReadAllText(Path.Combine(repo, "ElainaModSkills/Skills/MagicMissile/MagicMissileTrailVisuals.cs")));
         main = pipeline.GetType("KL.Drawing.Main"); helper = pipeline.GetType("KL.Drawing.DrawHelper");
         targets = pipeline.GetType("KL.Drawing.RenderHelper"); scene = pipeline.GetType("Fixture.Scene");
         var draw = pipeline.GetType("KL.Drawing.DrawSystem"); Set(draw, "CanUseRender", true); renderer = Activator.CreateInstance(draw);
@@ -191,7 +193,6 @@ internal sealed class ResolutionProbe : Game
         Set(trailType, "trail", Load("Effects/Tex/Trail/LightTrail.png"));
         Set(trailType, "headStamp", Load("Effects/Tex/Sparkle/T_Vfx_Stamp_HitSword_22.png"));
         Set(trailType, "headNoise", Load("Effects/Tex/Noise/5.png"));
-        Set(trailType, "trailNoise", Activator.CreateInstance(pipeline.GetType("伊蕾娜.ElainaModSkills.Skills.MagicMissile.MagicMissileTrailNoise"), Load("Effects/Tex/PerlinX.png")));
         Set(trailType, "trailEffect", effects.Load<Effect>(Path.Combine(repo, "Effects/Content/MagicMissileTrail")));
         var pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White }); textures.Add(pixel); Set(scene, "Pixel", pixel);
     }
@@ -215,7 +216,12 @@ internal sealed class ResolutionProbe : Game
             throw new Exception("Bloom did not restore auxiliary sampler.");
         var image = new Color[w * h]; target.GetData(image);
         var glowTarget = ((RenderTarget2D[])targets.GetField("BloomUpSample", All).GetValue(null))[5];
-        var glow = new Vector4[glowTarget.Width * glowTarget.Height]; glowTarget.GetData(glow);
+        var glow = new Vector4[glowTarget.Width * glowTarget.Height];
+        if (glowTarget.Format == SurfaceFormat.HalfVector4) {
+            var packed = new Microsoft.Xna.Framework.Graphics.PackedVector.HalfVector4[glow.Length];
+            glowTarget.GetData(packed);
+            for (int i = 0; i < glow.Length; i++) glow[i] = packed[i].ToVector4();
+        } else glowTarget.GetData(glow);
         GraphicsDevice.SetRenderTarget(null);
         if (save) {
             string stem = $"{kind}-{w}x{h}-{(point ? "point" : "linear")}" + (zoom == 1 ? "" : $"-zoom{zoom:0.##}") + frameSuffix;
@@ -230,6 +236,7 @@ internal sealed class ResolutionProbe : Game
     protected override void Update(GameTime gameTime)
     {
         if (done) return; done = true;
+        if (benchmark) { Benchmark(); Exit(); return; }
         if (starTips) { CheckStarTips(); Exit(); return; }
         var report = new List<string>();
         foreach (var (w, h) in new[] { (1366, 768), (1920, 1080), (2560, 1440), (3840, 2160) }) {

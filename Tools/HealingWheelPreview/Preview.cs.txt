@@ -1,4 +1,5 @@
-﻿using System;
+using 伊蕾娜.ElainaModSkills.UICore;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
@@ -28,6 +29,7 @@ internal sealed class PreviewGame : Game
     private readonly string root, output;
     private readonly Dictionary<string, Texture2D> textures = new();
     private bool rendered;
+    private UIRasterShapes shapes;
     private SpriteBatch batch;
     private BasicEffect basic;
     private Matrix transform;
@@ -60,11 +62,14 @@ internal sealed class PreviewGame : Game
     {
         Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
         var cooldown = Content.Load<Effect>("Effects/Content/CDEffect");
-        var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
+        var serif = new UIRasterFont("NotoSerifSC", Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC"), 9, 48,
+            path => File.ReadAllBytes(Path.Combine(root, path)), Texture);
+        Content.RootDirectory = root;
         var pixel = Texture("Effects/Tex/Baked/WhitePixel");
         var glow = Texture("ElainaModSkills/UICore/Assets/GlowDot");
         var diamond = Texture("ElainaModSkills/UICore/Assets/DiamondFill");
-        art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond), cooldown, serif);
+        shapes = new(pixel, Content.Load<Effect>("Effects/Content/UIShape"));
+        art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond, shapes), cooldown, serif);
         basic = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, TextureEnabled = false };
     }
 
@@ -79,7 +84,7 @@ internal sealed class PreviewGame : Game
         CheckGeometry();
         foreach (int count in new[] { 2, 6, 8 })
             RenderHealing(count, 1, false, false);
-        RenderHealing(8, 1.5f, false, true);
+        foreach (float scale in new[] { 1.125f, 1.5f, 2f }) { RenderHealing(8, scale, false, true); RenderHealing(8, scale, true, true); }
         RenderHealing(8, 1, true, true);
         RenderHealing(6, 1, false, false, "center");
         RenderHealing(8, 1.5f, true, true, "center");

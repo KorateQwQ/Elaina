@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<base href="../">
+<meta charset="utf-8">
+<title>金色星光爆炸冲击波预览</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px 20px; background: #10141d; color: #d8dde8; font: 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+  h1 span { color: #6d7890; font-weight: 400; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .group { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-right: 10px; border-right: 1px solid #2a3345; }
+  .group:last-child { border-right: 0; }
+  .label { color: #7d89a0; font-size: 12px; margin-right: 2px; }
+  button { background: #222a38; color: inherit; border: 1px solid #344055; border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: #5b6b88; }
+  button.on { background: #3b4a66; border-color: #7f93b8; }
+  #view { width: 1280px; max-width: 100%; height: auto; border: 1px solid #2a3345; display: block; }
+  #scrub { width: 1280px; max-width: 100%; margin: 8px 0 2px; }
+  #info { font-variant-numeric: tabular-nums; color: #9aa6bb; }
+  .notes { color: #8d98ad; font-size: 13px; max-width: 1280px; }
+  .notes b { color: #dfe5f0; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>金色星光爆炸冲击波 <span>（1920×1080 视野、游戏缩放 1；像素场景与小人只作尺寸和明暗参考）</span></h1>
+<div class="bar">
+  <span class="group"><span class="label">预览内容</span>
+    <button data-mode="full" class="on">整套技能</button>
+    <button data-mode="burst">仅爆炸</button>
+  </span>
+  <span class="group" id="rotGroup"><span class="label">小星阵旋转</span>
+    <button data-rot="counter" class="on">反向</button>
+    <button data-rot="same">同向</button>
+  </span>
+  <span class="group"><span class="label">爆炸形状</span>
+    <button data-shape="alt" class="on">交替</button>
+    <button data-shape="circle">圆形</button>
+    <button data-shape="ring">圆环</button>
+  </span>
+  <span class="group"><span class="label">圆环方案</span>
+    <button data-ring="wave" class="on">波纹版</button>
+    <button data-ring="mark">标记版</button>
+  </span>
+  <span class="group"><span class="label">波纹噪声</span>
+    <button data-noise="noi_1" class="on">noi_1</button>
+    <button data-noise="Eff_Noise_53">Eff_Noise_53</button>
+  </span>
+  <span class="group"><span class="label">圆形方案</span><span id="variants"></span></span>
+  <span class="group"><span class="label">AOE 半径 = 小法阵 ×</span>
+    <input id="aoe" type="range" min="0.5" max="8" step="0.1" value="6.7" style="width:200px">
+    <span id="aoeVal" style="font-variant-numeric:tabular-nums">6.7</span>
+  </span>
+  <span class="group"><span class="label">圆环内孔 = 小法阵 ×</span>
+    <input id="hole" type="range" min="0.05" max="6" step="0.05" value="2.3" style="width:200px">
+    <span id="holeVal" style="font-variant-numeric:tabular-nums">2.30</span>
+  </span>
+  <span class="group"><label class="label" for="starSize">预告星大小</label>
+    <input id="starSize" type="range" min="0.5" max="6" step="0.1" value="2" style="width:200px">
+    <span id="starSizeVal" style="font-variant-numeric:tabular-nums">2.0×</span>
+  </span>
+  <span class="group"><span class="label">速度</span><span id="speeds"></span></span>
+  <span class="group"><span class="label">时间</span>
+    <button data-sky="night" class="on">夜晚</button>
+    <button data-sky="day">白天</button>
+  </span>
+  <span class="group">
+    <button id="zoom">近景 2×</button>
+    <button id="shake">屏幕震动</button>
+    <button id="rblur">径向模糊</button>
+    <button id="play">暂停</button>
+    <button id="again">重播</button>
+  </span>
+</div>
+<canvas id="view" width="1280" height="720"></canvas>
+<input id="scrub" type="range" min="0" step="0.1">
+<div id="info">帧 <span id="frame">0</span> / <span id="total">0</span>（60 帧 = 1 秒）</div>
+<p class="notes" id="skillDesc"></p>
+<p class="notes" id="desc"></p>
+<p class="notes">贴图为正式资源的白色遮罩副本（<b>GlowDot</b>、<b>Star4</b>、<b>StarFlare</b>、KL <b>ShotLine</b>、<b>HShotA</b>），页面内着色；单色 + 多次叠加模拟 HDR，Bloom 用 Canvas 模糊近似，只用于比较方案，不作为游戏内验收依据。</p>
+<script>
+// 世界坐标：玩家中心为原点，y 向下；地表 y = 21。视野 1920×1080。爆炸方案本身以爆点为原点绘制。
+const GROUND = 21;
+const GOLD = {
+  deep: [240, 160, 40], gold: [255, 185, 55], light: [255, 222, 120], pale: [255, 244, 205]
+};
+
+const view = document.getElementById('view'), ctx = view.getContext('2d');
+const fx = document.createElement('canvas'); fx.width = view.width; fx.height = view.height;
+
+const tex = {}, tintCache = new Map();
+function load(name) {
+  return new Promise(r => { const i = new Image(); i.onload = () => { tex[name] = i; r(); }; i.src = 'assets/' + name + '.png'; });
+}
+function tinted(name, rgb) {
+  const key = name + rgb.join();
+  let c = tintCache.get(key);
+  if (c) return c;
+  const img = tex[name];
+  c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.fillStyle = `rgb(${rgb})`; g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(img, 0, 0);
+  tintCache.set(key, c);
+  return c;
+}
+
+// ---------- 工具 ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const outCubic = t => 1 - Math.pow(1 - t, 3), outQuart = t => 1 - Math.pow(1 - t, 4), outExpo = t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+const smooth = t => t * t * (3 - 2 * t);
+// 0→1→0 的钟形：前 rise 部分升起，其余衰减
+const bell = (t, rise = .2) => t <= 0 || t >= 1 ? 0 : t < rise ? smooth(t / rise) : Math.pow(1 - (t - rise) / (1 - rise), 1.6);
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function sprite(g, name, rgb, x, y, w, h, rot = 0, alpha = 1) {
+  if (alpha <= 0.002 || w <= 0 || h <= 0) return;
+  g.save(); g.globalAlpha = Math.min(1, alpha); g.translate(x, y); g.rotate(rot);
+  g.drawImage(tinted(name, rgb), -w / 2, -h / 2, w, h); g.restore();
+}
+// 亮度 > 1 时叠加多次，模拟 HDR 过曝交给 Bloom 晕出。
+function glow(g, name, rgb, x, y, w, h, rot, intensity) {
+  for (let k = intensity; k > 0; k -= 1) sprite(g, name, rgb, x, y, w, h, rot, Math.min(1, k));
+}
+function streak(g, rgb, ax, ay, bx, by, width, alpha) {
+  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy);
+  if (len < .5) return;
+  sprite(g, 'ShotLine', rgb, (ax + bx) / 2, (ay + by) / 2, len * 1.25, width, Math.atan2(dy, dx), alpha);
+}
+// 星芒：横竖两道 StarFlare，可选斜向小十字
+function starburst(g, rgb, x, y, size, rot, intensity, diag = 0) {
+  glow(g, 'StarFlare', rgb, x, y, size, size, rot, intensity);
+  if (diag > 0) glow(g, 'StarFlare', rgb, x, y, size * diag, size * diag, rot + Math.PI / 4, intensity * .7);
+}
+
+// ---------- 通用构件 ----------
+// 中心闪光：柔光核 + 星芒，0~len 帧
+function drawFlash(g, age, o) {
+  const len = o.len || 16;
+  if (age < 0 || age > len) return;
+  const t = age / len, k = bell(t, .12);
+  glow(g, 'GlowDot', GOLD.gold, 0, 0, o.core * (.6 + .6 * outCubic(t)), o.core * (.6 + .6 * outCubic(t)), 0, 2.4 * k);
+  starburst(g, GOLD.light, 0, 0, o.flare * (.5 + .7 * outQuart(t)), o.rot || 0, 2.2 * k, o.diag || 0);
+}
+
+// 冲击波环：ShotLine 切向首尾相接成细亮边 + 内侧淡金冲击壳
+function ringRadius(age, o) {
+  if (o.expand !== undefined) {
+    const p = clamp(age / o.expand);
+    return o.r0 + o.r * (1 - Math.pow(2, -10 * p)) / (1 - Math.pow(2, -10));
+  }
+  return o.r * outExpo(age / o.dur * 1.05) + o.r0;
+}
+function drawRing(g, age, o) {
+  if (age < 0 || age > o.dur) return;
+  const t = age / o.dur, r = ringRadius(age, o);
+  const fade = o.expand === undefined ? Math.pow(1 - t, 1.4)
+    : lerp(1, .65, clamp(age / o.expand)) * (1 - smooth(clamp((age - o.expand) / (o.dur - o.expand))));
+  const rise = smooth(clamp(age / 3));
+  const a = fade * rise;
+  // 冲击壳：从中心透明到边缘淡金
+  const shell = g.createRadialGradient(0, 0, Math.max(0, r * .45), 0, 0, r * 1.02);
+  const c = o.color;
+  shell.addColorStop(0, `rgba(${c},0)`);
+  shell.addColorStop(.75, `rgba(${c},${.05 * a})`);
+  shell.addColorStop(.96, `rgba(${c},${o.shell * a})`);
+  shell.addColorStop(1, `rgba(${c},0)`);
+  g.fillStyle = shell; g.beginPath(); g.arc(0, 0, r * 1.02, 0, Math.PI * 2); g.fill();
+  // 亮边
+  const segs = o.segs, w = o.width * lerp(1, .35, t);
+  for (let i = 0; i < segs; i++) {
+    const ang = i / segs * Math.PI * 2 + (o.spin || 0) * t;
+    const shimmer = .75 + .25 * Math.sin(i * 2.3 + age * .9);
+    const x = Math.cos(ang) * r, y = Math.sin(ang) * r;
+    sprite(g, 'ShotLine', c, x, y, (Math.PI * 2 * r / segs) * 2.1, w, ang + Math.PI / 2, a * shimmer * o.alpha);
+  }
+}
+
+// 放射光线：从中心射出的细线
+function makeRays(seed, n, o) {
+  const rnd = mulberry(seed), list = [];
+  for (let i = 0; i < n; i++) {
+    const ang = (i + rnd() * .7) / n * Math.PI * 2;
+    list.push({ ang, len: lerp(o.minLen, o.maxLen, rnd()), delay: rnd() * o.delay, life: lerp(o.minLife, o.maxLife, rnd()), w: lerp(.7, 1.2, rnd()) });
+  }
+  return list;
+}
+function drawRays(g, age, rays, o) {
+  for (const p of rays) {
+    const a = age - p.delay;
+    if (a < 0 || a > p.life) continue;
+    const t = a / p.life, head = p.len * outCubic(t), tail = head - p.len * o.tail * (1 - t * .6);
+    const cx = Math.cos(p.ang), cy = Math.sin(p.ang);
+    streak(g, o.color, cx * Math.max(0, tail), cy * Math.max(0, tail), cx * head, cy * head, o.width * p.w * (1 - t * .5), Math.pow(1 - t, 1.3) * o.alpha);
+  }
+}
+
+// 粒子：柔光点 / 四角星，按解析式计算位置，可任意拖动时间轴
+function makeSparks(seed, n, o) {
+  const rnd = mulberry(seed), list = [];
+  for (let i = 0; i < n; i++) {
+    list.push({
+      ang: rnd() * Math.PI * 2, dist: lerp(o.minDist, o.maxDist, Math.pow(rnd(), .7)),
+      delay: rnd() * o.delay, life: lerp(o.minLife, o.maxLife, rnd()),
+      size: lerp(o.minSize, o.maxSize, rnd()), star: rnd() < o.starRatio, rot: rnd() * Math.PI,
+      spin: (rnd() - .5) * .12, phase: rnd() * 6.28, rise: lerp(o.rise * .5, o.rise, rnd())
+    });
+  }
+  return list;
+}
+function drawSparks(g, age, sparks, o) {
+  for (const p of sparks) {
+    const a = age - p.delay;
+    if (a < 0 || a > p.life) continue;
+    const t = a / p.life, d = p.dist * outQuart(t);
+    const x = Math.cos(p.ang) * d, y = Math.sin(p.ang) * d - p.rise * t * t + o.gravity * t * t;
+    const twinkle = o.twinkle ? .55 + .45 * Math.sin(a * o.twinkle + p.phase) : 1;
+    const k = (o.linger ? 1 - t * t * t : Math.pow(1 - t, 1.2)) * twinkle;
+    if (p.star) {
+      const s = p.size * 2.2 * (1 - t * .4);
+      glow(g, 'Star4', GOLD.light, x, y, s, s, p.rot + p.spin * a, 1.4 * k);
+    } else {
+      // 拖一点尾巴表示速度
+      const v = p.dist * 4 * Math.pow(1 - t, 3) / p.life;
+      if (v > .8) {
+        const bx = x - Math.cos(p.ang) * v * 3, by = y - Math.sin(p.ang) * v * 3;
+        streak(g, GOLD.gold, bx, by, x, y, p.size * .9, k * .8);
+      }
+      glow(g, 'GlowDot', GOLD.gold, x, y, p.size, p.size, 0, 1.6 * k);
+    }
+  }
+}
+
+// 环经过后留在原地闪烁的星点
+function makeTwinkles(seed, n, o) {
+  const rnd = mulberry(seed), list = [];
+  for (let i = 0; i < n; i++) {
+    const ang = rnd() * Math.PI * 2, rr = lerp(o.minR, o.maxR, rnd());
+    list.push({ ang, rr, life: lerp(o.minLife, o.maxLife, rnd()), size: lerp(o.minSize, o.maxSize, rnd()), rot: (rnd() - .5) * .4, big: rnd() < o.bigRatio, drift: lerp(4, 14, rnd()) });
+  }
+  return list;
+}
+function ringArrive(rr, ring) {
+  // 反解环到达半径 rr 的帧数（数值查找）
+  for (let f = 0; f <= ring.dur; f += .5) {
+    if (ringRadius(f, ring) >= rr) return f + ring.start;
+  }
+  return ring.start + ring.dur;
+}
+function drawTwinkles(g, age, list, ring, radiusScale = 1) {
+  for (const p of list) {
+    const rr = p.rr * radiusScale;
+    // AOE 可随滑块改变；按当前波前重算，避免旧 born 缓存使星点提前出现。
+    const a = age - ringArrive(rr, ring);
+    if (a < 0 || a > p.life) continue;
+    const t = a / p.life, k = bell(t, .15) * (.7 + .3 * Math.sin(a * .5 + p.rr));
+    const x = Math.cos(p.ang) * (rr + p.drift * t), y = Math.sin(p.ang) * (rr + p.drift * t) - 10 * t;
+    if (p.big) starburst(g, GOLD.light, x, y, p.size * 3.2, p.rot, 1.6 * k, .45);
+    else glow(g, 'Star4', GOLD.light, x, y, p.size * 1.8, p.size * 1.8, p.rot, 1.3 * k);
+  }
+}
+
+// ---------- 方案 ----------
+const variants = {
+  A: (() => {
+    // drawBurst 对主体使用 1.1 倍缩放，此处先还原，最终亮环半径恰好等于 AOE。
+    const ring = { start: 2, expand: 20, dur: 34, get r() { return SK.r * SK.aoe / 1.1 - this.r0; },
+      r0: 20, segs: 46, width: 30, shell: .22, alpha: 1, color: GOLD.gold, spin: .15 };
+    const rays = makeRays(11, 18, { minLen: 160, maxLen: 300, delay: 3, minLife: 14, maxLife: 22 });
+    const sparks = makeSparks(12, 46, { minDist: 90, maxDist: 360, delay: 4, minLife: 28, maxLife: 46, minSize: 8, maxSize: 16, starRatio: .25, rise: 0, gravity: 30, twinkle: 0 });
+    const tw = makeTwinkles(13, 22, { minR: 80, maxR: 330, minLife: 26, maxLife: 44, minSize: 10, maxSize: 18, bigRatio: .25 });
+    return {
+      name: 'A 星芒环爆', len: 84,
+      desc: '一次十字星芒闪光，金色冲击环向外扩张至完整爆炸范围，再逐渐消散；放射光线与金色火花同时迸出，波前经过的位置留下四角星闪烁。',
+      draw(g, f) {
+        drawFlash(g, f, { len: 16, core: 180, flare: 420, diag: .45 });
+        drawRing(g, f - ring.start, ring);
+        drawRays(g, f, rays, { color: GOLD.light, width: 18, tail: .55, alpha: 1 });
+        drawSparks(g, f, sparks, { gravity: 30 });
+        drawTwinkles(g, f, tw, ring, (ring.r + ring.r0) / 350);
+      }
+    };
+  })(),
+  B: (() => {
+    const ring1 = { start: 1, dur: 26, r: 380, r0: 24, segs: 54, width: 22, shell: .16, alpha: 1, color: GOLD.light, spin: .1 };
+    const ring2 = { start: 6, dur: 44, r: 230, r0: 10, segs: 36, width: 48, shell: .3, alpha: .8, color: GOLD.deep, spin: -.2 };
+    const rays = makeRays(21, 10, { minLen: 260, maxLen: 420, delay: 1, minLife: 12, maxLife: 16 });
+    const dust = makeSparks(22, 70, { minDist: 60, maxDist: 280, delay: 8, minLife: 50, maxLife: 80, minSize: 8, maxSize: 16, starRatio: .45, rise: 60, gravity: 0, twinkle: .35 });
+    const tw = makeTwinkles(23, 14, { minR: 120, maxR: 380, minLife: 30, maxLife: 50, minSize: 12, maxSize: 20, bigRatio: .5 });
+    return {
+      name: 'B 双环星尘', len: 110,
+      desc: '外层浅金细环先行、内层深金宽环随后，形成有厚度的冲击；大号八角星芒闪光，结束后大量星尘缓慢上飘、明灭闪烁再消散。余韵更长，适合大招或领域收尾。',
+      draw(g, f) {
+        drawFlash(g, f, { len: 20, core: 220, flare: 560, diag: .6 });
+        drawRing(g, f - ring2.start, ring2);
+        drawRing(g, f - ring1.start, ring1);
+        drawRays(g, f, rays, { color: GOLD.pale, width: 14, tail: .7, alpha: .9 });
+        drawSparks(g, f, dust, { gravity: 0, twinkle: .35, linger: true });
+        drawTwinkles(g, f, tw, ring1);
+      }
+    };
+  })(),
+  C: (() => {
+    const ring = { start: 2, dur: 32, r: 300, r0: 20, segs: 42, width: 28, shell: .2, alpha: 1, color: GOLD.gold, spin: .1 };
+    const sparks = makeSparks(31, 30, { minDist: 80, maxDist: 260, delay: 3, minLife: 22, maxLife: 36, minSize: 8, maxSize: 14, starRatio: .2, rise: 0, gravity: 24, twinkle: 0 });
+    // 星座：若干主星飞出到固定点，再连线
+    const rnd = mulberry(32), stars = [];
+    const N = 7;
+    for (let i = 0; i < N; i++) {
+      const ang = (i + rnd() * .6) / N * Math.PI * 2 - Math.PI / 2;
+      stars.push({ ang, d: lerp(150, 290, rnd()), size: lerp(26, 40, rnd()), delay: rnd() * 4 });
+    }
+    const pos = (s, f) => { const t = clamp((f - 3 - s.delay) / 24); const d = s.d * outQuart(t); return [Math.cos(s.ang) * d, Math.sin(s.ang) * d - 6 * clamp((f - 30) / 60)]; };
+    return {
+      name: 'C 星座迸散', len: 104,
+      desc: '冲击环扩张的同时，七颗主星沿放射方向飞出并停在环内；停稳后依次连成金色星座细线，主星以星芒闪烁，最后星线先淡出、主星收束消失。最有“星光法术”辨识度。',
+      draw(g, f) {
+        drawFlash(g, f, { len: 16, core: 170, flare: 400, diag: .45 });
+        drawRing(g, f - ring.start, ring);
+        drawSparks(g, f, sparks, { gravity: 24 });
+        // 主星飞行拖尾
+        for (const s of stars) {
+          const a = f - 3 - s.delay;
+          if (a < 0 || a > 24) continue;
+          const [x, y] = pos(s, f), [px, py] = pos(s, f - 4);
+          streak(g, GOLD.light, px, py, x, y, 16, 1 - a / 24);
+        }
+        // 星座连线：开放链 + 一条分叉，避免闭合成第二个环
+        const edges = [[0, 1], [1, 2], [2, 3], [3, 4], [1, 5], [5, 6]];
+        for (let i = 0; i < edges.length; i++) {
+          const s = stars[edges[i][0]], n = stars[edges[i][1]];
+          const lt = clamp((f - 26 - i * 2.5) / 10), out = 1 - clamp((f - 70) / 16);
+          const k = smooth(lt) * out;
+          if (k <= 0) continue;
+          const [x0, y0] = pos(s, f), [x1, y1] = pos(n, f);
+          const ex = lerp(x0, x1, smooth(lt)), ey = lerp(y0, y1, smooth(lt));
+          streak(g, GOLD.gold, x0, y0, ex, ey, 7, .75 * out);
+        }
+        // 主星
+        for (let i = 0; i < N; i++) {
+          const s = stars[i], a = f - 3 - s.delay;
+          if (a < 0) continue;
+          const life = 92 - s.delay;
+          if (a > life) continue;
+          const [x, y] = pos(s, f);
+          const settle = clamp((a - 22) / 6), tail = 1 - clamp((a - life + 14) / 14);
+          const pulse = .8 + .2 * Math.sin(a * .45 + i);
+          const k = tail * pulse;
+          glow(g, 'GlowDot', GOLD.gold, x, y, s.size * 1.1, s.size * 1.1, 0, 1.4 * k);
+          starburst(g, GOLD.light, x, y, s.size * (1.6 + .9 * settle) * tail, a * .01, 1.6 * k, .4);
+        }
+      }
+    };
+  })()
+};
+
+
+// ---------- 像素场景（预渲染，按 16px 物块示意实机画面） ----------
+let sky = 'night';
+const SCENE = { x: -1280, y: -780, w: 2560, h: 1560 };
+const sceneCache = {};
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, n >> 8 & 255, n & 255].map(v => Math.max(0, Math.min(255, Math.round(v * k))));
+  return `rgb(${c})`;
+}
+function buildScene(mode) {
+  const night = mode === 'night';
+  const c = document.createElement('canvas'); c.width = SCENE.w; c.height = SCENE.h;
+  const g = c.getContext('2d');
+  g.translate(-SCENE.x, -SCENE.y);
+  const rnd = mulberry(night ? 7 : 8);
+  const P = night ? {
+    sky0: '#05081a', sky1: '#16203a', hillFar: '#0f1830', hillNear: '#121c2a', trunk: '#1d1712', leaf: '#11261c',
+    grass: '#1f5a30', dirt: '#3a2a1f', stone: '#2c3038'
+  } : {
+    sky0: '#3f86d6', sky1: '#a6d3f5', hillFar: '#86b8d8', hillNear: '#5f9a58', trunk: '#6b4a2e', leaf: '#3c8a35',
+    grass: '#3ea33a', dirt: '#8a5a38', stone: '#7a7c84'
+  };
+  const grd = g.createLinearGradient(0, SCENE.y, 0, GROUND);
+  grd.addColorStop(0, P.sky0); grd.addColorStop(1, P.sky1);
+  g.fillStyle = grd; g.fillRect(SCENE.x, SCENE.y, SCENE.w, SCENE.h);
+  if (night) {
+    for (let i = 0; i < 220; i++) {
+      const x = SCENE.x + rnd() * SCENE.w, y = SCENE.y + rnd() * 700, b = rnd();
+      g.fillStyle = `rgba(255,255,255,${.25 + b * .5})`;
+      g.fillRect(Math.round(x / 2) * 2, Math.round(y / 2) * 2, b > .85 ? 4 : 2, b > .85 ? 4 : 2);
+    }
+    g.fillStyle = '#e8e2c8'; g.beginPath(); g.arc(520, -520, 30, 0, Math.PI * 2); g.fill();
+  } else {
+    g.fillStyle = 'rgba(255,255,255,.85)';
+    for (const [x, y, w] of [[-700, -560, 220], [-160, -480, 160], [480, -600, 260]]) {
+      for (let i = 0; i < 4; i++) g.fillRect(x + i * w / 6, y - (i % 2) * 14, w / 2, 28);
+    }
+  }
+  // 远景山丘
+  for (const [col, base, amp, fr] of [[P.hillFar, -90, 120, .004], [P.hillNear, -10, 70, .009]]) {
+    g.fillStyle = col; g.beginPath(); g.moveTo(SCENE.x, GROUND + 200);
+    for (let x = SCENE.x; x <= SCENE.x + SCENE.w; x += 8) g.lineTo(x, Math.round((base - amp * (.5 + .5 * Math.sin(x * fr + base))) / 4) * 4);
+    g.lineTo(SCENE.x + SCENE.w, GROUND + 200); g.fill();
+  }
+  // 物块地形
+  const T = 16;
+  const top = col => GROUND - T * (Math.abs(col) < 20 ? 0 : Math.round(1.4 * Math.sin(col * .13) + 1.1 * Math.sin(col * .37 + 1) + .4));
+  for (let col = -80; col < 80; col++) {
+    const y0 = top(col), x = col * T;
+    for (let y = y0, row = 0; y < SCENE.y + SCENE.h; y += T, row++) {
+      const deep = row > 8 + 3 * Math.sin(col * .3);
+      const base = row === 0 ? P.grass : deep && rnd() < .8 ? P.stone : P.dirt;
+      g.fillStyle = shade(base, .9 + rnd() * .18); g.fillRect(x, y, T, T);
+      g.fillStyle = shade(base, .78); g.fillRect(x + 2 + Math.floor(rnd() * 10), y + 2 + Math.floor(rnd() * 10), 4, 4);
+      if (row === 0) { g.fillStyle = shade(P.grass, 1.2); g.fillRect(x, y, T, 4); }
+    }
+    // 树
+    if (Math.abs(col) > 6 && rnd() < .13) {
+      const h = 7 + Math.floor(rnd() * 7);
+      g.fillStyle = P.trunk; g.fillRect(x + 4, y0 - h * T, 8, h * T);
+      g.fillStyle = P.leaf;
+      for (let i = 0; i < 9; i++) g.fillRect(x - 24 + Math.floor(rnd() * 5) * 8, y0 - h * T - 40 + Math.floor(rnd() * 5) * 8, 32, 24);
+    }
+  }
+  // 玩家（20×42 示意）
+  const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(-10 + x, -21 + y, w, h); };
+  const hat = night ? '#4a3a6a' : '#6b5299', skin = night ? '#a08070' : '#f0c8a8', hair = night ? '#8a8a96' : '#d8d8e4';
+  const coat = night ? '#2e3a5a' : '#3f5a9a', leg = night ? '#2a2a33' : '#3a3a48';
+  px(4, 0, 12, 6, hat); px(2, 4, 16, 4, hat); px(5, 8, 10, 8, skin); px(6, 8, 8, 3, hair);
+  px(4, 16, 12, 14, coat); px(5, 30, 4, 10, leg); px(11, 30, 4, 10, leg);
+  px(4, 40, 6, 2, '#1a1410'); px(10, 40, 6, 2, '#1a1410');
+  return c;
+}
+function drawBackground(g) {
+  const c = sceneCache[sky] || (sceneCache[sky] = buildScene(sky));
+  g.save(); g.imageSmoothingEnabled = false; g.drawImage(c, SCENE.x, SCENE.y); g.restore();
+}
+
+// ---------- 双星法阵技能逻辑 ----------
+// 大星阵以玩家为中心；两个小五芒星阵沿大星阵外圈绕行，速度不同；角度重合 = 完全重叠 → 共鸣爆炸，之后继续绕行。
+let fullSkill = true, counterRot = true;
+const SK = {
+  R: 380,          // 大星阵半径
+  orbit: 470,      // 小星阵绕行半径（小阵内边缘略压在大星阵外环上）
+  r: 112,          // 小星阵半径
+  first: 180,      // 第一次重叠的帧（3 秒）
+  meet: -.55,      // 第一次重叠的位置角
+  hint: 1.15,      // 距离重叠多少弧度开始发亮
+  appear: 45,      // 法阵展开帧数
+  starLead: 30,    // 圆形爆炸前的十字星预告，沿用炎爆的半秒节奏
+  starSize: 2,     // 相对初版预告星的整体尺寸倍率
+  aoe: 6.7,        // AOE 外半径 / 小星阵半径（页面滑块可调；按游戏实际需求，范围大到不易躲开）
+  hole: 2.3        // 圆环星爆内孔半径 / 小星阵半径
+};
+const LINE = [255, 214, 135];
+function orbitSpeeds() { return counterRot ? [.8 / 60, -.6 / 60] : [1.5 / 60, .5 / 60]; }
+function skillPeriod() { const [a, b] = orbitSpeeds(); return Math.PI * 2 / (a - b); }
+function skillLoopLen() { return Math.round(SK.first + skillPeriod() * 2 + 130); }
+function skillState(f) {
+  const [w1, w2] = orbitSpeeds(), dw = w1 - w2, period = skillPeriod();
+  const th1 = SK.meet + w1 * (f - SK.first), th2 = SK.meet + w2 * (f - SK.first);
+  let last = -Infinity, next = SK.first;
+  let n = -1;
+  if (f >= SK.first) { n = Math.floor((f - SK.first) / period); last = SK.first + n * period; next = last + period; }
+  const rem = (next - f) * dw, past = (f - last) * dw;
+  const pre = Math.pow(clamp(1 - rem / SK.hint), 2);       // 接近重叠的提示
+  const post = Math.pow(clamp(1 - past / .45), 1.5);       // 重叠后余辉
+  const burstAge = f - last;
+  const thB = SK.meet + w1 * (last - SK.first);
+  const thNext = SK.meet + w1 * (next - SK.first);
+  const sh = shape === 'alt' ? (n % 2 === 0 ? 'circle' : 'ring') : shape;
+  const nextSh = shape === 'alt' ? ((n + 1) % 2 === 0 ? 'circle' : 'ring') : shape;
+  return { th1, th2, pre, post, burstAge, next, sh, nextSh,
+    impact: { x: Math.cos(thNext) * SK.orbit, y: Math.sin(thNext) * SK.orbit, th: thNext },
+    burst: { x: Math.cos(thB) * SK.orbit, y: Math.sin(thB) * SK.orbit, th: thB } };
+}
+
+// 沿用炎爆的正交 HShotA、旋转与亮度脉动；全程用一条连续减速曲线收束。
+// 前 10 帧约收去三分之二，随后继续减速收至光点，不在末段叠加第二段收缩。
+function drawImpactStar(g, age, point) {
+  if (age <= 0 || age >= SK.starLead + 2) return;
+  const time = Math.min(age, SK.starLead), t = time / SK.starLead;
+  const remaining = Math.pow(1 - t, 2.7);
+  const length = 1.8 * remaining;
+  const width = lerp(.2, 0, t) * .5;
+  const rotation = .01 + 1.49 * t;
+  const pulse = 1 + (1 - Math.abs(time % 20 - 10) / 10);
+  const envelope = smooth(clamp(age / 2)) * (1 - smooth(clamp((age - SK.starLead) / 2)));
+  const baseScale = SK.r / 112 * .55, scale = baseScale * SK.starSize;
+  const w = 720 * length * scale, h = 360 * width * scale;
+  for (const turn of [0, Math.PI / 2]) {
+    glow(g, 'HShotA', GOLD.gold, point.x, point.y, w, h, rotation + turn, 3.5 * pulse * envelope);
+    glow(g, 'HShotA', GOLD.pale, point.x, point.y, w * .72, h * .55, rotation + turn, 1.3 * pulse * envelope);
+  }
+  const core = lerp(22 * baseScale, 38 * scale, remaining);
+  glow(g, 'GlowDot', GOLD.light, point.x, point.y, core, core, 0, pulse * envelope);
+}
+
+function hdrStroke(g, rgb, w, a) {
+  for (let k = a; k > .003; k -= 1) { g.strokeStyle = `rgba(${rgb},${Math.min(1, k)})`; g.lineWidth = w; g.stroke(); }
+}
+function arcPath(g, x, y, r, a0 = 0, a1 = Math.PI * 2, ccw = false) { g.beginPath(); g.arc(x, y, r, a0, a1, ccw); }
+function starPoints(x, y, r, rot) {
+  return Array.from({ length: 5 }, (_, i) => { const a = rot + i * Math.PI * 2 / 5 - Math.PI / 2; return [x + Math.cos(a) * r, y + Math.sin(a) * r]; });
+}
+// 五芒星：grow < 1 时每条边只画出一部分（展开动画）
+function pentagram(g, rgb, x, y, r, rot, w, a, grow = 1) {
+  if (grow <= 0) return;
+  const p = starPoints(x, y, r, rot);
+  g.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const [x0, y0] = p[i], [x1, y1] = p[(i + 2) % 5];
+    g.moveTo(x0, y0); g.lineTo(lerp(x0, x1, grow), lerp(y0, y1, grow));
+  }
+  hdrStroke(g, rgb, w, a);
+}
+
+function drawBigArray(g, f, st) {
+  const ap = smooth(clamp(f / SK.appear)), R = SK.R, rot = f * .0009;
+  const pulse = st.burstAge >= 0 ? Math.max(0, 1 - st.burstAge / 40) : 0;
+  const a = (.3 + .35 * pulse) * ap;
+  const start = -Math.PI / 2;
+  if (ap > 0) {
+    arcPath(g, 0, 0, R, start, start + Math.PI * 2 * ap); hdrStroke(g, LINE, 2, a);
+    arcPath(g, 0, 0, R - 18, start, start - Math.PI * 2 * ap, true); hdrStroke(g, LINE, 1, a * .7);
+  }
+  // 刻度环
+  g.beginPath();
+  for (let i = 0; i < 72 * ap; i++) {
+    const ang = -rot * 2 + i / 72 * Math.PI * 2, l = i % 6 === 0 ? 10 : 4;
+    g.moveTo(Math.cos(ang) * (R - 4), Math.sin(ang) * (R - 4)); g.lineTo(Math.cos(ang) * (R - 4 - l), Math.sin(ang) * (R - 4 - l));
+  }
+  hdrStroke(g, LINE, 1, a * .8);
+  pentagram(g, LINE, 0, 0, R - 18, rot, 1.3, a * .75, smooth(clamp((f - 12) / 36)));
+  arcPath(g, 0, 0, (R - 18) * .382); hdrStroke(g, LINE, 1, a * .55 * smooth(clamp((f - 30) / 20)));
+  for (const [x, y] of starPoints(0, 0, R - 18, rot)) glow(g, 'Star4', LINE, x, y, 16 + 10 * pulse, 16 + 10 * pulse, 0, (.7 + 1.2 * pulse) * ap);
+  // 共鸣沿大星阵外环传导：两道光点从爆点沿圆周向两侧跑开
+  if (st.burstAge >= 0 && st.burstAge < 60) {
+    const t = st.burstAge / 60, k = Math.pow(1 - t, 1.3);
+    for (const sgn of [-1, 1]) {
+      for (let j = 0; j < 6; j++) {
+        const ang = st.burst.th + sgn * (outCubic(t) * Math.PI - j * .05);
+        sprite(g, 'ShotLine', GOLD.light, Math.cos(ang) * R, Math.sin(ang) * R, 46, 12, ang + Math.PI / 2, k * (1 - j / 6));
+      }
+      const ang = st.burst.th + sgn * outCubic(t) * Math.PI;
+      glow(g, 'GlowDot', GOLD.gold, Math.cos(ang) * R, Math.sin(ang) * R, 26, 26, 0, 1.6 * k);
+    }
+  }
+}
+
+function drawSmallArray(g, f, x, y, rot, glowK, burstK, ap, centerGlow = 1) {
+  const r = SK.r * (1 + .08 * burstK) * (.6 + .4 * ap);
+  const a = (.45 + .9 * glowK + 1.2 * burstK) * ap;
+  const col = glowK + burstK > .5 ? GOLD.light : LINE;
+  // 接近时的低频震颤
+  const jit = Math.pow(glowK, 3) * 3;
+  x += Math.sin(f * 1.7) * jit; y += Math.cos(f * 2.3) * jit;
+  if (glowK + burstK > .02) glow(g, 'GlowDot', GOLD.gold, x, y, r * 1.4, r * 1.4, 0, (.25 * glowK + .8 * burstK) * ap * centerGlow);
+  arcPath(g, x, y, r); hdrStroke(g, col, 2 + 1.5 * burstK, a);
+  arcPath(g, x, y, r * .84); hdrStroke(g, col, 1.2, a * .7);
+  // 两环之间的点阵
+  for (let i = 0; i < 20; i++) {
+    const ang = -rot * .6 + i / 20 * Math.PI * 2;
+    glow(g, 'GlowDot', col, x + Math.cos(ang) * r * .92, y + Math.sin(ang) * r * .92, 5, 5, 0, a * .55);
+  }
+  pentagram(g, col, x, y, r * .84, rot, 1.5 + burstK, a * .85, smooth(clamp((f - 10) / 30)));
+  const tw = .75 + .25 * Math.sin(f * (.2 + .5 * glowK));
+  for (const [vx, vy] of starPoints(x, y, r * .84, rot)) {
+    const s = 11 + 16 * glowK + 22 * burstK;
+    glow(g, 'Star4', GOLD.light, vx, vy, s, s, 0, (.8 + 1.4 * glowK + 1.6 * burstK) * tw * ap);
+  }
+}
+
+// 接近重叠：光尘从两阵向中点汇聚，中间一条细光连线
+function drawConverge(g, f, p1, p2, k) {
+  if (k <= .03) return;
+  const mx = (p1[0] + p2[0]) / 2, my = (p1[1] + p2[1]) / 2;
+  for (const [cx, cy] of [p1, p2]) {
+    for (let j = 0; j < 12; j++) {
+      const fr = (f * .022 + j / 12) % 1, ang = j * 2.39 + f * .01;
+      const sx = cx + Math.cos(ang) * SK.r * .95, sy = cy + Math.sin(ang) * SK.r * .95;
+      const x = lerp(sx, mx, smooth(fr)), y = lerp(sy, my, smooth(fr)), a = k * Math.sin(fr * Math.PI);
+      if (j % 3 === 0) glow(g, 'Star4', GOLD.light, x, y, 12, 12, f * .05, 1.3 * a);
+      else glow(g, 'GlowDot', GOLD.gold, x, y, 8, 8, 0, 1.2 * a);
+    }
+  }
+  if (k > .35) {
+    const fl = .75 + .25 * Math.sin(f * 1.3);
+    streak(g, GOLD.light, p1[0], p1[1], p2[0], p2[1], 10, (k - .35) * 1.4 * fl);
+  }
+}
+
+// AOE 爆炸主体：实心金色爆区迅速撑满 AOE 半径，亮边标出范围，随后边缘碎成星点消散
+const aoeStars = (() => { const rnd = mulberry(77); return Array.from({ length: 30 }, (_, i) => ({ ang: (i + rnd() * .8) / 30 * Math.PI * 2, d: lerp(.82, 1.05, rnd()), s: lerp(10, 20, rnd()), delay: rnd() * 6 })); })();
+function drawAoe(g, age) {
+  const R = SK.r * SK.aoe, len = 40;
+  if (age < 0 || age > len) return;
+  const rad = R * outExpo(clamp(age / 7));
+  const body = bell(clamp(age / 30), .08);
+  // 实心爆区：中心热、边缘更亮
+  const grd = g.createRadialGradient(0, 0, 0, 0, 0, rad);
+  grd.addColorStop(0, `rgba(${GOLD.gold},${.2 * body})`);
+  grd.addColorStop(.6, `rgba(${GOLD.gold},${.13 * body})`);
+  grd.addColorStop(.92, `rgba(${GOLD.light},${.42 * body})`);
+  grd.addColorStop(1, `rgba(${GOLD.light},0)`);
+  g.fillStyle = grd; g.beginPath(); g.arc(0, 0, rad, 0, Math.PI * 2); g.fill();
+  glow(g, 'GlowDot', GOLD.deep, 0, 0, rad * 1.6, rad * 1.6, 0, .55 * body);
+  // 范围亮边
+  const rim = Math.pow(1 - clamp((age - 8) / 16), 1.5) * smooth(clamp(age / 2));
+  const segs = 40;
+  for (let i = 0; i < segs; i++) {
+    const ang = i / segs * Math.PI * 2, fl = .8 + .2 * Math.sin(i * 1.9 + age * 1.1);
+    sprite(g, 'ShotLine', GOLD.light, Math.cos(ang) * rad, Math.sin(ang) * rad, Math.PI * 2 * rad / segs * 2.1, 22, ang + Math.PI / 2, rim * fl);
+  }
+  // 亮边碎成星点
+  for (const p of aoeStars) {
+    const a = age - 14 - p.delay;
+    if (a < 0 || a > 24) continue;
+    const t = a / 24, k = bell(t, .2), d = R * (p.d + .08 * t);
+    glow(g, 'Star4', GOLD.light, Math.cos(p.ang) * d, Math.sin(p.ang) * d - 8 * t, p.s, p.s, 0, 1.5 * k);
+  }
+}
+
+function drawSkill(g, f) {
+  const st = skillState(f), ap = smooth(clamp(f / SK.appear));
+  drawBigArray(g, f, st);
+  const p1 = [Math.cos(st.th1) * SK.orbit, Math.sin(st.th1) * SK.orbit];
+  const p2 = [Math.cos(st.th2) * SK.orbit, Math.sin(st.th2) * SK.orbit];
+  // 自转与公转角绑定：重叠时两个五芒星错开 36°，叠成十芒星
+  const rot1 = st.th1 * 3, rot2 = st.th2 * 3 + Math.PI / 5;
+  const burstK = st.burstAge >= 0 ? bell(clamp(st.burstAge / 26), .12) : 0;
+  const glowK = Math.max(st.pre, st.post * .6);
+  // 圆环星爆时内孔是安全区：关掉小法阵中心辉光，避免把孔填满
+  const cg = st.sh === 'ring' && st.burstAge >= 0 ? clamp((st.burstAge - 40) / 20) : 1;
+  drawSmallArray(g, f, p1[0], p1[1], rot1, glowK, burstK, ap, cg);
+  drawSmallArray(g, f, p2[0], p2[1], rot2, glowK, burstK, ap, cg);
+  drawConverge(g, f, p1, p2, st.pre);
+  // 用下一次相交的解析坐标预告，星光不跟随当前两阵的中点漂移。
+  if (st.nextSh === 'circle') drawImpactStar(g, SK.starLead - (st.next - f), st.impact);
+  if (st.sh === 'circle' && st.burstAge >= 0 && st.burstAge < 2)
+    drawImpactStar(g, SK.starLead + st.burstAge, st.burst);
+  // 重叠瞬间：在重叠点播放本次形状的爆炸
+  if (st.burstAge >= 0 && st.burstAge <= burstLen(st.sh)) {
+    g.save(); g.translate(st.burst.x, st.burst.y); drawBurst(g, st.sh, st.burstAge); g.restore();
+  }
+  return st;
+}
+
+// ---------- 圆环星爆：中心内孔为安全区，危险区是内孔到外圈之间的环带 ----------
+// 共鸣时小法阵光圈收缩成内孔边界；冲击前沿从内孔边推到外圈；环带内由内向外依次炸开星芒，火花只向外飞；
+// 外圈亮边碎成星点消散，内孔边界最后熄灭。孔内不放任何特效。
+const RING_LEN = 84;
+const ringFx = (() => {
+  const rnd = mulberry(91);
+  const pops = Array.from({ length: 28 }, (_, i) => ({ ang: (i + rnd() * .9) / 28 * Math.PI * 2, u: lerp(.12, .92, rnd()), j: rnd() * 4, life: lerp(16, 24, rnd()), s: lerp(.8, 1.25, rnd()), rot: (rnd() - .5) * .5 }));
+  const sparks = Array.from({ length: 44 }, () => ({ ang: rnd() * Math.PI * 2, u: lerp(.05, .7, rnd()), go: lerp(.35, .7, rnd()), delay: rnd() * 8, life: lerp(22, 36, rnd()), size: lerp(7, 14, rnd()), star: rnd() < .3, rot: rnd() * Math.PI }));
+  const outerStars = Array.from({ length: 34 }, (_, i) => ({ ang: (i + rnd() * .8) / 34 * Math.PI * 2, d: lerp(.9, 1.06, rnd()), s: lerp(10, 20, rnd()), delay: rnd() * 6 }));
+  const lingers = Array.from({ length: 18 }, () => ({ ang: rnd() * Math.PI * 2, u: lerp(.15, .9, rnd()), life: lerp(28, 44, rnd()), s: lerp(10, 18, rnd()), big: rnd() < .3, rot: (rnd() - .5) * .4 }));
+  return { pops, sparks, outerStars, lingers };
+})();
+function drawRingBurst(g, age) {
+  if (age < 0 || age > RING_LEN) return;
+  // 内孔不得大于外圈：至少留 0.15 倍小法阵半径的环带
+  const Ro = SK.r * SK.aoe, Ri = SK.r * Math.min(SK.hole, SK.aoe - .15), band = Ro - Ri;
+  const front = Ri + band * outExpo(clamp(age / 9));
+  const uAt = u => Ri + band * u;
+  const frontU = (front - Ri) / band;
+
+  // 内孔边界：从小法阵大小收缩到内孔半径
+  const ri = lerp(SK.r * 1.05, Ri, outCubic(clamp(age / 6)));
+  const innerA = smooth(clamp(age / 2)) * (1 - smooth(clamp((age - 34) / 26)));
+  const flash = Math.max(0, 1 - age / 8);
+  const segs = 26;
+  for (let i = 0; i < segs; i++) {
+    const ang = i / segs * Math.PI * 2 + age * .004, fl = .85 + .15 * Math.sin(i * 2.1 + age * .8);
+    sprite(g, 'ShotLine', GOLD.light, Math.cos(ang) * ri, Math.sin(ang) * ri, Math.PI * 2 * ri / segs * 2.2, 16 + 10 * flash, ang + Math.PI / 2, innerA * fl * (1 + 1.2 * flash));
+  }
+  arcPath(g, 0, 0, ri); hdrStroke(g, GOLD.pale, 1.5, innerA * (.8 + 1.5 * flash));
+  // 安全区守护星：6 颗小四角星沿内孔边缓慢转动
+  for (let i = 0; i < 6; i++) {
+    const ang = i / 6 * Math.PI * 2 - age * .012;
+    const tw = .75 + .25 * Math.sin(age * .35 + i * 1.7);
+    glow(g, 'Star4', GOLD.light, Math.cos(ang) * ri, Math.sin(ang) * ri, 16 + 10 * flash, 16 + 10 * flash, 0, (1.2 + flash) * innerA * tw);
+  }
+
+  // 环带填充：只填内孔到冲击前沿之间（evenodd 挖掉内孔）
+  const body = bell(clamp(age / 34), .08);
+  if (body > .003 && front > Ri + 1) {
+    const grd = g.createRadialGradient(0, 0, Ri, 0, 0, front);
+    grd.addColorStop(0, `rgba(${GOLD.light},${.4 * body})`);
+    grd.addColorStop(.25, `rgba(${GOLD.gold},${.16 * body})`);
+    grd.addColorStop(.7, `rgba(${GOLD.gold},${.14 * body})`);
+    grd.addColorStop(.94, `rgba(${GOLD.light},${.42 * body})`);
+    grd.addColorStop(1, `rgba(${GOLD.light},0)`);
+    g.fillStyle = grd; g.beginPath(); g.arc(0, 0, front, 0, Math.PI * 2); g.arc(0, 0, Ri, 0, Math.PI * 2, true); g.fill('evenodd');
+  }
+
+  // 外圈冲击前沿
+  const rimA = smooth(clamp(age / 2)) * Math.pow(1 - clamp((age - 12) / 18), 1.5);
+  const osegs = 52;
+  for (let i = 0; i < osegs; i++) {
+    const ang = i / osegs * Math.PI * 2, fl = .8 + .2 * Math.sin(i * 1.9 + age * 1.1);
+    sprite(g, 'ShotLine', GOLD.light, Math.cos(ang) * front, Math.sin(ang) * front, Math.PI * 2 * front / osegs * 2.1, 24, ang + Math.PI / 2, rimA * fl);
+  }
+  for (const p of ringFx.outerStars) {
+    const a = age - 16 - p.delay;
+    if (a < 0 || a > 24) continue;
+    const t = a / 24, k = bell(t, .2), d = Ro * (p.d + .06 * t);
+    glow(g, 'Star4', GOLD.light, Math.cos(p.ang) * d, Math.sin(p.ang) * d - 8 * t, p.s, p.s, 0, 1.5 * k);
+  }
+
+  // 环带星芒：冲击前沿经过后由内向外依次炸开
+  for (const p of ringFx.pops) {
+    const born = 1 + p.u * 9 + p.j, a = age - born;
+    if (a < 0 || a > p.life || p.u > frontU + .02) continue;
+    const t = a / p.life, k = bell(t, .12), r = uAt(p.u);
+    const x = Math.cos(p.ang) * r, y = Math.sin(p.ang) * r;
+    const s = (36 + 34 * (1 - p.u)) * p.s * (.7 + .5 * outCubic(t));
+    glow(g, 'GlowDot', GOLD.gold, x, y, s * .9, s * .9, 0, 1.3 * k);
+    starburst(g, GOLD.light, x, y, s * 1.6, p.rot, 1.5 * k, .4);
+    // 向外的短光线
+    const c = Math.cos(p.ang), sn = Math.sin(p.ang), h = r + band * .22 * outCubic(t);
+    streak(g, GOLD.light, c * (h - band * .14), sn * (h - band * .14), c * h, sn * h, 12, k * .9);
+  }
+
+  // 火花：从环带内出发，只向外飞
+  for (const p of ringFx.sparks) {
+    const a = age - 2 - p.delay;
+    if (a < 0 || a > p.life || p.u > frontU + .02) continue;
+    const t = a / p.life, r0 = uAt(p.u), r = r0 + band * p.go * outQuart(t);
+    const c = Math.cos(p.ang), sn = Math.sin(p.ang), x = c * r, y = sn * r + 26 * t * t;
+    const k = Math.pow(1 - t, 1.2);
+    if (p.star) glow(g, 'Star4', GOLD.light, x, y, p.size * 2, p.size * 2, p.rot + a * .05, 1.3 * k);
+    else {
+      const v = band * p.go * 4 * Math.pow(1 - t, 3) / p.life;
+      if (v > .8) streak(g, GOLD.gold, x - c * v * 3, y - sn * v * 3, x, y, p.size * .9, k * .8);
+      glow(g, 'GlowDot', GOLD.gold, x, y, p.size, p.size, 0, 1.5 * k);
+    }
+  }
+
+  // 余韵：环带里零星四角星闪烁
+  for (const p of ringFx.lingers) {
+    const a = age - 18 - p.u * 8;
+    if (a < 0 || a > p.life) continue;
+    const t = a / p.life, k = bell(t, .15) * (.7 + .3 * Math.sin(a * .5 + p.ang * 3));
+    const r = uAt(p.u), x = Math.cos(p.ang) * r, y = Math.sin(p.ang) * r - 10 * t;
+    if (p.big) starburst(g, GOLD.light, x, y, p.s * 3, p.rot, 1.5 * k, .45);
+    else glow(g, 'Star4', GOLD.light, x, y, p.s * 1.8, p.s * 1.8, p.rot, 1.3 * k);
+  }
+}
+
+// ---------- 圆环星爆·波纹版：极坐标噪声 shader（同 KL PolarFlow 的映射，噪声沿径向） ----------
+// 角度 → 噪声 U、半径 → 噪声 V，条纹噪声被拉成径向拖尾。刃头、拖尾、消散在同一个场里算：
+// 消散用同一张噪声侵蚀，刃头与拖尾一起碎掉，不会出现外环先消失、拖尾残留的情况。孔内直接裁掉。
+const RING_WAVE_LEN = 46;
+let waveNoise = 'noi_1';                       // noi_1（KL 竖向条纹）/ Eff_Noise_53（KL 风痕，旋转 90° 使用）
+const NOISE_SWAP = { noi_1: 0, Eff_Noise_53: 1 };
+const polar = (() => {
+  const c = document.createElement('canvas'); c.width = view.width; c.height = view.height;
+  const gl = c.getContext('webgl', { premultipliedAlpha: true, preserveDrawingBuffer: true });
+  const vs = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+  const fs = `
+precision highp float;
+uniform sampler2D uNoise;
+uniform vec2 uCenter;
+uniform float uScale, uRi, uRo, uFront, uTrail, uHead, uFade, uDissolve, uTime, uSwap;
+uniform vec3 uDeep, uGold, uPale;
+float nz(vec2 uv) { uv = uSwap > 0.5 ? uv.yx : uv; return texture2D(uNoise, uv).r; }
+void main() {
+  vec2 p = (gl_FragCoord.xy - uCenter) / uScale;
+  float r = length(p);
+  if (r < uRi * 0.9 || r > uRo + 60.0) { gl_FragColor = vec4(0.0); return; }
+  float ang = atan(p.y, p.x) / 6.2831853 + 0.5;             // 0..1，绕中心一圈
+  float behind = uFront - r;                                 // 刃头后方的距离（世界单位）
+  float d = behind / uTrail;                                 // 0 = 刃头，1 = 拖尾最长处
+  // 每个角度的拖尾长度：只按角度取样，得到长短不一的成簇拖尾
+  float nl = nz(vec2(ang * 2.0 + 0.13, 0.37 + uTime * 0.015));
+  float nl2 = nz(vec2(ang * 5.0 + 0.71, 0.81));
+  float len = clamp(0.2 + 0.95 * pow(nl, 1.4) * (0.55 + 0.45 * nl2), 0.0, 1.0);
+  // 拖尾细节：PolarFlow 映射，V 跟随刃头，噪声条纹沿径向拉伸
+  // 两层速度不同的细节噪声叠加，持续向外流动，让拖尾翻涌
+  float nd = 0.6 * nz(vec2(ang * 3.0, behind / uRo * 1.2 + uTime * 0.035))
+           + 0.4 * nz(vec2(ang * 5.0 + 0.5, behind / uRo * 2.0 + uTime * 0.07));
+  float trail = 0.0;
+  if (d > 0.0) {
+    float m = 1.0 - smoothstep(len * 0.55, len, d);
+    trail = m * pow(1.0 - clamp(d / max(len, 0.01), 0.0, 1.0), 1.3) * (0.25 + 0.95 * nd);
+  }
+  // 刃头：内侧较宽、外缘锐利
+  float hw = d > 0.0 ? 30.0 : 8.0;
+  float x = (r - uFront) / hw;
+  float head = exp(-x * x) * (0.7 + 0.4 * nl2);
+  // 星尘：高频噪声取阈值得到细小亮点，用另一层随时间变化的噪声控制明灭；只出现在刃头后方的拖尾区域
+  float zone = step(0.0, d) * (1.0 - smoothstep(len * 0.8, len * 1.25, d)) + exp(-x * x) * 0.6;
+  float g1 = nz(vec2(ang * 23.0 + 0.31, behind / uRo * 7.0 + uTime * 0.02));
+  float g2 = nz(vec2(ang * 37.0 + 0.77, r / uRo * 9.0 - uTime * 0.03));
+  float speck = smoothstep(0.8, 0.95, g1 * g2 * 1.35);
+  float twinkle = 0.4 + 0.6 * nz(vec2(ang * 11.0 + 0.2, uTime * 0.06 + r / uRo * 3.0));
+  float stars = speck * twinkle * clamp(zone, 0.0, 1.0);
+  float v = head * uHead * 1.7 + trail * 1.1 + stars * 1.6;
+  // 消散：刃头与拖尾用同一张噪声侵蚀
+  float er = nz(vec2(ang * 4.0 + 0.3, r / uRo * 2.0 + 0.5));
+  v *= smoothstep(uDissolve, uDissolve + 0.35, er);
+  v *= uFade;
+  v *= smoothstep(uRi, uRi + 30.0, r);                       // 内孔安全区
+  v = clamp(v, 0.0, 1.8);
+  vec3 col = mix(uDeep, uGold, smoothstep(0.0, 0.45, v));
+  col = mix(col, uPale, smoothstep(0.65, 1.35, v));
+  float a = clamp(v, 0.0, 1.0);
+  gl_FragColor = vec4(col * a, a);
+}`;
+  const sh = (type, src) => {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'aPos'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const U = {};
+  for (const n of ['uNoise', 'uCenter', 'uScale', 'uRi', 'uRo', 'uFront', 'uTrail', 'uHead', 'uFade', 'uDissolve', 'uTime', 'uSwap', 'uDeep', 'uGold', 'uPale']) U[n] = gl.getUniformLocation(prog, n);
+  gl.uniform3fv(U.uDeep, GOLD.deep.map(v => v / 255)); gl.uniform3fv(U.uGold, GOLD.gold.map(v => v / 255)); gl.uniform3fv(U.uPale, GOLD.pale.map(v => v / 255));
+  const texs = {};
+  function upload(name, img) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    texs[name] = t;
+  }
+  function render(o) {
+    gl.viewport(0, 0, c.width, c.height);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texs[waveNoise]); gl.uniform1i(U.uNoise, 0);
+    gl.uniform2f(U.uCenter, o.cx, c.height - o.cy);
+    gl.uniform1f(U.uScale, o.scale); gl.uniform1f(U.uRi, o.Ri); gl.uniform1f(U.uRo, o.Ro);
+    gl.uniform1f(U.uFront, o.front); gl.uniform1f(U.uTrail, o.trail); gl.uniform1f(U.uHead, o.head);
+    gl.uniform1f(U.uFade, o.fade); gl.uniform1f(U.uDissolve, o.dissolve); gl.uniform1f(U.uTime, o.time);
+    gl.uniform1f(U.uSwap, NOISE_SWAP[waveNoise]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+  return { canvas: c, upload, render };
+})();
+// 刃头上的星芒：沿圆周分布，随刃头外推，周期性闪亮
+const waveRiders = (() => {
+  const rnd = mulberry(321);
+  return Array.from({ length: 12 }, (_, i) => ({ ang: (i + rnd() * .8) / 12 * Math.PI * 2, ph: rnd() * 6.28, rate: lerp(.25, .45, rnd()), s: lerp(100, 160, rnd()), rot: (rnd() - .5) * .3, drift: (rnd() - .5) * .004 }));
+})();
+// 刃头剥落的星尘：在刃头经过处生成，略随波外飘后减速，明灭消失
+const waveShed = (() => {
+  const rnd = mulberry(654);
+  return Array.from({ length: 90 }, () => ({ ang: rnd() * Math.PI * 2, born: lerp(2, 26, Math.pow(rnd(), .8)), life: lerp(8, 16, rnd()), s: lerp(7, 15, rnd()), star: rnd() < .45, push: lerp(10, 40, rnd()), ph: rnd() * 6.28 }));
+})();
+const waveGlints = (() => {
+  const rnd = mulberry(123);
+  return Array.from({ length: 40 }, () => ({ ang: rnd() * Math.PI * 2, u: lerp(.08, .95, rnd()), life: lerp(12, 20, rnd()), s: lerp(10, 22, rnd()), rot: (rnd() - .5) * .4 }));
+})();
+function drawRingWave(g, age) {
+  if (age < 0 || age > RING_WAVE_LEN) return;
+  const Ro = SK.r * SK.aoe, Ri = SK.r * Math.min(SK.hole, SK.aoe - .15), band = Ro - Ri;
+  const front = lerp(Ri * .96, Ro, outCubic(clamp(age / 26)));
+  const rise = smooth(clamp(age / 3));
+  const retract = smooth(clamp((age - 18) / 18));           // 后段拖尾向刃头收拢
+  const fade = rise * (1 - smooth(clamp((age - 30) / 12)));
+  const dissolve = lerp(-.4, 1.0, smooth(clamp((age - 22) / 20)));
+  const M = g.getTransform(), c = M.transformPoint(new DOMPoint(0, 0));
+  polar.render({
+    cx: c.x, cy: c.y, scale: Math.hypot(M.a, M.b), Ri, Ro, front,
+    trail: Math.max(40, front - Ri) * (1 - .7 * retract), head: rise, fade, dissolve, time: age
+  });
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(polar.canvas, 0, 0); g.restore();
+  // 星点：波扫过后在环带里零星闪烁，随整体一起收尾
+  const tail = 1 - smooth(clamp((age - 28) / 12));
+  const frontAt = a => lerp(Ri * .96, Ro, outCubic(clamp(a / 26)));
+  // 刃头星芒：侵蚀开始前收掉，避免留在已碎掉的刃头上
+  const riderA = rise * (1 - smooth(clamp((age - 20) / 10)));
+  for (const p of waveRiders) {
+    const k = Math.pow(Math.max(0, Math.sin(age * p.rate + p.ph)), 3) * riderA;
+    if (k < .01) continue;
+    const ang = p.ang + p.drift * age, r = front + 2;
+    starburst(g, GOLD.pale, Math.cos(ang) * r, Math.sin(ang) * r, p.s * (.7 + .3 * k), p.rot, 2.4 * k, .45);
+  }
+  for (const p of waveShed) {
+    const a = age - p.born;
+    if (a < 0 || a > p.life) continue;
+    const t = a / p.life, r = frontAt(p.born) - 6 + p.push * outCubic(t);
+    const k = bell(t, .15) * (.6 + .4 * Math.sin(a * 1.3 + p.ph)) * tail;
+    const x = Math.cos(p.ang) * r, y = Math.sin(p.ang) * r;
+    if (p.star) glow(g, 'Star4', GOLD.light, x, y, p.s * 1.6, p.s * 1.6, 0, 1.5 * k);
+    else glow(g, 'GlowDot', GOLD.light, x, y, p.s, p.s, 0, 1.4 * k);
+  }
+  for (const p of waveGlints) {
+    const r = Ri + band * p.u, born = 26 * (1 - Math.cbrt(1 - p.u)), a = age - born - 2;
+    if (a < 0 || a > p.life) continue;
+    const t = a / p.life, k = bell(t, .18) * tail;
+    glow(g, 'Star4', GOLD.light, Math.cos(p.ang) * r, Math.sin(p.ang) * r - 8 * t, p.s, p.s, p.rot, 1.4 * k);
+  }
+}
+
+// 统一入口：按形状播放一次爆炸（原点 = 爆点）
+let ringStyle = 'wave';   // wave 波纹版 / mark 标记版
+let shape = 'alt';     // circle / ring / alt（整套技能中按重叠次数交替，第一次为圆形）
+function burstLen(sh) { return sh === 'ring' ? (ringStyle === 'wave' ? RING_WAVE_LEN : RING_LEN) : variants[cur].len; }
+function drawBurst(g, sh, age) {
+  if (sh === 'ring') { if (ringStyle === 'wave') drawRingWave(g, age); else drawRingBurst(g, age); return; }
+  drawAoe(g, age);
+  g.save(); g.scale(1.1, 1.1); variants[cur].draw(g, age); g.restore();
+}
+function shapeName(sh) { return sh === 'ring' ? `圆环星爆（${ringStyle === 'wave' ? '波纹版' : '标记版'}）` : `圆形星爆（${variants[cur].name}）`; }
+// 仅爆炸模式的时间轴：交替时先圆形后圆环
+function burstOnlyPlan(f) {
+  const lc = burstLen('circle') + 20, lr = burstLen('ring') + 20;
+  if (shape === 'circle') return { sh: 'circle', age: f, len: lc };
+  if (shape === 'ring') return { sh: 'ring', age: f, len: lr };
+  return f < lc ? { sh: 'circle', age: f, len: lc + lr } : { sh: 'ring', age: f - lc, len: lc + lr };
+}
+
+// ---------- 径向模糊冲击 ----------
+// 以爆点为中心把当前画面按不同放大倍数叠加取平均，爆炸开头 20 帧内衰减。
+let radialOn = true;
+const RB = { amp: .12, len: 20, taps: 10 };
+const blurBuf = document.createElement('canvas'); blurBuf.width = view.width; blurBuf.height = view.height;
+function radialBlur(cx, cy, strength) {
+  if (strength < .002) return;
+  const b = blurBuf.getContext('2d');
+  b.setTransform(1, 0, 0, 1, 0, 0); b.globalCompositeOperation = 'copy'; b.drawImage(view, 0, 0);
+  ctx.save();
+  for (let i = 1; i <= RB.taps; i++) {
+    const sc = 1 + strength * i / RB.taps;
+    ctx.globalAlpha = 1 / (i + 1);
+    ctx.setTransform(sc, 0, 0, sc, cx * (1 - sc), cy * (1 - sc));
+    ctx.drawImage(blurBuf, 0, 0);
+  }
+  ctx.restore();
+}
+function applyBurstBlur(M, x, y, age) {
+  if (!radialOn || age < 0 || age >= RB.len) return;
+  const p = M.transformPoint(new DOMPoint(x, y));
+  const k = smooth(clamp(age / 1.5)) * Math.pow(1 - age / RB.len, 2);
+  radialBlur(p.x, p.y, RB.amp * k);
+}
+
+// ---------- 主循环 ----------
+const BURST_ONLY_AT = { x: 0, y: -130 };
+let cur = 'A', frame = 0, playing = true, speed = 1, zoom = 1, shakeOn = true;
+function loopLen() { return fullSkill ? skillLoopLen() : burstOnlyPlan(0).len; }
+function shakeAge() { return fullSkill ? skillState(frame).burstAge : burstOnlyPlan(frame).age; }
+function worldTransform(g) {
+  let sx = 0, sy = 0;
+  const a = shakeAge();
+  if (shakeOn && a >= 0 && a < 14) {
+    const amp = (fullSkill ? 9 : 6) * (1 - a / 14);
+    sx = Math.sin(a * 2.7) * amp; sy = Math.cos(a * 3.3) * amp * .7;
+  }
+  const s = view.width / 1920 * zoom;
+  g.setTransform(s, 0, 0, s, view.width / 2 + sx * s, view.height / 2 + sy * s);
+}
+// 特效层先在透明画布上叠加，再按覆盖度盖到背景上，Bloom 用 screen 叠加（白天不会整体刷白）。
+function bloomComposite(src) {
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'screen';
+  ctx.filter = 'blur(26px)'; ctx.globalAlpha = .9; ctx.drawImage(src, 0, 0);
+  ctx.filter = 'blur(8px)'; ctx.globalAlpha = .85; ctx.drawImage(src, 0, 0);
+  ctx.filter = 'none'; ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = sky === 'night' ? 'lighter' : 'source-over';
+  ctx.drawImage(src, 0, 0);
+  if (sky === 'day') ctx.drawImage(src, 0, 0); // 白天提高覆盖度，避免金色被天空冲淡
+  ctx.restore();
+}
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, view.width, view.height);
+  worldTransform(ctx); drawBackground(ctx);
+  const M = ctx.getTransform();
+  let blurAt = null;
+  const g = fx.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, fx.width, fx.height);
+  worldTransform(g); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  let hud;
+  if (fullSkill) {
+    const st = drawSkill(g, frame);
+    const status = st.burstAge >= 0 && st.burstAge < 40 ? `共鸣爆炸：${shapeName(st.sh)}` : `距下次重叠 ${((st.next - frame) / 60).toFixed(1)} 秒（${shapeName(st.nextSh)}）`;
+    hud = `整套技能 · 帧 ${frame.toFixed(1)} · ${status}`;
+    blurAt = [st.burst.x, st.burst.y, st.burstAge];
+  } else {
+    const bp = burstOnlyPlan(frame);
+    g.save(); g.translate(BURST_ONLY_AT.x, BURST_ONLY_AT.y); drawBurst(g, bp.sh, bp.age); g.restore();
+    hud = `仅爆炸 · ${shapeName(bp.sh)} · 帧 ${frame.toFixed(1)}`;
+    blurAt = [BURST_ONLY_AT.x, BURST_ONLY_AT.y, bp.age];
+  }
+  bloomComposite(fx);
+  applyBurstBlur(M, ...blurAt);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = sky === 'night' ? '#fff' : '#102030'; ctx.font = '16px Microsoft YaHei';
+  ctx.fillText(hud, 14, 26);
+  const L = loopLen();
+  document.getElementById('frame').textContent = frame.toFixed(1);
+  document.getElementById('total').textContent = L;
+  const sc = document.getElementById('scrub'); sc.max = L; sc.value = frame;
+}
+
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (playing) { frame += dt * 60 * speed; if (frame > loopLen()) frame = 0; }
+  render(); requestAnimationFrame(tick);
+}
+
+const RING_WAVE_DESC = '圆环星爆·波纹版（星光）：刃头上周期性闪起星芒，经过处剥落闪烁星尘，拖尾中夹着明灭的细小星点。不画内孔提示圈，一道波从内孔边向外推到外圈。用极坐标噪声 shader（同 KL PolarFlow 映射，噪声沿径向）绘制：最外缘是过曝刃头，内侧是长短不一的径向拖尾，不进入内孔；收尾时刃头与拖尾被同一张噪声一起侵蚀消散。';
+const RING_DESC = '圆环星爆：中心内孔是安全区，危险区为内孔到外圈之间的环带。共鸣时小法阵光圈收缩成内孔边界（细亮环 + 6 颗守护星），冲击前沿从内孔边推到外圈，环带内由内向外依次炸开星芒、火花只向外飞；外圈亮边碎成星点，内孔边界最后熄灭。';
+const SKILL_DESC = '整套技能：以玩家为中心展开大星阵，两个小五芒星阵沿外圈以不同速度绕行；接近重叠时逐渐发亮、轻微震颤，光尘向两阵中点汇聚；圆形爆炸前半秒，未来碰撞点亮起旋转收束的十字星，碰撞时衔接爆炸；完全重叠时两阵叠成十芒星并猛烈共鸣，在重叠点触发爆炸（形状可选圆形 / 圆环 / 交替），共鸣沿大星阵外环向两侧传导，小星阵随后继续绕行。第一次重叠在 3 秒。';
+function setupUI() {
+  const vb = document.getElementById('variants'), sb = document.getElementById('speeds');
+  for (const k of Object.keys(variants)) {
+    const b = document.createElement('button'); b.textContent = variants[k].name; b.dataset.k = k;
+    b.onclick = () => { cur = k; if (!fullSkill) frame = 0; refresh(); }; vb.appendChild(b);
+  }
+  for (const s of [.25, .5, 1]) {
+    const b = document.createElement('button'); b.textContent = s + '×'; b.dataset.s = s;
+    b.onclick = () => { speed = s; refresh(); }; sb.appendChild(b);
+  }
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { fullSkill = b.dataset.mode === 'full'; frame = 0; refresh(); });
+  document.querySelectorAll('[data-rot]').forEach(b => b.onclick = () => { counterRot = b.dataset.rot === 'counter'; frame = 0; refresh(); });
+  document.querySelectorAll('[data-sky]').forEach(b => b.onclick = () => { sky = b.dataset.sky; refresh(); });
+  document.getElementById('zoom').onclick = () => { zoom = zoom === 1 ? 2 : 1; refresh(); };
+  document.getElementById('shake').onclick = () => { shakeOn = !shakeOn; refresh(); };
+  document.querySelectorAll('[data-noise]').forEach(b => b.onclick = () => { waveNoise = b.dataset.noise; refresh(); });
+  document.getElementById('rblur').onclick = () => { radialOn = !radialOn; refresh(); };
+  document.querySelectorAll('[data-ring]').forEach(b => b.onclick = () => { ringStyle = b.dataset.ring; if (!fullSkill) frame = 0; refresh(); });
+  document.getElementById('play').onclick = () => { playing = !playing; refresh(); };
+  document.getElementById('again').onclick = () => { frame = 0; playing = true; refresh(); };
+  document.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { shape = b.dataset.shape; if (!fullSkill) frame = 0; refresh(); });
+  document.getElementById('hole').oninput = e => { SK.hole = +e.target.value; document.getElementById('holeVal').textContent = SK.hole.toFixed(2); };
+  document.getElementById('aoe').oninput = e => { SK.aoe = +e.target.value; document.getElementById('aoeVal').textContent = SK.aoe.toFixed(1); };
+  document.getElementById('starSize').oninput = e => {
+    SK.starSize = +e.target.value;
+    document.getElementById('starSizeVal').textContent = SK.starSize.toFixed(1) + '×';
+    render();
+  };
+  document.getElementById('scrub').oninput = e => { frame = +e.target.value; playing = false; refresh(); };
+  function refresh() {
+    vb.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === cur));
+    sb.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.s === speed));
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', (b.dataset.mode === 'full') === fullSkill));
+    document.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('on', b.dataset.shape === shape));
+    document.querySelectorAll('[data-rot]').forEach(b => b.classList.toggle('on', (b.dataset.rot === 'counter') === counterRot));
+    document.getElementById('rotGroup').style.opacity = fullSkill ? 1 : .4;
+    document.querySelectorAll('[data-sky]').forEach(b => b.classList.toggle('on', b.dataset.sky === sky));
+    document.getElementById('zoom').classList.toggle('on', zoom > 1);
+    document.getElementById('shake').classList.toggle('on', shakeOn);
+    document.getElementById('rblur').classList.toggle('on', radialOn);
+    document.querySelectorAll('[data-noise]').forEach(b => b.classList.toggle('on', b.dataset.noise === waveNoise));
+    document.querySelectorAll('[data-ring]').forEach(b => b.classList.toggle('on', b.dataset.ring === ringStyle));
+    document.getElementById('play').textContent = playing ? '暂停' : '播放';
+    document.getElementById('skillDesc').textContent = fullSkill ? SKILL_DESC : '';
+    document.getElementById('desc').textContent = (shape !== 'circle' ? (ringStyle === 'wave' ? RING_WAVE_DESC : RING_DESC) + ' ' : '') + (shape !== 'ring' ? '圆形方案：' + variants[cur].desc : '');
+  }
+  window.preview = {
+    set(k, f, opt = {}) {
+      cur = k; frame = f; playing = false;
+      if (opt.zoom !== undefined) zoom = opt.zoom;
+      if (opt.sky !== undefined) sky = opt.sky;
+      if (opt.full !== undefined) fullSkill = opt.full;
+      if (opt.counter !== undefined) counterRot = opt.counter;
+      if (opt.shake !== undefined) shakeOn = opt.shake;
+      refresh(); render();
+    }
+  };
+  refresh();
+}
+
+// 分镜：?sheet=A&full=1&frames=60,150,170,180,186,200,230,300 把关键帧拼成一张图。
+function renderSheet(k, frames) {
+  const cols = 4, rows = Math.ceil(frames.length / cols), cw = 640, ch = 360;
+  const sheet = document.createElement('canvas'); sheet.width = cols * cw; sheet.height = rows * ch;
+  const sg = sheet.getContext('2d');
+  cur = k; shakeOn = false;
+  frames.forEach((f, i) => {
+    frame = f; render();
+    sg.drawImage(view, (i % cols) * cw, Math.floor(i / cols) * ch, cw, ch);
+  });
+  document.body.innerHTML = ''; sheet.style.width = '100%'; document.body.appendChild(sheet);
+}
+
+Promise.all(['GlowDot', 'Star4', 'StarFlare', 'ShotLine', 'HShotA', 'noi_1', 'Eff_Noise_53'].map(load)).then(() => {
+  polar.upload('noi_1', tex.noi_1); polar.upload('Eff_Noise_53', tex.Eff_Noise_53);
+  const q = new URLSearchParams(location.search);
+  if (q.get('sky')) sky = q.get('sky');
+  if (q.get('zoom')) zoom = +q.get('zoom');
+  if (q.get('full')) fullSkill = q.get('full') === '1';
+  if (q.get('rot')) counterRot = q.get('rot') !== 'same';
+  if (q.has('aoe')) SK.aoe = +q.get('aoe');
+  if (q.has('shape')) shape = q.get('shape');
+  if (q.has('shake')) shakeOn = q.get('shake') !== '0';
+  if (q.has('frame')) { frame = +q.get('frame'); playing = false; }
+  setupUI();
+  if (q.has('capture')) {
+    render();
+    const image = new Image(); image.id = 'capture'; image.src = view.toDataURL('image/png');
+    document.body.replaceChildren(image); return;
+  }
+  if (q.get('sheet')) { renderSheet(q.get('sheet'), (q.get('frames') || '2,6,10,16,22,30,44,64').split(',').map(Number)); return; }
+  requestAnimationFrame(tick);
+});
+</script>
+</body>
+</html>

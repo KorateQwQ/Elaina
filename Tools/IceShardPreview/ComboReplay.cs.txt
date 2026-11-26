@@ -1,0 +1,146 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+// 每次运行提取当前正式方法；只适配资源、实体状态和固定碰撞时刻。
+sealed class ComboReplay : IDisposable
+{
+    readonly Assembly replay;
+    readonly SpriteBatch batch;
+    readonly ContentManager content, klContent;
+    readonly List<Texture2D> textures = new();
+    readonly Type cone, main, dust;
+    static CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+    static string Methods(CompilationUnitSyntax source, params string[] names) => string.Join("\n", source.DescendantNodes()
+        .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+    static Assembly Compile(string name, params string[] sources)
+    {
+        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Append(typeof(CSharpSyntaxTree).Assembly.Location)
+            .Append(typeof(Compilation).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create(name, sources.Select(s => CSharpSyntaxTree.ParseText(s)), refs,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new InvalidOperationException(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+
+    public ComboReplay(GraphicsDevice gd, IServiceProvider services, string root)
+    {
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        string imports = """
+            using System; using System.IO; using System.Linq; using System.Reflection;
+            using Microsoft.CodeAnalysis; using Microsoft.CodeAnalysis.CSharp; using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using Microsoft.Xna.Framework; using Microsoft.Xna.Framework.Graphics;
+            """;
+        string factory = imports + "public class Factory { readonly string root; public Factory(string root) { this.root = root; }";
+        foreach (string name in new[] { "Single", "Bloom", "Trail" })
+            factory += Methods(Read(Path.Combine(root, $"Tools/IceDepthPreview/{name}.cs.txt")), name + "Source");
+        factory += "public string[] Build() => new[] { SingleSource(), BloomSource(), TrailSource() }; }";
+        var provider = Compile("IceSourceFactory", factory).GetType("Factory");
+        var sources = ((string[])provider.GetMethod("Build").Invoke(Activator.CreateInstance(provider, root), null)).ToList();
+        var loader = Read(Path.Combine(kl, "Drawing/ThreeD/ObjLoader.cs"));
+        var projectile = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeProj.cs"));
+        string preamble = File.ReadAllText(Path.Combine(root, "Tools/IceShardPreview/ComboStubs.cs.txt"));
+        preamble += "namespace KL.Drawing.ThreeD { public static class ObjLoader {";
+        preamble += loader.DescendantNodes().OfType<StructDeclarationSyntax>().Single().ToFullString();
+        preamble += Methods(loader, "Parse", "ParseFace", "AddVertex", "ParseFaceVertex", "ResolveIndex", "ParseVector3", "ParseVector2", "ParseFloat") + "}}";
+        preamble += "namespace 伊蕾娜.ElainaModSkills.Skills.Ice { public partial class IceConeProj {";
+        preamble += Methods(projectile, "UpdateMovement", "DrawReleasedTrail", "DrawBreakConnection");
+        var kill = projectile.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "OnKill");
+        preamble += "public void EmitImpact() {" + string.Join("\n", kill.Body.Statements.Where(s =>
+            !s.ToString().Contains("ConnectTrailToBreakPoint") && !s.ToString().Contains("base.OnKill")))
+            .Replace("IceShardDust.Emit(Projectile.Center, Projectile.rotation)", "IceShardDust.Emit(Projectile.Center, Projectile.rotation, Main.ShardSeed)") + "}}}";
+        var basic = Read(Path.Combine(kl, "Dusts/KLBasicDust.cs"));
+        preamble += "namespace KL.Dusts { public partial class KLBasicDust {" + basic.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "BloomPlacement").ToFullString()
+            + Methods(basic, "SpawnDustsCircle", "RequestDustBloom") + "}}";
+        var widthsTrail = Read(Path.Combine(kl, "Drawing/DrawHelper.vertexDraw.cs")).DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" && m.ParameterList.Parameters[2].Type.ToString() == "float[]");
+        widthsTrail = widthsTrail.ReplaceNodes(widthsTrail.DescendantNodes().OfType<IfStatementSyntax>()
+            .Where(n => n.Condition.ToString() == "debugPoint"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        preamble += "namespace KL.Drawing { public partial class DrawHelper {" + widthsTrail.ToFullString()
+            .Replace("Main.NewText(\"Get Null Tex in TrailEffect\", Color.Red);", "throw new InvalidOperationException(\"Missing trail texture\");") + "}}";
+        foreach (string name in new[] { "Burst/BurstPoint", "Burst/BurstDust", "Smoke/SmokeDust2", "Glow/GlowDust" })
+            sources.Add(File.ReadAllText(Path.Combine(kl, "Dusts/" + name + ".cs")));
+        sources.Add(preamble);
+        sources.Add(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceShardVisuals.cs")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceShardDust.cs")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/IceShardPreview/IntegrationChecks.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/IceShardPreview/ComboScene.cs.txt")));
+        foreach (string name in new[] { "Drawing/ThreeD/GraphicsUtils.cs", "Drawing/ThreeD/Vertex3D.cs", "Drawing/LayerDrawRequestSystem.cs" })
+            sources.Add(File.ReadAllText(Path.Combine(kl, name)));
+        replay = Compile("IceComboReplay", sources.ToArray());
+        cone = replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceConeProj");
+        main = replay.GetType("Terraria.Main");
+        dust = replay.GetType("KL.Dusts.KLBasicDust");
+        batch = new SpriteBatch(gd);
+        var context = Activator.CreateInstance(replay.GetType("Terraria.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, gd);
+        main.GetField("instance").SetValue(null, context);
+        main.GetField("graphics").SetValue(null, context);
+        main.GetField("spriteBatch").SetValue(null, batch);
+        content = new ContentManager(services, root);
+        klContent = new ContentManager(services, Path.Combine(kl, "Effects/Content"));
+        Texture2D Png(string file)
+        {
+            using var stream = File.OpenRead(file);
+            var texture = Texture2D.FromStream(gd, stream);
+            var data = new Color[texture.Width * texture.Height]; texture.GetData(data);
+            for (int i = 0; i < data.Length; i++) if (data[i].A == 0) data[i] = Color.Transparent;
+            texture.SetData(data); textures.Add(texture); return texture;
+        }
+        cone.GetMethod("Setup").Invoke(null, new object[] { File.ReadAllText(Path.Combine(root, "Models/IceCone2.obj")),
+            Png(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeProj2.png")), content.Load<Effect>("Effects/Content/ThreeD/IceCone3D"),
+            Png(Path.Combine(kl, "Effects/Tex/Noise/4.png")) });
+        cone.GetMethod("SetTrail").Invoke(null, new object[] { Png(Path.Combine(kl, "Effects/Tex/Trail/streak_801_4r.png")) });
+        var helper = replay.GetType("KL.Drawing.DrawHelper");
+        foreach (var pair in new[] { ("bloom", "Bloom"), ("reColor", "ReColor"), ("vertexDraw", "VertexDraw") })
+            helper.GetField(pair.Item1).SetValue(null, klContent.Load<Effect>(pair.Item2));
+        replay.GetType("KL.Drawing.BloomReplay").GetField("Enabled").SetValue(null, true);
+        foreach (string name in new[] { "Burst/BurstPoint", "Burst/BurstDust", "Smoke/SmokeDust2", "Glow/GlowDust" })
+            dust.GetMethod("Register").Invoke(null, new object[] { replay.GetType("KL.Dusts." + name.Replace('/', '.')),
+                Png(Path.Combine(kl, "Dusts/" + name + ".png")) });
+        dust.GetMethod("Register").Invoke(null, new object[] { replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceShardDust"),
+            Png(Path.Combine(root, "ElainaModSkills/Skills/Ice/Assets/ShardAtlas.png")) });
+        Console.WriteLine("Loaded current IceConeProj DrawVisual/DrawTrail/UpdateMovement/OnKill, four KL dust classes and KL Bloom pipeline.");
+        replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IntegrationChecks").GetMethod("Run").Invoke(null,null);
+    }
+    public Color[] RenderIsolated(float ticks,float angle,float scale) => (Color[])replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IntegrationChecks")
+        .GetMethod("RenderIsolated").Invoke(null,new object[] { ticks,angle,scale });
+    public void DrawWeapons(float time, bool continuous) => cone.GetMethod("DrawCombo").Invoke(null, new object[] { time, continuous });
+    public void SetCamera(Vector2 position) => main.GetField("screenPosition").SetValue(null, position);
+    // 原型沿用当前 UpdateMovement 生成的世界轨迹及组合场景的命中时间。
+    public (Vector2 Position, float Time)[] FlightSamples(int index)
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var path = (Vector2[])cone.GetMethod("Path", flags).Invoke(null, null);
+        var hit = (Vector2)cone.GetMethod("Hit", flags).Invoke(null, new object[] { index });
+        float hitTime = (float)cone.GetProperty("HitTime").GetValue(null) + index * .2f;
+        var samples = new (Vector2, float)[path.Length - 25];
+        for (int tick = 25; tick < path.Length; tick++)
+            samples[tick - 25] = (hit - path[^1] + path[tick], hitTime + (tick - (path.Length - 1)) / 60f);
+        return samples;
+    }
+    public void DrawHits(float time, bool continuous) => cone.GetMethod("DrawHits").Invoke(null, new object[] { time, continuous });
+    public void Dispose()
+    {
+        cone.GetMethod("DisposePreviewModel").Invoke(null, null);
+        var shard = Activator.CreateInstance(replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceShardDust"));
+        shard.GetType().GetMethod("Unload").Invoke(shard, null);
+        var helper = replay.GetType("KL.Drawing.RenderHelper");
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        var targets = helper.GetMethod("DetachRenderTargets", flags).Invoke(null, null);
+        helper.GetMethod("DisposeTargets", flags).Invoke(null, new[] { targets });
+        batch.Dispose(); content.Dispose(); klContent.Dispose();
+        foreach (var texture in textures) texture.Dispose();
+    }
+}

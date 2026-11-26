@@ -63,6 +63,21 @@ class DpsCurveTests(unittest.TestCase):
 
 
 class BasicDesignTests(unittest.TestCase):
+    def test_energy_budget_round_trip_and_bounds(self):
+        row = next(r for r in self.c['skills'] if r['id'] == 'FireBurstSkill')
+        row.update(energyCost=6, energyEfficiency=.75)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'balance.json'
+            server.atomic_save(path, self.payload)
+            saved = json.loads(path.read_text(encoding='utf-8'))['configuration']['skills']
+            self.assertIn(row, saved)
+        for key, value in [('energyCost', 9), ('energyCost', -1), ('energyCost', 1.25), ('energyEfficiency', -1)]:
+            with self.subTest(key=key, value=value):
+                bad = copy.deepcopy(self.payload)
+                bad['configuration']['skills'][0][key] = value
+                with self.assertRaises(ValueError):
+                    server.validate_payload(bad)
+
     def test_flight_configuration_round_trip_and_validation(self):
         row = next(row for row in self.c["skills"] if row["id"] == "FlightSkill")
         row.setdefault("flight", {})

@@ -1,0 +1,183 @@
+using System;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+internal readonly record struct IceShardPart(Vector2 Direction, float Speed, float Life, float Length,
+    float Width, float Rotation, float Spin, float Phase, int Variant);
+
+internal static class IceShardVisuals
+{
+    internal const int Duration = 51;
+    internal const string GlowPath = "伊蕾娜/ElainaModSkills/Skills/Ice/Assets/ShardGlow";
+
+    internal static IceShardPart[] Create(int seed, float direction)
+    {
+        var random = new Random(seed);
+        // 保持已确认预览的随机序列；原型冷雾占用了前 15 次采样。
+        for (int i = 0; i < 15; i++) random.NextDouble();
+        var parts = new IceShardPart[27];
+        ReadOnlySpan<float> mainAngles = [-2.6f, -1.6f, -.5f, .65f, 2f];
+        for (int i = 0; i < parts.Length; i++)
+        {
+            bool main = i < 5, medium = i >= 5 && i < 9;
+            float angle = (main ? mainAngles[i] + Next(random, -.3f, .3f) : Next(random, -MathF.PI, MathF.PI)) + direction;
+            float speed = Next(random, main ? 110 : 70, main ? 240 : 275);
+            float life = Next(random, main ? .55f : .28f, main ? .82f : .58f);
+            float length = main ? Next(random, 7, 11) : medium ? Next(random, 3, 5) : Next(random, .5f, 1.1f);
+            float width = length * Next(random, .65f, .90f);
+            parts[i] = new IceShardPart(new Vector2(MathF.Cos(angle), MathF.Sin(angle)), speed, life,
+                length, width, Next(random, -3, 3) + direction, Next(random, -5, 5), Next(random, -2, 2), i);
+        }
+        return parts;
+    }
+
+    internal static Vector2 Position(in IceShardPart part, float seconds)
+    {
+        bool main = part.Variant < 5;
+        float drag = main ? .85f : 1.9f;
+        float travel = (1 - MathF.Exp(-drag * seconds)) / drag;
+        return part.Direction * part.Speed * travel + new Vector2(0, (main ? 85 : 22) * seconds * seconds);
+    }
+
+    internal static float Fade(in IceShardPart part, float seconds)
+    {
+        float t = Math.Clamp((seconds / part.Life - .48f) / .52f, 0, 1);
+        return 1 - t * t * (3 - 2 * t);
+    }
+
+    private static float Next(Random random, float min, float max) => min + (float)random.NextDouble() * (max - min);
+}
+
+/// <summary>真实翻滚的冰块几何与预制柔光；绘制只采样年龄，不推进粒子状态。</summary>
+internal sealed class IceShardRenderer : IDisposable
+{
+    private readonly BasicEffect effect;
+    private readonly VertexPositionColor[] vertices = new VertexPositionColor[558];
+    private readonly Vector3[] points = new Vector3[12];
+    private readonly Face[] faces = new Face[20];
+    private int vertexCount;
+    private static readonly Vector3 Light = Vector3.Normalize(new Vector3(-.45f, -.65f, 1));
+    private static readonly Vector2[][] Silhouettes =
+    [
+        [new(-.48f,-.19f), new(-.19f,-.50f), new(.40f,-.30f), new(.46f,.28f), new(-.27f,.48f)],
+        [new(-.46f,-.39f), new(.12f,-.47f), new(.49f,-.09f), new(.27f,.45f), new(-.38f,.32f)],
+        [new(-.49f,-.13f), new(-.10f,-.44f), new(.35f,-.39f), new(.44f,.38f), new(-.30f,.47f)]
+    ];
+    private readonly record struct Face(int A, int B, int C, float Depth);
+    private sealed class FaceComparer : IComparer<Face>
+    {
+        internal static readonly FaceComparer Instance = new();
+        public int Compare(Face a, Face b) => a.Depth.CompareTo(b.Depth);
+    }
+
+    internal IceShardRenderer(GraphicsDevice graphics) => effect = new BasicEffect(graphics)
+    {
+        VertexColorEnabled = true, View = Matrix.Identity
+    };
+
+    // 调用前后 SpriteBatch 均处于普通世界绘制状态，由分层队列恢复其外层状态。
+    internal void Draw(SpriteBatch batch, Texture2D glow, Vector2 center, IceShardPart[] parts,
+        float ageTicks, Matrix view, int screenWidth, int screenHeight)
+    {
+        float age = ageTicks / 60f;
+        vertexCount = 0;
+        batch.End();
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, view);
+        Vector2 glowOrigin = new(glow.Width * .5f, glow.Height * .5f);
+        foreach (ref readonly IceShardPart part in parts.AsSpan())
+        {
+            if (age < 0 || age >= part.Life) continue;
+            Vector2 position = center + IceShardVisuals.Position(part, age);
+            float fade = IceShardVisuals.Fade(part, age);
+            if (part.Variant < 9)
+            {
+                Stone(position, part.Length, part.Width, part.Rotation + part.Spin * age * .65f,
+                    part.Phase + age * 3.8f, .35f + age * part.Spin * .35f, fade, part.Variant);
+                batch.Draw(glow, position, null, new Color(86, 210, 255) * (fade * .20f), 0,
+                    glowOrigin, part.Length * .18f / 6, SpriteEffects.None, 0);
+            }
+            else
+            {
+                float twinkle = .65f + .35f * MathF.Pow(MathF.Sin(part.Phase + age * 12), 2);
+                batch.Draw(glow, position, null, new Color(145, 222, 255) * (fade * twinkle * .45f), 0,
+                    glowOrigin, part.Length * .085f, SpriteEffects.None, 0);
+                batch.Draw(glow, position, null, new Color(224, 248, 255) * (fade * twinkle), 0,
+                    glowOrigin, part.Length * .024f, SpriteEffects.None, 0);
+            }
+            if (part.Variant >= 9 && part.Variant < 12 && age < .07f)
+                Line(position, position - part.Direction * (7 * (1 - age / .07f)), .65f,
+                    new Color(215, 250, 255) * (.65f * (1 - age / .07f)));
+        }
+        batch.End();
+        if (vertexCount > 0)
+        {
+            GraphicsDevice graphics = batch.GraphicsDevice;
+            graphics.BlendState = BlendState.AlphaBlend;
+            graphics.DepthStencilState = DepthStencilState.None;
+            graphics.RasterizerState = RasterizerState.CullNone;
+            effect.World = view;
+            effect.Projection = Matrix.CreateOrthographicOffCenter(0, screenWidth, screenHeight, 0, -1000, 1000);
+            effect.CurrentTechnique.Passes[0].Apply();
+            graphics.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertexCount / 3);
+        }
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone, null, view);
+    }
+
+    private void Stone(Vector2 center, float length, float width, float rotation, float tumble,
+        float tilt, float alpha, int variant)
+    {
+        Vector2[] ring = Silhouettes[variant % Silhouettes.Length];
+        for (int i = 0; i < 5; i++)
+        {
+            points[i] = new Vector3(ring[i].X * length, ring[i].Y * width, width * .28f);
+            points[i + 5] = new Vector3((ring[i].X * .78f + .08f) * length,
+                (ring[i].Y * .83f + .09f) * width, -width * .30f);
+        }
+        points[10] = new Vector3(-length * .07f, -width * .04f, width * .37f);
+        points[11] = new Vector3(length * .04f, width * .06f, -width * .34f);
+        Matrix matrix = Matrix.CreateRotationX(tumble) * Matrix.CreateRotationY(tilt) * Matrix.CreateRotationZ(rotation);
+        for (int i = 0; i < points.Length; i++) points[i] = Vector3.Transform(points[i], matrix);
+        int count = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            int next = (i + 1) % 5;
+            AddFace(i, next, 10); AddFace(next + 5, i + 5, 11);
+            AddFace(i, i + 5, next + 5); AddFace(i, next + 5, next);
+        }
+        Array.Sort(faces, FaceComparer.Instance);
+        foreach (Face face in faces)
+        {
+            Vector3 a = points[face.A], b = points[face.B], c = points[face.C];
+            Vector3 normal = Vector3.Normalize(Vector3.Cross(b - a, c - a));
+            if (normal.Z < 0) normal = -normal;
+            float brightness = Math.Clamp(Vector3.Dot(normal, Light), 0, 1);
+            Color color = brightness < .60f
+                ? Color.Lerp(new Color(53, 143, 207), new Color(106, 217, 248), brightness / .60f)
+                : Color.Lerp(new Color(106, 217, 248), new Color(218, 249, 255), (brightness - .60f) / .40f);
+            Triangle(center + XY(a), center + XY(b), center + XY(c), color * alpha);
+        }
+        void AddFace(int a, int b, int c) => faces[count++] = new Face(a, b, c, points[a].Z + points[b].Z + points[c].Z);
+    }
+
+    private static Vector2 XY(Vector3 p) => new(p.X, p.Y);
+    private void Triangle(Vector2 a, Vector2 b, Vector2 c, Color color)
+    {
+        vertices[vertexCount++] = new VertexPositionColor(new Vector3(a, 0), color);
+        vertices[vertexCount++] = new VertexPositionColor(new Vector3(b, 0), color);
+        vertices[vertexCount++] = new VertexPositionColor(new Vector3(c, 0), color);
+    }
+    private void Line(Vector2 a, Vector2 b, float width, Color color)
+    {
+        Vector2 delta = b - a;
+        if (delta.LengthSquared() < .001f) return;
+        Vector2 normal = Vector2.Normalize(new Vector2(-delta.Y, delta.X)) * width * .5f;
+        Triangle(a + normal, b + normal, b - normal, color);
+        Triangle(a + normal, b - normal, a - normal, color);
+    }
+    public void Dispose() => effect.Dispose();
+}

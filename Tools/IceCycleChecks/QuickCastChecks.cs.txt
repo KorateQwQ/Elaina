@@ -1,0 +1,204 @@
+using System.Runtime.CompilerServices;
+using KL.ActionsSystem;
+using KL.AttributeSystem;
+using KL.SkillSystem;
+using KL.Utils;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using MonoMod.RuntimeDetour;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.Utilities;
+using 伊蕾娜.ElainaActions;
+using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.Skills.AshenWitch;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using 伊蕾娜.Items;
+using GameMain = Terraria.Main;
+
+static partial class Checks
+{
+    static void CheckIceQuickCast(Player player)
+    {
+        var wandField = typeof(ElainaAction).GetField("wandTex", All)!;
+        object savedWand = wandField.GetValue(null);
+        wandField.SetValue(null, RuntimeHelpers.GetUninitializedObject(typeof(Texture2D)));
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        GameMain.dedServ = false;
+        GameMain.rand = new UnifiedRandom(123);
+        player.width = 20; player.height = 42; player.bodyFrame = new Rectangle(0, 0, 40, 56);
+        player.statManaMax2 = 200; player.statLife = 1;
+        var actions = player.GetModPlayer<ActionModPlayer>();
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>();
+        var magic = player.GetModPlayer<ElainaAttributeModPlayer>();
+        if (ModContent.GetInstance<IceConeProj>() == null) ContentInstance.Register(Attach(new IceConeProj()));
+        if (ModContent.GetInstance<ShardbindProj>() == null) ContentInstance.Register(Attach(new ShardbindProj()));
+        ModContent.GetInstance<IceConeProj>().Projectile.type = 1;
+        ModContent.GetInstance<ShardbindProj>().Projectile.type = 2;
+        AnimActionRegistry.Register(typeof(Action_IceCone));
+        AnimActionRegistry.Register(typeof(Action_SimpleSlash));
+        int token = 100, shots = 0, casts = 0;
+        bool acceptStart = true;
+        NPC delivered = null;
+        // This fixture has no network module; keep all RPC transport outside the behavior checks.
+        using var rpc = new Hook(typeof(KLNetModule).GetMethod("RPC")!,
+            (string type, int instance, string method, object[] parameters,
+                KLNetModule.NetSendType destination, int ignoreClient, int owner) => { });
+        // Exercise real StartActionLocal, including interruption and action token replacement; omit RPC only.
+        using var start = new Hook(typeof(ActionModPlayer).GetMethod("StartAction")!,
+            (ActionModPlayer a, AnimAction next, bool interrupt, float rotation) => acceptStart
+                && (bool)typeof(ActionModPlayer).GetMethod("StartActionLocal", All)!.Invoke(a, [next, interrupt, rotation, ++token])!);
+        using var aim = new Hook(typeof(Action_IceCone).GetMethod("UpdateLocalAim", All)!, (Action_IceCone _) => { });
+        using var canShoot = new Hook(typeof(CombinedHooks).GetMethod("CanShoot")!, (Player p, Item item) => true);
+        using var stats = new Hook(typeof(CombinedHooks).GetMethod("ModifyShootStats")!,
+            (ModifyStats)((Player p, Item item, ref Vector2 position, ref Vector2 velocity,
+                ref int type, ref int damage, ref float knockback) => { }));
+        using var shoot = new Hook(typeof(CombinedHooks).GetMethod("Shoot")!,
+            (Player p, Item item, EntitySource_ItemUse_WithAmmo source, Vector2 position,
+                Vector2 velocity, int type, int damage, float knockback) => { shots++; return false; });
+        using var cast = new Hook(typeof(ShardbindSkill).GetMethod("ShootShardbind3D")!,
+            (Func<ShardbindSkill, Player, NPC, bool> orig, ShardbindSkill s, Player p, NPC n) => {
+                bool result = orig(s, p, n);
+                if (result) { casts++; delivered = n; }
+                return result;
+            });
+        // Damage arithmetic is covered by the cycle checks; avoid equipment setup in this input fixture.
+        using var damage = new Hook(typeof(ElainaSkill).GetMethod("GetConfiguredDamage", All)!,
+            (ElainaSkill s, int? hitCount, int? skillLevel) => 100);
+
+        Action_IceCone cone = null;
+        ShardbindSkill shard = null;
+        NPC target = null;
+        void Step() => typeof(ActionModPlayer).GetMethod("UpdateCurrentAction", All)!.Invoke(actions, null);
+        NPC Locked() => (NPC)typeof(Action_IceCone).GetProperty("QuickCastTarget", All)!.GetValue(cone);
+        bool Owns() => (bool)typeof(Action_IceCone).GetMethod("OwnsQuickCastInput", All)!.Invoke(null, [player])!;
+        void Prepare(bool simultaneous = false)
+        {
+            actions.InterruptCurrentAction();
+            GameMain.myPlayer = player.whoAmI; GameMain.hasFocus = true;
+            GameMain.gameMenu = GameMain.gamePaused = GameMain.drawingPlayerChat = false;
+            GameMain.ingameOptionsWindow = GameMain.inFancyUI = GameMain.editSign = GameMain.editChest = false;
+            GameMain.mouseLeft = true; GameMain.mouseRight = simultaneous;
+            player.active = true; player.dead = player.frozen = player.noItems = player.mouseInterface = false;
+            var item = new Item { type = ItemID.Wood, stack = 1 };
+            var wand = new ElainaWand();
+            typeof(ModItem).GetProperty("Entity", All)!.SetValue(wand, item);
+            typeof(Item).GetProperty("ModItem", All)!.SetValue(item, wand);
+            player.selectedItem = 0; player.inventory[0] = item;
+            var ice = Owned(new IceConeSkill { Level = 1 });
+            shard = new ShardbindSkill { Stack = 1, MaxStack = 1, MaxCD = 60, MagicPointCost = 100, Level = 1 };
+            var state = Owned(shard);
+            skills.UnlockedSkill.Clear();
+            skills.UnlockedSkill[nameof(AshenWitchSkill)] = Owned(new AshenWitchSkill());
+            skills.UnlockedSkill[nameof(IceConeSkill)] = ice;
+            skills.UnlockedSkill[nameof(ShardbindSkill)] = state;
+            skills.ActiveSkill = [ice, state];
+            ElainaSkillModPlayer.CurrentSkillIndex = 0;
+            magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 500);
+            magic.Attributes.SetBase(CharacterAttributes.CooldownHaste, 100); magic.Attributes.Commit();
+            shard.Unseal();
+            foreach (var npc in GameMain.npc) npc.active = false;
+            target = NpcFixture(0); target.Center = GameMain.MouseWorld;
+            new IceConeTargetSystem().OnWorldUnload();
+            acceptStart = true; casts = shots = 0; delivered = null;
+            cone = new Action_IceCone((IceConeSkill)ice.ModSkill, 10, 0, 1, 0);
+            if (simultaneous) Check(Owns(), "Simultaneous startup reserves right input before action creation");
+            actions.StartAction(cone);
+            Step(); Step();
+            Check(actions.IsActionHolding, "Real ice action reaches automatic hold");
+        }
+
+        foreach (bool simultaneous in new[] { false, true })
+        foreach (string release in new[] { "right", "left", "both" })
+        {
+            Prepare(simultaneous);
+            GameMain.mouseRight = true;
+            Check(Owns(), "Channel reserves right input from skill wheel");
+            int before = shots;
+            for (int i = 0; i < 5; i++) Step();
+            new IceConeTargetSystem().PostUpdateEverything();
+            Check(Locked() == target && IceConeTargetSystem.LockedTarget == target, "Reticle uses channel target");
+            Check(shots == before + 5 && actions.CurrentAnimAction == cone && casts == 0,
+                $"Holding right keeps shooting ice without casting shardbind: before={before}, shots={shots}, casts={casts}, holding={actions.IsActionHolding}, action={actions.CurrentAnimAction?.GetType().Name}");
+            Near(magic.MagicPoint, 500, "Locking has no shardbind charge");
+            GameMain.mouseRight = release == "left";
+            GameMain.mouseLeft = release == "right";
+            Step();
+            Check(actions.CurrentAnimAction is Action_SimpleSlash && delivered == target && casts == 1,
+                release + ": release starts real shardbind action against displayed target");
+            Check(shard.Stack == 0 && shard.IsSealed && shard.CurrentCD == 30, "One charge, reseal, haste cooldown");
+            Near(magic.MagicPoint, 400, "Exactly one shardbind payment");
+            Check(ElainaSkillModPlayer.CurrentSkillIndex == 0, "Quick cast preserves selected skill");
+            new IceConeTargetSystem().PostUpdateEverything();
+            Check(IceConeTargetSystem.LockedTarget == null, "Reticle clears when the cast starts");
+            Check(!(bool)typeof(Action_IceCone).GetMethod("UpdateQuickCast", All)!.Invoke(cone, null)!,
+                "Interrupted ice action cannot cast again");
+        }
+
+        foreach (string blocked in new[] { "no-target", "dead-target", "reused-target", "unlearned", "unequipped",
+            "sealed", "cooldown", "mana", "ui", "focus", "dead", "crowd-control", "no-items", "item", "slot", "remote", "start-failed" })
+        {
+            Prepare(); GameMain.mouseRight = true;
+            if (blocked == "no-target") target.active = false;
+            Step();
+            switch (blocked)
+            {
+                case "dead-target": target.active = false; break;
+                case "reused-target": target.GetGlobalNPC<IceboundNPC>().SetDefaults(target); break;
+                case "unlearned": skills.UnlockedSkill.Remove(nameof(ShardbindSkill)); break;
+                case "unequipped": skills.ActiveSkill[1] = null; break;
+                case "sealed": shard.Seal(); break;
+                case "cooldown": shard.Stack = 0; shard.CurrentCD = 10; break;
+                case "mana": magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, 0); break;
+                case "ui": player.mouseInterface = true; break;
+                case "focus": GameMain.hasFocus = false; break;
+                case "dead": player.dead = true; break;
+                case "crowd-control": player.frozen = true; break;
+                case "no-items": player.noItems = true; break;
+                case "item": player.selectedItem = 1; break;
+                case "slot": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
+                case "remote": GameMain.myPlayer = 1; break;
+                case "start-failed": acceptStart = false; break;
+            }
+            float mana = magic.MagicPoint, cd = shard.CurrentCD;
+            int stack = shard.Stack;
+            bool sealedBefore = shard.IsSealed;
+            GameMain.mouseRight = false;
+            Step();
+            Check(casts == 0 && actions.CurrentAnimAction == cone, blocked + ": no shardbind action");
+            Check(shard.Stack == stack && shard.CurrentCD == cd && shard.IsSealed == sealedBefore,
+                blocked + ": no charge, seal or cooldown change");
+            Near(magic.MagicPoint, mana, blocked + ": no mana spent");
+        }
+
+        Prepare(); target.active = false; GameMain.mouseRight = true; Step();
+        Check(Locked() == null && actions.IsActionHolding, "Empty aim does not interrupt ice");
+        target.active = true; Step();
+        Check(Locked() == target, "Enemy entering range while right held becomes lockable");
+        GameMain.mouseLeft = false; Step();
+        Check(casts == 1, "Left release also works after acquiring a later target");
+
+        Prepare(); GameMain.mouseRight = true; Step();
+        target.Center += new Vector2(300, 0);
+        var alternate = NpcFixture(1); alternate.Center = GameMain.MouseWorld;
+        GameMain.mouseRight = false; Step();
+        Check(delivered == target, "Release retains displayed target even if another enemy is now nearer");
+
+        Prepare(); GameMain.mouseRight = true; Step();
+        target.Center += new Vector2(1000, 0); Step();
+        Check(Locked() == null, "Moving outside retention range clears the target while held");
+        GameMain.mouseLeft = false; Step();
+        Check(casts == 0 && !actions.IsActionHolding, "No target on left release only ends the ice channel");
+
+        Prepare(); GameMain.mouseRight = true; Step();
+        target.friendly = true; GameMain.mouseRight = false; Step();
+        Check(casts == 0, "Target becoming friendly cancels the release");
+        actions.InterruptCurrentAction();
+        GameMain.mouseLeft = GameMain.mouseRight = false;
+        GameMain.dedServ = true;
+        wandField.SetValue(null, savedWand);
+    }
+}

@@ -196,7 +196,8 @@ namespace 伊蕾娜.ElainaModSkills.UICore
     public static class UIDrawKit
     {
         public static Texture2D Pixel, GlowDot, DiamondFill;
-        public static ReLogic.Graphics.DynamicSpriteFont NumberFont;
+        internal static UIRasterFont RasterSerif;
+        internal static UIRasterShapes Shapes;
     }
 }
 
@@ -212,4 +213,13 @@ namespace 伊蕾娜.ElainaModSkills.Skills.DollControl {
 namespace 伊蕾娜.Localization
 {
     internal static class UIText { internal static string LocalizeUI(string key, params object[] args) => key; }
+}
+
+// Timing fixtures have no active channelled cast. Production input arbitration is outside this host.
+namespace 伊蕾娜.ElainaActions
+{
+    internal static class Action_WaterLaser { internal static bool OwnsQuickCastInput(Player player) => false; }
+    internal static class Action_FireLaser { internal static bool OwnsQuickCastInput(Player player) => false; }
+    internal static class Action_IceCone { internal static bool OwnsQuickCastInput(Player player) => false; }
+    internal static class Action_MagicMissile { internal static bool OwnsQuickCastInput(Player player) => false; }
 }

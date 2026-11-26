@@ -8,7 +8,7 @@ using KL.Dusts;
 using KL.Dusts.Burst;
 using KL.Dusts.Glow;
 using KL.Dusts.Smoke;
-using KL.Dusts.Stone;
+using KL.Extensions;
 using KL.SkillSystem.SilkyUI;
 using KL.Utils;
 using Terraria.ID;
@@ -27,21 +27,32 @@ public class ShardbindProj : ElainaBasicProjectile
     private int totalDamage;
     private bool exploded;
     private bool targetLost;
+    private Vector2? strikeCenter;
+    private Vector2 visualCenter;
+    private int sealTick;
 
     private const float SphereRadius = 200f;
     private const float IceConeSpeed = 58f;
 
     private int time = 0;
+    internal int ElapsedTicks => time;
+    internal ReticlePresentation ReticlePresentation { get; set; }
+    internal float ReticleRadius { get; private set; } = 43.2f;
 
     private int burstTime => IceCycleBalance.LockBurstFrame;
+
+    public override void SetStaticDefaults() => ProjectileID.Sets.DrawScreenCheckFluff[Type] = 2000;
 
     public void BindTarget(NPC target, uint selectedSpawnSerial)
     {
         Projectile.ai[0] = target.whoAmI + 1;
         Projectile.ai[2] = target.type;
         targetSpawnSerial = selectedSpawnSerial;
+        ReticleRadius = ShardbindReticle.Radius(target);
         Projectile.Center = target.Center;
         Projectile.netUpdate = true;
+        if (!Main.dedServ && Projectile.owner == Main.myPlayer)
+            ReticlePresentation = IceConeTargetSystem.TakeHover(target);
     }
 
     public NPC LockedTarget
@@ -63,13 +74,24 @@ public class ShardbindProj : ElainaBasicProjectile
     {
         writer.Write(targetSpawnSerial);
         writer.Write(targetLost);
+        writer.Write(ReticleRadius);
+        writer.Write(strikeCenter.HasValue);
+        if (strikeCenter is Vector2 center) { writer.Write(center.X); writer.Write(center.Y); }
         base.SendExtraAI(writer);
     }
 
     public override void ReceiveExtraAI(BinaryReader reader)
     {
         targetSpawnSerial = reader.ReadUInt32();
-        targetLost |= reader.ReadBoolean();
+        bool lost = reader.ReadBoolean();
+        ReticleRadius = reader.ReadSingle();
+        Vector2? center = reader.ReadBoolean() ? new Vector2(reader.ReadSingle(), reader.ReadSingle()) : null;
+        if (Main.netMode != NetmodeID.Server)
+        {
+            strikeCenter ??= center;
+            if (lost && !targetLost) IceboundNPC.ReleaseGroup(Projectile);
+            targetLost |= lost;
+        }
         base.ReceiveExtraAI(reader);
     }
     public override void SetDefaults()
@@ -79,7 +101,7 @@ public class ShardbindProj : ElainaBasicProjectile
         Projectile.penetrate = -1;
         Projectile.tileCollide = false;
         Projectile.ignoreWater = true;
-        Projectile.timeLeft = 120;
+        Projectile.timeLeft = ShardbindVisualSettings.ControllerLifetime;
         Projectile.alpha = 0;
         Projectile.hide = true;
         Projectile.usesLocalNPCImmunity = true;
@@ -93,42 +115,77 @@ public class ShardbindProj : ElainaBasicProjectile
     public override void AI()
     {
         NPC target = LockedTarget;
-        if (target == null)
+        bool controlsSeal = Main.netMode != NetmodeID.MultiplayerClient;
+        if (target == null && controlsSeal)
             LoseTarget();
 
-        time = Math.Max(time, (int)Projectile.ai[1]) + 1;
+        if (!initialized) sealTick = ShardbindSequence.SealTick;
+        // 伤害由施法客户端逐帧结算，收到服务器定点/脱锁包时不能跳过本地的穿刺帧。
+        int nextTime = initialized && !controlsSeal && HasAuthority() ? time + 1 : Math.Max(time, (int)Projectile.ai[1]) + 1;
+        if (!controlsSeal && !strikeCenter.HasValue && nextTime >= sealTick)
+        {
+            if (time >= sealTick - 1)
+            {
+                Projectile.timeLeft = ShardbindVisualSettings.ControllerLifetime - time;
+                return;
+            }
+            nextTime = sealTick - 1;
+        }
+        if (!controlsSeal && strikeCenter.HasValue) nextTime = Math.Max(nextTime, sealTick);
+        time = nextTime;
         Projectile.ai[1] = time;
-        Projectile.timeLeft = Math.Min(Projectile.timeLeft, Math.Max(1, 120 - time));
-        Vector2 center = target?.Center ?? Projectile.Center;
-        Vector2 delta = center - Projectile.Center;
+        Projectile.timeLeft = Math.Min(Projectile.timeLeft, Math.Max(1, ShardbindVisualSettings.ControllerLifetime - time));
+        Vector2 center = strikeCenter ?? Projectile.Center;
+        if (!strikeCenter.HasValue && target != null)
+            center = target.Center;
+        bool sealing = controlsSeal && !strikeCenter.HasValue && time >= sealTick;
         Projectile.Center = center;
-        foreach (VisualUnit visual in units)
-            if (visual is IceCone3DUnit cone) cone.MoveWithTarget(delta);
+        if (strikeCenter.HasValue && target != null && !InsideImpact(target, center))
+        {
+            if (controlsSeal) LoseTarget();
+            else IceboundNPC.ReleaseGroup(Projectile);
+            target = null;
+        }
+        if ((sealing || strikeCenter.HasValue) && target != null && time < burstTime)
+            IceboundNPC.HoldGroup(target, Projectile, burstTime - time + 2);
+        if (sealing)
+        {
+            center = target?.Center ?? center;
+            strikeCenter = center;
+            Projectile.Center = center;
+        }
+        if (initialized && center != visualCenter)
+            foreach (VisualUnit visual in units)
+                if (visual is IceCone3DUnit cone) cone.MoveWithTarget(center - visualCenter);
+        visualCenter = center;
+        if (sealing && Main.netMode == NetmodeID.Server)
+        {
+            if (target != null) NetMessage.SendData(MessageID.SyncNPC, number: target.whoAmI);
+            NetMessage.SendData(MessageID.SyncProjectile, number: Projectile.whoAmI);
+        }
         InitializeUnits();
         foreach (VisualUnit visual in units)
-            if (visual is IceCone3DUnit cone) cone.CatchUp(time - 1);
+            if (visual is IceCone3DUnit cone)
+            {
+                cone.CatchUp(time - 1);
+                cone.ChargeProgress = ShardbindVisuals.Charge(time);
+            }
         VisualUnit.UpdateAll(units);
 
-        bool hasArrived = false;
         foreach (VisualUnit visual in units)
         {
             if (visual is not IceCone3DUnit cone) continue;
-            hasArrived |= cone.HasArrived;
             if (!cone.ArrivedThisUpdate || time >= burstTime) continue;
-            // 控制跟随动画抵达事件，不依赖能否伤害目标、命中免疫或Debuff免疫。
-            if (target != null) IceboundNPC.HoldGroup(target, Projectile, burstTime - time + 2);
+            if (!Main.dedServ) ShakeShardImpact(cone);
             ApplyDamagePulse(IceCycleBalance.LockShardDamage(totalDamage, cone.Index, units.Count), IceCycleBalance.LockImpactRadius);
             if (target != null && (!target.active || target.life <= 0))
             {
-                LoseTarget();
+                if (controlsSeal) LoseTarget();
+                else IceboundNPC.ReleaseGroup(Projectile);
                 target = null;
             }
             if (HasAuthority()) Projectile.netUpdate = true;
         }
-
-        // 晚到的网络状态和新出现的关联部位也加入当前控制，结束由本次施法主动释放。
-        if (target != null && hasArrived && time < burstTime)
-            IceboundNPC.HoldGroup(target, Projectile, burstTime - time + 2);
 
         if (time >= burstTime && !exploded)
         {
@@ -141,6 +198,8 @@ public class ShardbindProj : ElainaBasicProjectile
         else if (time > burstTime)
             IceboundNPC.ReleaseGroup(Projectile);
 
+        // 星闪、延迟粒子只属于本地表现；终爆当帧由 SpawnFinalBurst 发射，避免重复。
+        if (!Main.dedServ && time != burstTime) ShardbindVisuals.EmitEvents(Projectile.Center, time);
         base.AI();
     }
 
@@ -151,57 +210,63 @@ public class ShardbindProj : ElainaBasicProjectile
         Projectile.ai[0] = 0;
         IceboundNPC.ReleaseGroup(Projectile);
         // 保留控制器当前位置和所有视觉单元，剩余AOE继续完成，不重新找目标。
-        if (HasAuthority()) Projectile.netUpdate = true;
+        if (Main.netMode == NetmodeID.Server)
+            NetMessage.SendData(MessageID.SyncProjectile, number: Projectile.whoAmI);
     }
 
     private void ApplyDamagePulse(int damage, float radius)
     {
         if (!HasAuthority() || damage <= 0) return;
         int previousDamage = Projectile.damage;
+        ElementalGlobalProjectile element = Projectile.GetGlobalProjectile<ElementalGlobalProjectile>();
+        var configured = element.InfusionElement;
+        // 前置冰刺只造成伤害，终爆才开放积蓄。
+        if (!exploded) element.InfusionElement = ElementType.Ice;
         damageRadius = radius;
         damagedEntities.Clear();
         Array.Clear(Projectile.localNPCImmunity);
         Projectile.damage = damage;
         damagePulse = Projectile.friendly = true;
-        try { Projectile.Damage(); }
-        finally
-        {
-            damagePulse = Projectile.friendly = false;
-            Projectile.damage = previousDamage;
-        }
+        Projectile.Damage();
+
+        damagePulse = Projectile.friendly = false;
+        Projectile.damage = previousDamage;
+        element.InfusionElement = configured;
+    }
+
+    private void ShakeShardImpact(IceCone3DUnit cone)
+    {
+        Vector2 center = Projectile.Center;
+        float intensity = GetCameraImpactIntensity(center);
+        if (intensity <= 0f) return;
+
+        Vector2 direction = cone.GetImpactDirection();
+        if (direction == Vector2.Zero) return;
+        GamePlayStatic.ShakeScreen(center, direction, 2.0f * intensity, 10f, 6);
     }
 
     private void SpawnFinalBurst()
     {
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<SmokeDust2>(),30, rotRange:6.28f,
-                velocity: new Vector2(2), lifeTime: 30,startDistance:10,startOffset:80,
-                color: new Color(200, 255, 255, 150), scale: new Vector2(1.5f),velocityOffset:0.5f,scaleOffset:new Vector2(0.5f,0.5f),lifeOffset:15);
-            
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<IceStone>(),6, rotRange:6.28f,
-                velocity: new Vector2(15), lifeTime: 25,startDistance:0,startOffset:10,
-                color: new Color(255, 255, 255, 255), scale: new Vector2(0.4f),scaleOffset:new Vector2(0.3f,0.3f),lifeOffset:5);
-            
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<IceStone>(),5, rotRange:6.28f,
-                velocity: new Vector2(15), lifeTime: 40,startDistance:0,startOffset:10,
-                color: new Color(255, 255, 255, 255), scale: new Vector2(0.4f),lifeOffset:10);
-            
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<GlowStone>(),10, rotRange:6.28f,
-                velocity: new Vector2(15), lifeTime: 30,startDistance:0,startOffset:10,
-                color: new Color(150, 220, 255, 0), scale: new Vector2(2.2f),lifeOffset:10);
-            
-            KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<BurstPoint>(), velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
-                color: new Color(100, 220, 255, 0), scale: new Vector2(1.2f));
-            
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<BurstDust>(),10, rotRange:6.28f,
-                velocity: new Vector2(15), lifeTime: 16,startDistance:0,startOffset:10,
-                color: new Color(150, 220, 255, 0), scale: new Vector2(2.2f,1f),lifeOffset:5);
-            
-            KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(),10, rotRange:6.28f,
-                velocity: new Vector2(25), lifeTime: 16,startDistance:0,startOffset:10,
-                color: new Color(150, 220, 255, 0), scale: new Vector2(2.2f,0.2f),lifeOffset:5);
-            
-            KLBasicDust.SpawnDust(Projectile.Center, ModContent.DustType<GlowDust>(), velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
-                color: new Color(100, 220, 255, 0), scale: new Vector2(3.5f));
+        Vector2 center = Projectile.Center;
+        ShardbindVisuals.EmitBurstEvents(center, 0);
+
+        float intensity = GetCameraImpactIntensity(center);
+        if (intensity <= 0f) return;
+
+        GamePlayStatic.ShakeScreen(center, ShardbindVisualSettings.BurstShakeDirection,
+            ShardbindVisualSettings.BurstShakeStrength * intensity, ShardbindVisualSettings.BurstShakeFrequency,
+            ShardbindVisualSettings.BurstShakeTicks);
+        DrawHelper.CreateRadialBlur(center, ShardbindVisualSettings.BurstBlurStrength * intensity,
+            ShardbindVisualSettings.BurstBlurTicks, iteration: ShardbindVisualSettings.BurstBlurSamples);
+    }
+
+    private static float GetCameraImpactIntensity(Vector2 center)
+    {
+        const float maxDistance = 1500f;
+        float distance = Vector2.Distance(Main.LocalPlayer.Center, center);
+        if (distance > maxDistance) return 0f;
+
+        return MathHelper.SmoothStep(1f, .7f, distance / maxDistance);
     }
 
     public override bool ShouldUpdatePosition()
@@ -211,12 +276,18 @@ public class ShardbindProj : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
-        LayerDrawRequestSystem.RequestBloom("Elaina:Shardbind:Glow", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        // 控制器从 BehindProjectiles 提前提交，光片与粒子共用本帧的前景 HDR。
+        if (time <= IceCycleBalance.LockChargeStartFrame || time >= IceCycleBalance.LockBurstFrame) return false;
+        LayerDrawRequestSystem.RequestBloom("Elaina:Shardbind:Glow", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, DrawVisual);
         return false;
     }
 
     public override bool? CanDamage() => damagePulse && HasAuthority();
+
+    internal static bool InsideImpact(NPC target, Vector2 center) =>
+        Vector2.DistanceSquared(target.Hitbox.ClosestPointInRect(center), center)
+        <= IceCycleBalance.LockImpactRadius * IceCycleBalance.LockImpactRadius;
 
     public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox) =>
         Vector2.DistanceSquared(targetHitbox.ClosestPointInRect(Projectile.Center), Projectile.Center)
@@ -228,7 +299,8 @@ public class ShardbindProj : ElainaBasicProjectile
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
-        if (WaterExposureNPC.IsWet(target)) modifiers.SourceDamage *= IceCycleBalance.LockWetDamageMultiplier;
+        if (WaterExposureNPC.IsWet(target))
+            modifiers.SourceDamage *= SkillHitBalance.ShardbindWetDamageMultiplier;
         base.ModifyHitNPC(target, ref modifiers);
     }
 
@@ -238,44 +310,14 @@ public class ShardbindProj : ElainaBasicProjectile
         base.OnHitNPC(target, hit, damageDone);
     }
 
-    private void DrawVisual()
-    {
-        Texture2D star = AssetManager.GetTexture("KL.Effects.Tex.Sparkle.T_StartFlare001");
-        Texture2D glow = AssetManager.GetTexture("KL.Effects.Tex.background_Premultiplied");
-
-        int starTime = 50;
-        int starStartTime = 70;
-
-        List<FrameInfo> sizeFrames = [ new(0.9f, 0.0f, starTime, TweenEase.EaseOutCubic)]; 
-        List<FrameInfo> rotFrames = [ new(0.3f, 3f, starTime, TweenEase.EaseOutCubic)]; 
-        List<FrameInfo> bloomFrames = [ new(3, 0f, starTime, TweenEase.SmoothStep)]; 
-
-        float size = EvaluateTween(sizeFrames, time,starStartTime);
-        float rot = EvaluateTween(rotFrames, time,starStartTime);
-        float bloom = EvaluateTween(bloomFrames, time,starStartTime);
-        
-        
-        EndBeginDraw(0,1);
-        ReColorEffect(new Color(150,220,255,0).ToVector4()*bloom);
-
-        if(time>starStartTime) DrawInWorld(star,Projectile.Center,new Color(100,200,255,0),new Vector2(size),rot);
-        
-        EndBeginDraw();
-        List<FrameInfo> glowFrames = [ new(0, 0.7f, 20, TweenEase.SmoothStep)]; 
-        int glowStartTime = 90;
-        float glowAlpha = EvaluateTween(glowFrames, time,glowStartTime);
-
-        if(time>=starStartTime)DrawInWorld(glow,Projectile.Center,new Color(100,200,255,0)*glowAlpha,new Vector2(2),0);
-
-        EndBeginDraw();
-    }
+    private void DrawVisual() => ShardbindVisuals.DrawCharge(Projectile.Center, time);
 
     public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs,
         List<int> behindProjectiles, List<int> overPlayers,
         List<int> overWiresUI)
     {
         if(time<burstTime) VisualUnit.DrawAll(units);
-        overPlayers.Add(index);
+        behindProjectiles.Add(index);
     }
 
     public override void OnKill(int timeLeft)
@@ -303,7 +345,7 @@ public class ShardbindProj : ElainaBasicProjectile
             Vector3 spawnPosition3D = new(spawnDataEntry.SpawnWorldPosition, spawnDataEntry.StartDepth);
             Vector3 targetPosition3D = new(lockCenter, 0f);
             Vector3 velocity3D = GetInitialVelocity3D(spawnPosition3D, targetPosition3D, shootVelocity.Length());
-            VisualUnit.Spawn(units, new IceCone3DUnit(spawnPosition3D, targetPosition3D, velocity3D, spawnDataEntry.TriggerFrame, 135), Projectile);
+            VisualUnit.Spawn(units, IceCone3DUnit.CreatePrepared(spawnPosition3D, targetPosition3D, velocity3D, spawnData.Count, units.Count), Projectile);
         }
     }
 

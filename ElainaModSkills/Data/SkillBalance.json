@@ -35,8 +35,7 @@
         ],
         "cost": 2,
         "interval": 0.3,
-        "shots": 1,
-        "freezeBuildup": 0
+        "shots": 1
       },
       {
         "id": "IceConeSkill",
@@ -48,12 +47,11 @@
         "unlockStageCap": 40,
         "unlockLevel": 36,
         "levelsPerPhase": 2,
-        "ratio": 2.1,
+        "ratio": 1.1,
         "ratioCurve": [],
         "cost": 2,
         "interval": 0.1,
-        "shots": 1,
-        "freezeBuildup": 5.6
+        "shots": 1
       },
       {
         "id": "WindSlashSkill",
@@ -69,8 +67,7 @@
         "ratioCurve": [],
         "cost": 5,
         "interval": 0.4,
-        "shots": 1,
-        "freezeBuildup": 0
+        "shots": 1
       },
       {
         "id": "WaterLaserSKill",
@@ -86,8 +83,7 @@
         "ratioCurve": [],
         "cost": 1.25,
         "interval": 0.16666666666666666,
-        "shots": 1,
-        "freezeBuildup": 0
+        "shots": 1
       },
       {
         "id": "FireLaserSkill",
@@ -103,8 +99,7 @@
         "ratioCurve": [],
         "cost": 1.6666666666666667,
         "interval": 0.16666666666666666,
-        "shots": 1,
-        "freezeBuildup": 0
+        "shots": 1
       }
     ],
     "selectedBasicAttackId": "IceConeSkill",
@@ -112,6 +107,8 @@
     "occupyRatio": 0,
     "skills": [
       {
+        "id": "WaterBallSkill",
+        "name": "水球魔法",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -120,8 +117,6 @@
         "unlockLevel": 26,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "WaterBallSkill",
-        "name": "水球魔法",
         "cost": 100,
         "costPercent": 0,
         "k": 1.5,
@@ -130,11 +125,14 @@
         "cast": 1,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
         "ratioCurve": [],
+        "energyCost": 2,
+        "energyEfficiency": 1,
         "ratio": 0.2
       },
       {
+        "id": "WindTornadoSkill",
+        "name": "风龙卷",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -143,8 +141,6 @@
         "unlockLevel": 61,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "WindTornadoSkill",
-        "name": "风龙卷",
         "cost": 50,
         "costPercent": 0,
         "k": 0.1,
@@ -153,10 +149,13 @@
         "cast": 0.3,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "FireBurstSkill",
+        "name": "炎爆（按每层循环）",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -165,8 +164,6 @@
         "unlockLevel": 46,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "FireBurstSkill",
-        "name": "炎爆（按每层循环）",
         "cost": 350,
         "costPercent": 0,
         "k": 0,
@@ -175,11 +172,14 @@
         "cast": 0.1,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
         "ratioCurve": [],
+        "energyCost": 5,
+        "energyEfficiency": 1.5,
         "ratio": 0.0067
       },
       {
+        "id": "ShardbindSkill",
+        "name": "冰凌锁",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -188,21 +188,22 @@
         "unlockLevel": 61,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "ShardbindSkill",
-        "name": "冰凌锁",
         "cost": 250,
         "costPercent": 0,
         "k": 0.4,
-        "cd": 30,
+        "cd": 60,
         "cdRatio": 1,
         "cast": 0.75,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
         "ratioCurve": [],
-        "ratio": 0.2
+        "energyCost": 3,
+        "energyEfficiency": 0.8,
+        "ratio": 0.05
       },
       {
+        "id": "customskill",
+        "name": "倾泻魔力飞弹",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -211,8 +212,6 @@
         "unlockLevel": 76,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "customskill",
-        "name": "倾泻魔力飞弹",
         "cost": 200,
         "costPercent": 0,
         "k": 1,
@@ -221,10 +220,13 @@
         "cast": 5,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "FireTornadoSkill",
+        "name": "火焰龙卷",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -233,8 +235,6 @@
         "unlockLevel": 81,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "FireTornadoSkill",
-        "name": "火焰龙卷",
         "cost": 300,
         "costPercent": 0,
         "k": 0.5,
@@ -243,10 +243,13 @@
         "cast": 1,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "prototype.Lightning",
+        "name": "天雷",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -255,8 +258,6 @@
         "unlockLevel": 86,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "prototype.Lightning",
-        "name": "天雷",
         "cost": 450,
         "costPercent": 0,
         "k": 0.178,
@@ -265,10 +266,13 @@
         "cast": 2,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "CustomSkill1",
+        "name": "雷龙召唤",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -277,8 +281,6 @@
         "unlockLevel": 86,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "CustomSkill1",
-        "name": "雷龙召唤",
         "cost": 200,
         "costPercent": 0,
         "k": 1,
@@ -287,10 +289,13 @@
         "cast": 1,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "MultiMissileSkill",
+        "name": "多重射击",
         "growthStartLevel": 1,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -299,17 +304,14 @@
         "unlockLevel": 6,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "MultiMissileSkill",
-        "name": "多重射击",
-        "cost": 3,
+        "cost": 30,
         "costPercent": 1,
         "k": 130,
-        "cd": 0.16,
+        "cd": 0.7,
         "cdRatio": 1,
         "cast": 0,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
         "ratioCurve": [
           [
             1,
@@ -324,9 +326,13 @@
             1
           ]
         ],
+        "energyCost": 1,
+        "energyEfficiency": 0.6,
         "ratio": 1.02
       },
       {
+        "id": "FrostVeilSkill",
+        "name": "霜幕",
         "growthStartLevel": 0,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -335,8 +341,6 @@
         "unlockLevel": 36,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "FrostVeilSkill",
-        "name": "霜幕",
         "cost": 50,
         "costPercent": 0,
         "k": 0,
@@ -345,10 +349,13 @@
         "cast": 0.3,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "AlchemySkill",
+        "name": "炼金术",
         "growthStartLevel": 0,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -357,8 +364,6 @@
         "unlockLevel": 6,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "AlchemySkill",
-        "name": "炼金术",
         "cost": 0,
         "costPercent": 0,
         "k": 1,
@@ -367,10 +372,13 @@
         "cast": 0,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "HealSkill",
+        "name": "治疗魔法",
         "growthStartLevel": 0,
         "growthMode": "interval",
         "levelInterval": 10,
@@ -379,8 +387,6 @@
         "unlockLevel": 21,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "HealSkill",
-        "name": "治疗魔法",
         "cost": 120,
         "costPercent": 0,
         "k": 0,
@@ -389,10 +395,13 @@
         "cast": 0,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "FlightSkill",
+        "name": "飞行魔法",
         "growthStartLevel": 0,
         "growthMode": "interval",
         "levelInterval": 10,
@@ -401,8 +410,6 @@
         "unlockLevel": 11,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "FlightSkill",
-        "name": "飞行魔法",
         "cost": 0,
         "costPercent": 0,
         "k": 0,
@@ -411,10 +418,13 @@
         "cast": 0,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       },
       {
+        "id": "DollControlSkill",
+        "name": "玩偶操控",
         "growthStartLevel": 0,
         "growthMode": "phase",
         "levelInterval": 5,
@@ -423,8 +433,6 @@
         "unlockLevel": 6,
         "levelsPerPhase": 1,
         "shots": 1,
-        "id": "DollControlSkill",
-        "name": "玩偶操控",
         "cost": 20,
         "costPercent": 0,
         "k": 0,
@@ -433,8 +441,9 @@
         "cast": 0,
         "maxCharges": 1,
         "initialCharges": 1,
-        "freezeBuildup": 0,
-        "ratioCurve": []
+        "ratioCurve": [],
+        "energyCost": 0,
+        "energyEfficiency": 1
       }
     ],
     "loadouts": [

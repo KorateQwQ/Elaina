@@ -19,7 +19,6 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 public class WaterLaser : ElainaBasicProjectile
 {
     public static float SplashRadius => 230f;
-    public const float SplashDamageMultiplier = 0.5f;
     private const float BeamWidth = 50f;
 
     private float maxDistance;
@@ -41,8 +40,8 @@ public class WaterLaser : ElainaBasicProjectile
     public override void SetDefaults()
     {
         HeldInfo = new HeldProjInfo(true, 30, 0.2f, 30);
-        InfusionElement = ElementType.Water;
-        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().SuppressBuildup = true;
+        InfusionElement = new(ElementType.Water, SkillHitBalance.WaterStreamBuildup);
+        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
         Projectile.width = Projectile.height = 10;
         Projectile.timeLeft = 30;
         Projectile.tileCollide = false;
@@ -139,6 +138,7 @@ public class WaterLaser : ElainaBasicProjectile
                     Array.Clear(Projectile.localNPCImmunity);
                     hitNpcIndices.Clear();
                     waterBatch.Reset();
+                    Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
                     pulseTimer = intervalFrames;
                 }
                 pulseTimer--;
@@ -220,9 +220,9 @@ public class WaterLaser : ElainaBasicProjectile
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
-        waterBatch.Capture(target);
+        if (waterBatch.Capture(target)) modifiers.SourceDamage *= SkillHitBalance.WaterStreamBurningDamageMultiplier;
         if (target.whoAmI != primaryTarget)
-            modifiers.SourceDamage *= SplashDamageMultiplier;
+            modifiers.SourceDamage *= SkillHitBalance.WaterStreamSplashDamageMultiplier;
         base.ModifyHitNPC(target, ref modifiers);
     }
 
@@ -332,7 +332,7 @@ public class WaterLaser : ElainaBasicProjectile
     {
         if (!IsChanneling || trailPoints.Count < 2 || maxDistance <= 0.01f) return false;
         drawVisual ??= DrawVisual;
-        LayerDrawRequestSystem.RequestBloom("Elaina:WaterLaser", WaterLaserVisuals.Layer,
+        LayerDrawRequestSystem.Request("Elaina:WaterLaser", WaterLaserVisuals.Layer,
             LayerDrawRequestSystem.DrawTiming.After, drawVisual);
         return false;
     }
@@ -395,7 +395,6 @@ public class WaterLaser : ElainaBasicProjectile
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
     {
         hitNpcIndices.Add(target.whoAmI);
-        waterBatch.OnHit(Owner, target, damageDone, Projectile, intervalFrames);
         base.OnHitNPC(target, hit, damageDone);
     }
 

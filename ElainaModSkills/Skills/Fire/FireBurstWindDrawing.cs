@@ -93,7 +93,8 @@ internal static class FireBurstWindDrawing
         }
         if (count == 0) return;
         effect.Parameters["uTransform"].SetValue(transform);
-        effect.Parameters["MaskFromRed"].SetValue(maskFromRed);
+        // 两种遮罩模式均含非零权重，保证 D3D11 首次上传像素常量。
+        effect.Parameters["WindMaskWeights"].SetValue(new Vector2(1f - maskFromRed, maskFromRed));
         // shader 输出已预乘的 RGB 和覆盖度：黑色外表面参与遮挡，内表面的 HDR 颜色参与 Bloom。
         device.BlendState = BlendState.AlphaBlend;
         device.DepthStencilState = DepthStencilState.None;

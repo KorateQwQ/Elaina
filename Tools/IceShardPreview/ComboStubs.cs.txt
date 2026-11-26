@@ -1,0 +1,133 @@
+global using System;
+global using System.IO;
+global using System.Globalization;
+global using System.Reflection;
+global using System.Collections.Generic;
+global using Microsoft.Xna.Framework;
+global using Microsoft.Xna.Framework.Graphics;
+global using Terraria;
+global using Terraria.ModLoader;
+global using KL.Drawing;
+global using KL.Drawing.ThreeD;
+global using KL.Dusts;
+global using KL.Dusts.Burst;
+global using KL.Dusts.Smoke;
+global using KL.Dusts.Glow;
+global using static KL.Drawing.DrawHelper;
+namespace Terraria.ModLoader {
+    public class ModSystem { public virtual void Unload() {} public virtual void OnWorldUnload() {} }
+    public static class ModContent { public static int DustType<T>() => KLBasicDust.TypeId(typeof(T)); }
+}
+namespace Terraria {
+    public class Entity { }
+    public class Player { public int gravDir = 1; }
+    public class DeviceContext { public GraphicsDevice GraphicsDevice; }
+    public class ViewContext { public Matrix TransformationMatrix = Matrix.Identity; }
+    public static class Main {
+        public static DeviceContext instance, graphics;
+        public static SpriteBatch spriteBatch;
+        public static int screenWidth = 960, screenHeight = 480;
+        public static Vector2 screenPosition;
+        public static Matrix Transform = Matrix.Identity;
+        public static ViewContext GameViewMatrix = new();
+        public static Player LocalPlayer = new();
+        public static bool gamePaused, dedServ;
+        public static SamplerState DefaultSamplerState = SamplerState.LinearClamp;
+        public static PreviewRandom rand = new(318);
+        public static int ShardSeed;
+        public static void QueueMainThreadAction(Action action) => action();
+    }
+    public class PreviewRandom : Random {
+        public PreviewRandom(int seed) : base(seed) {}
+        public float NextFloat(float lo, float hi) => lo + (float)NextDouble() * (hi-lo);
+        public Vector2 NextVector2Circular(float x, float y) {
+            float a = NextFloat(0, MathHelper.TwoPi), r = MathF.Sqrt(NextFloat(0,1));
+            return new Vector2(MathF.Cos(a)*x, MathF.Sin(a)*y)*r;
+        }
+    }
+    public class Dust {
+        public Vector2 position, velocity, size;
+        public Color color;
+        public float rotation, life, remaining;
+        public bool active = true;
+        public KLBasicDust renderer;
+        public object customData;
+        public int type;
+        public bool noGravity, noLight;
+        public static Dust NewDustDirect(Vector2 position, int width, int height, int type, float vx = 0, float vy = 0,
+            int alpha = 0, Color color = default, float scale = 1) => KLBasicDust.NewDirect(position, type, new Vector2(vx,vy),color);
+    }
+}
+namespace KL.Drawing.ThreeD {
+    public class ObjModel {
+        public Vertex3D[] Vertices;
+        VertexBuffer buffer;
+        public ObjModel(Vertex3D[] data) { Vertices = data; }
+        public int PrimitiveCount => Vertices.Length / 3;
+        public VertexBuffer GetOrCreateVertexBuffer(GraphicsDevice gd) {
+            if (buffer == null) { buffer = new VertexBuffer(gd, typeof(Vertex3D), Vertices.Length, BufferUsage.WriteOnly); buffer.SetData(Vertices); }
+            return buffer;
+        }
+        public void Dispose() { buffer?.Dispose(); }
+    }
+}
+namespace KL.Drawing {
+    public partial class DrawHelper {
+        public struct TextureInfo {
+            public Texture2D Texture; public int CurrentFrame, XFrames, YFrames;
+            public TextureInfo(Texture2D tex, int frame, int x, int y) { Texture = tex; CurrentFrame = frame; XFrames = x; YFrames = y; }
+        }
+        public static void DrawInWorld(TextureInfo t, Vector2 p, Color color, Vector2 scale, float rotation) {
+            int w = t.Texture.Width / t.XFrames, h = t.Texture.Height / t.YFrames;
+            var rect = new Rectangle(t.CurrentFrame % t.XFrames * w, t.CurrentFrame / t.XFrames * h, w, h);
+            Main.spriteBatch.Draw(t.Texture, p - Main.screenPosition, rect, color, rotation, new Vector2(w,h)*.5f, scale, SpriteEffects.None, 0);
+        }
+    }
+}
+namespace KL.Dusts {
+    public partial class KLBasicDust {
+        static readonly List<KLBasicDust> types = new();
+        public static readonly List<Dust> Instances = new();
+        public Texture2D MainTexture;
+        public bool ShouldBloom;
+        public int Type => TypeId(GetType());
+        public virtual string Texture => "";
+        public virtual void Unload() {}
+        public virtual void SubmitBloomDrawRequest(Dust dust) {}
+        public class DustInfo(float life, Vector2 scale) {
+            public float LifeTime = life, CurrentLifeTime = life, LifeProgress;
+            public object DustData;
+            public BloomPlacement Bloom = BloomPlacement.AfterProjectiles;
+        }
+        public static Dust NewDirect(Vector2 position, int type, Vector2 velocity, Color color) {
+            var dust = new Dust { position=position, type=type, velocity=velocity, color=color, renderer=types[type] };
+            types[type].OnSpawn(dust); Instances.Add(dust); return dust;
+        }
+        public static void Register(Type type, Texture2D texture) {
+            var dust = (KLBasicDust)Activator.CreateInstance(type); dust.MainTexture = texture; types.Add(dust);
+        }
+        public static int TypeId(Type type) => types.FindIndex(d => d.GetType() == type);
+        public virtual bool PreDraw(Dust dust) => false;
+        public virtual void OnSpawn(Dust dust) {}
+        public virtual bool Update(Dust dust) {
+            dust.remaining--; dust.position += dust.velocity; dust.rotation = dust.velocity.ToRotation();
+            if (dust.remaining < 0) dust.active = false;
+            return false;
+        }
+        public static void SpawnDust(Vector2 position, int dustType, Vector2? velocity = null, float lifeTime = 60,
+            Color? color = null, Vector2? scale = null, Entity attachedEntity = null, object dustData = null) {
+            SpawnDust(BloomPlacement.AfterProjectiles, position, dustType, velocity, lifeTime, color, scale, attachedEntity, dustData);
+        }
+        public static void SpawnDust(BloomPlacement placement, Vector2 position, int dustType, Vector2? velocity, float lifeTime,
+            Color? color, Vector2? scale, Entity attachedEntity, object dustData) {
+            var dust = new Dust { position = position, velocity = velocity ?? Vector2.Zero, life = lifeTime,
+                type = dustType, customData = new DustInfo(lifeTime, scale ?? Vector2.One) { Bloom = placement, DustData = dustData },
+                remaining = lifeTime, color = color ?? Color.White, size = scale ?? Vector2.One, renderer = types[dustType] };
+            dust.renderer.OnSpawn(dust); dust.renderer.Update(dust); Instances.Add(dust);
+        }
+    }
+    public static class DustExtensions {
+        public static float LifeProgress(this Dust d) => 1-d.remaining/d.life;
+        public static Vector2 Size(this Dust d) => d.size;
+    }
+}

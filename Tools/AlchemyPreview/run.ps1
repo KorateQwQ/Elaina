@@ -59,9 +59,13 @@ $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyEffici
 $null = Add-PreviewItem 'Compile' "$repo/ElainaModAlchemy/UI/AlchemyBrewAnimation.cs"
 $null = Add-PreviewItem 'Compile' "$PSScriptRoot/BrewingPreview.cs.txt"
 $null = Add-PreviewItem 'Compile' "$PSScriptRoot/RasterChecks.cs.txt"
+$null = Add-PreviewItem 'Compile' "$repo/Tools/ConstellationRasterChecks/TextQualityChecks.cs.txt"
 $null = Add-PreviewItem 'Compile' "$repo/System/UI/ElasticScrollMotion.cs"
 $null = Add-PreviewItem 'Compile' "$repo/System/UI/ScrollHint.cs"
 $bookUi = Join-Path $repo 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel'
+$null = Add-PreviewItem 'Compile' "$repo/ElainaModSkills/UICore/UIBatch.cs"
+$null = Add-PreviewItem 'Compile' "$repo/ElainaModSkills/UICore/UIRasterShapes.cs"
+$null = Add-PreviewItem 'Compile' (Join-Path $repo 'ElainaModSkills/UICore/UIRasterFont.cs')
 $null = Add-PreviewItem 'Compile' (Join-Path $bookUi 'ConstellationFont.cs')
 foreach ($name in @('ConstellationBookMotion','ConstellationBookRenderer','ConstellationUIClock')) {
     $null = Add-PreviewItem 'Compile' (Join-Path $bookUi "$name.cs")

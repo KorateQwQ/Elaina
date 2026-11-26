@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$RayOnly, [switch]$IceActionOnly)
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$RayOnly, [switch]$IceActionOnly, [switch]$StatusOnly, [switch]$ShardbindOnly, [switch]$BuildupOnly)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $modName = Split-Path $repo -Leaf
@@ -27,9 +27,17 @@ $check = Add-CheckItem 'Compile' "$PSScriptRoot/WaterChecks.cs.txt"
 $check.SetAttribute('Link', 'WaterChecks.cs')
 $check = Add-CheckItem 'Compile' "$PSScriptRoot/IceConeActionChecks.cs.txt"
 $check.SetAttribute('Link', 'IceConeActionChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/QuickCastChecks.cs.txt"
+$check.SetAttribute('Link', 'QuickCastChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/StatusChecks.cs.txt"
+$check.SetAttribute('Link', 'StatusChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/ReticleChecks.cs.txt"
+$check.SetAttribute('Link', 'ReticleChecks.cs')
+$check = Add-CheckItem 'Compile' "$PSScriptRoot/ProjectionChecks.cs.txt"
+$check.SetAttribute('Link', 'ProjectionChecks.cs')
 $projectPath = Join-Path $output 'Checks.csproj'
 $project.Save($projectPath)
-$mode = if ($IceActionOnly) { '--ice-action' } elseif ($RayOnly) { '--rays' } else { '--all' }
+$mode = if ($BuildupOnly) { '--buildup' } elseif ($ShardbindOnly) { '--shardbind' } elseif ($StatusOnly) { '--status' } elseif ($IceActionOnly) { '--ice-action' } elseif ($RayOnly) { '--rays' } else { '--all' }
 dotnet run --project $projectPath --configuration Release --verbosity quiet -- $repo $mode *> "$output/checks.log"
 if ($LASTEXITCODE -ne 0) { Get-Content "$output/checks.log" -Tail 20; throw 'Ice cycle checks failed.' }
 Get-Content "$output/checks.log" -Tail 1

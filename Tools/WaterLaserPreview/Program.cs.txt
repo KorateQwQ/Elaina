@@ -77,10 +77,10 @@ internal static class Pipeline {
                 }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
-            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+            "bloomScissor", "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "GetFilterRegion", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
@@ -133,6 +133,8 @@ internal static class Pipeline {
         source += File.ReadAllText(Path.Combine(root, "Tools/WaterLaserPreview/WandScene.cs.txt"));
         var dust = Read("Dusts/KLBasicDust.cs");
         source += "namespace KL.Dusts { public abstract partial class KLBasicDust : ModDust {";
+        source += dust.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "BloomPlacement").ToFullString();
+        source += Methods(dust, "RequestDustBloom");
         source += dust.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "DustInfo").ToFullString();
         var update = dust.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "Update");
         // Time-stop projectile attachment is irrelevant: these particles attach only to the owner.

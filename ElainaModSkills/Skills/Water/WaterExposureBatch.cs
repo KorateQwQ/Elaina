@@ -8,24 +8,15 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 public sealed class WaterExposureBatch
 {
     private readonly Dictionary<(int Index, int Generation), bool> burning = new();
-    private readonly Dictionary<int, FireBurnHit> hits = new();
-    private readonly HashSet<(int Index, int Generation)> applied = new();
 
-    public void Reset() { burning.Clear(); hits.Clear(); applied.Clear(); }
+    public void Reset() { burning.Clear(); }
 
     public bool Capture(NPC target)
     {
         if (FireBurnNPC.CaptureHit(target) is not { } hit) return false;
         var key = (hit.AnchorIndex, hit.AnchorGeneration);
         if (!burning.TryGetValue(key, out bool wasBurning)) burning[key] = wasBurning = hit.WasBurning;
-        hits[target.whoAmI] = hit with { WasBurning = wasBurning };
         return wasBurning;
     }
 
-    public void OnHit(Player owner, NPC target, int damageDone, Projectile projectile, int attachmentTicks)
-    {
-        if (owner.whoAmI != Main.myPlayer || damageDone <= 0 || !hits.TryGetValue(target.whoAmI, out var hit)
-            || !applied.Add((hit.AnchorIndex, hit.AnchorGeneration))) return;
-        owner.GetModPlayer<WaterExposurePlayer>().Request(hit, projectile, attachmentTicks);
-    }
 }

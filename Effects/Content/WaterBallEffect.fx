@@ -41,6 +41,9 @@ float2 ImageUTime;
 
 //消融阈值
 float FadeThreshold;
+// WaterBall.DrawBall supplies both uniforms before each pass. xy: inverse widths (px), z: halo opacity, w: inverse fade fraction.
+float4 RevealContour;
+float3 RevealTint; // RGB scaled by the current C# brightness.
 //消融贴图大小
 float2 FadeTiling = float2(1.0f, 1.0f);
 
@@ -111,8 +114,16 @@ float4 MainPS(float2 texCoord : TEXCOORD0) : COLOR0
 
     float2 fadeUVFront = (float2(uFront, vFront) - 0.5) / FadeTiling + 0.5;
     float4 fadeColor = (outFrontX || outFrontY) ? float4(0.0, 0.0, 0.0, 0.0) : tex2D(iChannel4, fadeUVFront);
-    if (fadeColor.r<FadeThreshold)
-            return float4(0.0, 0.0, 0.0, 0.0);
+    // Screen-space distance to the moving noise contour. Bound the footprint at UV seams and flat peaks.
+    float footprint = clamp(fwidth(fadeColor.r), 0.009, 0.055);
+    float distancePx = (fadeColor.r - FadeThreshold) / footprint;
+    float activity = saturate(min(FadeThreshold, 1.0 - FadeThreshold) * RevealContour.w);
+    float halo = saturate(1.0 + distancePx * RevealContour.x);
+    float body = saturate(distancePx + 0.5);
+    float revealAlpha = (FadeThreshold <= 0.0) ? 1.0 : lerp(halo * halo * RevealContour.z * activity, 1.0, body);
+    float revealEdge = saturate(1.0 - distancePx * RevealContour.y) * activity;
+    if (revealAlpha <= 0.0 || FadeThreshold >= 1.0)
+        return float4(0.0, 0.0, 0.0, 0.0);
 
     //最终颜色根据ColorThreshold与frontColor.R进行选择，
     //当frontColor.R>ColorThreshold.X 颜色为ColorA,ColorThreshold.Y<frontColor.R<ColorThreshold.X 颜色为ColorB,
@@ -132,8 +143,10 @@ float4 MainPS(float2 texCoord : TEXCOORD0) : COLOR0
     float rim = fresnel * FresnelStrength * smoothstep(0.45, 0.72, r2);
     float3 waterColor = originalColor.rgb + float3(0.48, 0.85, 1.0) * rim;
     float coverage = 1.0 - smoothstep(1.0 - edgeWidth, 1.0, r2);
-    return float4(min(waterColor, float3(1.2, 1.2, 1.2)),
-        frontColor.a > 0.0 ? originalColor.a * coverage : 0.0);
+    // NonPremultiplied blending: tint the lip and let alpha soften its outer fringe.
+    waterColor = lerp(waterColor, RevealTint, revealEdge);
+    return float4(waterColor,
+        frontColor.a > 0.0 ? originalColor.a * coverage * revealAlpha : 0.0);
 }
 
 technique Technique1

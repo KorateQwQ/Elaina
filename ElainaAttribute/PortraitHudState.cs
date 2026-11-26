@@ -14,7 +14,7 @@ internal sealed class PortraitHudState
     public float Display { get; private set; }
     public float Flash { get; private set; }
     public float Pulse { get; private set; }
-    public bool Capped => Level >= Cap;
+    public bool Capped { get; private set; }
     public float Fraction => Math.Clamp(Display - (Shown - 1), 0, 1);
     public readonly List<Spark> Sparks = new(66);
     private readonly Random random;
@@ -32,9 +32,13 @@ internal sealed class PortraitHudState
     private static float Target(int level, int experience, int need) =>
         level - 1 + (need > 0 ? Math.Clamp(experience / (float)need, 0, 1) : 0);
 
+    private static bool IsExperienceFull(int level, int cap, int experience, int need) =>
+        level >= cap && need > 0 && experience >= need;
+
     public void Reset(int level, int experience, int need, int cap)
     {
         initialized = true;
+        Capped = IsExperienceFull(level, cap, experience, need);
         Level = Math.Max(1, level); Cap = Math.Max(1, cap); Shown = Level;
         Display = Target(Level, experience, need);
         Flash = Pulse = 0; Sparks.Clear();
@@ -43,6 +47,7 @@ internal sealed class PortraitHudState
     public void Update(int level, int experience, int need, int cap, float dt, bool particles = true)
     {
         if (!initialized) { Reset(level, experience, need, cap); return; }
+        Capped = IsExperienceFull(level, cap, experience, need);
         dt = Math.Clamp(dt, 0, .1f);
         Level = Math.Max(1, level); Cap = Math.Max(1, cap);
         float target = Target(Level, experience, need);

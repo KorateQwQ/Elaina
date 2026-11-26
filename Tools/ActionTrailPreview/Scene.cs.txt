@@ -1,13 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using KL.Drawing;
 
 namespace KL.Drawing {
+    public partial class DrawHelper {
+        public static int TrailDraws;
+        static void DrawCheckedTriangles(PrimitiveType kind, CustomVertexInfo[] vertices, int offset, int count) {
+            if (vertices.Any(v => !float.IsFinite(v.Position.X) || !float.IsFinite(v.Position.Y)))
+                throw new Exception("Nonfinite trail vertex from repeated positions");
+            if (vertices.Min(v => v.TexCoord.Z) > .00001f)
+                throw new Exception("Tail endpoint did not reach zero opacity");
+            TrailDraws++;
+            Main.graphics.GraphicsDevice.DrawUserPrimitives(kind, vertices, offset, count);
+        }
+    }
+
     public static partial class Main {
         public static Vector2 screenPosition;
-        public static bool gamePaused;
+        public static bool gamePaused, dedServ;
+        public static Fixture.Player[] player = [];
         public static double timeForVisualEffects;
         public static Matrix Transform => GameViewMatrix.TransformationMatrix;
         public static void NewText(string message, Color color) => throw new Exception(message);
@@ -16,6 +30,7 @@ namespace KL.Drawing {
     public static class TextureAssets { public static Asset MagicPixel; }
     public static class Extensions {
         public static Vector2 RotatedBy(this Vector2 v, double angle) => Vector2.Transform(v, Matrix.CreateRotationZ((float)angle));
+        public static Vector2 Floor(this Vector2 v) => new(MathF.Floor(v.X), MathF.Floor(v.Y));
         public static Vector2 Origin(this Texture2D t) => new(t.Width / 2f, t.Height / 2f);
     }
 }
@@ -26,68 +41,201 @@ namespace Fixture {
         public void Draw(SpriteBatch batch) => batch.Draw(texture, position, source, color, rotation, origin, scale, effects, 0);
     }
     public enum ActionDrawLayerType { OverPlayer }
-    public sealed class Player { public Vector2 MountedCenter; public float fullRotation, gravDir = 1; public int direction = 1; }
-    public sealed class ActionModPlayer { public Player Player = new(); public int CurrentActionFrame; }
+    public sealed class Player {
+        public Vector2 MountedCenter; public float fullRotation, gravDir = 1; public int direction = 1;
+        public bool active = true, dead; public int whoAmI;
+        public ActionModPlayer Action;
+        public T GetModPlayer<T>() where T : class => Action as T;
+    }
+    public sealed class ActionModPlayer {
+        public Player Player; public int CurrentActionFrame; public ActionReplay CurrentAnimAction;
+        public ActionModPlayer() { Player = new Player { Action = this }; }
+    }
+    public class ActionLife {
+        public virtual void OnInterrupt(ActionModPlayer actionPlayer) {}
+        public virtual void OnFinish(ActionModPlayer actionPlayer) {}
+    }
+    public class BaseSystem {
+        public virtual void PostUpdatePlayers() {}
+        public virtual void OnWorldUnload() {}
+    }
+    public partial class ElainaActionDrawSystem {
+        public static int TailCount => afterimages.Count;
+        public static float TailOpacity => afterimages.Single().Opacity;
+        public static void QueueTails() { foreach (var trail in afterimages) trail.RequestDraw(); }
+    }
     public static partial class ElainaTrailVisualStyle {
         public static Texture2D Texture;
-        public static Texture2D StarCross, StarLine;
+        public static Texture2D StarCross, StarLine, StarHalo;
+        private static Texture2D GetStarHaloTexture() => StarHalo;
         public static Texture2D GetTrailTexture(Texture2D texture = null) => texture ?? Texture;
         public static Texture2D GetStarCrossTexture(Texture2D texture = null) => texture ?? StarCross;
         public static Texture2D GetStarLineTexture(Texture2D texture = null) => texture ?? StarLine;
     }
-    public partial class ActionReplay {
+    public partial class ActionReplay : ActionLife {
+        readonly List<ElainaTrailSnapshot> lastTrails = new();
+        public Player owner = new();
         public bool DrawWandTrail = true;
-        bool DrawActionStar => false;
+        protected virtual bool WandTrailBehindPlayer => false;
+        protected Vector2 StarCenter => WandCenter;
+        protected virtual bool DrawActionStar => false;
         int WandTrailLength => 30;
         Vector2[] wandTrailPositions = Array.Empty<Vector2>();
         int wandTrailPointCount;
         public Vector2 WandCenter;
         public readonly List<ActionNode> Nodes = new();
         public ActionReplay() => ResetWandTrail();
+        protected void SubmitExtraVisuals(ActionModPlayer p, int frame, float progress) {}
+        public Vector2[] History => wandTrailPositions.ToArray();
         float GetProgress(int frame) => frame / 100f;
-        void RequestActionStarBloom(float progress) => throw new Exception("Unexpected star call");
+        protected virtual void RequestActionStar(float progress) => throw new Exception("Unexpected star call");
         public void Seed(Vector2 origin) {
             for (int i = 29; i >= 1; i--) {
                 float t = i / 29f;
                 WandCenter = origin + new Vector2(-220 * t, 40 * MathF.Sin(t * MathHelper.Pi)); UpdateWandTrail();
             }
-            WandCenter = origin;
+            WandCenter = origin; UpdateWandTrail();
         }
         public int Count => wandTrailPointCount;
         public void Overwrite() => Array.Fill(wandTrailPositions, new Vector2(-5000));
     }
-    public sealed class CheckedAction : ActionReplay {
-        public static int Draws;
-        protected override void DrawWandTrailVisual(Vector2[] points, float progress) {
-            if (points[0].X < 0) throw new Exception("Queued trail retained mutable history array");
-            Draws++;
-            base.DrawWandTrailVisual(points, progress);
-        }
-    }
+    public sealed class CheckedAction : ActionReplay {}
     public static class Scene {
-        public static void QueueStars(float progress) {
+
+        public static void CheckLogic() {
+            var system = new ElainaActionDrawSystem();
+            var caster = new ActionModPlayer { CurrentActionFrame = 50 };
+            var water = new WaterActionReplay { owner = caster.Player };
+            water.Seed(new Vector2(390, 100));
             LayerDrawRequestSystem.ClearFrame();
-            ElainaTrailVisualStyle.RequestBloomStar(new Vector2(140, 180), progress,
-                ElainaTrailVisualStyle.DefaultStarColor, blinkMin: 1, blinkMax: 1,
-                lineScale: Vector2.Zero, lineScale2: Vector2.Zero);
-            ElainaTrailVisualStyle.RequestBloomStar(new Vector2(320, 180), progress,
-                new Color(100, 180, 255, 0), blinkMin: 1, blinkMax: 1);
-            ElainaTrailVisualStyle.RequestBloomStar(new Vector2(500, 180), progress,
-                new Color(255, 150, 40, 0), blinkMin: 1, blinkMax: 1);
-            LayerDrawRequestSystem.RequestBloom("AfterStar", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
-                LayerDrawRequestSystem.DrawTiming.After, () =>
-                    Main.spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle(20, 20, 20, 20), Color.White),
-                order: LayerDrawRequestSystem.DustOrder + 10);
+            water.SubmitActionVisuals(caster);
+            CheckWaterQueues(true);
+            water.OnInterrupt(caster);
+            LayerDrawRequestSystem.ClearFrame();
+            ElainaActionDrawSystem.QueueTails();
+            CheckWaterQueues(false);
+            LayerDrawRequestSystem.ClearFrame();
+            system.OnWorldUnload();
+            Console.WriteLine("PASS: water wand star, trail and interrupted trail use ordinary draw queues.");
+
+            static void CheckWaterQueues(bool expectStar) {
+                foreach (var layer in Enum.GetValues<LayerDrawRequestSystem.DrawTargetLayer>())
+                foreach (var timing in Enum.GetValues<LayerDrawRequestSystem.DrawTiming>())
+                    if (LayerDrawRequestSystem.HasBloomRequests(layer, timing))
+                        throw new Exception($"Water wand requested Bloom at {layer}/{timing}");
+                if (!LayerDrawRequestSystem.HasRequests(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After) ||
+                    LayerDrawRequestSystem.HasRequests(StarLayer, LayerDrawRequestSystem.DrawTiming.After) != expectStar)
+                    throw new Exception("Missing or unexpected ordinary water wand draw");
+            }
+            Vector2[] HistoryAt(int drawsPerTick) {
+                var player = new ActionModPlayer { CurrentActionFrame = 50 };
+                var action = new ActionReplay { owner = player.Player };
+                player.CurrentAnimAction = action; Main.player = [player.Player];
+                for (int tick = 0; tick < 45; tick++) {
+                    action.WandCenter = new Vector2(tick, tick * tick);
+                    system.PostUpdatePlayers();
+                    for (int draw = 0; draw < drawsPerTick; draw++) {
+                        action.SubmitActionVisuals(player);
+                        LayerDrawRequestSystem.ClearFrame();
+                    }
+                }
+                if (action.Count != 30) throw new Exception("Held action stopped recording samples");
+                return action.History;
+            }
+            if (!HistoryAt(0).SequenceEqual(HistoryAt(1)) || !HistoryAt(1).SequenceEqual(HistoryAt(4)))
+                throw new Exception("Render cadence changed game-tick history");
+            var player = new ActionModPlayer { CurrentActionFrame = 50 };
+            var action = new ActionReplay { owner = player.Player };
+            player.CurrentAnimAction = action; Main.player = [player.Player];
+            action.Seed(new Vector2(390, 100));
+            var before = action.History;
+            Main.gamePaused = true; action.WandCenter = new Vector2(-1000);
+            system.PostUpdatePlayers();
+            if (!before.SequenceEqual(action.History)) throw new Exception("Paused tick changed history");
+            Main.gamePaused = false;
+            action.SubmitActionVisuals(player); LayerDrawRequestSystem.ClearFrame();
+            action.OnInterrupt(player); action.Overwrite(); player.CurrentAnimAction = null;
+            if (ElainaActionDrawSystem.TailCount != 1 || ElainaActionDrawSystem.TailOpacity != 1)
+                throw new Exception("Interruption did not retain visible snapshots");
+            for (int i = 0; i < 5; i++) { ElainaActionDrawSystem.QueueTails(); LayerDrawRequestSystem.ClearFrame(); }
+            if (ElainaActionDrawSystem.TailOpacity != 1) throw new Exception("Drawing aged afterimage");
+            Main.gamePaused = true; system.PostUpdatePlayers(); Main.gamePaused = false;
+            if (ElainaActionDrawSystem.TailOpacity != 1) throw new Exception("Pause aged afterimage");
+            for (int tick = 1; tick < ElainaTrailAfterimage.Lifetime; tick++) {
+                float previous = ElainaActionDrawSystem.TailOpacity; system.PostUpdatePlayers();
+                if (ElainaActionDrawSystem.TailOpacity >= previous) throw new Exception("Afterimage failed to fade");
+            }
+            system.PostUpdatePlayers();
+            if (ElainaActionDrawSystem.TailCount != 0) throw new Exception("Afterimage outlived lifetime");
+            action.Seed(new Vector2(390, 100)); action.SubmitActionVisuals(player);
+            action.OnFinish(player);
+            if (ElainaActionDrawSystem.TailCount != 0) throw new Exception("Normal finish revived a trail");
+            action.SubmitActionVisuals(player); action.OnInterrupt(player); player.Player.dead = true;
+            system.PostUpdatePlayers();
+            if (ElainaActionDrawSystem.TailCount != 0) throw new Exception("Dead player retained afterimage");
+            player.Player.dead = false; action.SubmitActionVisuals(player); action.OnInterrupt(player);
+            system.OnWorldUnload();
+            if (ElainaActionDrawSystem.TailCount != 0) throw new Exception("World unload retained afterimage");
+            LayerDrawRequestSystem.ClearFrame(); Main.player = [];
+            if (ElainaTrailVisualStyle.GetActionAlpha(0) != 0 || ElainaTrailVisualStyle.GetActionAlpha(1) != 0
+                || Math.Abs(ElainaTrailVisualStyle.GetActionAlpha(.1f) - .5f) > .0001f)
+                throw new Exception("Fade envelope endpoints or midpoint changed");
         }
-        const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
-        const LayerDrawRequestSystem.DrawTiming Timing = LayerDrawRequestSystem.DrawTiming.After;
+        public static void QueueOpacity(float opacity, bool repeated) {
+            LayerDrawRequestSystem.ClearFrame(); DrawHelper.TrailDraws = 0;
+            var points = repeated
+                ? new[] { new Vector2(500,180), new Vector2(500,180), new Vector2(350,180), new Vector2(350,180), new Vector2(140,180) }
+                : Enumerable.Range(0, 31).Select(i => new Vector2(500 - i * 12,180)).ToArray();
+            ElainaTrailVisualStyle.RequestTrail(() => ElainaTrailVisualStyle.DrawTrailOpacity(
+                points, null, Vector2.Zero, 0, Color.White, 24, 0, opacity));
+        }
+        public static void QueueAfterimage(int ticks) {
+            new ElainaActionDrawSystem().OnWorldUnload();
+            var player = new ActionModPlayer { CurrentActionFrame = 50 };
+            Main.player = [player.Player];
+            var action = new ActionReplay { owner = player.Player };
+            action.Seed(new Vector2(440, 150)); action.SubmitActionVisuals(player);
+            action.OnInterrupt(player); action.Overwrite();
+            LayerDrawRequestSystem.ClearFrame();
+            for (int i = 0; i < ticks; i++) new ElainaActionDrawSystem().PostUpdatePlayers();
+            ElainaActionDrawSystem.QueueTails();
+        }
+
+        const LayerDrawRequestSystem.DrawTargetLayer StarLayer = LayerDrawRequestSystem.DrawTargetLayer.OverPlayers;
+        public static void QueueReference(Vector2 center, bool overlap, bool full, float blink = 1f) {
+            LayerDrawRequestSystem.ClearFrame();
+            ElainaTrailVisualStyle.RequestStar(center, .5f, ElainaTrailVisualStyle.DefaultStarColor,
+                blinkMin: blink, blinkMax: blink, drawHalo: false);
+            if (overlap) ElainaTrailVisualStyle.RequestStar(center + new Vector2(9, 6), .5f,
+                ElainaTrailVisualStyle.WaterWandColor, blinkMin: .7f, blinkMax: .7f, drawHalo: false);
+            // 离线重放旧效果：把同一组亮芯捕获到 KL，再做真实的 HDR 提取、上下采样。
+            void DrawCores() => LayerDrawRequestSystem.Flush(StarLayer, LayerDrawRequestSystem.DrawTiming.After);
+            if (full) LayerDrawRequestSystem.RequestBloom("reference", StarLayer, LayerDrawRequestSystem.DrawTiming.After, DrawCores);
+            else LayerDrawRequestSystem.RequestBoundedBloom("reference", StarLayer, LayerDrawRequestSystem.DrawTiming.After,
+                new Rectangle((int)center.X - 100, (int)center.Y - 100, 210, 210), DrawCores);
+        }
+        public static void QueueStars(float progress, bool spread, float blink) {
+            LayerDrawRequestSystem.ClearFrame();
+            for (int i = 0; i < 8; i++) {
+                var center = spread ? new Vector2(25 + 84*i, 90 + 90*(i%3)) : new Vector2(290+8*i, 180+3*(i%3));
+                var color = (i % 3) switch { 0 => ElainaTrailVisualStyle.DefaultStarColor,
+                    1 => ElainaTrailVisualStyle.WaterWandColor, _ => new Color(255,150,40) };
+                ElainaTrailVisualStyle.RequestStar(center, progress, color, blinkMin:blink, blinkMax:blink);
+            }
+            foreach (var layer in Enum.GetValues<LayerDrawRequestSystem.DrawTargetLayer>())
+            foreach (var timing in Enum.GetValues<LayerDrawRequestSystem.DrawTiming>())
+                if (LayerDrawRequestSystem.HasBloomRequests(layer,timing)) throw new Exception("Wands opened a Bloom layer");
+        }
+        public static void DrawOrdinaryStars() => LayerDrawRequestSystem.Flush(StarLayer, LayerDrawRequestSystem.DrawTiming.After);
+        const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.OverPlayers;
+        const LayerDrawRequestSystem.DrawTiming Timing = LayerDrawRequestSystem.DrawTiming.Before;
         public static void Queue(float progress) {
-            LayerDrawRequestSystem.ClearFrame(); CheckedAction.Draws = 0;
+            LayerDrawRequestSystem.ClearFrame(); DrawHelper.TrailDraws = 0;
             var player = new ActionModPlayer { CurrentActionFrame = (int)(progress * 100) };
             var auto = new CheckedAction();
             auto.Seed(new Vector2(390, 100)); auto.SubmitActionVisuals(player);
             auto.Overwrite();
-            if (CheckedAction.Draws != 0) throw new Exception("Trail drew during early submission");
+            if (DrawHelper.TrailDraws != 0) throw new Exception("Trail drew during early submission");
             LayerDrawRequestSystem.ClearFrame();
             auto.Seed(new Vector2(390, 100));
             Main.gamePaused = true; int samples = auto.Count;
@@ -115,12 +263,12 @@ namespace Fixture {
                     if ((layer != Layer || timing != Timing) && LayerDrawRequestSystem.HasBloomRequests(layer, timing))
                         throw new Exception("Trail opened an extra Bloom layer");
             LayerDrawRequestSystem.RequestBloom("FollowingProjectile", Layer, Timing, () => {
-                if (CheckedAction.Draws != 1) throw new Exception("Trail order/count mismatch");
+                if (DrawHelper.TrailDraws != 2) throw new Exception("Trail order/count mismatch");
                 Main.spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle(20, 20, 20, 20), Color.White);
             }, order: LayerDrawRequestSystem.ProjectileOrder);
         }
         public static void CheckConsumed() {
-            if (CheckedAction.Draws != 1 || LayerDrawRequestSystem.HasBloomRequests(Layer, Timing))
+            if (DrawHelper.TrailDraws != 2 || LayerDrawRequestSystem.HasBloomRequests(Layer, Timing))
                 throw new Exception("Shared queue was not consumed exactly once");
         }
     }

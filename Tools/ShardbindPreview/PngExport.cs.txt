@@ -1,0 +1,68 @@
+using System;
+using System.Buffers.Binary;
+using System.IO;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+// 离线导帧只保存原始 RGBA；快速无损压缩避免每帧调用原生高压缩编码。
+sealed class PngExport(int width, int height)
+{
+    readonly Color[] pixels = new Color[width * height];
+    static readonly uint[] crcTable = CreateCrcTable();
+
+    public void Save(Texture2D texture, Stream output)
+    {
+        if (texture.Width != width || texture.Height != height)
+            throw new InvalidOperationException("PNG 导出尺寸与渲染目标不一致。");
+        texture.GetData(pixels);
+        output.Write(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
+        Span<byte> header = stackalloc byte[13];
+        header.Clear();
+        BinaryPrimitives.WriteInt32BigEndian(header, width);
+        BinaryPrimitives.WriteInt32BigEndian(header[4..], height);
+        header[8] = 8;
+        header[9] = 6;
+        WriteChunk(output, "IHDR"u8, header);
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(compressed, CompressionLevel.Fastest, leaveOpen: true))
+        {
+            ReadOnlySpan<byte> rgba = MemoryMarshal.AsBytes(pixels.AsSpan());
+            for (int y = 0; y < height; y++)
+            {
+                zlib.WriteByte(0);
+                zlib.Write(rgba.Slice(y * width * 4, width * 4));
+            }
+        }
+        WriteChunk(output, "IDAT"u8, compressed.GetBuffer().AsSpan(0, checked((int)compressed.Length)));
+        WriteChunk(output, "IEND"u8, ReadOnlySpan<byte>.Empty);
+    }
+
+    static void WriteChunk(Stream output, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
+    {
+        Span<byte> value = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(value, data.Length);
+        output.Write(value);
+        output.Write(type);
+        output.Write(data);
+        uint crc = uint.MaxValue;
+        foreach (byte b in type) crc = crcTable[(crc ^ b) & 255] ^ (crc >> 8);
+        foreach (byte b in data) crc = crcTable[(crc ^ b) & 255] ^ (crc >> 8);
+        BinaryPrimitives.WriteUInt32BigEndian(value, ~crc);
+        output.Write(value);
+    }
+
+    static uint[] CreateCrcTable()
+    {
+        var table = new uint[256];
+        for (uint i = 0; i < table.Length; i++)
+        {
+            uint crc = i;
+            for (int bit = 0; bit < 8; bit++)
+                crc = (crc & 1) == 0 ? crc >> 1 : 0xedb88320u ^ (crc >> 1);
+            table[i] = crc;
+        }
+        return table;
+    }
+}

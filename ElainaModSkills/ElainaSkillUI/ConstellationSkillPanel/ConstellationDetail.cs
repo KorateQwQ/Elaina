@@ -74,6 +74,8 @@ internal sealed class ConstellationDetail
         if (node.Active)
         {
             stats.Add((LocalizeUI("MagicPower"), node.ModSkill.MagicPointCost <= 0 ? null : node.ModSkill.MagicPointCost.ToString("0.##"), "MP"));
+            int crystals = node.ModSkill.ChargePointCost;
+            if (crystals > 0) stats.Add((Language.GetTextValue("Mods.伊蕾娜.Terms.MagicCrystal.Name"), Number(crystals), ""));
             stats.Add((LocalizeUI("Cooldown"), node.Skill.MaxCD <= 0 ? null : Number(node.Skill.MaxCD), LocalizeUI("Seconds")));
         }
         stats.AddRange(node.ModSkill.GetConstellationStats(Math.Max(1, Level)) ?? []);

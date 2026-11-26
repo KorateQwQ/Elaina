@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using KL.DamageSystem;
 using KL.Drawing;
 using KL.ActionsSystem;
@@ -12,6 +13,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 /// 炎爆领域：固定在施放位置，持续期间由拥有端以略带随机的间隔持续降下炎爆：
 /// 圈内有敌人时轮流锁定其脚下，敌人越少落下越慢（单体按目标 DPS 换算频率）；没有敌人时随机轰击圈内地面。
 /// 圈内敌人首次被点燃时（含点燃时被击杀）由服务器延长持续时间，不论点燃者与领域归属；同一玩家再次施放会替换旧领域。
+/// 领域在施法动作（含快速施放）的爆燃帧生成，爆燃特效由动作播放；动作在爆燃前被中断或结束而提前生成领域时，由领域出现时自己播放（PlayImpact）。
 /// ai[0]：累计延长的帧数；ai[1]：已存在帧数；ai[2]：拥有端确认的射线维持状态。
 /// </summary>
 public sealed class FireBurstDomain : ModProjectile
@@ -21,6 +23,7 @@ public sealed class FireBurstDomain : ModProjectile
     public static int BaseTicks => 600;
     public static int ExtendTicks => 60;
     public static int MaxRemainingTicks => 900;
+    public static float PredictionCoefficient => 1f; // 相对于炎爆首次生效等待时间的预判系数
 
     public override string Texture => "伊蕾娜/ElainaModSkills/Skills/Fire/FireBurstProj";
 
@@ -42,19 +45,25 @@ public sealed class FireBurstDomain : ModProjectile
     private readonly Dictionary<int, uint> lastLocked = new();
     // 距下一次落下的剩余量：每帧按当前频率倍率扣减，圈内敌人数变化时立即生效。
     private float strikeCountdown;
-    // 仅拥有端使用（伤害只在拥有端结算）：施放时换算好的单体倍率与冻结加成，传给每道炎爆。
-    private float singleMultiplier = 1f, frozenBonus;
+    // 仅拥有端使用（伤害只在拥有端结算）：施放时换算好的单体倍率，传给每道炎爆。
+    private float singleMultiplier = 1f;
     // 仅拥有端使用：圈内只有一名敌人时每秒落下的炎爆数，由施放时按目标 DPS 换算；未设置时按满频率。
     private float singleTargetStrikesPerSecond = float.MaxValue;
 
-    internal void SetDamageMultipliers(float single, float frozen)
+    internal void SetSingleTargetMultiplier(float single)
     {
         singleMultiplier = single;
-        frozenBonus = frozen;
     }
 
     internal void SetSingleTargetStrikeRate(float strikesPerSecond) => singleTargetStrikesPerSecond = strikesPerSecond;
     private Action drawRing;
+
+    /// <summary>出现时是否由领域自己播放落地爆燃；由拥有者在生成时设置，随首个同步包发送。</summary>
+    internal bool PlayImpact = true;
+    private bool impactPlayed;
+
+    public override void SendExtraAI(BinaryWriter writer) => writer.Write(PlayImpact);
+    public override void ReceiveExtraAI(BinaryReader reader) => PlayImpact = reader.ReadBoolean();
 
     public override void SetDefaults()
     {
@@ -80,10 +89,10 @@ public sealed class FireBurstDomain : ModProjectile
         List<int> overPlayers, List<int> overWiresUI)
     {
         if (Main.dedServ) return;
-        // 范围圈与炎爆同在 Projectiles.After 的 Bloom 组内，排在炎爆法阵与火柱之前。
+        // 范围圈与炎爆同在 OverPlayers.Before 的 Bloom 组内，排在炎爆法阵与火柱之前。
         drawRing ??= DrawRing;
-        LayerDrawRequestSystem.RequestBloom("Elaina:FireBurstDomain:Ring", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, drawRing, order: LayerDrawRequestSystem.TrailOrder - 1);
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireBurstDomain:Ring", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, drawRing, order: LayerDrawRequestSystem.TrailOrder - 1);
     }
 
     private void DrawRing()
@@ -127,17 +136,18 @@ public sealed class FireBurstDomain : ModProjectile
         }
         // 原版会在本次 AI 后扣减 timeLeft；保留最后一帧，让维持状态有机会续上。
         Projectile.timeLeft = Math.Max(2, remaining);
+        // 刚出现时（晚加入的玩家不补播）
+        if (PlayImpact && !impactPlayed && Age <= 10)
+        {
+            impactPlayed = true;
+            // 落点与施法动作一致：施放者脚下（领域中心即施放时的玩家中心）
+            Player caster = Main.player[Projectile.owner];
+            FireBurstImpactDust.Emit(Projectile.Center, Projectile.Center + new Vector2(0, caster.height / 2f * caster.gravDir));
+        }
         if (Projectile.owner != Main.myPlayer) return;
 
-        // 展开时在中心下方的地面先降下一次炎爆，标示领域位置；下方没有地面时落在中心。
-        if (Age == 1)
-        {
-            Vector2 center = Projectile.Center;
-            if (!FireBurstSkillHelper.GetValidPositionForFireBurst(ref center, Radius) || !Contains(center))
-                center = Projectile.Center;
-            SpawnStrike(center);
-            strikeCountdown = Main.rand.Next(12, 25);
-        }
+        // 展开时的落地爆燃已标示领域位置，中心不再额外降下炎爆；第一道在爆燃后稍等片刻落下。
+        if (Age == 1) strikeCountdown = Main.rand.Next(12, 25);
         UpdateStrikes();
     }
 
@@ -169,7 +179,7 @@ public sealed class FireBurstDomain : ModProjectile
         int maxStrikeInterval = 45;
         int maxActiveStrikes = 12;  // 同时存在的炎爆上限（性能）
         int fullRateEnemies = 5;    // 圈内敌人达到该数量时按上面的间隔落下；更少时降低频率
-        float leadTicks = 10f;      // 预判帧数：炎爆出现后 30 帧爆发且不追踪，只预判一部分，高速移动的敌人仍能躲开
+        float leadTicks = (FireBurstProj.StarDuration + 1) * PredictionCoefficient;
 
         strikeCountdown -= GetStrikeRate(CountTargets(), minStrikeInterval, maxStrikeInterval, fullRateEnemies);
         if (strikeCountdown > 0) return;
@@ -266,7 +276,7 @@ public sealed class FireBurstDomain : ModProjectile
     {
         int index = Projectile.NewProjectile(Projectile.GetSource_FromThis(), position, Vector2.Zero,
             ModContent.ProjectileType<FireBurstProj>(), Projectile.damage, Projectile.knockBack, Projectile.owner);
-        ((FireBurstProj)Main.projectile[index].ModProjectile).SetDamageMultipliers(singleMultiplier, frozenBonus);
+        ((FireBurstProj)Main.projectile[index].ModProjectile).SetSingleTargetMultiplier(singleMultiplier);
     }
 
     /// <summary>服务器（单人为本地）确认点燃后，由拥有者的 <see cref="FireCyclePlayer"/> 广播到各端调用。</summary>

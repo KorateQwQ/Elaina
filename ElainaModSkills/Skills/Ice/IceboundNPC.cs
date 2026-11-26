@@ -12,7 +12,7 @@ public sealed class IceboundNPC : GlobalNPC
     public override bool InstancePerEntity => true;
     private static uint nextSpawnSerial;
     public uint SpawnSerial { get; private set; }
-    private readonly Dictionary<(int Owner, int Identity), ulong> holds = new();
+    private readonly Dictionary<(int Owner, int Identity), (ulong End, NPC Selected, Vector2 Center)> holds = new();
     private readonly List<(int Owner, int Identity)> expired = new();
     private bool pinned;
     private Vector2 pinnedPosition, savedVelocity;
@@ -35,7 +35,8 @@ public sealed class IceboundNPC : GlobalNPC
     {
         expired.Clear();
         foreach (var pair in holds)
-            if (Main.GameUpdateCount >= pair.Value) expired.Add(pair.Key);
+            if (Main.GameUpdateCount >= pair.Value.End || !pair.Value.Selected.active ||
+                !ShardbindProj.InsideImpact(pair.Value.Selected, pair.Value.Center)) expired.Add(pair.Key);
         foreach (var key in expired) holds.Remove(key);
         if (holds.Count == 0 && pinned)
         {
@@ -45,12 +46,15 @@ public sealed class IceboundNPC : GlobalNPC
         return pinned;
     }
 
-    public void Hold(NPC npc, int owner, int identity, int ticks)
+    private void Hold(NPC npc, NPC selected, Projectile source, int ticks)
     {
         IsHeld(npc);
         if (!pinned)
         {
+            if (Main.netMode == NetmodeID.MultiplayerClient && npc == selected)
+                npc.Center = source.Center;
             pinnedPosition = npc.position;
+            if (Main.netMode == NetmodeID.Server) npc.netUpdate = true;
             savedVelocity = npc.velocity;
             pinnedFrame = npc.frame;
             pinnedFrameCounter = npc.frameCounter;
@@ -59,7 +63,7 @@ public sealed class IceboundNPC : GlobalNPC
             pinnedSpriteDirection = npc.spriteDirection;
             pinned = true;
         }
-        holds[(owner, identity)] = Main.GameUpdateCount + (ulong)global::System.Math.Max(1, ticks);
+        holds[(source.owner, source.identity)] = (Main.GameUpdateCount + (ulong)global::System.Math.Max(1, ticks), selected, source.Center);
         Pin(npc);
     }
 
@@ -95,7 +99,7 @@ public sealed class IceboundNPC : GlobalNPC
         foreach (NPC npc in Main.ActiveNPCs)
         {
             if (npc.GetElementAnchorNPC() != anchor) continue;
-            npc.GetGlobalNPC<IceboundNPC>().Hold(npc, source.owner, source.identity, ticks);
+            npc.GetGlobalNPC<IceboundNPC>().Hold(npc, selected, source, ticks);
         }
     }
 

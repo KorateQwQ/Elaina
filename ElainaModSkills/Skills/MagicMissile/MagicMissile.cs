@@ -19,8 +19,6 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
 public class MagicMissile : KLProjectile
 {
-    /// <summary>被动溅射伤害倍率（基于飞弹单发伤害）。</summary>
-    private const float SplashDamageMultiplier = 2f;
     /// <summary>被动溅射半径（像素，约10格）。</summary>
     private const float SplashRadius = 160f;
 
@@ -197,12 +195,12 @@ public class MagicMissile : KLProjectile
                 lifetime: MagicMissileTrailVisuals.FadeTicks,
                 trailVisuals,
                 DrawManagedTrail,
-                layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-                LayerDrawRequestSystem.DrawTiming.After,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.Before,
                 bloom: true, shrinkPathOnExpire: false);
         }
-        LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissile", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissile", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, DrawVisual);
     }
 
     private void DrawVisual()
@@ -220,7 +218,7 @@ public class MagicMissile : KLProjectile
         Main.spriteBatch.End();
         Matrix transform = Matrix.CreateTranslation(-Main.screenPosition.X, -Main.screenPosition.Y, 0) * Main.Transform;
         visual.Draw(Main.graphics.GraphicsDevice, trailEffect, trail, points, remaining, transform,
-            DrawSystem.GetBlendStateForBloom(BlendState.Additive), Main.GameViewMatrix.TransformationMatrix.M11);
+            DrawSystem.GetBlendStateForBloom(BlendState.NonPremultiplied), Main.GameViewMatrix.TransformationMatrix.M11);
         // 飞行中由飞弹本体盖住拖尾头部；消失后改由消融的爆点遮住截断端口
         if (visual.Expiring)
             visual.DrawHead(Main.graphics.GraphicsDevice, trailEffect, headStamp, headNoise, points[0], remaining, transform,
@@ -302,7 +300,7 @@ public class MagicMissile : KLProjectile
 
     private void SplashDamage(NPC mainTarget)
     {
-        int damage = (int)(Projectile.damage * SplashDamageMultiplier);
+        int damage = (int)(Projectile.damage * SkillHitBalance.MagicMissileSplashDamageMultiplier);
         foreach (NPC npc in Main.ActiveNPCs)
         {
             // 溅射不对主目标生效
@@ -340,8 +338,8 @@ public class MagicMissile : KLProjectile
             trailVisuals.HeadRotation = angle;
             trailVisuals.TextureOffset = 1f - (Main.GameUpdateCount % 120) / 30f;
             TrailManager.CreateOrUpdateTrail(ref managedTrail, finalPath, trailVisuals.ReleaseTicks,
-                trailVisuals, DrawManagedTrail, layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-                timing: LayerDrawRequestSystem.DrawTiming.After, bloom: true, shrinkPathOnExpire: false);
+                trailVisuals, DrawManagedTrail, layer: LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                timing: LayerDrawRequestSystem.DrawTiming.Before, bloom: true, shrinkPathOnExpire: false);
         }
         if (burstCenter is Vector2 center)
         {

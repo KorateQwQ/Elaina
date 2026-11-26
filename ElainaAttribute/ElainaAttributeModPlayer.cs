@@ -68,6 +68,7 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     public override void ResetEffects()
     {
         base.ResetEffects();
+        Attributes.AddBase(ChargePointPlayer.RecoveryPerSecond, ChargePointPlayer.BaseRecoveryPerSecond);
         BonusMaxMagicPoint = 0f;
     }
 
@@ -101,6 +102,11 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     public override void PostUpdate()
     {
         base.PostUpdate();
+        if (Main.netMode != NetmodeID.Server && Player.whoAmI == Main.myPlayer && !Player.dead)
+        {
+            float rate = GetPublishedAttributeValue(ChargePointPlayer.RecoveryPerSecond);
+            Player.GetModPlayer<ChargePointPlayer>().Points.RecoverTick(rate);
+        }
 
         // 等原版完成本帧属性计算后恢复资源，避免在每帧重置的中间阶段初始化或裁剪。
         float maximum = MaxMagicPoint;
@@ -177,7 +183,7 @@ public class ElainaAttributeModPlayer : RPGAttributeModPlayer
     {
         /*if (consume && Player.whoAmI == Main.myPlayer && Main.netMode != NetmodeID.Server)
         {
-            PrintText($"[伊蕾娜] 本次施法需要消耗 {cost:0.##} 点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]");
+            PrintText($"[伊蕾娜] 本次施法需要消耗 {cost:0.##} 点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]");
         }*/
 
         if (float.IsNaN(cost) || float.IsInfinity(cost) || cost <= 0f)

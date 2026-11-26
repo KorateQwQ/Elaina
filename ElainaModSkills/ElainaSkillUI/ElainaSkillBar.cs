@@ -7,6 +7,7 @@ using SilkyUIFramework.Extensions;
 using SilkyUIFramework.Layout;
 using Terraria.ModLoader;
 using 伊蕾娜.Config;
+using 伊蕾娜.ElainaModSkills.UICore;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -14,7 +15,7 @@ namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 public class ElainaSkillBar : BaseBody
 {
     internal const string ArtPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/BattleBar/";
-    private Asset<Texture2D> _rack;
+    private UIRasterTexture _rack;
     private bool _moving;
     private float _scale;
 
@@ -40,7 +41,7 @@ public class ElainaSkillBar : BaseBody
         Enabled = true;
         DisableMouseInteraction = true;
         ZIndex = -100;
-        _rack = ModContent.Request<Texture2D>(ArtPath + "Rack");
+        _rack = UIDrawKit.BarRack;
         ElainaSkillModPlayer.ElainaSkillBar = this;
         for (int i = 0; i < MaxSkillSlot; i++)
             new ElainaSkillSlot(null) { SlotIndex = i }.Join(this).ApplyScale(_scale);
@@ -111,6 +112,6 @@ public class ElainaSkillBar : BaseBody
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        SkillBarDrawing.DrawRack(spriteBatch, _rack.Value, Bounds.Position, _scale);
+        SkillBarDrawing.DrawRack(spriteBatch, _rack, Bounds.Position, _scale);
     }
 }

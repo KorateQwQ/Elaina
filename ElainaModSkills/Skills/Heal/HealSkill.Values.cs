@@ -1,3 +1,4 @@
+using 伊蕾娜.Localization;
 using System;
 using static 伊蕾娜.Localization.UIText;
 
@@ -13,7 +14,7 @@ public partial class HealSkill
     public override bool AllowsLifeConversion => false;
 
     protected override object[] SkillDescriptionArgs =>
-        [GetTotalHealing(Level), GetTotalHealing(Level) / HealingSeconds, HealingSeconds];
+        [SkillValueText.Heal(GetTotalHealing(Level)), GetTotalHealing(Level) / HealingSeconds, HealingSeconds];
 
     public override (string Label, string Value, string Unit)[] GetConstellationStats(int level) =>
         [(LocalizeUI("HealingTotal"), GetTotalHealing(level).ToString(), "HP"),

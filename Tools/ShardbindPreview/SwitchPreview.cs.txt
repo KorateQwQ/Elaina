@@ -1,0 +1,101 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ShardbindPreview;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+sealed partial class Preview
+{
+    const int SwitchConfirmTick = 252;
+    void ExportSwitchDemo()
+    {
+        ReticleTrackingChecks.Validate();
+        Vector2 fishron = new(620,720), golem = new(1280,720);
+        float fishronRadius = replay.RadiusFromHitbox(150,100), golemRadius = replay.RadiusFromHitbox(140,140);
+        int end = SwitchConfirmTick + PreviewTimeline.EndTick - PreviewTimeline.ConfirmTick;
+        using var stream = File.OpenRead(Path.Combine(root, "Effects/Tex/Baked/WhitePixel.png"));
+        using var pointer = Texture2D.FromStream(GraphicsDevice, stream);
+        int demoTick = 0;
+        replay.SetNpcDraw((tick, animation, held) => {
+            npcs.DrawStandalone("fishron", fishron, demoTick);
+            npcs.DrawStandalone("golem", golem, animation);
+        });
+        replay.SuppressReticle(true);
+        foreach (string mode in new[] { "normal", "dark" })
+        {
+            var tracking = new ReticleTracking();
+            Vector2? lastTarget = fishron;
+            float lastRadius = fishronRadius;
+            replay.Reset(true);
+            replay.SetTargetRadius(golemRadius);
+            for (int tick = 1; tick < PreviewTimeline.ConfirmTick; tick++) replay.Step(tick);
+            string folder = Path.Combine(output,"switch",mode);
+            Directory.CreateDirectory(folder);
+            var png = new PngExport(2560,1440);
+            for (demoTick = 0; demoTick <= end; demoTick++)
+            {
+                AssertHidden();
+                double seconds = demoTick / 60.0;
+                int selection = demoTick < 63 ? 0 : demoTick < 71 ? 1 : demoTick < 80 ? 0
+                    : demoTick < 132 ? 1 : demoTick < 159 ? -1 : demoTick < 204 ? 0 : 1;
+                Vector2? destination = selection < 0 ? null : selection == 0 ? fishron : golem;
+                float radius = selection == 0 ? fishronRadius : golemRadius;
+                // 先推进旧目标到事件时刻，再在相同时间交接，不倒算新目标的运动。
+                tracking.Update(seconds,lastTarget,lastRadius);
+                tracking.Update(seconds,destination,radius);
+                lastTarget = destination; lastRadius = radius;
+                GraphicsDevice.SetRenderTarget(target);
+                GraphicsDevice.Clear(Color.Black);
+                backgroundBatch.Begin(SpriteSortMode.Deferred,BlendState.Opaque,SamplerState.PointClamp,
+                    DepthStencilState.None,RasterizerState.CullNone);
+                backgroundBatch.Draw(mode == "dark" ? forestNight : forestDay,Vector2.Zero,Color.White);
+                backgroundBatch.End();
+                if (demoTick < SwitchConfirmTick)
+                {
+                    npcs.DrawStandalone("fishron",fishron,demoTick);
+                    npcs.DrawStandalone("golem",golem,demoTick);
+                }
+                else
+                {
+                    int castTick = PreviewTimeline.ConfirmTick + demoTick - SwitchConfirmTick;
+                    replay.Step(castTick);
+                    replay.Draw(castTick);
+                }
+                replay.DrawTrackedReticle(seconds, demoTick < SwitchConfirmTick ? null : SwitchConfirmTick/60.0,
+                    tracking.Center, tracking.Radius, tracking.Opacity);
+                Vector2 cursor = (destination ?? new Vector2(1630,420)) + new Vector2(26,-16);
+                backgroundBatch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,
+                    DepthStencilState.None,RasterizerState.CullNone);
+                Color cursorColor = demoTick >= SwitchConfirmTick ? new Color(255,222,145) : Color.White;
+                void Line(Vector2 a, Vector2 b)
+                {
+                    Vector2 delta = b-a;
+                    backgroundBatch.Draw(pointer,a,null,cursorColor,MathF.Atan2(delta.Y,delta.X),Vector2.Zero,
+                        new Vector2(delta.Length()/pointer.Width,2f/pointer.Height),SpriteEffects.None,0);
+                }
+                Line(cursor,cursor+new Vector2(4,23));
+                Line(cursor,cursor+new Vector2(20,13));
+                Line(cursor+new Vector2(4,23),cursor+new Vector2(10,15));
+                Line(cursor+new Vector2(10,15),cursor+new Vector2(20,13));
+                backgroundBatch.End();
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(folder,$"{demoTick:D3}.png"));
+                png.Save(target,file);
+            }
+            replay.Validate();
+            Console.WriteLine($"Exported target switching: {mode}, 0..{end}; full cast begins at {SwitchConfirmTick}.");
+        }
+        replay.SuppressReticle(false);
+        File.WriteAllText(Path.Combine(output,"switch/timing.json"),System.Text.Json.JsonSerializer.Serialize(new {
+            endTick=end,confirmTick=SwitchConfirmTick,launchTick=SwitchConfirmTick+PreviewTimeline.LockTicks,
+            stages = new[] {
+                new { tick=0, label="锁定猪鲨" }, new { tick=63, label="切向石巨人" },
+                new { tick=71, label="中途反向" }, new { tick=80, label="再次切换" },
+                new { tick=132, label="移出目标" }, new { tick=159, label="重新锁定" },
+                new { tick=204, label="选中石巨人" }, new { tick=252, label="确认施法" },
+                new { tick=327, label="乱序齐射" }, new { tick=416, label="终爆" }
+            }
+        }));
+    }
+}

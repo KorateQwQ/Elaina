@@ -1,0 +1,80 @@
+using System;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+// 原版第一阶段、scale=1 的固定靶；不模拟 AI、碰撞、受伤闪烁或特殊种子。
+sealed class NpcTargets : IDisposable
+{
+    readonly ContentManager content;
+    readonly SpriteBatch batch;
+    readonly Texture2D fishron, body, head, left, right;
+    public string Selected = "none";
+    int pinnedAnimationTick = -1, pinnedFrame = -1;
+    bool sawReleasedAnimation;
+    static readonly Vector2 Center = new(1280, 720);
+
+    public NpcTargets(GraphicsDevice device, IServiceProvider services, string contentRoot)
+    {
+        content = new ContentManager(services, contentRoot);
+        batch = new SpriteBatch(device);
+        fishron = content.Load<Texture2D>("Images/NPC_370");
+        body = content.Load<Texture2D>("Images/NPC_245");
+        head = content.Load<Texture2D>("Images/NPC_246");
+        left = content.Load<Texture2D>("Images/NPC_247");
+        right = content.Load<Texture2D>("Images/NPC_248");
+        Console.WriteLine($"Vanilla NPC assets: Fishron {fishron.Width}x{fishron.Height}/8; Golem body {body.Width}x{body.Height}/7, head {head.Width}x{head.Height}/6; scale=1.");
+    }
+
+    public void Draw(int tick, int animationTick, bool held)
+    {
+        if (Selected == "none") return;
+        if (tick == 0) { pinnedAnimationTick = pinnedFrame = -1; sawReleasedAnimation = false; }
+        int fishronFrame = animationTick / 6 % 6;
+        if (held)
+        {
+            if (pinnedAnimationTick < 0) { pinnedAnimationTick = animationTick; pinnedFrame = fishronFrame; }
+            if (animationTick != pinnedAnimationTick || fishronFrame != pinnedFrame)
+                throw new InvalidOperationException("冰凌锁冰封期间 NPC 动画仍在推进。");
+        }
+        else if (pinnedAnimationTick >= 0 && animationTick > pinnedAnimationTick) sawReleasedAnimation = true;
+        if (tick == ShardbindPreview.PreviewTimeline.EndTick && (pinnedAnimationTick < 0 || !sawReleasedAnimation))
+            throw new InvalidOperationException("NPC 动画未经历冰封和恢复。");
+        DrawStandalone(Selected, Center, animationTick);
+    }
+
+    public void DrawStandalone(string selected, Vector2 center, int animationTick)
+    {
+        int fishronFrame = animationTick / 6 % 6;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        if (selected == "fishron")
+        {
+            // NPC.FindFrame(370): 第一阶段游动每 6 tick 换帧，循环前 6 帧。
+            int height = fishron.Height / 8;
+            batch.Draw(fishron, center, new Rectangle(0, fishronFrame * height, fishron.Width, height),
+                Color.White, 0, new Vector2(fishron.Width / 2, height / 2), 1, SpriteEffects.None, 0);
+        }
+        else if (selected == "golem")
+        {
+            // NPC AI_046/047 的附着中心；Main.DrawNPC 的底部对齐与 +4 像素偏移。
+            DrawPart(body, 7, 140, center);
+            DrawPart(head, 6, 70, center + new Vector2(-3, -57));
+            DrawPart(left, 1, 30, center + new Vector2(-84, -9));
+            DrawPart(right, 1, 30, center + new Vector2(78, -9));
+        }
+        else throw new InvalidOperationException($"Unknown NPC target: {selected}");
+        batch.End();
+    }
+
+    void DrawPart(Texture2D texture, int frames, int hitboxHeight, Vector2 center)
+    {
+        int height = texture.Height / frames;
+        var origin = new Vector2(texture.Width / 2, height / 2);
+        var position = center + new Vector2(0, hitboxHeight / 2f - height + origin.Y + 4);
+        batch.Draw(texture, position, new Rectangle(0, 0, texture.Width, height), Color.White,
+            0, origin, 1, SpriteEffects.None, 0);
+    }
+
+    public void Dispose() { batch.Dispose(); content.Dispose(); }
+}

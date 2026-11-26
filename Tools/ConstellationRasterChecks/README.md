@@ -48,3 +48,30 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/ConstellationRasterChe
 新增 54 组检查：半径 4/20/29/32/40/72、86%–200% UI 缩放，升级圈另含 4 个弹出缩放姿态。用独立的 16×16 面积积分作参考，保留修改前的 160 段画法作反例；在升级停留的 100% UI 下，边缘区域平均 Alpha 误差由 0.1047 降至 0.0323，旧实现无法通过 0.065 的上限。另检查 Point/Linear 采样结果一致，以及带平移的非整数矩阵、裁剪区域、混合/采样/深度/栅格状态和圆环前后绘制顺序。输出 `ring-*-before/after.png` 与 `ring-checks.txt`；这些局部图均未缩放。
 
 2026-11-05：54 组圆环检查及原有字体/图集检查通过；完整升级提示 28 个原生画面、24 张技能面板整页和显现/启封提示成功导出，并查看低分辨率、非整数缩放和 4K/200% 代表图。完整提示入口见 `../ConstellationSkillPanelPreview/README.md`。正式 C# 使用 `dotnet msbuild 伊蕾娜.csproj -t:Compile -p:Configuration=Release -p:BuildProjectReferences=false` 编译通过（KL 依赖已先编译）。完整模组打包被运行中的 tModLoader 以 TML003 阻止；游戏内加载/视觉验证尚未执行。
+
+## 便签与 HUD 字体复用（2026-11-10）
+
+Gelasio 从 8–26px 扩充为 8–48px，支持资源条头像等级的 200% UI 缩放及放大动画，也用于炼金便签编号的密集采样。仍从原始 48px 母版与 `charsets.json` 生成；原有文件逐字节未变，新增 22 对资源共 491,996 字节。当前资源检查覆盖 101 个图集、106575 个字形记录。
+
+`ConstellationFont.Draw(... smoothTransform: true)` 只由炼金 UI 和头像等级启用；发生额外旋转/缩放时从密集图集绘制，保留原排版字形推进与行距。技能面板沿用默认原生字形路径。跨字号字符集不一致直接报错，缺字/超范围原有母版回退不变。
+
+`TextQualityChecks.cs.txt` 由炼金及资源条预览调用：用独立的母版高分辨率面积参考检查旋转/缩放覆盖，用 Point/Linear 不变性检查静态 HUD。预览命令和本次结果分别见 `../AlchemyPreview/README.md`、`../ResourceBarPreview/README.md`。字体/图集完整性、原生技能标题及 54 组圆环回归也已通过。
+
+## 技能栏、轮盘及其余圆弧（2026-11-10）
+
+共用实现移至 `ElainaModSkills/UICore/UIRasterFont`，`ConstellationFont` 负责模组资源适配；原有倾斜字体及缺字/超范围回退保持。技能栏冷却至少 11 屏幕像素、层数至少 9 像素。技能/治疗/玩偶轮盘与玩偶设置条共用测量和绘制，长文本到下限后省略。任意玩家名仍可能含子集外字符，会走母版回退。设置条小星复用密集 `StarsRaster` 图集，技能栏装饰使用 `Tools/SkillBarPreview/bake_lods.py` 生成的十张预制小尺寸图。
+
+`UIShape.fx/.xnb` 修复技能面板圆弧、椭圆及细线，炼金圆环/细线，技能栏封印/刻度及设置条圆角。极短圆弧处理端点覆盖的交集，细线积分两侧边缘；没有新增运行时固定贴图生成。圆角/椭圆仍使用距离近似，不能视为任意曲率的精确面积积分。
+
+```powershell
+pwsh -NoProfile -File Tools/ConstellationRasterChecks/compile-circle.ps1 -Name UIShape
+pwsh -NoProfile -File Tools/ConstellationRasterChecks/run.ps1 -Label remaining-ui
+python Tools/SkillBarPreview/bake_lods.py --check
+python Tools/ConstellationRasterChecks/check-package.py .vissandbox/ui-raster-package/Mods/伊蕾娜.tmod
+```
+
+`ShapeChecks` 用独立面积积分检查 60 组圆弧、20 组细线，含 50%/100%/112.5%/200%、1.5px 阈值两侧、跨零度、大于半圆及极短弧。旧硬边圆弧在 53 组超过误差上限。另检查五种倍率的冷却最小字号、长名称截断、Point/Linear 字形一致性、实心圆中心、自定义 Effect/矩阵/裁剪/顺序恢复。`RingChecks.Legacy` 冻结原 Line 实现，避免修复后的共用方法污染旧基准。
+
+界面预览：`Tools/SkillBarPreview/run.ps1 -ScaleOnly`、`Tools/SkillWheelPreview/run.ps1`（玩偶加 `-DollCommands`）、`Tools/HealingWheelPreview/run.ps1`、`Tools/DollControlPreview/selection.ps1`、`Tools/ConstellationSkillPanelPreview/run.ps1 -RingsOnly`、`Tools/AlchemyPreview/run.ps1 -ResolutionOnly -Scene header-reference`。`rings/node-arcs-*.png` 直接重放正式 `NodeSelection` 的四个动画阶段。已查看低分辨率、非整数缩放、200% 代表图及 4K 炼金画面的原生裁切；页头等级数字未调整。
+
+Release 编译及隔离测试包通过，包内 218 项字体/装饰/Shader 与预览资源逐字节一致，工具目录未打包。另通过 133 项面板状态、227 项玩偶操作、75 项技能栏配置/布局、56 项轮盘计时/输入检查；升级测试不再写死 20 点，改读当前配置。尚未进行游戏内重载、实际交互及性能验证。

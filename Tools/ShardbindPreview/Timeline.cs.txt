@@ -1,0 +1,21 @@
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+namespace ShardbindPreview;
+
+// 预览额外展示45帧悬停；确认后直接使用正式排程。
+public static class PreviewTimeline
+{
+    public const int ConfirmTick = 45;
+    public const int TightenTicks = ShardbindSequence.TightenTicks;
+    public const int FrostTicks = ShardbindSequence.FrostTicks;
+    public const int LockTicks = ShardbindSequence.LockTicks;
+    public const int LaunchTick = ConfirmTick + ShardbindSequence.LaunchTick;
+    public const int VolleySpan = ShardbindSequence.VolleySpan;
+    public const int ChargeLeadTicks = ShardbindSequence.ChargeLeadTicks;
+    public const int SettledTick = ConfirmTick + ShardbindSequence.SettledTick;
+    public const int EndTick = ConfirmTick + ShardbindSequence.BurstTick + 68;
+    // 历史版阶段图仍以首枚26帧开始发射为参照。
+    public const int FlightOffset = LaunchTick - 26;
+    public const int ChargeOffset = ConfirmTick;
+    public static int ShotOffset(int index) => ShardbindSequence.ShotOffset(index);
+}

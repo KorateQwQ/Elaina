@@ -14,11 +14,12 @@ internal static class Entry
     {
         System.Runtime.InteropServices.NativeLibrary.Load(Path.Combine(Environment.SystemDirectory, "d3d11.dll"));
         using var game = new Probe(args[0], args[1]);
-        game.Run();
+        game.RunOneFrame();
+        if (!game.Exported) throw new Exception("Wind preview did not complete.");
     }
 }
 
-internal sealed class Probe : Game
+internal sealed partial class Probe : Game
 {
     readonly string root, output;
     SpriteBatch batch;
@@ -27,6 +28,15 @@ internal sealed class Probe : Game
     Effect effect;
     IceConeWindDust dustType;
     bool done;
+    public bool Exported { get; private set; }
+
+    void AssertHidden()
+    {
+        var flags = (SDL2.SDL.SDL_WindowFlags)SDL2.SDL.SDL_GetWindowFlags(Window.Handle);
+        if ((flags & SDL2.SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) == 0
+            || (flags & SDL2.SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN) != 0)
+            throw new Exception("Wind preview window unexpectedly visible.");
+    }
 
     public Probe(string root, string output)
     {
@@ -35,10 +45,12 @@ internal sealed class Probe : Game
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL2.SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
     }
 
     protected override void LoadContent()
     {
+        AssertHidden();
         Directory.CreateDirectory(output);
         batch = new SpriteBatch(GraphicsDevice);
         PreviewContext.Main.instance = this;
@@ -50,6 +62,20 @@ internal sealed class Probe : Game
         texture = Texture2D.FromStream(GraphicsDevice, stream);
         pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
         dustType = new IceConeWindDust { MainTexture = texture };
+        string prime = Environment.GetCommandLineArgs().FirstOrDefault(a => a.StartsWith("--prime-pass="));
+        if (prime != null)
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, 1000, 600);
+            GraphicsDevice.SetRenderTarget(target);
+            batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend);
+            effect.Parameters["uTransform"].SetValue(Matrix.CreateOrthographicOffCenter(0, 1000, 600, 0, 0, 1));
+            effect.Parameters["TexSize"].SetValue(new Vector2(texture.Width, texture.Height));
+            GraphicsDevice.Textures[1] = texture;
+            effect.CurrentTechnique.Passes[prime.Split('=')[1]].Apply();
+            batch.Draw(texture, new Vector2(30, 30), Color.White);
+            batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+        }
     }
 
     Dust Emit(Vector2 screen, float angle, float age)
@@ -109,6 +135,7 @@ internal sealed class Probe : Game
 
     void Save(string name, Color[] pixels, int width, int height)
     {
+        AssertHidden();
         using var image = new Texture2D(GraphicsDevice, width, height); image.SetData(pixels);
         using var stream = File.Create(Path.Combine(output, name + ".png")); image.SaveAsPng(stream, width, height);
     }
@@ -116,6 +143,19 @@ internal sealed class Probe : Game
     protected override void Draw(GameTime gameTime)
     {
         if (done) return; done = true;
+        AssertHidden();
+        if (Environment.GetCommandLineArgs().Contains("--cold-start"))
+        {
+            CheckColdStart();
+            Exported = true;
+            return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--shader-state"))
+        {
+            CheckShaderState();
+            Exported = true;
+            return;
+        }
         Color day = new(125, 169, 193), night = new(22, 29, 46);
         int[] ages = [1, 3, 6, 10, 14, 16];
         const int cellW = 200, cellH = 180;
@@ -152,18 +192,22 @@ internal sealed class Probe : Game
             {
                 Color c = pixels[y * 1000 + x]; if (c.A < 10) continue; visible++;
                 float depth = Vector2.Dot(new Vector2(x + .5f - 500, y + .5f - 300), axis);
-                if (front ? c.R != 0 || c.G != 0 || c.B != 0 || depth < -9 : c.B <= c.G || c.G <= c.R || depth > 9)
+                if (front ? c.R != c.G || c.G != c.B || depth < -9 : c.B <= c.G || c.G <= c.R || depth > 9)
                     throw new Exception("Ring face color/depth incorrect.");
             }
             if (visible < 20) throw new Exception("Missing ring face.");
         }
         GraphicsDevice.SetRenderTarget(null);
-        // A front black face must darken the white body after composition.
+        // Rear is hidden by the white bar, while the .95-white front attenuates the bar.
         var occluded = Render(4, 0, day);
-        int covered = 0;
-        for (int y = 297; y <= 302; y++) for (int x = 501; x < 530; x++)
-            if (occluded[y * 1000 + x].R < 230) covered++;
-        if (covered < 6) throw new Exception("Front face failed to cover body.");
+        int frontOverBody = 0;
+        for (int y = 297; y < 303; y++) for (int x = 440; x < 560; x++)
+        {
+            Color c = occluded[y * 1000 + x];
+            if (x < 490 && c != Color.White) throw new Exception("Rear wind drew over the body.");
+            if (x > 510 && c.R < 254 && c.R == c.G && c.G == c.B) frontOverBody++;
+        }
+        if (frontOverBody == 0) throw new Exception("Front wind did not cover the body.");
         // Multiple instances share the two request groups; check camera translation and noninteger zoom.
         Queue.ClearFrame(); Dust.Spawned.Clear();
         PreviewContext.Main.GameViewMatrix.TransformationMatrix = Matrix.CreateScale(1.25f);
@@ -176,12 +220,121 @@ internal sealed class Probe : Game
         Flush(Layer.Dust);
         var multiple = new Color[600000]; multi.GetData(multiple);
         GraphicsDevice.SetRenderTarget(null); Save("multiple-125", multiple, 1000, 600);
+        PreviewContext.Main.GameViewMatrix.TransformationMatrix = Matrix.Identity;
+        CheckOverlappingRearFaces();
         PreviewContext.Main.dedServ = true;
         int count = Dust.Spawned.Count;
         IceConeWindDust.Emit(Vector2.Zero, Vector2.UnitX);
         if (Dust.Spawned.Count != count) throw new Exception("Server spawned visuals.");
         Console.WriteLine("PASS: linked dust + queue + drawing; ordinary rear/front requests, no Bloom, 64 orientations/phases, fade/expiry, stale dust, foreground occlusion, multiple instances, camera offset and 125% zoom.");
+        Exported = true;
         Exit();
+    }
+
+    void CheckOverlappingRearFaces()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 1000, 600);
+        var transform = Matrix.CreateOrthographicOffCenter(0, 1000, 600, 0, 0, 1);
+        bool invalidPremultiplication = false;
+        const int cellWidth = 210, cellHeight = 110;
+        var sheet = new Color[cellWidth * 5 * cellHeight * 3];
+        int cell = 0;
+        foreach (int age in new[] { 1, 4, 8, 12, 15 })
+        foreach (int copies in new[] { 1, 3, 6 })
+        {
+            AssertHidden();
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(Color.Transparent);
+            for (int i = 0; i < copies; i++)
+                IceConeWindDrawing.Draw(GraphicsDevice, effect, texture, transform,
+                    new Vector2(500, 300), age, false, MathHelper.PiOver2, .3f * MathHelper.TwoPi);
+            var pixels = new Color[600000]; target.GetData(pixels);
+            GraphicsDevice.SetRenderTarget(null);
+            Save($"rear-age{age}-copies{copies}", pixels, 1000, 600);
+            // Shader outputs premultiplied color: even coincident rings cannot exceed their tint * coverage.
+            float excess = pixels.Max(c => Math.Max(c.R - c.A * .62f,
+                Math.Max(c.G - c.A * .82f, c.B - c.A)));
+            Console.WriteLine($"Rear age={age} copies={copies}: max premultiplied excess={excess:F2}");
+            // Each blend quantizes RGB and alpha to 8 bits; allow one unit per layer plus one readback unit.
+            invalidPremultiplication |= excess > copies + 1;
+            GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(33, 49, 64));
+            foreach (bool front in new[] { false, true })
+                for (int i = 0; i < copies; i++)
+                    IceConeWindDrawing.Draw(GraphicsDevice, effect, texture, transform,
+                        new Vector2(500, 300), age, front, -MathHelper.PiOver2, .3f * MathHelper.TwoPi);
+            target.GetData(pixels); GraphicsDevice.SetRenderTarget(null);
+            int row = cell % 3, column = cell / 3;
+            for (int y = 0; y < cellHeight; y++)
+                Array.Copy(pixels, (245 + y) * 1000 + 395, sheet,
+                    (row * cellHeight + y) * cellWidth * 5 + column * cellWidth, cellWidth);
+            cell++;
+        }
+        Save("overlap-stages", sheet, cellWidth * 5, cellHeight * 3);
+        if (invalidPremultiplication)
+            throw new Exception("Rear wind RGB exceeds tint * alpha: overlapping rings accumulate toward white.");
+        Console.WriteLine("PASS rear color: 5 ages x 1/3/6 coincident rings retain blue premultiplied RGB.");
+    }
+
+    void CheckShaderState()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 1000, 600);
+        Matrix transform = Matrix.CreateOrthographicOffCenter(0, 1000, 600, 0, 0, 1);
+        Color[] DrawRing()
+        {
+            AssertHidden();
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(new Color(33, 49, 64));
+            foreach (bool front in new[] { false, true })
+                IceConeWindDrawing.Draw(GraphicsDevice, effect, texture, transform, new Vector2(500, 300),
+                    4, front, -MathHelper.PiOver2, .3f * MathHelper.TwoPi);
+            var pixels = new Color[600000]; target.GetData(pixels);
+            GraphicsDevice.SetRenderTarget(null);
+            return pixels;
+        }
+        var expected = DrawRing();
+        Save("state-baseline", expected, 1000, 600);
+        foreach (string passName in new[] { "Apply", "Rubble", "DomainRing" })
+        {
+            GraphicsDevice.SetRenderTarget(target);
+            batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend);
+            foreach (string band in new[] { "BandOuter", "BandMid", "BandInner" })
+                effect.Parameters[band].SetValue(new Vector4(8, 6, 4, 1));
+            effect.Parameters["TexSize"].SetValue(new Vector2(texture.Width, texture.Height));
+            GraphicsDevice.Textures[1] = texture;
+            effect.CurrentTechnique.Passes[passName].Apply();
+            batch.Draw(texture, new Vector2(30, 30), Color.White);
+            batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            var actual = DrawRing();
+            if (!actual.SequenceEqual(expected))
+            {
+                Save("state-same-effect-failure", actual, 1000, 600);
+                throw new Exception($"Ring changed after drawing shared pass {passName}");
+            }
+        }
+        int checkedPasses = 0;
+        foreach (string folder in new[] { Path.Combine(root, "Effects/Content"), Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")) })
+        {
+            using var otherContent = new ContentManager(Services, folder);
+            foreach (string path in Directory.GetFiles(folder, "*.xnb").OrderBy(p => p))
+            {
+                if (!File.Exists(Path.ChangeExtension(path, ".fx"))) continue;
+                Effect other = otherContent.Load<Effect>(Path.GetFileNameWithoutExtension(path));
+                foreach (EffectTechnique technique in other.Techniques)
+                foreach (EffectPass pass in technique.Passes)
+                {
+                    other.CurrentTechnique = technique;
+                    pass.Apply();
+                    var actual = DrawRing();
+                    checkedPasses++;
+                    if (!actual.SequenceEqual(expected))
+                    {
+                        Save("state-failure", actual, 1000, 600);
+                        throw new Exception($"Ring changed after {path}: {technique.Name}/{pass.Name}");
+                    }
+                }
+            }
+        }
+        Console.WriteLine($"PASS shader state: {checkedPasses} prior effect passes preserve exact ring pixels.");
     }
 
     protected override void UnloadContent()

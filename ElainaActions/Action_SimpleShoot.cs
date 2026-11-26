@@ -3,6 +3,11 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaActions;
 
+public sealed class Action_SupportShoot : Action_SimpleShoot
+{
+    protected override bool WandTrailBehindPlayer => true;
+}
+
 public class Action_SimpleShoot : ElainaAction
 {
     float rotation;

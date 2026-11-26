@@ -1,0 +1,105 @@
+using System.Diagnostics;
+using Microsoft.Xna.Framework;
+using Terraria;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using GameMain = Terraria.Main;
+
+static partial class Checks
+{
+    static void CheckReticleIntegration()
+    {
+        int start = passed;
+        var system = new IceConeTargetSystem();
+        var type = typeof(IceConeTargetSystem);
+        var assembly = type.Assembly;
+        var stateType = assembly.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.ReticlePresentation")!;
+        object Invoke(object state, string method, params object[] args) => stateType.GetMethod(method, All)!.Invoke(state, args)!;
+        object Field(object state, string name) => state.GetType().GetProperty(name, All)!.GetValue(state)!;
+        object Advance(NPC target, double delta) => type.GetMethod("AdvanceHover", All)!.Invoke(null, [target, delta])!;
+        double Sample() => (double)type.GetMethod("SampleVisualDelta", All)!.Invoke(null, null)!;
+        GameMain.dedServ = GameMain.gameMenu = GameMain.hideUI = GameMain.gamePaused = false;
+        GameMain.hasFocus = true;
+        system.OnWorldUnload();
+        var target = NpcFixture(0); target.width = 150; target.height = 100; target.Center = new Vector2(620,720);
+        var small = NpcFixture(1); small.width = small.height = 60; small.Center = new Vector2(1280,720);
+        Near(Sample(), 0, "First visible sample excludes hidden interval");
+        var first = Advance(target, 0);
+        double previous = 0;
+        var cached = new GameTime(TimeSpan.Zero, TimeSpan.Zero);
+        foreach (var gameTime in new[] { cached, new GameTime(TimeSpan.Zero, TimeSpan.FromTicks(1)), cached, cached })
+        {
+            var wall = Stopwatch.StartNew();
+            Thread.Sleep(18);
+            system.UpdateUI(gameTime);
+            double delta = Sample();
+            Check(delta >= .01 && delta < wall.Elapsed.TotalSeconds + .05, "Actual draw clock follows wall time despite zero/tiny/reused GameTime");
+            var state = Advance(target, delta);
+            double age = (double)Field(state, "Seconds");
+            Check(age > previous, "Real hover advances on repeated cached game time"); previous = age;
+            object pose = Invoke(state, "Sample", -1f);
+            Check(pose.Equals(Invoke(state, "Sample", -1f)), "Sampling pose has no frame side effects");
+        }
+        foreach (string inactive in new[] { "focus", "hide", "pause", "menu" })
+        {
+            GameMain.hasFocus = inactive != "focus"; GameMain.hideUI = inactive == "hide";
+            GameMain.gamePaused = inactive == "pause"; GameMain.gameMenu = inactive == "menu";
+            system.UpdateUI(cached);
+            Thread.Sleep(22); // No draw while hidden.
+            GameMain.hasFocus = true; GameMain.hideUI = GameMain.gamePaused = GameMain.gameMenu = false;
+            system.UpdateUI(cached);
+            Near(Sample(), 0, inactive + ": first resumed sample excludes hidden time");
+        }
+        var hovering = Advance(target, .5);
+        object tracking = Field(hovering, "Tracking");
+        Vector2 center = (Vector2)Field(tracking, "Center");
+        float radius = (float)Field(tracking, "Radius");
+        Advance(small, 0);
+        Check((Vector2)Field(tracking, "Center") == center, "Retarget event preserves current position");
+        Near((float)Field(tracking, "Radius"), radius, "Retarget event preserves current radius");
+        Advance(small, .08);
+        Vector2 moving = (Vector2)Field(tracking, "Center");
+        Check(moving.X > center.X && moving.X < small.Center.X, "Actual presentation moves smoothly toward new target");
+        Advance(target, 0); Advance(target, .025);
+        object poseBefore = Invoke(hovering, "Sample", -1f);
+        center = (Vector2)Field(tracking, "Center");
+        radius = (float)Field(tracking, "Radius");
+
+        // BindTarget is also called after the quick-cast action has already become a slash:
+        // CanTrack is intentionally false here (the player holds no wand).
+        var remote = Attach(new ShardbindProj(), owner: 1);
+        remote.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
+        var property = typeof(ShardbindProj).GetProperty("ReticlePresentation", All)!;
+        Check(property.GetValue(remote) == null, "Remote controller cannot consume local hover");
+        var controller = Attach(new ShardbindProj());
+        controller.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
+        object transferred = property.GetValue(controller)!;
+        Check(ReferenceEquals(transferred, hovering), "Real BindTarget transfers the displayed hover even after quick-cast ends");
+        Check(type.GetField("hover", All)!.GetValue(null) == null, "Transferred hover is no longer drawn twice");
+        Check(poseBefore.Equals(Invoke(transferred, "Sample", 0f)), "Confirmation preserves every pose component");
+        Check((Vector2)Field(tracking, "Center") == center, "Confirmation preserves position during interrupted switch");
+        Near((float)Field(tracking, "Radius"), radius, "Confirmation preserves radius");
+        object next = Advance(small, 0);
+        Check(!ReferenceEquals(next, transferred), "Next hover cannot mutate an earlier cast");
+        Invoke(transferred, "Advance", .1, (Vector2?)target.Center, 108f);
+        Check((double)Field(Invoke(transferred, "Sample", 75f), "Alpha") == 0, "Reticle fades completely at authoritative launch tick");
+        Check((double)Field(Invoke(transferred, "Sample", 21f), "Scale") == .86, "Confirmation tightens to historical settled size");
+        Advance(null, 0); Check(Advance(null, 1) == null, "Lost target fades and releases hover state");
+        object reacquired = Advance(small, 0);
+        Near((double)Field(reacquired, "Seconds"), 0, "Reacquisition after full fade starts a fresh entrance");
+        Near((float)Field(Field(reacquired, "Tracking"), "Radius"), 43.2f, "New hover uses actual small target hitbox");
+        object direct = stateType.GetConstructors(All).Single().Invoke([target.Center, 108f, true]);
+        double directScale = (double)Field(Invoke(direct, "Sample", 0f), "Scale");
+        Check(Math.Abs(directScale - .86) <= .01401, "Remote/direct cast begins at settled size");
+        Check((float)Field(Field(direct, "Tracking"), "Opacity") == 1, "Remote/direct cast has no hover fade-in dependency");
+        GameMain.dedServ = true;
+        var server = Attach(new ShardbindProj());
+        server.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
+        Check(property.GetValue(server) == null, "Dedicated server allocates no reticle presentation");
+        system.OnWorldUnload();
+        Check(type.GetField("hover", All)!.GetValue(null) == null, "World unload clears hover");
+        GameMain.dedServ = false;
+        Near(Sample(), 0, "World unload invalidates the clock");
+        GameMain.dedServ = true;
+        Console.WriteLine($"PASS production reticle: {passed-start} clock/lifecycle/handoff checks against compiled game methods.");
+    }
+}

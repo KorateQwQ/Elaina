@@ -8,6 +8,7 @@ using Terraria;
 using Terraria.ID;
 using Terraria.DataStructures;
 using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
 using 伊蕾娜;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills;
@@ -51,6 +52,7 @@ static class Checks
             [typeof(Rectangle), typeof(Color), typeof(string), typeof(bool), typeof(bool)])!,
             (Func<Rectangle, Color, string, bool, bool, int>)((_, _, _, _, _) => { damageTexts++; return -1; }));
         for (int i = 0; i < GameMain.projectile.Length; i++) GameMain.projectile[i] = new Projectile();
+        for (int i = 0; i < GameMain.npc.Length; i++) GameMain.npc[i] = new NPC();
         MagicBarrierProj Attach(Projectile projectile)
         {
             var visual = new MagicBarrierProj();
@@ -74,7 +76,7 @@ static class Checks
                 return slot;
             }));
         var player = new Player { active = true, whoAmI = 0, statManaMax2 = 200, statLifeMax2 = 400, statLife = 400 };
-        var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer(), new FrostVeilPlayer() };
+        var parts = new ModPlayer[] { new ElainaModplayer(), new ElainaAttributeModPlayer(), new ElainaSkillModPlayer(), new BarrierPlayer(), new FrostVeilPlayer(), new ChargePointPlayer() };
         for (ushort i = 0; i < parts.Length; i++)
         {
             parts[i].GetType().GetProperty("Entity", All)!.SetValue(parts[i], player);
@@ -91,6 +93,41 @@ static class Checks
         var barrier = new MagicBarrierSkill();
         Learn(skills, witch); Learn(skills, barrier);
         attributes.Initialize();
+        var charge = player.GetModPlayer<ChargePointPlayer>();
+        charge.Initialize();
+        charge.LoadData(new TagCompound());
+        Check(charge.Points.Current == 0, "Legacy character starts empty");
+        charge.Points.Restore(3);
+        void ChargeTicks(int ticks, float percent = 0, float flat = 0)
+        {
+            for (int tick = 0; tick < ticks; tick++)
+            {
+                attributes.ResetEffects();
+                attributes.Attributes.AddExtraPercent(ChargePointPlayer.RecoveryPerSecond, percent);
+                attributes.Attributes.AddExtraFlat(ChargePointPlayer.RecoveryPerSecond, flat);
+                attributes.PostUpdate();
+            }
+        }
+        ChargeTicks(40, 1, .25f); // 0.25 base × 2 + 0.25 flat = 0.75 points/s, half a point saved.
+        var saved = new TagCompound();
+        charge.SaveData(saved);
+        using (var stream = new MemoryStream())
+        {
+            TagIO.ToStream(saved, stream);
+            charge.Initialize(); stream.Position = 0;
+            charge.LoadData(TagIO.FromStream(stream)); charge.OnEnterWorld();
+        }
+        Check(charge.Points.Current == 3, "Character reload preserves charge");
+        ChargeTicks(119);
+        Check(charge.Points.Current == 3, "Partial charge stays fractional across reload");
+        ChargeTicks(1);
+        Check(charge.Points.Current == 4, "Remaining half fills at the current published rate");
+        ChargeTicks(50);
+        charge.Points.Restore(8); ChargeTicks(240);
+        charge.Points.TrySpend(1); ChargeTicks(239);
+        Check(charge.Points.Current == 7, "Full charge does not bank progress");
+        ChargeTicks(1);
+        Check(charge.Points.Current == 8, "Eighth point returns at the full interval");
 
         void UpdateEffects()
         {

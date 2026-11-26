@@ -31,7 +31,7 @@ public partial class RecallSkill : ElainaSkill
         return false;
     }
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (pendingTarget < 0)
         {
@@ -52,9 +52,9 @@ public partial class RecallSkill : ElainaSkill
             !attribute.ConsumeMagicPoint(MagicPointCost, consume: false) ||
             !RecallPortalSystem.Cast(Player, target)) return false;
         attribute.ConsumeMagicPoint(MagicPointCost);
-        Player.GetModPlayer<ActionModPlayer>().StartAction(new Action_SimpleShoot(),
+        Player.GetModPlayer<ActionModPlayer>().StartAction(new Action_SupportShoot(),
             rotation: (Main.player[target].Center - Player.Center).ToRotation());
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 
     private bool HasAlly()

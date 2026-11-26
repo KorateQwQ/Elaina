@@ -5,13 +5,14 @@ using KL.Drawing.ThreeD;
 using KL.Dusts;
 using KL.Dusts.Burst;
 using KL.Dusts.Glow;
+using KL.Dusts.Smoke;
 using KL.Utils;
 using ReLogic.Content;
 using Terraria.GameContent;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
-public class IceCone3DUnit : VisualUnit
+public partial class IceCone3DUnit : VisualUnit
 {
     private static ObjModel iceCone;
     private static Texture2D texture;
@@ -34,8 +35,12 @@ public class IceCone3DUnit : VisualUnit
     private Vector3 forwardVelocity3D;
     private Vector3 currentVelocity3D;
     private int trailRecordedCount;
+    private int arrivalTime = -1;
+    private const float LockLengthScale = 2.2f;
+    private const float LockGrowthTicks = 5f;
     public bool HasArrived { get; private set; }
     public bool ArrivedThisUpdate { get; private set; }
+    public float ChargeProgress { get; set; }
 
     private ProjectionMode ProjectionMode => ProjectionMode.Perspective;
     private float Fov => MathF.PI / 6f;
@@ -88,8 +93,9 @@ public class IceCone3DUnit : VisualUnit
             return;
         }
 
-        int time = Timer - Delay;
+        int time = MotionTime;
         UpdateMovement(time);
+        if (!Main.dedServ && WindDue) EmitLaunchWind();
 
         Vector3 drawVelocity3D = time < BackwardFlyTime && forwardVelocity3D.LengthSquared() > 0.001f
             ? forwardVelocity3D
@@ -100,10 +106,8 @@ public class IceCone3DUnit : VisualUnit
             Rotation = planarVelocity.ToRotation();
         }
 
-        if (time >= BackwardFlyTime)
-        {
-            RecordTrailPosition();
-        }
+        if (!Prepared && time >= BackwardFlyTime) RecordTrailPosition();
+        UpdatePreparedTrail();
 
         if (!Main.dedServ) Lighting.AddLight(GetModelOriginScreenPosition(), new Color(255, 255, 255).ToVector3());
 
@@ -112,7 +116,7 @@ public class IceCone3DUnit : VisualUnit
             SpawnIceDust();
         }
 
-        if (time >= TimeLeft)
+        if (Timer - Delay >= TimeLeft)
         {
             Kill();
         }
@@ -125,7 +129,7 @@ public class IceCone3DUnit : VisualUnit
             return;
         }
 
-        int time = Timer - Delay;
+        int time = MotionTime;
         bool drawAuxiliaryBehind = Position3D.Z >= 0f;
         RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles, time, 1f,
             drawAuxiliaryBehind);
@@ -136,42 +140,58 @@ public class IceCone3DUnit : VisualUnit
     private void RequestIceConeDraw(LayerDrawRequestSystem.DrawTargetLayer layer, int time,
         float depthClipSide, bool drawAuxiliary)
     {
-        LayerDrawRequestSystem.RequestBloom("Elaina:Shardbind:Cones", layer,
-            LayerDrawRequestSystem.DrawTiming.After, ctx =>
+        bool foreground = layer == LayerDrawRequestSystem.DrawTargetLayer.OverPlayers;
+        if (foreground)
+        {
+            // 蓄光时先合成弹幕光片和光晕，再在前景合成之后叠加实体冰面。
+            if (ChargeProgress > 0f)
+                LayerDrawRequestSystem.Request("Elaina:Shardbind:Cones", layer,
+                    LayerDrawRequestSystem.DrawTiming.After, DrawGroup);
+            else
+                LayerDrawRequestSystem.RequestBloom("Elaina:Shardbind:Cones", layer, LayerDrawRequestSystem.DrawTiming.Before,
+                    DrawGroup, order: LayerDrawRequestSystem.ProjectileOrder + 1);
+        }
+        else
+            LayerDrawRequestSystem.Request("Elaina:Shardbind:Cones", layer, LayerDrawRequestSystem.DrawTiming.After, DrawGroup);
+
+        void DrawGroup(LayerDrawRequestSystem.DrawRequestContext ctx)
         {
             Vector2 lightPosition = GetModelOriginScreenPosition();
             Color lightColor = Lighting.GetColor((int)(lightPosition.X / 16f), (int)(lightPosition.Y / 16f));
             GraphicsDevice gd = Main.instance.GraphicsDevice;
             VertexBuffer vertexBuffer = iceCone.GetOrCreateVertexBuffer(gd);
-            Vector3 cameraPosition = GraphicsUtils.CameraPos(Fov);
+            Vector3 cameraPosition = GetProjectionCamera();
             Vector3 sunPosition = new(new Vector2(Main.screenWidth, Main.screenHeight) / 4f + Main.screenPosition, -1000);
             Vector3 lightDirection = Vector3.Normalize(Position3D - sunPosition);
 
+            // 请求队列在每个回调前开启 SpriteBatch；直接绘制模型前逐次结束。
+            // 深度缓冲仍由整组共享，不能在每枚冰锥之间清空。
+            Main.spriteBatch.End();
             if (ctx.IsFirst)
             {
-                Main.spriteBatch.End();
                 IceConeDepthRenderer.BeginLayer(gd);
             }
 
-            if (drawAuxiliary&&time >= BackwardFlyTime)
+            if (!Prepared && drawAuxiliary && time >= BackwardFlyTime)
             {
                 DrawTrail3D(gd);
             }
             
             iceConeEffect.Parameters["uWorld"].SetValue(GetModelMatrix(time));
-            iceConeEffect.Parameters["uViewProjection"].SetValue(GraphicsUtils.GetVPMatrix(ProjectionMode, Fov));
+            iceConeEffect.Parameters["uViewProjection"].SetValue(GetViewProjectionMatrix());
             iceConeEffect.Parameters["uLightDirection"].SetValue(lightDirection);
             iceConeEffect.Parameters["uLightColor"].SetValue(lightColor.ToVector3());
             iceConeEffect.Parameters["uCameraPosition"].SetValue(cameraPosition);
-            iceConeEffect.Parameters["uBaseColor"].SetValue(new Color(200, 220, 255, 255).ToVector4());
+            iceConeEffect.Parameters["uBaseColor"].SetValue(new Vector4(new Color(200, 220, 255).ToVector3()
+                * (1f + ChargeProgress * ShardbindVisualSettings.SphereBaseHdrGain), 1f));
             iceConeEffect.Parameters["uFresnelColor"].SetValue(new Color(255, 255, 255).ToVector3() * 0.5f);
             iceConeEffect.Parameters["uAmbientStrength"].SetValue(0.8f);
             iceConeEffect.Parameters["uDiffuseStrength"].SetValue(1f);
-            iceConeEffect.Parameters["uFresnelStrength"].SetValue(2f);
+            iceConeEffect.Parameters["uFresnelStrength"].SetValue(2f + ChargeProgress * ShardbindVisualSettings.SphereFresnelGain);
             iceConeEffect.Parameters["uDissolveNoiseScale"].SetValue(1f);
-            iceConeEffect.Parameters["uDissolveThreshold"].SetValue(GetDissolveThreshold(time));
+            iceConeEffect.Parameters["uDissolveThreshold"].SetValue(GetDissolveThreshold(Timer - Delay));
             iceConeEffect.Parameters["uDissolveEdgeWidth"].SetValue(0.2f);
-            iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Vector4(new Color(100, 200, 255).ToVector3() * 4.5f, 1f));
+            iceConeEffect.Parameters["uDissolveEdgeColor"].SetValue(new Vector4(new Color(100, 200, 255).ToVector3() * ShardbindVisualSettings.DissolveEdgeHdr, 1f));
             iceConeEffect.Parameters["uDepthClipSide"].SetValue(depthClipSide);
 
             gd.BlendState = IceConeDepthRenderer.ModelBlend;
@@ -183,7 +203,7 @@ public class IceCone3DUnit : VisualUnit
             gd.SetVertexBuffer(vertexBuffer);
 
             gd.RasterizerState = RasterizerState.CullClockwise;
-            iceConeEffect.CurrentTechnique.Passes["Base"].Apply();
+            iceConeEffect.CurrentTechnique.Passes[foreground ? "Base" : "BackWithoutEdge"].Apply();
             gd.DrawPrimitives(PrimitiveType.TriangleList, 0, iceCone.PrimitiveCount);
             
             if (ctx.IsLast)
@@ -191,10 +211,16 @@ public class IceCone3DUnit : VisualUnit
                 IceConeDepthRenderer.EndLayer(gd);
                 BeginDraw();
             }
-        });
+        }
     }
 
     private void UpdateMovement(int time)
+    {
+        if (Prepared) UpdatePreparedMovement(time);
+        else UpdateLegacyMovement(time);
+    }
+
+    private void UpdateLegacyMovement(int time)
     {
         if (forwardVelocity3D.LengthSquared() <= 0.0001f)
         {
@@ -222,6 +248,7 @@ public class IceCone3DUnit : VisualUnit
             {
                 HasArrived = true;
                 ArrivedThisUpdate = true;
+                arrivalTime = time;
             }
 
         }
@@ -233,8 +260,8 @@ public class IceCone3DUnit : VisualUnit
     public void MoveWithTarget(Vector2 delta)
     {
         Vector3 offset = new(delta, 0f);
-        Position3D += offset;
         targetPosition3D += offset;
+        Position3D = Prepared ? targetPosition3D + preparedOffset : Position3D + offset;
         for (int i = 0; i < trailPositions3D.Length; i++) trailPositions3D[i] += offset;
     }
 
@@ -245,8 +272,9 @@ public class IceCone3DUnit : VisualUnit
         {
             Timer++;
             if (!Started) continue;
-            UpdateMovement(Timer - Delay);
-            RecordTrailPosition();
+            UpdateMovement(MotionTime);
+            if (!Prepared) RecordTrailPosition();
+            UpdatePreparedTrail(sampleOnly: true);
         }
         ArrivedThisUpdate = false;
     }
@@ -258,11 +286,42 @@ public class IceCone3DUnit : VisualUnit
         KLBasicDust.SpawnDust(center, ModContent.DustType<BurstPoint>(), velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
             color: new Color(100, 220, 255, 0), scale: new Vector2(0.7f));
         
-        KLBasicDust.SpawnDust(center + dir * 10f, ModContent.DustType<BurstDust>(), velocity: dir * 0.01f, lifeTime: 12,
-            color: new Color(150, 220, 255, 0), scale: new Vector2(3.5f, 0.8f));
+        KLBasicDust.SpawnDust(center + dir * 45f, ModContent.DustType<BurstDust>(), velocity: dir * 0.01f, lifeTime: 12,
+            color: new Color(150, 220, 255, 0), scale: new Vector2(5.1f, 0.8f));
         
         KLBasicDust.SpawnDust(center, ModContent.DustType<GlowDust>(), velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
             color: new Color(150, 220, 255, 0) * 0.5f, scale: new Vector2(1.5f));
+        SpawnLayeredImpact();
+    }
+
+    private void EmitLaunchWind()
+    {
+        Vector2 origin = GetModelOriginScreenPosition();
+        Vector2 toward = ProjectToWorldPlane(targetPosition3D);
+        Vector2 direction = (toward - origin).SafeNormalize(Vector2.UnitX);
+        IceConeWindDust.Emit(origin - direction * 50f, direction);
+    }
+
+    private void SpawnLayeredImpact()
+    {
+        Vector2 center = new(targetPosition3D.X, targetPosition3D.Y);
+        Vector2 dir = new Vector2(currentVelocity3D.X, currentVelocity3D.Y).SafeNormalize(Vector2.One);
+        // 在原爆点、定向亮线与光晕之上叠加冰锥术的完整命中层。
+        KLBasicDust.SpawnDust(center, ModContent.DustType<BurstPoint>(),
+            velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
+            color: new Color(150, 220, 255, 0), scale: new Vector2(1.2f));
+        IceShardDust.Emit(center, dir.ToRotation());
+        KLBasicDust.SpawnDustsCircle(center + Main.rand.NextVector2Circular(10, 10),
+            ModContent.DustType<BurstDust>(), 5, -dir * 10.1f,
+            1.88f, 15, new Color(180, 220, 255, 150), new Vector2(1.2f, 0.8f) * 0.5f,
+            0, 50, lifeOffset: 5, scaleOffset: new Vector2(0.5f, 0.2f));
+        KLBasicDust.SpawnDustsCircle(center + Main.rand.NextVector2Circular(10, 10),
+            ModContent.DustType<SmokeDust2>(), 5, -dir * 2.1f,
+            6.28f, 40, new Color(150, 220, 255, 0) * 0.3f, new Vector2(1f) * 2f,
+            0, 100, lifeOffset: 5, scaleOffset: new Vector2(0.5f, 0.5f));
+        KLBasicDust.SpawnDust(center, ModContent.DustType<GlowDust>(),
+            velocity: Main.rand.NextVector2Circular(0.1f, 0.1f), lifeTime: 12,
+            color: new Color(150, 220, 255, 0), scale: new Vector2(1.5f));
     }
 
     private Matrix GetModelMatrix(int time)
@@ -270,10 +329,37 @@ public class IceCone3DUnit : VisualUnit
         bool isBackwardFlying = time < BackwardFlyTime;
         float toward = isBackwardFlying ? 1f : -1f;
         Vector3 forward = GetStableModelForward(isBackwardFlying);
-        return Matrix.CreateScale(new Vector3(20f)) * CreateRotationFromTo(toward * Vector3.UnitY, forward) * Matrix.CreateTranslation(Position3D);
+        Matrix model = Matrix.CreateScale(new Vector3(20f)) * CreateRotationFromTo(toward * Vector3.UnitY, forward) * Matrix.CreateTranslation(Position3D);
+        return ApplyLockGrowth(model, time);
     }
 
-    private Vector3 GetStableModelForward(bool isBackwardFlying)
+    private float GetLockLengthScale(int time)
+    {
+        if (arrivalTime < 0) return 1f;
+        float t = MathHelper.Clamp((time - arrivalTime) / LockGrowthTicks, 0f, 1f);
+        float eased = 1f - (1f - t) * (1f - t) * (1f - t);
+        return MathHelper.Lerp(1f, LockLengthScale, eased);
+    }
+
+    private Matrix ApplyLockGrowth(Matrix model, int time)
+    {
+        float scale = GetLockLengthScale(time);
+        if (scale == 1f) return model;
+        // 围绕锁定中心仅伸长模型局部 Y 轴，横截面、轨迹和拖尾保持原尺寸。
+        Vector3 axis = Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitY, model));
+        float extra = scale - 1f;
+        Matrix stretch = Matrix.Identity;
+        stretch.M11 += extra * axis.X * axis.X;
+        stretch.M12 = stretch.M21 = extra * axis.X * axis.Y;
+        stretch.M13 = stretch.M31 = extra * axis.X * axis.Z;
+        stretch.M22 += extra * axis.Y * axis.Y;
+        stretch.M23 = stretch.M32 = extra * axis.Y * axis.Z;
+        stretch.M33 += extra * axis.Z * axis.Z;
+        return model * Matrix.CreateTranslation(-targetPosition3D)
+            * stretch * Matrix.CreateTranslation(targetPosition3D);
+    }
+
+    private Vector3 GetLegacyModelForward(bool isBackwardFlying)
     {
         if (currentVelocity3D.LengthSquared() > 0.0001f)
         {
@@ -302,7 +388,7 @@ public class IceCone3DUnit : VisualUnit
 
     private Vector2 GetModelOriginScreenPosition()
     {
-        return GraphicsUtils.ProjectWorldToScreen(Position3D, ProjectionMode, Fov);
+        return ProjectToWorldPlane(Position3D);
     }
 
     private Vector3 GetDelayedTrailPosition3D()

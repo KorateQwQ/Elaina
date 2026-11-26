@@ -171,7 +171,7 @@ namespace KL.ActionsSystem
 {
     public class ActionModPlayer { public int Calls; public void StartAction(object action, float rotation) => Calls++; }
 }
-namespace 伊蕾娜.ElainaActions { public class Action_SimpleShoot { } }
+namespace 伊蕾娜.ElainaActions { public class Action_SupportShoot { } }
 namespace 伊蕾娜.Localization { public static class UIText { public static string LocalizeUI(string key, params object[] args) => key + (args.Length == 0 ? "" : ":" + string.Join("|", args)); } }
 namespace 伊蕾娜.ElainaAttribute
 {
@@ -195,7 +195,8 @@ namespace 伊蕾娜.ElainaModSkills
         public SkillStub Skill = new();
         public virtual void Initialize() { }
         public virtual bool BeginWandUse() => true;
-        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+        public bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => OnCast(source);
+        protected virtual bool OnCast(Terraria.DataStructures.IEntitySource source) => true;
     }
     public class ElainaSkillModPlayer
     {

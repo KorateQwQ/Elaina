@@ -173,7 +173,8 @@ namespace 伊蕾娜.ElainaModSkills
         public virtual void Initialize() { }
         public virtual void DeserializeData(Terraria.ModLoader.IO.TagCompound tag) { MaxCD = 60; }
         public virtual bool CanUseSkill() => Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, false);
-        public virtual bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => true;
+        public bool PreUseSkill(Terraria.DataStructures.IEntitySource source = null) => OnCast(source);
+        protected virtual bool OnCast(Terraria.DataStructures.IEntitySource source) => true;
         public virtual bool BeginWandUse() => true;
     }
 }

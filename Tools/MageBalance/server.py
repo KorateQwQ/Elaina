@@ -159,8 +159,6 @@ def validate_payload(payload):
         ratio_curve(row)
         number(row, "cost", 0, 10000)
         number(row, "interval", .05, 10)
-        if "freezeBuildup" in row:
-            number(row, "freezeBuildup", 0, 100)
         number(row, "shots", 1, 100, True)
         number(row, "unlockStageCap", 1, 1000, True)
         number(row, "unlockLevel", 1, 1000, True)
@@ -178,6 +176,10 @@ def validate_payload(payload):
         if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le")) // 2 > 64:
             raise ValueError("技能名称不能为空或超过 64 字符。")
         ids.add(key)
+        if "energyCost" in row:
+            number(row, "energyCost", 0, 8, True)
+        if "energyEfficiency" in row:
+            number(row, "energyEfficiency", 0, 200)
         number(row, "cost", 0, 10000)
         if "costPercent" not in row:
             row["costPercent"] = 0
@@ -185,8 +187,6 @@ def validate_payload(payload):
         number(row, "cd", .1, 600)
         if "ratio" in row:
             number(row, "ratio", 0, 5)
-        if "freezeBuildup" in row:
-            number(row, "freezeBuildup", 0, 100)
         if "cdRatio" not in row:
             row["cdRatio"] = 1
         number(row, "cdRatio", 0, 1)

@@ -24,7 +24,7 @@ internal static class Program
     {
         TrailChecks.Run(args[2]);
         using var game = new HitPreview(args[0], args[1], args[2], args[3]);
-        game.Run();
+        game.RunOneFrame();
     }
 
     // 与 Tools/BloomBackbufferPreview 相同：从 KL 源码中取出 Bloom 管线并编译，Run 可指定目标层
@@ -62,14 +62,14 @@ internal static class Program
             public partial class DrawSystem {
                 public void Run(float strength, int iterations, bool bloomEnabled, int layer) {
                     SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
-                    RenderRequestedBloom((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After);
+                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
                 }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
-            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+            "bloomScissor", "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "GetFilterRegion", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render,
@@ -147,6 +147,7 @@ sealed class HitPreview : Game
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
     }
 
     void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
@@ -212,6 +213,7 @@ sealed class HitPreview : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        AssertHidden();
         if (done) return;
         done = true;
         Execute();
@@ -289,6 +291,13 @@ sealed class HitPreview : Game
             SavePng(Path.Combine(output, $"smooth-{bg}-width.png"), RenderWidthStudy(night, 2f));
         }
         var pixels = RenderWidthStudy(true, 2f, bloom: false);
+        var glowing = RenderWidthStudy(true, 2f);
+        // 飞行样条从 x=720 延伸到 x=80。沿尾段采样亮芯之外的光晕。
+        foreach (int x in new[] { 150, 170, 205, 240, 285, 350 }) {
+            int pixel = 55 * Width + x;
+            if (glowing[pixel].R - pixels[pixel].R < 2)
+                throw new InvalidOperationException($"Missing flight-trail halo at x={x}");
+        }
         SavePng(Path.Combine(output, "smooth-continuity-check.png"), pixels);
         for (int column = 0; column < 2; column++)
         for (int row = 1; row <= 4; row++) {
@@ -325,7 +334,7 @@ sealed class HitPreview : Game
                 batch.End();
                 visual.Draw(GraphicsDevice, trailEffect, trailTexture, path, 1 - Math.Max(0, age),
                     Matrix.CreateScale(zoom) * Matrix.CreateTranslation(column * 780 + 720, row * 75 + 45, 0),
-                    (BlendState)forBloom.Invoke(null, [BlendState.Additive]), zoom);
+                    (BlendState)forBloom.Invoke(null, [BlendState.NonPremultiplied]), zoom);
                 batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
                     DepthStencilState.None, RasterizerState.CullNone);
             }
@@ -366,7 +375,7 @@ sealed class HitPreview : Game
                 {
                     batch.End();
                     visual.Draw(GraphicsDevice, trailEffect, trailTexture, path, 1 - (age - 1f) / visual.ReleaseTicks,
-                        Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.Additive]));
+                        Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.NonPremultiplied]));
                     visual.DrawHead(GraphicsDevice, trailEffect, headStamp, headNoise, path[0], 1 - (age - 1f) / visual.ReleaseTicks,
                         Matrix.Identity, (BlendState)forBloom.Invoke(null, [BlendState.AlphaBlend]));
                     batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
@@ -408,8 +417,16 @@ sealed class HitPreview : Game
 
     void Enqueue(Action callback)
     {
-        request.Invoke(null, ["Elaina:MagicMissileHit", Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), 3),
-            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback, 0]);
+        AssertHidden();
+        request.Invoke(null, ["Elaina:MagicMissileHit", Enum.Parse(queue.GetNestedType("DrawTargetLayer"), "OverPlayers"),
+            Enum.Parse(queue.GetNestedType("DrawTiming"), "Before"), callback, 0]);
+    }
+
+    void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException($"Preview window visible: {flags}");
     }
 
     void DrawScene(bool night, bool trails = false)

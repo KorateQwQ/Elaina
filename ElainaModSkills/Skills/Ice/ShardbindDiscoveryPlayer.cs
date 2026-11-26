@@ -13,6 +13,14 @@ public sealed class ShardbindDiscoveryPlayer : ModPlayer
 
     public override void Initialize() => ExperiencedFrostMoon = DefeatedIceQueen = false;
 
+    public override void OnEnterWorld()
+    {
+        if (!ShardbindSkill.VisualTestMode) return;
+        var skills = Player.GetModPlayer<ElainaSkillModPlayer>();
+        if (!skills.HasUnlockedSkill<ShardbindSkill>())
+            skills.UnlockSkill(KL.SkillSystem.Skill.NewSkill(typeof(ShardbindSkill), Mod));
+    }
+
     public override void PostUpdate()
     {
         if (!ExperiencedFrostMoon && Main.snowMoon && Player.whoAmI == Main.myPlayer) ExperiencedFrostMoon = true;

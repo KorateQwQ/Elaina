@@ -1,0 +1,67 @@
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+public static class IntegrationChecks
+{
+    static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    public static void Run()
+    {
+        KLBasicDust.Instances.Clear();
+        Main.dedServ = true;
+        IceShardDust.Emit(new Vector2(620,247),0,318);
+        Require(KLBasicDust.Instances.Count==0,"Dedicated server allocated ice particles.");
+        Main.dedServ = false;
+        IceShardDust.Emit(new Vector2(620,247),0,318);
+        Require(KLBasicDust.Instances.Count==1,"One impact must consume one dust slot.");
+        Dust particle = KLBasicDust.Instances[0];
+        var info = (KLBasicDust.DustInfo)particle.customData;
+        Require(particle.noGravity && particle.noLight && particle.velocity==Vector2.Zero,"Unexpected vanilla physics.");
+        Require(info.CurrentLifeTime==51,"Spawn must start at age zero.");
+        for(int i=0;i<12;i++) particle.renderer.Update(particle);
+        Require(info.CurrentLifeTime==39,"Lifetime is not driven by update ticks.");
+        Color[] first = Draw(particle), repeated = Draw(particle);
+        Require(Equal(first,repeated) && info.CurrentLifeTime==39,"Repeated drawing advanced state or changed appearance.");
+        Require(Colored(first)>50,"Particle draw was empty.");
+        Main.screenPosition = new Vector2(200,150); particle.position+=Main.screenPosition;
+        Require(Equal(first,Draw(particle)),"Camera translation changed sprite placement.");
+        particle.position-=Main.screenPosition; Main.screenPosition=Vector2.Zero;
+        LayerDrawRequestSystem.ClearFrame(); particle.renderer.SubmitBloomDrawRequest(particle);
+        particle.customData=new KLBasicDust.DustInfo(51,Vector2.One);
+        Require(Colored(DrawQueued())==0,"Queued callback drew a reused dust slot.");
+        particle.customData=info;
+        for(int i=12;i<51;i++) particle.renderer.Update(particle);
+        Require(!particle.active && info.CurrentLifeTime==0,"Particle survived its final tick.");
+        Require(Colored(Draw(particle))==0,"Expired particle remained visible.");
+        KLBasicDust.Instances.Clear();
+        Console.WriteLine("PASS integration: server guard, one-slot emission, tick lifetime, repeat draw, camera translation, slot reuse, expiration.");
+    }
+    static bool Equal(Color[] a,Color[] b) {
+        for(int i=0;i<a.Length;i++) if(a[i]!=b[i]) return false;
+        return true;
+    }
+    static int Colored(Color[] pixels) { int count=0;foreach(var c in pixels)if(c!=Color.Black)count++;return count; }
+    static Color[] Draw(Dust particle) {
+        LayerDrawRequestSystem.ClearFrame();
+        particle.renderer.SubmitBloomDrawRequest(particle);
+        return DrawQueued();
+    }
+    static Color[] DrawQueued() {
+        GraphicsDevice gd=Main.instance.GraphicsDevice;
+        using var target=new RenderTarget2D(gd,960,480,false,SurfaceFormat.Color,DepthFormat.None);
+        gd.SetRenderTarget(target); gd.Clear(Color.Black);
+        Main.spriteBatch.Begin();
+        LayerDrawRequestSystem.Flush(LayerDrawRequestSystem.DrawTargetLayer.Dust,LayerDrawRequestSystem.DrawTiming.Before);
+        Main.spriteBatch.End();
+        gd.SetRenderTarget(null);
+        var data=new Color[960*480];target.GetData(data);return data;
+    }
+    public static Color[] RenderIsolated(float ticks, float angle, float scale) {
+        KLBasicDust.Instances.Clear();
+        IceShardDust.Emit(new Vector2(620,247),angle,318);
+        var particle=KLBasicDust.Instances[0];
+        for(int i=0;i<(int)ticks;i++)particle.renderer.Update(particle);
+        Main.GameViewMatrix.TransformationMatrix=Matrix.CreateTranslation(-620,-247,0)*Matrix.CreateScale(scale)*Matrix.CreateTranslation(620,247,0);
+        var data=Draw(particle);
+        Main.GameViewMatrix.TransformationMatrix=Matrix.Identity;
+        return data;
+    }
+}

@@ -1,4 +1,5 @@
-﻿using System;
+using 伊蕾娜.ElainaModSkills.UICore;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
@@ -30,6 +31,7 @@ internal sealed class PreviewGame : Game
     private readonly bool dollCommands;
     private readonly Dictionary<string, Texture2D> textures = new();
     private bool rendered;
+    private UIRasterShapes shapes;
     private SpriteBatch batch;
     private BasicEffect basic;
     private Matrix transform;
@@ -62,13 +64,16 @@ internal sealed class PreviewGame : Game
     protected override void LoadContent()
     {
         Content.RootDirectory = Path.GetFullPath(Path.Combine(root, "../KL"));
-        var serif = Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC");
+        var serif = new UIRasterFont("NotoSerifSC", Content.Load<DynamicSpriteFont>("Fonts/NotoSerifSC"), 9, 48,
+            path => File.ReadAllBytes(Path.Combine(root, path)), Texture);
+        Content.RootDirectory = root;
         Content.RootDirectory = root;
         var cooldown = Content.Load<Effect>("Effects/Content/SkillSeal");
         var pixel = Texture("Effects/Tex/Baked/WhitePixel");
         var glow = Texture("ElainaModSkills/UICore/Assets/GlowDot");
         var diamond = Texture("ElainaModSkills/UICore/Assets/DiamondFill");
-        art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond), cooldown, serif);
+        shapes = new(pixel, Content.Load<Effect>("Effects/Content/UIShape"));
+        art = new Art(new SkillBarDrawing.StateArt(pixel, glow, diamond, shapes), cooldown, serif);
         basic = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, TextureEnabled = false };
     }
 
@@ -106,7 +111,7 @@ internal sealed class PreviewGame : Game
                     v.Items[i].Label = labels[DollCommands.AtSlot(i)];
                 }
             }
-            foreach (float scale in new[] { 1f, 1.5f })
+            foreach (float scale in new[] { 1f, 1.125f, 1.5f, 2f })
             {
                 Render("doll-idle", scale, v => Doll(v, -1, zh, pointer: new Vector2(140, 90)));
                 Render("doll-hub-cancel", scale, v => Doll(v, -1, zh, pointer: new Vector2(9, 7)));
@@ -127,7 +132,7 @@ internal sealed class PreviewGame : Game
 
         foreach (int count in new[] { 1, 2, 3, 5, 8 })
             Render($"count{count}-idle", 1, v => Fill(v, count, 1, -1, 0));
-        foreach (float scale in new[] { 1f, 1.5f })
+        foreach (float scale in new[] { 1f, 1.125f, 1.5f, 2f })
         {
             Render("sealed-skill", scale, v => {
                 Fill(v, 8, 1, 2, 0);

@@ -1,3 +1,4 @@
+using 伊蕾娜.Localization;
 using KL.SkillSystem;
 using static 伊蕾娜.Localization.UIText;
 using System;
@@ -29,7 +30,7 @@ public class WindSlashSkill : ElainaSkill
         return [(LocalizeUI("Damage"), current.ToString(), next.ToString(), "")];
     }
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
@@ -46,11 +47,11 @@ public class WindSlashSkill : ElainaSkill
 
         float startRotation = (Main.MouseWorld - Player.MountedCenter).ToRotation();
         Player.GetModPlayer<ActionModPlayer>().StartAction(animAction, rotation: startRotation);
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 
     protected override object[] SkillDescriptionArgs => new object[]
     {
-        GetConfiguredDamage(),
+        SkillValueText.Damage(GetConfiguredDamage(), SkillValueKind.Magic),
     };
 }

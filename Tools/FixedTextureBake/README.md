@@ -1,4 +1,4 @@
-# 固定纹理离线预制
+﻿# 固定纹理离线预制
 
 将伊蕾娜模组正式代码中的固定纹理生成移到构建工具，游戏中只调用 `ModContent.Request<Texture2D>`。原先的九次纹理创建合并为八张正式 PNG，两个白像素使用同一资源。
 
@@ -14,10 +14,18 @@
 | UI 菱形 | `ElainaModSkills/UICore/Assets/DiamondFill.png` | 64×64 |
 | 传送门线条横截面 | `ElainaModSkills/Skills/Recall/Assets/PortalLine.png` | 1×32 |
 | 冰霜准星 fbm | `ElainaModSkills/Skills/Ice/Assets/ReticleNoise.png` | 512×512 |
+| 冰锥白色冰石块、柔光与短线图集 | `ElainaModSkills/Skills/Ice/Assets/ShardAtlas.png` | 128×160 |
 
-资源清单位于 `Effects/Tex/Baked/manifest.json`，记录尺寸、RGBA SHA-256、透明度编码。RGBA8 总像素量为 1,523,844 字节，未增加图集/mipmap；不据此宣称帧率提升，改动主要移除运行时固定像素计算和上传路径。
+资源清单位于 `Effects/Tex/Baked/manifest.json`，记录尺寸、RGBA SHA-256、透明度编码。11 张纹理的 RGBA8 总像素量为 1,933,444 字节，均无 mipmap；不据此宣称帧率提升，改动主要移除运行时固定像素计算和上传路径。
 
 `ThinRing` 是 2026-10-28 为升级特效新增的固定纹理：半径 120/128、截面 σ=2 像素的高斯细环，生成函数在 `Bake.cs.txt` 末尾，同样以 `(a,a,a,a)` 存储并写入清单。
+
+`ShardAtlas` 是 2026-11-10 按用户要求预烘焙的六种偏白冰石块，加同批使用的柔光和短线。
+图集占 RGBA8 81,920 字节（80 KiB），替换旧 96×96 ShardGlow。
+生成器为 `IceShardAtlas.cs.txt`，静态二维切面平涂，8×覆盖率采样；预乘 RGBA、透明 padding。
+游戏内仅 SpriteBatch 贴图绘制，冰块不再模拟几何翻滚、逐面光照或排序；具体布局、采样及验证见 `Tools/IceShardPreview/README.md`。
+PNG 与独立打包 rawimg 哈希一致；未实测 FPS 收益。
+
 
 `StarFlare` 是 2026-10-29 为升级头顶星芒新增的纯白四芒星：形状仿 KL `T_StartFlare001`（向核心加粗的光臂、尖角亮芯、淡柔光），但去掉了原图横臂的彩虹色散——缩到几十像素绘制时会采到偏红的行，染成淡紫后显出一条红线。柔光与尖角亮芯乘径向窗口在半径 60 内归零，贴图边框 alpha 为 0；否则提亮到 HDR 后整张贴图的矩形边界会显出来。
 

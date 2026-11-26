@@ -1,0 +1,179 @@
+using System;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
+
+namespace KL.Drawing
+{
+    using static KL.Drawing.DrawHelper;
+
+    /// <summary>
+    /// 预览适配：等同 Action_FireBurst.SubmitExtraVisuals（施法期间）与 FireBurstImpactDust.SubmitBloomDrawRequest（爆燃后）的绘制请求。
+    /// 姿势（CastPose）与领域半径（DomainConstants）由 Preview.cs 从正式源码抽取；绘制全部调用正式 FireBurstCastVisuals。
+    /// 玩家视为静止，ArmCenter 取 MountedCenter + (-3·朝向, -4)（游戏另有手臂贴图偏移）。
+    /// </summary>
+    public static class CastPreview
+    {
+        public static FireBurstCastTextures Textures;
+        public static CastPose Pose;
+        public static Vector2 Center, Ground;
+        public static bool ParticlesOnly;
+        /// <summary>同 Action_FireBurst.impacted：Update 处理到 Impact 帧后为真。</summary>
+        public static bool Impacted;
+        static FireBurstCastMote[] wandMotes, skyMotes;
+        static FireBurstImpactParts parts;
+
+        static void SetHdr(float hdr) => FireBurstCastVisuals.SetIntensity(
+            ModContent.Request<Effect>("伊蕾娜/Effects/Content/FireBurstCast", AssetRequestMode.ImmediateLoad).Value, hdr);
+
+        /// <summary>同 Action_FireBurst.OnStart；随后按帧调用 Advance 到目标帧。</summary>
+        public static void Start(Vector2 center, Vector2 ground, float worldAim, int seed)
+        {
+            var random = new Random(seed);
+            FireBurstCastVisuals.CreateCastMotes(random, out wandMotes, out skyMotes);
+            parts = FireBurstCastVisuals.CreateImpact(random);
+            Center = center; Ground = ground;
+            Pose = new CastPose { center = center, feet = ground, skyOffset = new Vector2(0, -FireBurstCastVisuals.SkyHeight),
+                facing = MathF.Cos(worldAim) < 0f ? -1 : 1 };
+            Pose.owner.Center = center;
+            Pose.ArmCenter = center + new Vector2(-3 * Pose.facing, -4);
+            Pose.aimRight = Pose.Right(worldAim);
+            Pose.WandCenter = WandTip(0);
+            Impacted = false;
+        }
+
+        public static float WorldArm(float t)
+        {
+            float a = Pose.Arm(t);
+            return Pose.facing == 1 ? a : MathHelper.Pi - a;
+        }
+
+        public static Vector2 WandTip(float t) => Pose.ArmCenter + new Vector2(MathF.Cos(WorldArm(t)), MathF.Sin(WorldArm(t))) * 45f;
+
+        /// <summary>魔杖拖尾的世界坐标（正式代码返回相对肩部的偏移，由新到旧）。</summary>
+        public static Vector2[] WandTrail(float t) => Pose.Trail(t) is { } local ? Array.ConvertAll(local, p => p + Pose.ArmCenter) : null;
+
+        /// <summary>
+        /// 同 Action_FireBurst.TrackOwner：爆燃前玩家（中心、脚底、肩部）移动到 center。预览默认玩家静止，
+        /// 回归检查在每次 Advance 前调用它模拟移动。
+        /// </summary>
+        public static void MoveOwner(Vector2 center)
+        {
+            if (Impacted) return;
+            Pose.center = center;
+            Pose.feet = center + new Vector2(0, 21);
+            Pose.owner.Center = center;
+            Pose.ArmCenter = center + new Vector2(-3 * Pose.facing, -4);
+        }
+
+        /// <summary>同 Action_FireBurst.Update：到达 Fall 时记录坠落，到达 Launch 时记录杖尖相对玩家的位置。</summary>
+        public static void Advance(float t)
+        {
+            FireBurstCastTimeline tl = FireBurstCastVisuals.Timeline;
+            if (!Pose.fell && t >= tl.Fall) Pose.fell = true;
+            // 游戏中 WandCenter 是本帧 ApplyPose 后的杖尖；绘制时保持上一次 Update 的姿势
+            Pose.WandCenter = WandTip(t);
+            if (!Pose.launched && t >= tl.Launch)
+            {
+                Pose.launched = true;
+                Pose.launchOffset = Pose.WandCenter - Pose.center;
+            }
+            if (t >= tl.Impact) Impacted = true;
+        }
+
+        public static void Submit(float t)
+        {
+            FireBurstCastTimeline tl = FireBurstCastVisuals.Timeline;
+            Vector2 screen = Main.screenPosition;
+            if (!ParticlesOnly && t < tl.Total && WandTrail(t) is { } trail)
+                ElainaTrailVisualStyle.RequestTrail(() => ElainaTrailVisualStyle.DrawTrail(trail, Pose.Widths(trail), Vector2.Zero, 0f, t / tl.Total,
+                    ElainaTrailVisualStyle.FireWandColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
+                    ElainaTrailVisualStyle.DefaultTrailEndWidth, ElainaTrailVisualStyle.DefaultTrailFadeInEnd,
+                    ElainaTrailVisualStyle.DefaultTrailFadeOutStart));
+            if (!Impacted)
+            {
+                // 同 SubmitExtraVisuals：Update 尚未处理 Impact 时火种停在落点多画一帧
+                t = Math.Min(t, tl.Impact - 0.001f);
+                var frame = new FireBurstCastFrame
+                {
+                    Time = t,
+                    WandTip = WandTip(t) - screen,
+                    Seed = Pose.SeedAt(t) - screen,
+                    SeedTrail = FireBurstCastVisuals.SeedTrailPath(t, x => Pose.SeedAt(x) - screen),
+                    Sky = Pose.SkyAt() - screen,
+                    WandMotes = wandMotes,
+                    SkyMotes = skyMotes,
+                };
+                LayerDrawRequestSystem.RequestBloom("Elaina:FireBurstCast", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                    LayerDrawRequestSystem.DrawTiming.Before, () =>
+                    {
+                        EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
+                        FireBurstCastVisuals.DrawCast(Main.spriteBatch, Textures, frame, SetHdr);
+                        EndBeginDraw();
+                    }, order: LayerDrawRequestSystem.DustOrder + 2);
+                return;
+            }
+
+            // 爆燃帧：领域与粒子在同一 tick 生成并更新一次，均从 1 开始
+            int n = (int)(t - tl.Impact) + 1;
+            Vector2 center = Center;
+            if (ParticlesOnly)
+            {
+                LayerDrawRequestSystem.RequestBloom("Elaina:FireBurstDomain:Impact", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                    LayerDrawRequestSystem.DrawTiming.Before, () =>
+                    {
+                        EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
+                        FireBurstCastVisuals.DrawImpactParticles(Main.spriteBatch, Textures, Center - Main.screenPosition, n, parts, SetHdr);
+                        EndBeginDraw();
+                    }, order: LayerDrawRequestSystem.DustOrder);
+                return;
+            }
+            LayerDrawRequestSystem.RequestBloom("Elaina:FireBurstDomain:Ring", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.Before, () => DomainRingPreview.Draw(center, DomainConstants.Radius, n, 600f),
+                order: LayerDrawRequestSystem.TrailOrder - 1);
+            if (n > FireBurstCastVisuals.ImpactDuration) return;
+            LayerDrawRequestSystem.RequestBloom("Elaina:FireBurstDomain:Impact", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.Before, () =>
+                {
+                    Vector2 ground = Ground - Main.screenPosition, centerScreen = Center - Main.screenPosition;
+                    EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
+                    FireBurstCastVisuals.DrawImpact(Main.spriteBatch, Textures, ground, centerScreen, DomainConstants.Radius, n, parts,
+                        new Rectangle(0, 0, Main.screenWidth, Main.screenHeight), SetHdr);
+                    EndBeginDraw();
+                }, order: LayerDrawRequestSystem.DustOrder);
+        }
+
+        public static void CheckImpactParticles()
+        {
+            Vector2 center = new(730, -210);
+            for (int seed = 0; seed < 8; seed++)
+            {
+                var sample = FireBurstCastVisuals.CreateImpact(new Random(seed));
+                int[,] quadrants = new int[2, 4];
+                foreach (var particle in sample.Particles)
+                {
+                    if (FireBurstCastVisuals.ImpactParticlePosition(particle, center, 0) != center)
+                        throw new Exception("Impact particle did not start at the domain center");
+                    if (particle.Delay < 0 || particle.Life <= 0 || particle.Delay + particle.Life > FireBurstCastVisuals.ImpactDuration)
+                        throw new Exception("Impact particle lifetime exceeds its owner");
+                    Vector2 first = FireBurstCastVisuals.ImpactParticlePosition(particle, center, 1) - center;
+                    int quadrant = (first.X < 0 ? 1 : 0) + (first.Y < 0 ? 2 : 0);
+                    quadrants[particle.Star ? 0 : 1, quadrant]++;
+                    float previous = 0;
+                    for (int age = 1; age <= particle.Life; age++)
+                    {
+                        Vector2 offset = FireBurstCastVisuals.ImpactParticlePosition(particle, center, age) - center;
+                        float radius = offset.Length();
+                        float cross = MathF.Abs(first.X * offset.Y - first.Y * offset.X) / (first.Length() * radius);
+                        if (!float.IsFinite(radius) || radius <= previous || cross > 0.001f)
+                            throw new Exception("Impact particle must move outward without drifting or falling");
+                        previous = radius;
+                    }
+                }
+                foreach (int count in quadrants)
+                    if (count == 0) throw new Exception("Both star and dot particles must cover all quadrants");
+            }
+            Console.WriteLine("PASS: stars and dots start at the domain center and spread radially through all quadrants");
+        }
+    }
+}

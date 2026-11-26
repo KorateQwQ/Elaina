@@ -1,9 +1,10 @@
-﻿param(
+param(
     [ValidateSet('zh-Hans','en-US')][string]$Culture = 'zh-Hans',
     [switch]$LocalizationOnly,
     [switch]$FireOnly,
     [switch]$IceWaterOnly,
     [switch]$ResolutionOnly,
+    [switch]$NodeLabelsOnly,
     [switch]$RingsOnly,
     [string]$Tml = 'D:/Steam/steamapps/common/tModLoader',
     [string]$Sources = 'D:/泰拉原版贴图与代码与其他工具/tModLoader',
@@ -100,6 +101,7 @@ function Add-Item([string]$kind, [string]$path) {
     return $node
 }
 $null = Add-Item 'Compile' "$repo/Localization/UIText.cs"
+$null = Add-Item 'Compile' "$repo/Localization/SkillValueText.cs"
 $null = Add-Item 'Compile' "$repo/Tools/LocalizationChecks/PreviewLocalization.cs.txt"
 $null = Add-Item 'Compile' "$PSScriptRoot/RingPreview.cs.txt"
 $null = Add-Item 'Reference' "$Tml/Libraries/hjson/3.0.0/lib/netstandard1.3/Hjson.dll"
@@ -113,6 +115,7 @@ $null = Add-Item 'Compile' "$repo/ElainaModSkills/ElainaSkill.Constellation.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Heal/HealSkill.Values.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/Skills/Alchemy/AlchemySkill.Values.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModAlchemy/Gameplay/AlchemyEfficiency.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillHitBalance.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillBalanceConfig.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillStageGate.cs"
 $null = Add-Item 'Compile' "$repo/ElainaModSkills/SkillForgetting.cs"
@@ -124,6 +127,9 @@ $null = Add-Item 'Compile' "$PSScriptRoot/RecallResearchChecks.cs.txt"
 foreach ($name in @('SnippetModule','SnippetLine','SnippetToken')) { $null = Add-Item 'Compile' "$SilkySources/Components/$name.cs" }
 $null = Add-Item 'Compile' "$SilkySources/Helper/TextSnippetHelper.cs"
 foreach ($name in @('KLTextureSnippet','KLTextureTagHandler','KLTerms')) { $null = Add-Item 'Compile' "$repo/../KL/Drawing/Snippets/$name.cs" }
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/UICore/UIBatch.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/UICore/UIRasterShapes.cs"
+$null = Add-Item 'Compile' "$repo/ElainaModSkills/UICore/UIRasterFont.cs"
 $null = Add-Item 'Compile' "$ui/ConstellationFont.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SkillUnlockCondition.cs"
 $null = Add-Item 'Compile' "$repo/../KL/SkillSystem/SilkyUI/SkillUIInfoAttribute.cs"
@@ -138,6 +144,7 @@ if ($LocalizationOnly) { $previewArgs += '--localization-only' }
 if ($FireOnly) { $previewArgs += '--fire-only' }
 if ($IceWaterOnly) { $previewArgs += '--ice-water-only' }
 if ($ResolutionOnly) { $previewArgs += '--resolution-only' }
+if ($NodeLabelsOnly) { $previewArgs += '--node-labels-only' }
 if ($RingsOnly) { $previewArgs += '--rings-only' }
 if ($IconsOnly) { $previewArgs += '--icons-only' }
 if ($HeadersOnly) { $previewArgs += '--headers-only' }

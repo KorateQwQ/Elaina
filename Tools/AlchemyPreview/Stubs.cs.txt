@@ -24,7 +24,7 @@ namespace Terraria.ModLoader
     {
         public static T GetInstance<T>() where T : new() => new();
         public static Asset<T> Request<T>(string path, AssetRequestMode mode)
-            => new((T)(object)AlchemyPreviewGame.Texture(path));
+            => new((T)(typeof(T) == typeof(Effect) ? (object)AlchemyPreviewGame.Effect(path) : AlchemyPreviewGame.Texture(path)));
     }
 }
 namespace 伊蕾娜 { public sealed class 伊蕾娜 : Terraria.ModLoader.Mod { } }

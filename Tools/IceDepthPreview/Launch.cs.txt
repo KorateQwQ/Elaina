@@ -35,7 +35,8 @@ sealed partial class Probe
         var ai = cone.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "AI");
         // Omit particles and lighting; preserve the actual movement, owner delta, rotation, clock and trail activation.
         ai = ai.ReplaceNodes(ai.DescendantNodes().OfType<ExpressionStatementSyntax>()
-            .Where(s => s.Expression.ToString().StartsWith("KLBasicDust.") || s.Expression.ToString().StartsWith("Lighting.")),
+            .Where(s => s.Expression.ToString().StartsWith("KLBasicDust.") || s.Expression.ToString().StartsWith("Lighting.")
+                || s.Expression.ToString().StartsWith("IceConeWindDust.")),
             (_, _) => SyntaxFactory.ExpressionStatement(SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName("OmitParticle"))));
         source += ai.ToFullString() + Methods(cone, "UpdateMovement", "DrawBehind")
             .Replace("AssetManager.GetTexture(\"KL.Effects.Tex.Trail.streak_801_4r\")", "previewTrail")
@@ -102,6 +103,7 @@ sealed partial class Probe
                     TrailManager.SubmitDrawRequests();
                     BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindProjectiles);
                     BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                    BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
                 }
             }}
             """;

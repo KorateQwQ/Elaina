@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using KL.ActionsSystem;
 using KL.Extensions;
 using Terraria.DataStructures;
@@ -29,6 +30,7 @@ public abstract class ElainaAction :AnimAction
 
     
     protected virtual bool DrawWandTrail => true;
+    protected virtual bool WandTrailBehindPlayer => false;
 
     protected virtual bool DrawActionStar => true;
 
@@ -37,6 +39,8 @@ public abstract class ElainaAction :AnimAction
     private Vector2[] wandTrailPositions = Array.Empty<Vector2>();
 
     private int wandTrailPointCount;
+
+    private readonly List<ElainaTrailSnapshot> lastTrails = new();
 
     protected static Texture2D wandTex; 
 
@@ -49,6 +53,7 @@ public abstract class ElainaAction :AnimAction
     {
         owner = actionPlayer.Player;
         ResetWandTrail();
+        lastTrails.Clear();
         base.OnStart(actionPlayer);
     }
 
@@ -95,7 +100,7 @@ public abstract class ElainaAction :AnimAction
         wandTrailPointCount = 0;
     }
 
-    private void UpdateWandTrail()
+    internal void UpdateWandTrail()
     {
         if (!DrawWandTrail || wandTrailPositions.Length == 0||Main.gamePaused)
         {
@@ -152,7 +157,7 @@ public abstract class ElainaAction :AnimAction
         });
 
     }
-    private void RequestAutoWandTrailBloom(float actionProgress)
+    private void RequestAutoWandTrail(float actionProgress)
     {
         if (!DrawWandTrail || wandTrailPointCount < 2)
         {
@@ -162,12 +167,36 @@ public abstract class ElainaAction :AnimAction
         Vector2[] trailPositions = new Vector2[wandTrailPointCount];
         Array.Copy(wandTrailPositions, trailPositions, wandTrailPointCount);
 
-        ElainaTrailVisualStyle.RequestTrailBloom(() => DrawWandTrailVisual(trailPositions, actionProgress));
+        SubmitTrail(CreateWandTrailVisual(trailPositions, actionProgress));
     }
 
-    protected virtual void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    protected virtual ElainaTrailSnapshot CreateWandTrailVisual(Vector2[] points, float actionProgress)
     {
-        ElainaTrailVisualStyle.DrawWandTrail(points, actionProgress);
+        return new ElainaTrailSnapshot(points, Vector2.Zero, 0f, actionProgress,
+            ElainaTrailVisualStyle.DefaultWandTrailColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
+            ElainaTrailVisualStyle.DefaultTrailEndWidth, behindPlayer: WandTrailBehindPlayer);
+    }
+
+    protected void SubmitTrail(ElainaTrailSnapshot trail)
+    {
+        if (!trail.Visible)
+            return;
+        lastTrails.Add(trail);
+        trail.RequestDraw();
+    }
+
+    public override void OnInterrupt(ActionModPlayer actionPlayer)
+    {
+        ElainaActionDrawSystem.RetainTrails(owner, lastTrails);
+        lastTrails.Clear();
+        base.OnInterrupt(actionPlayer);
+    }
+
+    public override void OnFinish(ActionModPlayer actionPlayer)
+    {
+        // 正常结束已由动作包络归零；只有中断需要延续上一帧可见轨迹。
+        lastTrails.Clear();
+        base.OnFinish(actionPlayer);
     }
 
     protected void SyncItemRotationToArmRotation()
@@ -193,25 +222,32 @@ public abstract class ElainaAction :AnimAction
         // CacheProjDraws runs before the projectile Bloom queue is consumed and before player drawing.
         int actionFrame = actionPlayer.CurrentActionFrame;
         float actionProgress = GetProgress(actionFrame);
-        UpdateWandTrail();
-        RequestAutoWandTrailBloom(actionProgress);
+        lastTrails.Clear();
+        RequestAutoWandTrail(actionProgress);
         foreach (ActionNode node in Nodes)
         {
             if (node is SlashTrailActionNode trail && node.IsActive(actionFrame))
             {
-                trail.SubmitTrailBloom(actionPlayer, node.GetProgress(actionFrame));
+                SubmitTrail(trail.CaptureTrail(actionPlayer, node.GetProgress(actionFrame)));
             }
         }
 
         if (DrawActionStar)
         {
-            RequestActionStarBloom(actionProgress);
+            RequestActionStar(actionProgress);
         }
+
+        SubmitExtraVisuals(actionPlayer, actionFrame, actionProgress);
     }
 
-    protected virtual void RequestActionStarBloom(float actionProgress)
+    /// <summary>动作专属的额外绘制请求，与魔杖拖尾、星芒在同一时机提交（早于弹幕 Bloom 队列被消费）。</summary>
+    protected virtual void SubmitExtraVisuals(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
-        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+    }
+
+    protected virtual void RequestActionStar(float actionProgress)
+    {
+        ElainaTrailVisualStyle.RequestStar(StarCenter.Floor(), actionProgress,
             ElainaTrailVisualStyle.DefaultStarColor);
     }
 }

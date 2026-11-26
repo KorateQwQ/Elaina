@@ -1,0 +1,297 @@
+using System;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+// 独立美术原型。所有位置以世界像素表示，Draw 不推进状态；未来可迁移同一绘制方法。
+sealed class IceShardScene : IDisposable
+{
+    readonly GraphicsDevice device;
+    readonly SpriteBatch batch;
+    readonly BasicEffect effect;
+    readonly Texture2D pixel, mist;
+    readonly List<VertexPositionColor> vertices = new();
+    readonly RasterizerState clipped = new() { CullMode = CullMode.None, ScissorTestEnable = true };
+    Vector2 origin;
+    float zoom;
+    bool combinedMode;
+
+    public IceShardScene(GraphicsDevice device)
+    {
+        this.device = device;
+        batch = new SpriteBatch(device);
+        effect = new BasicEffect(device) {
+            VertexColorEnabled = true, World = Matrix.Identity, View = Matrix.Identity,
+            Projection = Matrix.CreateOrthographicOffCenter(0, 960, 480, 0, -1000, 1000)
+        };
+        // 仅在 Tools 原型动态生成；正式接入时导出固定 PNG。
+        pixel = new Texture2D(device, 1, 1);
+        pixel.SetData(new[] { Color.White });
+        mist = new Texture2D(device, 96, 96);
+        var colors = new Color[96 * 96];
+        for (int y = 0; y < 96; y++)
+        for (int x = 0; x < 96; x++)
+        {
+            float r = new Vector2((x - 47.5f) / 47.5f, (y - 47.5f) / 47.5f).Length();
+            float a = MathF.Pow(Math.Max(0, 1 - r * r), 3);
+            colors[y * 96 + x] = Color.White * a;
+        }
+        mist.SetData(colors);
+    }
+
+    public void Draw(float time, string mode)
+    {
+        combinedMode = false;
+        bool dark = mode == "dark";
+        device.Clear(dark ? new Color(13, 28, 40) : new Color(51, 108, 118));
+        for (int panel = 0; panel < 2; panel++)
+        {
+            device.ScissorRectangle = new Rectangle(panel * 480, 0, 480, 480);
+            origin = new Vector2(panel * 480 + 270, 247);
+            zoom = panel == 0 ? 1 : 2;
+            Background(panel, dark);
+            int impacts = mode == "continuous" ? 10 : 1;
+            for (int i = 0; i < impacts; i++)
+            {
+                float age = time - .40f - i * .20f;
+                Vector2 offset = mode == "continuous"
+                    ? new Vector2(MathF.Sin(i * 3.7f) * 8, MathF.Sin(i * 2.4f) * 20) : Vector2.Zero;
+                Impact(age, 318 + i * 19, offset);
+            }
+        }
+        device.ScissorRectangle = new Rectangle(0, 0, 960, 480);
+        batch.Begin();
+        batch.Draw(pixel, new Rectangle(479, 0, 2, 480), new Color(132, 187, 191) * .35f);
+        batch.End();
+    }
+
+    public void DrawComboBackground(bool dark)
+    {
+        device.ScissorRectangle = new Rectangle(0, 0, 960, 480);
+        device.Clear(dark ? new Color(13, 28, 40) : new Color(51, 108, 118));
+        Background(0, dark);
+        Background(1, dark);
+    }
+
+    public void DrawComboParticles(float time, bool continuous)
+    {
+        combinedMode = true;
+        origin = new Vector2(620, 247);
+        zoom = 1;
+        device.ScissorRectangle = new Rectangle(0, 0, 960, 480);
+        for (int i = 0; i < (continuous ? 10 : 1); i++)
+        {
+            float age = time - .75f - i * .2f;
+            if (age < 0) continue;
+            Impact(age, 318+i*19, new Vector2(MathF.Sin(i*3.7f)*8, MathF.Sin(i*2.4f)*20));
+        }
+    }
+
+    public void DrawParticleReference(float seconds)
+    {
+        combinedMode = true;
+        origin = new Vector2(620,247); zoom = 1;
+        device.ScissorRectangle = new Rectangle(0,0,960,480);
+        Impact(seconds,318,Vector2.Zero);
+    }
+
+    void Background(int panel, bool dark)
+    {
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, clipped);
+        int left = panel * 480;
+        for (int x = 0; x < 480; x += 16)
+        {
+            int h = 275 + (int)(MathF.Sin(x * .009f + 1) * 16 + MathF.Cos(x * .027f) * 7);
+            batch.Draw(pixel, new Rectangle(left + x, h, 16, 480 - h),
+                dark ? new Color(15, 36, 47) : new Color(45, 94, 105));
+        }
+        batch.End();
+    }
+
+    void Impact(float age, int seed, Vector2 offset)
+    {
+        if (age < -.24f || age > .85f) return;
+        vertices.Clear();
+        if (age < 0)
+        {
+            Vector2 tip = offset + new Vector2(age * 940, 0);
+            Triangle(tip, tip + new Vector2(-88, -2), tip + new Vector2(-88, 2), new Color(123, 220, 244) * .12f);
+            Shard(tip + new Vector2(-30, 0), 72, 11, .10f, .2f, .30f, 1, .8f);
+            Flush();
+            return;
+        }
+
+        var random = new Random(seed);
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, clipped);
+        for (int i = 0; i < 5; i++)
+        {
+            float angle = Next(random, -2.9f, 2.9f);
+            float life = Next(random, .19f, .32f);
+            Vector2 p = offset + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * age * Next(random, 15, 55);
+            float opacity = .085f * MathF.Pow(Math.Max(0, 1 - age / life), 1.7f);
+            if (combinedMode) opacity = 0;
+            float size = 17 + age * 48;
+            batch.Draw(mist, Map(p), null, new Color(174, 227, 239) * opacity, angle,
+                new Vector2(48), new Vector2(size * 1.5f, size) / 48 * zoom, SpriteEffects.None, 0);
+        }
+        float flash = MathF.Pow(Math.Max(0, 1 - age / .085f), 2);
+        if (combinedMode) flash = 0;
+        batch.Draw(mist, Map(offset), null, new Color(208, 248, 255) * (.48f * flash), 0,
+            new Vector2(48), .65f * zoom, SpriteEffects.None, 0);
+        batch.End();
+
+        // 小型冰石块与稀疏光点；主块仅 7–11 世界像素，不使用长尖碎片。
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, clipped);
+        for (int i = 0; i < 27; i++)
+        {
+            bool main = i < 5, medium = i >= 5 && i < 9;
+            float angle = main ? new[] { -2.6f, -1.6f, -.5f, .65f, 2.0f }[i] + Next(random, -.3f, .3f) : Next(random, -MathF.PI, MathF.PI);
+            float speed = Next(random, main ? 110 : 70, main ? 240 : 275);
+            float life = Next(random, main ? .55f : .28f, main ? .82f : .58f);
+            float length = main ? Next(random, 7, 11) : medium ? Next(random, 3, 5) : Next(random, .5f, 1.1f);
+            float width = length * Next(random, .65f, .90f);
+            float rotation = Next(random, -3, 3);
+            float spin = Next(random, -5, 5);
+            float phase = Next(random, -2, 2);
+            if (age >= life) continue;
+            float drag = main ? .85f : 1.9f;
+            float travel = (1 - MathF.Exp(-drag * age)) / drag;
+            Vector2 p = offset + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * speed * travel
+                + new Vector2(0, (main ? 85 : 22) * age * age);
+            float fade = 1 - Smooth(.48f, 1, age / life);
+            if (main || medium)
+            {
+                IceStone(p, length, width, rotation + spin * age * .65f, phase + age * 3.8f,
+                    .35f + age * spin * .35f, fade, i);
+                batch.Draw(mist, Map(p), null, new Color(86, 210, 255) * (fade * .20f), 0,
+                    new Vector2(48), length * .18f / 6 * zoom, SpriteEffects.None, 0);
+            }
+            else
+            {
+                float twinkle = .65f + .35f * MathF.Pow(MathF.Sin(phase + age * 12), 2);
+                batch.Draw(mist, Map(p), null, new Color(145, 222, 255) * (fade * twinkle * .45f), 0,
+                    new Vector2(48), length * .085f * zoom, SpriteEffects.None, 0);
+                batch.Draw(mist, Map(p), null, new Color(224, 248, 255) * (fade * twinkle), 0,
+                    new Vector2(48), length * .024f * zoom, SpriteEffects.None, 0);
+            }
+            // 仅保留数条非常短的撞击速度线。
+            if (i >= 9 && i < 12 && age < .07f)
+                Line(p, p - new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (7 * (1 - age / .07f)),
+                    .65f, new Color(215, 250, 255) * (.65f * (1 - age / .07f)));
+        }
+        batch.End();
+        if (flash > 0)
+        {
+            Line(offset - new Vector2(11, 0), offset + new Vector2(7, 0), 1.1f, new Color(228, 255, 255) * flash);
+            Line(offset - new Vector2(0, 8), offset + new Vector2(0, 8), .7f, new Color(185, 243, 255) * flash);
+        }
+        Flush();
+    }
+
+    void IceStone(Vector2 center, float length, float width, float rotation, float tumble,
+        float tilt, float alpha, int variant)
+    {
+        // 不规则五边形截面加厚度：上下面是宽切面，侧面是短断口，避免菱形尖晶体。
+        Vector2[][] silhouettes = {
+            new[] { new Vector2(-.48f,-.19f), new Vector2(-.19f,-.50f), new Vector2(.40f,-.30f), new Vector2(.46f,.28f), new Vector2(-.27f,.48f) },
+            new[] { new Vector2(-.46f,-.39f), new Vector2(.12f,-.47f), new Vector2(.49f,-.09f), new Vector2(.27f,.45f), new Vector2(-.38f,.32f) },
+            new[] { new Vector2(-.49f,-.13f), new Vector2(-.10f,-.44f), new Vector2(.35f,-.39f), new Vector2(.44f,.38f), new Vector2(-.30f,.47f) }
+        };
+        Vector2[] ring = silhouettes[variant % silhouettes.Length];
+        var points = new Vector3[12];
+        for (int i = 0; i < 5; i++)
+        {
+            points[i] = new Vector3(ring[i].X * length, ring[i].Y * width, width * .28f);
+            points[i+5] = new Vector3((ring[i].X * .78f + .08f) * length,
+                (ring[i].Y * .83f + .09f) * width, -width * .30f);
+        }
+        points[10] = new Vector3(-length * .07f, -width * .04f, width * .37f);
+        points[11] = new Vector3(length * .04f, width * .06f, -width * .34f);
+        Matrix m = Matrix.CreateRotationX(tumble) * Matrix.CreateRotationY(tilt) * Matrix.CreateRotationZ(rotation);
+        for (int i = 0; i < points.Length; i++) points[i] = Vector3.Transform(points[i], m);
+        var faces = new List<int[]>();
+        for (int i = 0; i < 5; i++)
+        {
+            int next = (i + 1) % 5;
+            faces.Add(new[] { i, next, 10 });
+            faces.Add(new[] { next+5, i+5, 11 });
+            faces.Add(new[] { i, i+5, next+5 });
+            faces.Add(new[] { i, next+5, next });
+        }
+        faces.Sort((a,b) => (points[a[0]].Z + points[a[1]].Z + points[a[2]].Z)
+            .CompareTo(points[b[0]].Z + points[b[1]].Z + points[b[2]].Z));
+        Vector3 light = Vector3.Normalize(new Vector3(-.45f, -.65f, 1));
+        foreach (int[] face in faces)
+        {
+            Vector3 a = points[face[0]], b = points[face[1]], c = points[face[2]];
+            Vector3 normal = Vector3.Normalize(Vector3.Cross(b-a,c-a));
+            if (normal.Z < 0) normal = -normal;
+            float brightness = Math.Clamp(Vector3.Dot(normal, light), 0, 1);
+            Color color = brightness < .60f
+                ? Color.Lerp(new Color(53, 143, 207), new Color(106, 217, 248), brightness / .60f)
+                : Color.Lerp(new Color(106, 217, 248), new Color(218, 249, 255), (brightness-.60f)/.40f);
+            Triangle(center+XY(a), center+XY(b), center+XY(c), color * alpha);
+        }
+    }
+
+    void Shard(Vector2 center, float length, float width, float rotation, float tumble, float tilt, float alpha, float glint)
+    {
+        Vector3[] model = {
+            new(length * .60f, 0, 0), new(-length * .42f, -width * .47f, 0),
+            new(-length * .53f, width * .23f, 0), new(-length * .10f, width * .55f, 0),
+            new(-length * .05f, 0, width * .35f), new(-length * .05f, 0, -width * .22f)
+        };
+        Matrix m = Matrix.CreateRotationX(tumble) * Matrix.CreateRotationY(tilt) * Matrix.CreateRotationZ(rotation);
+        var transformed = new Vector3[model.Length];
+        for (int i = 0; i < model.Length; i++) transformed[i] = Vector3.Transform(model[i], m);
+        int[][] faces = { new[] { 0,1,4 }, new[] { 1,2,4 }, new[] { 2,3,4 }, new[] { 3,0,4 },
+            new[] { 1,0,5 }, new[] { 2,1,5 }, new[] { 3,2,5 }, new[] { 0,3,5 } };
+        Array.Sort(faces, (a,b) => (transformed[a[0]].Z + transformed[a[1]].Z + transformed[a[2]].Z)
+            .CompareTo(transformed[b[0]].Z + transformed[b[1]].Z + transformed[b[2]].Z));
+        Vector3 light = Vector3.Normalize(new Vector3(-.4f, -.7f, 1));
+        foreach (int[] face in faces)
+        {
+            Vector3 a = transformed[face[0]], b = transformed[face[1]], c = transformed[face[2]];
+            Vector3 normal = Vector3.Normalize(Vector3.Cross(b - a, c - a));
+            if (normal.Z < 0) normal = -normal;
+            float brightness = Math.Clamp(Vector3.Dot(normal, light), 0, 1);
+            Color color = Color.Lerp(new Color(46, 126, 160), new Color(199, 239, 247), brightness);
+            Triangle(center + XY(a), center + XY(b), center + XY(c), color * alpha);
+        }
+        Vector2 tip = center + XY(transformed[0]);
+        Vector2 ridge = center + XY(transformed[4]);
+        Line(tip, ridge, .65f, new Color(220, 253, 255) * (alpha * (.35f + .45f * glint)));
+    }
+
+    Vector2 Map(Vector2 p) => origin + p * zoom;
+    static Vector2 XY(Vector3 p) => new(p.X, p.Y);
+    static float Next(Random r, float min, float max) => min + (float)r.NextDouble() * (max - min);
+    static float Smooth(float a, float b, float value) { float t = Math.Clamp((value - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+    void Triangle(Vector2 a, Vector2 b, Vector2 c, Color color)
+    {
+        vertices.Add(new VertexPositionColor(new Vector3(Map(a), 0), color));
+        vertices.Add(new VertexPositionColor(new Vector3(Map(b), 0), color));
+        vertices.Add(new VertexPositionColor(new Vector3(Map(c), 0), color));
+    }
+    void Line(Vector2 a, Vector2 b, float width, Color color)
+    {
+        Vector2 d = b - a;
+        if (d.LengthSquared() < .001f) return;
+        Vector2 n = Vector2.Normalize(new Vector2(-d.Y, d.X)) * width * .5f;
+        Triangle(a+n, b+n, b-n, color);
+        Triangle(a+n, b-n, a-n, color);
+    }
+    void Flush()
+    {
+        if (vertices.Count == 0) return;
+        device.BlendState = BlendState.AlphaBlend;
+        device.DepthStencilState = DepthStencilState.None;
+        device.RasterizerState = clipped;
+        effect.CurrentTechnique.Passes[0].Apply();
+        device.DrawUserPrimitives(PrimitiveType.TriangleList, vertices.ToArray(), 0, vertices.Count / 3);
+    }
+    public void Dispose() { batch.Dispose(); effect.Dispose(); pixel.Dispose(); mist.Dispose(); clipped.Dispose(); }
+}

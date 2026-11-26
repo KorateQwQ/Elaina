@@ -1,0 +1,22 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using System.Text;
+
+static class CompileSheet
+{
+    static void Main(string[] args)
+    {
+        Console.OutputEncoding = new UTF8Encoding(false);
+        // Call the existing XNA build API without the CLI's Console.ReadKey.
+        var assembly = Assembly.LoadFrom(args[0]);
+        var type = assembly.GetType("XNBCompiler.XNBBuilder", true);
+        var builder = Activator.CreateInstance(type, new object[] { "Windows", "HiDef", false });
+        object[] parameters = { new[] { args[1] }, args[2], true, Path.GetDirectoryName(args[1]), false };
+        type.GetMethod("PackageContent").Invoke(builder, parameters);
+        var errors = (List<string>)type.GetMethod("GetErrors").Invoke(builder, null);
+        if (!(bool)parameters[4] || errors.Count != 0)
+            throw new InvalidOperationException("ChargeSheet compilation failed:\n" + string.Join("\n", errors));
+    }
+}

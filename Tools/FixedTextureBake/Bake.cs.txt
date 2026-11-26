@@ -29,8 +29,10 @@ foreach (var entry in OriginalFixedTextures.UiMasks())
 }
 Export("ElainaModSkills/UICore/Assets/ThinRing", 256, 256, ThinRing());
 Export("ElainaModSkills/UICore/Assets/StarFlare", 128, 128, StarFlare());
+Export("ElainaAttribute/ResourceBarAssets/StarGlow", 64, 64, StarGlow());
 Export("ElainaModSkills/Skills/Recall/Assets/PortalLine", 1, 32, OriginalFixedTextures.PortalLine());
 Export("ElainaModSkills/Skills/Ice/Assets/ReticleNoise", 512, 512, OriginalFixedTextures.IceNoise());
+Export("ElainaModSkills/Skills/Ice/Assets/ShardAtlas", 128, 160, IceShardAtlas.Build());
 File.WriteAllText(Path.Combine(output, "pixels.json"), JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true }));
 float[] thresholds = OriginalFixedTextures.BuildRevealThresholds(cloud);
 string literals = string.Join(",\n        ", thresholds.Select(f => f.ToString("R", CultureInfo.InvariantCulture) + "f"));
@@ -85,6 +87,85 @@ static Color[] StarFlare()
             float haze = .18f * MathF.Exp(-(r / 45f) * (r / 45f)) * window;
             float coverage = 1 - (1 - Arm(dx, dy)) * (1 - Arm(dy, dx)) * (1 - core) * (1 - cusp) * (1 - haze);
             int a = (int)MathF.Round(255 * Math.Clamp(coverage, 0, 1));
+            pixels[y * size + x] = new Color(a, a, a, a);
+        }
+    return pixels;
+}
+
+// Charge-point glow: the resource-bar star4 (quadratic arms, control at 0.16 R) with R = 12 of 64,
+// Gaussian-blurred twice (tight sigma 1.6 keeps the star outline, wide sigma 4.5 spreads it) plus a faint round halo.
+// Windowed to zero before the border; premultiplied (a, a, a, a). Drawn additively (vertex alpha 0) by ChargePointHud.
+static Color[] StarGlow()
+{
+    const int size = 64, samples = 8;
+    const float radius = 12f, control = .16f * radius;
+    var outline = new List<Vector2>();
+    for (int q = 0; q < 4; q++)
+        for (int k = 0; k < 24; k++)
+        {
+            float t = k / 24f, u = 1 - t;
+            // First quadrant arm from (0, -R) to (R, 0) through (c, -c), then rotated by quarter turns.
+            var p = new Vector2(2 * t * u * control + t * t * radius, -(u * u * radius + 2 * t * u * control));
+            outline.Add(q switch { 0 => p, 1 => new(-p.Y, p.X), 2 => -p, _ => new(p.Y, -p.X) });
+        }
+    bool Inside(float x, float y)
+    {
+        bool inside = false;
+        for (int i = 0, j = outline.Count - 1; i < outline.Count; j = i++)
+        {
+            Vector2 a = outline[i], b = outline[j];
+            if ((a.Y > y) != (b.Y > y) && x < (b.X - a.X) * (y - a.Y) / (b.Y - a.Y) + a.X) inside = !inside;
+        }
+        return inside;
+    }
+    var mask = new float[size * size];
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            int hits = 0;
+            for (int sy = 0; sy < samples; sy++)
+                for (int sx = 0; sx < samples; sx++)
+                    if (Inside(x + (sx + .5f) / samples - size / 2f, y + (sy + .5f) / samples - size / 2f)) hits++;
+            mask[y * size + x] = hits / (float)(samples * samples);
+        }
+    float[] Blur(float[] source, float sigma)
+    {
+        int reach = (int)MathF.Ceiling(sigma * 3);
+        var kernel = new float[reach * 2 + 1];
+        float sum = 0;
+        for (int i = -reach; i <= reach; i++) sum += kernel[i + reach] = MathF.Exp(-i * i / (2 * sigma * sigma));
+        for (int i = 0; i < kernel.Length; i++) kernel[i] /= sum;
+        var pass = new float[size * size];
+        var result = new float[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float v = 0;
+                for (int i = -reach; i <= reach; i++)
+                    if (x + i >= 0 && x + i < size) v += source[y * size + x + i] * kernel[i + reach];
+                pass[y * size + x] = v;
+            }
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float v = 0;
+                for (int i = -reach; i <= reach; i++)
+                    if (y + i >= 0 && y + i < size) v += pass[(y + i) * size + x] * kernel[i + reach];
+                result[y * size + x] = v;
+            }
+        return result;
+    }
+    float[] tight = Blur(mask, 1.6f), wide = Blur(mask, 4.5f);
+    float tightPeak = tight.Max(), widePeak = wide.Max();
+    var pixels = new Color[size * size];
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float dx = x + .5f - size / 2f, dy = y + .5f - size / 2f, r2 = dx * dx + dy * dy;
+            float window = MathF.Pow(MathF.Max(0, 1 - r2 / (30f * 30f)), 2);
+            float halo = .32f * MathF.Exp(-r2 / (11f * 11f));
+            float coverage = 1 - (1 - .85f * tight[y * size + x] / tightPeak) * (1 - .7f * wide[y * size + x] / widePeak) * (1 - halo);
+            int a = (int)MathF.Round(255 * Math.Clamp(coverage * window, 0, 1));
             pixels[y * size + x] = new Color(a, a, a, a);
         }
     return pixels;

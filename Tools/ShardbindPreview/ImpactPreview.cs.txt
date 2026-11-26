@@ -1,0 +1,94 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ShardbindPreview;
+
+sealed partial class Preview
+{
+    void ExportImpactProbe()
+    {
+        var png = new PngExport(target.Width, target.Height);
+        using var sceneTarget = new RenderTarget2D(GraphicsDevice, target.Width, target.Height);
+        replay.SuppressReticle(true);
+        Vector2 anchor = new(target.Width * .5f, target.Height * .5f);
+        Vector2 camera = Vector2.Zero;
+        replay.SetNpcDraw((tick, animation, held) => npcs.DrawStandalone("fishron", anchor - camera, animation));
+        float peakBlur = 0f, peakShake = 0f;
+        foreach (var (name, distance, intensity) in new[] {
+            ("center", Vector2.Zero, 1f), ("midrange", new Vector2(750, 0), .75f),
+            ("boundary", new Vector2(900, 1200), .5f), ("outside", new Vector2(1501, 0), 0f) })
+        {
+            // 固定镜头，只移动本地玩家，确认衰减取世界距离。
+            Vector2 view = Vector2.Zero;
+            replay.SetCamera(view);
+            replay.SetImpactListener(anchor + distance);
+            replay.Reset(true);
+            int burst = replay.BurstTick;
+            int previousArrivals = 0, lastArrivalTick = -10;
+            for (int tick = 1; tick <= PreviewTimeline.EndTick; tick++)
+            {
+                AssertHidden();
+                replay.SetCamera(view);
+                replay.Step(tick);
+                int age = tick - burst;
+                int arrivals = replay.ArrivalCount;
+                bool arrived = arrivals > previousArrivals;
+                if (arrived) lastArrivalTick = tick;
+                previousArrivals = arrivals;
+                bool inRange = intensity > 0f;
+                bool burstRequested = age >= 0 && inRange;
+                var expected = (inRange ? arrivals + (burstRequested ? 1 : 0) : 0, burstRequested ? 1 : 0);
+                if (replay.ImpactRequests != expected)
+                    throw new InvalidOperationException($"终爆镜头触发次数异常 ({name}, {age}): {replay.ImpactRequests}");
+                bool burstActive = burstRequested && age < 11;
+                bool hitActive = inRange && tick - lastArrivalTick < 3;
+                if ((replay.ImpactBlur > 0f) != burstActive
+                    || (replay.ImpactShake != Vector2.Zero) != (burstActive || hitActive))
+                    throw new InvalidOperationException($"终爆镜头持续时间异常 ({name}, {age})。");
+                if (age == 0 && name == "center")
+                {
+                    peakBlur = replay.ImpactBlur;
+                    peakShake = replay.ImpactShake.Length();
+                }
+                if (arrived && arrivals == 1 && MathF.Abs(replay.ImpactShake.Length() - 2.5f * intensity) > .0001f)
+                    throw new InvalidOperationException($"单根冰锥震屏强度异常 ({name})。");
+                if (age == 0 && (MathF.Abs(replay.ImpactShake.Length() - peakShake * intensity) > .0001f
+                    || MathF.Abs(replay.ImpactBlur - peakBlur * intensity) > .0001f))
+                    throw new InvalidOperationException($"终爆镜头强度异常 ({name})。");
+                bool hitSample = name == "center" && arrived && arrivals <= 4;
+                if (age != 0 && (name != "center" || (!hitSample && age is not (-1 or 3 or 7 or 11 or 16)))) continue;
+
+                DrawImpactFrame(tick, view, Vector2.Zero, false, $"{name}-{tick:D3}-base");
+                DrawImpactFrame(tick, view, replay.ImpactShake, replay.ImpactBlur > 0f, $"{name}-{tick:D3}-impact");
+            }
+            replay.Validate();
+            Console.WriteLine(name == "outside"
+                ? $"PASS {name}: no camera effects requested."
+                : $"PASS {name}: {previousArrivals} directional hit shakes and one final burst verified.");
+        }
+
+        void DrawImpactFrame(int tick, Vector2 view, Vector2 shift, bool blur, string name)
+        {
+            camera = view + shift;
+            replay.SetCamera(camera);
+            GraphicsDevice.SetRenderTarget(sceneTarget);
+            GraphicsDevice.Clear(new Color(33, 48, 64));
+            backgroundBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone);
+            backgroundBatch.Draw(forestDay, target.Bounds,
+                new Rectangle((int)MathF.Round(shift.X), (int)MathF.Round(shift.Y), target.Width, target.Height), Color.White);
+            backgroundBatch.End();
+            replay.Draw(tick);
+            GraphicsDevice.SetRenderTarget(target);
+            backgroundBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone);
+            if (blur) replay.ApplyImpactBlur();
+            backgroundBatch.Draw(sceneTarget, Vector2.Zero, Color.White);
+            backgroundBatch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(output, name + ".png"));
+            png.Save(target, file);
+        }
+    }
+}

@@ -16,15 +16,15 @@ sealed partial class Probe
         var trail = Read("Drawing/DrawHelper.vertexDraw.cs");
         var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
         var assets = Read("Drawing/DrawHelper.Assets.cs");
-        var method = trail.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" &&
-            m.ParameterList.Parameters[2].Type.ToString() == "Vector4");
+        var methods = trail.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "TrailEffect");
         // Debug marker rendering is disabled in the consumer; retain the actual trail geometry and shader setup.
-        method = method.ReplaceNodes(method.DescendantNodes().OfType<IfStatementSyntax>()
-            .Where(n => n.Condition.ToString() == "debugPoint"), (old, _) => old.WithStatement(SyntaxFactory.Block()));
+        string methodSource = string.Join("\n", methods.Select(method => method.ReplaceNodes(
+            method.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"),
+            (old, _) => old.WithStatement(SyntaxFactory.Block())).ToFullString()));
         return """
             namespace KL.Drawing { public partial class DrawHelper {
             public static Effect vertexDraw;
-            """ + method.ToFullString().Replace("Main.NewText(\"Get Null Tex in TrailEffect\", Color.Red);", "throw new Exception(\"Missing trail texture\");") +
+            """ + methodSource.Replace("Main.NewText(\"Get Null Tex in TrailEffect\", Color.Red);", "throw new Exception(\"Missing trail texture\");") +
             assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString() +
             drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "GetBlendState").WithoutLeadingTrivia().ToFullString() + "}}";
     }

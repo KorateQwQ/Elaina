@@ -55,6 +55,9 @@ internal sealed class RasterDrawing
     internal float Device => Scale * Transform.M11;
     private readonly Dictionary<string, Texture2D> _textures = [];
     private Effect _ringEffect;
+    private 伊蕾娜.ElainaModSkills.UICore.UIRasterShapes _shapes;
+    private 伊蕾娜.ElainaModSkills.UICore.UIRasterShapes Shapes => _shapes ??= new(TextureAssets.MagicPixel.Value,
+        ModContent.Request<Effect>("伊蕾娜/Effects/Content/UIShape", AssetRequestMode.ImmediateLoad).Value);
     private readonly Dictionary<(int Aspect, int Waist, bool Filled), Rectangle[]> _stars = [];
     private readonly Dictionary<string, Rectangle[]> _raster = [];
     private readonly ConstellationFont _sans, _serif, _latin;
@@ -122,7 +125,7 @@ internal sealed class RasterGame : Game
         }
         FontManager.HarmonyOS_Sans_SC = Load("HarmonyOS_Sans_SC", 9, 28);
         FontManager.NotoSerifSC = Load("NotoSerifSC", 9, 28);
-        FontManager.Gelasio = Load("Gelasio", 8, 26);
+        FontManager.Gelasio = Load("Gelasio", 8, 48);
         RasterChecks.Fallback(_repo,"HarmonyOS_Sans_SC",FontManager.HarmonyOS_Sans_SC,9,28);
         RasterChecks.Fallback(_repo,"NotoSerifSC",FontManager.NotoSerifSC,9,48);
         RasterChecks.Fallback(_repo,"Gelasio",FontManager.Gelasio,8,26);
@@ -138,6 +141,7 @@ internal sealed class RasterGame : Game
         var d = new RasterDrawing(batch, Path.Combine(_repo, "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets"));
         RasterChecks.Assets(_repo);
         RingChecks.Run(d, output);
+        ShapeChecks.Run(batch, output);
         Color[] linearPixels = null;
         foreach (float scale in new[] { .86f, 1f, 1.125f, 1.25f, 1.5f, 2f })
         foreach (bool point in new[] { false, true })

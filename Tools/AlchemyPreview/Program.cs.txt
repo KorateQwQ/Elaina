@@ -9,7 +9,8 @@ internal sealed class AlchemyPreviewGame : Game
 {
     internal static string Repo;
     private static string Tml;
-    private static Microsoft.Xna.Framework.Content.ContentManager VanillaContent, TmlContent;
+    private static Microsoft.Xna.Framework.Content.ContentManager VanillaContent, TmlContent, ModEffects;
+    internal static Effect Effect(string path) => ModEffects.Load<Effect>(path[(path.IndexOf('/') + 1)..]);
     private static GraphicsDevice Device;
     private static readonly Dictionary<string, Texture2D> Textures = new(StringComparer.Ordinal);
     private static readonly RasterizerState ClipRasterizer = new() { CullMode = CullMode.None, ScissorTestEnable = true };
@@ -39,6 +40,7 @@ internal sealed class AlchemyPreviewGame : Game
         KL.Drawing.FontManager.Gelasio = new(Content.Load<DynamicSpriteFont>("Gelasio"));
         VanillaContent = new(Services, Path.GetFullPath(Path.Combine(Tml, "../Terraria/Content")));
         TmlContent = new(Services, Path.Combine(Tml, "Content"));
+        ModEffects = new(Services, Repo);
         var vanillaIds = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(
             File.ReadAllText(Path.Combine(Repo, ".vissandbox/alchemy-preview/vanilla-item-ids.json")));
         AlchemyCatalog.ItemTypeResolver = id => vanillaIds.GetValueOrDefault(id);
@@ -86,7 +88,17 @@ internal sealed class AlchemyPreviewGame : Game
             return;
         }
         using var batch = new SpriteBatch(Device);
-        if (ResolutionOnly) AlchemyRasterChecks.Run(batch);
+        if (ResolutionOnly)
+        {
+            AlchemyRasterChecks.Run(batch);
+            var mod = new Terraria.ModLoader.Mod();
+            TextQualityChecks.Transformed(Device, batch,
+                new(mod,"NotoSerifSC",KL.Drawing.FontManager.NotoSerifSC,9,48),
+                KL.Drawing.FontManager.NotoSerifSC.Value,"月露合剂",Path.Combine(output,"card-text-coverage.txt"));
+            TextQualityChecks.Transformed(Device, batch,
+                new(mod,"Gelasio",KL.Drawing.FontManager.Gelasio,8,48),
+                KL.Drawing.FontManager.Gelasio.Value,"No.10",Path.Combine(output,"card-number-coverage.txt"));
+        }
         if (FocusScene == "cauldron-animations")
         {
             BrewingPreview.Run(Device, batch, Repo, output);
@@ -308,6 +320,7 @@ internal sealed class AlchemyPreviewGame : Game
         Textures.Clear();
         VanillaContent.Dispose();
         TmlContent.Dispose();
+        ModEffects.Dispose();
         AlchemyCatalog.ItemTypeResolver = null;
         Terraria.GameContent.TextureAssets.MagicPixel.Value.Dispose();
         ClipRasterizer.Dispose();

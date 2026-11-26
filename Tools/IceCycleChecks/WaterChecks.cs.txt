@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using KL.Buffs.ElementalDebuff;
 using KL.DamageSystem;
 using KL.SkillSystem;
@@ -34,23 +34,23 @@ static partial class Checks
             WaterHit(i%2 == 0 ? npc : body, (uint)(i*12));
             if(i==1 || i==7 || i==14) Capture("water-"+i,npc);
         }
-        Near(WaterProgress(npc), 168, "fourteen stream pulses accumulate on shared root");
+        Near(WaterProgress(npc), WaterExposureNPC.BuildupFromTicks(168), "fourteen stream pulses accumulate on shared root");
         Check(!WaterExposureNPC.IsWet(npc), "stream does not trigger Wet before three seconds of exposure");
         WaterHit(body, 180);
         Check(WaterExposureNPC.IsWet(npc) && WaterExposureNPC.IsWet(body) && !WaterExposureNPC.IsWet(other), "fifteenth stream pulse wets root and parts only");
-        Near(npc.buffTime[npc.FindBuffIndex(wet)], 600, "Wet begins at ten seconds");
-        Capture("wet-10s",npc);
+        Near(npc.buffTime[npc.FindBuffIndex(wet)], 1800, "Wet begins at thirty seconds");
+        Capture("wet-30s",npc);
         var shared = typeof(ElementalGlobalNPC).GetMethod("GetWaterHealthBarProgress",All)!
             .Invoke(body.GetGlobalNPC<ElementalGlobalNPC>(),[body]);
         Check(ReferenceEquals(shared,npc.GetGlobalNPC<ElementalGlobalNPC>().ElementAccumulation[ElementType.Water]),"body health bar reads shared Wet progress");
         npc.buffTime[npc.FindBuffIndex(wet)] = 590;
         WaterHit(npc, 192);
-        Near(npc.buffTime[npc.FindBuffIndex(wet)], 600, "continued hits extend Wet up to ten seconds");
+        Near(npc.buffTime[npc.FindBuffIndex(wet)], 1800, "continued hits extend Wet up to thirty seconds");
         WaterHit(npc, 204);
-        Near(npc.buffTime[npc.FindBuffIndex(wet)], 600, "continued hits cannot exceed cap");
+        Near(npc.buffTime[npc.FindBuffIndex(wet)], 1800, "continued hits cannot exceed cap");
         npc.buffTime[npc.FindBuffIndex(wet)] = 300; npc.GetGlobalNPC<WaterExposureNPC>().PostAI(npc); Capture("wet-5s",npc);
         WaterHit(npc, 216);
-        Near(npc.buffTime[npc.FindBuffIndex(wet)],600,"fresh attachment replenishes a partially expired Wet status like burning");
+        Near(npc.buffTime[npc.FindBuffIndex(wet)],1800,"fresh attachment replenishes a partially expired Wet status like burning");
 
         var progress = npc.GetGlobalNPC<ElementalGlobalNPC>();
         using (var bytes = new MemoryStream()) {
@@ -58,25 +58,21 @@ static partial class Checks
             bytes.Position=0;
             var received = new ElementalGlobalNPC();
             received.ReceiveExtraAI(npc, new BitReader(new BinaryReader(new MemoryStream(new byte[1]))), new BinaryReader(bytes));
-            Check(received.ElementAccumulation[ElementType.Water].InAffliction && received.ElementAccumulation[ElementType.Water].MaxDuration == 600,
+            Check(received.ElementAccumulation[ElementType.Water].InAffliction && received.ElementAccumulation[ElementType.Water].MaxDuration == 1800,
                 "Wet progress uses actual NPC synchronization");
         }
 
         var gated = NpcFixture(113); var part = NpcFixture(114, 113);
         Check(WaterHit(gated, 300), "first water attachment accepted");
-        Check(!WaterHit(part, 300) && !WaterHit(part, 301), "different projectiles share two-frame attachment cooldown");
-        Near(WaterProgress(gated), 12, "body spam cannot add buildup during cooldown");
-        Check(WaterHit(part, 302), "attachment allowed at two-frame boundary");
-        // 同一脉冲/水球的去重在发起端完成；服务器只保留主体级两帧冷却，不按弹幕标识或序号拒绝。
-        Check(WaterHit(part, 304), "server accepts any attachment once the shared cooldown has passed");
-        Near(WaterProgress(gated), 36, "each accepted attachment adds buildup");
+        Check(WaterHit(part, 300) && WaterHit(part, 301), "independent attacks can attach on the same or next tick");
+        Near(WaterProgress(gated), WaterExposureNPC.BuildupFromTicks(36), "each accepted attachment adds buildup");
         Check(WaterHit(other, 300), "independent target has independent attachment cooldown");
         var peerHit = FireBurnNPC.CaptureHit(part)!.Value;
         Clock(305);
-        Check(!WaterExposureNPC.ApplyHit(peerHit, 1, 12), "different players also share the target attachment gate");
+        Check(WaterExposureNPC.ApplyHit(peerHit, 1, 12), "different players have independent attachment gates");
         Clock(306);
-        Check(WaterExposureNPC.ApplyHit(peerHit, 1, 12), "second player accepted after cooldown");
-        Near(WaterProgress(gated), 36, "players' incomplete buildup is not summed");
+        Check(WaterExposureNPC.ApplyHit(peerHit, 1, 12), "independent attacks by the same player both attach");
+        Near(WaterProgress(gated), WaterExposureNPC.BuildupFromTicks(60), "players contribute to shared target buildup");
 
         var orb = NpcFixture(115);
         FreezeCD(orb, 1200); float lockCd = skill.CurrentCD;
@@ -94,38 +90,39 @@ static partial class Checks
         Check(batch.Capture(burning), "orb captures burning multiplier before reaction");
         WaterHit(burning, 500, 180);
         Check(!FireBurnNPC.IsBurning(burning) && !burningPart.HasBuff(fire), "orb extinguishes root and every body part");
-        Check(!WaterExposureNPC.IsWet(burning) && WaterProgress(burning)==0, "extinguishing hit cannot trigger Wet or gain progress");
+        Check(WaterExposureNPC.IsWet(burning) && WaterProgress(burning)==0, "orb extinguishes and triggers Wet on the same hit");
         Check(batch.Capture(burningPart), "same orb keeps burning damage bonus on later body hits");
         // 同一水球的后续体节命中由发起端批次拦截，见 CheckActualWaterCallbacks 的真实回调检查。
         WaterHit(burningPart, 504, 12);
-        Near(WaterProgress(burning), 12, "fresh water pulse may accumulate after burning is gone");
+        Near(WaterProgress(burning), 0, "fresh water pulse renews existing Wet without storing buildup");
         var burningStream = NpcFixture(118); burningStream.AddBuff(fire, 600);
         for(int i=1;i<=5;i++) WaterHit(burningStream, (uint)(600+i*12));
-        Check(!FireBurnNPC.IsBurning(burningStream) && WaterProgress(burningStream)==0, "one second of stream consumes a full burn without Wet buildup");
+        Near(burningStream.buffTime[burningStream.FindBuffIndex(fire)], 600, "partial stream preserves existing burn duration");
+        Near(WaterProgress(burningStream), WaterExposureNPC.BuildupFromTicks(60), "stream builds Wet on the burning target");
 
         var fireTarget = NpcFixture(119); var firePart = NpcFixture(120,119);
         WaterHit(fireTarget, 700, 180);
-        for(int i=1;i<=4;i++) {
+        for(int i=1;i<=9;i++) {
             Clock((uint)(700+i*18));
-            var burn=fireTarget.GetGlobalNPC<FireBurnNPC>();
-            burn.ApplyExposure(fireTarget,0,18,1);
-            firePart.GetGlobalNPC<FireBurnNPC>().ApplyExposure(firePart,0,18,1);
-            Near(fireTarget.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0,0,"fire consumes Wet without fire buildup");
+            var firePulse = new ElementBuildupBatch();
+            fireTarget.GetGlobalNPC<FireBurnNPC>().ApplyExposure(fireTarget,0,18,1,false,firePulse);
+            firePart.GetGlobalNPC<FireBurnNPC>().ApplyExposure(firePart,0,18,1,false,firePulse);
+            Near(fireTarget.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0,
+                i*10,"fire accumulates while Wet remains; body hit cannot duplicate attachment");
         }
-        Check(!WaterExposureNPC.IsWet(fireTarget) && !FireBurnNPC.IsBurning(fireTarget), "removing Wet does not ignite in the same pulse");
-        Capture("wet-consumed",fireTarget);
-        for(int i=5;i<=13;i++) {Clock((uint)(700+i*18)); fireTarget.GetGlobalNPC<FireBurnNPC>().ApplyExposure(fireTarget,0,18,1);}
-        Check(!FireBurnNPC.IsBurning(fireTarget), "nine fire pulses do not ignite");
-        Clock(952); fireTarget.GetGlobalNPC<FireBurnNPC>().ApplyExposure(fireTarget,0,18,1);
-        Check(FireBurnNPC.IsBurning(fireTarget), "ten fire pulses ignite after Wet is removed");
+        Check(WaterExposureNPC.IsWet(fireTarget) && !FireBurnNPC.IsBurning(fireTarget), "partial fire preserves Wet");
+        Clock(880); fireTarget.GetGlobalNPC<FireBurnNPC>().ApplyExposure(fireTarget,0,18,1);
+        Check(FireBurnNPC.IsBurning(fireTarget) && !WaterExposureNPC.IsWet(fireTarget), "threshold ignites and clears Wet");
+        Capture("wet-cleared-by-ignition",fireTarget);
 
         var damageRoot=NpcFixture(121); var damagePart=NpcFixture(122,121);
         Clock(1000);
-        FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(damageRoot)!.Value,0,18,1,1);
-        FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(damagePart)!.Value,0,18,1,10000);
-        Near(damageRoot.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0,18,"body damage cannot stack compensation into an instant burn");
+        var damagePulse = new ElementBuildupBatch();
+        FireBurnNPC.ApplyPoints(FireBurnNPC.CaptureHit(damageRoot)!.Value,0,10,1,1,damagePulse);
+        FireBurnNPC.ApplyPoints(FireBurnNPC.CaptureHit(damagePart)!.Value,0,10,1,10000,damagePulse);
+        Near(damageRoot.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0,10,"body damage cannot stack compensation into an instant burn");
         Clock(1001); FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(damagePart)!.Value,0,18,1,10000);
-        Check(!FireBurnNPC.IsBurning(damageRoot),"new projectile cannot bypass two-frame Fire cooldown");
+        Check(FireBurnNPC.IsBurning(damageRoot),"an independent fire attack may ignite the next tick");
 
         var stale=NpcFixture(123); var staleHit=FireBurnNPC.CaptureHit(stale)!.Value;
         NpcFixture(123); Clock(1100);
@@ -134,7 +131,7 @@ static partial class Checks
         Check(!WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(other)!.Value,0,180),"client cannot apply authoritative water state");
         GameMain.netMode=NetmodeID.SinglePlayer;
         var idle=NpcFixture(124); WaterHit(idle,1200);
-        Clock(2099); idle.GetGlobalNPC<WaterExposureNPC>().PostAI(idle); Near(WaterProgress(idle),12,"partial water survives 899 idle ticks");
+        Clock(2099); idle.GetGlobalNPC<WaterExposureNPC>().PostAI(idle); Near(WaterProgress(idle), WaterExposureNPC.BuildupFromTicks(12),"partial water survives 899 idle ticks");
         Clock(2100); idle.GetGlobalNPC<WaterExposureNPC>().PostAI(idle); Near(WaterProgress(idle),0,"partial water clears after 900 idle ticks");
         string output=Path.Combine(rootDirectory,".vissandbox/ice-cycle-checks"); Directory.CreateDirectory(output);
         File.WriteAllText(Path.Combine(output,"progress-snapshots.json"),System.Text.Json.JsonSerializer.Serialize(snapshots));
@@ -155,15 +152,15 @@ static partial class Checks
             if (i <= 9)
                 FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(strongFire)!.Value, 0, fireTicks, 1, 500);
             if (i == 6) {
-                Near(WaterProgress(water), 60, "water still gains sixty attachment ticks per second");
-                Near(fire.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, 60,
+                Near(WaterProgress(water), WaterExposureNPC.BuildupFromTicks(60), "water still gains sixty attachment ticks per second");
+                Near(fire.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, FireBurnNPC.BuildupFromTicks(60),
                     "fire still gains sixty base attachment ticks per second");
             }
         }
-        Near(WaterProgress(water), 170, "seventeen water hits remain below Wet threshold");
-        Near(fire.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, 170,
+        Near(WaterProgress(water), WaterExposureNPC.BuildupFromTicks(170), "seventeen water hits remain below Wet threshold");
+        Near(fire.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, FireBurnNPC.BuildupFromTicks(170),
             "seventeen fire hits remain below ignition threshold");
-        Near(strongFire.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, 162,
+        Near(strongFire.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, FireBurnNPC.BuildupFromTicks(162),
             "nine scaled fire hits retain the old five-hit damage attachment budget over ninety frames");
         WaterHit(water, 20180, waterTicks);
         FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(fire)!.Value, 0, fireTicks, 1, 1);
@@ -171,20 +168,18 @@ static partial class Checks
 
         var burning = NpcFixture(153); var wet = NpcFixture(154);
         int burnBuff = ModContent.BuffType<ElementalAffliction_Fire>(), wetBuff = ModContent.BuffType<ElementalAffliction_Wet>();
-        burning.AddBuff(burnBuff, 600); wet.AddBuff(wetBuff, 600);
-        for (int i = 1; i <= 6; i++) {
+        burning.AddBuff(burnBuff, 900); wet.AddBuff(wetBuff, 1800);
+        for (int i = 1; i <= 18; i++) {
             WaterHit(burning, (uint)(21000 + i * waterTicks), waterTicks);
             Clock((uint)(21000 + i * fireTicks));
             FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(wet)!.Value, 0, fireTicks, 1, 1);
-            if (i < 6) {
-                Near(burning.buffTime[burning.FindBuffIndex(burnBuff)], 600 - i * 100, "water removes the same burn duration per second");
-                Near(wet.buffTime[wet.FindBuffIndex(wetBuff)], 600 - i * 100, "fire removes the same Wet duration per second");
+            if (i < 18) {
+                Near(burning.buffTime[burning.FindBuffIndex(burnBuff)], 900, "partial water preserves Burning duration");
+                Near(wet.buffTime[wet.FindBuffIndex(wetBuff)], 1800, "partial fire preserves Wet duration");
             }
         }
-        Check(!FireBurnNPC.IsBurning(burning) && !WaterExposureNPC.IsWet(wet), "six pulses consume ten seconds of opposing status");
-        Near(WaterProgress(burning), 0, "extinguishing does not also accumulate Wet");
-        Near(wet.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire) ?? 0, 0,
-            "drying does not also accumulate fire");
+        Check(WaterExposureNPC.IsWet(burning) && !FireBurnNPC.IsBurning(burning), "threshold water pulse triggers Wet and extinguishes");
+        Check(FireBurnNPC.IsBurning(wet) && !WaterExposureNPC.IsWet(wet), "threshold fire pulse ignites and clears Wet");
     }
 
     static void CheckNewFreezeRules()
@@ -192,30 +187,36 @@ static partial class Checks
         int wet=ModContent.BuffType<ElementalAffliction_Wet>();
         var dry=NpcFixture(130); var moist=NpcFixture(131); var body=NpcFixture(132,131);
         moist.AddBuff(wet,600); body.AddBuff(wet,600);
-        for(int i=0;i<17;i++) {
+        for(int i=0;i<8;i++) {
             Clock((uint)(10000+2*i));
             dry.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice,dry,new NPC.HitInfo { Damage=1 },0,5.6f);
             moist.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice,moist,new NPC.HitInfo { Damage=1 },0,5.6f);
             body.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice,body,new NPC.HitInfo { Damage=10000 },0,5.6f);
         }
-        Near(dry.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Ice)??0,47.6,"dry buildup is half speed");
+        Near(dry.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Ice)??0,44.8,"dry buildup equals configured points per hit");
         Check(!moist.HasBuff<ElementalAffliction_Freeze>(),"body hits do not double freeze buildup or damage compensation");
         Clock(10034); moist.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice,moist,new NPC.HitInfo { Damage=1 },0,5.6f);
-        Check(moist.HasBuff<ElementalAffliction_Freeze>(),"wet target freezes on eighteenth accepted hit");
-        Near(moist.buffTime[moist.FindBuffIndex(wet)],600,"ice does not consume Wet duration");
+        Check(moist.HasBuff<ElementalAffliction_Freeze>(),"wet target freezes on ninth accepted hit");
+        Check(!moist.HasBuff(wet) && !body.HasBuff(wet),"freezing clears Wet on the entire group");
         var low=NpcFixture(133); low.lifeMax=100;
         Clock(11000); low.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice,low,new NPC.HitInfo { Damage=25 },0,5.6f);
         Near(low.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Ice)??0,50,"damage compensation accelerates freezing a weak dry target");
         Clock(11002); low.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice,low,new NPC.HitInfo { Damage=25 },0,5.6f);
         Check(low.HasBuff<ElementalAffliction_Freeze>(),"low-health target freezes quickly");
+        var wetTarget=NpcFixture(134); var wetBody=NpcFixture(135,134); wetTarget.AddBuff(wet,600);
         var cone=Attach(new IceConeProj()); var shard=Attach(new ShardbindProj());
         foreach(var spell in new ModProjectile[]{cone,shard}) {
-            var m=new NPC.HitModifiers(); spell.ModifyHitNPC(moist,ref m);
-            Near(m.SourceDamage.ApplyTo(1),spell==cone?1.125:2.5,"ice spell gets correct Wet damage multiplier");
-            m=new NPC.HitModifiers(); spell.ModifyHitNPC(dry,ref m); Near(m.SourceDamage.ApplyTo(1),1,"dry damage uses normal budget");
+            var element=new ElementalGlobalProjectile { InfusionElement=ElementType.Ice };
+            foreach (var target in new[] { wetTarget, wetBody, dry, moist }) {
+                var m=new NPC.HitModifiers(); element.ModifyHitNPC(spell.Projectile,target,ref m);
+                spell.ModifyHitNPC(target,ref m);
+                double expected=target==wetTarget || target==wetBody ? (spell==shard ? 1.5 : 1.1) : 1;
+                Near(m.SourceDamage.ApplyTo(1),expected,"combined skill and global hooks apply Wet bonus once, including body parts");
+            }
         }
         Near(ElementalGlobalNPC.FreezeCooldownDuration,1800,"independent-target freeze cooldown is thirty seconds");
         var state=moist.GetGlobalNPC<ElementalGlobalNPC>(); state.SetAffliction(ElementType.Ice,true); state.PostAI(moist);
+        moist.DelBuff(moist.FindBuffIndex(ModContent.BuffType<ElementalAffliction_Freeze>()));
         state.SetAffliction(ElementType.Ice,false); state.PostAI(moist);
         Near(state.GetFreezeCooldown(moist),1800,"thaw starts thirty-second cooldown");
         Near(dry.GetGlobalNPC<ElementalGlobalNPC>().GetFreezeCooldown(dry),0,"other target has no cooldown");
@@ -224,38 +225,42 @@ static partial class Checks
 
     static void CheckActualWaterCallbacks()
     {
-        var ballTemplate=new WaterBall(); var beamTemplate=new WaterLaser();
+        var ballTemplate=ModContent.GetInstance<WaterBall>(); var beamTemplate=ModContent.GetInstance<WaterLaser>();
+        if (ballTemplate == null) { ballTemplate = new WaterBall(); ContentInstance.Register(ballTemplate); }
+        if (beamTemplate == null) { beamTemplate = new WaterLaser(); ContentInstance.Register(beamTemplate); }
         typeof(ModProjectile).GetProperty("Entity",All)!.SetValue(ballTemplate,new Projectile { type=700 });
         typeof(ModProjectile).GetProperty("Entity",All)!.SetValue(beamTemplate,new Projectile { type=701 });
-        ContentInstance.Register(ballTemplate); ContentInstance.Register(beamTemplate);
         var root=NpcFixture(140); var body=NpcFixture(141,140);
         int fire=ModContent.BuffType<ElementalAffliction_Fire>();
         root.AddBuff(fire,600); body.AddBuff(fire,600);
-        var ball=Attach(new WaterBall()); ball.Projectile.type=700; ball.Projectile.identity=500;
+        var ball=Attach(new WaterBall { BurningDamageMultiplier=1.5f }); ball.Projectile.type=700; ball.Projectile.identity=500;
+        ball.Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
         Clock(12000);
         var m=new NPC.HitModifiers(); ball.ModifyHitNPC(root,ref m);
-        Near(m.SourceDamage.ApplyTo(100),200,"real orb hook doubles burning damage before reaction");
-        ball.OnHitNPC(root,default,0); Check(FireBurnNPC.IsBurning(root),"zero-damage orb cannot consume a status");
-        ball.OnHitNPC(root,default,100);
-        Check(!FireBurnNPC.IsBurning(root) && !WaterExposureNPC.IsWet(root),"real orb callback and receiver extinguish without wetting");
+        Near(m.SourceDamage.ApplyTo(100),150,"real orb hook adds fifty percent burning damage before reaction");
+        Hit(root,new(ElementType.Water,100),0,projectile:ball.Projectile); Check(FireBurnNPC.IsBurning(root),"zero-damage orb cannot consume a status");
+        Hit(root,new(ElementType.Water,100),100,projectile:ball.Projectile);
+        Check(!FireBurnNPC.IsBurning(root) && WaterExposureNPC.IsWet(root),"real orb callback and receiver extinguish and wet");
         m=new NPC.HitModifiers(); ball.ModifyHitNPC(body,ref m);
-        Near(m.SourceDamage.ApplyTo(100),200,"real orb keeps multiplier for later body hits");
-        Clock(12004); ball.OnHitNPC(body,default,100);
+        Near(m.SourceDamage.ApplyTo(100),150,"real orb keeps multiplier for later body hits");
+        Clock(12004); Hit(body,new(ElementType.Water,100),100,projectile:ball.Projectile);
         Near(WaterProgress(root),0,"same orb late body callback cannot apply another water attachment");
 
+        int wetBuff=ModContent.BuffType<ElementalAffliction_Wet>();
+        root.DelBuff(root.FindBuffIndex(wetBuff)); body.DelBuff(body.FindBuffIndex(wetBuff));
         var beam=Attach(new WaterLaser()); beam.Projectile.type=701; beam.Projectile.identity=501;
         typeof(WaterLaser).GetField("primaryTarget",All)!.SetValue(beam,root.whoAmI);
-        Clock(12010); m=new NPC.HitModifiers(); beam.ModifyHitNPC(root,ref m); beam.OnHitNPC(root,default,100);
-        Near(WaterProgress(root),10,"real stream callback forwards its ten-tick exposure budget");
+        Clock(12010); m=new NPC.HitModifiers(); beam.ModifyHitNPC(root,ref m); Hit(root,new(ElementType.Water,WaterExposureNPC.BuildupFromTicks(10)),100,projectile:beam.Projectile);
+        Near(WaterProgress(root), WaterExposureNPC.BuildupFromTicks(10),"real stream callback forwards its ten-tick exposure budget");
         var hit=FireBurnNPC.CaptureHit(root)!.Value;
         GameMain.netMode=NetmodeID.MultiplayerClient;
-        GameMain.player[0].GetModPlayer<WaterExposurePlayer>().Apply(hit.TargetIndex,hit.TargetGeneration,hit.AnchorIndex,hit.AnchorGeneration,false,700,180);
-        Near(WaterProgress(root),10,"client receiver cannot settle wet state");
+        Hit(root,new(ElementType.Water,100),1);
+        Near(WaterProgress(root), WaterExposureNPC.BuildupFromTicks(10),"client receiver cannot settle wet state");
         GameMain.netMode=NetmodeID.Server;
         Clock(12020);
         using var send=new MonoMod.RuntimeDetour.Hook(typeof(NetMessage).GetMethod("SendData",All)!,
             (Action<int,int,int,Terraria.Localization.NetworkText,int,float,float,float,int,int,int>)((_,_,_,_,_,_,_,_,_,_,_)=>{}));
-        GameMain.player[0].GetModPlayer<WaterExposurePlayer>().Apply(hit.TargetIndex,hit.TargetGeneration,hit.AnchorIndex,hit.AnchorGeneration,false,700,180);
+        Hit(root,new(ElementType.Water,100),1);
         Check(WaterExposureNPC.IsWet(root) && WaterExposureNPC.IsWet(body),"server receiver authoritatively wets root and parts");
         GameMain.netMode=NetmodeID.SinglePlayer;
         CheckStreamPulseDeduplication();
@@ -266,28 +271,28 @@ static partial class Checks
     static void CheckStreamPulseDeduplication()
     {
         var batchField=typeof(WaterLaser).GetField("waterBatch",All)!;
-        void Pulse(WaterLaser beam) => ((WaterExposureBatch)batchField.GetValue(beam)!).Reset();
-        void Hit(WaterLaser beam,NPC target) {
-            var m=new NPC.HitModifiers(); beam.ModifyHitNPC(target,ref m); beam.OnHitNPC(target,default,100);
+        void Pulse(WaterLaser beam) { ((WaterExposureBatch)batchField.GetValue(beam)!).Reset(); beam.Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch(); }
+        void BeamHit(WaterLaser beam,NPC target) {
+            var m=new NPC.HitModifiers(); beam.ModifyHitNPC(target,ref m); Hit(target,new(ElementType.Water,WaterExposureNPC.BuildupFromTicks(10)),100,projectile:beam.Projectile);
         }
         var worm=NpcFixture(143); var segA=NpcFixture(144,143); var segB=NpcFixture(145,143); var other=NpcFixture(146);
         var first=Attach(new WaterLaser()); first.Projectile.type=701; first.Projectile.identity=510;
         typeof(WaterLaser).GetField("primaryTarget",All)!.SetValue(first,segA.whoAmI);
 
         Clock(13000); Pulse(first);
-        Hit(first,segA); Hit(first,other);
-        Clock(13003); Hit(first,segB); Hit(first,worm);
-        Near(WaterProgress(worm),10,"one pulse attaches once per worm even when later segment hits pass the server cooldown");
-        Near(WaterProgress(other),10,"separate enemies hit by the same pulse each receive their own attachment");
-        for(int i=1;i<=3;i++) { Clock((uint)(13000+i*10)); Pulse(first); Hit(first,segB); }
-        Near(WaterProgress(worm),40,"every paid pulse attaches again");
+        BeamHit(first,segA); BeamHit(first,other);
+        Clock(13003); BeamHit(first,segB); BeamHit(first,worm);
+        Near(WaterProgress(worm), WaterExposureNPC.BuildupFromTicks(10),"one pulse attaches once per worm even when later segment hits pass the server cooldown");
+        Near(WaterProgress(other), WaterExposureNPC.BuildupFromTicks(10),"separate enemies hit by the same pulse each receive their own attachment");
+        for(int i=1;i<=3;i++) { Clock((uint)(13000+i*10)); Pulse(first); BeamHit(first,segB); }
+        Near(WaterProgress(worm), WaterExposureNPC.BuildupFromTicks(40),"every paid pulse attaches again");
 
         // 新一次施法分到相同的弹幕 identity，脉冲重新开始。
         var recast=Attach(new WaterLaser()); recast.Projectile.type=701; recast.Projectile.identity=510;
         typeof(WaterLaser).GetField("primaryTarget",All)!.SetValue(recast,worm.whoAmI);
-        Clock(13100); Pulse(recast); Hit(recast,worm);
-        Near(WaterProgress(worm),50,"a recast reusing an old projectile identity still accumulates from its first pulse");
-        Clock(13110); Pulse(recast); Hit(recast,segA);
-        Near(WaterProgress(worm),60,"recast keeps accumulating on later pulses");
+        Clock(13100); Pulse(recast); BeamHit(recast,worm);
+        Near(WaterProgress(worm), WaterExposureNPC.BuildupFromTicks(50),"a recast reusing an old projectile identity still accumulates from its first pulse");
+        Clock(13110); Pulse(recast); BeamHit(recast,segA);
+        Near(WaterProgress(worm), WaterExposureNPC.BuildupFromTicks(60),"recast keeps accumulating on later pulses");
     }
 }

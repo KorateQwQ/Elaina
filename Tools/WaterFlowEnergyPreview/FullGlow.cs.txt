@@ -1,0 +1,170 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+
+using var game = new FullGlowPreview(args[0], args[1], args[2], args.Length > 3 && bool.Parse(args[3]), args.Length > 4 && bool.Parse(args[4]));
+game.RunOneFrame();
+if (!game.Exported) throw new InvalidOperationException("Missing full energy captures");
+
+sealed class FullGlowPreview : Game
+{
+    readonly string root, output, vanillaPath;
+    readonly bool swell, polish;
+    public bool Exported { get; private set; }
+
+    public FullGlowPreview(string root, string output, string vanillaPath, bool swell, bool polish)
+    {
+        (this.root, this.output, this.vanillaPath) = (root, output, vanillaPath);
+        this.swell = swell;
+        this.polish = polish;
+        _ = new GraphicsDeviceManager(this) { GraphicsProfile = GraphicsProfile.HiDef };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+        CheckHidden();
+    }
+
+    void CheckHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException("Unexpected visible preview window");
+    }
+
+    Texture2D LoadPng(string relativePath)
+    {
+        using var stream = File.OpenRead(Path.Combine(root, relativePath));
+        return Texture2D.FromStream(GraphicsDevice, stream);
+    }
+
+    protected override void Draw(GameTime time)
+    {
+        CheckHidden();
+        using var vanilla = new ContentManager(Services, vanillaPath);
+        using var original = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        var arrow = vanilla.Load<Texture2D>("Images/UI/Cursor_0");
+        var ring = original.Load<Effect>("WaterEnergyRing");
+        using var water = LoadPng("ElainaModSkills/Skills/Water/Eff_Splash_322_288.png");
+        using var batch = new SpriteBatch(GraphicsDevice);
+        if (polish) {
+            ExportPolish(arrow, water, batch);
+            Exported = true;
+            return;
+        }
+        if (swell) {
+            ExportSwell(arrow, ring, water, batch);
+            Exported = true;
+            return;
+        }
+        using var crop = new RenderTarget2D(GraphicsDevice, 208, 156);
+        foreach (var scene in new[] { "Day", "Night" })
+        {
+            using var forest = LoadPng($"Tools/ShardbindPreview/Assets/Forest{scene}.png");
+            foreach (int percent in new[] { 100, 125, 200 })
+            foreach (var (state, fill, full, spending) in new[] {
+                ("near", .96f, false, false), ("full", 1f, true, false), ("spend", 1f, false, true) })
+            foreach (bool preview in new[] { false, true })
+            {
+                CheckHidden();
+                float ui = percent / 100f;
+                var size = new Vector2(arrow.Width, arrow.Height) * ui;
+                var pos = new Vector2(84, 79) - size * .5f;
+                var (center, scale) = WaterEnergyRingDrawing.AroundCursor(pos, size, ui, WaterEnergyRingDrawing.CursorOffset);
+                GraphicsDevice.SetRenderTarget(crop);
+                GraphicsDevice.Clear(Color.Black);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+                batch.Draw(forest, Vector2.Zero, new Rectangle(1160, 696, crop.Width, crop.Height), Color.White);
+                batch.End();
+                WaterEnergyRingDrawing.Draw(batch, water, ring, center,
+                    WaterEnergyRingDrawing.ArcDegrees, WaterEnergyRingDrawing.Curvature, scale, fill, .42f, spending ? -1f : 0f, preview && full);
+                batch.Begin();
+                batch.Draw(arrow, pos, null, new Color(230,50,75), 0, Vector2.Zero, ui, SpriteEffects.None, 0);
+                batch.End();
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(output, $"{scene}-{percent}-{state}-{(preview ? "new" : "old")}.png"));
+                crop.SaveAsPng(file, crop.Width, crop.Height);
+            }
+        }
+        Exported = true;
+    }
+
+
+    void ExportPolish(Texture2D arrow, Texture2D water, SpriteBatch batch)
+    {
+        using var before = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        using var after = new ContentManager(Services, Path.Combine(output, "effect"));
+        var effects = new[] { before.Load<Effect>("WaterEnergyRing"), after.Load<Effect>("WaterEnergyRing") };
+        using var day = LoadPng("Tools/ShardbindPreview/Assets/ForestDay.png");
+        using var night = LoadPng("Tools/ShardbindPreview/Assets/ForestNight.png");
+        using var crop = new RenderTarget2D(GraphicsDevice, 320, 256);
+        foreach (int percent in new[] { 100, 125, 200 }) {
+            float ui = percent / 100f;
+            var glyph = new Vector2(arrow.Width, arrow.Height) * ui;
+            for (int frame = 0; frame < 120; frame++) {
+                if (percent != 125 && frame != 18 && frame != 45 && frame != 68 && frame != 90) continue;
+                CheckHidden();
+                float t = frame / 30f;
+                float age = t - 1.4f;
+                bool spending = t >= 2.6f;
+                bool full = age >= 0 && !spending;
+                float fill = spending ? MathHelper.Clamp(1f - (t - 2.6f), 0f, 1f) : MathHelper.SmoothStep(.05f, 1f, t / 1.4f);
+                float visibility = MathHelper.SmoothStep(0, 1, t / .16f) * (1 - MathHelper.SmoothStep(0, 1, (t - 3.6f) / .22f));
+                float phase = .85f * (spending ? 5.2f - t : t);
+                GraphicsDevice.SetRenderTarget(crop);
+                GraphicsDevice.Clear(Color.Black);
+                for (int row = 0; row < 2; row++) for (int col = 0; col < 2; col++) {
+                    var cell = new Rectangle(col * 160, row * 128, 160, 128);
+                    var pos = new Vector2(cell.X + 56, cell.Y + 64) - glyph * .5f;
+                    batch.Begin();
+                    batch.Draw(row == 0 ? day : night, cell, new Rectangle(1160, 696, 160, 128), Color.White);
+                    batch.End();
+                    var (center, scale) = WaterEnergyRingDrawing.AroundCursor(pos, glyph, ui, WaterEnergyRingDrawing.CursorOffset);
+                    var effect = effects[col];
+                    WaterEnergyRingDrawing.Draw(batch, water, effect, center, WaterEnergyRingDrawing.ArcDegrees,
+                        WaterEnergyRingDrawing.Curvature, scale, fill, phase, spending ? -1 : 0, full, visibility, age);
+                    batch.Begin();
+                    batch.Draw(arrow, pos, null, new Color(230,50,75), 0, Vector2.Zero, ui, SpriteEffects.None, 0);
+                    batch.End();
+                }
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(output, $"polish-{percent}-{frame:D3}.png"));
+                crop.SaveAsPng(file, crop.Width, crop.Height);
+            }
+        }
+    }
+
+    void ExportSwell(Texture2D arrow, Effect original, Texture2D water, SpriteBatch batch)
+    {
+        using var forest = LoadPng("Tools/ShardbindPreview/Assets/ForestDay.png");
+        using var crop = new RenderTarget2D(GraphicsDevice, 352, 144);
+        const float ui = 1.25f;
+        var glyph = new Vector2(arrow.Width, arrow.Height) * ui;
+        for (int frame = 0; frame < 90; frame++) {
+            CheckHidden();
+            float seconds = frame / 30f;
+            float age = seconds - .8f;
+            bool full = age >= 0;
+            float fill = MathHelper.Lerp(.76f, 1f, MathHelper.Clamp(seconds / .8f, 0, 1));
+            GraphicsDevice.SetRenderTarget(crop);
+            GraphicsDevice.Clear(Color.Black);
+            for (int col = 0; col < 2; col++) {
+                var pos = new Vector2(col * 176 + 62, 72) - glyph * .5f;
+                batch.Begin();
+                batch.Draw(forest, new Rectangle(col * 176, 0, 176, 144), new Rectangle(1160, 696, 176, 144), Color.White);
+                batch.End();
+                var (center, scale) = WaterEnergyRingDrawing.AroundCursor(pos, glyph, ui, WaterEnergyRingDrawing.CursorOffset);
+                WaterEnergyRingDrawing.Draw(batch, water, original, center,
+                    WaterEnergyRingDrawing.ArcDegrees, WaterEnergyRingDrawing.Curvature, scale, fill, seconds * .85f, 0, full, fullAge: col == 0 ? 0f : age);
+                batch.Begin();
+                batch.Draw(arrow, pos, null, new Color(230,50,75), 0, Vector2.Zero, ui, SpriteEffects.None, 0);
+                batch.End();
+            }
+            GraphicsDevice.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(output, $"swell-{frame:D2}.png"));
+            crop.SaveAsPng(file, crop.Width, crop.Height);
+        }
+    }
+}

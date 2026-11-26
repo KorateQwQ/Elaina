@@ -98,8 +98,9 @@ internal sealed class PanelScene
     private void DrawPlayerLevel() => _draw.PlayerLevel(_playerLevel, _playerCap, _playerExperience, 100);
 
     internal void Render(SpriteBatch batch, int width, int height, float uiScale, string scenario,
-        Func<ConstellationDetail, float> scrollPosition = null)
+        Func<ConstellationDetail, float> scrollPosition = null, float mapZoom = .84f)
     {
+        _zoom = mapZoom;
         _book.Request(true); _book.Finish();
         _state = Fixtures.State(scenario is not ("new" or "bottom" or "requirements-learn" or "requirements-long" or "requirements-term"));
         if (scenario is "active" or "equipped" or "maxed" or "cooldown-shake")
@@ -178,6 +179,8 @@ internal sealed class PanelScene
         if (scenario.StartsWith("terms-"))
         {
             var type = scenario == "terms-freeze" ? typeof(IceConeSkill)
+                : scenario == "terms-wet" ? typeof(WaterBallSkill)
+                : scenario == "terms-burning" ? typeof(FireBurstSkill)
                 : scenario == "terms-cauldron" ? typeof(伊蕾娜.ElainaModSkills.Skills.Alchemy.AlchemySkill) : typeof(AshenWitchSkill);
             var player = Fixtures.Types.Contains(type) ? Fixtures.Player() : Fixtures.Player(type);
             player.UnlockSkill(KL.SkillSystem.Skill.NewSkill(type));
@@ -243,6 +246,7 @@ internal sealed class PanelScene
             _state.Select(nameof(MagicMissileSkill));
         }
         _ancestors = _state.Ancestors();
+        if (scenario == "node-labels-hover") _hoverNode = _state.Selected;
         _pan = new Vector2(MapWidth / 2f, MapHeight / 2f) - new Vector2(_state.Current.x, _state.Current.y) * _zoom;
         if (scenario is "new" or "passive" or "bottom") _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
         if (Editing) _pan = new Vector2((MapWidth - _state.WorldSize.X * _zoom) / 2, 30);
@@ -304,14 +308,16 @@ internal sealed class PanelScene
         batch.GraphicsDevice.ScissorRectangle = Clip(ConstellationDetail.Left, detail.Top, ConstellationDetail.Width, detail.Height);
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, clip);
         float offset = scrollPosition?.Invoke(detail) ??
-            (scenario is "bottom" or "fire-beam-bottom" or "fire-burst-bottom" or "growth-long" or "healing-growth" or "alchemy-growth" or "alchemy-max" or "forget" or "forget-armed" or "forget-lv1" ? Math.Max(0, detail.ContentHeight - detail.Height)
+            (scenario is "bottom" or "fire-beam-bottom" or "fire-burst-bottom" or "ice-water-lock-bottom" or "growth-long" or "healing-growth" or "alchemy-growth" or "alchemy-max" or "forget" or "forget-armed" or "forget-lv1" ? Math.Max(0, detail.ContentHeight - detail.Height)
                 : scenario == "healing-description" ? 120 : 0);
         float y = detail.Top - offset;
         // Term scenes hover the first registered term, as the panel does under the pointer.
         (ConstellationDetailAction Action, float Top)? term = null;
         foreach (var row in detail.Rows)
         {
-            var action = scenario.StartsWith("terms-") && term == null ? row.Actions.FirstOrDefault(a => a.Kind == "term") : null;
+            string wantedTerm = scenario == "terms-wet" ? "WaterIcon" : scenario == "terms-burning" ? "FireIcon" : null;
+            var action = scenario.StartsWith("terms-") && term == null
+                ? row.Actions.FirstOrDefault(a => a.Kind == "term" && (wantedTerm == null || a.Id.EndsWith(wantedTerm))) : null;
             if (action != null) term = (action, y);
             _draw.Origin = origin + new Vector2(ConstellationDetail.Left, y) * scale;
             row.Paint(_draw, action == null ? null : "term:" + action.Id);
@@ -321,6 +327,11 @@ internal sealed class PanelScene
         if (scenario.StartsWith("terms-") && term == null) throw new Exception($"{scenario}: no registered term in the description.");
         batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
         detail.DrawScrollHints(_draw, offset, 0);
+        if (scenario == "node-labels-hover")
+        {
+            if (string.IsNullOrEmpty(_tooltip)) throw new Exception("Hidden node labels must still request their hover tooltip.");
+            _draw.Tooltip(_tooltip, MapPoint(_state.Current.x, _state.Current.y), new Vector2(DesignWidth, DesignHeight), _tooltipAnchor);
+        }
         if (term is var (termAction, termTop))
         {
             var pointer = new Vector2(ConstellationDetail.Left + termAction.Area.Center.X, termTop + termAction.Area.Center.Y);

@@ -1,0 +1,26 @@
+using System;
+using Microsoft.Xna.Framework;
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+public partial class IceCone3DUnit
+{
+    public void ValidatePreviewLockGrowth(bool settled)
+    {
+        int time = MotionTime;
+        float scale = GetLockLengthScale(time);
+        if (!HasArrived && scale != 1f)
+            throw new InvalidOperationException("飞行中的冰锥尺寸发生了变化。");
+        if (ArrivedThisUpdate && scale != 1f)
+            throw new InvalidOperationException("命中当帧的尺寸不连续。");
+        if (settled && (!HasArrived || MathF.Abs(scale - (ShardbindProj.Revised ? LockLengthScale : 1f)) > .0001f))
+            throw new InvalidOperationException("成球阶段未达到预期尺寸。");
+        Matrix model = GetModelMatrix(time);
+        float width = Vector3.TransformNormal(Vector3.UnitX, model).Length();
+        float length = Vector3.TransformNormal(Vector3.UnitY, model).Length();
+        float thickness = Vector3.TransformNormal(Vector3.UnitZ, model).Length();
+        if (MathF.Abs(width - 20f) > .001f || MathF.Abs(thickness - 20f) > .001f
+            || MathF.Abs(length - 20f * scale) > .001f)
+            throw new InvalidOperationException("冰刺伸长改变了横截面，或长轴倍率不符。");
+    }
+}

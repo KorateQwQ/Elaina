@@ -19,11 +19,19 @@ sealed partial class Probe
         string source = File.ReadAllText(Path.Combine(root, "Tools/ManagedTrailPreview/BlendScene.cs.txt"));
         source += "namespace Preview { public partial class WindSlash {";
         source += string.Join("\n", wind.DescendantNodes().OfType<ClassDeclarationSyntax>().First().Members.OfType<FieldDeclarationSyntax>());
+        foreach (var property in wind.DescendantNodes().OfType<ClassDeclarationSyntax>().First().Members.OfType<PropertyDeclarationSyntax>()) {
+            string name = property.Identifier.Text;
+            if ((windWeb || windAlignment) && (WindControls.Contains(name) || WindColors.Contains(name))) {
+                source += $"public static {property.Type}? Override{name};";
+                source += property.WithExpressionBody(SyntaxFactory.ArrowExpressionClause(
+                    SyntaxFactory.ParseExpression($"Override{name} ?? ({property.ExpressionBody.Expression})"))).ToFullString();
+            } else source += property.ToFullString();
+        }
         var drawWind = wind.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawWind");
         drawWind = drawWind.WithBody(drawWind.Body.WithStatements(drawWind.Body.Statements.Insert(0,
             SyntaxFactory.ParseStatement("BlendChecks.WindCalls++;"))));
-        source += Methods(wind, "PreDraw", "OnSpawn_AllClient", "UpdateWindPoints", "FillWindPoints") + drawWind.ToFullString();
-        string[] layerMethods = ["DrawCrescentFan", "DrawArcFlame", "DrawWindTrails"];
+        source += Methods(wind, "DrawBehind", "PreDraw", "OnSpawn_AllClient", "UpdateWindPoints", "FillWindPoints", "BladeStreakOpacity") + drawWind.ToFullString();
+        string[] layerMethods = ["DrawCrescentFan", "DrawFringe", "DrawWindTrails"];
         for (int i = 0; i < layerMethods.Length; i++) {
             var method = wind.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == layerMethods[i]);
             method = method.WithBody(method.Body.WithStatements(method.Body.Statements.Insert(0,
@@ -31,14 +39,14 @@ sealed partial class Probe
             source += method.ToFullString();
         }
         source += "}}";
-        var vertex = vertices.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "VertexDrawEffect" &&
-            m.ParameterList.Parameters[2].Type.ToString() == "Color");
+        var vertex = vertices.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawRibbonWithOpacity");
         vertex = vertex.ReplaceNodes(vertex.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"),
             (old, _) => old.WithStatement(SyntaxFactory.Block()));
         vertex = vertex.WithBody(vertex.Body.WithStatements(vertex.Body.Statements.Insert(0,
             SyntaxFactory.ParseStatement("WindContourChecks.RecordMesh(topPoints, attachPoint, attachRotation);"))));
         source += "namespace KL.Drawing { public static partial class DrawHelper {" + vertex.ToFullString();
-        source += Methods(vertices, "QuickConePoints", "GetQuadraticBezierPoint") + "}}";
+        source += string.Join("\n", vertices.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "VertexDrawEffect" && m.ParameterList.Parameters[2].Type.ToString() != "Vector2[]").Select(m => m.ToFullString()));
+        source += Methods(vertices, "DrawRibbonWithTailFade", "QuickConePoints", "GetQuadraticBezierPoint") + "}}";
         return source;
     }
 
@@ -49,10 +57,9 @@ sealed partial class Probe
             return Texture2D.FromStream(GraphicsDevice, file);
         }
         replay.GetType("Preview.BlendChecks").GetMethod("Setup").Invoke(null, [
-            content.Load<Effect>("CrescentFan"), content.Load<Effect>("ArcFlame"),
+            content.Load<Effect>("CrescentFan"), content.Load<Effect>(Path.Combine(root, "Effects/Content/WindSlashFringe")),
             new Texture2D[] { Load("Effects/Tex/fadeUP.png"), Load("../KL/Effects/Tex/background.png"),
-                Load("../KL/Effects/Tex/水波.png"), Load("../KL/Effects/Tex/Wind/wind3.png"), Load("../KL/Effects/Tex/Wind/windNoi.png"),
-                Load("../KL/Effects/Tex/Trail/LightTrail.png") }]);
+                Load("../KL/Effects/Tex/水波.png"), Load("ElainaModSkills/Skills/Wind/Assets/WindSlashNoise.png") }]);
     }
 
     void CheckBlendVisuals()

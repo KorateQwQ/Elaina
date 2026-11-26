@@ -7,7 +7,7 @@ public abstract class ElainaSealedSkill : ElainaSkill
 {
     private bool unsealed;
     private ulong? releaseTick, deniedTick;
-    public bool IsSealed => !unsealed;
+    public virtual bool IsSealed => !unsealed;
     public float SealReleaseAge => releaseTick.HasValue ? (Main.GameUpdateCount - releaseTick.Value) / 60f : -1;
     public float SealDeniedAge => deniedTick.HasValue ? (Main.GameUpdateCount - deniedTick.Value) / 60f : 9;
 

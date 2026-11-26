@@ -26,24 +26,28 @@ sealed partial class Probe
         var drawing = Read("Drawing/DrawHelper.DrawingMethod.cs");
         string source = """
             namespace KL.Drawing {
+            using System.Diagnostics;
             public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
-            public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
+            public static class RenderPerformanceDiagnostics {
+                public static void RecordAllocation(long start) {}
+                public static void RecordBloom(long start, LayerDrawRequestSystem.DrawTargetLayer layer, LayerDrawRequestSystem.DrawTiming timing) {}
+            }
             public static class BloomReplay {
                 public static bool Enabled;
                 private static readonly DrawSystem renderer = new();
-                public static void Flush(LayerDrawRequestSystem.DrawTargetLayer layer) => renderer.Run(layer, Enabled);
+                public static void Flush(LayerDrawRequestSystem.DrawTargetLayer layer, LayerDrawRequestSystem.DrawTiming timing = LayerDrawRequestSystem.DrawTiming.After) => renderer.Run(layer, Enabled, timing);
             }
             public partial class DrawSystem {
-                public void Run(LayerDrawRequestSystem.DrawTargetLayer layer, bool bloomEnabled) {
+                public void Run(LayerDrawRequestSystem.DrawTargetLayer layer, bool bloomEnabled, LayerDrawRequestSystem.DrawTiming timing) {
                     SetBloomInfo(1f, 5, shouldBloom: bloomEnabled);
-                    RenderRequestedBloom(layer, LayerDrawRequestSystem.DrawTiming.After);
+                    FlushLayerRequests(layer, timing);
                 }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
-            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+            "bloomScissor", "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
-        source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
+        source += Methods(draw, "FlushLayerRequests", "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "GetFilterRegion", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
@@ -88,16 +92,29 @@ sealed partial class Probe
         var reversed = Render(109, true, RenderTargetUsage.DiscardContents, "bloom-group-reversed");
         if (!group.SequenceEqual(reversed)) throw new Exception("Bloom broke cone depth ordering.");
         var single = RenderSingle(20, false, DepthFormat.None, "bloom-single-on");
-        CheckHalo(plainGroup, group, "Shardbind cones");
+        CheckHalo(plainGroup, group, "Shardbind foreground cones");
         CheckHalo(plainSingle, single, "IceConeProj");
         RenderSingle(8, false, DepthFormat.None, "bloom-single-appear");
         Render(65, false, RenderTargetUsage.DiscardContents, "bloom-group-appear");
+        Scene.GetField("Occluder").SetValue(null, true);
+        Scene.GetField("SkipFront").SetValue(null, true);
+        var rear = Render(65, false, RenderTargetUsage.DiscardContents, "occlusion-rear");
+        Scene.GetField("SkipFront").SetValue(null, false);
+        EnableBloom(false);
+        var solid = Render(65, false, RenderTargetUsage.DiscardContents, "occlusion-front-off");
+        EnableBloom(true);
+        var lit = Render(65, false, RenderTargetUsage.DiscardContents, "occlusion-front-on");
+        Scene.GetField("Occluder").SetValue(null, false);
+        var wall = new Color(65, 52, 44);
+        var covered = Enumerable.Range(0, rear.Length).Where(i => i % Width < Width / 2);
+        if (covered.Any(i => rear[i] != wall) || !covered.Any(i => solid[i] != wall) ||
+            !covered.Any(i => solid[i] == wall && lit[i] != wall))
+            throw new Exception("Occluder must hide rear geometry and leave front geometry and its halo visible.");
+        Console.WriteLine("PASS occluder: rear hidden, foreground surface and external bloom both visible.");
         var depthTarget = (RenderTarget2D)replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceConeDepthRenderer")
             .GetField("depthTarget", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-        var hdr = new Vector4[Width * Height]; depthTarget.GetData(hdr);
-        float peak = hdr.Max(c => Math.Max(c.X, Math.Max(c.Y, c.Z)));
-        if (peak <= 1f) throw new Exception("Intermediate depth target clipped HDR highlights.");
-        Console.WriteLine($"PASS shared depth target preserves HDR: peak RGB {peak:0.000}.");
+        if (depthTarget.Format != SurfaceFormat.Vector4 || depthTarget.DepthStencilFormat != DepthFormat.Depth24)
+            throw new Exception("Unexpected Shardbind depth target format.");
         foreach (bool isGroup in new[] { true, false })
         {
             GraphicsDevice.SetRenderTarget(null);
@@ -133,10 +150,12 @@ sealed partial class Probe
             patch.SetData(Enumerable.Repeat(new Vector4(value, value, value, 1f), 16 * 16).ToArray());
             Action draw = () => batch.Draw(patch, new Rectangle(460, 300, 40, 40), Color.White);
             request.Invoke(null, ["threshold-probe", layer, timing, draw, 0]);
-            replay.GetType("KL.Drawing.BloomReplay").GetMethod("Flush").Invoke(null, [layer]);
+            replay.GetType("KL.Drawing.BloomReplay").GetMethod("Flush").Invoke(null, [layer, timing]);
             var down = (RenderTarget2D[])replay.GetType("KL.Drawing.RenderHelper")
                 .GetField("BloomDownSample", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-            var data = new Vector4[down[0].Width * down[0].Height]; down[0].GetData(data);
+            var packed = new Microsoft.Xna.Framework.Graphics.PackedVector.HalfVector4[down[0].Width * down[0].Height];
+            down[0].GetData(packed);
+            var data = packed.Select(c => c.ToVector4()).ToArray();
             float peak = data.Max(c => Math.Max(c.X, Math.Max(c.Y, c.Z)));
             if (value <= 1f ? peak > 0f : peak <= 0f)
                 throw new Exception($"Bloom threshold failed for {value}: peak {peak}.");

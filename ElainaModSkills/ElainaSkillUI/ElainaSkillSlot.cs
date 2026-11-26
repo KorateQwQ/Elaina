@@ -18,7 +18,7 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
     protected override Color SlotBackgroundColor { get; set; } = Color.Transparent;
     protected override Vector4 SlotBorderRadius { get; set; } = new(2);
     protected override Vector2 SlotSize { get; set; } = new(60);
-    private Asset<Texture2D> _ornaments;
+    private UIRasterTexture _ornaments;
     private bool _selected;
     private float _selectionTime;
     private float _hover;
@@ -38,7 +38,7 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
         base.OnInitialize();
         OverflowHidden = false;
         BorderColor = Color.Transparent;
-        _ornaments = ModContent.Request<Texture2D>(ElainaSkillBar.ArtPath + "Ornaments");
+        _ornaments = UIDrawKit.BarOrnaments;
     }
 
     public ElainaSkill GetSkill() => GetSlotSkill()?.ModSkill as ElainaSkill;
@@ -65,20 +65,20 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
 
     protected override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
-        SkillBarDrawing.DrawSlotBackground(spriteBatch, _ornaments.Value,
+        SkillBarDrawing.DrawSlotBackground(spriteBatch, _ornaments,
             Bounds.Center, _selected, HasSkill, _hover, _selectionTime, scale: BarScale);
     }
 
     public override void DrawChildren(GameTime gameTime, SpriteBatch spriteBatch)
     {
         base.DrawChildren(gameTime, spriteBatch);
-        SkillBarDrawing.DrawSlotFrame(spriteBatch, _ornaments.Value,
+        SkillBarDrawing.DrawSlotFrame(spriteBatch, _ornaments,
             Bounds.Center, _selected, HasSkill, _hover, _selectionTime, scale: BarScale);
         if (GetSlotSkill() is { } skill)
         {
             var seal = skill.ModSkill as ElainaSealedSkill;
             bool bound = seal != null && SkillBarDrawing.HasSealOverlay(seal.IsSealed, seal.SealReleaseAge);
-            SkillBarDrawing.DrawSkillState(spriteBatch, StateArt, UIDrawKit.NumberFont, Bounds.Center,
+            SkillBarDrawing.DrawSkillState(spriteBatch, StateArt, UIDrawKit.RasterSerif, Bounds.Center,
                 skill.CurrentCD, skill.CooldownRemainingFraction, skill.Stack, skill.MaxStack, ElainaSkillManager.ShowCD && !bound, BarScale);
             if (bound)
                 SkillBarDrawing.DrawSealState(spriteBatch, StateArt, Bounds.Center, (float)Main.GlobalTimeWrappedHourly,
@@ -86,7 +86,7 @@ public class ElainaSkillSlot(SkillIcon skillIcon) : SkillSlot(skillIcon)
         }
     }
 
-    private static SkillBarDrawing.StateArt StateArt => new(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill);
+    private static SkillBarDrawing.StateArt StateArt => new(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill, UIDrawKit.Shapes);
 
     public ElainaSkillSlot AddSkillToSlot(Skill skill)
     {

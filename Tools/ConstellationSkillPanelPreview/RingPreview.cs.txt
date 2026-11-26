@@ -39,6 +39,20 @@ internal static class RingPreview
             using var cropped = File.Create(Path.Combine(folder, stem + "-crop.png"));
             crop.SaveAsPng(cropped, w, h);
         }
-        Console.WriteLine("FNA level-up circle previews: " + folder);
+        foreach (float ui in new[] { .86f, 1f, 1.125f, 2f })
+        {
+            using var target = new RenderTarget2D(device, (int)MathF.Ceiling(380 * ui), (int)MathF.Ceiling(110 * ui));
+            device.SetRenderTarget(target); device.Clear(new Color(31, 26, 43));
+            var matrix = Matrix.CreateScale(ui);
+            var d = new ConstellationDrawing(new()) { Batch = batch, Transform = matrix, Scale = 1, Origin = new Vector2(.25f, .375f) };
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, null, matrix);
+            float[] ages = [.001f, .08f, .2f, 1f];
+            for (int i = 0; i < ages.Length; i++)
+                d.NodeSelection(new Vector2(50 + 90 * i, 55), 1, 1, true, ages[i], 1, false);
+            batch.End(); device.SetRenderTarget(null);
+            using var file = File.Create(Path.Combine(folder, $"node-arcs-{ui:0.###}.png"));
+            target.SaveAsPng(file, target.Width, target.Height);
+        }
+        Console.WriteLine("FNA level-up circle and production node arc previews: " + folder);
     }
 }

@@ -1,8 +1,17 @@
 Snippets: {
-	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]"
+	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]"
 	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
 	NoLifeConversion: "[c/E28096:无法通过灰之魔女转换魔力释放]"
+	MagicCrystalCost: "[klicon/16,0:伊蕾娜/ElainaAttribute/ResourceBarAssets/Star][c/BBA7EA:{$Mods.伊蕾娜.Terms.MagicCrystal.Name}] ×{0}"
 	HiddenSkill: 技能???
+}
+
+Values: {
+	FireDamage: "{0}火元素伤害"
+	IceDamage: "{0}冰元素伤害"
+	WaterDamage: "{0}水元素伤害"
+	MagicDamage: "{0}魔法伤害"
+	Heal: "{0}生命"
 }
 
 SkillName: {
@@ -28,15 +37,22 @@ SkillName: {
 }
 
 SkillDesc: {
-	FireBurstSkill: 以自身为中心展开持续{4:0.##}秒的炎爆领域，消耗{1:0.##}点{$Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint}。领域内的敌人会不断遭到炎爆轰击，敌人越多轰击越密集；每次造成{0}火元素伤害，最多两次即可点燃；一道炎爆只命中一名敌人时伤害改为{6}，命中[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:冻结]的敌人额外造成{7}。领域内每有一名敌人被点燃，领域延长{5:0.##}秒，剩余时间最多{8:0.##}秒。再次施放会替换原有领域。最多储存{2}层，每{3:0.##}秒恢复一层。
-	FireLaserSkill: 按住蓄力{0:0.##}秒后持续释放火焰射线，每{1:0.##}秒消耗{3:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]，对沿途敌人造成{2}火元素伤害。攻击约{4:0.##}秒可点燃敌人，高伤害可加快点燃，最多需造成其最大生命值{5:0.##}%的伤害。燃烧持续10秒，命中可续燃。在自己的炎爆领域内，射线伤害提高{6:0.#}%，持续喷射期间领域剩余时间不减少。引导时右键可快捷施放已装备的炎爆。
+	WindTornadoSkill: 在杖尖召唤一道环绕着风刃的旋涡。
+	FireBurstSkill:
+		'''
+		以自身为中心展开持续{4:0.##}秒的火焰领域，领域内的敌人会不断遭到炎爆轰击，敌人越多轰击越密集。
+		每道炎爆造成{0}，并积累{8}点[klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:燃烧]值；只命中一名敌人时额外造成{6}。对[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:冻结]或霜裂的敌人伤害提高{9:0.#}%。
+		领域内每有一名敌人被点燃，领域延长{5:0.##}秒，剩余时间最多{7:0.##}秒。再次施放会替换原有领域。
+		引导{$Mods.伊蕾娜.SkillInfo.SkillName.FireLaserSkill}时，右键可快捷施放已装备的炎爆。
+		'''
+	FireLaserSkill: 按住蓄力{0:0.##}秒后持续释放火焰射线，每{1:0.##}秒消耗{3:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]，对沿途敌人造成{2}，并积累{4:0.###}点[klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:燃烧]值。对[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:冻结]或霜裂的敌人伤害提高{6:0.#}%。在自己的火焰领域内，射线伤害提高{5:0.#}%，持续喷射期间领域剩余时间不减少。
 	FlightSkill:
 		'''
 		骑乘扫帚时，飞行速度提高{0:0.##}%，并可使用扫帚加速键：
-		长按加速至{1:0.##}倍速度，每秒消耗{2:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
-		短按向移动方向冲刺，消耗{3:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]，冷却{4:0.##}秒。
+		长按加速至{1:0.##}倍速度，每秒消耗{2:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]。
+		短按向移动方向冲刺，消耗{3:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]，冷却{4:0.##}秒。
 		'''
-	HealSkill: 在{2}秒内为自己或附近的一名队友恢复{0}生命，治疗效果可以叠加。
+	HealSkill: 在{2}秒内为自己或附近的一名队友恢复{0}，治疗效果可以叠加。
 	AlchemySkill:
 		'''
 		右键[klicon/16,0:Item:Cauldron][c/E8C27A:炼金大锅]打开配方手记，研究配方后即可炼制。部分配方还需要持有对应的配方。
@@ -44,12 +60,12 @@ SkillDesc: {
 		'''
 	FrostVeilSkill:
 		'''
-		为自己和附近的队友各施加3层霜幕护盾，每次受击消耗一层，抵消{1:0.##}点伤害（最大[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]的5%）。
+		为自己和附近的队友各施加3层霜幕护盾，每次受击消耗一层，抵消{1:0.##}点伤害（最大[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]的5%）。
 		护盾持续60秒，到期时若仍有剩余则免费补满并续期；全部耗尽后需重新施放。
 		'''
 	DollControlSkill:
 		'''
-		消耗20点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]召唤{0}只玩偶，收回前会一直跟随。
+		消耗20点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]召唤{0}只玩偶，收回前会一直跟随。
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_MineChain]按住 {2} 键框选区域，松开后玩偶会挖掘其中的物块或敲掉墙壁。离你太远的目标会等你靠近后再处理。
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_OpenChest]右键远处的宝箱，让玩偶替你开箱：取出的物品由开箱玩偶带回，放入的物品由另一只空闲玩偶送过去。
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_PlacePlanters]手持物块点击或拖过够不着的位置，玩偶会替你放下物块。玩偶在场时放下的种植盆，会由它们照料、种植和收获。
@@ -67,55 +83,57 @@ SkillDesc: {
 		'''
 	ShardbindSkill:
 		'''
-		召唤15枚冰刺追袭鼠标附近的敌人，命中时造成小范围伤害，最后引发大范围冰爆，共造成{0}冰元素伤害。
+		召唤15枚冰刺追袭鼠标附近的敌人，命中时造成小范围伤害，最后引发大范围冰爆，共造成{0}。
+		最终冰爆积累{1:0.###}点[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:冻结]值。
 		攻击期间冰封目标，使其无法行动。
-		对[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]的敌人伤害提高150%。
-		此术式初始封印，自身触发[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:冻结]后可施放一次。
+		对[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]的敌人伤害提高{2:0.#}%，冻结积累翻倍。
+		此术式初始封印，自身触发[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:冻结]后可施放一次。
 		'''
 	IceConeSkill:
 		'''
-		持续发射冰锥，每枚造成{0}冰元素伤害，并积累{1:0.###}点[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:冻结]值。
-		对[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]的敌人伤害提高12.5%，冻结积累翻倍。
-		自身触发[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:冻结]时解封一次{2}。
+		持续发射冰锥，每枚造成{0}，并积累{1:0.###}点[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:冻结]值。
+		对[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]的敌人伤害提高{3:0.#}%，冻结积累翻倍。
+		自身触发[klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:冻结]时解封一次{2}。
 		'''
 	WaterBallSkill:
 		'''
-		按住凝聚水球，松开发射，造成{0}伤害。
+		凝聚水球，{3}秒蓄满。按住可继续瞄准，松手后水球蓄满即发射，造成{0}。
 		飞行一定距离后，爆炸会沿飞行方向向目标身后大范围溅射；近距离爆炸则向四周呈圆形溅射。
-		命中未燃烧的敌人使其[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]；对燃烧的敌人伤害提高{1:0.#}%，并大量消耗燃烧。
+		命中积累{2}点[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]值；对[klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:燃烧]的敌人伤害提高{1:0.#}%。
 		'''
 	WaterLaserSKill:
 		'''
-		按住持续喷射水流，每{0:0.##}秒消耗{3:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]，造成{1}水元素伤害，并对末端附近的敌人造成{2:0.#}%溅射伤害。
-		持续命中约3秒使敌人[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]。对燃烧的敌人，水流会先快速消耗燃烧。
+		按住持续喷射水流，每{0:0.##}秒消耗{3:0.##}点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]，造成{1}，并对末端附近的敌人造成{2:0.#}%溅射伤害。
+		每次命中积累{4:0.###}点[klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:潮湿]值；对[klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:燃烧]的敌人伤害提高{5:0.#}%。
 		'''
 	MagicMissileSkill:
 		'''
-		对目标造成{0}魔法伤害。
-		被动: 魔法飞弹无视敌人防御；对同一目标连续命中5次后，对其周围的其他敌人造成一次200%魔法飞弹伤害的溅射伤害（不对主目标生效）。
+		对目标造成{0}。
+		被动: 魔法飞弹无视敌人防御；对同一目标连续命中5次后，对其周围的其他敌人造成一次{1:0.#}%魔法飞弹伤害的溅射伤害（不对主目标生效）。
 		'''
 	MultiMissileSkill:
 		'''
-		持续引导，召唤跟随自身的浮游法球，场上至多同时存在{0}枚。
-		法球会向最近的敌人发射魔法飞弹，造成{1}魔法伤害。
+		依次召唤{0}枚跟随自身的浮游法球。上一组法球全部发射后，可再次召唤。
+		法球会向最近的敌人发射魔法飞弹，造成{1}。
+		装备多重射击时，可在施放魔法飞弹时按右键接上多重射击。
 		'''
 	AshenWitchSkill:
 		'''
-		伊蕾娜使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]释放技能，每获得一点原版最大魔力值，提升一点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限。伊蕾娜的额外生命值减少50%。每因灰之魔女减少1点生命上限，额外增加1点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限。
+		伊蕾娜使用[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]释放技能，每获得一点原版最大魔力值，提升一点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]上限。伊蕾娜的额外生命值减少50%。每因灰之魔女减少1点生命上限，额外增加1点[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]上限。
 
-		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]不足时，可消耗每1%最大生命，恢复[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]上限的1%用于施法。当前生命值低于10%时无法以此方式恢复。
+		[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]不足时，可消耗每1%最大生命，恢复[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]上限的1%用于施法。当前生命值低于10%时无法以此方式恢复。
 		'''
 	MagicBarrierSkill:
 		'''
 		需要开启灰之魔女技能才可使用。
-		在即将受伤时开启护盾，按因灰之魔女损失的生命上限比例减少受到的伤害，并消耗等同于抵消伤害的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]。
+		在即将受伤时开启护盾，按因灰之魔女损失的生命上限比例减少受到的伤害，并消耗等同于抵消伤害的[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]。
 		当前减伤比例：{0:0.#}%
 		当受到部分持续伤害效果时，也会持续展开护盾，并且完全免疫这些效果。
 		'''
 	WindSlashSkill:
 		'''
-		挥出一道贯穿的风刃，对沿途所有敌人造成{0}魔法伤害。
-		风刃会将弱小的敌人沿飞行方向击退。接触燃烧的敌人后，会点燃后续命中的敌人。
+		挥出一道贯穿的风刃，对沿途所有敌人造成{0}。
+		风刃会将弱小的敌人沿飞行方向击退。接触[klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:燃烧]的敌人后，会点燃后续命中的敌人。
 		'''
 }
 
@@ -147,7 +165,7 @@ SkillTotalInfo:
 	消耗: {2}
 	效果: 
 	'''
-LackOfMagic: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:魔力]不足"
+LackOfMagic: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:魔力]不足"
 
 FlightStats: {
 	Speed: 扫帚速度

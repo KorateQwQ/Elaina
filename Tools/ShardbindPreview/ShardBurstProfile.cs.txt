@@ -1,0 +1,31 @@
+using System;
+using Microsoft.Xna.Framework;
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+// 接入前的历史参数参考，不再编译进预览；正式实现为 ShardbindBurstProfile.cs。
+internal static class ShardBurstProfile
+{
+    internal static IceShardPart[] Create(int seed, float direction)
+    {
+        const int groups = 3;
+        var parts = new IceShardPart[27 * groups];
+        for (int group = 0; group < groups; group++)
+        {
+            var source = IceShardVisuals.Create(seed + group * 701, direction + group * MathHelper.TwoPi / groups);
+            for (int i = 0; i < source.Length; i++)
+            {
+                var part = source[i];
+                float scale = part.Variant < 9 ? 1.6f : 1f;
+                parts[group * source.Length + i] = part with
+                {
+                    Speed = part.Speed * 2.5f,
+                    Length = part.Length * scale,
+                    Width = part.Width * scale,
+                    Life = Math.Min(part.Life * 1.1f, .84f)
+                };
+            }
+        }
+        return parts;
+    }
+}

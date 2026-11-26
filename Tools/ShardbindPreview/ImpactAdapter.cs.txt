@@ -1,0 +1,91 @@
+using KL.Extensions;
+
+namespace KL.Utils
+{
+    public static class GamePlayStatic
+    {
+        public static void ShakeScreen(Vector2 center, Vector2 direction, float strength, float frequency, int totalFrames) =>
+            ShardbindPreview.ImpactAdapter.StartShake(direction, strength, frequency, totalFrames);
+    }
+}
+
+namespace ShardbindPreview
+{
+    public static class ImpactAdapter
+    {
+        readonly record struct Shake(Vector2 Direction, float Strength, float Frequency, int Ticks, int Age);
+        static readonly List<Shake> shakes = new();
+        static int shakeRequests, blurRequests;
+        public static Vector2 LastDirection { get; private set; }
+        public static (int, int) Requests => (shakeRequests, blurRequests);
+
+        public static void SetListener(Vector2 center) => Main.LocalPlayer.Center = center;
+
+        public static void Reset()
+        {
+            shakeRequests = blurRequests = 0;
+            shakes.Clear();
+            DrawSystem.RadialBlurInfos.Clear();
+        }
+
+        public static void StartShake(Vector2 direction, float strength, float frequency, int totalFrames)
+        {
+            LastDirection = direction.SafeNormalize(direction);
+            shakes.Add(new(LastDirection, strength, frequency, totalFrames, -1));
+            shakeRequests++;
+        }
+
+        public static void Step()
+        {
+            for (int i = shakes.Count - 1; i >= 0; i--)
+            {
+                Shake shake = shakes[i];
+                int age = shake.Age + 1;
+                if (age >= shake.Ticks) shakes.RemoveAt(i);
+                else shakes[i] = shake with { Age = age };
+            }
+            foreach (var blur in DrawSystem.RadialBlurInfos)
+            {
+                if (blur.CurrentFrame == 0) blurRequests++;
+                blur.Update();
+            }
+            DrawSystem.RadialBlurInfos.RemoveAll(blur => !blur.Active);
+        }
+
+        // 重放 PunchCameraModifier 的余弦震动和线性振幅衰减。
+        public static Vector2 Offset
+        {
+            get
+            {
+                Vector2 offset = Vector2.Zero;
+                foreach (var shake in shakes)
+                    offset += shake.Direction * shake.Strength
+                        * MathF.Cos(shake.Age / 60f * shake.Frequency * MathHelper.TwoPi) * (1f - shake.Age / (float)shake.Ticks);
+                return offset;
+            }
+        }
+
+        public static float Strength => DrawSystem.RadialBlurInfos.Count == 0 ? 0f : StrengthOf(DrawSystem.RadialBlurInfos[0]);
+        static float StrengthOf(RadialBlurInfo blur) => MathHelper.Lerp(blur.Strength, 0f, blur.CurrentFrame / blur.TotalFrames);
+
+        public static void ApplyBlur()
+        {
+            var blur = DrawSystem.RadialBlurInfos[0];
+            RadialBlurEffect(blur.Position.GetScreenPosition(), StrengthOf(blur), blur.Iterations);
+        }
+    }
+}
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice
+{
+    public partial class IceCone3DUnit
+    {
+        public void ValidateImpactDirection(Vector2 direction)
+        {
+            // 用更短的前向采样核对投影切线。
+            Vector2 tangent = ProjectToWorldPlane(Position3D + currentVelocity3D * .1f) - ProjectToWorldPlane(Position3D);
+            if (!(Vector2.Dot(direction, Vector2.Normalize(tangent)) >= .999f))
+                throw new InvalidOperationException($"冰锥 {Index} 的命中震动未沿投影飞行方向。");
+        }
+    }
+}

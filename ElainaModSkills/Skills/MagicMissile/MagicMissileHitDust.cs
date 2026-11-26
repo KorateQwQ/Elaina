@@ -7,7 +7,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 
 /// <summary>
 /// 魔法飞弹的命中特效：一颗粒子承载一次完整命中，生命周期独立于飞弹，
-/// 与飞弹共用 Projectiles.After 的 Bloom，按 DustOrder 绘制在飞弹本体之上。构成与绘制见 MagicMissileHitVisuals。
+/// 与飞弹共用 OverPlayers.Before 的 Bloom，按 DustOrder 绘制在飞弹本体之上。构成与绘制见 MagicMissileHitVisuals。
 /// </summary>
 public sealed class MagicMissileHitDust : KLBasicDust
 {
@@ -87,8 +87,8 @@ public sealed class MagicMissileHitDust : KLBasicDust
                 hdr => ReColorEffect(new Vector4(hdr, hdr, hdr, 1)));
             EndBeginDraw();
         };
-        LayerDrawRequestSystem.RequestBloom(RequestId, LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, state.Draw, order: LayerDrawRequestSystem.DustOrder);
+        LayerDrawRequestSystem.RequestBloom(RequestId, LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, state.Draw, order: LayerDrawRequestSystem.DustOrder);
     }
 
     public override bool PreDraw(Dust dust) => false;

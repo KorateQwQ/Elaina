@@ -45,7 +45,8 @@ public enum SkillGrowthMode { Phase, Interval }
 // 主动技能显式配置 ratio 时按 DPS 直接定价，周期为 CD + 读条；未迁移技能继续使用旧的魔力转换模型。
 public sealed record SkillBalanceEntry(string Id, string Name, SkillBalanceKind Kind, double ManaCost,
     double BaseCooldown, int HitCount, int UnlockLevel = 1, int LevelsPerPhase = 1, int UnlockStageCap = 5, double DpsRatio = 0, double ConversionRate = 0, double OccupySeconds = 0, double CdDamageRatio = 1,
-    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, double FreezeBuildup = 0, int MaxLevel = 0, FlightBalance Flight = null, bool UsesDpsRatio = false, int GrowthStartLevel = 0, double ManaCostMaxPercent = 0);
+    IReadOnlyList<(int Level, double Ratio)> RatioCurve = null, int MaxCharges = 1, int InitialCharges = 1, SkillGrowthMode GrowthMode = SkillGrowthMode.Phase, int LevelInterval = 5, int MaxLevel = 0, FlightBalance Flight = null, bool UsesDpsRatio = false, int GrowthStartLevel = 0, double ManaCostMaxPercent = 0,
+    int EnergyCost = 0, double EnergyEfficiency = 1);
 
 /// <summary>阶段推荐配装中的一个饰品；Id 与 Prefix 是网页键名（如 sorcerer / arcane），由 Loadout 映射到物品与前缀。</summary>
 public sealed record SkillLoadoutItem(string Id, string Prefix);
@@ -62,6 +63,8 @@ public sealed class SkillBalanceConfig
     public const string Schema = "elaina-mage-balance-v2";
     public const string ResourcePath = "ElainaModSkills/Data/SkillBalance.json";
     public const int LoadoutStages = 18;
+    public static double BaseSecondsPerEnergyPoint => 4;
+    public static double ExtraDpsPerEnergyPoint => .1;
     private static readonly Regex IdPattern = new("^[A-Za-z][A-Za-z0-9_.-]{0,63}$", RegexOptions.CultureInvariant);
     private static readonly Regex KeyPattern = new("^[A-Za-z][A-Za-z0-9_]{0,63}$", RegexOptions.CultureInvariant);
 
@@ -89,71 +92,68 @@ public sealed class SkillBalanceConfig
     [
         new("MagicMissileSkill", "魔法飞弹", SkillBalanceKind.BasicAttack, 3, .3, 1, LevelsPerPhase: 2, DpsRatio: .6,
             RatioCurve: [(1, 1), (10, .9), (20, .8), (35, .7), (50, .6)]),
-        new("WaterBallSkill", "水球术", SkillBalanceKind.Active, 100, 10, 1, UnlockLevel: 26, UnlockStageCap: 30, ConversionRate: 3.3, OccupySeconds: 1, CdDamageRatio: 1, GrowthStartLevel: 1)
+        new("WaterBallSkill", "水球术", SkillBalanceKind.Active, 100, 10, 1, UnlockLevel: 26, UnlockStageCap: 30, OccupySeconds: 1, GrowthStartLevel: 1, EnergyCost: 2)
     ]);
 
     public static bool TryParse(string json, out SkillBalanceConfig config, out string error)
     {
-        config = null;
+        config = Parse(json);
         error = null;
-        try
+        return true;
+    }
+
+    public static SkillBalanceConfig Parse(string json)
+    {
+        if (Encoding.UTF8.GetByteCount(json) > MaxJsonBytes)
+            throw new FormatException("配置超过 64 KiB，请保存参数而不是试算日志。");
+        using JsonDocument document = JsonDocument.Parse(json.TrimStart('\uFEFF'));
+        JsonElement root = document.RootElement;
+        RequireObject(root, "配置");
+        if (root.GetProperty("schema").GetString() != Schema)
+            throw new FormatException("仅支持 elaina-mage-balance-v2，请使用新版编辑器保存。");
+        JsonElement c = root.GetProperty("configuration");
+        RequireObject(c, "configuration");
+        Number(c, "version", 2, 2);
+        double rate = Number(c, "rate", 0, 20);
+        double occupyRatio = OptionalNumber(c, "occupyRatio", 0, 5, 0);
+        JsonElement progression = c.GetProperty("progression");
+        RequireObject(progression, "progression");
+        int phaseSize = Integer(progression, "phaseSize", 1, 20);
+        List<SkillBalanceEntry> skills = [];
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        JsonElement basics = c.GetProperty("basicAttacks");
+        if (basics.ValueKind != JsonValueKind.Array || basics.GetArrayLength() is < 1 or > 32)
+            throw new FormatException("basicAttacks 必须是 1–32 项的数组。");
+        foreach (JsonElement row in basics.EnumerateArray())
         {
-            if (Encoding.UTF8.GetByteCount(json) > MaxJsonBytes)
-                throw new FormatException("配置超过 64 KiB，请保存参数而不是试算日志。");
-            using JsonDocument document = JsonDocument.Parse(json.TrimStart('\uFEFF'));
-            JsonElement root = document.RootElement;
-            RequireObject(root, "配置");
-            if (root.GetProperty("schema").GetString() != Schema)
-                throw new FormatException("仅支持 elaina-mage-balance-v2，请使用新版编辑器保存。");
-            JsonElement c = root.GetProperty("configuration");
-            RequireObject(c, "configuration");
-            Number(c, "version", 2, 2);
-            double rate = Number(c, "rate", 0, 20);
-            double occupyRatio = OptionalNumber(c, "occupyRatio", 0, 5, 0);
-            JsonElement progression = c.GetProperty("progression");
-            RequireObject(progression, "progression");
-            int phaseSize = Integer(progression, "phaseSize", 1, 20);
-            List<SkillBalanceEntry> skills = [];
-            HashSet<string> ids = new(StringComparer.Ordinal);
-            JsonElement basics = c.GetProperty("basicAttacks");
-            if (basics.ValueKind != JsonValueKind.Array || basics.GetArrayLength() is < 1 or > 32)
-                throw new FormatException("basicAttacks 必须是 1–32 项的数组。");
-            foreach (JsonElement row in basics.EnumerateArray())
-            {
-                var (id, name) = ReadIdentity(row, ids);
-                skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Number(row, "cost", 0, 10000),
-                    Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
-                    RatioCurve: ReadRatioCurve(row), GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
-                    GrowthStartLevel: OptionalInteger(row, "growthStartLevel", 0, 1000, 0)));
-            }
-            string reference = c.GetProperty("selectedBasicAttackId").GetString();
-            if (reference == null || !ids.Contains(reference))
-                throw new FormatException("参考普攻 ID 必须指向 basicAttacks 中的条目。");
-            JsonElement actives = c.GetProperty("skills");
-            if (actives.ValueKind != JsonValueKind.Array || actives.GetArrayLength() > 32)
-                throw new FormatException("skills 必须是最多 32 项的数组。");
-            foreach (JsonElement row in actives.EnumerateArray())
-            {
-                var (id, name) = ReadIdentity(row, ids);
-                skills.Add(new(id, name, SkillBalanceKind.Active, Number(row, "cost", 0, 10000),
-                    Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
-                    ConversionRate: Number(row, "k", 0, 200), RatioCurve: ReadRatioCurve(row, row.TryGetProperty("ratio", out _) ? 5 : 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
-                    MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
-                    GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
-                    FreezeBuildup: OptionalNumber(row, "freezeBuildup", 0, 100, 0), MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
-                    DpsRatio: OptionalNumber(row, "ratio", 0, 5, 0), UsesDpsRatio: row.TryGetProperty("ratio", out _),
-                    GrowthStartLevel: OptionalInteger(row, "growthStartLevel", 0, 1000, 0),
-                    ManaCostMaxPercent: OptionalNumber(row, "costPercent", 0, 100, 0)));
-            }
-            config = new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
-            return true;
+            var (id, name) = ReadIdentity(row, ids);
+            skills.Add(new(id, name, SkillBalanceKind.BasicAttack, Number(row, "cost", 0, 10000),
+                Number(row, "interval", .05, 10), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000), DpsRatio: Number(row, "ratio", 0, 5),
+                RatioCurve: ReadRatioCurve(row), GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
+                MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
+                GrowthStartLevel: OptionalInteger(row, "growthStartLevel", 0, 1000, 0)));
         }
-        catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or KeyNotFoundException or ArgumentException)
+        string reference = c.GetProperty("selectedBasicAttackId").GetString();
+        if (reference == null || !ids.Contains(reference))
+            throw new FormatException("参考普攻 ID 必须指向 basicAttacks 中的条目。");
+        JsonElement actives = c.GetProperty("skills");
+        if (actives.ValueKind != JsonValueKind.Array || actives.GetArrayLength() > 32)
+            throw new FormatException("skills 必须是最多 32 项的数组。");
+        foreach (JsonElement row in actives.EnumerateArray())
         {
-            error = ex.Message;
-            return false;
+            var (id, name) = ReadIdentity(row, ids);
+            skills.Add(new(id, name, SkillBalanceKind.Active, Number(row, "cost", 0, 10000),
+                Number(row, "cd", .1, 600), Integer(row, "shots", 1, 100), Integer(row, "unlockLevel", 1, 1000), Integer(row, "levelsPerPhase", 1, 10), Integer(row, "unlockStageCap", 1, 1000),
+                ConversionRate: Number(row, "k", 0, 200), RatioCurve: ReadRatioCurve(row, row.TryGetProperty("ratio", out _) ? 5 : 200), OccupySeconds: Number(row, "cast", 0, 60), CdDamageRatio: OptionalNumber(row, "cdRatio", 0, 1, 1),
+                MaxCharges: OptionalInteger(row, "maxCharges", 1, 99, 1), InitialCharges: OptionalInteger(row, "initialCharges", 0, 99, 1),
+                GrowthMode: ReadGrowthMode(row), LevelInterval: OptionalInteger(row, "levelInterval", 1, 1000, 5),
+                MaxLevel: OptionalInteger(row, "maxLevel", 0, 1000, 0), Flight: ReadFlight(row),
+                DpsRatio: OptionalNumber(row, "ratio", 0, 5, 0), UsesDpsRatio: row.TryGetProperty("ratio", out _),
+                GrowthStartLevel: OptionalInteger(row, "growthStartLevel", 0, 1000, 0),
+                ManaCostMaxPercent: OptionalNumber(row, "costPercent", 0, 100, 0),
+                EnergyCost: OptionalInteger(row, "energyCost", 0, 8, 0), EnergyEfficiency: OptionalNumber(row, "energyEfficiency", 0, 200, 1)));
         }
+        return new(rate, phaseSize, reference, occupyRatio, skills, ReadLoadouts(c));
     }
 
     private static FlightBalance ReadFlight(JsonElement row)
@@ -324,6 +324,8 @@ public sealed class SkillBalanceConfig
     public double GetSkillDamage(double baselineDps, SkillBalanceEntry skill, int characterLevel)
     {
         double baseline = Math.Max(0, baselineDps);
+        if (skill.EnergyCost > 0)
+            return baseline * ExtraDpsPerEnergyPoint * BaseSecondsPerEnergyPoint * skill.EnergyCost * skill.EnergyEfficiency;
         if (skill.Kind == SkillBalanceKind.BasicAttack || skill.UsesDpsRatio)
             return baseline * GetDpsRatio(skill, characterLevel) * GetPricingPeriod(skill);
         double extraRatio = (RatePer20 / 100 / 20) * skill.ManaCost * skill.BaseCooldown * skill.CdDamageRatio * GetConversionRate(skill, characterLevel);
@@ -336,7 +338,7 @@ public sealed class SkillBalanceConfig
 
     /// <summary>定价周期：普攻为攻击间隔；显式 ratio 的主动技能为 CD + 读条；其他主动技能为 CD。</summary>
     private static double GetPricingPeriod(SkillBalanceEntry skill) =>
-        skill.Kind == SkillBalanceKind.Active && skill.UsesDpsRatio ? skill.BaseCooldown + skill.OccupySeconds : skill.BaseCooldown;
+        skill.Kind == SkillBalanceKind.Active && skill.EnergyCost == 0 && skill.UsesDpsRatio ? skill.BaseCooldown + skill.OccupySeconds : skill.BaseCooldown;
 
     /// <summary>技能成长节点，同时限制可购买等级并提供伤害基准；首次解锁由独立条件判断。</summary>
     public IEnumerable<int> GetSkillLevelNodes(SkillBalanceEntry skill, int maxCharacterLevel = 1000)
@@ -405,42 +407,27 @@ public sealed class SkillBalanceConfig
     }
 }
 
-/// <summary>文件读取和校验与 tML 解耦；错误文件不覆盖最后一次成功的配置，下一次检测仍会重试。</summary>
+/// <summary>完整解析后替换当前配置。读取和解析错误直接传播。</summary>
 public sealed class SkillBalanceFileStore(SkillBalanceConfig initial)
 {
     public SkillBalanceConfig Current { get; private set; } = initial;
-    public string LastError { get; private set; }
     private string acceptedJson;
 
     public bool Apply(string json)
     {
-        if (json == acceptedJson) { LastError = null; return false; }
-        if (!SkillBalanceConfig.TryParse(json, out SkillBalanceConfig next, out string error))
-        {
-            LastError = error;
-            return false;
-        }
-        Current = next;
+        if (json == acceptedJson) return false;
+        Current = SkillBalanceConfig.Parse(json);
         acceptedJson = json;
-        LastError = null;
         return true;
     }
 
 #if DEBUG
     public bool Refresh(string path)
     {
-        try
-        {
-            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            if (stream.Length > SkillBalanceConfig.MaxJsonBytes) throw new IOException("配置超过 64 KiB。");
-            using StreamReader reader = new(stream, Encoding.UTF8, true);
-            return Apply(reader.ReadToEnd());
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            LastError = ex.Message;
-            return false;
-        }
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        if (stream.Length > SkillBalanceConfig.MaxJsonBytes) throw new IOException("配置超过 64 KiB。");
+        using StreamReader reader = new(stream, Encoding.UTF8, true);
+        return Apply(reader.ReadToEnd());
     }
 #endif
 }

@@ -22,7 +22,7 @@ internal static class Program
     static void Main(string[] args)
     {
         using var game = new LookPreview(args[0], args[1], args[2]);
-        game.Run();
+        game.RunOneFrame();
     }
 
     // 与 Tools/BloomBackbufferPreview 相同：从 KL 源码中取出 Bloom 管线并编译，Run 可指定目标层
@@ -58,16 +58,16 @@ internal static class Program
             public static class TimeStopManager { public static bool IsRenderingPlayerTarget = false; }
             public static class RenderPerformanceDiagnostics { public static void RecordAllocation(long start) {} }
             public partial class DrawSystem {
-                public void Run(float strength, int iterations, bool bloomEnabled, int layer) {
+                public void Run(float strength, int iterations, bool bloomEnabled, LayerDrawRequestSystem.DrawTargetLayer layer, LayerDrawRequestSystem.DrawTiming timing) {
                     SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
-                    RenderRequestedBloom((LayerDrawRequestSystem.DrawTargetLayer)layer, LayerDrawRequestSystem.DrawTiming.After);
+                    RenderRequestedBloom(layer, timing);
                 }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
-            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+            "bloomScissor", "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "GetFilterRegion", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render,
@@ -193,6 +193,14 @@ sealed class LookPreview : Game
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
+    }
+
+    void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException($"Offline preview window unexpectedly visible: {flags}");
     }
 
     void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
@@ -200,6 +208,7 @@ sealed class LookPreview : Game
     protected override void LoadContent()
     {
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
         Directory.CreateDirectory(output);
         batch = new SpriteBatch(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
@@ -255,20 +264,12 @@ sealed class LookPreview : Game
     {
         if (done) return;
         done = true;
-        int code = 1;
-        try
-        {
-            Execute();
-            code = 0;
-        }
-        catch (Exception e)
-        {
-            Console.Error.WriteLine(e);
-        }
+        AssertHidden();
+        Execute();
         Console.Out.Flush();
         Console.Error.Flush();
         // FNA 的 D3D11 后端在进程退出清理时会卡住，写完结果后直接终止进程
-        TerminateProcess(Process.GetCurrentProcess().Handle, (uint)code);
+        TerminateProcess(Process.GetCurrentProcess().Handle, 0);
     }
 
     static IEnumerable<Look> Looks()
@@ -322,6 +323,7 @@ sealed class LookPreview : Game
 
     Color[] RenderFrame(Look look, int frame, bool night)
     {
+        AssertHidden();
         // 火星：固定种子，按当前淡出进度的火焰显现程度预热，与 FireTornado.AI 的生成方式相同
         var random = new Random(1234);
         sparks.Clear();
@@ -347,12 +349,10 @@ sealed class LookPreview : Game
         DrawSky(night);
 
         // 背面气流圈：BehindNPCsAndTiles 层，随后画图块盖住
-        Enqueue(0, () => DrawBack(look, frame));
-        run.Invoke(renderer, [1f, 4, true, 0]);
+        DrawLayer("BehindNPCsAndTiles", "After", () => DrawBack(look, frame));
         DrawTiles(night);
 
-        Enqueue(3, () => DrawFront(look, frame));
-        run.Invoke(renderer, [1f, 4, true, 3]);
+        DrawLayer("OverPlayers", "Before", () => DrawFront(look, frame));
 
         GraphicsDevice.SetRenderTarget(null);
         var pixels = new Color[Width * Height];
@@ -360,10 +360,12 @@ sealed class LookPreview : Game
         return pixels;
     }
 
-    void Enqueue(int layer, Action callback)
+    void DrawLayer(string layerName, string timingName, Action callback)
     {
-        request.Invoke(null, ["Elaina:FireTornado", Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTargetLayer"), layer),
-            Enum.ToObject(pipeline.GetType("KL.Drawing.LayerDrawRequestSystem+DrawTiming"), 1), callback, 0]);
+        var layer = Enum.Parse(queue.GetNestedType("DrawTargetLayer"), layerName);
+        var timing = Enum.Parse(queue.GetNestedType("DrawTiming"), timingName);
+        request.Invoke(null, ["Elaina:FireTornado", layer, timing, callback, 0]);
+        run.Invoke(renderer, [1f, 4, true, layer, timing]);
     }
 
     void DrawSky(bool night)

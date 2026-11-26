@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>风刃 · 动态预览</title>
+<style>
+*{box-sizing:border-box} :root{color-scheme:dark;font:14px/1.55 Inter,"Microsoft YaHei UI",sans-serif;color:#f4eef3;background:#19191e;--pink:#efb9da;--line:#414048;--muted:#bbb4bd}
+body{margin:0} main{max-width:1240px;margin:auto;padding:clamp(16px,3vw,42px)}header,.row,.bar,.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}header{margin:0 0 20px}h1{font-size:clamp(22px,3vw,32px);font-weight:600;letter-spacing:.04em;margin:0}h2{font-size:16px;margin:0}button,select{font:inherit;color:inherit;background:#302f37;border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer}button:hover,select:hover{background:#403b46}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--pink);outline-offset:3px}button[aria-pressed=true],.primary{background:var(--pink);color:#271d26;border-color:var(--pink)}.layout{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:16px}.panel{background:#25242a;border:1px solid #37353d;border-radius:13px;overflow:hidden}.stage{height:clamp(360px,60vh,660px);display:grid;place-items:center;overflow:hidden;background:rgb(10,16,25)}canvas{display:block;width:min(100%,62vh);height:auto;aspect-ratio:1}.bar{padding:12px;flex-wrap:wrap;border-top:1px solid var(--line)}.bar>div{display:flex;align-items:center;gap:7px}.details{padding:20px}section+section{margin-top:22px;padding-top:19px;border-top:1px solid var(--line)}.section-head{margin-bottom:16px}.subtle{font-size:12px;color:var(--muted)}.plain{padding:3px 7px;background:transparent;font-size:12px}.field{margin:14px 0}.field:last-child{margin-bottom:2px}output,#frame{font-family:"Cascadia Mono",Consolas,monospace;color:var(--pink);font-variant-numeric:tabular-nums}input[type=range]{width:100%;accent-color:var(--pink);cursor:pointer;margin:9px 0 0}.settings .row{margin-top:11px}label{cursor:pointer}select{padding:4px 8px}.note{min-height:18px;margin:9px 0 0;color:var(--muted);font-size:12px}.copy{width:100%;margin-top:14px}.status{color:var(--muted);font-size:13px}.status:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#bd93ac;margin-right:7px}input[type=checkbox]{accent-color:var(--pink)}
+@media(max-width:780px){.layout{grid-template-columns:1fr}.stage{height:clamp(250px,48vh,460px)}canvas{width:min(100%,48vh)}.details{display:grid;grid-template-columns:1fr 1fr;gap:18px}.details section+section{margin:0;border:0;padding:0}}@media(max-width:480px){main{padding:12px}.details{display:block}.details section+section{margin-top:15px;border-top:1px solid var(--line);padding-top:15px}.bar{gap:6px}.bar button{padding:5px 8px}.stage{height:310px}canvas{width:min(100%,350px)}header{margin-bottom:12px}}
+.vector-input{box-sizing:border-box;width:100%;margin-top:6px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#19191e;color:inherit;font:13px Consolas,monospace}.vector-input[aria-invalid=true]{border-color:#ff9292}.vector-error{color:#ffb4b4;font-size:12px}
+</style></head><body><main>
+<header><h1>风刃动态预览</h1><span class="status" id="status" role="status">连接本地 FNA…</span></header>
+<div class="layout"><div class="panel"><div class="stage" id="stage"><canvas width="480" height="480" id="scene" aria-label="风刃实际绘制画面"></canvas></div>
+<div class="bar"><div><button id="play" class="primary">暂停</button><button id="step">下一帧</button><select id="speed" aria-label="播放速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select></div><div><span id="frame">—</span><button id="compare" aria-pressed="false">对照原版</button></div></div></div>
+<aside class="panel details"><section><div class="section-head"><h2>风刃参数</h2><button class="plain" id="reset">恢复原值</button></div><div id="controls"></div><button class="copy" id="copy">复制当前参数</button><p class="note" id="notice" role="status"></p></section>
+<section class="settings"><h2>预览设置</h2><div class="row"><label for="angle">飞行方向</label><select id="angle"><option value="0">向右</option><option value="-90">向上</option><option value="180">向左</option><option value="45">右下</option></select></div><div class="row"><label for="sky">背景</label><select id="sky"><option value="night">夜色</option><option value="day">日间</option></select></div><div class="row"><label for="bloom">Bloom 辉光</label><input type="checkbox" id="bloom" checked></div></section></aside></div></main>
+<script type="module">
+const el=id=>document.getElementById(id), ctx=el('scene').getContext('2d',{alpha:false});
+const labels={FringeLength:'前缘风丝长度',FringeSpacing:'风丝稀疏度',FringeLengthVariation:'长度随机范围',FringeLengthBias:'风丝长度偏向',FringeOpacity:'前缘风丝亮度',LongTrailBrightness:'中央长拖尾亮度',TrailFrontColor:'大拖尾前端颜色',TrailEndColor:'大拖尾末端颜色',TailFadeStart:'长拖尾淡出起点'};
+const controls=await (await fetch('/controls')).json();
+const storageKey='elaina.wind.preview.v1', defaults=Object.fromEntries(controls.map(c=>[c.name,c.value]));
+const values={...defaults};
+let playing=true, comparing=false, tick=30, previous=performance.now(), dirty=true, busy=false, lastSent=0, revision=0;
+const invalidate=()=>{dirty=true;revision++};
+function format(name,v){
+  if(name==='FringeLengthBias')return v===0?'均衡':`${v<0?'中段':'两翼'} ${Math.pow(2,Math.abs(v)).toFixed(2)}×`;
+  if(name==='FringeLength')return `${v} px`;
+  if(name==='FringeSpacing')return `${Number(v).toFixed(2)}×`;
+  return `${Math.round(v*100)}%`;
+}
+function parseColor(text){
+  const tuple=text.trim().replace(/^(?:new\s+)?(?:Vector4\s*)?\((.*)\)\s*;?$/i,'$1');
+  const parts=tuple.split(/[,，]/).map(s=>s.trim());
+  if(parts.length!==4||parts.some(s=>!/^\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?f?$/i.test(s)))return null;
+  const rgba=parts.map(s=>Number(s.replace(/f$/i,'')));
+  return rgba.every(v=>Number.isFinite(Math.fround(v)))&&rgba[3]<=1?rgba:null;
+}
+function display(){for(const c of controls){
+  if(Array.isArray(c.value)){
+    el(c.name).value=values[c.name].join(', ');el(c.name).setAttribute('aria-invalid','false');el(c.name+'Error').textContent='';
+  }else{el(c.name).value=values[c.name];el(c.name+'Value').textContent=format(c.name,values[c.name]);}
+}}
+function save(){localStorage.setItem(storageKey,new URLSearchParams(values).toString())}
+for(const c of controls){
+  const saved=new URLSearchParams(localStorage.getItem(storageKey)||'');
+  const stored=saved.get(c.name);
+  const field=document.createElement('div');field.className='field';
+  if(Array.isArray(c.value)){
+    const gain=saved.get(c.name+'Intensity');
+    if(stored!==null)values[c.name]=parseColor(stored)??c.value;
+    else if(gain!==null&&Number.isFinite(+gain))values[c.name]=c.value.map((v,i)=>i<3?v*Math.max(0,Math.min(3,+gain)):v);
+    field.innerHTML=`<label for="${c.name}">${labels[c.name]} <span class="subtle">Vector4</span></label><input class="vector-input" id="${c.name}" spellcheck="false" autocomplete="off" aria-describedby="${c.name}Error"><div class="vector-error" id="${c.name}Error" role="status"></div>`;
+    if(c.name==='TrailEndColor')field.insertAdjacentHTML('beforeend','<span class="subtle">顺序为 R, G, B, A。RGB 可超过 1，A 为 0–1。</span>');
+    el('controls').append(field);
+    el(c.name).oninput=e=>{
+      const rgba=parseColor(e.target.value);e.target.setAttribute('aria-invalid',String(!rgba));
+      el(c.name+'Error').textContent=rgba?'':'请输入四个非负数，例如 8, 2, 6, 1；A 范围为 0–1。';
+      if(rgba){values[c.name]=rgba;setCompare(false);save();invalidate();}
+    };
+    continue;
+  }
+  if(stored!==null&&Number.isFinite(+stored))values[c.name]=Math.min(c.max,Math.max(c.min,+stored));
+  field.innerHTML=`<div class="row"><label for="${c.name}">${labels[c.name]}</label><output id="${c.name}Value" for="${c.name}"></output></div><input id="${c.name}" type="range" min="${c.min}" max="${c.max}" step="${c.name==='FringeLength'?1:.01}">`;
+  if(c.name==='FringeLengthBias')field.insertAdjacentHTML('beforeend','<div class="row subtle"><span>中段更长</span><span>两翼更长</span></div>');
+  el('controls').append(field);
+  el(c.name).oninput=e=>{values[c.name]=Number(e.target.value);setCompare(false);el(c.name+'Value').textContent=format(c.name,values[c.name]);save();invalidate();};
+}
+display();
+function setCompare(on){comparing=on;el('compare').setAttribute('aria-pressed',String(on));el('compare').textContent=on?'返回调参':'对照原版';invalidate()}
+function playback(on){playing=on;el('play').textContent=on?'暂停':'播放';previous=performance.now();invalidate()}
+el('play').onclick=()=>playback(!playing);
+el('step').onclick=()=>{playback(false);tick=Math.floor(tick)+1;invalidate()};
+el('compare').onclick=()=>setCompare(!comparing);
+el('reset').onclick=()=>{Object.assign(values,defaults);setCompare(false);save();display();el('notice').textContent='已恢复当前游戏源码的参数。'};
+el('copy').onclick=async()=>{await navigator.clipboard.writeText(controls.map(c=>Array.isArray(c.value)
+  ?`private static Vector4 ${c.name} => new Vector4(${values[c.name].map(v=>v+'f').join(', ')});`
+  :`private static float ${c.name} => ${values[c.name]}f;`).join('\n'));el('notice').textContent='已复制当前 C# 参数。'};
+for(const id of ['angle','bloom','sky','speed'])el(id).onchange=invalidate;
+async function render(){
+  const sentRevision=revision,frame=Math.floor(tick),params=new URLSearchParams(comparing?defaults:values);
+  params.set('tick',frame);params.set('angle',el('angle').value);params.set('bloom',el('bloom').checked?'1':'0');params.set('sky',el('sky').value);
+  const res=await fetch('/frame?'+params);if(!res.ok)throw Error('HTTP '+res.status);
+  const bytes=new Uint8ClampedArray(await res.arrayBuffer());
+  if(sentRevision!==revision)return;
+  // FNA returns composited RGB. The desktop output ignores its framebuffer alpha.
+  for(let i=3;i<bytes.length;i+=4)bytes[i]=255;
+  ctx.putImageData(new ImageData(bytes,480,480),0,0);
+  el('stage').style.backgroundColor=el('sky').value==='night'?'rgb(10,16,25)':'rgb(79,160,161)';
+  el('frame').textContent=`第 ${frame} 帧`;el('status').textContent=comparing?'原版对照 · FNA':'本地 FNA';
+  el('scene').dataset.frame=frame;
+}
+function loop(now){
+  if(playing&&!document.hidden)tick=1200+(tick+Math.min(now-previous,100)*.06*Number(el('speed').value))%1200;
+  previous=now;
+  if(!document.hidden&&!busy&&(dirty||(playing&&now-lastSent>=32))){
+    busy=true;dirty=false;lastSent=now;
+    render().catch(e=>{playback(false);dirty=false;el('status').textContent='渲染连接中断';el('notice').textContent=String(e);}).finally(()=>busy=false);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script></body></html>

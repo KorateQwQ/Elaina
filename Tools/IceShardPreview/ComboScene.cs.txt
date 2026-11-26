@@ -1,0 +1,79 @@
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice {
+public partial class IceConeProj {
+    const int ImpactTick = 31;
+    public static float HitTime => .75f;
+    static Vector2 Hit(int index) => new(620 + MathF.Sin(index*3.7f)*8, 247 + MathF.Sin(index*2.4f)*20);
+    static Vector2[] Path() {
+        var cone = new IceConeProj { forwardVelocity = new Vector2(35,0) };
+        var points = new Vector2[ImpactTick+1];
+        for(int tick=0;tick<ImpactTick;tick++) {
+            cone.time = tick; cone.UpdateMovement();
+            points[tick+1] = points[tick]+cone.Projectile.velocity;
+        }
+        return points;
+    }
+    public static void DrawCombo(float seconds, bool continuous) {
+        LayerDrawRequestSystem.ClearFrame();
+        Vector2[] path = Path();
+        int count = continuous ? 10 : 1;
+        for(int index=0;index<count;index++) {
+            float age = seconds-HitTime-index*.2f;
+            float tick = ImpactTick+age*60;
+            if(tick<0 || age>.08f) continue;
+            Vector2 impact = Hit(index);
+            int t = Math.Clamp((int)tick,0,ImpactTick);
+            Vector2 start = impact-path[ImpactTick];
+            Vector2 center = start+path[t];
+            if(t<ImpactTick) center = Vector2.Lerp(center,start+path[t+1],tick-t);
+            var cone = new IceConeProj { time = t, forwardVelocity = new Vector2(35,0) };
+            cone.Projectile.Center = center;
+            cone.Projectile.velocity = new Vector2(35,0);
+            cone.Projectile.rotation = 0;
+            if(t>25) {
+                float distance = Math.Min(500, center.X-(start.X+path[25].X));
+                var points = new Vector2[40];
+                for(int j=0;j<points.Length;j++) points[j] = center-new Vector2(distance*j/(points.Length-1),0);
+                var state = (previewTrail, Vector2.UnitX, -(float)t%1200/40);
+                if(age<0) LayerDrawRequestSystem.RequestBloom("combo-trail",LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                    LayerDrawRequestSystem.DrawTiming.Before,()=>DrawTrail(state,points,1),order:LayerDrawRequestSystem.TrailOrder);
+                else {
+                    float remaining = 1-age*60/TrailLifetime;
+                    LayerDrawRequestSystem.RequestBloom("combo-release",LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                        LayerDrawRequestSystem.DrawTiming.Before,()=>DrawReleasedTrail(state,points,remaining),order:LayerDrawRequestSystem.TrailOrder);
+                    var link = new Vector2[12];
+                    for(int j=0;j<link.Length;j++) link[j]=Vector2.Lerp(impact-new Vector2(TrailOffset,0),impact,j/(float)(link.Length-1));
+                    var linkState = (previewTrail,Vector2.Zero,state.Item3);
+                    LayerDrawRequestSystem.RequestBloom("combo-link",LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                        LayerDrawRequestSystem.DrawTiming.Before,()=>DrawBreakConnection(linkState,link,Math.Max(0,1-age*60/BreakFadeTime)),order:LayerDrawRequestSystem.TrailOrder);
+                }
+            }
+            if(age<0) cone.QueueModel();
+        }
+        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
+    }
+    public static void DrawHits(float seconds, bool continuous) {
+        KLBasicDust.Instances.Clear();
+        int count = continuous ? 10 : 1;
+        for(int index=0;index<count;index++) {
+            float age=seconds-HitTime-index*.2f;
+            if(age<0 || age>.8f) continue;
+            Main.rand = new PreviewRandom(318+index*19);
+            Main.ShardSeed = 318+index*19;
+            int first=KLBasicDust.Instances.Count;
+            var cone=new IceConeProj(); cone.Projectile.Center=Hit(index); cone.Projectile.rotation=0;
+            cone.EmitImpact();
+            for(int tick=0;tick<(int)MathF.Round(age*60);tick++)
+                for(int d=first;d<KLBasicDust.Instances.Count;d++) {
+                    var particle=KLBasicDust.Instances[d];
+                    if(particle.active) particle.renderer.Update(particle);
+                }
+        }
+        Main.spriteBatch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,Main.DefaultSamplerState,
+            DepthStencilState.None,RasterizerState.CullNone);
+        foreach(var particle in KLBasicDust.Instances) if(particle.active) particle.renderer.SubmitBloomDrawRequest(particle);
+        LayerDrawRequestSystem.Flush(LayerDrawRequestSystem.DrawTargetLayer.Dust,LayerDrawRequestSystem.DrawTiming.Before);
+        foreach(var particle in KLBasicDust.Instances) if(particle.active) particle.renderer.PreDraw(particle);
+        Main.spriteBatch.End();
+    }
+    public static void DisposePreviewModel() { iceCone.Dispose(); }
+}}

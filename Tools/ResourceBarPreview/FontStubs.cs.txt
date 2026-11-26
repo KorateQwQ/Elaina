@@ -1,0 +1,20 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace ReLogic.Content
+{
+    public sealed class Asset<T>(T value) { public T Value => value; }
+}
+namespace Terraria.ModLoader
+{
+    public sealed class Mod
+    {
+        public byte[] GetFileBytes(string path) => File.ReadAllBytes(Path.Combine(ResourcePreview.Root, path));
+    }
+    public static class ModContent
+    {
+        public static ReLogic.Content.Asset<T> Request<T>(string path, ReLogic.Content.AssetRequestMode mode)
+            => new((T)(object)ResourcePreview.FontTexture(path));
+    }
+}

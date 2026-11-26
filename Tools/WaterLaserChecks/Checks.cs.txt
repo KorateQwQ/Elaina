@@ -27,7 +27,8 @@ static class Program
     {
         Terraria.Program.SavePath = Path.GetTempPath();
         using var game = new Checks(args[0], args[1], args.Length > 2 && args[2] == "geometry");
-        game.Run();
+        game.RunOneFrame();
+        if (!game.Exported) throw new InvalidOperationException("Missing check frame");
     }
 }
 
@@ -45,6 +46,13 @@ sealed partial class Checks : Game
     Texture2D pixel, wand;
     SpriteBatch batch;
     bool finished;
+    public bool Exported => finished;
+    void VerifyHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException("Unexpected visible check window");
+    }
 
     public Checks(string root, string output, bool geometryOnly)
     {
@@ -54,6 +62,7 @@ sealed partial class Checks : Game
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        VerifyHidden();
     }
 
     static FieldInfo Field(Type t, string name)
@@ -74,6 +83,7 @@ sealed partial class Checks : Game
     protected override void LoadContent()
     {
         SDL.SDL_HideWindow(Window.Handle);
+        VerifyHidden();
         Directory.CreateDirectory(output);
         pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
         using (var stream = File.OpenRead(Path.Combine(root, "Items/魔杖.png"))) wand = Texture2D.FromStream(GraphicsDevice, stream);
@@ -85,9 +95,10 @@ sealed partial class Checks : Game
         player = new Player { active = true, whoAmI = 0, width = 20, height = 42,
             position = new Vector2(600, 600), gravDir = 1f, statManaMax2 = 200, statLife = 1, statLifeMax2 = 100 };
         GameMain.player[0] = player;
+        GameMain.dust = Enumerable.Range(0, GameMain.maxDust + 1).Select(_ => new Dust()).ToArray();
         player.inventory[0] = new Item { type = ItemID.Wood, stack = 1 };
         var mods = new ModPlayer[] { new ActionModPlayer(), new ElainaAttributeModPlayer(), new ElainaModplayer(),
-            new ElainaSkillModPlayer(), new ElainaManaElixirPlayer() };
+            new ElainaSkillModPlayer(), new ElainaManaElixirPlayer(), new ChargePointPlayer() };
         for (ushort i = 0; i < mods.Length; i++) {
             Entity(mods[i], player);
             typeof(ModPlayer).GetProperty("Index", All).SetValue(mods[i], i);
@@ -105,6 +116,7 @@ sealed partial class Checks : Game
         ((ElainaSkillModPlayer)mods[3]).UnlockedSkill[nameof(AshenWitchSkill)] = skill;
         ElainaSkillModPlayer.CurrentSkillIndex = 0;
         magic.Initialize();
+        player.GetModPlayer<ChargePointPlayer>().Initialize();
         var prototype = new WaterLaser(); Entity(prototype, new Projectile { type = 0 }); ContentInstance.Register(prototype);
         AnimActionRegistry.Register(typeof(Action_WaterLaser));
         ((IDictionary)typeof(KL.KL).GetField("NetInstance", All).GetValue(null))[typeof(ActionModPlayer).FullName] = actions;
@@ -114,6 +126,10 @@ sealed partial class Checks : Game
         typeof(ModType).GetProperty("Mod", All).SetValue(template, new CheckMod());
         typeof(GlobalNPC).GetMethod("Register", All).Invoke(template, null);
         ContentInstance.Register(template);
+        var elementalProjectile = new ElementalGlobalProjectile();
+        typeof(ModType).GetProperty("Mod", All).SetValue(elementalProjectile, new CheckMod());
+        typeof(GlobalProjectile).GetMethod("Register", All).Invoke(elementalProjectile, null);
+        ContentInstance.Register(elementalProjectile);
         foreach (GlobalNPC state in new GlobalNPC[] { new FireBurnNPC(), new WaterExposureNPC() }) {
             typeof(ModType).GetProperty("Mod", All).SetValue(state, new CheckMod());
             typeof(GlobalNPC).GetMethod("Register", All).Invoke(state, null);
@@ -157,9 +173,10 @@ sealed partial class Checks : Game
         token++;
         Call(actions, "StartActionLocal", action, true, 0f, token);
         beam = new WaterLaser();
-        var projectile = new Projectile { active = true, owner = 0, type = 0, width = 10, height = 10,
+        var projectile = new Projectile { active = true, owner = 0, type = ProjectileID.WoodenArrowFriendly, width = 10, height = 10,
             timeLeft = 30, damage = 100, velocity = Vector2.UnitX, tileCollide = false, penetrate = -1 };
         projectile.DamageType = DamageClass.Magic;
+        Set(projectile, "_globals", new GlobalProjectile[] { new ElementalGlobalProjectile() });
         Entity(beam, projectile);
         Set(beam, "maxDistance", 100f);
         beam.BindAction(token, manaCost, interval);
@@ -229,6 +246,11 @@ sealed partial class Checks : Game
         var entry = config.Skills[nameof(WaterLaserSKill)];
         int interval = (int)Math.Round(entry.BaseCooldown * 60);
         Check(interval == 10, "Configured water interval is ten frames");
+        var waterSkill = new WaterLaserSKill();
+        waterSkill.Initialize();
+        Check(waterSkill.MaxCD == 0.3f, "Water skill cooldown is independent of attack interval");
+        waterSkill.PreUpdateCD();
+        Check(waterSkill.MaxCD == 0.3f, "Water skill cooldown survives balance refresh");
         var previous = entry with { BaseCooldown = .2, ManaCost = 1.5 };
         foreach (int level in new[] { 1, 30, 60, 95 })
             Check(Math.Abs(config.GetSkillDamage(1000, entry, level) * 6
@@ -380,6 +402,7 @@ sealed partial class Checks : Game
     protected override void Draw(GameTime gameTime)
     {
         if (finished) return;
+        VerifyHidden();
         finished = true;
         if (geometryOnly || Environment.GetEnvironmentVariable("WATER_QUICK_CAST_CHECKS") == "1") { Exit(); return; }
         foreach (float gravity in new[] { 1f, -1f }) RenderPoses(gravity);

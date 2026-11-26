@@ -321,8 +321,8 @@ public sealed class ElainaHealingWheel : BaseBody
     {
         if (_count == 0 || !_open && !Fading) return;
         FillFrame();
-        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
-            null, UIDrawKit.NumberFont);
+        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill, UIDrawKit.Shapes),
+            null, UIDrawKit.RasterSerif);
         var labels = new HealingWheelDrawing.Labels(LocalizeUI(_recall ? "RecallTarget" : "HealingTarget"), LocalizeUI("HealingSelf"),
             LocalizeUI(_recall ? "RecallDestination" : "HealingCritical"),
             LocalizeUI(_recall ? "RecallDestination" : "HealingFull"),

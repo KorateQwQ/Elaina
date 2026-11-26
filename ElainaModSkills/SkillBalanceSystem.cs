@@ -18,7 +18,6 @@ public sealed class SkillBalanceSystem : ModSystem
     public static SkillBalanceConfig Current => store.Current;
 #if DEBUG
     private long nextPoll;
-    private string reportedError;
     public string SourcePath => string.IsNullOrWhiteSpace(Mod.SourceFolder)
         ? null
         : Path.Combine(Mod.SourceFolder, SkillBalanceConfig.ResourcePath.Replace('/', Path.DirectorySeparatorChar));
@@ -30,8 +29,7 @@ public sealed class SkillBalanceSystem : ModSystem
         if (Mod.FileExists(SkillBalanceConfig.ResourcePath))
         {
             string json = Encoding.UTF8.GetString(Mod.GetFileBytes(SkillBalanceConfig.ResourcePath));
-            if (SkillBalanceConfig.TryParse(json, out SkillBalanceConfig packed, out string error)) defaults = packed;
-            else Mod.Logger.Warn("打包技能配置无效，使用安全默认值：" + error);
+            defaults = SkillBalanceConfig.Parse(json);
         }
         store = new(defaults);
 #if DEBUG
@@ -45,7 +43,6 @@ public sealed class SkillBalanceSystem : ModSystem
         store = new(defaults);
 #if DEBUG
         nextPoll = 0;
-        reportedError = null;
 #endif
     }
 
@@ -61,16 +58,6 @@ public sealed class SkillBalanceSystem : ModSystem
         // 只读取已有的本机源码配置；联机也不接收或发送其他机器的配置。
         if (string.IsNullOrEmpty(SourcePath) || !File.Exists(SourcePath)) return;
         bool changed = store.Refresh(SourcePath);
-        if (store.LastError != null)
-        {
-            if (reportedError != store.LastError)
-            {
-                reportedError = store.LastError;
-                Mod.Logger.Warn($"技能配置读取失败，继续使用上次成功配置：{SourcePath}；{reportedError}");
-            }
-            return;
-        }
-        reportedError = null;
         if (!changed) return;
         Mod.Logger.Info("技能配置已重载：" + SourcePath);
         if (notify && !Main.gameMenu && !Main.dedServ)

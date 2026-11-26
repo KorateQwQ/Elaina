@@ -1,5 +1,15 @@
 # Shardbind 冰锥深度预览
 
+## 请求队列逐回调开启 SpriteBatch 回归（2026-11-12）
+
+当前 KL 请求队列在每个回调前确保 SpriteBatch 已开启，冰凌锁的直接模型绘制必须逐回调 `End`；只有深度目标的初始化/合成使用 `ctx.IsFirst/IsLast`。旧实现只在第一枚冰锥时 `End`，第二枚起遗留活动批次，最后在 `IceConeDepthRenderer.EndLayer` 重复 `Begin` 并引发引擎崩溃。
+
+- `pwsh -File Tools/IceDepthPreview/run.ps1 -LegacyBatch`：仅恢复旧的结束条件，预期非零退出，复现 `EndLayer` 的重复 Begin 异常。
+- `pwsh -File Tools/IceDepthPreview/run.ps1`：修复后通过多枚冰锥、正反提交顺序、共享深度、场景目标和 backbuffer 检查。
+- `pwsh -File Tools/IceDepthPreview/run.ps1 -Bloom`：通过实际 KL 后处理、开关 Bloom、HDR、前后层和两种目标路径；输出 `out/bloom-group-on.png` 等图片，已进行目视检查。
+
+脚本默认使用本机 `C:/Users/PC/.dotnet/dotnet.exe` 的 .NET 10 SDK，可用 `-Dotnet` 指定其他位置。适配当前 HalfVector4 Bloom 降采样缓冲和 TrailEffect 重载；发射预览继续排除粒子。预览顶层不捕获异常，保留原始调用栈。以上均为 FNA 离线结果；另执行 `dotnet build 伊蕾娜.csproj -c Debug`，KL 与伊蕾娜完整构建/打包成功（0 错误，存在项目警告）。未进行游戏内验证。
+
 ## 冰锥发射瞬间拖尾
 
 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Tools/IceDepthPreview/run.ps1 -Launch`。
@@ -44,8 +54,8 @@ backbuffer 的输出一致，并确认 backbuffer 的保存设置得到恢复。
 
 同一命令追加 `-Bloom`，会重新提取 KL `DrawSystem` 的完整 RequestBloom 合成流程、
 `RenderHelper` 及相关绘制方法，加载实际 Bloom/ReColor Shader。
-检查两类冰锥开关 bloom 的外观、轮廓外光晕、开启 bloom 后的冰锥群反序遮挡、
-深度中间缓冲的 HDR 值保留，以及场景目标与 backbuffer 两条合成路径。
+检查冰凌锁前景模型的轮廓外光晕、`Vector4 + Depth24` 缓冲和冰锥群反序遮挡。独立遮挡样例在后景和弹幕层之间绘制不透明测试块，核对后景被挡住、前景表面及其光晕均可见。
+单冰锥术仍检查轮廓外光晕。两者均覆盖场景目标和 backbuffer 合成路径。
 不传 `-Bloom` 时通过 KL 的关闭后处理分支执行请求，继续运行原有深度/单冰锥检查。
 
 `bloom-group-on.png` 和 `bloom-single-on.png` 为带 bloom 的离线预览；

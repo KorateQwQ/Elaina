@@ -1,0 +1,198 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SDL2;
+using ShardbindPreview;
+
+using var game = new Preview(args[0], args[1], args[2] == "html", args[3] == "after", args[4], args[5], args[6] == "probe",
+    args.Length > 7 ? args[7].Split(',').Select(int.Parse).ToHashSet() : null, args[6] == "switch", args[6] == "camera", args[6] == "impact");
+// 批量导出只需初始化和一次 Draw；Run 的窗口注册会重新显示 SDL 窗口。
+game.RunOneFrame();
+if (!game.Exported) throw new InvalidOperationException("离线导出未完成。");
+
+sealed partial class Preview : Game
+{
+    readonly string root, output;
+    Replay replay;
+    NpcTargets npcs;
+    readonly string npcContent, targetSelection;
+    readonly bool probe;
+    readonly HashSet<int> selectedFrames;
+    RenderTarget2D target;
+    SpriteBatch backgroundBatch;
+    Texture2D forestDay, forestNight;
+    bool exported;
+    public bool Exported => exported;
+    int hiddenChecks;
+    readonly bool html;
+    readonly bool afterOnly;
+    readonly bool switchOnly;
+    readonly bool cameraOnly;
+    readonly bool impactOnly;
+    public Preview(string root, string output, bool html, bool afterOnly, string npcContent, string targetSelection, bool probe, HashSet<int> selectedFrames, bool switchOnly, bool cameraOnly, bool impactOnly)
+    {
+        this.root = root; this.output = output; this.html = html; this.afterOnly = afterOnly;
+        this.npcContent = npcContent; this.targetSelection = targetSelection; this.probe = probe;
+        this.selectedFrames = selectedFrames;
+        this.switchOnly = switchOnly;
+        this.cameraOnly = cameraOnly;
+        this.impactOnly = impactOnly;
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 2560, PreferredBackBufferHeight = 1440,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
+    }
+    void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if ((flags & SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) == 0
+            || (flags & SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN) != 0)
+            throw new InvalidOperationException($"离线导出窗口意外显示：{flags}");
+        hiddenChecks++;
+    }
+    protected override void LoadContent()
+    {
+        SDL.SDL_HideWindow(Window.Handle);
+        replay = new Replay(GraphicsDevice, Services, root);
+        npcs = new NpcTargets(GraphicsDevice, Services, npcContent);
+        replay.SetNpcDraw(npcs.Draw);
+        target = new RenderTarget2D(GraphicsDevice, 2560, 1440, false, SurfaceFormat.Color, DepthFormat.None);
+        backgroundBatch = new SpriteBatch(GraphicsDevice);
+        using (var day = File.OpenRead(Path.Combine(root, "Tools/ShardbindPreview/Assets/ForestDay.png")))
+            forestDay = Texture2D.FromStream(GraphicsDevice, day);
+        using (var night = File.OpenRead(Path.Combine(root, "Tools/ShardbindPreview/Assets/ForestNight.png")))
+            forestNight = Texture2D.FromStream(GraphicsDevice, night);
+        AssertHidden();
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        if (exported) return;
+        AssertHidden();
+        Directory.CreateDirectory(output);
+        if (impactOnly)
+        {
+            ExportImpactProbe();
+            exported = true;
+            Console.WriteLine($"Hidden impact preview verified at {hiddenChecks} checkpoints.");
+            Exit();
+            return;
+        }
+        if (cameraOnly)
+        {
+            ExportCameraProbe();
+            exported = true;
+            Console.WriteLine($"Hidden camera preview verified at {hiddenChecks} checkpoints.");
+            Exit();
+            return;
+        }
+        if (switchOnly)
+        {
+            ExportSwitchDemo();
+            exported = true;
+            Console.WriteLine($"Hidden switch preview verified at {hiddenChecks} checkpoints.");
+            Exit();
+            return;
+        }
+        var png = new PngExport(2560, 1440);
+        foreach (string npc in targetSelection == "all" ? new[] { "none", "fishron", "golem" }
+            : targetSelection == "bosses" ? new[] { "fishron", "golem" } : new[] { targetSelection })
+        foreach (string version in afterOnly ? new[] { "after" } : html ? new[] { "before", "after" } : new[] { "after" })
+        foreach (string mode in new[] { "normal", "dark" })
+        {
+            npcs.Selected = npc;
+            string sceneOutput = npc == "none" ? output : Path.Combine(output, "targets", npc);
+            string frames = html ? Path.Combine(sceneOutput, version, mode) : Path.Combine(sceneOutput, mode);
+            Directory.CreateDirectory(frames);
+            replay.Reset(version == "after");
+            replay.SetTargetRadius(npc == "golem" ? replay.RadiusFromHitbox(140,140)
+                : npc == "fishron" ? replay.RadiusFromHitbox(150,100) : replay.RadiusFromHitbox(60,60));
+            int endTick = version == "after" ? PreviewTimeline.EndTick : 180;
+            int offset = version == "after" ? PreviewTimeline.FlightOffset : 0;
+            int[] probeFrames = [0, 20, 44, 45, 55, 66, 80, 100, 119, 120, 121, 125,
+                31 + offset, 128, 136, 144, 148, 151, replay.ChargeStart, replay.FirstRayTick, replay.BurstTick - 1, replay.BurstTick,
+                replay.BurstTick + 16, endTick];
+            for (int tick = 0; tick <= endTick; tick++)
+            {
+                AssertHidden();
+                if (tick > 0) replay.Step(tick);
+                if (selectedFrames != null && !selectedFrames.Contains(tick)) continue;
+                if (probe && !probeFrames.Contains(tick)) continue;
+                if (!html && tick % 2 != 0 && tick != 109 && tick != 119
+                    && tick != replay.ChargeStart && tick != replay.ChargeStart + 36
+                    && tick != replay.BurstTick && tick != replay.BurstTick + 16 && tick != endTick) continue;
+                GraphicsDevice.SetRenderTarget(target);
+                GraphicsDevice.Clear(mode == "dark" ? new Color(9, 14, 24) : new Color(33, 48, 64));
+                backgroundBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp,
+                    DepthStencilState.None, RasterizerState.CullNone);
+                backgroundBatch.Draw(mode == "dark" ? forestNight : forestDay, Vector2.Zero, Color.White);
+                backgroundBatch.End();
+                replay.Draw(tick);
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(frames, $"{tick:D3}.png"));
+                png.Save(target, file);
+                if (probe && version == "after" && tick == replay.BurstTick - 1)
+                {
+                    foreach (bool bloom in new[] { false, true })
+                    {
+                        GraphicsDevice.SetRenderTarget(target);
+                        GraphicsDevice.Clear(Color.Transparent);
+                        backgroundBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp,
+                            DepthStencilState.None, RasterizerState.CullNone);
+                        backgroundBatch.Draw(mode == "dark" ? forestNight : forestDay, Vector2.Zero, Color.White);
+                        backgroundBatch.End();
+                        replay.SetBloom(bloom);
+                        replay.DrawSheetsOnly();
+                        GraphicsDevice.SetRenderTarget(null);
+                        using var diagnostic = File.Create(Path.Combine(frames, $"sheet-only-bloom-{bloom}.png"));
+                        png.Save(target, diagnostic);
+                    }
+                    replay.SetBloom(true);
+                }
+            }
+            replay.Validate();
+            File.WriteAllText(Path.Combine(frames, "timing.json"), System.Text.Json.JsonSerializer.Serialize(new {
+                endTick, burstTick = replay.BurstTick, chargeStart = replay.ChargeStart, firstRayTick = replay.FirstRayTick,
+                confirmTick = version == "after" ? PreviewTimeline.ConfirmTick : 0,
+                launchTick = version == "after" ? PreviewTimeline.LaunchTick : 26, flightOffset = offset,
+                chargeOffset = version == "after" ? PreviewTimeline.ChargeOffset : 0,
+                volleySpan = version == "after" ? PreviewTimeline.VolleySpan : 67 }));
+            Console.WriteLine($"Exported {npc}/{version}/{mode}: {(selectedFrames == null ? $"ticks 0..{endTick}" : string.Join(",", selectedFrames.OrderBy(t => t)))}, 60 ticks/s, probe={probe}.");
+        }
+        if (probe) replay.ExportBloomThresholdProbe(GraphicsDevice, output);
+        ExportReticleDiagnostics();
+        exported = true;
+        Console.WriteLine($"Hidden window verified at {hiddenChecks} checkpoints; export completed without Game.Run window registration.");
+        Exit();
+    }
+    void ExportReticleDiagnostics()
+    {
+        string folder = Path.Combine(output, "reticle-native");
+        Directory.CreateDirectory(folder);
+        foreach (var config in new[] { (1366, 768, 1f), (1920, 1080, 1.125f), (3840, 2160, 2f) })
+        {
+            using var native = new RenderTarget2D(GraphicsDevice, config.Item1, config.Item2,
+                false, SurfaceFormat.Color, DepthFormat.None);
+            var png = new PngExport(config.Item1, config.Item2);
+            foreach (int tick in new[] { 8, 20, 44, 45, 46, 55, 66, 69, 100, 116 })
+            {
+                AssertHidden();
+                GraphicsDevice.SetRenderTarget(native);
+                GraphicsDevice.Clear(new Color(12, 22, 35));
+                // 小目标和Boss，均由相同实际Shader绘制；最终倍率是世界/相机缩放。
+                replay.DrawReticleDiagnostic(tick / 60.0, PreviewTimeline.ConfirmTick / 60.0,
+                    new Vector2(config.Item1 * .30f, config.Item2 * .5f), replay.RadiusFromHitbox(60,60), config.Item3);
+                replay.DrawReticleDiagnostic(tick / 60.0, PreviewTimeline.ConfirmTick / 60.0,
+                    new Vector2(config.Item1 * .66f, config.Item2 * .5f), replay.RadiusFromHitbox(150,100), config.Item3);
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(folder, $"{config.Item1}-{tick:D3}.png"));
+                png.Save(native, file);
+            }
+        }
+        Console.WriteLine("PASS reticle native exports: 1366x768 at 1x, 1920x1080 at 1.125x, 3840x2160 at 2x; small/Boss radii.");
+    }
+    protected override void UnloadContent() { replay.Dispose(); npcs.Dispose(); target.Dispose(); backgroundBatch.Dispose(); forestDay.Dispose(); forestNight.Dispose(); }
+}

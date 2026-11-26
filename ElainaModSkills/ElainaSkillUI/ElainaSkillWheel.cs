@@ -140,7 +140,9 @@ public sealed class ElainaSkillWheel : BaseBody
             else if (!key.Current) wheel.Close(true);
         }
         else if (ElainaActions.Action_WaterLaser.OwnsQuickCastInput(Main.LocalPlayer)
-            || ElainaActions.Action_FireLaser.OwnsQuickCastInput(Main.LocalPlayer))
+            || ElainaActions.Action_FireLaser.OwnsQuickCastInput(Main.LocalPlayer)
+            || ElainaActions.Action_IceCone.OwnsQuickCastInput(Main.LocalPlayer)
+            || ElainaActions.Action_MagicMissile.OwnsQuickCastInput(Main.LocalPlayer))
             ClearPendingInteract();
         else if (!key.Current)
             ClearPendingInteract();
@@ -301,8 +303,8 @@ public sealed class ElainaSkillWheel : BaseBody
         if (Count == 0 || !HoldingWand) return;
         FillView();
         _cdEffect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/SkillSeal", AssetRequestMode.ImmediateLoad).Value;
-        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
-            _cdEffect, UIDrawKit.NumberFont);
+        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill, UIDrawKit.Shapes),
+            _cdEffect, UIDrawKit.RasterSerif);
         // 整个轮盘绕自身中心按配置倍率缩放，绘制结束后恢复 SUI 的变换。
         _matrix = ScaleAround(_view.Center, Scale) * SilkyUI.TransformMatrix;
         Restart(spriteBatch, SpriteSortMode.Deferred, null);

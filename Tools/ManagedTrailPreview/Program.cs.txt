@@ -10,8 +10,8 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 
-try { using var game = new Probe(args[0], args[1], args.Length > 2 ? args[2] : "regression"); game.Run(); }
-catch (Exception error) { Console.Error.WriteLine(error); Environment.Exit(1); }
+using var game = new Probe(args[0], args[1], args.Length > 2 ? args[2] : "regression");
+game.RunOneFrame();
 
 sealed partial class Probe : Game
 {
@@ -21,17 +21,27 @@ sealed partial class Probe : Game
     SpriteBatch batch;
     bool done;
     readonly bool windAlignment;
+    readonly bool windWeb;
     readonly bool iceBreak;
     const int Width = 960, Height = 640;
     public Probe(string root, string output, string mode)
     {
         windAlignment = mode == "wind-alignment";
+        windWeb = mode == "wind-web";
         iceBreak = mode == "ice-break";
         this.root = root; this.output = output;
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
+    }
+
+    void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException($"Preview window visible: {flags}");
     }
 
     Assembly Compile()
@@ -62,11 +72,11 @@ sealed partial class Probe : Game
         source += Methods(draw, "On_Main_CacheProjDraws", "On_Main_DrawCachedProjs", "On_Main_DrawProjectiles", "FlushLayerRequests",
             "On_Main_DrawDust", "On_Main_DrawPlayers_AfterProjectiles", "On_Main_DrawInfernoRings");
         string[] bloomFields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
-            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+            "bloomScissor", "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => bloomFields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
-            "CaptureBloomRequests", "GetBlendStateForBloom");
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "GetFilterRegion", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
+            "CaptureBloomRequests", "GetBlendStateForBloom", "GetShouldBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "} public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}";
         source += effects.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "ReColorState").ToFullString() + "}";
@@ -85,7 +95,8 @@ sealed partial class Probe : Game
                     .DescendantNodes().OfType<ExpressionStatementSyntax>().Last(e => e.Expression is AssignmentExpressionSyntax a &&
                         a.Left.ToString() == "TrailSampleCount").ToFullString();
             source += $"namespace Preview {{ public class {name} : KLProjectile {{";
-            source += "private TrailManager.TrailHandle managedTrail; private int time = 35; private Texture2D trail; private int BackwardFlyTime => 25;";
+            source += "private TrailManager.TrailHandle managedTrail; private int time = 35; private int BackwardFlyTime => 25;";
+            source += name == "MagicMissile" ? "private static Texture2D trail, headStamp, headNoise; private static Effect trailEffect; private MagicMissileTrailVisuals trailVisuals;" + Methods(consumer, "BeginTrailBatch") : "private Texture2D trail;";
             if (name == "IceConeProj") {
                 source += string.Join("\n", type.Members.OfType<FieldDeclarationSyntax>().Where(f => f.Modifiers.Any(SyntaxKind.ConstKeyword) ||
                     f.Declaration.Variables.Any(v => v.Identifier.Text == "lastTrailState")));
@@ -119,6 +130,7 @@ sealed partial class Probe : Game
             source += callback.ToFullString() + "}}";
         }
         source += BlendSource();
+        source = "global using 伊蕾娜.ElainaModSkills.Skills.MagicMissile;\n" + source;
         source += File.ReadAllText(Path.Combine(root, "Tools/ManagedTrailPreview/IceBreakScene.cs.txt"));
 
         var trail = helper.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" &&
@@ -127,6 +139,8 @@ sealed partial class Probe : Game
         trail = trail.ReplaceNodes(trail.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"),
             (old, _) => old.WithStatement(SyntaxFactory.Block()));
         source += "namespace KL.Drawing { public static partial class DrawHelper { public static Effect vertexDraw;" + trail.ToFullString();
+        var widths = helper.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "TrailEffect" && m.ParameterList.Parameters[2].Type.ToString() == "float[]");
+        source += widths.ReplaceNodes(widths.DescendantNodes().OfType<IfStatementSyntax>().Where(n => n.Condition.ToString() == "debugPoint"), (old, _) => old.WithStatement(SyntaxFactory.Block())).ToFullString();
         source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(s => s.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString();
         source += Methods(drawing, "GetBlendState", "BeginDraw");
         source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "EndBeginDraw"
@@ -137,7 +151,7 @@ sealed partial class Probe : Game
         source = System.Text.RegularExpressions.Regex.Replace(source, @"(?m)^\s*#(?:end)?region[^\r\n]*", "");
         File.WriteAllText(Path.Combine(output, "replay.cs.txt"), source);
 
-        var trees = new[] { source, File.ReadAllText(Path.Combine(kl, "Projectiles/TrailManager.cs")),
+        var trees = new[] { source, File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/MagicMissile/MagicMissileTrailVisuals.cs")), File.ReadAllText(Path.Combine(kl, "Projectiles/TrailManager.cs")),
             File.ReadAllText(Path.Combine(kl, "Drawing/LayerDrawRequestSystem.cs")) }.Select(s => CSharpSyntaxTree.ParseText(s));
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
             .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
@@ -151,6 +165,7 @@ sealed partial class Probe : Game
     protected override void LoadContent()
     {
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
         Directory.CreateDirectory(output);
         replay = Compile(); batch = new SpriteBatch(GraphicsDevice);
         content = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Effects/Content")));
@@ -163,12 +178,19 @@ sealed partial class Probe : Game
         }
         replay.GetType("Preview.Checks").GetMethod("Setup").Invoke(null,
             [GraphicsDevice, batch, Load("streak_801_4r"), Load("LightTrail"), Load("streak_026_4r")]);
+        var missile = replay.GetType("Preview.MagicMissile");
+        const BindingFlags assets = BindingFlags.NonPublic | BindingFlags.Static;
+        missile.GetField("trailEffect", assets).SetValue(null, content.Load<Effect>(Path.Combine(root, "Effects/Content/MagicMissileTrail")));
+        missile.GetField("headStamp", assets).SetValue(null, Load("../Sparkle/T_Vfx_Stamp_HitSword_22"));
+        missile.GetField("headNoise", assets).SetValue(null, Load("../Noise/5"));
         SetupBlendChecks();
     }
 
     protected override void Draw(GameTime time)
     {
+        AssertHidden();
         if (done) { Exit(); return; } done = true;
+        if (windWeb) { ServeWindPreview(); Exit(); return; }
         if (iceBreak) { DrawIceBreakFrames(); Exit(); return; }
         if (windAlignment) { DrawWindAlignmentFrames(); Exit(); return; }
         CheckBlendVisuals();

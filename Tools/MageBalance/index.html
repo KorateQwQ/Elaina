@@ -101,7 +101,9 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:#ffffff05}
 td input[type=number]{min-width:70px;max-width:96px;padding:5px 8px}
 td:last-child{text-align:right;font-variant-numeric:tabular-nums}
-.rotationtable{min-width:1360px}
+.rotationtable{min-width:1080px}
+.pricing-fields{display:grid;gap:5px}
+.pricing-fields label{display:flex;align-items:center;justify-content:space-between;gap:8px;white-space:nowrap;color:var(--muted)}
 .rotationtable .curveinput{width:160px;font:12px Consolas,monospace}
 .rotationtable td:first-child{min-width:185px}
 .rotationtable .skillname,.rotationtable .skillid{display:block;width:170px;font-size:12px;padding:4px 8px;margin:2px 0}
@@ -177,14 +179,14 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 <section class="panel" aria-label="普通攻击">
  <div class="title"><h2>普通攻击</h2><button id="addBasic" type="button">添加普通攻击</button></div>
  <p class="note">整次伤害 = 基准 B × DPS 倍率 × 动作时长，按每次发数等额分摊。倍率曲线写成“等级:倍率”并用逗号分隔（如 1:1, 10:0.9, 50:0.6），按技能等级对应的角色等级插值，超出两端取端点；留空则用固定倍率。</p>
- <div class="tablewrap"><table id="basicTable"><thead><tr><th>名称 / ID</th><th>DPS 倍率</th><th>倍率曲线</th><th>整次耗蓝</th><th>动作时长 / 秒</th><th>每次发数</th><th title="每次有效命中增加的冻结点数，冻结条为 100 点">冻结积蓄</th><th>操作</th></tr></thead><tbody id="basicRows"></tbody></table></div>
+ <div class="tablewrap"><table id="basicTable"><thead><tr><th>名称 / ID</th><th>DPS 倍率</th><th>倍率曲线</th><th>整次耗蓝</th><th>动作时长 / 秒</th><th>每次发数</th><th title="每次有效命中增加的冻结点数，冻结条为 100 点">异常基础积蓄</th><th>操作</th></tr></thead><tbody id="basicRows"></tbody></table></div>
 </section>
 
 <section class="panel section" id="skillPanel" aria-label="主动技能">
  <div class="title"><h2>主动技能</h2><button id="addSkill" type="button">添加主动技能</button></div>
- <div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label><label class="field">占手补偿倍率<input id="occupyRatio" type="number" min="0" max="5" step="0.05"></label></div>
- <p class="note">整次伤害 = B × (占手补偿倍率 × 占手秒 + 增幅% ÷ 100 ÷ 20 × 蓝耗 × CD × CD 伤害折算率 × K)；配置了 DPS 倍率的技能改为 B × 倍率 × (CD + 占手秒)。系数曲线写法同普攻，按等级替代伤害系数（DPS 倍率 0–5，K 0–200）。实际耗蓝 = 蓝耗 + 最大魔力 × 最大魔力%。技能 ID 与游戏内类名对应。</p>
- <div class="tablewrap"><table class="rotationtable"><thead><tr><th>技能</th><th>命中数</th><th>蓝耗</th><th title="每次释放额外消耗最大魔力的百分比">+最大魔力%</th><th>CD / 充能秒</th><th>CD 伤害折算率</th><th>占手秒</th><th title="配置 ratio 的技能为 DPS 倍率，其余为魔力转换率 K">伤害系数</th><th title="“等级:系数”，替代左侧伤害系数；留空则用固定系数">系数曲线</th><th>充能上限</th><th>初始充能</th><th title="每次有效命中增加的冻结点数，冻结条为 100 点">冻结积蓄</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
+ <p class="note">消耗魔力结晶时，整次伤害 = 基准 DPS × 0.4 × 消耗的魔力结晶数 × 性价比。炎爆按基础领域持续期间的单目标伤害估算。设为 0 使用原有 DPS 倍率或魔力转换公式。</p>
+ <div class="tablewrap"><table class="rotationtable"><thead><tr><th>技能</th><th>魔力结晶</th><th>伤害定价</th><th>命中数</th><th>蓝耗</th><th title="每次释放额外消耗最大魔力的百分比">+最大魔力%</th><th>CD / 充能秒</th><th>充能上限</th><th>初始充能</th><th>操作</th></tr></thead><tbody id="rotationRows"></tbody></table></div>
+ <details id="manaPricingSettings"><summary>魔力转换定价设置</summary><div class="fields"><label class="field">每 20 魔力的基准循环增幅 %<input id="rate" type="number" min="0" max="20" step="0.1"></label><label class="field">占手补偿倍率<input id="occupyRatio" type="number" min="0" max="5" step="0.05"></label></div></details>
 </section>
 </div>
 
@@ -214,7 +216,7 @@ td:last-child{text-align:right;font-variant-numeric:tabular-nums}
  <div class="tablewrap"><table id="progressionTable"><thead><tr><th>类别</th><th>技能</th><th>解锁时期</th><th>解锁阶段上限</th><th>解锁角色等级</th><th>成长起点（0随解锁）</th><th>成长方式</th><th>每阶段新增技能等级</th><th>每级角色等级间隔</th><th>最高技能等级<br><small>0 = 不封顶</small></th><th>节点预览</th><th>预览角色等级可达</th></tr></thead><tbody id="progressionRows"></tbody></table></div>
  <div class="fields"><label class="field">逐级伤害预览<select id="progressionDetailSkill"></select></label></div>
  <p id="progressionNotice" class="note"></p>
- <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th>伤害系数</th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>技能等级</th><th>对应角色等级</th><th>基准 B</th><th id="progressionCoefficient"></th><th>基础周期 DPS</th><th>整次伤害</th><th>每发伤害</th><th>每发整数伤害</th><th>本级提升</th></tr></thead><tbody id="progressionDetailRows"></tbody></table></div>
 </section>
 </div>
 
@@ -282,9 +284,9 @@ const legacyPresetsV1={
  spectre:{stage:17,name:'17 拜月教邪教徒后 · 输出型幽灵套',armor:'spectre',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']},
  nebula:{stage:18,name:'18 月亮领主后 · 星云法师',armor:'nebula',slots:6,items:['elainaHat','celestial','destroyer','wormScarf','ankhShield','celestialShell','sorcerer']}};
 const clone=x=>JSON.parse(JSON.stringify(x));
-const newSkill=(id,name)=>({id,name,growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,cost:100,costPercent:0,k:1,cd:10,cdRatio:1,cast:.5,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]});
+const newSkill=(id,name)=>({id,name,growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,cost:100,costPercent:0,k:1,cd:10,cdRatio:1,cast:.5,maxCharges:1,initialCharges:1,ratioCurve:[]});
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,Number.isFinite(Number(n))?Number(n):a));
-function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1,freezeBuildup:0};}
+function newBasic(id='CustomBasic1',name='新普攻') {return {id,name,growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:2,ratio:.8,ratioCurve:[],cost:3,interval:.3,shots:1};}
 // Same rule as SkillBalanceConfig.InterpolateCurve: linear between points, endpoints clamp, empty curve = fixed value.
 function curveAt(c,level,fixed){
  if(!Array.isArray(c)||!c.length)return fixed;
@@ -447,6 +449,10 @@ function setPeriod(row,stage){const p=periods[stage-1];if(!p)return false;row.un
 // 角色达到解锁阶段上限与解锁等级后才算解锁；实际游戏另有 Boss 与前置条件。
 function unlockedAt(row,level){return level>=row.unlockLevel&&level>=row.unlockStageCap;}
 function progressionBudget(s,row,level){
+ if(row.energyCost>0&&!s.basicAttacks.includes(row)){
+  const baseline=levelDps(level),coef=row.energyEfficiency??1,total=baseline*.1*4*row.energyCost*coef,perShot=total/row.shots;
+  return {baseline,ratio:null,k:null,coef,total,dps:total/row.cd,perShot,integerHit:total>0?Math.max(1,Math.floor(perShot)):0};
+ }
  const baseline=levelDps(level),basic=s.basicAttacks.includes(row),ratio=basic||Number.isFinite(row.ratio)?basicRatio(row,level):null,k=ratio===null?curveAt(row.ratioCurve,level,row.k):null;
  // 显式 ratio 的主动技能按 CD + 读条的完整循环定价。
  const period=basic?row.interval:ratio!==null?row.cd+row.cast:row.cd;
@@ -455,13 +461,13 @@ function progressionBudget(s,row,level){
 }
 function defaults(){
  return {version:2,loadoutRevision:2,progression:{phaseSize:5,previewLevel:10},basicAttacks:[{...newBasic('MagicMissileSkill','魔法飞弹'),ratio:.6,ratioCurve:[[1,1],[10,.9],[20,.8],[35,.7],[50,.6]]}],selectedBasicAttackId:'MagicMissileSkill',rate:4,occupyRatio:0,skills:[
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WaterBallSkill',name:'水球魔法',cost:100,costPercent:0,k:1,cd:20,cdRatio:1,cast:1,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',cost:100,costPercent:0,k:.55,cd:25,cdRatio:1,cast:0.3,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireBurstSkill',name:'炎爆（按每层循环）',cost:60,costPercent:0,k:.95,cd:12,cdRatio:1,cast:0.1,maxCharges:5,initialCharges:5,freezeBuildup:0,ratioCurve:[]},
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'ShardbindSkill',name:'冰凌锁',cost:100,costPercent:0,k:.75,cd:25,cdRatio:1,cast:0.4,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',cost:120,costPercent:0,k:1,cd:25,cdRatio:1,cast:3,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',cost:300,costPercent:0,k:1.2,cd:75,cdRatio:1,cast:1,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]},
- {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',cost:400,costPercent:0,k:1,cd:90,cdRatio:1,cast:2,maxCharges:1,initialCharges:1,freezeBuildup:0,ratioCurve:[]}],loadouts:loadoutDefaults()};
+ {...newSkill('WaterBallSkill','水球魔法'),energyCost:2,energyEfficiency:1,cd:10,cast:1},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'WindTornadoSkill',name:'风龙卷',cost:100,costPercent:0,k:.55,cd:25,cdRatio:1,cast:0.3,maxCharges:1,initialCharges:1,ratioCurve:[]},
+ {...newSkill('FireBurstSkill','炎爆'),energyCost:5,energyEfficiency:1.5,ratio:.0067,cost:350,cd:60,cast:.1},
+ {...newSkill('ShardbindSkill','冰凌锁'),energyCost:3,energyEfficiency:.8,ratio:.05,cost:250,cd:60,cast:.75},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'MultiMissileSkill',name:'倾泻魔力飞弹',cost:120,costPercent:0,k:1,cd:25,cdRatio:1,cast:3,maxCharges:1,initialCharges:1,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'FireTornadoSkill',name:'火焰龙卷',cost:300,costPercent:0,k:1.2,cd:75,cdRatio:1,cast:1,maxCharges:1,initialCharges:1,ratioCurve:[]},
+ {growthStartLevel:0,growthMode:'phase',levelInterval:5,maxLevel:0,unlockStageCap:5,unlockLevel:1,levelsPerPhase:1,shots:1,id:'prototype.Lightning',name:'天雷',cost:400,costPercent:0,k:1,cd:90,cdRatio:1,cast:2,maxCharges:1,initialCharges:1,ratioCurve:[]}],loadouts:loadoutDefaults()};
 }
 function gear(s,side){
  const g=s[side],a=armors[g.armor]||armors.none;
@@ -508,7 +514,7 @@ const escapeHtml=value=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'
 const key='elaina-mage-balance-v2';let s=Balance.defaults(),editRevision=0;
 let curveConnected=false,curveError='',curveRequest=null;
 // 旧缓存可能带有已删除的实验室／战斗模拟字段，keepKnown 只保留当前配置项。
-try{const saved=normalizeProgression(JSON.parse(localStorage.getItem(key)));if(validSaved(saved))s=keepKnown(Balance.defaults(),saved);}catch(_){}
+const saved=normalizeProgression(JSON.parse(localStorage.getItem(key)));if(validSaved(saved))s=keepKnown(Balance.defaults(),saved);
 
 function normalizeProgression(value){
  if(!value||typeof value!=='object')return value;
@@ -527,7 +533,8 @@ function normalizeProgression(value){
   if(!Object.hasOwn(row,'growthMode'))row.growthMode='phase';
   if(!Object.hasOwn(row,'levelInterval'))row.levelInterval=5;
   if(!Object.hasOwn(row,'maxLevel'))row.maxLevel=0;
-  if(!Object.hasOwn(row,'freezeBuildup'))row.freezeBuildup=0;
+  delete row.buildup;
+  delete row.freezeBuildup;
  }
  return value;
 }
@@ -540,7 +547,6 @@ function validSaved(x){
   for(const [key,[lo,hi]] of Object.entries(bounds))if(Object.hasOwn(f,key)&&(typeof f[key]!=='number'||!Number.isFinite(f[key])||f[key]<lo||f[key]>hi))return false;
   if((f.dashCooldownSeconds??1)<(f.dashSeconds??.4))return false;
  }
- for(const row of [...(Array.isArray(x.basicAttacks)?x.basicAttacks:[]),...(Array.isArray(x.skills)?x.skills:[])])if(row.freezeBuildup!=null&&(typeof row.freezeBuildup!=='number'||!Number.isFinite(row.freezeBuildup)||row.freezeBuildup<0||row.freezeBuildup>100))return false;
  const d=Balance.defaults();
  for(const k of Object.keys(d))if(!(k in x))return false;
  for(const k of ['rate','occupyRatio'])if(typeof x[k]!=='number'||!Number.isFinite(x[k]))return false;
@@ -548,11 +554,12 @@ function validSaved(x){
  const p=x.progression;if(!p||!Number.isInteger(p.phaseSize)||p.phaseSize<1||p.phaseSize>20||!Number.isInteger(p.previewLevel)||p.previewLevel<1||p.previewLevel>1000)return false;
  if(!Balance.validBasics(x))return false;
  const skillBounds={costPercent:[0,100],unlockStageCap:[1,1000],unlockLevel:[1,1000],levelsPerPhase:[1,10],shots:[1,100],cd:[.1,600],cdRatio:[0,1],cast:[0,60],maxCharges:[1,99],initialCharges:[0,99]};
+ if(!Array.isArray(x.skills)||!x.skills.every(r=>r&&(!Object.hasOwn(r,'energyCost')||(Number.isInteger(r.energyCost)&&r.energyCost>=0&&r.energyCost<=8))&&(!Object.hasOwn(r,'energyEfficiency')||(Number.isFinite(r.energyEfficiency)&&r.energyEfficiency>=0&&r.energyEfficiency<=200))))return false;
  if(!Array.isArray(x.skills)||x.skills.length>32||!x.skills.every(r=>r&&Balance.validGrowth(r)&&Object.entries(skillBounds).every(([key,[min,max]])=>typeof r[key]==='number'&&Number.isFinite(r[key])&&r[key]>=min&&r[key]<=max)&&Number.isInteger(r.unlockStageCap)&&Number.isInteger(r.unlockLevel)&&Number.isInteger(r.levelsPerPhase)&&Number.isInteger(r.shots)&&Number.isInteger(r.maxCharges)&&Number.isInteger(r.initialCharges)&&r.initialCharges<=r.maxCharges&&(r.ratioCurve===undefined||Balance.validCurve(r.ratioCurve,Balance.curveLimit(r)))))return false;
  return new Set(x.skills.map(r=>r.id)).size===x.skills.length&&x.skills.every(r=>(!('ratio' in r)||(typeof r.ratio==='number'&&Number.isFinite(r.ratio)&&r.ratio>=0&&r.ratio<=5))&&typeof r.id==='string'&&/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(r.id)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=64&&['cost','k','cdRatio'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k]))&&r.cost>=0&&r.cost<=10000&&r.k>=0&&r.k<=200&&r.cdRatio>=0&&r.cdRatio<=1);
 }
 function keepKnown(template,input,property=''){
- if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),freezeBuildup:v.freezeBuildup??0,...(property==='skills'?{costPercent:v.costPercent??0}:{}),...(Number.isFinite(v.ratio)?{ratio:v.ratio}:{}),...(v.flight?{flight:Balance.clone(v.flight)}:{})}));
+ if(['skills','basicAttacks'].includes(property))return input.map(v=>({...keepKnown(template[0],v),...(property==='skills'?{costPercent:v.costPercent??0,energyCost:v.energyCost??0,energyEfficiency:v.energyEfficiency??1}:{}),...(Number.isFinite(v.ratio)?{ratio:v.ratio}:{}),...(v.flight?{flight:Balance.clone(v.flight)}:{})}));
  if(property==='ratioCurve')return input; // variable-length points, already checked by validBasics
  if(Array.isArray(template))return ['skills','basicAttacks','loadouts'].includes(property)?input.map(v=>keepKnown(template[0],v)):template.map((v,i)=>keepKnown(v,input[i]));
  if(template&&typeof template==='object')return Object.fromEntries(Object.keys(template).map(k=>[k,keepKnown(template[k],input[k],k)]));
@@ -565,18 +572,43 @@ const validId=value=>/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(value);
 
 // ---- 技能配置页 ----
 // 主动技能的系数曲线与普攻倍率曲线同格式；按技能等级映射的角色等级替代固定伤害系数。
-const rotationFields=[['shots',1,100,1,'命中数'],['cost',0,10000,'any','蓝耗'],['costPercent',0,100,'any','最大魔力百分比耗蓝'],['cd',.1,600,.1,'CD'],['cdRatio',0,1,.05,'CD伤害折算率'],['cast',0,60,.1,'占手'],['k',0,200,.05,'魔力转换率'],['maxCharges',1,99,1,'充能上限'],['initialCharges',0,99,1,'初始充能'],['freezeBuildup',0,100,'any','冻结积蓄']];
-function rowRotationFields(row){return rotationFields.map(field=>field[0]==='k'&&Number.isFinite(row.ratio)?['ratio',0,5,.05,'DPS倍率']:field);}
+const rotationFields=[['shots',1,100,1,'命中数'],['cost',0,10000,'any','蓝耗'],['costPercent',0,100,'any','最大魔力百分比耗蓝'],['cd',.1,600,.1,'CD'],['maxCharges',1,99,1,'充能上限'],['initialCharges',0,99,1,'初始充能']];
+function rotationInput(row,index,[key,min,max,step,label]){
+ const value=row[key]??(key==='energyEfficiency'?1:0);
+ const useCurve=(key==='ratio'||key==='k')&&row.ratioCurve?.length;
+ return `<input type="number" aria-label="${escapeHtml(row.name)}${label}" min="${min}" max="${key==='initialCharges'?row.maxCharges:max}" step="${step}" value="${value}" data-skill-index="${index}" data-skill-field="${key}" ${useCurve?'disabled':''}>`;
+}
+function pricingFields(row,index){
+ const number=field=>`<label>${field[4]}${rotationInput(row,index,field)}</label>`;
+ if(row.energyCost>0)return number(['energyEfficiency',0,200,'any','性价比']);
+ const ratio=Number.isFinite(row.ratio);
+ const coefficient=ratio?['ratio',0,5,.05,'DPS倍率']:['k',0,200,.05,'魔力转换率'];
+ const curve=`<label>系数曲线<input class="curveinput" type="text" aria-label="${escapeHtml(row.name)}系数曲线" maxlength="400" placeholder="留空 = 固定系数" value="${escapeHtml(Balance.formatCurve(row.ratioCurve))}" data-skill-index="${index}" data-skill-field="ratioCurve"></label>`;
+ return [number(coefficient),curve,number(['cast',0,60,.1,'占手秒']),ratio?'':number(['cdRatio',0,1,.05,'CD 伤害折算率'])].join('');
+}
+function updateManaPricingVisibility(){
+ $('manaPricingSettings').hidden=!s.skills.some(row=>!(row.energyCost>0)&&!Number.isFinite(row.ratio));
+}
 function rotation(){
- $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr><td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>${rowRotationFields(row).map(([key,min,max,step,label])=>`<td><input type="number" aria-label="${escapeHtml(row.name)}${label}" min="${min}" max="${key==='initialCharges'?row.maxCharges:max}" step="${step}" value="${row[key]}" data-skill-index="${i}" data-skill-field="${key}"${['k','ratio'].includes(key)&&row.ratioCurve?.length?' disabled title="已使用系数曲线；清空曲线后才使用此固定系数"':''}></td>${['k','ratio'].includes(key)?`<td><input class="curveinput" type="text" aria-label="${escapeHtml(row.name)}系数曲线" maxlength="400" placeholder="留空 = 固定系数" value="${escapeHtml(Balance.formatCurve(row.ratioCurve))}" data-skill-index="${i}" data-skill-field="ratioCurve"></td>`:''}`).join('')}<td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('')||'<tr><td colspan="13">没有主动技能。</td></tr>';
+ $('rotationRows').innerHTML=s.skills.map((row,i)=>`<tr>
+  <td><input class="skillname" type="text" aria-label="技能名称 ${i+1}" maxlength="64" value="${escapeHtml(row.name)}" data-skill-index="${i}" data-skill-field="name"><input class="skillid" type="text" aria-label="技能 ID ${i+1}" maxlength="64" value="${escapeHtml(row.id)}" data-skill-index="${i}" data-skill-field="id"></td>
+  <td>${rotationInput(row,i,['energyCost',0,8,1,'魔力结晶'])}</td><td><div class="pricing-fields">${pricingFields(row,i)}</div></td>
+  ${rotationFields.map(field=>`<td>${rotationInput(row,i,field)}</td>`).join('')}
+  <td><button class="smallbtn" type="button" aria-label="删除${escapeHtml(row.name)}" data-remove-skill="${i}">删除</button></td></tr>`).join('')||'<tr><td colspan="10">没有主动技能。</td></tr>';
  $('addSkill').disabled=s.skills.length>=32;
+ updateManaPricingVisibility();
 }
 $('rotationRows').addEventListener('input',event=>{
  const el=event.target;if(el.type!=='number'||el.value==='')return;
  const row=s.skills[el.dataset.skillIndex],key=el.dataset.skillField;
  let value=Balance.clamp(el.value,+el.min,+el.max);
- if(['shots','maxCharges','initialCharges'].includes(key))value=Math.floor(value);
+ if(['energyCost','shots','maxCharges','initialCharges'].includes(key))value=Math.floor(value);
  row[key]=value;row.initialCharges=Math.min(row.maxCharges,row.initialCharges);
+ if(key==='energyCost'){
+  el.value=value;
+  el.closest('tr').querySelector('.pricing-fields').innerHTML=pricingFields(row,el.dataset.skillIndex);
+  updateManaPricingVisibility();
+ }
  if(key==='maxCharges'){const input=el.closest('tr').querySelector('[data-skill-field="initialCharges"]');input.max=row.maxCharges;input.value=row.initialCharges;}
  update();
 });
@@ -603,7 +635,7 @@ $('addSkill').addEventListener('click',()=>{
  s.skills.push(Balance.newSkill('CustomSkill'+n,'新技能 '+n));rotation();progressionRows();update();
  $('rotationRows').querySelector(`[data-skill-index="${s.skills.length-1}"][data-skill-field="name"]`).focus();
 });
-const basicFields=[['ratio','DPS倍率',0,5,.05],['cost','整次耗蓝',0,10000,'any'],['interval','动作时长',.05,10,.05],['shots','每次发数',1,100,1],['freezeBuildup','冻结积蓄',0,100,'any']];
+const basicFields=[['ratio','DPS倍率',0,5,.05],['cost','整次耗蓝',0,10000,'any'],['interval','动作时长',.05,10,.05],['shots','每次发数',1,100,1]];
 function renderBasics(){
  $('basicRows').innerHTML=s.basicAttacks.map((r,i)=>`<tr><td><input class="skillname" aria-label="普攻名称 ${i+1}" maxlength="64" value="${escapeHtml(r.name)}" data-basic-index="${i}" data-basic-field="name"><input class="skillid" aria-label="普攻 ID ${i+1}" maxlength="64" value="${escapeHtml(r.id)}" data-basic-index="${i}" data-basic-field="id"></td>${basicFields.map(([k,label,min,max,step])=>`<td><input type="number" aria-label="${escapeHtml(r.name)}${label}" min="${min}" max="${max}" step="${step}" value="${r[k]}" data-basic-index="${i}" data-basic-field="${k}"${k==='ratio'&&r.ratioCurve?.length?' disabled title="已使用倍率曲线；清空曲线后才使用此固定倍率"':''}></td>${k==='ratio'?`<td><input class="curveinput" type="text" aria-label="${escapeHtml(r.name)}倍率曲线" maxlength="400" placeholder="留空 = 固定倍率" value="${escapeHtml(Balance.formatCurve(r.ratioCurve))}" data-basic-index="${i}" data-basic-field="ratioCurve"></td>`:''}`).join('')}<td><button type="button" class="smallbtn" data-remove-basic="${i}" aria-label="删除普攻${escapeHtml(r.name)}" ${s.basicAttacks.length===1?'disabled':''}>删除</button></td></tr>`).join('');
  $('addBasic').disabled=s.basicAttacks.length>=32;
@@ -671,6 +703,7 @@ function updateProgression(){
   tr.querySelector('[data-progression-cap]').textContent=cap?`Lv${cap}（角色 ${s.progression.previewLevel}）`:'角色等级未达标';
  });
  const row=rows.find(r=>r.id===$('progressionDetailSkill').value)||rows[0];
+ $('progressionCoefficient').textContent=row.energyCost>0?'性价比':Number.isFinite(row.ratio)?'DPS 倍率':'魔力转换率';
  const nodes=Balance.progressionNodes(row,s.progression.phaseSize),cap=Balance.skillLevelAt(row,s.progression.previewLevel,s.progression.phaseSize);
  let previous=null;
  $('progressionDetailRows').innerHTML=nodes.slice(0,20).map((level,i)=>{const r=Balance.progressionBudget(s,row,level),change=previous&&previous.total>0?(r.total/previous.total-1)*100:null,flat=previous&&r.integerHit===previous.integerHit;previous=r;

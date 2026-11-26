@@ -16,6 +16,7 @@ internal sealed class PanelGame : Game
     private static bool FireOnly;
     private static bool IceWaterOnly;
     private static bool ResolutionOnly;
+    private static bool NodeLabelsOnly;
     private static bool RingsOnly;
     internal static Effect Effect(string path) => Vanilla.Load<Effect>(Path.Combine(Repo, path[(path.IndexOf('/') + 1)..]));
     private static bool RequirementsOnly;
@@ -37,10 +38,18 @@ internal sealed class PanelGame : Game
     {
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
         IsFixedTimeStep = false;
+    }
+    private void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException($"离线星图窗口意外显示：{flags}");
     }
     protected override void LoadContent()
     {
+        AssertHidden();
         Device = GraphicsDevice;
         Content.RootDirectory = Path.GetFullPath(Path.Combine(Repo, "../KL/Fonts"));
         KL.Drawing.FontManager.HarmonyOS_Sans_SC = new(Content.Load<DynamicSpriteFont>("HarmonyOS_Sans_SC"));
@@ -55,8 +64,28 @@ internal sealed class PanelGame : Game
     protected override void Update(GameTime time)
     {
         if (_done) return; _done = true;
+        AssertHidden();
         string output = Path.Combine(Repo, ".vissandbox/constellation-skill-panel/output", Terraria.Localization.Language.Culture); Directory.CreateDirectory(output);
         using var batch = new SpriteBatch(Device);
+        if (NodeLabelsOnly)
+        {
+            string folder = Path.Combine(output, "node-labels");
+            Directory.CreateDirectory(folder);
+            foreach (var (width, height, uiScale) in new[] { (1366, 768, 1f), (1920, 1080, 1.125f), (3840, 2160, 2f) })
+            foreach (float zoom in new[] { .5f, .65f, .7f, .75f, .84f })
+            foreach (bool hover in zoom == .5f ? new[] { false, true } : new[] { false })
+            {
+                using var target = new RenderTarget2D(Device, width, height);
+                Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
+                new PanelScene().Render(batch, width, height, uiScale, hover ? "node-labels-hover" : "active", mapZoom: zoom);
+                Device.SetRenderTarget(null);
+                string path = Path.Combine(folder, $"zoom{zoom * 100:0}-{width}x{height}-ui{uiScale * 100:0.0}{(hover ? "-hover" : "")}.png");
+                using var stream = File.Create(path);
+                target.SaveAsPng(stream, width, height);
+                Console.WriteLine(path);
+            }
+            Exit(); return;
+        }
         if (RingsOnly) { RingPreview.Run(Device, batch, output); Exit(); return; }
         if (ResolutionOnly)
         {
@@ -120,11 +149,11 @@ internal sealed class PanelGame : Game
         if (IconsOnly) { Exit(); return; }
         if (PrimaryOnly) { PrimaryButtonPreview.Run(Device, batch, output); Exit(); return; }
         if (PolishOnly) PolishPreview.Run(Device, batch, output);
-        string[] scenes = IceWaterOnly ? ["ice-water-stream", "ice-water-orb", "ice-water-cone", "ice-water-lock"]
+        string[] scenes = IceWaterOnly ? ["ice-water-stream", "ice-water-orb", "ice-water-cone", "ice-water-lock", "ice-water-lock-bottom"]
             : FireOnly ? ["fire-beam", "fire-beam-bottom", "fire-burst", "fire-burst-bottom", "fire-wind"]
             : AlchemyOnly ? ["alchemy-stats", "alchemy-growth", "alchemy-max"]
             : ForgetOnly ? ["forget", "forget-armed", "forget-lv1"]
-            : TermsOnly ? ["terms-freeze", "terms-magic", "terms-cauldron", "requirements-term"]
+            : TermsOnly ? ["terms-freeze", "terms-wet", "terms-burning", "terms-magic", "terms-cauldron", "requirements-term"]
             : HealingOnly ? ["healing-new", "healing-level1", "healing-growth", "healing-level8", "healing-description"]
             : RecallResearchOnly ? ["recall-sealed", "recall-revealed-missing", "recall-ready", "recall-learned"]
             : OrnamentsOnly ? ["camera-350", "empty", "editor"]
@@ -134,6 +163,7 @@ internal sealed class PanelGame : Game
         foreach (var (w, h, scale) in new[] { (1600, 1000, 1f), (1280, 720, 1f), (1600, 1000, 1.25f) })
         foreach (string scene in scenes)
         {
+            AssertHidden();
             using var target = new RenderTarget2D(Device, w, h);
             Device.SetRenderTarget(target); Device.Clear(new Color(20, 21, 28));
             new PanelScene().Render(batch, w, h, scale, scene);
@@ -171,6 +201,7 @@ internal sealed class PanelGame : Game
         FireOnly = args.Contains("--fire-only");
         IceWaterOnly = args.Contains("--ice-water-only");
         ResolutionOnly = args.Contains("--resolution-only");
+        NodeLabelsOnly = args.Contains("--node-labels-only");
         RingsOnly = args.Contains("--rings-only");
         RequirementsOnly = args.Contains("--requirements-only");
         ToggleOnly = args.Contains("--toggle-only");
@@ -199,6 +230,11 @@ internal sealed class PanelGame : Game
         Terraria.Localization.Language.Text.Clear();
         Terraria.Localization.Language.Load(Repo, args[2], tml: tml);
         Terraria.Localization.Language.Load(Path.Combine(Repo, "../KL"), args[2]);
+        if (IceWaterOnly) PanelChecks.CheckCrystalCosts();
+        // 文案/配色方案对比：CONSTELLATION_TEXT_OVERRIDES 指向 {完整键: 文本} 的 JSON，加载正式 HJSON 后覆盖，不改正式文件。
+        if (Environment.GetEnvironmentVariable("CONSTELLATION_TEXT_OVERRIDES") is { Length: > 0 } overridePath)
+            foreach (var pair in System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(overridePath)))
+                Terraria.Localization.Language.Text[pair.Key] = pair.Value;
         // The mods register these in KL ElementBuildUpSystem and 伊蕾娜 ElainaTerms; same paths, keys and freeze constants.
         KL.Drawing.Snippets.KLTerms.Register(new("KL/Drawing/Snippets/Icons/IceIcon", new Color(143, 227, 255),
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Freeze.Name"),
@@ -208,8 +244,13 @@ internal sealed class PanelGame : Game
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
         KL.Drawing.Snippets.KLTerms.Register(new("KL/Drawing/Snippets/Icons/WaterIcon", new Color(102,195,232),
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Name"),
-            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Description"),
-            () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Duration"), "10", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Description", 100),
+            () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Wet.Duration"), "30", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
+        KL.Drawing.Snippets.KLTerms.Register(new("KL/Drawing/Snippets/Icons/FireIcon", new Color(255, 143, 90),
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Burning.Name"),
+            () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Burning.Description", 100),
+            () => [(Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Burning.Duration"), "15", Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Seconds"))],
             () => Terraria.Localization.Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
         KL.Drawing.Snippets.KLTerms.Register(new("伊蕾娜/Snippets/MagicStarIcon", new Color(76, 145, 255),
             () => Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Name"),
@@ -227,6 +268,9 @@ internal sealed class PanelGame : Game
         // The old fixture class uses WindBladeSkill for the production WindSlashSkill.
         Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillName.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillName.WindSlashSkill");
         Terraria.Localization.Language.Text["Mods.伊蕾娜.SkillInfo.SkillDesc.WindBladeSkill"] = Terraria.Localization.Language.GetTextValue("Mods.伊蕾娜.SkillInfo.SkillDesc.WindSlashSkill");
-        using var game = new PanelGame(); game.Run();
+        using var game = new PanelGame();
+        game.RunOneFrame();
+        game.AssertHidden();
+        if (!game._done) throw new InvalidOperationException("离线星图未绘制。");
     }
 }

@@ -1,0 +1,338 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed class Replay : IDisposable
+{
+    readonly Assembly replay;
+    readonly SpriteBatch batch;
+    readonly ContentManager content, klContent;
+    readonly List<Texture2D> textures = new();
+    readonly Type scene, impact;
+    static CompilationUnitSyntax Read(string path) => CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+    static string Methods(CompilationUnitSyntax tree, params string[] names) => string.Join("\n", tree.DescendantNodes()
+        .OfType<MethodDeclarationSyntax>().Where(m => names.Contains(m.Identifier.Text)).Select(m => m.ToFullString()));
+    static Assembly Compile(string name, IEnumerable<string> sources)
+    {
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Append(typeof(GraphicsDevice).Assembly.Location).Append(typeof(CSharpSyntaxTree).Assembly.Location)
+            .Append(typeof(Compilation).Assembly.Location).Distinct().Select(p => MetadataReference.CreateFromFile(p));
+        var compilation = CSharpCompilation.Create(name, sources.Select(s => CSharpSyntaxTree.ParseText(s)), references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var bytes = new MemoryStream();
+        var result = compilation.Emit(bytes);
+        if (!result.Success) throw new InvalidOperationException(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        return Assembly.Load(bytes.ToArray());
+    }
+    static string[] DustNames = ["Burst/BurstPoint", "Burst/BurstDust", "Smoke/SmokeDust2", "Glow/GlowDust",
+        "Stone/IceStone", "Stone/GlowStone", "LineSparkle"];
+
+    public Replay(GraphicsDevice gd, IServiceProvider services, string root)
+    {
+        string kl = Path.GetFullPath(Path.Combine(root, "../KL"));
+        var sources = new List<string>();
+        // 复用现有预览器对当前 KL 后处理的抽取，不维护 Shader 合成副本。
+        string factory = """
+            using System; using System.IO; using System.Linq;
+            using Microsoft.CodeAnalysis; using Microsoft.CodeAnalysis.CSharp; using Microsoft.CodeAnalysis.CSharp.Syntax;
+            public class Factory {
+            readonly string root;
+            public Factory(string root) { this.root = root; }
+            """ + Methods(Read(Path.Combine(root, "Tools/IceDepthPreview/Bloom.cs.txt")), "BloomSource")
+            + Methods(Read(Path.Combine(root, "Tools/IceDepthPreview/Trail.cs.txt")), "TrailSource")
+            + "public string[] Build() => new[] { BloomSource(), TrailSource() }; }";
+        var provider = Compile("ShardbindFactory", [factory]).GetType("Factory");
+        sources.AddRange((string[])provider.GetMethod("Build").Invoke(Activator.CreateInstance(provider, root), null));
+
+        string stubs = File.ReadAllText(Path.Combine(root, "Tools/IceShardPreview/ComboStubs.cs.txt"))
+            .Replace("public class ModSystem {", "public class ModSystem { public virtual void PostUpdateProjectiles() {}")
+            .Replace("screenWidth = 960, screenHeight = 480", "screenWidth = 2560, screenHeight = 1440")
+            .Replace("public class Player {", "public class Player { public Vector2 Center = new(1280, 720);")
+            .Replace("public class ViewContext {", "public class ViewContext { public Matrix ZoomMatrix = Matrix.Identity;")
+            .Replace("public static int ShardSeed;", "public static int ShardSeed; public static double timeForVisualEffects;")
+            .Replace("public partial class KLBasicDust {", "public partial class KLBasicDust : ModDust {")
+            .Replace("public object DustData;", "public object DustData; public int randFrame = -1;");
+        var stubTree = CSharpSyntaxTree.ParseText(stubs).GetCompilationUnitRoot();
+        var update = stubTree.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "KLBasicDust")
+            .Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "Update");
+        stubs = stubTree.ReplaceNode(update, update.WithBody(SyntaxFactory.ParseStatement(
+            "{ return KLPreviewPhysics.Update(dust); }") as BlockSyntax)).ToFullString();
+        sources.Add(stubs);
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/Adapters.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(kl, "Projectiles/TrailManager.cs")));
+        foreach (string name in new[] { "ShardbindSequence", "ShardbindDepthLayout", "ShardbindMotion", "ShardbindTrail", "IceCone3DUnit.Preparation", "IceCone3DUnit.Projection" })
+        {
+            string code = File.ReadAllText(Path.Combine(root, $"ElainaModSkills/Skills/Ice/{name}.cs"));
+            if (name == "ShardbindTrail") code = code.Replace("released = true;", "released = true; ShardbindProj.TrailReleases++;");
+            sources.Add(code);
+        }
+
+        var loader = Read(Path.Combine(kl, "Drawing/ThreeD/ObjLoader.cs"));
+        sources.Add("namespace KL.Drawing.ThreeD { public static class ObjLoader {"
+            + loader.DescendantNodes().OfType<StructDeclarationSyntax>().Single().ToFullString()
+            + Methods(loader, "Parse", "ParseFace", "AddVertex", "ParseFaceVertex", "ResolveIndex", "ParseVector3", "ParseVector2", "ParseFloat") + "}}");
+
+        var unit = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceCone3DUnit.cs"));
+        // 优化版直接使用正式 Update、命中、凝结和气流；仅原版分支禁用新增层。
+        var type = unit.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+        string unitCode = "namespace 伊蕾娜.ElainaModSkills.Skills.Ice { public partial class IceCone3DUnit : VisualUnit {"
+            + string.Join("\n", type.Members.Where(m => m is not MethodDeclarationSyntax method || method.Identifier.Text != "OnLoad"))
+            + "public static void Setup(ObjModel model, Texture2D color, Effect effect, Texture2D noise, Texture2D trail) {"
+            + "iceCone = model; texture = color; iceConeEffect = effect; dissolveNoiseTexture = noise; trailTexture = trail; }"
+            + "public static void DisposePreview() { iceCone.Dispose(); trailEffect?.Dispose(); } }}";
+        unitCode = unitCode.Replace("if (arrivalTime < 0)", "if (!ShardbindProj.Revised || arrivalTime < 0)")
+            .Replace("center + dir * 45f", "center + dir * (ShardbindProj.Revised ? 45f : 10f)")
+            .Replace("new Vector2(5.1f, 0.8f)", "new Vector2(ShardbindProj.Revised ? 5.1f : 3.5f, 0.8f)")
+            .Replace("SpawnLayeredImpact();", "if (ShardbindProj.Revised) SpawnLayeredImpact();");
+        var adaptedUnit = CSharpSyntaxTree.ParseText(unitCode).GetCompilationUnitRoot();
+        foreach (string methodName in new[] { "EmitLaunchWind", "SpawnLayeredImpact" })
+        {
+            var method = adaptedUnit.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == methodName);
+            string seed = methodName == "EmitLaunchWind" ? "718 + Index * 31" : "24000 + Index * 97 + Timer";
+            string body = "{ if (!ShardbindProj.Revised) return; var random = Main.rand; Main.rand = new PreviewRandom(" + seed + "); "
+                + string.Join("\n", method.Body.Statements) + " Main.rand = random; }";
+            adaptedUnit = adaptedUnit.ReplaceNode(method, method.WithBody((BlockSyntax)SyntaxFactory.ParseStatement(body)));
+        }
+        sources.Add(adaptedUnit.ToFullString());
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/LockGrowth.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/Preparation.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/Timeline.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/Reticle.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/ReticleMotion.cs")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/ReticleMotionChecks.cs.txt")));
+        var reticle = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/ShardbindReticle.cs"));
+        sources.Add("namespace 伊蕾娜.ElainaModSkills.Skills.Ice { public static partial class PreviewReticle {"
+            + string.Join("\n", reticle.DescendantNodes().OfType<FieldDeclarationSyntax>())
+            + Methods(reticle, "Radius")
+                .Replace("internal static float Radius(NPC target)", "public static float RadiusFromHitbox(float width, float height)")
+                .Replace("target.width", "width").Replace("target.height", "height")
+            + Methods(reticle, "SetReticleParameters", "SmoothStep")
+                .Replace("Main.GameViewMatrix.Zoom.X", "1f")
+                .Replace("int elapsedTicks", "float elapsedTicks") + "}}");
+        sources.Add(File.ReadAllText(Path.Combine(kl, "Drawing/VisualUnit.cs")));
+
+        var controller = Read(Path.Combine(root, "ElainaModSkills/Skills/Ice/ShardbindProj.cs"));
+        string controllerCode = "using KL.Extensions; namespace 伊蕾娜.ElainaModSkills.Skills.Ice { public partial class ShardbindProj {"
+            + string.Join("\n", controller.DescendantNodes().OfType<FieldDeclarationSyntax>().Where(f => f.Modifiers.Any(SyntaxKind.ConstKeyword)))
+            + Methods(controller, "InitializeUnits", "GetInitialVelocity3D", "BuildIceCone3DSpawnData", "BuildIceConeFixedRotations",
+                "GetIceConeSphereDirection", "SpawnFinalBurst", "GetCameraImpactIntensity", "ShakeShardImpact", "DrawBehind", "PreDraw").Replace("public override ", "public ")
+            + string.Join("\n", controller.DescendantNodes().Where(n => n is StructDeclarationSyntax or RecordDeclarationSyntax)) + "}}";
+        const string originalSpawn = "IceCone3DUnit.CreatePrepared(spawnPosition3D, targetPosition3D, velocity3D, spawnData.Count, units.Count)";
+        if (!controllerCode.Contains(originalSpawn)) throw new InvalidOperationException("正式冰锥生成入口改变，请更新预览适配。");
+        controllerCode = controllerCode.Replace(originalSpawn,
+            "CreatePreviewCone(spawnPosition3D, targetPosition3D, velocity3D, spawnDataEntry.TriggerFrame, spawnData.Count, units.Count)");
+        sources.Add(controllerCode);
+        sources.Add(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceCycleBalance.cs")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/Scene.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/LegacyGlow.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/LegacyFinalBurst.cs.txt")));
+        foreach (string name in new[] { "ShardbindVisualSettings", "ShardbindVisuals", "ShardbindFlashDust", "ShardbindLineDust" })
+        {
+            string code = File.ReadAllText(Path.Combine(root, $"ElainaModSkills/Skills/Ice/{name}.cs"));
+            if (name == "ShardbindVisuals") code = code.Replace(
+                "ModContent.Request<Effect>(\"伊蕾娜/Effects/Content/ShardbindChargeSheet\", AssetRequestMode.ImmediateLoad).Value", "PreviewAssets.SheetEffect");
+            if (name == "ShardbindFlashDust") code = code.Replace("if (Main.dedServ) return;",
+                "if (Main.dedServ) return; if (burst) ShardbindProj.burstFlashCount++; else ShardbindProj.chargeFlashCount++;");
+            sources.Add(code);
+        }
+        foreach (string name in new[] { "IceShardDust", "IceShardVisuals", "ShardbindBurstProfile", "IceConeWindDrawing", "IceConeWindDust" })
+        {
+            string code = File.ReadAllText(Path.Combine(root, $"ElainaModSkills/Skills/Ice/{name}.cs"));
+            // 固定随机种子只用于可重复导帧；粒子配置和绘制始终来自正式源码。
+            if (name == "IceShardDust") code = code
+                .Replace("Emit(position, direction, VisualRandom.Next());", "ShardbindProj.ImpactShardEmissions++; Emit(position, direction, 10000 + ShardbindProj.ImpactShardEmissions * 97);")
+                .Replace("ShardbindBurstProfile.Create(VisualRandom.Next(), 0f)", "ShardbindBurstProfile.Create(318, 0f)")
+                .Replace("EmitParts(position, ShardbindBurstProfile", "ShardbindProj.ShardEmissions++; EmitParts(position, ShardbindBurstProfile");
+            if (name == "IceConeWindDust") code = code.Replace(
+                "ModContent.Request<Effect>(IceConeWindDrawing.EffectPath, AssetRequestMode.ImmediateLoad).Value", "PreviewAssets.WindEffect")
+                .Replace("if (Main.dedServ) return;", "if (Main.dedServ) return; ShardbindProj.WindEmissions++;");
+            sources.Add(code);
+        }
+
+        var basic = Read(Path.Combine(kl, "Dusts/KLBasicDust.cs"));
+        sources.Add("namespace KL.Dusts { public partial class KLBasicDust {" + basic.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "BloomPlacement")
+            + Methods(basic, "SpawnDustsCircle", "RequestDustBloom") + "}}");
+        foreach (string name in DustNames)
+        {
+            string code = File.ReadAllText(Path.Combine(kl, "Dusts/" + name + ".cs"));
+            if (name == "LineSparkle") code = code.Replace("Mod.Assets.Request<Texture2D>(\"Effects/Tex/Sparkle/ShotLine\", AssetRequestMode.ImmediateLoad).Value",
+                "AssetManager.GetTexture(\"KL.Effects.Tex.Sparkle.ShotLine\")");
+            sources.Add(code);
+        }
+        var assets = Read(Path.Combine(kl, "Drawing/DrawHelper.Assets.cs"));
+        string tween = "namespace KL.Drawing { public partial class DrawHelper {"
+            + string.Join("\n", assets.DescendantNodes().OfType<EnumDeclarationSyntax>().Where(e => e.Identifier.Text is "TweenEase" or "FrameType"))
+            + assets.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "FrameInfo")
+            + Methods(assets, "EvaluateTween", "EvaluateTweenSegment", "ApplyEase") + "}}";
+        sources.Add(tween);
+        var effects = Read(Path.Combine(kl, "Drawing/DrawHelper.Effects.cs"));
+        var extensions = Read(Path.Combine(kl, "Utils/ProjectileExtentions.cs"));
+        sources.Add("namespace KL.Extensions { public static class PreviewProjection {"
+            + Methods(extensions, "GetScreenPosition") + "}}"
+            + "namespace KL.Drawing { public partial class DrawHelper { public static Effect radialBlur;"
+            + assets.DescendantNodes().OfType<EnumDeclarationSyntax>().Single(e => e.Identifier.Text == "DecayType")
+            + assets.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c => c.Identifier.Text == "RadialBlurInfo")
+            + Methods(effects, "CreateRadialBlur", "RadialBlurEffect") + "}}"
+            + "namespace KL.Drawing { public partial class DrawSystem { public static List<RadialBlurInfo> RadialBlurInfos = new(); }}");
+        sources.Add(File.ReadAllText(Path.Combine(root, "Tools/ShardbindPreview/ImpactAdapter.cs.txt")));
+        sources.Add(File.ReadAllText(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeDepthRenderer.cs")));
+        foreach (string name in new[] { "Drawing/ThreeD/GraphicsUtils.cs", "Drawing/ThreeD/Vertex3D.cs", "Drawing/LayerDrawRequestSystem.cs" })
+            sources.Add(File.ReadAllText(Path.Combine(kl, name)));
+        replay = Compile("ShardbindReplay", sources);
+
+        batch = new SpriteBatch(gd);
+        var main = replay.GetType("Terraria.Main");
+        var context = Activator.CreateInstance(replay.GetType("Terraria.DeviceContext"));
+        context.GetType().GetField("GraphicsDevice").SetValue(context, gd);
+        main.GetField("instance").SetValue(null, context);
+        main.GetField("graphics").SetValue(null, context);
+        main.GetField("spriteBatch").SetValue(null, batch);
+        content = new ContentManager(services, root);
+        // Optional unpacked KL effects directory for comparing an installed .tmod with the workspace.
+        klContent = new ContentManager(services, Environment.GetEnvironmentVariable("SHARDBIND_PREVIEW_KL_EFFECTS")
+            ?? Path.Combine(kl, "Effects/Content"));
+        Texture2D Png(string path)
+        {
+            using var stream = File.OpenRead(path);
+            var texture = Texture2D.FromStream(gd, stream);
+            var pixels = new Color[texture.Width * texture.Height]; texture.GetData(pixels);
+            for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
+            texture.SetData(pixels); textures.Add(texture); return texture;
+        }
+        var model = replay.GetType("KL.Drawing.ThreeD.ObjLoader").GetMethod("Parse").Invoke(null,
+            [File.ReadAllText(Path.Combine(root, "Models/IceCone2.obj")), Color.White]);
+        replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceCone3DUnit").GetMethod("Setup").Invoke(null,
+            [model, Png(Path.Combine(root, "ElainaModSkills/Skills/Ice/IceConeProj2.png")), content.Load<Effect>("Effects/Content/ThreeD/IceCone3D"),
+            Png(Path.Combine(kl, "Effects/Tex/Noise/4.png")), Png(Path.Combine(kl, "Effects/Tex/Trail/235653rnwhwlbv2vm828gm.png"))]);
+        impact = replay.GetType("ShardbindPreview.ImpactAdapter");
+        var helper = replay.GetType("KL.Drawing.DrawHelper");
+        foreach (var pair in new[] { ("bloom", "Bloom"), ("reColor", "ReColor"), ("vertexDraw", "VertexDraw"), ("radialBlur", "RadialBlur") })
+            helper.GetField(pair.Item1).SetValue(null, klContent.Load<Effect>(pair.Item2));
+        replay.GetType("KL.Drawing.BloomReplay").GetField("Enabled").SetValue(null, true);
+        var dust = replay.GetType("KL.Dusts.KLBasicDust");
+        foreach (string name in DustNames)
+            dust.GetMethod("Register").Invoke(null, [replay.GetType("KL.Dusts." + name.Replace('/', '.')), Png(Path.Combine(kl, "Dusts/" + name + ".png"))]);
+        foreach (var pair in new[] { ("IceShardDust", "ElainaModSkills/Skills/Ice/Assets/ShardAtlas.png"),
+            ("IceConeWindDust", "Mounts/Assets/BroomDashWind.png") })
+            dust.GetMethod("Register").Invoke(null, [replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice." + pair.Item1), Png(Path.Combine(root, pair.Item2))]);
+        replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewAssets").GetField("WindEffect")
+            .SetValue(null, content.Load<Effect>("Effects/Content/FireBurstFlame"));
+        foreach (string name in new[] { "Effects/Tex/Sparkle/T_StartFlare001", "Effects/Tex/background_Premultiplied", "Effects/Tex/Sparkle/ShotLine" })
+            replay.GetType("KL.Utils.AssetManager").GetMethod("Register").Invoke(null, ["KL." + name.Replace('/', '.'), Png(Path.Combine(kl, name + ".png"))]);
+        replay.GetType("KL.Utils.AssetManager").GetMethod("Register").Invoke(null,
+            ["KL.Effects.Tex.Trail.streak_801_4r", Png(Path.Combine(kl, "Effects/Tex/Trail/streak_801_4r.png"))]);
+        scene = replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.ShardbindProj");
+        dust.GetMethod("Register").Invoke(null,
+            [replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.ShardbindFlashDust"), Png(Path.Combine(kl, "Effects/Tex/Sparkle/T_StartFlare001.png"))]);
+        dust.GetMethod("Register").Invoke(null,
+            [replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.ShardbindLineDust"), Png(Path.Combine(kl, "Effects/Tex/Sparkle/ShotLine.png"))]);
+        replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewAssets").GetField("SheetEffect").SetValue(null,
+            content.Load<Effect>("Effects/Content/ShardbindChargeSheet"));
+        replay.GetType("KL.Utils.AssetManager").GetMethod("Register").Invoke(null,
+            ["伊蕾娜.Effects.Tex.Baked.WhitePixel", Png(Path.Combine(root, "Effects/Tex/Baked/WhitePixel.png"))]);
+        var reticleType = replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewReticle");
+        reticleType.GetField("Effect").SetValue(null, content.Load<Effect>("Effects/Content/IceReticle"));
+        reticleType.GetField("Noise").SetValue(null, Png(Path.Combine(root, "ElainaModSkills/Skills/Ice/Assets/ReticleNoise.png")));
+        reticleType.GetMethod("ValidateTimeline").Invoke(null, null);
+        Console.WriteLine("Loaded preview depth layout, current IceConeProj motion and managed trail callbacks, KL trail sampler/manager, IceCone3DUnit mesh/impact, controller glow/burst and KL Bloom.");
+    }
+    public void Reset(bool revised = false)
+    {
+        impact.GetMethod("Reset").Invoke(null, null);
+        scene.GetMethod("Reset").Invoke(null, [revised]);
+    }
+    public void SetBloom(bool enabled) => replay.GetType("KL.Drawing.BloomReplay").GetField("Enabled").SetValue(null, enabled);
+    public void SetCamera(Vector2 position) => replay.GetType("Terraria.Main").GetField("screenPosition").SetValue(null, position);
+    public void Validate() => scene.GetMethod("Validate").Invoke(null, null);
+    public void Step(int tick)
+    {
+        scene.GetMethod("Step").Invoke(null, [tick]);
+        impact.GetMethod("Step").Invoke(null, null);
+    }
+    public Vector2 ImpactShake => (Vector2)impact.GetProperty("Offset").GetValue(null);
+    public float ImpactBlur => (float)impact.GetProperty("Strength").GetValue(null);
+    public (int Shake, int Blur) ImpactRequests => ((int, int))impact.GetProperty("Requests").GetValue(null);
+    public void SetImpactListener(Vector2 center) => impact.GetMethod("SetListener").Invoke(null, [center]);
+    public void ApplyImpactBlur() => impact.GetMethod("ApplyBlur").Invoke(null, null);
+    public void Draw(int tick) => scene.GetMethod("Draw").Invoke(null, [tick]);
+    public void DrawReticleDiagnostic(double seconds, double? confirmedAt, Vector2 center, float radius, float zoom)
+        => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewReticle").GetMethod("DrawDiagnostic")
+            .Invoke(null, [seconds, confirmedAt, center, radius, zoom]);
+    public void DrawTrackedReticle(double seconds, double? confirmedAt, Vector2 center, float radius, float opacity)
+        => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewReticle").GetMethod("DrawTracked")
+            .Invoke(null, [seconds, confirmedAt, center, radius, 1f, opacity]);
+    public void SuppressReticle(bool value) => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewReticle")
+        .GetField("Suppress").SetValue(null, value);
+    public void DrawSheetsOnly() => scene.GetMethod("DrawSheetsOnly").Invoke(null, null);
+    public void ExportBloomThresholdProbe(GraphicsDevice gd, string output)
+    {
+        Vector3[] colors = [new(1, 1, 1), new(.1f, .2f, .8f), new(2, .2f, .1f),
+            new(.1f, 1.5f, .2f), new(.1f, .2f, 2), new(1.001f), new(2, 3, 4)];
+        var samples = (from rgb in colors from alpha in new[] { 0f, .01f, .25f, .5f, 1f }
+            select new Vector4(rgb, alpha)).ToArray();
+        int width = samples.Length;
+        using var input = new Texture2D(gd, width, 1, false, SurfaceFormat.Vector4);
+        input.SetData(samples);
+        using var captured = new RenderTarget2D(gd, width, 1, false, SurfaceFormat.Vector4, DepthFormat.None);
+        gd.SetRenderTarget(captured);
+        gd.Clear(Color.Transparent);
+        var straight = (BlendState)replay.GetType("KL.Drawing.DrawSystem").GetField("BloomStraightAlphaBlend",
+            BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+        batch.Begin(SpriteSortMode.Immediate, straight, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+        batch.Draw(input, Vector2.Zero, Color.White);
+        batch.End();
+        using var extracted = new RenderTarget2D(gd, width, 1, false, SurfaceFormat.Vector4, DepthFormat.None);
+        gd.SetRenderTarget(extracted);
+        gd.Clear(Color.Transparent);
+        batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        klContent.Load<Effect>("Bloom").CurrentTechnique.Passes[2].Apply();
+        batch.Draw(captured, Vector2.Zero, Color.White);
+        batch.End();
+        gd.SetRenderTarget(null);
+        var result = new Vector4[width];
+        extracted.GetData(result);
+        var lines = new List<string> { "r,g,b,alpha,extracted_r,extracted_g,extracted_b" };
+        for (int i = 0; i < width; i++)
+        {
+            Vector4 s = samples[i];
+            Vector4 c = result[i];
+            var expected = new Vector4(Math.Max(s.X - 1, 0), Math.Max(s.Y - 1, 0), Math.Max(s.Z - 1, 0), 0) * s.W;
+            if (!(Vector4.Distance(c, expected) < .00001f))
+                throw new InvalidOperationException($"Bloom extraction for {s}: expected {expected}, got {c}.");
+            lines.Add(FormattableString.Invariant($"{s.X},{s.Y},{s.Z},{s.W},{c.X:F6},{c.Y:F6},{c.Z:F6}"));
+        }
+        Console.WriteLine($"PASS {width} straight-alpha HDR color/opacity samples through capture and extraction.");
+        File.WriteAllLines(Path.Combine(output, "bloom-threshold.csv"), lines);
+    }
+    public int ArrivalCount => (int)scene.GetProperty("ArrivalCount").GetValue(null);
+    public int BurstTick => (int)scene.GetProperty("BurstTick").GetValue(null);
+    public int ChargeStart => (int)scene.GetProperty("ChargeStart").GetValue(null);
+    public int FirstRayTick => (int)scene.GetProperty("FirstRayTick").GetValue(null);
+    public void SetTargetRadius(float radius) => replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewReticle")
+        .GetField("Radius").SetValue(null, radius);
+    public float RadiusFromHitbox(float width, float height) => (float)replay
+        .GetType("伊蕾娜.ElainaModSkills.Skills.Ice.PreviewReticle").GetMethod("RadiusFromHitbox")
+        .Invoke(null, [width, height]);
+    public void SetNpcDraw(Action<int, int, bool> draw) => scene.GetField("DrawNpcTarget").SetValue(null, draw);
+    public void Dispose()
+    {
+        replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceCone3DUnit").GetMethod("DisposePreview").Invoke(null, null);
+        var depth = Activator.CreateInstance(replay.GetType("伊蕾娜.ElainaModSkills.Skills.Ice.IceConeDepthRenderer"));
+        depth.GetType().GetMethod("Unload").Invoke(depth, null);
+        var helper = replay.GetType("KL.Drawing.RenderHelper");
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        var targets = helper.GetMethod("DetachRenderTargets", flags).Invoke(null, null);
+        helper.GetMethod("DisposeTargets", flags).Invoke(null, [targets]);
+        batch.Dispose(); content.Dispose(); klContent.Dispose();
+        foreach (var texture in textures) texture.Dispose();
+    }
+}

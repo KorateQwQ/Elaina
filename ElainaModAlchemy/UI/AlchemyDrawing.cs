@@ -1,3 +1,4 @@
+using 伊蕾娜.ElainaModSkills.UICore;
 using static 伊蕾娜.Localization.UIText;
 using System;
 using System.Collections.Generic;
@@ -27,7 +28,7 @@ internal sealed partial class AlchemyDrawing
     private const string GlowPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/Glow";
     private const string DiscPath = "伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/Disc";
     private const string MagicIconPath = "伊蕾娜/Snippets/MagicStarIcon";
-    private const string MagicTagPrefix = "[klicon/16,0:" + MagicIconPath + "][c/4C91FFFF:";
+    private const string MagicTagPrefix = "[klicon/16,0:" + MagicIconPath + "][c/4C91FF:";
     private const string ChineseMagicTag = MagicTagPrefix + "魔力]";
     private const string EnglishMagicTag = MagicTagPrefix + "Magic Power]";
     private static readonly Color MagicColor = new(76, 145, 255);
@@ -58,7 +59,7 @@ internal sealed partial class AlchemyDrawing
         var mod = ModContent.GetInstance<global::伊蕾娜.伊蕾娜>();
         _sans = new(mod,"HarmonyOS_Sans_SC",FontManager.HarmonyOS_Sans_SC,9,28);
         _serif = new(mod,"NotoSerifSC",FontManager.NotoSerifSC,9,48);
-        _latin = new(mod,"Gelasio",FontManager.Gelasio,8,26);
+        _latin = new(mod,"Gelasio",FontManager.Gelasio,8,48);
         const string assets = "ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/";
         using var stars = JsonDocument.Parse(mod.GetFileBytes(assets + "StarsRaster.json"));
         foreach (var star in stars.RootElement.EnumerateArray())
@@ -277,23 +278,11 @@ internal sealed partial class AlchemyDrawing
             new Vector2(radius / (disc.Width - half), height / disc.Height) * Scale, SpriteEffects.None, 0);
     }
 
+    private UIRasterShapes _shapes;
+    private UIRasterShapes Shapes => _shapes ??= new(TextureAssets.MagicPixel.Value,
+        ModContent.Request<Effect>("伊蕾娜/Effects/Content/UIShape", AssetRequestMode.ImmediateLoad).Value);
     internal void Line(Vector2 a, Vector2 b, Color color, float width = 1)
-    {
-        Vector2 delta = b - a;
-        if (delta.LengthSquared() < .001f) return;
-        var matrix = BatchTransform(Batch);
-        float device = Scale * MathF.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
-        if (width * device <= 1.5f)
-        {
-            Batch.Draw(Texture(RasterRoot + "LineAA"), At(a.X,a.Y), null, color * Math.Min(1,width*device),
-                MathF.Atan2(delta.Y,delta.X),new Vector2(0,1.5f),
-                new Vector2(delta.Length()*Scale/3,Math.Max(1,width*device)*Scale/device),SpriteEffects.None,0);
-            return;
-        }
-        Batch.Draw(TextureAssets.MagicPixel.Value, Origin + a * Scale, new Rectangle(0, 0, 1, 1), color,
-            MathF.Atan2(delta.Y, delta.X), new Vector2(0, .5f), new Vector2(delta.Length(), width) * Scale,
-            SpriteEffects.None, 0);
-    }
+        => Shapes.Line(Batch, Origin + a * Scale, Origin + b * Scale, width * Scale, color);
 
     internal void Frame(float x, float y, float width, float height, Color color)
     {
@@ -344,15 +333,7 @@ internal sealed partial class AlchemyDrawing
     }
 
     internal void Ring(Vector2 center, float rx, float ry, Color color, float width = 1)
-    {
-        const int segments = 160;
-        Vector2 Point(int index)
-        {
-            float angle = index * MathHelper.TwoPi / segments;
-            return center + new Vector2(MathF.Cos(angle) * rx, MathF.Sin(angle) * ry);
-        }
-        for (int i = 0; i < segments; i++) Line(Point(i), Point(i + 1), color, width);
-    }
+        => Shapes.Ring(Batch, At(center.X, center.Y), new Vector2(rx, ry) * Scale, width * Scale, color);
 
     // Static collection row: quantize in device pixels using the actual batch transform.
     // Each marker has identical coverage and an integer pitch, even at fractional UI scales.
@@ -452,13 +433,13 @@ internal sealed partial class AlchemyDrawing
         }
         if (spacing == 0)
         {
-            font.Draw(Batch, text, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
+            font.Draw(Batch, text, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11, smoothTransform: true);
             return;
         }
         foreach (char c in text)
         {
             string glyph = c.ToString();
-            font.Draw(Batch, glyph, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
+            font.Draw(Batch, glyph, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11, smoothTransform: true);
             start += font.Measure(glyph, size * Device) / Device + spacing;
         }
     }
@@ -471,7 +452,7 @@ internal sealed partial class AlchemyDrawing
         float measured = Measure(text, size, 0, serif);
         if (measured > width) size *= width / measured;
         font.Draw(Batch, text, At(center.X, center.Y), color, size * Device, BatchTransform(Batch),
-            Transform.M11, rotation, centered: true);
+            Transform.M11, rotation, centered: true, smoothTransform: true);
     }
 
     internal void FittedText(string text, float x, float y, float width, float size, Color color,
@@ -493,13 +474,13 @@ internal sealed partial class AlchemyDrawing
         float start = x - LatinWidth(text, size, spacing) * align;
         if (spacing == 0)
         {
-            font.Draw(Batch, text, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
+            font.Draw(Batch, text, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11, smoothTransform: true);
             return;
         }
         foreach (char c in text)
         {
             string glyph = c.ToString();
-            font.Draw(Batch, glyph, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11);
+            font.Draw(Batch, glyph, At(start, y), color, size * Device, BatchTransform(Batch), Transform.M11, smoothTransform: true);
             start += LatinWidth(glyph, size) + spacing;
         }
     }

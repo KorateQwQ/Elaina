@@ -32,7 +32,7 @@ def read_package(path):
         for name, size, packed in entries:
             data = f.read(packed)
             assert not name.startswith(('Tools/', '.vissandbox/')), f'Development artifact in package: {name}'
-            if 'ResourceBarAssets/' in name or name == 'Effects/Content/ResourceBarClip.xnb':
+            if 'ResourceBarAssets/' in name or '/Assets/FontRaster/' in name or name == 'Effects/Content/ResourceBarClip.xnb':
                 result[name] = zlib.decompress(data, -15) if packed != size else data
         return result
 
@@ -57,6 +57,17 @@ def main():
             assert raw[12:] == pixels, 'Packaged rawimg differs from FNA preview art'
     if packaged is not None:
         assert packaged['Effects/Content/ResourceBarClip.xnb'] == (ROOT / 'Effects/Content/ResourceBarClip.xnb').read_bytes()
+        font_root = 'ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/FontRaster'
+        for family, minimum, maximum in [('NotoSerifSC', 9, 48), ('Gelasio', 8, 48)]:
+            for size in range(minimum, maximum + 1):
+                stem = f'{font_root}/{family}/{size}'
+                image = Image.open(ROOT / (stem + '.png')).convert('RGBA')
+                pixels = image.tobytes()
+                assert all(max(pixels[i:i+3]) <= pixels[i+3] for i in range(0, len(pixels), 4)), stem
+                raw = packaged[stem + '.rawimg']
+                assert struct.unpack('<iii', raw[:12]) == (1, *image.size), stem
+                assert raw[12:] == pixels, f'Packaged font pixels differ: {stem}'
+                assert packaged[stem + '.bin'] == (ROOT / (stem + '.bin')).read_bytes(), stem
 
     comparisons = []
     for reference in sorted((WORK / 'reference').glob('*.png')):

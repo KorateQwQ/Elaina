@@ -6,7 +6,7 @@ $stage = Join-Path $repo '.vissandbox/fire-burst-preview/shader-compiler'
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Content') | Out-Null
 Copy-Item -LiteralPath (Join-Path $CompilerDirectory 'XNBCompiler.exe') -Destination $stage -Force
 Get-ChildItem -LiteralPath $CompilerDirectory -Filter '*.dll' | Copy-Item -Destination $stage -Force
-$shaders = @('FireBurstFlame')
+$shaders = @('FireBurstFlame', 'FireBurstCast')
 # Preview-only candidate shaders: sources live in this folder, output goes to .vissandbox (never into production Effects).
 $previewShaders = @()
 foreach ($name in $previewShaders) {

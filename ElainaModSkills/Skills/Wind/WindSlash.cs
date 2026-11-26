@@ -10,20 +10,55 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 public class WindSlash : ElainaBasicProjectile
 {
     private Vector2[] windPoints;
-    private Vector2[] windPoints3;
+    private Func<Vector2, float> streakOpacity;
     private float windPointScale = -1f;
+    private Vector2 windPointDimensions;
+
+    // 长拖尾的额外淡出起点（按截面序号，0 为刃口、1 为尾尖）。值越小，越早开始变淡。
+    private static float TailFadeStart => 0.79f;
+    // 月牙前缘短风丝的基础长度（世界像素），从各自所在的弧面向后量。
+    private static float FringeLength => 28f;
+    // 风丝间距倍率。1 为原间距，调大更稀疏，调小更密。
+    private static float FringeSpacing => 1f;
+    // 风丝长度随机范围（0～1）。0 时各束长度接近，越接近 1，长短差越明显。
+    private static float FringeLengthVariation => 0.57f;
+    // 风丝长度偏向。0 为均衡；-1 时中段 2 倍、两翼半长，+1 时两翼 2 倍、中段半长。
+    private static float FringeLengthBias => 0.3f;
+    // 前缘风丝的不透明度（0～1），调低会让月牙内侧的短风丝变淡。
+    private static float FringeOpacity => 0.94f;
+    // 无 Bloom 时沿月牙前缘补光：RGB 为加法颜色，W 控制沿椭圆法向的衰减。
+    private static Vector4 DirectRimLight => new(0.52f, 0.14f, 0.46f, 16f);
+    private static float DirectTrailGainExponent => 0.78f;
+
+    // 长拖尾贴近刃口处的不透明度倍率，调低可减轻拖尾与月牙交叠处的亮块。
+    private static float FrontStreakOpacity => 0.10f;
+    // 整束长拖尾的亮度倍率。1 为原亮度，0 隐藏长拖尾。
+    private static float LongTrailBrightness => 1f;
+    // 长拖尾前端颜色（靠月牙）。Vector4 的前三项是 HDR RGB，可超过 1；第四项 A 是不透明度（0～1）。
+    // 要加强 KL Bloom，可调大 RGB 的倍率，例如下面的 3.5f。保持三通道比例即可保留色相。
+    private static Vector4 TrailFrontColor => new Vector4( new Vector3(1f, 160f / 255f, 239f / 255f)*8.5f, 1f);
+    // 长拖尾末端颜色（靠尾尖）。RGBA 从前端沿拖尾插值到此值；末端 A 越低，后段越淡。
+    private static Vector4 TrailEndColor => new Vector4(new Vector3(1f, 160f / 255f, 239f / 255f)*3.5f, 0f);
+    // 长拖尾从中线到单侧边缘的距离（世界像素），全宽为此值的两倍。
+    private static float TrailHalfWidth => 30f;
+    // 从月牙椭圆中心向后量到尾尖的距离（世界像素）。
+    private static float TrailLengthBehindCenter => 175f;
+    // 长拖尾纹理的横向滚动相位。除数越大，纹理流动越慢。
+    private static float TrailFlowPhase => (float)(Main.timeForVisualEffects % 1200) / 25f;
 
     // 三层共用的世界空间轮廓：X 沿飞行方向，Y 沿刃宽方向。
+    // 月牙中心相对弹幕中心的前后偏移（世界像素），负值向后移。
     private const float BladeCenterOffset = -25f;
+    // 沿飞行方向的椭圆半径（世界像素），调大使弧顶向前突出。
     private const float BladeRadiusX = 76f;
+    // 垂直于飞行方向的椭圆半径（世界像素），调大使两翼张得更宽。
     private const float BladeRadiusY = 80f;
 
     private static Effect crescentFan;
-    private static Effect arcFlame;
+    private static Effect fringeEffect;
     private static Texture2D fadeTexture;
     private static Texture2D arcMaterial;
     private static Texture2D arcNoise;
-    private static Texture2D windTexture;
     private static Texture2D windNoiseTexture;
 
     public override void Load()
@@ -31,14 +66,12 @@ public class WindSlash : ElainaBasicProjectile
         if (Main.netMode != NetmodeID.Server)
         {
             crescentFan = AssetManager.GetEffect("KL/Effects/Content/CrescentFan");
-            arcFlame = AssetManager.GetEffect("KL/Effects/Content/ArcFlame");
+            fringeEffect = Mod.Assets.Request<Effect>("Effects/Content/WindSlashFringe", AssetRequestMode.ImmediateLoad).Value;
             fadeTexture = AssetManager.GetTexture("伊蕾娜.Effects.Tex.fadeUP");
             arcMaterial = AssetManager.GetTexture("KL/Effects/Tex/background");
             arcNoise = AssetManager.GetTexture("KL/Effects/Tex/水波");
-            windTexture = AssetManager.GetTexture("KL/Effects/Tex/Wind/wind3");
-            windNoiseTexture = AssetManager.GetTexture("KL/Effects/Tex/Wind/windNoi");
+            windNoiseTexture = Mod.Assets.Request<Texture2D>("ElainaModSkills/Skills/Wind/Assets/WindSlashNoise", AssetRequestMode.ImmediateLoad).Value;
         }
-
         base.Load();
     }
 
@@ -49,6 +82,7 @@ public class WindSlash : ElainaBasicProjectile
 
     public override void SetDefaults()
     {
+        InfusionElement = new(KL.DamageSystem.ElementType.Wind, SkillHitBalance.WindSlashBuildup);
         Projectile.tileCollide = false;
         Projectile.timeLeft = 600;
         Projectile.friendly = true;
@@ -68,8 +102,8 @@ public class WindSlash : ElainaBasicProjectile
 
     public override void OnSpawn_AllClient()
     {
+        streakOpacity = BladeStreakOpacity;
         windPoints = new Vector2[100];
-        windPoints3 = new Vector2[100];
         windPointScale = -1f;
         UpdateWindPoints(1f);
         base.OnSpawn_AllClient();
@@ -77,11 +111,12 @@ public class WindSlash : ElainaBasicProjectile
 
     private void UpdateWindPoints(float scale)
     {
-        if (windPointScale == scale)
+        Vector2 dimensions = new(TrailLengthBehindCenter, TrailHalfWidth);
+        if (windPointScale == scale && windPointDimensions == dimensions)
             return;
 
-        FillWindPoints(windPoints, 75f, BladeRadiusY, scale);
-        FillWindPoints(windPoints3, 175f, 20f, scale);
+        FillWindPoints(windPoints, dimensions.X, dimensions.Y, scale);
+        windPointDimensions = dimensions;
         windPointScale = scale;
     }
 
@@ -136,9 +171,16 @@ public class WindSlash : ElainaBasicProjectile
 
     public override bool PreDraw(ref Color lightColor)
     {
-        LayerDrawRequestSystem.RequestBloom(GetType().FullName, LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawWind);
         return base.PreDraw(ref lightColor);
+    }
+
+    public override void DrawBehind(int index, List<int> behindNPCsAndTiles, List<int> behindNPCs, List<int> behindProjectiles, List<int> overPlayers,
+        List<int> overWiresUI)
+    {
+        LayerDrawRequestSystem.RequestBloom(GetType().FullName, LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, DrawWind);
+        
+        base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
 
     private void DrawWind()
@@ -149,17 +191,16 @@ public class WindSlash : ElainaBasicProjectile
         float appearScale = MathHelper.Lerp(0.78f, 1f, additiveAlpha);
         Vector2 bladeCenter = Projectile.Center + move * (BladeCenterOffset * appearScale);
         Vector2 bladeRadii = new Vector2(BladeRadiusX, BladeRadiusY) * appearScale;
-        Vector2 drawScale = new(0.9f * appearScale,0.6f * appearScale);
+        Vector2 drawScale = new(0.9f * appearScale,0.8f * appearScale);
         Vector2 topScale = new(0.8f * appearScale, 0.8f * appearScale);
-        Color pink = new(255, 160, 239, 255);
 
-        // 两层材质保留 NonPremultiplied，条纹保留自己的混合方式。
+        // 月牙与 HDR 风丝使用直通颜色。
         EndBeginDraw(2, 1, ss: SamplerState.LinearClamp);
-        DrawCrescentFan(new Vector4(new Color(255, 180, 239).ToVector3()*1.3f,1 * additiveAlpha), bladeCenter, bladeRadii, topScale);
+        DrawCrescentFan(new Vector4(new Color(255, 170, 239).ToVector3() * 1.1f, additiveAlpha), bladeCenter, bladeRadii, topScale);
 
-        DrawArcFlame(new Vector4(new Color(255, 200, 239).ToVector3() * 1.6f, 1.0f * additiveAlpha), bladeCenter, bladeRadii, drawScale,VisualTime+0);
+        DrawFringe(new Vector4(new Color(255, 170, 239).ToVector3() * 2.1f, FringeOpacity * additiveAlpha), bladeCenter, bladeRadii, drawScale, VisualTime);
         
-        DrawWindTrails(pink * additiveAlpha, pink * additiveAlpha, 1.6f * additiveAlpha, 0.0f, 1, bladeCenter, appearScale);
+        DrawWindTrails(additiveAlpha, 1.6f * additiveAlpha, bladeCenter, appearScale);
     }
 
     private void DrawCrescentFan(Vector4 effectColor, Vector2 bladeCenter, Vector2 bladeRadii, Vector2 scale)
@@ -182,51 +223,77 @@ public class WindSlash : ElainaBasicProjectile
             color: Color.White, scale: scale, rotation: Projectile.velocity.ToRotation());
     }
 
-    private void DrawArcFlame(Vector4 effectColor, Vector2 bladeCenter, Vector2 bladeRadii, Vector2 scale,int time)
+    private void DrawFringe(Vector4 effectColor, Vector2 bladeCenter, Vector2 bladeRadii, Vector2 scale, int time)
     {
         Vector2 textureSize = new(arcMaterial.Width * scale.X, arcMaterial.Height * scale.Y);
-        Vector2 radii = bladeRadii / textureSize;
         Vector2 arcCenter = new(0.43f, 0.5f);
-        arcFlame.SetValue("EffectColor", effectColor);
-        arcFlame.SetValue("sweepDirection", new Vector2(1f, 0f));
-        arcFlame.SetValue("ArcCenter", arcCenter);
-        // ArcFlame 的 rx 沿切线、ry 沿朝向，与月牙 Shader 的 XY 定义相反。
-        arcFlame.SetValue("OuterRadius", radii.Y);
-        arcFlame.SetValue("OuterRadiusY", radii.X);
-        arcFlame.SetValue("EdgeSoftness", 0f);
-        arcFlame.SetValue("TextureRotation", 0f);
-        arcFlame.SetValue("TextureScale", new Vector2(0.5f));
-        arcFlame.SetValue("TextureFlow", new Vector2(-0.1f, 0f));
-        arcFlame.SetValue("useRGBforApha", true);
-        arcFlame.SetValue("iTimeProgress", 0.6f);
-        arcFlame.SetValue("edgeWidth", 0.2f);
-        arcFlame.SetValue("noiseStrength", 0.2f);
-        arcFlame.SetValue("curveStrength", 0.45f);
-        arcFlame.SetValue("radialCenter", new Vector2(0.5f));
-        arcFlame.SetValue("dissolveRotation", 1.57f);
-        arcFlame.SetValue("dissolveScale", new Vector2(2f, 0.05f));
-        arcFlame.SetValue("iTimeDisolve", new Vector2(0f, (float)(time % 1200) / 55f));
-        arcFlame.SetTexture(1, arcNoise);
-        arcFlame.Apply();
+        // 原材质的噪声偏移幅度为 0.74。超过原幅度后，沿同一流动纹理拉开长短差。
+        float noiseRange = Math.Min(FringeLengthVariation, 0.37f);
+        float extraRange = Math.Max(0f, FringeLengthVariation - 0.37f);
+        Vector2 lengthScale = new(1f - 1.35f * extraRange, 1f + 2f * extraRange);
+        float wingScale = MathF.Pow(2f, FringeLengthBias);
+        Vector2 arcLengthScale = new(1f / wingScale, wingScale);
+        float length = FringeLength * bladeRadii.X / BladeRadiusX;
+        float requiredDepth = length * lengthScale.Y * (1f + noiseRange) * Math.Max(arcLengthScale.X, arcLengthScale.Y);
+        float canvasStretch = Math.Max(1f, requiredDepth / (arcCenter.X * textureSize.X));
+        scale.X *= canvasStretch;
+        textureSize.X *= canvasStretch;
+        Vector2 radii = bladeRadii / textureSize;
+        fringeEffect.SetValue("EffectColor", effectColor);
+        fringeEffect.SetValue("ArcCenter", arcCenter);
+        fringeEffect.SetValue("OuterRadius", radii.Y);
+        fringeEffect.SetValue("OuterRadiusY", radii.X);
+        fringeEffect.SetValue("FringeDepth", radii.X * FringeLength / BladeRadiusX);
+        fringeEffect.SetValue("CanvasStretch", canvasStretch);
+        fringeEffect.SetValue("FringeSpacing", FringeSpacing);
+        fringeEffect.SetValue("NoiseAmplitude", noiseRange * 2f);
+        fringeEffect.SetValue("LengthScale", lengthScale);
+        fringeEffect.SetValue("ArcLengthScale", arcLengthScale);
+        fringeEffect.SetValue("Phase", (time % 1200) / 55f);
+        // 普通场景缓冲会先截断 HDR 再混合。直绘时让材质先乘覆盖率，保住低覆盖处的粉色。
+        bool direct = !DrawSystem.GetShouldBloom();
+        if (direct)
+        {
+            EndBeginDraw(0, 1, ss: SamplerState.LinearClamp);
+            fringeEffect.SetValue("DirectRimLight", DirectRimLight);
+        }
+        fringeEffect.SetTexture(1, arcNoise);
+        fringeEffect.Apply(direct ? 1 : 0);
         Vector2 centerOffset = ((arcCenter - new Vector2(0.5f)) * textureSize).RotatedBy(Projectile.velocity.ToRotation());
         DrawInWorld(arcMaterial, bladeCenter - centerOffset,
             color: Color.White, scale: scale, rotation: Projectile.velocity.ToRotation());
     }
 
-    private void DrawWindTrails(Color startColor, Color endColor, float startAlpha, float endAlpha, int blendState,
-        Vector2 bladeCenter, float appearScale)
+    private float BladeStreakOpacity(Vector2 section)
+    {
+        float front = MathHelper.Clamp(section.X / (BladeRadiusX * windPointScale), 0f, 1f);
+        return MathHelper.SmoothStep(1f, FrontStreakOpacity, front);
+    }
+
+    private void DrawWindTrails(float appearAlpha, float startAlpha, Vector2 bladeCenter, float appearScale)
     {
         UpdateWindPoints(appearScale);
-        Vector2 time = new((float)(Main.timeForVisualEffects % 1200) / 25f, 0);
+        Vector2 time = new(TrailFlowPhase, 0);
         float rotation = Projectile.velocity.ToRotation();
 
-        VertexDrawEffect(windTexture, windPoints, startColor, endColor,
-            startAlpha: startAlpha, endAlpha: endAlpha, blendState: blendState, drawTimes: 1,
-            uTime: time, attachPoint: bladeCenter, attachRotation: rotation,
-            imageScale: new Vector2(2f, 1f), useRforAlpha: false,
-            debugPoint: false);
-        VertexDrawEffect(windNoiseTexture, windPoints3, startColor, endColor,
-            startAlpha: startAlpha * 1.5f, endAlpha: endAlpha, blendState: blendState, drawTimes: 1,
+        // 两端的 HDR 颜色始终用浮点数。KL 按 i / 截面数插值，末端外推一个截面。
+        int intervals = windPoints.Length / 2 - 1;
+        Vector4 frontColor = TrailFrontColor * appearAlpha;
+        Vector4 endColor = TrailEndColor * appearAlpha;
+        float noiseAlpha = startAlpha * 1.5f * LongTrailBrightness;
+        if (!DrawSystem.GetShouldBloom())
+        {
+            // 加法混合在普通目标上会先把 RGB 截成白色，将公共增益移到覆盖率，保留风丝色相。
+            Vector4 peak = Vector4.Max(frontColor, endColor);
+            float gain = MathF.Pow(Math.Max(1f, Math.Max(peak.X, Math.Max(peak.Y, peak.Z))), DirectTrailGainExponent);
+            Vector4 channelScale = new(1f / gain, 1f / gain, 1f / gain, 1f);
+            frontColor *= channelScale;
+            endColor *= channelScale;
+            noiseAlpha *= gain;
+        }
+        endColor += (endColor - frontColor) / intervals;
+        DrawRibbonWithOpacity(windNoiseTexture, windPoints, frontColor, endColor, TailFadeStart, streakOpacity,
+            startAlpha: noiseAlpha, endAlpha: -noiseAlpha / intervals, blendState: 1, drawTimes: 1,
             uTime: time, attachPoint: bladeCenter, attachRotation: rotation,
             imageScale: new Vector2(2f, 1f), useRforAlpha: false,
             debugPoint: false);

@@ -1,13 +1,16 @@
+param([switch]$FringeOnly)
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $kl = (Resolve-Path (Join-Path $root '../KL')).Path
-$stage = Join-Path $root '.vissandbox/managed-trail-preview/wind-compiler'
+$stageName = if ($FringeOnly) { 'fringe-compiler' } else { 'wind-compiler' }
+$stage = Join-Path $root ".vissandbox/managed-trail-preview/$stageName"
 New-Item -ItemType Directory -Path (Join-Path $stage 'Content') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $kl 'Effects/XNBCompiler.exe') -Destination $stage -Force
 Get-ChildItem -LiteralPath (Join-Path $kl 'Effects') -Filter '*.dll' | Copy-Item -Destination $stage -Force
-$names = @('CrescentFan', 'ArcFlame')
+$names = if ($FringeOnly) { 'WindSlashFringe' } else { 'CrescentFan', 'ArcFlame' }
+$assetRoot = if ($FringeOnly) { $root } else { $kl }
 foreach ($name in $names) {
-    Copy-Item -LiteralPath (Join-Path $kl "Effects/Content/$name.fx") -Destination (Join-Path $stage "Content/$name.fx") -Force
+    Copy-Item -LiteralPath (Join-Path $assetRoot "Effects/Content/$name.fx") -Destination (Join-Path $stage "Content/$name.fx") -Force
 }
 $info = New-Object System.Diagnostics.ProcessStartInfo
 $info.FileName = Join-Path $stage 'XNBCompiler.exe'
@@ -31,5 +34,5 @@ foreach ($name in $names) {
 }
 $process.Dispose()
 foreach ($name in $names) {
-    Copy-Item -LiteralPath (Join-Path $stage "Content/$name.xnb") -Destination (Join-Path $kl "Effects/Content/$name.xnb") -Force
+    Copy-Item -LiteralPath (Join-Path $stage "Content/$name.xnb") -Destination (Join-Path $assetRoot "Effects/Content/$name.xnb") -Force
 }

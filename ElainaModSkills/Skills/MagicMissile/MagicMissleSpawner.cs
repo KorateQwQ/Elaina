@@ -44,6 +44,9 @@ public class MagicMissleSpawner : KLProjectile
     private static Texture2D circleNoise;
     private static Texture2D ballTexture;
     private static Effect ballEffect;
+    private static Vector4 BallOuterColor => new(2.16f, .93f, 1.78f, 1f);
+    private static Vector4 BallCoreColor => new(2.16f, 2.22f, 2.18f, 1f);
+    private static Vector3 StarHdrColor => new(1.17f, .89f, 1.12f);
 
     public override void Load()
     {
@@ -146,8 +149,8 @@ public class MagicMissleSpawner : KLProjectile
     public override bool PreDraw(ref Color lightColor)
     {
         base.PreDraw(ref lightColor);
-        LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissileSpawner", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        LayerDrawRequestSystem.RequestBloom("Elaina:MagicMissileSpawner", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, DrawVisual);
         return false;
     }
 
@@ -204,7 +207,7 @@ public class MagicMissleSpawner : KLProjectile
                 lifetime: 10,
                 trailState,
                 DrawManagedTrail,
-                layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, timing: LayerDrawRequestSystem.DrawTiming.Before,
                 bloom: true);
         }
     }
@@ -232,7 +235,7 @@ public class MagicMissleSpawner : KLProjectile
         float subHeight = 0.1f;
 
         // FuzzyEdge 参数：保持 + 消融效果
-        Vector4 imageColor = new Vector4(new Color(255, 160, 239, 255).ToVector3() * MathHelper.Lerp(10.5f, 7.5f, startTime / 20f),1);
+        Vector4 imageColor = new Vector4(StarHdrColor * MathHelper.Lerp(10.5f, 7.5f, startTime / 20f),1);
 
         // edgeNoiseStrength 控制消融：前 12 帧保持完整，后 8 帧慢慢消融
         float edgeNoiseStrength;
@@ -309,7 +312,6 @@ public class MagicMissleSpawner : KLProjectile
         float circleRadius = 0.4f;
         Vector2 circleCenter = new Vector2(0.5f, 0.5f);
         float circleSoftness = 0.05f;
-        Vector4 circleColor = new Vector4(1f, 0.22f, 0.72f, 1f);
         float distortionStrength = 0.01f;
         Vector2 uTime = new Vector2(0f, 0f);
         float clipValue = 0.0f;
@@ -337,13 +339,13 @@ public class MagicMissleSpawner : KLProjectile
         }
         
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(new Vector4(new Vector3(1f, 0.22f, 0.72f)*2.0f,1));
+        effect.Parameters["CircleColor"].SetValue(BallOuterColor);
         effect.Parameters["DistortionStrength"].SetValue(0.04f);
 
         DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale)*1.1f);
         
         EndBeginDraw(2, shader: effect, ss: SamplerState.LinearWrap);
-        effect.Parameters["CircleColor"].SetValue(new Vector4(new Vector3(1.2f),1));
+        effect.Parameters["CircleColor"].SetValue(BallCoreColor);
         effect.Parameters["DistortionStrength"].SetValue(0.04f);
 
         DrawInWorld(waterNoise, Projectile.Center, scale: new Vector2(totalScale*0.8f));
@@ -358,7 +360,7 @@ public class MagicMissleSpawner : KLProjectile
         int slotIndex = (int)Projectile.ai[1] - 1;
         Vector2 target;
 
-        if (slotIndex >= 0 && slotIndex < 5)
+        if (slotIndex >= 0 && slotIndex < MultiMissileSkill.MissileCount)
         {
             // 目标使用不受玩家旋转影响的固定相对槽位，再通过速度追踪制造滞后。
             target = MultiMissileSkill.GetSlotPosition(Owner, slotIndex);

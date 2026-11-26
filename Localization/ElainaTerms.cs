@@ -8,12 +8,17 @@ namespace 伊蕾娜.Localization;
 public sealed class ElainaTerms : ModSystem
 {
     public const string MagicPowerIcon = "伊蕾娜/Snippets/MagicStarIcon";
+    public const string MagicCrystalIcon = "伊蕾娜/ElainaAttribute/ResourceBarAssets/Star";
     public const string AlchemyCauldronIcon = "Item:Cauldron";
     // 水魔法书物品贴图为 10 帧动画，图标取其中一帧并去掉散落水滴。
     public const string WaterSpellbookIcon = "伊蕾娜/Snippets/WaterSpellbookIcon";
 
     public override void Load()
     {
+        KLTerms.Register(new KLTerm(MagicCrystalIcon, new Color(187, 167, 234),
+            () => Language.GetTextValue("Mods.伊蕾娜.Terms.MagicCrystal.Name"),
+            () => Language.GetTextValue("Mods.伊蕾娜.Terms.MagicCrystal.Description", ChargePoints.Maximum, ElainaModSkills.SkillBalanceConfig.BaseSecondsPerEnergyPoint),
+            Category: () => Language.GetTextValue("Mods.KL.Terms.Categories.Mechanic")));
         KLTerms.Register(new KLTerm(MagicPowerIcon, new Color(76, 145, 255),
             () => Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Name"),
             () => Language.GetTextValue("Mods.伊蕾娜.Terms.MagicPower.Description",

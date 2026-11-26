@@ -10,7 +10,7 @@ using 伊蕾娜.Items;
 namespace 伊蕾娜.ElainaActions;
 
 /// <summary>按下后立即持续引导；松手、切换或耗魔失败时进入收势。</summary>
-public sealed class Action_WaterLaser : ElainaAction
+public sealed partial class Action_WaterLaser : ElainaAction
 {
     private const int ChannelStartFrame = 0;
     public const int RecoveryFrames = 20;
@@ -31,16 +31,16 @@ public sealed class Action_WaterLaser : ElainaAction
 
     private static readonly Color WaterWandColor = ElainaTrailVisualStyle.WaterWandColor;
 
-    protected override void RequestActionStarBloom(float actionProgress)
+    protected override void RequestActionStar(float actionProgress)
     {
         // 引导保持第 0 帧：立即显示；松手后进度走完 20 帧收势，光晕随之淡出。
-        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+        ElainaTrailVisualStyle.RequestStar(StarCenter.Floor(), actionProgress,
             WaterWandColor, fadeInEnd: 0f, fadeOutStart: 0f);
     }
 
-    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    protected override ElainaTrailSnapshot CreateWandTrailVisual(Vector2[] points, float actionProgress)
     {
-        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+        return new ElainaTrailSnapshot(points, Vector2.Zero, 0f, actionProgress,
             WaterWandColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
             ElainaTrailVisualStyle.DefaultTrailEndWidth, fadeInEnd: 0f, fadeOutStart: 0f);
     }
@@ -76,8 +76,9 @@ public sealed class Action_WaterLaser : ElainaAction
     public override bool IsAutomaticHoldPoint(ActionModPlayer actionPlayer, int actionFrame) =>
         actionFrame == ChannelStartFrame;
 
-    public override bool ShouldContinueHolding(ActionModPlayer actionPlayer, int actionFrame) =>
-        !ending && CanContinueCasting() && beam?.Projectile.active == true;
+    public override bool ShouldContinueHolding(ActionModPlayer actionPlayer, int actionFrame) => IsBeamActive;
+
+    private bool IsBeamActive => !ending && beam?.Projectile.active == true && CanContinueCasting();
 
     private bool CanContinueCasting() =>
         owner.active && !owner.dead && !owner.CCed && !owner.noItems
@@ -147,8 +148,16 @@ public sealed class Action_WaterLaser : ElainaAction
     }
 
     public override void OnHoldExit(ActionModPlayer actionPlayer, int actionFrame) => StopBeam();
-    public override void OnInterrupt(ActionModPlayer actionPlayer) => StopBeam();
-    public override void OnFinish(ActionModPlayer actionPlayer) => StopBeam();
+    public override void OnInterrupt(ActionModPlayer actionPlayer)
+    {
+        StopBeam();
+        base.OnInterrupt(actionPlayer);
+    }
+    public override void OnFinish(ActionModPlayer actionPlayer)
+    {
+        StopBeam();
+        base.OnFinish(actionPlayer);
+    }
 
     public void FinishChannel(ActionModPlayer actionPlayer)
     {

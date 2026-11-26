@@ -7,6 +7,14 @@ import sys
 repo, output = map(Path, sys.argv[1:3])
 check = '--check' in sys.argv
 entries = json.loads((output / 'pixels.json').read_text(encoding='utf-8-sig'))
+# Same generator as the standalone WindVortex material bake.
+from runpy import run_path
+vortex_image = run_path(str(repo / 'Tools/WindBladeVortexPreview/bake_noise.py'))['build_noise']()
+vortex_path = 'ElainaModSkills/Skills/Wind/Assets/CoreNoise.png'
+vortex_pixels = vortex_image.tobytes()
+(output / 'WindVortexNoise.rgba').write_bytes(vortex_pixels)
+entries.append(dict(Path=vortex_path, Width=vortex_image.width, Height=vortex_image.height,
+                    Raw='WindVortexNoise.rgba', Sha256=hashlib.sha256(vortex_pixels).hexdigest(), Encoding='opaque-data'))
 for item in entries:
     raw = (output / item['Raw']).read_bytes()
     path = repo / item['Path']
@@ -23,8 +31,15 @@ table = repo / 'ElainaModAlchemy/Rain/RainCloudBakedData.cs'
 generated = (output / table.name).read_bytes()
 if not check:
     table.write_bytes(generated)
-assert table.read_bytes() == generated, 'Cloud reveal thresholds are stale'
+# Git may normalize source-file line endings; compare C# text without changing the checked-in file.
+assert table.read_text(encoding='utf-8-sig') == generated.decode('utf-8-sig').replace('\r\n', '\n'), 'Cloud reveal thresholds are stale'
 manifest = repo / 'Effects/Tex/Baked/manifest.json'
+# FNA shader-derived external bake. Rebuild with Tools/ActionTrailPreview/run.ps1 -BakeHalo.
+halo_path = 'ElainaActions/Assets/WandStarHalo.png'
+with Image.open(repo / halo_path) as halo:
+    assert halo.mode == 'RGBA' and halo.size == (128, 128)
+    entries.append(dict(Path=halo_path, Width=halo.width, Height=halo.height,
+                        Sha256=hashlib.sha256(halo.tobytes()).hexdigest(), Encoding='premultiplied-RGBA'))
 document = {'version': 1, 'alpha': 'Original RGBA bytes. ImageIO.ToRaw must not premultiply again.', 'textures': entries}
 if not check:
     manifest.write_text(json.dumps(document, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

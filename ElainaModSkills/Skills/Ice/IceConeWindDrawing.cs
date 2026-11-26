@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 
-/// <summary>沿冰锥轴线投影的双面气流条带；蓝色内面在后，黑色外面在前。绘制不推进状态。</summary>
+/// <summary>沿冰锥轴线投影的双面气流条带；蓝色内面在后，白色外面在前。绘制不推进状态。</summary>
 internal static class IceConeWindDrawing
 {
     private const int Segments = 96;
@@ -47,7 +47,10 @@ internal static class IceConeWindDrawing
         Vector2 side = new(-axis.Y, axis.X);
         // 前后由深度符号决定，发射角度与缺口旋转不会交换两面。
         float halfStart = front ? 0f : MathF.PI;
-        Vector4 faceColor =  (front ? new Vector4(new Vector3(1)*0.95f, 1f) : new Vector4(new Vector3(.62f, .82f, 1f)*1.0f, fade)) ;//new Vector4(new Vector3(1) * 0.75f, fade); //
+        // AlphaBlend 要求颜色预乘淡出覆盖度；只减 Alpha 会让蓝面叠加泛白。
+        Vector4 faceColor = front
+            ? new Vector4(new Vector3(.95f), 1f)
+            : new Vector4(new Vector3(.62f, .82f, 1f) * fade, fade);
 
         int vertexCount = 0, count = 0;
         for (int i = 0; i < Segments / 2; i++)
@@ -94,8 +97,9 @@ internal static class IceConeWindDrawing
         }
         if (count == 0) return;
         effect.Parameters["uTransform"].SetValue(transform);
-        effect.Parameters["MaskFromRed"].SetValue(0f);
-        // shader 输出已预乘的 RGB 和覆盖度：黑面遮挡、蓝面显色，均不经过 Bloom。
+        // 非零权重保证 D3D11 首次上传像素常量，避免全零参数留下未初始化 GPU 数据。
+        effect.Parameters["WindMaskWeights"].SetValue(Vector2.UnitX);
+        // shader 再将 RGB 和 Alpha 同乘纹理遮罩；两面均不经过 Bloom。
         device.BlendState = BlendState.AlphaBlend;
         device.DepthStencilState = DepthStencilState.None;
         device.RasterizerState = RasterizerState.CullNone;

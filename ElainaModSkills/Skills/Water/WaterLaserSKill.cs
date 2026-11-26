@@ -1,9 +1,11 @@
+using 伊蕾娜.Localization;
 using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
 using KL.SkillSystem;
 using KL.SkillSystem.SilkyUI;
 using Terraria.DataStructures;
+using Terraria.ModLoader.IO;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.ElainaModSkills.item;
 
@@ -12,6 +14,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 [SkillUIInfo(State = 4, Pixels = 400)]
 public class WaterLaserSKill : ElainaSkill
 {
+    public const float SkillCooldown = 0.3f;
     private SkillUnlockCondition unlockCondition;
 
     // 默认骷髅王后开放（角色等级上限 30）；具体门槛读取 JSON，不要求实际等级达到上限。
@@ -25,6 +28,25 @@ public class WaterLaserSKill : ElainaSkill
     }
 
 
+    public override void Initialize()
+    {
+        base.Initialize();
+        MaxCD = SkillCooldown;
+    }
+
+    public override void DeserializeData(TagCompound tag)
+    {
+        base.DeserializeData(tag);
+        MaxCD = SkillCooldown;
+    }
+
+    public override bool PreUpdateCD()
+    {
+        bool update = base.PreUpdateCD();
+        MaxCD = SkillCooldown;
+        return update;
+    }
+
     public override bool CanUseSkill()
     {
         return Player.whoAmI == Main.myPlayer
@@ -33,7 +55,7 @@ public class WaterLaserSKill : ElainaSkill
             && base.CanUseSkill();
     }
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (!CanUseSkill() || !TryGetConfiguredBalance(out SkillBalanceResult balance))
             return false;
@@ -56,9 +78,13 @@ public class WaterLaserSKill : ElainaSkill
 
     protected override object[] SkillDescriptionArgs =>
     [
-        MaxCD,
-        GetConfiguredDamage(),
-        WaterLaser.SplashDamageMultiplier * 100f,
-        MagicPointCost
+        SkillBalanceSystem.TryGetSkill(BalanceId, out var intervalEntry)
+            ? Math.Max(1, (int)Math.Round(intervalEntry.BaseCooldown * 60)) / 60f : 10f / 60f,
+        SkillValueText.Damage(GetConfiguredDamage(), SkillValueKind.Water),
+        SkillHitBalance.WaterStreamSplashDamageMultiplier * 100f,
+        MagicPointCost,
+
+        SkillHitBalance.WaterStreamBuildup,
+        (SkillHitBalance.WaterStreamBurningDamageMultiplier - 1f) * 100f
     ];
 }

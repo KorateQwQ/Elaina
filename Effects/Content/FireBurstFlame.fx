@@ -87,7 +87,9 @@ float4 RubbleFunction(float2 coords : TEXCOORD0, float4 inputColor : COLOR0) : C
 }
 
 float4x4 uTransform;   // 屏幕坐标到裁剪空间
-float MaskFromRed;     // 1：遮罩取 RGB 最大值（不透明灰度或预乘贴图）；0：取透明度（非预乘带透明度贴图）
+// 两项分别为 Alpha / RGB 最大值的权重，和为 1，不能将 Alpha 模式编码成全零参数。
+// FNA3D D3D11 的全零 uniform 可能跳过首次上传，令 GPU 读取未初始化的常量缓冲。
+float2 WindMaskWeights;
 
 struct RingVertexInput
 {
@@ -115,7 +117,7 @@ RingVertexOutput RingVertex(RingVertexInput input)
 float4 RingPixel(float4 color : COLOR0, float2 coords : TEXCOORD0) : COLOR0
 {
     float4 c = tex2D(uImage0, coords);
-    float mask = lerp(c.a, max(c.r, max(c.g, c.b)), MaskFromRed);
+    float mask = dot(float2(c.a, max(c.r, max(c.g, c.b))), WindMaskWeights);
     return color * mask;
 }
 
@@ -134,9 +136,14 @@ float RingStrength;    // 整体强度 0..1（展开、熄灭）
 
 float4 DomainRingPixel(float4 color : COLOR0, float2 local : TEXCOORD0) : COLOR0
 {
-    float arc = atan2(local.y, local.x) * RingRadius;
+    float angle = atan2(local.y, local.x);
+    float arc = angle * RingRadius;
     float h = length(local) - RingRadius;
-    float n = tex2D(uImage0, float2(arc * FlowScale.y, h * FlowScale.x - RingTime * FlowSpeed)).r;
+    float2 uv = float2(arc * FlowScale.y, h * FlowScale.x - RingTime * FlowSpeed);
+    // 在负 X 轴两侧接上同一噪声相位。扩张期间周长连续变化，避免整数平铺次数跳变。
+    float endPhase = frac(6.2831853 * RingRadius * FlowScale.y);
+    float n = lerp(tex2D(uImage0, uv + float2(endPhase, 0)).r, tex2D(uImage0, uv).r,
+        smoothstep(0, 1, (angle + 3.14159265) * RingRadius * FlowScale.y));
     float height = FlameHeight * (0.2 + 1.3 * n * n);
     float env = h < 0 ? exp(-pow(h / InnerWidth, 2))
         : exp(-2.6 * h / height) * (1 - smoothstep(0.4, 1.0, h / height));

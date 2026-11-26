@@ -1,0 +1,47 @@
+using System;
+using System.IO;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Preview
+{
+    void ExportCameraProbe()
+    {
+        var png = new PngExport(2560, 1440);
+        Vector2 initial = new(-400, -70);
+        Vector2 camera = initial;
+        replay.SuppressReticle(true);
+        // 原版 NPC 固定于世界坐标；这里只替换预览宿主中默认固定屏幕位置的靶子。
+        replay.SetNpcDraw((tick, animation, held) =>
+            npcs.DrawStandalone("fishron", new Vector2(1280, 720) - camera, animation));
+        foreach (var scenario in new[] {
+            (Name: "stationary", End: initial),
+            (Name: "aligned", End: Vector2.Zero),
+            (Name: "crossed", End: new Vector2(400, 160)),
+            (Name: "up-left", End: new Vector2(-700, -260)) })
+        {
+            camera = initial;
+            replay.SetCamera(camera);
+            replay.Reset(true);
+            for (int tick = 1; tick <= 154; tick++)
+            {
+                AssertHidden();
+                camera = Vector2.Lerp(initial, scenario.End, MathHelper.Clamp((tick - 55) / 55f, 0, 1));
+                replay.SetCamera(camera);
+                replay.Step(tick);
+                if (tick != 100 && tick != 120 && tick != 122 && tick != 154) continue;
+                GraphicsDevice.SetRenderTarget(target);
+                GraphicsDevice.Clear(new Color(33, 48, 64));
+                backgroundBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp,
+                    DepthStencilState.None, RasterizerState.CullNone);
+                backgroundBatch.Draw(forestDay, Vector2.Zero, Color.White);
+                backgroundBatch.End();
+                replay.Draw(tick);
+                GraphicsDevice.SetRenderTarget(null);
+                using var file = File.Create(Path.Combine(output, $"{scenario.Name}-{tick:D3}.png"));
+                png.Save(target, file);
+            }
+            Console.WriteLine($"PASS FNA camera sequence: {scenario.Name}; waiting, launch, flight, settled exported.");
+        }
+    }
+}

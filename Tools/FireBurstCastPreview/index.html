@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>炎爆领域 施法演出预览</title>
+<style>
+  body { margin: 0; background: #111; color: #ddd; font: 14px/1.5 "Microsoft YaHei", sans-serif; }
+  #wrap { display: flex; gap: 16px; padding: 12px; }
+  canvas { background: #000; display: block; }
+  #side { width: 360px; }
+  button { background: #2a2a2a; color: #ddd; border: 1px solid #555; padding: 4px 10px; margin: 2px; cursor: pointer; }
+  button.on { background: #7a3410; border-color: #e07020; color: #fff; }
+  .row { margin: 8px 0; }
+  #phase { font-size: 16px; color: #ffcf80; min-height: 48px; }
+  #desc { white-space: pre-wrap; color: #bbb; font-size: 13px; }
+  #timeline { position: relative; height: 34px; background: #222; margin-top: 4px; }
+  #timeline div { position: absolute; top: 0; height: 100%; font-size: 11px; overflow: hidden; color: #fff;
+    border-right: 1px solid #000; box-sizing: border-box; padding: 2px; }
+  #cursor { position: absolute; top: -3px; width: 2px; height: 40px; background: #fff; }
+  input[type=range] { width: 100%; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="view" width="1280" height="720"></canvas>
+  <div id="side">
+    <div class="row" id="variants"></div>
+    <div class="row">
+      <button id="zoom">近景 2×</button>
+      <button id="shake" class="on">屏震</button>
+      <button id="play" class="on">播放</button>
+    </div>
+    <div class="row" id="speeds"></div>
+    <div class="row">帧 <span id="frame">0</span> / <span id="total">0</span>
+      <input id="scrub" type="range" min="0" max="100" step="0.25" value="0"></div>
+    <div id="timeline"><span id="cursor"></span></div>
+    <div class="row" id="phase"></div>
+    <div class="row" id="desc"></div>
+  </div>
+</div>
+<script>
+// 世界坐标：领域中心 = 施放时玩家中心 = (0,0)，y 向下；地面在玩家脚底 y = 21。视野 1920×1080（游戏缩放 1）。
+const R = 1500, GROUND = 21, G = { x: 0, y: GROUND };
+const SHOULDER = { x: -3, y: -4 };
+const AIM = -0.35;                  // 施放瞬间鼠标方向（面朝右，略向上）
+const C = {
+  deep: [150, 28, 8], red: [255, 80, 20], orange: [255, 130, 35], yellow: [255, 205, 90], white: [255, 245, 215]
+};
+
+const view = document.getElementById('view'), ctx = view.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); c.width = view.width; c.height = view.height; return c; };
+const fxBack = mk(), fxFront = mk();
+
+const tex = {};
+const tintCache = new Map();
+function load(name) {
+  return new Promise(r => { const i = new Image(); i.onload = () => { tex[name] = i; r(); }; i.src = 'assets/' + name + '.png'; });
+}
+function tinted(name, rgb) {
+  const key = name + rgb.join();
+  let c = tintCache.get(key);
+  if (c) return c;
+  const img = tex[name];
+  c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.fillStyle = `rgb(${rgb})`; g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(img, 0, 0);
+  tintCache.set(key, c);
+  return c;
+}
+
+// ---------- 工具 ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const outCubic = t => 1 - Math.pow(1 - t, 3), inQuad = t => t * t, inCubic = t => t * t * t;
+const smooth = t => t * t * (3 - 2 * t);
+const lerpAngle = (a, b, t) => a + (b - a) * t;
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function keyed(keys, f) {
+  // keys: [frame, value, ease]；ease 作用于进入该关键帧的区段
+  if (f <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    const [f1, v1, e] = keys[i], [f0, v0] = keys[i - 1];
+    if (f <= f1) return lerpAngle(v0, v1, (e || smooth)(clamp((f - f0) / (f1 - f0))));
+  }
+  return keys[keys.length - 1][1];
+}
+const dir = a => ({ x: Math.cos(a), y: Math.sin(a) });
+const add = (p, d, s) => ({ x: p.x + d.x * s, y: p.y + d.y * s });
+
+function sprite(g, name, rgb, p, w, h, rot = 0, alpha = 1) {
+  if (alpha <= 0 || w <= 0) return;
+  const t = tinted(name, rgb);
+  g.save(); g.globalAlpha = Math.min(1, alpha); g.translate(p.x, p.y); g.rotate(rot);
+  g.drawImage(t, -w / 2, -h / 2, w, h); g.restore();
+}
+// 亮度 > 1 时多叠几次模拟 HDR 过曝，交给模糊 Bloom 晕出。
+function glow(g, name, rgb, p, w, h, rot, intensity) {
+  for (let k = intensity; k > 0; k -= 1) sprite(g, name, rgb, p, w, h, rot, Math.min(1, k));
+}
+function streak(g, rgb, a, b, width, alpha) {
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+  if (len < .5) return;
+  sprite(g, 'ShotLine', rgb, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, len * 1.25, width, Math.atan2(dy, dx), alpha);
+}
+
+// ---------- 现有火环（形状与展开曲线照搬 FireBurstDomainRingDrawing，着色为近似） ----------
+function drawRing(g, age, center) {
+  if (age < 0) return;
+  const open = clamp(age / 24), ring = R * (1 - Math.pow(1 - open, 3));
+  const strength = Math.min(1, age / 10);
+  const height = 80 * lerp(.35, 1, smooth(Math.min(1, age / 30)));
+  if (ring < 1) return;
+  const N = 900;
+  const layers = [[C.deep, 1.0, .9], [C.red, .62, 1], [C.yellow, .3, 1.4]];
+  for (const [rgb, k, I] of layers) {
+    g.strokeStyle = `rgb(${rgb})`; g.lineWidth = Math.max(2, ring * 2 * Math.PI / N * 1.4);
+    g.globalAlpha = strength * Math.min(1, I);
+    g.beginPath();
+    for (let i = 0; i < N; i++) {
+      const th = i / N * Math.PI * 2;
+      const n = .5 + .5 * (Math.sin(th * 37 + age * .13) * .5 + Math.sin(th * 71 - age * .09 + 1.3) * .3 + Math.sin(th * 131 + age * .21) * .2);
+      const L = height * (.25 + 1.2 * n * n) * k;
+      const d = dir(th);
+      g.moveTo(center.x + d.x * (ring - 6), center.y + d.y * (ring - 6));
+      g.lineTo(center.x + d.x * (ring + L), center.y + d.y * (ring + L));
+    }
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+
+// ---------- 现有炎爆（第一道落在中心下方地面，简化示意：星芒 30 帧 → 火柱 30 帧） ----------
+function drawCenterStrike(g, age) {
+  if (age < 0 || age > 60) return;
+  if (age <= 30) {
+    const s = 70 + 30 * Math.sin(age * .5);
+    glow(g, 'StarFlare', C.orange, G, s * 1.6, s * 1.6, age * .03 + .785, 1.3 * Math.min(1, age / 4));
+    // 地面法阵
+    g.strokeStyle = `rgb(${C.orange})`; g.globalAlpha = .7 * Math.min(1, age / 6); g.lineWidth = 2;
+    g.beginPath(); g.ellipse(G.x, G.y, 46, 10, 0, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+  } else {
+    const t = (age - 30) / 30, h = 520 * outCubic(Math.min(1, t * 2.5)), w = 70 * (1 - t * .7);
+    const a = t < .7 ? 1 : 1 - (t - .7) / .3;
+    sprite(g, 'GlowDot', C.red, { x: G.x, y: G.y - h / 2 }, w * 2.2, h * 1.15, 0, a);
+    glow(g, 'GlowDot', C.orange, { x: G.x, y: G.y - h / 2 }, w * 1.3, h, 0, 1.4 * a);
+    glow(g, 'GlowDot', C.yellow, { x: G.x, y: G.y - h / 2 }, w * .6, h * .9, 0, 1.6 * a);
+  }
+}
+
+// ---------- 爆燃（领域生成帧；放在领域弹幕里，快速施放也有） ----------
+function makeImpactParticles(seed) {
+  const r = mulberry(seed), sparks = [], embers = [];
+  for (let i = 0; i < 46; i++) {
+    const side = i % 2 ? 1 : -1, ang = -(.05 + r() * .55), sp = 12 + r() * 22;
+    sparks.push({ vx: side * Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 18 + r() * 20, w: 3 + r() * 3, delay: r() * 3 });
+  }
+  for (let i = 0; i < 30; i++)
+    embers.push({ x: (r() - .5) * 120, vy: -(1.2 + r() * 3.5), vx: (r() - .5) * 2.4, life: 40 + r() * 40, s: 5 + r() * 7, ph: r() * 6 });
+  return { sparks, embers };
+}
+function drawImpact(g, a, P) {
+  if (a < 0) return;
+  // 1 中心白闪：4 帧冲顶，10 帧退去
+  const flash = a < 3 ? a / 3 : Math.max(0, 1 - (a - 3) / 10);
+  glow(g, 'GlowDot', C.white, { x: G.x, y: G.y - 6 }, 190 * (1 + a * .03), 110, 0, 1.4 * flash);
+  // 2 贴地横向光斑
+  glow(g, 'StarFlare', C.yellow, G, 900 * (1 + a * .04), 70, 0, 1.6 * Math.max(0, 1 - a / 14));
+  // 3 冲击波细环：领在火环前面，16 帧扫出屏幕
+  const sw = clamp(a / 16), swr = R * 1.12 * outCubic(sw);
+  if (sw < 1) {
+    g.strokeStyle = `rgb(${C.white})`; g.lineWidth = lerp(10, 2, sw); g.globalAlpha = (1 - sw) * 1;
+    g.beginPath(); g.arc(0, 0, swr, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = `rgb(${C.yellow})`; g.lineWidth = lerp(26, 6, sw); g.globalAlpha = (1 - sw) * .5;
+    g.beginPath(); g.arc(0, 0, Math.max(0, swr - 8), 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+  }
+  // 4 贴地焦痕余热
+  const heat = a < 4 ? a / 4 : Math.max(0, 1 - (a - 4) / 50);
+  sprite(g, 'GlowDot', C.red, G, 420, 46, 0, .9 * heat);
+  glow(g, 'GlowDot', C.orange, G, 220, 22, 0, 1.2 * heat);
+  // 5 贴地火花（ShotLine 线条粒子，左右喷射）
+  const d = .9;
+  for (const s of P.sparks) {
+    const t = a - s.delay; if (t < 0 || t > s.life) continue;
+    const k = (1 - Math.pow(d, t)) / (1 - d);
+    const p = { x: G.x + s.vx * k, y: G.y - 4 + s.vy * k + .35 * t * t };
+    const v = { x: s.vx * Math.pow(d, t), y: s.vy * Math.pow(d, t) + .7 * t };
+    const tail = { x: p.x - v.x * 2.2, y: p.y - v.y * 2.2 };
+    const life = 1 - t / s.life;
+    streak(g, t / s.life < .35 ? C.yellow : C.orange, tail, p, s.w * 3, 1.5 * life);
+  }
+  // 6 上升余烬（GlowDot + 少量 Star4）
+  for (const e of P.embers) {
+    const t = a - 2; if (t < 0 || t > e.life) continue;
+    const life = 1 - t / e.life;
+    const p = { x: G.x + e.x + e.vx * t + Math.sin(t * .15 + e.ph) * 8, y: G.y - 6 + e.vy * t };
+    sprite(g, e.s > 10 ? 'Star4' : 'GlowDot', C.orange, p, e.s * 2, e.s * 2, t * .05, 1.3 * life);
+  }
+}
+
+// ---------- 地面法阵预告（标出固定的领域中心；正式版拟复用炎爆法阵绘制） ----------
+function drawTelegraph(g, f, F0) {
+  if (f < 2) return;
+  if (f < F0) {
+    const t = clamp((f - 2) / 14), pulse = f > F0 - 10 ? .3 * Math.sin((f - F0) * 1.6) : 0;
+    g.strokeStyle = `rgb(${C.orange})`; g.lineWidth = 2; g.globalAlpha = .65 * t + pulse;
+    const rx = lerp(20, 64, outCubic(t));
+    g.beginPath(); g.ellipse(G.x, G.y, rx, rx * .2, 0, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.ellipse(G.x, G.y, rx * .7, rx * .14, 0, 0, Math.PI * 2); g.stroke();
+    for (let i = 0; i < 12; i++) {
+      const th = i / 12 * Math.PI * 2 + f * .05, d = dir(th);
+      const p = { x: G.x + d.x * rx * .85, y: G.y + d.y * rx * .17 };
+      sprite(g, 'GlowDot', C.yellow, p, 8, 8, 0, .9 * t);
+    }
+    glow(g, 'GlowDot', C.red, G, rx * 3, rx * .5, 0, .7 * t);
+    g.globalAlpha = 1;
+  } else {
+    const a = f - F0, t = clamp(a / 10);
+    g.strokeStyle = `rgb(${C.yellow})`; g.lineWidth = 3; g.globalAlpha = 1 - t;
+    const rx = lerp(64, 220, outCubic(t));
+    g.beginPath(); g.ellipse(G.x, G.y, rx, rx * .2, 0, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+  }
+}
+
+// ---------- 汇聚火星（螺旋向目标收拢，跟随目标移动） ----------
+function makeGather(seed, from, to, perFrame, rMin, rMax) {
+  const r = mulberry(seed), list = [];
+  for (let f = from; f < to; f++)
+    for (let i = 0; i < perFrame; i++)
+      list.push({ f: f + r(), th: r() * Math.PI * 2, r0: rMin + r() * (rMax - rMin), life: 12 + r() * 9,
+        swirl: (r() < .5 ? -1 : 1) * (.7 + r() * .9), line: r() < .35 });
+  return list;
+}
+function drawGather(g, list, f, target) {
+  for (const p of list) {
+    const a = f - p.f; if (a < 0 || a > p.life) continue;
+    const t = a / p.life, rr = p.r0 * Math.pow(1 - t, 1.5), th = p.th + p.swirl * t;
+    const pos = add(target(p.f + a), dir(th), rr);
+    const alpha = Math.min(1, t * 5) * (.6 + .9 * t);
+    if (p.line) {
+      const back = add(target(p.f + a), dir(th - p.swirl * .08), Math.min(p.r0, rr + 10 + 16 * (1 - t)));
+      streak(g, C.orange, back, pos, 5, alpha);
+    } else sprite(g, 'GlowDot', t > .6 ? C.yellow : C.orange, pos, 9 - 4 * t, 9 - 4 * t, 0, alpha);
+  }
+}
+
+// ---------- 火核 ----------
+function drawCore(g, p, size, hot, rot, intensity = 1) {
+  if (size <= 0) return;
+  sprite(g, 'GlowDot', C.red, p, size * 3.2, size * 3.2, 0, .8 * intensity);
+  glow(g, 'GlowDot', hot > .5 ? C.white : C.yellow, p, size * 1.4, size * 1.4, 0, (1.4 + hot) * intensity);
+  glow(g, 'StarFlare', C.orange, p, size * 4.2, size * 4.2, rot, 1.2 * intensity);
+}
+
+// ---------- 方案 ----------
+const variants = {
+  now: {
+    name: '现状', total: 20, F0: 1,
+    phases: [[0, 20, '抬手指向（20 帧）', '#555']],
+    desc: '现有：第 0 帧手臂直接指向鼠标，第 1 帧领域生成，火环 24 帧内从中心扩到边界（第 1 帧已约 180 像素）。\n没有预备动作，也没有落点冲击，所以像“抬手瞬间领域就展开了”。',
+    arm: f => AIM,
+    wand: f => f <= 20,
+    front(g, f) {
+      const pr = f / 20, a = pr < .2 ? pr / .2 : pr > .6 ? 1 - (pr - .6) / .4 : 1;
+      if (f <= 20) glow(g, 'StarFlare', C.orange, tip(this, f), 44, 44, f * .05, 1.2 * a);
+    },
+    back(g, f) { drawRing(g, f - this.F0, { x: 0, y: 0 }); drawCenterStrike(g, f - this.F0 - 1); },
+  },
+  A: {
+    name: '方案 A 举杖聚火 → 点地爆燃', total: 48, F0: 33,
+    phases: [[0, 10, '举杖', '#6a4a20'], [10, 26, '聚火', '#8a5a10'], [26, 30, '蓄势', '#a06010'],
+      [30, 33, '下压', '#c04010'], [33, 34, '爆燃', '#ff6020'], [34, 48, '收势', '#555']],
+    desc: '0–10 帧举杖过头；10–26 帧四周火星螺旋汇入杖尖，火核变大、脉动越来越快，脚下法阵亮起（标出领域中心）；\n26–30 帧再后拉一点，火核压缩变白（顿挫）；30–33 帧挥杖下压，火核拖着光线砸进法阵；\n第 33 帧爆燃：白闪 + 贴地光斑 + 冲击波细环领在火环前扫出 + 左右贴地火花 + 余烬上升，此时才生成领域。\n动作 48 帧（现状 20 帧）。',
+    arm: f => keyed([[0, AIM], [10, -1.95, outCubic], [26, -2.02], [30, -2.2], [33, 0.95, inQuad], [42, 0.75], [48, 0.7]], f),
+    wand: f => f <= 48,
+    corePos(f) { return f < 30 ? tip(this, f) : f < 33 ? (() => { const s = tip(this, 30), t = inQuad((f - 30) / 3); return { x: lerp(s.x, G.x, t), y: lerp(s.y, G.y - 4, t) }; })() : G; },
+    front(g, f) {
+      drawGather(g, this.gather, f, ff => tip(this, Math.min(ff, 30)));
+      if (f < 2 || f >= 33) return;
+      let size = lerp(4, 26, smooth(clamp((f - 2) / 24))) * (1 + .14 * Math.sin(.018 * (f - 2) * (f - 2)));
+      let hot = 0;
+      if (f >= 26) { const t = clamp((f - 26) / 4); size *= lerp(1, .6, t); hot = t; }
+      const p = this.corePos(f);
+      if (f >= 30) {
+        const prev = this.corePos(Math.max(30, f - 1.5));
+        streak(g, C.yellow, { x: prev.x - (p.x - prev.x) * 2, y: prev.y - (p.y - prev.y) * 2 }, p, 22, 1.8);
+        size = 16; hot = 1;
+      }
+      drawCore(g, p, size, hot, f * .04);
+    },
+    back(g, f) {
+      drawTelegraph(g, f, this.F0);
+      drawRing(g, f - this.F0, { x: 0, y: 0 });
+      drawImpact(g, f - this.F0, this.impact);
+    },
+  },
+  B: {
+    name: '方案 B 抛种悬燃 → 坠地爆燃', total: 56, F0: 40,
+    phases: [[0, 4, '挑杖', '#6a4a20'], [4, 16, '火种升空', '#7a5018'], [16, 30, '聚火', '#8a5a10'],
+      [30, 34, '悬停蓄势', '#a06010'], [34, 40, '坠落', '#c04010'], [40, 41, '爆燃', '#ff6020'], [41, 56, '收势', '#555']],
+    desc: '0–4 帧挑杖，火种从杖尖抛起，16 帧时停在领域中心上方 150 像素；\n16–30 帧大范围火星汇入火种，两道倾斜火环绕它旋转，脚下法阵同步亮起；\n30–34 帧悬停压缩；34 帧挥杖下指，火种加速坠向法阵（34–40 帧）；\n第 40 帧爆燃（同方案 A 的爆燃层）并生成领域。火种固定在世界中，施法时移动也会落回施放点。\n动作 56 帧。',
+    arm: f => keyed([[0, AIM], [4, -1.35, outCubic], [8, -1.7], [16, -1.55], [34, -1.5], [37, 0.95, inQuad], [48, 0.75], [56, 0.7]], f),
+    wand: f => f <= 56,
+    Q: { x: 0, y: -150 },
+    seedPos(f) {
+      if (f < 16) { const s = tip(this, 4), t = outCubic(clamp((f - 4) / 12)); return { x: lerp(s.x, this.Q.x, t), y: lerp(s.y, this.Q.y, t) - Math.sin(t * Math.PI) * 30 }; }
+      if (f < 34) return { x: this.Q.x, y: this.Q.y + Math.sin(f * .2) * 2 };
+      const t = inCubic(clamp((f - 34) / 6));
+      return { x: this.Q.x, y: lerp(this.Q.y, G.y - 4, t) };
+    },
+    front(g, f) {
+      drawGather(g, this.gather, f, () => this.Q);
+      if (f < 4 || f >= 40) return;
+      const p = this.seedPos(f);
+      let size = f < 16 ? 7 : lerp(7, 32, smooth(clamp((f - 16) / 14))) * (1 + .12 * Math.sin(.02 * (f - 16) * (f - 16)));
+      let hot = 0;
+      if (f >= 30 && f < 34) { const t = (f - 30) / 4; size *= lerp(1, .65, t); hot = t; }
+      if (f >= 34) { size = 20; hot = 1; }
+      // 火种拖尾
+      if (f < 16 || f >= 34) {
+        const prev = this.seedPos(Math.max(4, f - 1.5));
+        streak(g, f >= 34 ? C.yellow : C.orange, { x: prev.x - (p.x - prev.x), y: prev.y - (p.y - prev.y) }, p, f >= 34 ? 26 : 10, 1.5);
+      }
+      drawOrbitRings(g, p, size, f, clamp((f - 14) / 8) * (f >= 34 ? 0 : 1));
+      drawCore(g, p, size, hot, f * .04);
+    },
+    back(g, f) {
+      drawTelegraph(g, f, this.F0);
+      drawRing(g, f - this.F0, { x: 0, y: 0 });
+      drawImpact(g, f - this.F0, this.impact);
+    },
+  },
+  C: {
+    name: '方案 C 杖尖聚火 → 天空星环 → 坠地爆燃', total: 60, F0: 44,
+    Q: { x: 0, y: -220 },
+    phases: [[0, 12, '举杖聚火', '#6a4a20'], [12, 22, '火种升空', '#7a5018'], [22, 34, '天空成环', '#8a5a10'],
+      [34, 38, '悬停蓄势', '#a06010'], [38, 44, '坠落', '#c04010'], [44, 45, '爆燃', '#ff6020'], [45, 60, '收势', '#555']],
+    desc: '0–12 帧举杖过头，火星螺旋汇入杖尖，火核变大（同 A）；\n12 帧挑杖，火核从杖尖射向领域中心上方 220 像素，杖尖保留较小的施法光效持续脉动直到下压；\n22–34 帧火种在空中长大，两道倾斜火环绕它旋转，大范围火星汇入，脚下法阵同步亮起（同 B）；\n34–38 帧压缩变白；38 帧挥杖下指，星环连同火种坠向法阵（38–44 帧）；\n第 44 帧爆燃（同 A/B）并生成领域，不再在中心额外落下第一道炎爆。动作 60 帧。',
+    arm: f => keyed([[0, AIM], [10, -1.95, outCubic], [13, -1.72, outCubic], [20, -1.557], [38, -1.54], [41, 0.95, inQuad], [52, 0.75], [60, 0.7]], f),
+    wand: f => f <= 60,
+    seedPos(f) {
+      if (f < 22) {
+        const s = tip(this, 12), t = outCubic(clamp((f - 12) / 10));
+        return { x: lerp(s.x, this.Q.x, t) + Math.sin(t * Math.PI) * 18, y: lerp(s.y, this.Q.y, t) };
+      }
+      if (f < 38) return { x: this.Q.x, y: this.Q.y + Math.sin(f * .2) * 2 };
+      const t = inCubic(clamp((f - 38) / 6));
+      return { x: this.Q.x, y: lerp(this.Q.y, G.y - 4, t) };
+    },
+    front(g, f) {
+      drawGather(g, this.gatherWand, f, ff => tip(this, Math.min(ff, 12)));
+      drawGather(g, this.gatherSky, f, () => this.Q);
+      // 杖尖：12 帧前为聚火火核，之后为较小的施法光效，下压后熄灭
+      if (f >= 2 && f < 12) {
+        const size = lerp(4, 20, smooth(clamp((f - 2) / 10))) * (1 + .12 * Math.sin(.05 * (f - 2) * (f - 2)));
+        drawCore(g, tip(this, f), size, 0, f * .04);
+      } else if (f >= 12 && f < 46) {
+        const fadeIn = clamp((f - 12) / 3) * .6 + .4, fadeOut = f < 41 ? 1 : 1 - (f - 41) / 5;
+        const size = 10 * (1 + .18 * Math.sin(f * .45));
+        drawCore(g, tip(this, f), size * fadeIn, 0, f * .04, fadeOut * .85);
+      }
+      if (f < 12 || f >= 44) return;
+      const p = this.seedPos(f);
+      let size = f < 22 ? 12 : lerp(12, 34, smooth(clamp((f - 22) / 12))) * (1 + .12 * Math.sin(.02 * (f - 22) * (f - 22)));
+      let hot = 0;
+      if (f >= 34 && f < 38) { const t = (f - 34) / 4; size *= lerp(1, .65, t); hot = t; }
+      if (f >= 38) { size = 22; hot = 1; }
+      if (f < 22 || f >= 38) {
+        const prev = this.seedPos(Math.max(12, f - 1.5));
+        streak(g, f >= 38 ? C.yellow : C.orange, { x: prev.x - (p.x - prev.x), y: prev.y - (p.y - prev.y) }, p, f >= 38 ? 26 : 10, 1.5);
+      }
+      // 星环随火种一起坠落，落地前两帧收拢
+      const ringA = clamp((f - 18) / 8) * (f < 42 ? 1 : 1 - (f - 42) / 2);
+      drawOrbitRings(g, p, f >= 38 ? 26 : size, f, ringA);
+      drawCore(g, p, size, hot, f * .04);
+    },
+    back(g, f) {
+      drawTelegraph(g, f, this.F0);
+      drawRing(g, f - this.F0, { x: 0, y: 0 });
+      drawImpact(g, f - this.F0, this.impact);
+    },
+  },
+};
+function drawOrbitRings(g, p, size, f, alpha) {
+  if (alpha <= 0) return;
+  for (const [tilt, sp, k] of [[.55, .11, 1], [-.7, -.08, 1.25]]) {
+    g.save(); g.translate(p.x, p.y); g.rotate(tilt);
+    const rx = size * 1.7 * k + 14, ry = rx * (.28 + .1 * Math.sin(f * sp * 3));
+    g.strokeStyle = `rgb(${C.orange})`; g.lineWidth = 2.5; g.globalAlpha = alpha;
+    g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); g.stroke();
+    const th = f * sp * 4; sprite(g, 'GlowDot', C.yellow, { x: Math.cos(th) * rx, y: Math.sin(th) * ry }, 12, 12, 0, alpha * 1.2);
+    g.restore();
+  }
+  g.globalAlpha = 1;
+}
+variants.C.gatherWand = makeGather(31, 2, 12, 3, 60, 130);
+variants.C.gatherSky = makeGather(37, 20, 36, 4, 110, 260);
+variants.C.impact = makeImpactParticles(5);
+variants.A.gather = makeGather(11, 8, 26, 3, 70, 150);
+variants.B.gather = makeGather(23, 16, 32, 4, 110, 260);
+variants.A.impact = makeImpactParticles(5);
+variants.B.impact = makeImpactParticles(5);
+const LOOP_TAIL = 100;
+
+function tip(v, f) { return add(SHOULDER, dir(v.arm(f)), 45); }
+
+// ---------- 场景 ----------
+function drawBackground(g) {
+  const grd = g.createLinearGradient(0, -700, 0, GROUND);
+  grd.addColorStop(0, '#0b0f1e'); grd.addColorStop(1, '#151a2c');
+  g.fillStyle = grd; g.fillRect(-1200, -800, 2400, 800 + GROUND);
+  g.fillStyle = '#1e1a16'; g.fillRect(-1200, GROUND, 2400, 800);
+  g.fillStyle = '#3a3226'; g.fillRect(-1200, GROUND, 2400, 3);
+  // 敌人剪影
+  g.fillStyle = '#3b2a44';
+  for (const x of [-620, -380, 300, 520, 760]) g.fillRect(x - 14, GROUND - 40, 28, 40);
+}
+function drawPlayer(g, v, f) {
+  g.save();
+  // 披风与身体
+  g.fillStyle = '#2b2440'; g.beginPath(); g.moveTo(-9, -8); g.lineTo(9, -8); g.lineTo(12, 21); g.lineTo(-12, 21); g.fill();
+  g.fillStyle = '#efe0cf'; g.beginPath(); g.arc(1, -14, 7, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#c9cbd6'; g.fillRect(-8, -18, 6, 14);
+  // 魔女帽
+  g.fillStyle = '#1c1a2a'; g.fillRect(-13, -21, 28, 3);
+  g.beginPath(); g.moveTo(-7, -21); g.lineTo(9, -21); g.lineTo(-4, -40); g.fill();
+  // 手臂与魔杖
+  const show = v.wand(f), ang = show ? v.arm(f) : 1.35;
+  const hand = add(SHOULDER, dir(ang), 12);
+  g.strokeStyle = '#2b2440'; g.lineWidth = 5; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(SHOULDER.x, SHOULDER.y); g.lineTo(hand.x, hand.y); g.stroke();
+  if (show) {
+    const w = tex.Wand, base = add(SHOULDER, dir(ang), 10);
+    g.imageSmoothingEnabled = false;
+    g.translate(base.x, base.y); g.rotate(ang + Math.PI / 4);
+    g.drawImage(w, 0, -w.height * .5, w.width * .5, w.height * .5);
+  }
+  g.restore();
+}
+
+// ---------- 主循环 ----------
+let cur = 'C', frame = 0, playing = true, speed = 1, zoom = 1, shakeOn = true;
+function loopLen() { const v = variants[cur]; return v.F0 + LOOP_TAIL; }
+function worldTransform(g, f) {
+  const v = variants[cur];
+  let sx = 0, sy = 0;
+  const a = f - v.F0;
+  if (shakeOn && cur !== 'now' && a >= 0 && a < 14) {
+    const amp = 7 * (1 - a / 14);
+    sx = Math.sin(a * 2.7) * amp; sy = Math.cos(a * 3.3) * amp * .7;
+  }
+  const s = view.width / 1920 * zoom;
+  const cy = zoom > 1 ? -50 : 0;
+  g.setTransform(s, 0, 0, s, view.width / 2 + sx * s, view.height / 2 - cy * s + sy * s);
+}
+function bloomComposite(src) {
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.filter = 'blur(22px)'; ctx.globalAlpha = .75; ctx.drawImage(src, 0, 0);
+  ctx.filter = 'blur(7px)'; ctx.globalAlpha = .8; ctx.drawImage(src, 0, 0);
+  ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.drawImage(src, 0, 0);
+  ctx.restore();
+}
+function render() {
+  const v = variants[cur], f = frame;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, view.width, view.height);
+  worldTransform(ctx, f); drawBackground(ctx);
+  for (const [c, fn] of [[fxBack, 'back'], [fxFront, 'front']]) {
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height);
+    worldTransform(g, f); g.globalCompositeOperation = 'lighter';
+    v[fn](g, f);
+  }
+  bloomComposite(fxBack);
+  worldTransform(ctx, f); drawPlayer(ctx, v, f);
+  bloomComposite(fxFront);
+  // HUD
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#fff'; ctx.font = '16px Microsoft YaHei';
+  ctx.fillText(`${v.name}   帧 ${f.toFixed(1)}   ${f >= v.F0 ? '领域已生成' : '领域未生成'}`, 14, 26);
+  updateSide();
+}
+function updateSide() {
+  const v = variants[cur], L = loopLen();
+  document.getElementById('frame').textContent = frame.toFixed(1);
+  document.getElementById('total').textContent = L;
+  document.getElementById('scrub').max = L; document.getElementById('scrub').value = frame;
+  document.getElementById('cursor').style.left = (frame / L * 100) + '%';
+  const ph = v.phases.find(p => frame >= p[0] && frame < p[1]);
+  document.getElementById('phase').textContent = ph ? ph[2] : (frame >= v.F0 ? '领域持续（火环展开 / 第一道炎爆）' : '');
+}
+function buildTimeline() {
+  const v = variants[cur], L = loopLen(), tl = document.getElementById('timeline');
+  tl.querySelectorAll('div').forEach(d => d.remove());
+  for (const [a, b, label, col] of v.phases) {
+    const d = document.createElement('div');
+    d.style.left = (a / L * 100) + '%'; d.style.width = ((b - a) / L * 100) + '%'; d.style.background = col;
+    d.textContent = label; d.title = `${label} ${a}–${b}`; tl.appendChild(d);
+  }
+  const d = document.createElement('div');
+  d.style.left = (v.F0 / L * 100) + '%'; d.style.width = '2px'; d.style.background = '#ff0'; d.title = '领域生成';
+  tl.appendChild(d);
+  document.getElementById('desc').textContent = v.desc;
+}
+
+let last = performance.now(), acc = 0;
+function tick(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (playing) { frame += dt * 60 * speed; if (frame > loopLen()) frame = 0; }
+  render(); requestAnimationFrame(tick);
+}
+
+function setupUI() {
+  const vb = document.getElementById('variants');
+  for (const k of ['now', 'A', 'B', 'C']) {
+    const b = document.createElement('button'); b.textContent = variants[k].name; b.dataset.k = k;
+    b.onclick = () => { cur = k; frame = 0; buildTimeline(); refresh(); }; vb.appendChild(b);
+  }
+  const sb = document.getElementById('speeds');
+  for (const s of [.25, .5, 1]) {
+    const b = document.createElement('button'); b.textContent = s + '×'; b.dataset.s = s;
+    b.onclick = () => { speed = s; refresh(); }; sb.appendChild(b);
+  }
+  document.getElementById('zoom').onclick = () => { zoom = zoom === 1 ? 2 : 1; refresh(); };
+  document.getElementById('shake').onclick = () => { shakeOn = !shakeOn; refresh(); };
+  document.getElementById('play').onclick = () => { playing = !playing; refresh(); };
+  document.getElementById('scrub').oninput = e => { frame = +e.target.value; playing = false; refresh(); };
+  function refresh() {
+    vb.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === cur));
+    sb.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.s === speed));
+    document.getElementById('zoom').classList.toggle('on', zoom > 1);
+    document.getElementById('shake').classList.toggle('on', shakeOn);
+    document.getElementById('play').classList.toggle('on', playing);
+    document.getElementById('play').textContent = playing ? '暂停' : '播放';
+  }
+  window.preview = { set(k, f, z) { cur = k; frame = f; playing = false; zoom = z || zoom; buildTimeline(); refresh(); render(); } };
+  buildTimeline(); refresh();
+}
+
+// 分镜：?sheet=A&zoom=4&frames=0,10,20 把关键帧拼成一张图。
+function renderSheet(k, frames, z) {
+  const cols = 4, rows = Math.ceil(frames.length / cols), cw = 640, ch = 360;
+  const sheet = document.createElement('canvas'); sheet.width = cols * cw; sheet.height = rows * ch;
+  const sg = sheet.getContext('2d');
+  cur = k; zoom = z; shakeOn = false;
+  frames.forEach((f, i) => {
+    frame = f; render();
+    sg.drawImage(view, (i % cols) * cw, Math.floor(i / cols) * ch, cw, ch);
+    sg.fillStyle = '#fff'; sg.font = '22px Microsoft YaHei';
+    sg.fillText(`${variants[k].name.split(' ').slice(0, 2).join(' ')}  f${f}`, (i % cols) * cw + 10, Math.floor(i / cols) * ch + 54);
+  });
+  document.body.innerHTML = ''; sheet.style.width = '100%'; document.body.appendChild(sheet);
+}
+
+Promise.all(['GlowDot', 'Star4', 'StarFlare', 'ShotLine', 'Wand'].map(load)).then(() => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('sheet')) {
+    setupUI();
+    renderSheet(q.get('sheet'), (q.get('frames') || '0,5,10,15,20,25,28,31,33,35,40,50').split(',').map(Number), +(q.get('zoom') || 2));
+    return;
+  }
+  setupUI(); requestAnimationFrame(tick);
+});
+</script>
+</body>
+</html>

@@ -81,6 +81,8 @@ internal sealed class SparkleProbe : Game
                     public Color GetRealColor(Color value) => value;
                 }
                 public abstract class KLBasicDust {
+                protected static void RequestDustBloom(Dust dust, string id, Action<LayerDrawRequestSystem.DrawRequestContext> draw)
+                    => LayerDrawRequestSystem.RequestBloom(id, LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After, draw, LayerDrawRequestSystem.DustOrder);
                     public virtual bool PreDraw(Dust dust) => false;
                     public virtual void SubmitBloomDrawRequest(Dust dust) {}
                 }

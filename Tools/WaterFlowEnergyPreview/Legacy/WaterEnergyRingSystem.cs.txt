@@ -1,0 +1,62 @@
+using Terraria.UI;
+using Terraria.GameContent;
+using KL.ActionsSystem;
+using 伊蕾娜.ElainaActions;
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Water;
+
+public sealed class WaterEnergyRingSystem : ModSystem
+{
+    private Asset<Texture2D> water;
+    private Asset<Effect> ring;
+
+    private readonly WaterEnergyRingMotion motion = new();
+
+    public override void Load()
+    {
+        if (Main.dedServ) return;
+        water = Mod.Assets.Request<Texture2D>("ElainaModSkills/Skills/Water/Eff_Splash_322_288");
+        ring = Mod.Assets.Request<Effect>("Effects/Content/WaterEnergyRing");
+    }
+
+    public override void UpdateUI(GameTime gameTime)
+    {
+        if (Main.hideUI || Main.gameMenu || Main.LocalPlayer.dead) motion.Reset();
+    }
+
+    public override void OnWorldUnload() => motion.Reset();
+
+    public override void ModifyInterfaceLayers(List<GameInterfaceLayer> layers)
+    {
+        if (Main.hideUI || Main.gameMenu) return;
+        var player = Main.LocalPlayer;
+        var actions = player.GetModPlayer<ActionModPlayer>();
+        bool showing = actions.CurrentAnimAction is Action_WaterLaser { HasLocalEnergyRing: true };
+        var drain = !player.dead && actions.CurrentAnimAction is Action_WaterBall ball ? ball.EnergyDrain : null;
+        if (!showing && !(drain?.Remaining > 0) && !motion.Active) return;
+        int energy = showing ? player.GetModPlayer<WaterEnergyPlayer>().Energy : 0;
+        int cursor = layers.FindIndex(layer => layer.Name == "Vanilla: Mouse Text");
+        layers.Insert(cursor < 0 ? layers.Count : cursor, new LegacyGameInterfaceLayer(
+            "伊蕾娜: Water Energy", () => DrawRing(energy, drain), InterfaceScaleType.None));
+    }
+
+    private bool DrawRing(int energy, WaterEnergyRingDrain drain)
+    {
+        motion.Update(energy, WaterEnergyPlayer.Capacity, Main.hasFocus && !Main.gamePaused, drain);
+        if (motion.Opacity <= 0) return true;
+        int cursorIndex = Main.cursorOverride >= 0 ? Main.cursorOverride : Main.SmartCursorIsUsed ? 1 : 0;
+        var glyph = TextureAssets.Cursors[cursorIndex].Value;
+        Vector2 glyphSize = new Vector2(glyph.Width, glyph.Height) * (Main.cursorScale * Main.UIScale);
+        Vector2 topLeft = new(Main.mouseX, Main.mouseY);
+        if (cursorIndex == 2) {
+            glyphSize *= .7f;
+            topLeft -= glyphSize * .1f;
+        }
+        var (center, scale) = WaterEnergyRingDrawing.AroundCursor(topLeft, glyphSize, Main.UIScale, WaterEnergyRingDrawing.CursorOffset);
+        Main.spriteBatch.End();
+        WaterEnergyRingDrawing.Draw(Main.spriteBatch, water.Value, ring.Value, center, WaterEnergyRingDrawing.ArcDegrees, WaterEnergyRingDrawing.Curvature, scale,
+            motion.Fill, motion.Phase, motion.MaterialPulse, motion.Full, motion.Opacity, motion.FullAge);
+        Main.spriteBatch.Begin(); // InterfaceScaleType.None
+        return true;
+    }
+}

@@ -1,4 +1,4 @@
-param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$Water)
+param([string]$Tml = 'D:/Steam/steamapps/common/tModLoader', [switch]$Water, [switch]$Ice, [string]$SourceFile)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $output = Join-Path $repo '.vissandbox/fire-cycle-progress-preview'
@@ -8,7 +8,9 @@ $project = [IO.File]::ReadAllText("$PSScriptRoot/../BloomBackbufferPreview/Previ
 Copy-Item -LiteralPath "$PSScriptRoot/ProgressPreview.cs.txt" -Destination "$output/Program.cs"
 $previewArgs = @($repo, $Tml)
 if ($Water) { $previewArgs += '--water' }
+if ($Ice) { $previewArgs += '--ice' }
+if ($SourceFile) { $previewArgs += @('--source', $SourceFile) }
 dotnet run --project "$output/Preview.csproj" "-p:TmlPath=$Tml" -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Fire progress FNA preview failed.' }
-if (!$Water) { python "$PSScriptRoot/compose_progress.py" "$repo/.vissandbox/fire-cycle-checks/progress-preview" }
+if (!$Water -and !$Ice) { python "$PSScriptRoot/compose_progress.py" "$repo/.vissandbox/fire-cycle-checks/progress-preview" }
 if ($LASTEXITCODE -ne 0) { throw 'Fire progress contact sheet failed.' }

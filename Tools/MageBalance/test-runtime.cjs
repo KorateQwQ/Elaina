@@ -26,6 +26,7 @@ function fixture(s) {
 const cases = [1,2,5,7,20].map(phaseSize => {
  const s = B.defaults();
  s.progression.phaseSize = phaseSize;
+ delete s.skills[0].energyCost; // Old v2 payload without the optional energy fields.
  s.basicAttacks.push({...B.newBasic('IceConeSkill','Ice'),unlockStageCap:10,unlockLevel:6,levelsPerPhase:2,ratio:1.1,interval:.5,shots:3});
  s.basicAttacks.push({...B.newBasic('DenseSkill','Dense'),unlockStageCap:3,unlockLevel:10,levelsPerPhase:10});
  return fixture(s);
@@ -47,7 +48,7 @@ cases.push((()=>{
 })());
 // Explicit-ratio actives price over CD + cast, so ratio stays the DPS over the full cycle; C# is pinned to this via the fixtures.
 {
- const s = B.defaults(), row = {...s.skills.find(r => r.id === 'WaterBallSkill'), ratio:.2, cd:10, cast:1}, b = B.progressionBudget(s,row,30);
+ const s = B.defaults(), row = {...s.skills.find(r => r.id === 'WaterBallSkill'), energyCost:0, ratio:.2, cd:10, cast:1}, b = B.progressionBudget(s,row,30);
  assert.ok(Math.abs(b.total - b.baseline*.2*11) < 1e-9 && Math.abs(b.dps - b.baseline*.2) < 1e-9, 'Explicit-ratio active must price over cd + cast');
 }
 
@@ -102,6 +103,11 @@ new SkillBalanceSystem().Load();
 var store = (SkillBalanceFileStore)typeof(SkillBalanceSystem).GetField("store", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
 int passed = 0;
 void Check(bool condition, string message) {if (!condition) throw new Exception(message);}
+bool Rejects(string json)
+{
+    var validation = System.Threading.Tasks.Task.Run(() => store.Apply(json));
+    return validation.ContinueWith(t => t.IsFaulted && t.Exception.GetBaseException() is FormatException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException).GetAwaiter().GetResult();
+}
 void Near(double a, double b) => Check(Math.Abs(a-b) < 1e-5 * Math.Max(1, Math.Abs(b)), $"{a} != {b}");
 void Test(string name, Action body) {body(); passed++; Console.WriteLine("PASS " + name);}
 foreach (var fixture in fixtures.EnumerateArray())
@@ -132,6 +138,14 @@ Test("Official combat skills start at initial DPS and can buy all prior stages i
 {
     store.Apply(fixtures[6].GetProperty("json").GetString());
     var config = SkillBalanceSystem.Current;
+    foreach (var (id, cost, expected) in new[] { ("WaterBallSkill",2,800), ("FireBurstSkill",5,3000), ("ShardbindSkill",3,960) })
+    {
+        var row = config.Skills[id];
+        Check(row.EnergyCost == cost, id + " has incorrect cost");
+        Near(config.GetSkillDamage(1000,row,30), expected);
+        Near(config.GetSkillDamage(1000,row with { BaseCooldown=200, OccupySeconds=50, ManaCost=9999, DpsRatio=3 },30), expected);
+        Near(config.GetSkillDamage(1000,row with { EnergyEfficiency=row.EnergyEfficiency / 2 },30), expected / 2);
+    }
     foreach (var entry in config.Skills.Values.Where(x => x.GrowthStartLevel == 1))
     {
         Check(config.GetSkillCharacterLevel(entry, 1) == 1, entry.Id + " grants unlock-stage damage");
@@ -183,7 +197,7 @@ Test("Legacy growth fields default to phase and malformed fields do not replace 
             var payload=JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
             payload["configuration"][category][0][key]=JsonNode.Parse(value);
             var good=SkillBalanceSystem.Current;
-            Check(!store.Apply(payload.ToJsonString())&&ReferenceEquals(good,SkillBalanceSystem.Current), $"Accepted bad {category}.{key}={value}");
+            Check(Rejects(payload.ToJsonString())&&ReferenceEquals(good,SkillBalanceSystem.Current), $"Accepted bad {category}.{key}={value}");
         }
     }
     var legacy=JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
@@ -275,7 +289,7 @@ Test("Fractional mana costs and K up to 200 are accepted and priced exactly", ()
     double b = KLDpsHelper.GetLevelDps(10);
     Near(next.GetSkillDamage(b,water,10),b*(next.OccupyRatio*Math.Max(1d/60,water.OccupySeconds)+(next.RatePer20/100/20)*12.5*water.BaseCooldown*water.CdDamageRatio*200));
     payload["configuration"]["skills"][0]["k"] = 200.5;
-    Check(!store.Apply(payload.ToJsonString()), "K above 200 was accepted");
+    Check(Rejects(payload.ToJsonString()), "K above 200 was accepted");
     store.Apply(fixtures[2].GetProperty("json").GetString());
 });
 Test("Invalid curves and occupyRatio are rejected; null curve means none", () =>
@@ -285,11 +299,11 @@ Test("Invalid curves and occupyRatio are rejected; null curve means none", () =>
     {
         var payload = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
         payload["configuration"]["basicAttacks"][0]["ratioCurve"] = JsonNode.Parse(bad);
-        Check(!store.Apply(payload.ToJsonString()) && ReferenceEquals(good,SkillBalanceSystem.Current), "Accepted bad curve " + bad);
+        Check(Rejects(payload.ToJsonString()) && ReferenceEquals(good,SkillBalanceSystem.Current), "Accepted bad curve " + bad);
     }
     var negative = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
     negative["configuration"]["occupyRatio"] = -1;
-    Check(!store.Apply(negative.ToJsonString()), "Accepted negative occupyRatio");
+    Check(Rejects(negative.ToJsonString()), "Accepted negative occupyRatio");
     var nulled = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
     nulled["configuration"]["basicAttacks"][0]["ratioCurve"] = null;
     nulled["configuration"].AsObject().Remove("occupyRatio");
@@ -321,11 +335,11 @@ Test("Stage loadouts are parsed in order, optional, and invalid rows reject the 
     {
         var next = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
         next["configuration"]["loadouts"][0][key] = JsonNode.Parse(value);
-        Check(!store.Apply(next.ToJsonString()), $"Accepted bad loadout {key}={value}");
+        Check(Rejects(next.ToJsonString()), $"Accepted bad loadout {key}={value}");
     }
     var shortList = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
     shortList["configuration"]["loadouts"].AsArray().RemoveAt(17);
-    Check(!store.Apply(shortList.ToJsonString()), "Accepted 17 loadouts");
+    Check(Rejects(shortList.ToJsonString()), "Accepted 17 loadouts");
     var missing = JsonNode.Parse(fixtures[2].GetProperty("json").GetString());
     missing["configuration"].AsObject().Remove("loadouts");
     Check(store.Apply(missing.ToJsonString()) && SkillBalanceSystem.Current.Loadouts.Count == 0, "Missing loadouts were not optional");
@@ -371,7 +385,7 @@ Test("Hot configuration changes update both level caps and damage mapping withou
     Near(SkillBalanceSystem.GetBaseDps(2,entry.Id),KLDpsHelper.GetLevelDps(5)*.4);
     Check(Math.Abs(SkillBalanceSystem.GetBaseDps(2,entry.Id)-oldDps)>1, "Stale damage");
     Check(oldConfig.GetSkillCharacterLevel(missile,2) == 3, "Previous immutable snapshot changed");
-    Check(!store.Apply("{}") && ReferenceEquals(next,SkillBalanceSystem.Current), "Bad JSON replaced valid snapshot");
+    Check(Rejects("{}") && ReferenceEquals(next,SkillBalanceSystem.Current), "Bad JSON replaced valid snapshot");
 });
 Console.WriteLine($"{passed} C# runtime tests passed.");
 

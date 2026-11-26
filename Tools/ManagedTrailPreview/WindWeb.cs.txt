@@ -1,0 +1,95 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Reflection;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+sealed partial class Probe
+{
+    static readonly string[] WindControls = ["FringeLength", "FringeSpacing", "FringeLengthVariation", "FringeLengthBias", "FringeOpacity", "LongTrailBrightness", "TailFadeStart"];
+    static readonly float[] WindMinimum = [4, .35f, 0, -1, 0, 0, 0];
+    static readonly float[] WindMaximum = [100, 3, 1, 1, 1, 3, 1];
+    static readonly string[] WindColors = ["TrailFrontColor", "TrailEndColor"];
+
+    void ServeWindPreview()
+    {
+        var type = replay.GetType("Preview.WindSlash");
+        var fields = WindControls.Select(name => type.GetField("Override" + name)).ToArray();
+        var defaults = WindControls.Select((name, i) => new {
+            name, min = WindMinimum[i], max = WindMaximum[i],
+            value = (float)type.GetProperty(name, BindingFlags.NonPublic | BindingFlags.Static).GetValue(null)
+        }).ToArray();
+        var colors = WindColors.Select(name => {
+            var v = (Vector4)type.GetProperty(name, BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            return new { name, value = new[] {v.X,v.Y,v.Z,v.W} };
+        }).ToArray();
+        var colorFields = WindColors.Select(name => type.GetField("Override" + name)).ToArray();
+        var schema = JsonSerializer.SerializeToUtf8Bytes(defaults.Cast<object>().Concat(colors));
+        var draw = replay.GetType("Preview.BlendChecks").GetMethod("DrawWindLayer")
+            .CreateDelegate<Action<int,int,float,bool>>();
+        using var target = new RenderTarget2D(GraphicsDevice, Width, Height);
+        const int crop = 480;
+        var cropArea = new Rectangle((Width-crop)/2, (Height-crop)/2, crop, crop);
+        var pixels = new byte[crop*crop*4];
+        using var server = new HttpListener { IgnoreWriteExceptions = true };
+        server.Prefixes.Add("http://127.0.0.1:48731/");
+        server.Start();
+        Console.WriteLine("Wind web preview ready at http://127.0.0.1:48731/");
+        while (server.IsListening) {
+            var context = server.GetContext();
+            using var response = context.Response;
+            response.Headers["Cache-Control"] = "no-store";
+            byte[] data;
+            switch (context.Request.Url.AbsolutePath) {
+                case "/":
+                    response.ContentType = "text/html; charset=utf-8";
+                    data = File.ReadAllBytes(Path.Combine(root, "Tools/ManagedTrailPreview/wind.html"));
+                    break;
+                case "/controls":
+                    response.ContentType = "application/json";
+                    data = schema;
+                    break;
+                case "/frame":
+                    var query = context.Request.QueryString;
+                    float Number(string key, float fallback, float min, float max) =>
+                        float.TryParse(query[key], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) && float.IsFinite(value)
+                            ? Math.Clamp(value, min, max) : fallback;
+                    for (int i = 0; i < fields.Length; i++) fields[i].SetValue(null,
+                        Number(WindControls[i], defaults[i].value, WindMinimum[i], WindMaximum[i]));
+                    bool valid = true;
+                    for (int i = 0; i < colors.Length; i++) {
+                        var components = colors[i].value;
+                        if (query[colors[i].name] is string input) {
+                            var parts = input.Split(',');
+                            if (parts.Length != 4) { valid = false; break; }
+                            components = new float[4];
+                            for (int j = 0; j < 4; j++) valid &= float.TryParse(parts[j], NumberStyles.Float,
+                                CultureInfo.InvariantCulture, out components[j]) && float.IsFinite(components[j]) && components[j] >= 0;
+                            valid &= components[3] <= 1;
+                        }
+                        if (!valid) break;
+                        colorFields[i].SetValue(null, new Vector4(components[0],components[1],components[2],components[3]));
+                    }
+                    if (!valid) { response.StatusCode = 400; data = Encoding.UTF8.GetBytes("Invalid HDR RGBA"); break; }
+                    AssertHidden();
+                    GraphicsDevice.SetRenderTarget(target);
+                    GraphicsDevice.Clear(query["sky"] == "day" ? new Color(79,160,161) : new Color(10,16,25));
+                    draw(0, (int)Number("tick", 30, 0, 2000000), MathHelper.ToRadians(Number("angle", 0, -180, 180)), query["bloom"] != "0");
+                    GraphicsDevice.SetRenderTarget(null);
+                    target.GetData(0, cropArea, pixels, 0, pixels.Length);
+                    response.ContentType = "application/octet-stream";
+                    data = pixels;
+                    break;
+                default:
+                    response.StatusCode = 404; data = Array.Empty<byte>(); break;
+            }
+            response.ContentLength64 = data.Length;
+            response.OutputStream.Write(data);
+        }
+    }
+}

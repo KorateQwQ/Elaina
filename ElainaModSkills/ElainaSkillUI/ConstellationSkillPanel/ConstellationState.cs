@@ -201,7 +201,7 @@ internal sealed class ConstellationState
         if (Current != null)
         {
             hash.Add(Current.ModSkill.GetConstellationDescription());
-            hash.Add(Current.ModSkill.MagicPointCost); hash.Add(Current.Skill.MaxCD);
+            hash.Add(Current.ModSkill.MagicPointCost); hash.Add(Current.ModSkill.ChargePointCost); hash.Add(Current.Skill.MaxCD);
             hash.Add(MaxLevel(Selected)); hash.Add(CanUpgrade(Selected)); hash.Add(UnlockDescription);
             hash.Add(UpgradeCondition(Selected)?.GetDescription(_player, Current.ModSkill));
             foreach (var requirement in Requirements(Selected, IsLearned(Selected)).Rows) hash.Add(requirement);

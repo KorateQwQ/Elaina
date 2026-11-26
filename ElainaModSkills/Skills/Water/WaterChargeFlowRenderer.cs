@@ -9,6 +9,9 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 internal sealed class WaterChargeFlowRenderer : IDisposable
 {
     private static int Segments => 88;
+    private static float TailEaseFraction => .16f;
+    private static float FlowSpeedMultiplier => 2.6f;
+    private static float LeadFadeTicks => 8f;
     private readonly GraphicsDevice device;
     private readonly Effect effect;
     private readonly Func<string, Texture2D> loadTexture;
@@ -33,7 +36,7 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
     }
 
     // Caller ends its SpriteBatch first. Center is already relative to the camera.
-    internal void Draw(Vector2 center, float waterRadius, float seconds, int seed,
+    internal void Draw(Vector2 center, float waterRadius, int elapsedTicks, int chargeTicks, int seed,
         bool foreground, Matrix transform, float opacity = 1f)
     {
         // 调参区：直接修改这些局部变量，应用 C# 热重载后下一次 Draw 使用新值。
@@ -57,12 +60,8 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
         float textureRepeat = 1f; // 纹理重复次数
         float textureScrollSpeed = 2.1f; // 纹理滚动速度，正数向球心
         float noiseScrollSpeed = .3f; // 噪声滚动速度
-        float flowSpeedMultiplier = 3.2f; // 整股水流向球心移动的速度倍率
-        int streamCount = 9; // 每次蓄力只生成这一轮，不循环
-        float spawnInterval = .05f; // 每3帧错峰汇入一股，增加总数而不同时爆发
+        const int spawnIntervalTicks = 3;
         float spawnReach = 430f; // 外侧起点距离基准，叠加各股远近差异
-        float stopEmissionSeconds = .45f; // 提前停止生成新水流
-        float finishSeconds = .8f; // 最晚48帧全部收进球里（球50帧长满、60帧完成显现）
         float headTaperLength = .28f; // 前端收尖占条带长度的比例，越大头部越细长
         float headTaperPower = 1.35f; // 前端收细程度，越大越尖
         float wrapTurns = 1.12f; // 接触后沿倾斜球面缠绕的圈数，同一条水流连续进入
@@ -78,7 +77,8 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
 
         Color mainColor = new Color(128, 191, 255, 255); // 对齐水球 ColorB 到 ColorA 之间的浅蓝色
 
-        if (seconds <= 0 || seconds >= finishSeconds || opacity <= 0) return;
+        if (elapsedTicks <= 0 || elapsedTicks >= chargeTicks || opacity <= 0) return;
+        float seconds = elapsedTicks / 60f;
         // Segments 可热调；同步调整顶点和索引，避免只改属性后数组越界。
         int segments = Math.Clamp(Segments, 16, 256);
         if (vertices.Length != (segments + 1) * 2 || indices.Length != segments * 6)
@@ -119,25 +119,44 @@ internal sealed class WaterChargeFlowRenderer : IDisposable
             effect.Parameters["FoamThreshold"].SetValue(MathHelper.Clamp(foamThreshold, .05f, .95f));
             effect.Parameters["FoamSoftness"].SetValue(MathHelper.Clamp(foamSoftness, .01f, .4f));
             effect.Parameters["FoamSpread"].SetValue(MathHelper.Clamp(foamSpread, 0, .12f));
-            float charge = Smooth(seconds / (50f / 60f));
+            float charge = Smooth(elapsedTicks / 50f);
             // Fixed reach while charging: the source end must not expand outwards as the ball grows.
             float reach = spawnReach;
-            int count = Math.Clamp(streamCount, 1, 12);
-            for (int stream = 0; stream < count; stream++)
+            float easeFraction = MathHelper.Clamp(TailEaseFraction, 0f, 1f);
+            float drain = 1f + easeFraction;
+            float flowSpeedMultiplier = FlowSpeedMultiplier;
+            int maxTravelTicks = (int)MathF.Ceiling(60f * (1f + .72f * drain) / (.9f * flowSpeedMultiplier));
+            // 快速蓄力开场时，让几股已经在途的水流淡入，为它们留出正常的吸收时间。
+            int leadTicks = Math.Max(0, maxTravelTicks - chargeTicks);
+            int firstSpawnTick = 1 - leadTicks;
+            if (leadTicks > 0) opacity *= Smooth(elapsedTicks / LeadFadeTicks);
+            // 以收尾帧排队，按每股的自然寿命反推入场时间，最后一股恰在蓄满帧结束。
+            int firstFinishTick = 1 + (chargeTicks - 1) % spawnIntervalTicks;
+            int first = Math.Max(0, (elapsedTicks - firstFinishTick) / spawnIntervalTicks);
+            int last = (Math.Min(chargeTicks, elapsedTicks + maxTravelTicks) - firstFinishTick) / spawnIntervalTicks;
+            for (int stream = first; stream <= last; stream++)
             {
                 float key = stream * 17.13f + seed * 1.37f;
                 // Alternate distant, middle and near streams in time, not one ring of equal ribbons.
                 float depth = (stream % 5) switch { 0 => .18f, 1 => .9f, 2 => .4f, 3 => 1f, _ => .55f };
                 bool inFront = depth > .7f;
-                float spawnTime = .02f + stream * Math.Max(.025f, spawnInterval);
-                if (spawnTime >= stopEmissionSeconds || spawnTime >= finishSeconds) continue;
-                float age = seconds - spawnTime;
-                if (age <= 0) continue;
+                float speed = (.9f + Hash(key + 19) * .3f) * flowSpeedMultiplier;
                 float pulseLength = .5f + Hash(key + 11) * .22f;
-                float speed = (.9f + Hash(key + 19) * .3f) * MathHelper.Clamp(flowSpeedMultiplier, .1f, 8f);
-                float duration = Math.Min((1f + pulseLength) / speed, finishSeconds - spawnTime);
-                if (age >= duration) continue;
-                float head = age / duration * (1f + pulseLength);
+                float travel = 1f + pulseLength * drain;
+                float lifetime = travel / speed;
+                int finishTick = firstFinishTick + stream * spawnIntervalTicks;
+                float spawnTick = finishTick - lifetime * 60f;
+                float age = (elapsedTicks - spawnTick) / 60f;
+                if (spawnTick < firstSpawnTick || age <= 0f || elapsedTicks >= finishTick) continue;
+                float head = age * speed;
+                float easeLength = pulseLength * easeFraction;
+                float easeStart = 1f + pulseLength - easeLength;
+                if (easeLength > 0 && head > easeStart)
+                {
+                    // 仅对最后一小段尾尖减速，保留水体绕行时可见的完整行程。
+                    float t = (head - easeStart) / (2f * easeLength);
+                    head = easeStart + easeLength * t * (2f - t);
+                }
                 DrawPulse(head);
 
                 void DrawPulse(float head)

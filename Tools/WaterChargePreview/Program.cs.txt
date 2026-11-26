@@ -12,21 +12,29 @@ using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 using 伊蕾娜.ElainaModSkills.Skills.Water;
 
-try { using var game = new Probe(args[0], args[1], args.Length > 2 && args[2] == "flight"); game.Run(); }
-catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
+using var game = new Probe(args[0], args[1], args.Length > 2 && args[2] == "flight");
+game.RunOneFrame();
+if (!game.Exported) throw new InvalidOperationException("Missing water preview draw");
 
 sealed class Probe : Game
 {
     readonly string root, output;
     WaterChargeFlowRenderer flow;
-    Action<int, float, Vector2, float, Vector2> drawBall;
+    Action<int, float, Vector2, float, Vector2, int> drawBall;
     Action<int, float, Vector2, float, Vector2> drawFlight;
     Action disposeFlight;
     Func<Vector3[]> readFlightPoints;
     Func<float> readFlightScrollSpeed;
     readonly bool flightOnly;
-    Func<int, int, float> readFlowSeconds;
+    Func<int, int, int, (int Age, int Duration)> readFlowClock;
     bool done;
+    public bool Exported => done;
+    void CheckHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException("Unexpected visible preview window");
+    }
     const int Width = 1440, Height = 1200;
     public Probe(string root, string output, bool flightOnly)
     {
@@ -36,10 +44,12 @@ sealed class Probe : Game
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        CheckHidden();
     }
     protected override void LoadContent()
     {
         SDL.SDL_HideWindow(Window.Handle);
+        CheckHidden();
         Directory.CreateDirectory(output);
         PreviewAssets.Root = root;
         PreviewAssets.Device = GraphicsDevice;
@@ -52,10 +62,8 @@ sealed class Probe : Game
         var flowMethod = tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawChargeFlow");
         var flowCall = flowMethod.DescendantNodes().OfType<InvocationExpressionSyntax>()
             .Single(i => i.Expression.ToString() == "chargeFlowRenderer.Draw");
-        string clockExpression = flowCall.ArgumentList.Arguments[2].Expression.ToString();
+        string clockExpression = $"({flowCall.ArgumentList.Arguments[2].Expression}, {flowCall.ArgumentList.Arguments[3].Expression})";
         var method = tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawBall");
-        var fly = method.DescendantNodes().OfType<IfStatementSyntax>().Single(n => n.Condition.ToString() == "state == State.Fly");
-        method = method.RemoveNode(fly, SyntaxRemoveOptions.KeepNoTrivia);
         string source = """
         using System;
         using System.Reflection;
@@ -64,14 +72,15 @@ sealed class Probe : Game
         using 伊蕾娜.ElainaModSkills.Skills.Water;
         using static PreviewAssets;
         public class SphereReplay {
-            int time; float WaterBallRadius, drawWidth = 1, drawHeight = 1;
+            int time, chargeTicks = 180; float WaterBallRadius, drawWidth = 1, drawHeight = 1;
             double flightVisualStart = 3600;
             enum State { Hold, Fly }
             State state;
             static WaterBallFlightRenderer flightRenderer;
             class Body { public Vector2 Center; public float rotation; }
             Body Projectile = new();
-            public void Draw(int ticks, float radius, Vector2 center, float rotation, Vector2 stretch) {
+            public void Draw(int ticks, float radius, Vector2 center, float rotation, Vector2 stretch, int duration) {
+                chargeTicks = duration;
                 time = ticks; WaterBallRadius = radius; Projectile.Center = center; Projectile.rotation = rotation;
                 drawWidth = stretch.X; drawHeight = stretch.Y;
                 DrawBall();
@@ -84,19 +93,22 @@ sealed class Probe : Game
                 PreDraw(ref color);
             }
             private void DrawChargeFlow(bool foreground) { }
+            private void DrawFlightWind() { } // This probe isolates the helical water ribbons.
             public void DisposeFlight() { flightRenderer?.Dispose(); flightRenderer = null; }
             public Vector3[] ReadFlightPoints() => (Vector3[])((Vector3[])typeof(WaterBallFlightRenderer)
                 .GetField("points", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(flightRenderer)).Clone();
             public float ReadFlightScrollSpeed() => ((Effect)typeof(WaterBallFlightRenderer)
                 .GetField("effect", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(flightRenderer))
                 .Parameters["TextureScrollSpeed"].GetValueSingle();
-        """ + method.ToFullString()
+        """ + string.Concat(tree.DescendantNodes().OfType<PropertyDeclarationSyntax>()
+            .Where(p => p.Identifier.Text.StartsWith("Reveal", StringComparison.Ordinal)).Select(p => p.ToFullString()))
+            + method.ToFullString()
             + tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawFlightFlow").ToFullString()
             + tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "PreDraw").ToFullString()
                 .Replace("public override", "public").Replace("base.PreDraw(ref lightColor)", "false") + "}";
         // Replay the consumer's actual time argument, not a manually supplied ideal clock.
-        source += "public class FlowClockReplay { int time; public int VisualTime; "
-            + "public float Read(int localTicks, int globalTicks) { time = localTicks; VisualTime = globalTicks; return "
+        source += "public class FlowClockReplay { int time, chargeTicks; public int VisualTime; "
+            + "public (int, int) Read(int localTicks, int globalTicks, int duration) { time = localTicks; chargeTicks = duration; VisualTime = globalTicks; return "
             + clockExpression + "; } }";
         File.WriteAllText(Path.Combine(output, "sphere-replay.cs.txt"), source);
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
@@ -110,18 +122,18 @@ sealed class Probe : Game
         if (!result.Success) throw new Exception(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
         Assembly assembly = Assembly.Load(bytes.ToArray());
         Type clockType = assembly.GetType("FlowClockReplay");
-        readFlowSeconds = clockType.GetMethod("Read").CreateDelegate<Func<int, int, float>>(Activator.CreateInstance(clockType));
+        readFlowClock = clockType.GetMethod("Read").CreateDelegate<Func<int, int, int, (int Age, int Duration)>>(Activator.CreateInstance(clockType));
         foreach (int globalTicks in new[] { 0, 3600, 216000 })
-        foreach (int localTicks in new[] { 1, 12, 24, 48, 60, 180 })
+        foreach (int localTicks in new[] { 1, 12, 24, 48, 60, 180, 600 })
         {
-            float actual = readFlowSeconds(localTicks, globalTicks);
-            if (MathF.Abs(actual - localTicks / 60f) > .0001f)
-                throw new Exception($"Charge flow uses wrong clock: {clockExpression}; local={localTicks}, global={globalTicks}, seconds={actual}");
+            var actual = readFlowClock(localTicks, globalTicks, 40);
+            if (actual != (localTicks, 40))
+                throw new Exception($"Charge flow uses wrong clock: {clockExpression}; local={localTicks}, global={globalTicks}, clock={actual}");
         }
-        Console.WriteLine("PASS: actual DrawChargeFlow time argument tracks projectile age at world ages 0/60/3600 seconds.");
+        Console.WriteLine("PASS: charge flow follows local ticks throughout a 600-tick hold at all three world ages.");
         Type type = assembly.GetType("SphereReplay");
         object replay = Activator.CreateInstance(type);
-        drawBall = type.GetMethod("Draw").CreateDelegate<Action<int, float, Vector2, float, Vector2>>(replay);
+        drawBall = type.GetMethod("Draw").CreateDelegate<Action<int, float, Vector2, float, Vector2, int>>(replay);
         drawFlight = type.GetMethod("DrawFlight").CreateDelegate<Action<int, float, Vector2, float, Vector2>>(replay);
         disposeFlight = type.GetMethod("DisposeFlight").CreateDelegate<Action>(replay);
         readFlightPoints = type.GetMethod("ReadFlightPoints").CreateDelegate<Func<Vector3[]>>(replay);
@@ -129,20 +141,27 @@ sealed class Probe : Game
     }
     protected override void Draw(GameTime gameTime)
     {
+        CheckHidden();
         if (done) { Exit(); return; } done = true;
         if (flightOnly) { RenderFlightFrames(); Exit(); return; }
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
         using var pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
+        foreach (int duration in new[] { 40, 60 })
+        for (int tick = 0; tick <= duration; tick++)
+            Render(tick / 60f, 7, 1f, new Color(22, 34, 49), $"fast-{duration}-{tick:000}", duration: duration);
+        foreach (int tick in new[] { 0, 45, 75, 105, 150, 180 })
+            Render(tick / 60f, 0, 2f, new Color(60, 106, 112), $"reveal-{tick:000}", false);
         for (int frame = 0; frame < 90; frame++)
             Render(frame / 30f, 0, 1f, new Color(22, 34, 49), $"frame-{frame:000}");
         Render(.4f, 7, 1.35f, new Color(100, 137, 150), "day-zoom");
+        Render(10f, 7, 1f, new Color(22, 34, 49), "held-full");
         Render(.4f, 2, .8f, new Color(22, 34, 49), "alternate-small");
         // Sample every game tick around contact and absorption; zoom uses the same transform as gameplay.
         for (int tick = 0; tick < 54; tick++)
-            Render(tick / 60f, 0, 2f, new Color(22, 34, 49), $"wrap-{tick:000}");
-        Render(.55f, 7, 2f, new Color(100, 137, 150), "wrap-day");
-        Render(.55f, 2, 2f, new Color(22, 34, 49), "wrap-alternate");
+            Render((tick + 126) / 60f, 0, 2f, new Color(22, 34, 49), $"wrap-{tick:000}");
+        Render(2.75f, 7, 2f, new Color(100, 137, 150), "wrap-day");
+        Render(2.75f, 2, 2f, new Color(22, 34, 49), "wrap-alternate");
         Render(1.6f, 0, 1f, new Color(22, 34, 49), "ball-only", false);
         Render(1.6f, 0, 2f, new Color(4, 10, 8), "sphere-night", false);
         Render(1.6f, 0, 2f, new Color(100, 137, 150), "sphere-day", false);
@@ -151,7 +170,7 @@ sealed class Probe : Game
         Render(1.6f, 0, 2f, new Color(22, 34, 49), "sphere-up", false, rotation: -MathF.PI / 2);
         Render(1.6f, 0, 2f, new Color(22, 34, 49), "sphere-stretched", false, stretch: new Vector2(1.45f, .72f));
         void Render(float seconds, int seed, float zoom, Color background, string name, bool ribbons = true,
-            float rotation = 0, Vector2? stretch = null, bool patterned = false)
+            float rotation = 0, Vector2? stretch = null, bool patterned = false, int duration = 180)
         {
             GraphicsDevice.SetRenderTarget(target);
             GraphicsDevice.Clear(background);
@@ -159,10 +178,10 @@ sealed class Probe : Game
             Matrix transform = Matrix.CreateTranslation(-center.X, -center.Y, 0)
                 * Matrix.CreateScale(zoom, zoom, 1) * Matrix.CreateTranslation(center.X, center.Y, 0);
             PreviewAssets.Transform = transform;
-            int ticks = (int)(seconds * 60);
-            float radius = 50 + Math.Min(150, ticks * 3);
-            float flowSeconds = readFlowSeconds(ticks, 216000 + ticks);
-            if (ribbons) flow.Draw(center, radius, flowSeconds, seed, false, transform);
+            int ticks = (int)MathF.Round(seconds * 60);
+            float radius = 50 + 150 * Math.Min(1f, ticks / (float)duration);
+            var clock = readFlowClock(ticks, 216000 + ticks, duration);
+            if (ribbons) flow.Draw(center, radius, clock.Age, clock.Duration, seed, false, transform);
             PreviewAssets.Batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
                 DepthStencilState.None, RasterizerState.CullNone, null, transform);
             if (patterned)
@@ -170,30 +189,37 @@ sealed class Probe : Game
                 for (int x = 0; x < Width; x += 24)
                     if ((x / 24 + y / 24) % 2 == 0)
                         PreviewAssets.Batch.Draw(pixel, new Rectangle(x, y, 24, 24), new Color(117, 139, 144));
-            drawBall(ticks, radius, center, rotation, stretch ?? Vector2.One);
+            drawBall(ticks, radius, center, rotation, stretch ?? Vector2.One, duration);
             PreviewAssets.Batch.End();
-            if (ribbons) flow.Draw(center, radius, flowSeconds, seed, true, transform);
+            if (ribbons) flow.Draw(center, radius, clock.Age, clock.Duration, seed, true, transform);
             GraphicsDevice.SetRenderTarget(null);
             using var file = File.Create(Path.Combine(output, name + ".png"));
+            CheckHidden();
             target.SaveAsPng(file, Width, Height);
         }
-        // A charged ball held for longer must stay completely free of ambient inflow.
         Color background = new(22, 34, 49);
+        Color[] pixels = new Color[Width * Height];
+        foreach (int duration in new[] { 40, 60, 120, 150, 180 })
         foreach (int seed in new[] { 0, 2, 7, 31 })
-        foreach (float seconds in new[] { .2f, .8f, .84f, 1f, 1.6f, 3f, 10f })
+        foreach (int ticks in new[] { duration / 4, duration / 2, duration - 8, duration - 1, duration, duration + 1, 600 })
         {
+            DrawFlowPixels(ticks, duration, 50f + 150f * Math.Min(1f, ticks / (float)duration), seed);
+            int changed = pixels.Count(p => p != background);
+            if (ticks >= duration ? changed != 0 : ticks == duration - 1 ? changed > 100 : changed == 0)
+                throw new Exception($"Unexpected inflow coverage at {ticks}/{duration} ticks, seed {seed}: {changed} pixels");
+        }
+        void DrawFlowPixels(int ticks, int duration, float radius, int seed)
+        {
+            var clock = readFlowClock(ticks, 216000 + ticks, duration);
+            Vector2 center = new(Width / 2f, Height / 2f);
             GraphicsDevice.SetRenderTarget(target);
             GraphicsDevice.Clear(background);
-            flow.Draw(new Vector2(Width / 2f, Height / 2f), 200, seconds, seed, false, Matrix.Identity);
-            flow.Draw(new Vector2(Width / 2f, Height / 2f), 200, seconds, seed, true, Matrix.Identity);
+            flow.Draw(center, radius, clock.Age, clock.Duration, seed, false, Matrix.Identity);
+            flow.Draw(center, radius, clock.Age, clock.Duration, seed, true, Matrix.Identity);
             GraphicsDevice.SetRenderTarget(null);
-            Color[] pixels = new Color[Width * Height];
             target.GetData(pixels);
-            bool visible = pixels.Any(p => p != background);
-            if (seconds >= .8f && visible) throw new Exception($"Inflow remains after formation: {seconds}, seed {seed}");
-            if (seconds == .2f && !visible) throw new Exception($"Missing charging inflow: seed {seed}");
         }
-        Console.WriteLine("PASS: inflow visible during charge; no remaining pixels at 0.8/0.84/1/1.6/3/10 seconds across four seeds.");
+        Console.WriteLine("PASS: inflow visible before full charge and absent on the full-charge frame and throughout the hold across five durations and four seeds.");
         Console.WriteLine("Rendered 90 animation frames, 54 per-tick wrap closeups, day/zoom, alternate seed and sphere-only comparison using actual FNA renderer and current sphere shader method.");
         Exit();
     }
@@ -260,6 +286,7 @@ sealed class Probe : Game
             PreviewAssets.BeginDraw();
             PreviewAssets.Batch.End();
             GraphicsDevice.SetRenderTarget(null);
+            CheckHidden();
             using (var file = File.Create(Path.Combine(output, name + ".png"))) target.SaveAsPng(file, Width, Height);
             Color[] pixels = new Color[Width * Height];
             target.GetData(pixels);

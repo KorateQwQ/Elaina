@@ -1,3 +1,4 @@
+using 伊蕾娜.Localization;
 using System;
 using static 伊蕾娜.Localization.UIText;
 using KL.ActionsSystem;
@@ -12,6 +13,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Water;
 [SkillUIInfo(State = 12, Pixels = 400)]
 public class WaterBallSkill: ElainaSkill
 {
+    internal static int ChargeTicks => 60;
+
     private bool quickCasting;
 
     internal static bool TryGetEquipped(Player player, out WaterBallSkill skill)
@@ -45,21 +48,9 @@ public class WaterBallSkill: ElainaSkill
         new CompositeSkillUnlockCondition(SkillUnlockCondition.BySkillPoint(25), RequireConfiguredCharacterLevelCap(nameof(WaterBallSkill), 30),
             RequireSkillLevel<WaterLaserSKill>(3));
 
-    /// <summary>对燃烧目标额外增加的周期 DPS 倍率，与基础 ratio 相加。</summary>
-    private static double BurningBonusRatio => 0.1;
 
-    /// <summary>按当前技能等级的 ratio 折算燃烧加成的伤害乘数：(ratio + 0.1) / ratio。</summary>
-    private float GetBurningDamageMultiplier()
-    {
-        if (!SkillBalanceSystem.TryGetSkill(BalanceId, out SkillBalanceEntry entry))
-            throw new InvalidOperationException($"缺少技能平衡配置：{BalanceId}");
-        double ratio = SkillBalanceConfig.GetDpsRatio(entry,
-            SkillBalanceSystem.Current.GetSkillCharacterLevel(entry, Math.Max(1, Level)));
-        if (ratio <= 0) throw new InvalidOperationException($"{BalanceId} 的 ratio 必须大于 0，当前为 {ratio}");
-        return (float)((ratio + BurningBonusRatio) / ratio);
-    }
-
-    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(), (GetBurningDamageMultiplier() - 1f) * 100f];
+    protected override object[] SkillDescriptionArgs =>
+        [SkillValueText.Damage(GetConfiguredDamage(), SkillValueKind.Water), (SkillHitBalance.WaterBallBurningDamageMultiplier - 1f) * 100f, SkillHitBalance.WaterBallBuildup, ChargeTicks / 60f];
     public override (string Label, string Current, string Next, string Unit)[] GetConstellationUpgradePreview(int nextLevel)
     {
         // 与技能描述一致，使用含装备增伤的单次伤害
@@ -72,7 +63,7 @@ public class WaterBallSkill: ElainaSkill
         base.Initialize();
     }
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
@@ -82,15 +73,10 @@ public class WaterBallSkill: ElainaSkill
 
         float startRotation = directionToMouse.ToRotation()*Main.LocalPlayer.gravDir;
 
-        localPlayer.GetModPlayer<ActionModPlayer>()
-            .StartAction(new Action_WaterBall(GetConfiguredDamage(), GetBurningDamageMultiplier(), quickCasting), rotation: startRotation);
+        var action = new Action_WaterBall(GetConfiguredDamage(), SkillHitBalance.WaterBallBurningDamageMultiplier, quickCasting);
+        if (!localPlayer.GetModPlayer<ActionModPlayer>().StartAction(action, rotation: startRotation)) return false;
 
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 
-    public override bool PreDrawSkillIcon(Vector2 position, Vector2 scale,  Color color, Effect effect = null)
-    {
-        //if (CurrentCD > 1) CurrentCD = 1;
-        return base.PreDrawSkillIcon(position, scale, color, effect);
-    }
 }

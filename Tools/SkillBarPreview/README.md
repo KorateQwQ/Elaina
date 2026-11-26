@@ -9,7 +9,7 @@ scale remains independent. Movement uses the resized bounds; the book/toast dock
 follows the bar's right edge.
 
 `pwsh -File Tools/SkillBarPreview/run.ps1 -ScaleOnly` renders 100%, 75% and 50%
-bar sizes at 100% and 125% Terraria UI scales using the production drawing code,
+bar sizes at 100%, 112.5%, 125% and 200% Terraria UI scales using the production drawing code,
 including cooldown numbers, charge pips/badges and seal/release states. Outputs
 are `seal-states-dark-ui<UI scale>-bar<bar scale>.png`. These are FNA offline
 renders with fixture skill state. Live SUI input and settings-menu interaction
@@ -50,6 +50,10 @@ The reference is `ElainaModSkills/ElainaSkillUI/NewUIExample/elaina-battle-eight
 ## Rebuild static artwork
 
 Run `node Tools/SkillBarPreview/bake.cjs` with `playwright` and `sharp` on Node's module path.
+Then run `python Tools/SkillBarPreview/bake_lods.py` to rebuild the five prefiltered
+levels of each atlas. `python Tools/SkillBarPreview/bake_lods.py --check` verifies
+source hashes, exact output bytes and premultiplied alpha. Both steps are required
+after changing the master artwork; runtime code only loads the packaged PNGs.
 Set `CHROME_PATH` when Chrome is not installed at its default Windows location.
 The script reads the reference's final CSS and embedded rack image. It exports only
 static decorations, with no skill icons, cooldowns, labels, or animation frames baked in.

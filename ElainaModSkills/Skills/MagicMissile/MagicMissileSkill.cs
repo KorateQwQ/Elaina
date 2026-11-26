@@ -1,3 +1,4 @@
+using 伊蕾娜.Localization;
 using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
@@ -63,15 +64,15 @@ public class MagicMissileSkill : ElainaSkill
         return base.CanUseSkill();
     }
 
-    public override bool PreUseSkill(IEntitySource source)
+    protected override bool OnCast(IEntitySource source)
     {
         using var measurement = RenderPerformanceDiagnostics.MeasureSkill("MagicMissile.Cast");
         if (!Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost))
             return false;
 
-        AnimAction animAction = new Action_SimpleShoot()
+        AnimAction animAction = new Action_MagicMissile()
             .AddNode(new ShootActionNode(
-                1,
+                Action_MagicMissile.FireFrame,
                 ModContent.ProjectileType<MagicMissile>(),
                 _ => WandCenter+new Vector2(0,0),
                 damage:GetDamage(),
@@ -104,7 +105,7 @@ public class MagicMissileSkill : ElainaSkill
             }
         }*/
         //PrintText(localPlayer.GetModPlayer<ElainaStatePlayer>().GetLevel());
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 
 
@@ -135,7 +136,8 @@ public class MagicMissileSkill : ElainaSkill
 
     protected override object[] SkillDescriptionArgs => new object[]
     {
-        GetDamage(),
+        SkillValueText.Damage(GetDamage(), SkillValueKind.Magic),
+        SkillHitBalance.MagicMissileSplashDamageMultiplier * 100f,
     };
 
 

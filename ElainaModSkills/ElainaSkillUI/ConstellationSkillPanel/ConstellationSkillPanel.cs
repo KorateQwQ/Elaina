@@ -161,7 +161,7 @@ public sealed partial class ConstellationSkillPanel : BaseBody
             view.LeftMouseDown += (_, e) => PressSlot(slot, Design(e.MousePosition));
             view.LeftMouseUp += (_, e) => { if (_slotPress == slot) ReleaseSlot(Design(e.MousePosition)); };
         }
-        Button(new Rectangle(1032, 21, 42, 42), Close, DrawCloseButton, dynamicTooltip: () => LocalizeUI("CloseMap"));
+        Button(new Rectangle(1032, 21, 42, 42), Close, DrawCloseButton);
         InitializeLayoutEditor();
 
     }
@@ -763,11 +763,17 @@ public sealed partial class ConstellationSkillPanel : BaseBody
         if (selected && _flash > 0) d.Ring(p, (NodeRadius + (1 - _flash) * 40) * _zoom,
             (NodeRadius + (1 - _flash) * 40) * _zoom, Gold * _flash * .7f, 1.5f);
         // Levels and slot keys live in the detail column and the slot bar; the map only names the star.
-        string name = Editing ? s.name : _state.Name(s);
-        float textWidth = Math.Min(136 * _zoom, d.Measure(name, 12 * _zoom, .5f * _zoom, true) + 16 * _zoom);
-        d.Image("Glow", p.X - textWidth / 2, p.Y + 39 * _zoom, textWidth, 22 * _zoom, new Color(39, 32, 51) * alpha);
-        d.FittedText(name, p.X, p.Y + 41 * _zoom, 136 * _zoom, 12 * _zoom,
-            (selected ? Gold : off ? new Color(179, 160, 186) : owned ? Ink : Muted) * alpha, .5f, serif: !hidden, spacing: .5f * _zoom);
+        // Overview zoom keeps icons and links; names return between 65% and 75%.
+        // Opacity follows the camera scale directly, without a separate animation clock.
+        float nameAlpha = alpha * MathHelper.SmoothStep(0, 1, Math.Clamp((_zoom - .65f) / .1f, 0, 1));
+        if (nameAlpha > 0)
+        {
+            string name = Editing ? s.name : _state.Name(s);
+            float textWidth = Math.Min(136 * _zoom, d.Measure(name, 12 * _zoom, .5f * _zoom, true) + 16 * _zoom);
+            d.Image("Glow", p.X - textWidth / 2, p.Y + 39 * _zoom, textWidth, 22 * _zoom, new Color(39, 32, 51) * nameAlpha);
+            d.FittedText(name, p.X, p.Y + 41 * _zoom, 136 * _zoom, 12 * _zoom,
+                (selected ? Gold : off ? new Color(179, 160, 186) : owned ? Ink : Muted) * nameAlpha, .5f, serif: !hidden, spacing: .5f * _zoom);
+        }
         if (hover)
         {
             string tooltip = hidden ? status == "locked" ? LocalizeUI("Locked") + " · " + s.ModSkill.ConstellationRevealHint : LocalizeUI("Hidden") : $"{s.name} · {(insight ? LocalizeUI("Insight") : LocalizeUI("Spell"))} · {ConstellationState.StatusName(status)}"

@@ -1,0 +1,278 @@
+using ShardbindPreview;
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+public partial class ShardbindProj
+{
+    readonly List<VisualUnit> units = new();
+    readonly Projectile Projectile = new() { Center = new Vector2(1280, 720) };
+    int time;
+    bool initialized;
+    int totalDamage;
+    public static ShardbindProj Current;
+    public static bool Revised;
+    public static int WindEmissions, ShardEmissions, ImpactShardEmissions, TrailReleases;
+    public static Action<int, int, bool> DrawNpcTarget;
+    static bool npcHeld;
+    static int npcAnimationTick, firstHoldTick, releaseTick;
+    static int allArrivedTick;
+    public static int chargeFlashCount, burstFlashCount;
+    static readonly List<int> arrivals = new();
+    static readonly List<int> arrivalOrder = new();
+    static readonly TrailManager previewTrails = new();
+    static int formationChecks;
+    static int arrivedWhenRaysBegin;
+    static int VisualTime => Current.time - (Revised ? PreviewTimeline.ConfirmTick : 0);
+    public static int ChargeStart => Revised ? IceCycleBalance.LockChargeStartFrame + PreviewTimeline.ConfirmTick : 106;
+    public static int ArrivalCount => arrivals.Count;
+    public static int BurstTick => Revised ? IceCycleBalance.LockBurstFrame + PreviewTimeline.ConfirmTick : 110;
+    private int burstTime => IceCycleBalance.LockBurstFrame;
+    public static int FirstRayTick => ShardbindVisualSettings.FirstRayFrame + PreviewTimeline.ConfirmTick;
+    public static float Charge => Revised ? ShardbindVisuals.Charge(VisualTime) : 0f;
+    private void DrawVisual()
+    {
+        if (!Revised) { DrawLegacyVisual(); return; }
+        ShardbindVisuals.DrawCharge(Projectile.Center, VisualTime);
+    }
+    public static void Reset(bool revised)
+    {
+        Revised = revised;
+        WindEmissions = ShardEmissions = ImpactShardEmissions = 0;
+        chargeFlashCount = burstFlashCount = 0;
+        npcHeld = false;
+        npcAnimationTick = 0;
+        firstHoldTick = releaseTick = -1;
+        allArrivedTick = -1;
+        arrivals.Clear();
+        arrivalOrder.Clear();
+        previewTrails.OnWorldUnload();
+        TrailReleases = 0;
+        formationChecks = 0;
+        arrivedWhenRaysBegin = -1;
+        KLBasicDust.Instances.Clear();
+        Main.rand = new PreviewRandom(318);
+        Current = new ShardbindProj();
+    }
+    public static void Step(int tick)
+    {
+        // NPC 更新先于弹幕：已冰封时冻结 frame/frameCounter；释放后下一 tick 继续。
+        // 对应 IceboundNPC.Hold/Pin/Release，仅重放固定靶的动画控制，不模拟世界 AI。
+        if (!npcHeld) npcAnimationTick++;
+        previewTrails.PostUpdateProjectiles();
+        foreach (var dust in KLBasicDust.Instances)
+            if (dust.active) dust.renderer.Update(dust);
+        Current.time = tick;
+        Main.timeForVisualEffects = tick;
+        if (Revised && tick != BurstTick) ShardbindVisuals.EmitEvents(Current.Projectile.Center, VisualTime);
+        if (tick > BurstTick && tick - BurstTick >= 10) return;
+        Current.InitializeUnits();
+        foreach (var unit in Current.units)
+        {
+            ((IceCone3DUnit)unit).CatchUp(tick - 1);
+            ((IceCone3DUnit)unit).ChargeProgress = Charge;
+        }
+        VisualUnit.UpdateAll(Current.units);
+        foreach (IceCone3DUnit unit in Current.units)
+        {
+            unit.ValidatePreviewLockGrowth(tick == (Revised ? PreviewTimeline.SettledTick : 105));
+            unit.ValidatePreparation();
+            if (!unit.ArrivedThisUpdate) continue;
+            arrivals.Add(tick);
+            arrivalOrder.Add(unit.Index);
+            if (Revised && tick < BurstTick)
+            {
+                int previousRequests = ImpactAdapter.Requests.Item1;
+                Current.ShakeShardImpact(unit);
+                if (ImpactAdapter.Requests.Item1 > previousRequests)
+                    unit.ValidateImpactDirection(ImpactAdapter.LastDirection);
+            }
+        }
+        if (Revised && tick == FirstRayTick)
+        {
+            arrivedWhenRaysBegin = arrivals.Count;
+            if (arrivedWhenRaysBegin <= 0 || arrivedWhenRaysBegin >= Current.units.Count || Charge <= 0)
+                throw new InvalidOperationException("首束蓄光没有与尚未完成的穿刺重叠。");
+        }
+        if (Revised && tick < PreviewTimeline.LaunchTick)
+        {
+            if (arrivals.Count != 0 || npcHeld || WindEmissions != 0 || ImpactShardEmissions != 0)
+                throw new InvalidOperationException("锁定动画期间提前发射、命中或定身。");
+            int visible = Current.units.FindAll(u => u.Started).Count;
+            if (tick < PreviewTimeline.ConfirmTick && visible != 0)
+                throw new InvalidOperationException("确认前提前生成冰锥。");
+            if (tick == PreviewTimeline.ConfirmTick + 25 && (visible <= 1 || visible >= 15))
+                throw new InvalidOperationException("冰锥没有在锁定动画期间陆续生成。");
+            if (tick == PreviewTimeline.LaunchTick - 1 && visible != 15)
+                throw new InvalidOperationException("锁定动画结束前未生成全部冰锥。");
+            formationChecks++;
+        }
+        if (allArrivedTick < 0 && Current.units.Count == 15 && Current.units.TrueForAll(unit => ((IceCone3DUnit)unit).HasArrived))
+            allArrivedTick = tick;
+        bool hasArrived = Current.units.Exists(unit => ((IceCone3DUnit)unit).HasArrived);
+        bool hold = hasArrived && tick < BurstTick;
+        if (hold && firstHoldTick < 0) firstHoldTick = tick;
+        if (npcHeld && !hold) releaseTick = tick;
+        npcHeld = hold;
+        if (tick == (Revised ? PreviewTimeline.SettledTick : 105)) Console.WriteLine($"PASS lock growth: revised={Revised}, settled cones={Current.units.Count}; flight and arrival scale unchanged.");
+        if (Revised && tick >= ChargeStart && tick < BurstTick && ShardEmissions != 0)
+            throw new InvalidOperationException("渐亮结束前触发了终爆。");
+        if (tick == BurstTick)
+        {
+            if (Revised) Current.SpawnFinalBurst();
+            else Current.SpawnLegacyFinalBurst();
+        }
+        if (tick > BurstTick && tick - BurstTick == 9) VisualUnit.KillAll(Current.units);
+    }
+    public static void Draw(int tick)
+    {
+        LayerDrawRequestSystem.ClearFrame();
+        TrailManager.SubmitDrawRequests();
+        if (Revised)
+        {
+            List<int> behindProjectiles = new();
+            Current.time = VisualTime;
+            Current.DrawBehind(0, new(), new(), behindProjectiles, new(), new());
+            Current.time = tick;
+            if (!behindProjectiles.Contains(0)) throw new InvalidOperationException("控制器没有在弹幕层之前排入绘制。");
+        }
+        else if (tick < BurstTick) VisualUnit.DrawAll(Current.units);
+        foreach (var dust in KLBasicDust.Instances)
+            if (dust.active) dust.renderer.SubmitBloomDrawRequest(dust);
+        if (LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles,
+            LayerDrawRequestSystem.DrawTiming.After)) throw new InvalidOperationException("冰锥后层重新触发了 Bloom。");
+        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.BehindNPCsAndTiles);
+        DrawNpcTarget?.Invoke(tick, npcAnimationTick, npcHeld);
+        // 原版先绘制 BehindProjectiles 缓存，再执行普通弹幕及其 After 请求。
+        if (tick > 0 && (tick < BurstTick || tick - BurstTick < 9))
+        {
+            Color light = Color.White;
+            if (Revised)
+            {
+                Current.time = VisualTime;
+                Current.PreDraw(ref light);
+                Current.time = tick;
+            }
+            else LayerDrawRequestSystem.RequestBloom("Preview.LegacyGlow", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.After, Current.DrawLegacyVisual);
+        }
+        if (Revised && LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            LayerDrawRequestSystem.DrawTiming.After)) throw new InvalidOperationException("冰凌锁额外占用了弹幕 Bloom。");
+        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+        FlushOrdinary(LayerDrawRequestSystem.DrawTargetLayer.PlayersAfterProjectiles, LayerDrawRequestSystem.DrawTiming.Before);
+        if (Revised && LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.After)) throw new InvalidOperationException("冰凌锁前层重新触发了 Bloom。");
+        if (Revised && tick > ChargeStart && tick < BurstTick &&
+            (!LayerDrawRequestSystem.HasBloomRequests(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before)
+            || !LayerDrawRequestSystem.HasRequests(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.After)))
+            throw new InvalidOperationException($"蓄光第 {tick} 帧缺少前景光晕或随后绘制的实体冰面。");
+        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
+        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers);
+        Main.spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, Main.DefaultSamplerState,
+            DepthStencilState.None, RasterizerState.CullNone);
+        LayerDrawRequestSystem.Flush(LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.Before);
+        foreach (var dust in KLBasicDust.Instances)
+            if (dust.active) dust.renderer.PreDraw(dust);
+        Main.spriteBatch.End();
+        FlushOrdinary(LayerDrawRequestSystem.DrawTargetLayer.Dust, LayerDrawRequestSystem.DrawTiming.After);
+        PreviewReticle.Draw(tick);
+    }
+    public static void DrawSheetsOnly()
+    {
+        LayerDrawRequestSystem.ClearFrame();
+        LayerDrawRequestSystem.RequestBloom("Preview.ChargeSheets",
+            LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After,
+            () => ShardbindVisuals.DrawRays(Current.Projectile.Center, VisualTime), 0);
+        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+    }
+    static void FlushOrdinary(LayerDrawRequestSystem.DrawTargetLayer layer, LayerDrawRequestSystem.DrawTiming timing)
+    {
+        Main.spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, Main.DefaultSamplerState,
+            DepthStencilState.None, RasterizerState.CullNone);
+        LayerDrawRequestSystem.Flush(layer, timing);
+        Main.spriteBatch.End();
+    }
+    public static void Validate()
+    {
+        var trails = (System.Collections.IDictionary)typeof(TrailManager)
+            .GetField("Entries", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        if (trails.Count != 0 || TrailReleases != (Revised ? 15 : 0))
+            throw new InvalidOperationException("托管拖尾未完整释放或未全部消失。");
+        Console.WriteLine($"PASS current IceConeProj trails: releases={TrailReleases}, remaining={trails.Count}.");
+        if (Revised)
+        {
+            var spawn = BuildIceCone3DSpawnData(Current.Projectile.Center, SphereRadius);
+            if (arrivals.Count != spawn.Count || formationChecks != PreviewTimeline.LaunchTick - 1)
+                throw new InvalidOperationException("蓄冰或命中事件数量不符。");
+            if (arrivals[^1] - arrivals[0] > 30 || arrivals[0] != PreviewTimeline.LaunchTick + 3)
+                throw new InvalidOperationException("快速齐射超过半秒，或首枚发射额外延迟。");
+            var gaps = new HashSet<int>();
+            int descents = 0;
+            for (int i = 1; i < arrivals.Count; i++)
+            {
+                int gap = arrivals[i] - arrivals[i - 1];
+                if (gap < 1 || gap > 4) throw new InvalidOperationException("齐射存在过长空隙或意外同帧齐发。");
+                gaps.Add(gap);
+                if (arrivalOrder[i] < arrivalOrder[i - 1]) descents++;
+            }
+            if (gaps.Count < 3 || descents < 4 || new HashSet<int>(arrivalOrder).Count != 15)
+                throw new InvalidOperationException("齐射未打乱方向顺序、节拍均匀或存在重复冰锥。");
+            if (firstHoldTick < PreviewTimeline.LaunchTick)
+                throw new InvalidOperationException("锁框动画结束前定身。");
+            Console.WriteLine($"PASS preparation: confirm={PreviewTimeline.ConfirmTick}, launch={PreviewTimeline.LaunchTick}, checks={formationChecks}, arrivals={string.Join(',', arrivals)}.");
+            Console.WriteLine($"PASS irregular volley: order={string.Join(',', arrivalOrder)}, span={arrivals[^1] - arrivals[0]}, gap variants={gaps.Count}.");
+        }
+        if (firstHoldTick < 0 || releaseTick != BurstTick || npcHeld)
+            throw new InvalidOperationException("固定靶冰封时序与抵达/终爆不一致。");
+        if (Revised && (allArrivedTick <= FirstRayTick || arrivedWhenRaysBegin <= 0
+            || BurstTick - allArrivedTick != 82 - PreviewTimeline.ChargeLeadTicks))
+            throw new InvalidOperationException("末次抵达后的蓄光与终爆时长不符。");
+        if (Revised) Console.WriteLine($"PASS overlapping charge: first ray={FirstRayTick}, arrived={arrivedWhenRaysBegin}/15, all arrived={allArrivedTick}, burst={BurstTick}.");
+        Console.WriteLine($"PASS NPC hold: first arrival={firstHoldTick}, all arrived={allArrivedTick}, charge start={ChargeStart}, release={releaseTick}, animation tick at end={npcAnimationTick}.");
+        if (WindEmissions != (Revised ? 15 : 0) || ShardEmissions != (Revised ? 1 : 0)
+            || ImpactShardEmissions != (Revised ? 15 : 0))
+            throw new InvalidOperationException($"Emission mismatch: wind={WindEmissions}, shards={ShardEmissions}, impactShards={ImpactShardEmissions}.");
+        foreach (var dust in KLBasicDust.Instances)
+            if (dust.active && (dust.renderer is IceConeWindDust || dust.renderer is IceShardDust || dust.renderer is ShardbindFlashDust))
+                throw new InvalidOperationException("Preview particle did not expire.");
+        int expectedStars = 0;
+        if (Revised)
+            for (int i = 0; i < ShardbindVisualSettings.StarCount; i++)
+                if (ShardbindVisualSettings.FirstRayFrame + ShardbindVisualSettings.StarStartDelay
+                    + ShardbindVisualSettings.GetStar(i).Delay < IceCycleBalance.LockBurstFrame) expectedStars++;
+        if (chargeFlashCount != expectedStars || burstFlashCount != (Revised ? 1 : 0))
+            throw new InvalidOperationException($"Flash emission mismatch: charge={chargeFlashCount}, burst={burstFlashCount}.");
+        Console.WriteLine($"PASS flashes: charge={chargeFlashCount}, burst={burstFlashCount}, all expired.");
+        Console.WriteLine($"PASS visual lifecycle: revised={Revised}, wind={WindEmissions}, shards={ShardEmissions}, impactShards={ImpactShardEmissions}, expired at tick {Current.time}.");
+        if (Revised) ValidateLateTrails();
+    }
+
+    static void ValidateLateTrails()
+    {
+        var spawns = BuildIceCone3DSpawnData(Current.Projectile.Center, SphereRadius);
+        for (int index = 0; index < spawns.Count; index++)
+        foreach (int elapsed in new[] { -1, 2, 3, 6 })
+        {
+            var data = spawns[index];
+            Vector3 position = new(data.SpawnWorldPosition, data.StartDepth);
+            Vector3 target = new(Current.Projectile.Center, 0f);
+            var cone = IceCone3DUnit.CreatePrepared(position, target,
+                GetInitialVelocity3D(position, target, IceConeSpeed), spawns.Count, index);
+            cone.Index = index;
+            cone.OnSpawn();
+            int lateTick = ShardbindSequence.LaunchTick + ShardbindSequence.ShotOffset(index) + elapsed;
+            cone.CatchUp(lateTick);
+            if (cone.ArrivedThisUpdate) throw new InvalidOperationException("网络补帧回放了命中事件。");
+            for (int t = lateTick + 1; t <= lateTick + 12; t++)
+            {
+                previewTrails.PostUpdateProjectiles();
+                cone.Update();
+            }
+            if (!cone.HasArrived) throw new InvalidOperationException("网络补帧后的冰刺未抵达。");
+            cone.Kill();
+            for (int t = 0; t < 12; t++) previewTrails.PostUpdateProjectiles();
+        }
+        var trails = (System.Collections.IDictionary)typeof(TrailManager)
+            .GetField("Entries", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        if (trails.Count != 0) throw new InvalidOperationException("网络补帧后仍有未释放拖尾。");
+        Console.WriteLine("PASS client late trails: 15 cones x 4 packet arrival phases; no replayed hits or retained trails.");
+    }
+}

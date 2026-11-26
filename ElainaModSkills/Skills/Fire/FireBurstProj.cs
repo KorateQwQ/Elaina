@@ -16,10 +16,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 
 public class FireBurstProj : ElainaBasicProjectile
 {
-    private const int StarDuration = 30;
+    internal static int StarDuration => 30;
     private const int BurstDuration = 30;
-    /// <summary>每次命中固定积攒的点燃积蓄：半条。</summary>
-    public static int IgnitionTicks => FireBurnNPC.ExposureTicks / 2;
     private int Age => (int)Projectile.ai[0];
     private bool IsBursting => Age > StarDuration;
     private int time => Math.Max(0, Age - StarDuration);
@@ -30,21 +28,18 @@ public class FireBurstProj : ElainaBasicProjectile
     private Action drawRearRings;
     private Action drawFrontRings;
     // 命中前捕获身份；同一次炎爆对同一主体（蠕虫等）只提交一次点燃积蓄。
-    private readonly Dictionary<int, FireBurnHit> pendingIgnitionHits = new();
-    private readonly HashSet<(int Index, int Generation)> ignitedAnchors = new();
-    // 仅拥有端使用：只命中一个敌人时的伤害倍率、命中冻结敌人时额外增加的倍率（相对弹幕的群体伤害）。
-    private float singleMultiplier = 1f, frozenBonus;
+    // 仅拥有端使用：只命中一个敌人时的伤害倍率（相对弹幕的群体伤害）。
+    private float singleMultiplier = 1f;
 
-    internal void SetDamageMultipliers(float single, float frozen)
+    internal void SetSingleTargetMultiplier(float single)
     {
         singleMultiplier = single;
-        frozenBonus = frozen;
     }
 
     public override void SetDefaults()
     {
-        InfusionElement = KL.DamageSystem.ElementType.Fire;
-        Projectile.GetGlobalProjectile<KL.DamageSystem.ElementalGlobalProjectile>().SuppressBuildup = true;
+        InfusionElement = new(ElementType.Fire, SkillHitBalance.FireBurstBuildup);
+        Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
         Projectile.timeLeft = StarDuration + BurstDuration;
         Projectile.tileCollide = false;
         Projectile.DamageType = DamageClass.Magic;
@@ -85,11 +80,11 @@ public class FireBurstProj : ElainaBasicProjectile
 
         
         // 爆发冲击：LineSparkle 亮线与 FireDust2 火舌从落点向上方扇形快速迸出，寿命短
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<LineSparkle>(), 18, new Vector2(0, -28),
+        KLBasicDust.SpawnDustsCircle(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center, ModContent.DustType<LineSparkle>(), 18, new Vector2(0, -28),
             2.6f, 14, new Color(255, 120, 35, 255), new Vector2(2.8f, 0.65f),
             0, 20, new Vector2(0.6f, 0f), 4, 0.3f);
 
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<FireDust2>(), 12, new Vector2(0, -24),
+        KLBasicDust.SpawnDustsCircle(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center, ModContent.DustType<FireDust2>(), 12, new Vector2(0, -24),
             2.6f, 16, Color.White, new Vector2(0.6f,2f),
             0, 20, new Vector2(0.2f), 4, 0.3f);
 
@@ -100,7 +95,7 @@ public class FireBurstProj : ElainaBasicProjectile
 
         // 火焰残渣：FireDust 小火团低速飘散在火柱周围，寿命长，火柱收起后仍残留片刻
         // 粒子速度每帧衰减（FireDust 为 0.9），总位移约为初速的 10 倍
-        KLBasicDust.SpawnDustsCircle(Projectile.Center, ModContent.DustType<FireDust>(), 12, new Vector2(0, -6),
+        KLBasicDust.SpawnDustsCircle(KLBasicDust.BloomPlacement.BeforeOverPlayers, Projectile.Center, ModContent.DustType<FireDust>(), 12, new Vector2(0, -6),
             1.4f, 20, new Color(255,255,255), new Vector2(0.45f),
             0, 280, new Vector2(0.15f), 12, 0.5f);
 
@@ -249,8 +244,8 @@ public class FireBurstProj : ElainaBasicProjectile
         Vector2 uvScale = new(2f, 1f);
         Vector2 uvOffset = Vector2.Zero;
         float maskFromRed = 0f; // 0：Alpha（当前气流 PNG）；1：RGB 最大值（灰度贴图）。
-        Vector4 innerColor = new(3.2f, 0.85f, .06f, 1f);  // 条带朝火柱的整面：HDR 橙红。
-        Vector4 outerColor = new(0f, 0f, 0f, 1f);         // 条带背向火柱的整面：黑色。
+        Vector4 innerColor = new(new Vector3(2.9f, 0.85f, .06f)*0.8f, 1f);  // 条带朝火柱的整面：HDR 橙红。
+        Vector4 outerColor = new(0.2f, 0.12f, 0.0f, 1f);         // 条带背向火柱的整面：黑色。
 
         Texture2D texture = ModContent.Request<Texture2D>(texturePath, AssetRequestMode.ImmediateLoad).Value;
         Effect effect = ModContent.Request<Effect>("伊蕾娜/Effects/Content/FireBurstFlame", AssetRequestMode.ImmediateLoad).Value;
@@ -272,20 +267,19 @@ public class FireBurstProj : ElainaBasicProjectile
     {
         if (Main.dedServ) return;
         drawCircle ??= DrawMagicCircle;
-        LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst:Circle", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, drawCircle, order: LayerDrawRequestSystem.TrailOrder);
-        // 同一弹幕按阶段切换绘制层：星芒在玩家前，爆发的火柱和碎石在弹幕层。
-        // 在缓存弹幕时登记，早于 BehindNPCsAndTiles 层绘制。
+        LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst:Circle", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, drawCircle, order: LayerDrawRequestSystem.TrailOrder);
+        // 预警星芒排在同屏已爆发的火柱和火星上方，两个阶段共享前景 Bloom。
         if (IsBursting)
         {
-            // 与火柱同属 Projectiles.After，共享一次 Bloom；order 只控制这次捕获内的先后顺序。
+            // 与火柱同属 OverPlayers.Before，共享一次 Bloom；order 只控制这次捕获内的先后顺序。
             // 所有橙色上半圈先画在火柱后，不随单个弹幕回调交错。
             drawRearRings ??= DrawRearAirRings;
-            LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst:WindRear", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-                LayerDrawRequestSystem.DrawTiming.After, drawRearRings, order: LayerDrawRequestSystem.TrailOrder + 1);
+            LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst:WindRear", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.Before, drawRearRings, order: LayerDrawRequestSystem.TrailOrder + 1);
             drawVisual ??= DrawVisual;
-            LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-                LayerDrawRequestSystem.DrawTiming.After, drawVisual);
+            LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                LayerDrawRequestSystem.DrawTiming.Before, drawVisual);
             // 黑色下半圈在整个火柱、粒子与 Bloom 已合成后画到场景上。
             // 不能放在同一 HDR 目标里：高亮乘黑面透明度后仍可能超过 1，显示时依然发亮。
             drawFrontRings ??= DrawFrontAirRings;
@@ -296,7 +290,7 @@ public class FireBurstProj : ElainaBasicProjectile
         {
             drawStar ??= DrawStar;
             LayerDrawRequestSystem.RequestBloom("Elaina:FireBurst:Star", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
-                LayerDrawRequestSystem.DrawTiming.After, drawStar);
+                LayerDrawRequestSystem.DrawTiming.Before, drawStar, order: LayerDrawRequestSystem.DustOrder + 1);
         }
         base.DrawBehind(index, behindNPCsAndTiles, behindNPCs, behindProjectiles, overPlayers, overWiresUI);
     }
@@ -413,24 +407,16 @@ public class FireBurstProj : ElainaBasicProjectile
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
+        if (ElementalStatusRules.IsFrozenOrFrostFractured(target))
+            modifiers.SourceDamage *= SkillHitBalance.FireBurstFrostDamageMultiplier;
         if (Projectile.owner == Main.myPlayer)
         {
             float multiplier = CountEnemiesInPillar(target) <= 1 ? singleMultiplier : 1f;
-            if (PredictiveAim.IsFrozenOrAnchorFrozen(target)) multiplier += frozenBonus;
             modifiers.SourceDamage *= multiplier;
         }
-        if (Projectile.owner == Main.myPlayer && FireBurnNPC.CaptureHit(target) is { } snapshot)
-            pendingIgnitionHits[target.whoAmI] = snapshot;
         base.ModifyHitNPC(target, ref modifiers);
     }
 
-    public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
-    {
-        if (damageDone > 0 && Projectile.owner == Main.myPlayer && pendingIgnitionHits.Remove(target.whoAmI, out var snapshot)
-            && ignitedAnchors.Add((snapshot.AnchorIndex, snapshot.AnchorGeneration)))
-            Main.player[Projectile.owner].GetModPlayer<FireCyclePlayer>().RequestBurstHit(snapshot, Projectile, damageDone);
-        base.OnHitNPC(target, hit, damageDone);
-    }
 
     public override void OnKill(int timeLeft)
     {

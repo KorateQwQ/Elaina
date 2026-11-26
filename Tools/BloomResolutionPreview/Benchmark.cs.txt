@@ -1,0 +1,62 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+internal sealed partial class ResolutionProbe
+{
+    void Benchmark()
+    {
+        var rows = new List<object>();
+        var queue = scene.GetMethod("Queue");
+        var run = renderer.GetType().GetMethod("Run");
+        var readback = new Color[1];
+        foreach (var (w, h) in new[] { (1920, 1080), (3840, 2160) })
+        {
+            Set(main, "screenWidth", w); Set(main, "screenHeight", h);
+            GraphicsDevice.PresentationParameters.BackBufferWidth = w;
+            GraphicsDevice.PresentationParameters.BackBufferHeight = h;
+            Set(main, "DefaultSamplerState", SamplerState.PointClamp);
+            Set(scene, "Kind", "thin"); Set(scene, "Offset", Vector2.Zero);
+            using var target = new RenderTarget2D(GraphicsDevice, w, h);
+            double Frame(int layers, bool enabled)
+            {
+                long start = Stopwatch.GetTimestamp();
+                GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(background);
+                for (int layer = 0; layer < layers; layer++)
+                {
+                    queue.Invoke(null, null);
+                    run.Invoke(renderer, new object[] { 1f, 5, enabled });
+                }
+                GraphicsDevice.SetRenderTarget(null);
+                target.GetData(0, new Rectangle(w / 2, h / 2, 1, 1), readback, 0, 1);
+                return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            }
+            var cases = new[] { (0, false), (1, false), (1, true), (2, true) };
+            var samples = cases.ToDictionary(c => c, c => new List<double>());
+            for (int i = 0; i < 60; i++) Frame(2, true);
+            for (int round = 0; round < 3; round++)
+            for (int n = 0; n < cases.Length; n++)
+            {
+                var c = cases[(n + round) % cases.Length];
+                for (int i = 0; i < 8; i++) Frame(c.Item1, c.Item2);
+                for (int i = 0; i < 30; i++) samples[c].Add(Frame(c.Item1, c.Item2));
+            }
+            foreach (var c in cases)
+            {
+                var values = samples[c].Order().ToArray();
+                var row = new { Width = w, Height = h, Layers = c.Item1, Bloom = c.Item2,
+                    MedianMs = values[values.Length / 2], P95Ms = values[(int)(values.Length * .95)] };
+                rows.Add(row); Console.WriteLine(JsonSerializer.Serialize(row));
+            }
+        }
+        File.WriteAllText(Path.Combine(output, "benchmark.json"), JsonSerializer.Serialize(new {
+            Adapter = GraphicsAdapter.DefaultAdapter.Description,
+            Method = "CPU submission + GPU completion + one-pixel readback; not GPU timestamps or in-game FPS",
+            Rows = rows }, new JsonSerializerOptions { WriteIndented = true }));
+    }
+}

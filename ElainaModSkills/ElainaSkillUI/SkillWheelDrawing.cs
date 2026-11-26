@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.UICore;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
@@ -83,7 +83,7 @@ internal static class SkillWheelDrawing
         return best;
     }
 
-    public readonly record struct Art(SkillBarDrawing.StateArt State, Effect Cooldown, DynamicSpriteFont Number);
+    public readonly record struct Art(SkillBarDrawing.StateArt State, Effect Cooldown, UIRasterFont Number);
 
     /// <summary>角度沿用 cos/sin 约定（屏幕 y 向下，-π/2 为正上方）。</summary>
     public delegate void SectorPainter(Vector2 center, float inner, float outer, float start, float end,
@@ -164,7 +164,7 @@ internal static class SkillWheelDrawing
                 for (int i = 0; i < count; i++)
                 {
                     Vector2 direction = Direction(AngleOf(i, count) + half);
-                    Line(batch, art.State.Pixel, center + direction * (r1 + 6), center + direction * (r2 - 6), 1,
+                    Line(batch, art.State.Shapes, center + direction * (r1 + 6), center + direction * (r2 - 6), 1,
                         EdgeColor * (.15f * alpha));
                 }
 
@@ -431,8 +431,8 @@ internal static class SkillWheelDrawing
         Color tint = (hovered ? Pale : EdgeColor) * ((hovered ? 1 : .7f) * alpha);
         sector(center, 0, circle * .65f, top, top + MathHelper.TwoPi, Highlight * ((hovered ? .2f : .06f) * alpha),
             1, tint * .45f);
-        Line(batch, art.State.Pixel, center + new Vector2(-9, -9), center + new Vector2(9, 9), 2, tint);
-        Line(batch, art.State.Pixel, center + new Vector2(9, -9), center + new Vector2(-9, 9), 2, tint);
+        Line(batch, art.State.Shapes, center + new Vector2(-9, -9), center + new Vector2(9, 9), 2, tint);
+        Line(batch, art.State.Shapes, center + new Vector2(9, -9), center + new Vector2(-9, 9), 2, tint);
     }
 
     /// <summary>功能名底板盖住内圈法阵；放不下且含空格时（英文）在最靠近中点的空格处折成两行。</summary>
@@ -441,9 +441,9 @@ internal static class SkillWheelDrawing
     {
         if (alpha <= 0) return;
         const float top = -MathHelper.PiOver2, lineHeight = 21;
-        float maxWidth = circle * 1.5f, baseScale = lineHeight / Math.Max(1, art.Number.LineSpacing);
+        float maxWidth = circle * 1.5f, baseScale = lineHeight * 48 / Math.Max(1, art.Number.Height(label, 48));
         string first = label, second = null;
-        if (art.Number.MeasureString(label).X * baseScale > maxWidth)
+        if (art.Number.Measure(label, baseScale) > maxWidth)
         {
             int split = -1;
             for (int i = 0; i < label.Length; i++)
@@ -468,8 +468,9 @@ internal static class SkillWheelDrawing
     private static void HubLine(SpriteBatch batch, in Art art, string text, Vector2 position, float maxWidth,
         float baseScale, Color color)
     {
-        float scale = Math.Min(baseScale, maxWidth / Math.Max(1, art.Number.MeasureString(text).X));
-        SkillBarDrawing.OutlinedText(batch, art.Number, text, position, color, scale, new Vector2(.5f));
+        float pixels = UIRasterText.Pixels(batch, baseScale, 11);
+        text = UIRasterText.Fit(art.Number, text, maxWidth * UIBatch.Scale(batch), ref pixels, 11);
+        UIRasterText.Draw(batch, art.Number, text, position, color, pixels, new Vector2(.5f), Shade * (.65f * color.A / 255f));
     }
 
     /// <summary>两枚细长菱形交叉成的四芒星，带暗底与缓慢呼吸的柔光。</summary>
@@ -479,16 +480,12 @@ internal static class SkillWheelDrawing
         float light = (.45f + .25f * breath) * alpha;
         Stretch(batch, art.State.Glow, position, new Vector2(size * 2), Shade * ShadeFor(light));
         Stretch(batch, art.State.Glow, position, new Vector2(size * 2), StarLight * light);
-        Stretch(batch, art.State.Diamond, position, new Vector2(size * .28f, size), Pale * alpha);
-        Stretch(batch, art.State.Diamond, position, new Vector2(size, size * .28f), Pale * alpha);
+        art.State.Shapes.Diamond(batch, position, new Vector2(size * .28f, size), Pale * alpha);
+        art.State.Shapes.Diamond(batch, position, new Vector2(size, size * .28f), Pale * alpha);
     }
 
-    private static void Line(SpriteBatch batch, Texture2D pixel, Vector2 a, Vector2 b, float thickness, Color color)
-    {
-        Vector2 delta = b - a;
-        batch.Draw(pixel, a, null, color, MathF.Atan2(delta.Y, delta.X),
-            new Vector2(0, .5f), new Vector2(delta.Length(), thickness), SpriteEffects.None, 0);
-    }
+    private static void Line(SpriteBatch batch, UIRasterShapes shapes, Vector2 a, Vector2 b, float thickness, Color color)
+        => shapes.Line(batch, a, b, thickness, color);
 
     private static void Stretch(SpriteBatch batch, Texture2D texture, Vector2 center, Vector2 size, Color color)
     {

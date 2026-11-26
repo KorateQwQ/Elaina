@@ -32,23 +32,26 @@ public abstract partial class ElainaSkill
     /// <summary>魔力不足时能否通过灰之魔女消耗生命补足施法消耗。为 false 时描述末尾自动追加通用警告。</summary>
     public virtual bool AllowsLifeConversion => true;
 
+    internal string GetTooltipResourceCost()
+    {
+        string magic = Language.GetTextValue("Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint");
+        string magicCost = MagicPointCost < 0 ? "--" : $"{MagicPointCost:0.##} {magic}";
+        int crystals = ChargePointCost;
+        if (crystals <= 0) return magicCost;
+        string crystalCost = Language.GetTextValue("Mods.伊蕾娜.SkillInfo.Snippets.MagicCrystalCost", crystals);
+        return MagicPointCost > 0 ? $"{magicCost} + {crystalCost}" : crystalCost;
+    }
+
     /// <summary>在技能描述后追加由技能属性决定的通用说明，技能栏提示与星图详情共用。</summary>
-    protected string AppendDescriptionNotes(string description) => AllowsLifeConversion
-        ? description
+    protected string AppendDescriptionNotes(string description) => AllowsLifeConversion ? description
         : description + "\n" + Language.GetTextValue("Mods.伊蕾娜.SkillInfo.Snippets.NoLifeConversion");
 
     public virtual string GetConstellationDescription()
     {
         string key = $"Mods.伊蕾娜.SkillInfo.SkillDesc.{GetType().Name}";
         if (!Language.Exists(key)) return LocalizeUI("MissingDescription");
-        try
-        {
-            string text = Language.GetText(key).WithFormatArgs(SkillDescriptionArgs).Value;
-            return string.IsNullOrWhiteSpace(text) ? LocalizeUI("MissingDescription") : AppendDescriptionNotes(text);
-        }
-        catch (FormatException)
-        {
-            return LocalizeUI("InvalidDescription");
-        }
+        // 描述与参数不匹配时直接抛出 FormatException，暴露缺失或错位的格式参数。
+        string text = Language.GetText(key).WithFormatArgs(SkillDescriptionArgs).Value;
+        return string.IsNullOrWhiteSpace(text) ? LocalizeUI("MissingDescription") : AppendDescriptionNotes(text);
     }
 }

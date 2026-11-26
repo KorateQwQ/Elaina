@@ -5,7 +5,7 @@ using 伊蕾娜.ElainaModSkills.Skills.Water;
 namespace 伊蕾娜.ElainaActions;
 
 /// <summary>
-/// 水球的长按施法动作。第 60 帧执行完毕后进入保持，解除后播放 20 帧收势。
+/// 水球蓄满后可以继续瞄准，松开施法键时发射并收势。
 /// </summary>
 public sealed class Action_WaterBall : ElainaAction
 {
@@ -16,26 +16,32 @@ public sealed class Action_WaterBall : ElainaAction
     private bool freezeAimRotation;
     private int actionToken;
     internal bool UsesQuickCastInput { get; }
-    internal static bool IsCastInputHeld(bool quickCast) => Main.mouseLeft || quickCast && Main.mouseRight;
+    private readonly int chargeTicks;
+    private bool released;
 
-    protected override void RequestActionStarBloom(float actionProgress)
+    protected override void RequestActionStar(float actionProgress)
     {
-        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
-            ElainaTrailVisualStyle.WaterWandColor);
+        ElainaTrailVisualStyle.RequestStar(StarCenter.Floor(), actionProgress,
+            ElainaTrailVisualStyle.WaterWandColor, drawHalo: false);
     }
 
-    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    protected override ElainaTrailSnapshot CreateWandTrailVisual(Vector2[] points, float actionProgress)
     {
-        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+        return new ElainaTrailSnapshot(points, Vector2.Zero, 0f, actionProgress,
             ElainaTrailVisualStyle.WaterWandColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
             ElainaTrailVisualStyle.DefaultTrailEndWidth, ElainaTrailVisualStyle.DefaultTrailFadeInEnd,
-            ElainaTrailVisualStyle.DefaultTrailFadeOutStart);
+            ElainaTrailVisualStyle.DefaultTrailFadeOutStart, useBloom: false);
     }
 
     public Action_WaterBall() : this(10, 1.5f) { }
 
-    public Action_WaterBall(int damage, float burningDamageMultiplier, bool quickCast = false) : base(HoldFrame + RecoveryFrame + 1)
+    public Action_WaterBall(int damage, float burningDamageMultiplier, bool quickCast = false)
+        : this(damage, burningDamageMultiplier, quickCast, WaterBallSkill.ChargeTicks) { }
+
+    private Action_WaterBall(int damage, float burningDamageMultiplier, bool quickCast, int chargeTicks)
+        : base(Math.Min(HoldFrame, chargeTicks) + RecoveryFrame + 1)
     {
+        this.chargeTicks = chargeTicks;
         UsesQuickCastInput = quickCast;
         AddNode(new ShootActionNode(
             1,
@@ -48,7 +54,7 @@ public sealed class Action_WaterBall : ElainaAction
             {
                 if (projectile.ModProjectile is WaterBall waterBall)
                 {
-                    waterBall.BindAction(actionToken, UsesQuickCastInput);
+                    waterBall.BindAction(actionToken, chargeTicks);
                     waterBall.BurningDamageMultiplier = burningDamageMultiplier;
                 }
             }));
@@ -64,12 +70,20 @@ public sealed class Action_WaterBall : ElainaAction
 
     public override bool IsAutomaticHoldPoint(ActionModPlayer actionPlayer, int actionFrame)
     {
-        return actionFrame == HoldFrame;
+        return actionFrame == TotalFrame - RecoveryFrame - 1;
     }
 
     public override bool ShouldContinueHolding(ActionModPlayer actionPlayer, int actionFrame)
     {
-        return IsCastInputHeld(UsesQuickCastInput);
+        return !ShouldRelease(actionFrame + actionPlayer.CurrentActionHoldTime);
+    }
+
+    // 动作与弹幕共用一次松手判定，进入收势后重新按键不会扣住已发射的水球。
+    internal bool ShouldRelease(int elapsedTicks)
+    {
+        if (elapsedTicks >= chargeTicks && !Main.mouseLeft && !(UsesQuickCastInput && Main.mouseRight))
+            released = true;
+        return released;
     }
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)

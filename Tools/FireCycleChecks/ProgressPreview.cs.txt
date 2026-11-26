@@ -9,17 +9,19 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 
-using var game = new ProgressPreview(args[0], args[1], args.Contains("--water"));
+using var game = new ProgressPreview(args[0], args[1], args.Contains("--water"), args.Contains("--ice"),
+    args.Contains("--source") ? args[Array.IndexOf(args, "--source") + 1] : null);
 game.Run();
 
 sealed class ProgressPreview : Game
 {
     readonly string root, tml;
-    readonly bool water;
+    readonly bool water, ice;
+    readonly string sourceFile;
     bool done;
-    public ProgressPreview(string root, string tml, bool water)
+    public ProgressPreview(string root, string tml, bool water, bool ice, string sourceFile)
     {
-        this.root=root; this.tml=tml; this.water=water;
+        this.root=root; this.tml=tml; this.water=water; this.ice=ice; this.sourceFile=sourceFile;
         _=new GraphicsDeviceManager(this) { PreferredBackBufferWidth=320, PreferredBackBufferHeight=240 };
         SDL.SDL_HideWindow(Window.Handle); IsFixedTimeStep=false;
     }
@@ -27,7 +29,7 @@ sealed class ProgressPreview : Game
     {
         if(done)return; done=true;
         string kl=Path.GetFullPath(Path.Combine(root,"../KL"));
-        var tree=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl,"DamageSystem/ElementalGlobalNPC.cs"))).GetCompilationUnitRoot();
+        var tree=CSharpSyntaxTree.ParseText(File.ReadAllText(sourceFile ?? Path.Combine(kl,"DamageSystem/ElementalGlobalNPC.cs"))).GetCompilationUnitRoot();
         string Method(string name)=>tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m=>m.Identifier.Text==name).ToString();
         string context=tree.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(c=>c.Identifier.Text=="BuildUpProgressContext").ToString();
         var effects=CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(kl,"Drawing/DrawHelper.Effects.cs"))).GetCompilationUnitRoot();
@@ -41,33 +43,48 @@ sealed class ProgressPreview : Game
         public class MainParentGlobalNpc { public bool IsWormMainParent; }
         public class NPC {
             public int whoAmI,realLife=-1;
-            public NPC GetRealNpc()=>this;
-            public NPC GetElementAnchorNPC()=>this;
-            public T GetGlobalNPC<T>() where T:new()=>new T();
+            public NPC Anchor, Real;
+            public ElementalGlobalNPC State=new();
+            public MainParentGlobalNpc Parent=new();
+            public NPC GetRealNpc()=>Real ?? this;
+            public NPC GetElementAnchorNPC()=>Anchor ?? this;
+            public T GetGlobalNPC<T>() where T:new()=>typeof(T)==typeof(ElementalGlobalNPC) ? (T)(object)State : (T)(object)Parent;
         }
         public static class Main { public static NPC[] ActiveNPCs=[]; }
-        public static class FireBurnNPC { public static NPC GetBurnAnchor(NPC npc)=>npc; }
+        public static class FireBurnNPC { public static NPC GetBurnAnchor(NPC npc)=>npc.GetElementAnchorNPC(); }
         public static class ElementBuildupBuffRegistry { public const int DefaultIdleResetTime=900; }
         public static class KLMathF { public static float ClampLerp(float a,float b,float p)=>MathHelper.Lerp(a,b,MathHelper.Clamp(p,0,1)); }
         public static class ElementTypeHelper {
             public static Asset<Texture2D> GetElementIconTexture(ElementType e)=>new(DrawHelper.Icon);
-            public static Color GetElementColor(ElementType e)=>e==ElementType.Water ? new(102,195,232) : new(255,60,40);
+            public static Color GetElementColor(ElementType e)=>e==ElementType.Water ? new(0,146,255) : e==ElementType.Ice ? new(120,210,255) : new(255,60,40);
         }
         public class BaseGlobal { public virtual bool? DrawHealthBar(NPC npc,byte h,ref float scale,ref Vector2 pos)=>null; }
         public class ElementalGlobalNPC:BaseGlobal {
             public Dictionary<ElementType,BuildUpProgressContext> ElementAccumulation=new();
             const int FreezeCooldownDuration=1800;
             static readonly Vector4 FreezeCooldownRingColor=new(.8f,.85f,.9f,.9f);
-            int GetFreezeCooldown(NPC n)=>0;
-            Texture2D GetFreezeCooldownIcon(Texture2D icon)=>icon;
+            int freezeCooldown;
+            static Texture2D freezeCooldownIcon;
             bool TryGetWormHealthBarAnchor(NPC n,out Vector2 anchor){anchor=default;return false;}
-        """+context+Method("GetOrCreateAccumulation")+Method("GetFireHealthBarProgress")+Method("GetWaterHealthBarProgress")+Method("DrawHealthBar")+"""
-            public static void Render(SpriteBatch batch,Effect effect,Texture2D icon,string json,float zoom,bool water) {
+        """+context+Method("GetOrCreateAccumulation")+Method("GetFireHealthBarProgress")+Method("GetWaterHealthBarProgress")
+        +(tree.DescendantNodes().OfType<MethodDeclarationSyntax>().Any(m=>m.Identifier.Text=="GetIceHealthBarProgress") ? Method("GetIceHealthBarProgress") : "")
+        +Method("GetFreezeCooldown")+Method("GetFreezeCooldownIcon")+Method("DrawHealthBar")+"""
+            public static void Render(SpriteBatch batch,Effect effect,Texture2D icon,string json,float zoom,bool water,bool ice) {
                 DrawHelper.Batch=batch; DrawHelper.circleBar=effect; DrawHelper.Icon=icon; DrawHelper.Zoom=zoom;
                 var p=JsonSerializer.Deserialize<BuildUpProgressContext>(json);
-                var renderer=new ElementalGlobalNPC(); renderer.ElementAccumulation[water ? ElementType.Water : ElementType.Fire]=p;
+                var root=new NPC();
+                var renderer=root.State; renderer.ElementAccumulation[ice ? ElementType.Ice : water ? ElementType.Water : ElementType.Fire]=p;
                 batch.Begin(); float scale=1; Vector2 anchor=new(80,51);
-                renderer.DrawHealthBar(new NPC(),0,ref scale,ref anchor); batch.End();
+                if (ice) {
+                    renderer.freezeCooldown=JsonDocument.Parse(json).RootElement.GetProperty("Cooldown").GetInt32();
+                    // Core is hidden. Draw head and both hands, an independent boss, and a suppressed worm segment.
+                    for (int i=0;i<5;i++) {
+                        var part=new NPC { whoAmI=i+1, Anchor=i==3 ? null : root, Real=i==4 ? root : null };
+                        anchor=new(60+i*120,51);
+                        part.State.DrawHealthBar(part,0,ref scale,ref anchor);
+                    }
+                } else renderer.DrawHealthBar(root,0,ref scale,ref anchor);
+                batch.End();
             }
         }
         public static class DrawHelper {
@@ -87,7 +104,8 @@ sealed class ProgressPreview : Game
             public static void Apply(this Effect e)=>e.CurrentTechnique.Passes[0].Apply();
         }
         """;
-        string output=Path.Combine(root,water ? ".vissandbox/ice-cycle-checks/progress-preview" : ".vissandbox/fire-cycle-checks/progress-preview"); Directory.CreateDirectory(output);
+        string output=Path.Combine(root,ice ? ".vissandbox/ice-cycle-checks/multipart-preview" + (sourceFile == null ? "" : "-baseline")
+            : water ? ".vissandbox/ice-cycle-checks/progress-preview" : ".vissandbox/fire-cycle-checks/progress-preview"); Directory.CreateDirectory(output);
         File.WriteAllText(Path.Combine(output,"Extracted.cs.txt"),source);
         var refs=((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
             .Append(typeof(GraphicsDevice).Assembly.Location).Distinct().Select(p=>MetadataReference.CreateFromFile(p));
@@ -98,18 +116,29 @@ sealed class ProgressPreview : Game
         var render=Assembly.Load(code.ToArray()).GetType("ElementalGlobalNPC").GetMethod("Render");
         Content.RootDirectory=Path.Combine(kl,"Effects/Content");
         Effect circleEffect=Content.Load<Effect>("CircleBar");
-        using var file=File.OpenRead(Path.Combine(kl,water ? "Drawing/Snippets/Icons/WaterIcon.png" : "Drawing/Snippets/Icons/FireIcon.png"));
+        using var file=File.OpenRead(Path.Combine(kl,ice ? "Drawing/Snippets/Icons/IceIcon.png" : water ? "Drawing/Snippets/Icons/WaterIcon.png" : "Drawing/Snippets/Icons/FireIcon.png"));
         using var icon=Texture2D.FromStream(GraphicsDevice,file);
         using var batch=new SpriteBatch(GraphicsDevice);
-        using var frames=System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root,water ? ".vissandbox/ice-cycle-checks/progress-snapshots.json" : ".vissandbox/fire-cycle-checks/progress-snapshots.json")));
+        using var frames=System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root,ice ? ".vissandbox/ice-cycle-checks/ice-progress-snapshots.json" : water ? ".vissandbox/ice-cycle-checks/progress-snapshots.json" : ".vissandbox/fire-cycle-checks/progress-snapshots.json")));
         foreach(var frame in frames.RootElement.EnumerateArray())
         foreach(float zoom in new[]{1f,1.5f}) {
-            using var target=new RenderTarget2D(GraphicsDevice,(int)(160*zoom),(int)(160*zoom));
+            using var target=new RenderTarget2D(GraphicsDevice,(int)((ice ? 600 : 160)*zoom),(int)(160*zoom));
             GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(22,24,30));
-            render.Invoke(null,[batch,circleEffect,icon,frame.GetRawText(),zoom,water]);
+            render.Invoke(null,[batch,circleEffect,icon,frame.GetRawText(),zoom,water,ice]);
             GraphicsDevice.SetRenderTarget(null);
             using var png=File.Create(Path.Combine(output,frame.GetProperty("Name").GetString()+$"-{zoom:0.0}.png"));
             target.SaveAsPng(png,target.Width,target.Height);
+            if (ice) {
+                var pixels=new Color[target.Width*target.Height]; target.GetData(pixels);
+                for(int part=0;part<5;part++) {
+                    int visible=0;
+                    for(int y=(int)(45*zoom);y<(int)(115*zoom);y++)
+                    for(int x=(int)((30+part*120)*zoom);x<(int)((90+part*120)*zoom);x++)
+                        if(pixels[y*target.Width+x]!=new Color(22,24,30))visible++;
+                    if((part<3 && visible==0)||(part>=3 && visible!=0))
+                        throw new Exception($"Multipart display regression: {frame.GetProperty("Name").GetString()}, part {part}, visible pixels {visible}");
+                }
+            }
         }
         Console.WriteLine(output); Exit();
     }

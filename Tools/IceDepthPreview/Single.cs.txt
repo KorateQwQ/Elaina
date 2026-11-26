@@ -23,6 +23,8 @@ sealed partial class Probe
         string source = """
             namespace KL.Drawing {
                 public static class PreviewRotation {
+                    public static Vector2 SafeNormalize(this Vector2 value, Vector2 fallback) =>
+                        value.LengthSquared() > 0f ? Vector2.Normalize(value) : fallback;
                     public static float ToRotation(this Vector2 value) => MathF.Atan2(value.Y, value.X);
                     public static Vector2 RotatedBy(this Vector2 value, double rotation) =>
                         Vector2.Transform(value, Matrix.CreateRotationZ((float)rotation));
@@ -66,16 +68,16 @@ sealed partial class Probe
                         Main.spriteBatch.End();
                         if (IncludeTrail) {
                             var trailState = (previewTrail, Vector2.Normalize(Aim), -(float)frame % 1200 / 40);
-                            LayerDrawRequestSystem.RequestBloom("preview-trail", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-                                LayerDrawRequestSystem.DrawTiming.After, () => DrawManagedTrail(trailState, cone.OldCenter, 1f),
+                            LayerDrawRequestSystem.RequestBloom("preview-trail", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+                                LayerDrawRequestSystem.DrawTiming.Before, () => DrawManagedTrail(trailState, cone.OldCenter, 1f),
                                 order: LayerDrawRequestSystem.TrailOrder);
                         }
                         cone.QueueModel();
-                        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.Projectiles);
+                        BloomReplay.Flush(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
                     }
             """;
         source += string.Join("\n", type.Members.Where(m => m is FieldDeclarationSyntax f &&
-            !f.Declaration.Variables.Any(v => v.Identifier.Text == "managedTrail") ||
+            !f.Declaration.Variables.Any(v => v.Identifier.Text is "managedTrail") ||
             m is PropertyDeclarationSyntax p && p.Identifier.Text != "SampleTrailInDrawBehind"));
         source += "private void QueueModel() {" + request.ToFullString() + "}";
         source += type.Members.OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "DrawManagedTrail").ToFullString();

@@ -1,4 +1,12 @@
-# 炎爆、法阵与气流环 FNA 离线预览
+﻿# 炎爆、法阵与气流环 FNA 离线预览
+
+## 施法 NonPremultiplied 调整（2026-11-10）
+
+施法火核、星芒、轨道环、聚拢火星、落地爆燃与散开星光改为 NonPremultiplied。此前 AlphaBlend 配合零/低覆盖度及高 HDR 产生加色叠加，亮背景会爆白。新增正式 `Effects/Content/FireBurstCast.fx/.xnb`，对现有预乘 PNG 先采样、再还原直通 RGB；贴图自身灰黑亮度转为覆盖度，避免线状火星留下暗边。淡入淡出仅改变 Alpha，降低火核及火星倍率，保留同层 Bloom。魔杖拖尾通过可选 `blendState: 2` 接入，公共样式默认值不变。固定纹理继续加载已有打包资源，无运行时贴图生成。
+
+重建 Shader 与预览：`pwsh -File Tools/FireBurstPreview/run.ps1 -Cast`；仅重跑预览加 `-SkipShader`。曝光检查覆盖昼夜背景与 1×/1.25×/2×，第 30 设计帧火核区域须保留足够橙黄色像素、不能大面积近白。旧版 2× 夜景有 6046 个近白像素，超过上限 480；修复后六种组合均为 0。保留压缩后转白及爆燃白闪，不用该曝光阈值限制它们。原有交接、拖尾与径向星光回归一并执行。
+
+已查看本次 FNA 离线昼夜时序、压缩/坠落/爆燃及尾部淡出；C# 编译和 Shader 编译通过。输出 `out/cast/exposure-day-night.png`（左昼右夜）及 `cast.gif`。尚未进行游戏内重载验证或 `.tmod` 打包。
 
 运行：
 
@@ -148,10 +156,114 @@ GIF 将原生帧裁切缩小用于并排比较，原尺寸 PNG 可单独检查�
 & ./Tools/FireBurstPreview/run.ps1 -Domain
 ```
 
-按 1920×1080 渲染（领域半径 `DomainRadius` 须与 `FireBurstDomain.Radius` 一致，当前 1400），场景为地面、敌人剪影与玩家位置色块；领域中心降一次正式炎爆，之后每 4 帧锁定一名敌人、同一敌人每 75 帧重锁，与 `FireBurstDomain` 调度一致。炎爆绘制、粒子与 Bloom 均为正式代码，粒子按各炎爆自己的年龄推进（只模拟当前一轮）。
+按 1920×1080 渲染（领域半径从 `FireBurstDomain.Radius` 抽取），场景为地面、敌人剪影与玩家位置色块；领域展开时中心不再降下炎爆（由施法爆燃标示位置，见 `-Cast`），每 4 帧锁定一名敌人、同一敌人每 75 帧重锁。炎爆绘制、粒子与 Bloom 均为正式代码，粒子按各炎爆自己的年龄推进（只模拟当前一轮）。
 
 范围圈为正式 `FireBurstDomainRingDrawing.cs` + `FireBurstFlame.fx` 的 `DomainRing` 通道，`DomainRingAdapter.cs.txt` 等同 `FireBurstDomain.DrawRing`。只显示领域边界：沿半径 1000 的圆燃烧一圈火环，火舌沿半径向外舔出。着色同火柱（火势 = 包络 × 噪声，0.06/0.15/0.42 三阈值 暗红 → 红 → 黄，黄层由 Bloom 晕出白芯）；噪声为可平铺的 `PerlinX`，沿火舌方向拉长并向外流动，根部连续燃烧，噪声决定火舌长短。展开 24 帧内火环从中心扩到边界，火舌 30 帧内长到全长；结束前 40 帧火势减弱熄灭。可调参数在 `FireBurstDomainRingDrawing.Draw` 开头。
 
 定稿过程（2026-11-08）：否决显迹尘式火星飞散（粉尘外观来自"尘"本身）与地面大法阵；火环比较了火舌向外 / 向上，用户选向外，并从两档细淡程度中选定"细一档"（火舌 80 像素、根部 0.6、原亮度；更淡一档为 60 像素、0.5、亮度 ×0.7）。不要用 `Eff_Trail_2014` 沿圆周平铺：它的横向是单条流纹截面，会断成一段段火块。
 
 输出 `out/domain/`：`Ring-spread-sequence.png`（6/14/24/40/80/130 帧）、`Ring-steady-{night,day}-{center,offset,high}.png`（offset 为玩家右移 半径−500 像素，可见右侧边界；high 再上移到可见顶部弧）、`Ring-ending-night-offset.png`、`Ring-domain.gif`（0～240 帧）。
+
+## 炎爆领域施法演出（`-Cast`）
+
+```powershell
+& ./Tools/FireBurstPreview/run.ps1 -SkipShader -Cast
+```
+
+方案见 `Tools/FireBurstCastPreview`（HTML 方案稿，用户选定方案 C）。正式实现：
+
+- `FireBurstCastVisuals.cs`：只依赖 XNA 的时间轴、火种运动与全部绘制（杖尖聚火、天空火种与双火环、坠落拖尾、爆燃的白闪/冲击波/余热/径向星光），预览直接编译此文件。
+- `Action_FireBurst.cs`：手臂姿势与时间推进，在 `Timeline.Impact` 帧各端生成爆燃、拥有者生成领域；`AnimationSpeed` 缩放整段动作（总帧数随动作同步）。
+  - 落点：火种悬停点、落点与领域中心在爆燃前每帧跟随玩家（落点在玩家脚下，不贴地面）；坠落时天空点不锁定，整条火种轨迹以玩家为参考系（2026-11-11 起，见文末）；`Timeline.Impact` 那一帧玩家所在位置即领域中心。
+  - 魔杖拖尾（`BuildWandTrail`）：不用基类的世界坐标历史，按 `ArmAngle` 回溯 `WandTrailTicks` 设计帧、以当前肩部为圆心重建（返回相对肩部的偏移）；玩家移动时弧线不变形。按时间等距密集采样（96 点），起手只覆盖已经发生的时间，点序号表示相对年龄；宽度取年龄衰减与尾端剩余弧长收尖的较小值，透明度仍按年龄衰减，挥过的部分逐渐消失；不能按弧长重采样，否则整条弧挥完后保持原样、到窗口末尾才突然消失。手臂停住时的重合点沿轨迹错开 0.001 像素，避免法线无效。`--cast` 同时检查挥杖后挥过的那段随时间移向序列尾部。指向火种的角度必须以玩家当前中心为参照：爆燃后 `center` 不再更新，用它会让回溯的挥杖在爆燃后移动时转向。`--cast` 开头的 `CheckWandTrailFollowsPlayer` 检查这一点（旧实现偏差约 90 像素，检查失败）。
+  - 火种拖尾：`SeedTrailPath` 沿轨迹回溯（升空 4、坠落 3 设计帧），`DrawTaperTrail` 按弧长盖柔光点、从头到尾收细；不再用整根等宽的线条贴图。
+- `FireBurstImpactDust.cs`：一颗粒子承载一次爆燃，十字星和点状星光从爆燃时锁定的领域圆心向四周散开。
+- `FireBurstDomain.cs`：不再在中心降下第一道炎爆；快速施放时（`PlayImpact`）由领域自己播放爆燃。
+
+`CastAdapter.cs.txt` 等同 `Action_FireBurst.SubmitExtraVisuals` 与 `FireBurstImpactDust` 的绘制请求；手臂姿势（`ArmAngle` 等）与领域半径由 `Preview.cs` 从正式源码抽取。玩家视为静止、面朝右，`ArmCenter` 省略了手臂贴图偏移；玩家与魔杖是色块和贴图示意。魔杖拖尾直接提取正式 `BuildWandTrail`、`BuildWandTrailWidths`、`ElainaTrailVisualStyle` 与 KL `TrailEffect`，加载 `LightTrail.png`、`VertexDraw.xnb`，通过正式 Bloom 队列绘制。
+
+输出 `out/cast/`：`sequence-near-{night,day}.png`（缩放 2，4/10/14/18/24/30/36/39/41/43/44/46 帧）、`sequence-full-night.png`（缩放 1，40～120 帧）、原尺寸关键帧 `near-*-f30/f41/f45.png`、Bloom 对照 `near-night-f30-no-bloom.png`、`cast.gif`（0～110 帧，缩放 1.5）。
+
+调参记录（2026-11-09）：火环与冲击波起初用 GlowDot 竖切片拼平头线段，相接处要么叠出横向亮痕、要么在椭圆两端露出暗点，改为沿弧长等距盖柔光点；爆燃白闪原 3 帧冲顶、10 帧退去在白天吞掉整个法阵，缩短为 2/6 帧并降低倍率；坠落拖尾减细减短，避免像光柱。
+
+火核交接（2026-11-09）：火种原先固定从 12 像素起步、升空期间不变，而杖尖火核离杖前约 17.5 像素（`WandCoreSize` 的脉动正处波谷），离杖那一帧缩小约 31%，同时杖尖施法光效从 0.4 倍尺寸直接出现，像火核原地缩小。现 `SeedSize` 从 `WandCoreSize(Launch)` 接续并在 Launch～Compress 平滑长到最大值，施法光效的尺寸与亮度从零淡入（4 设计帧）。`CheckSeedHandover` 按动画速度 0.5 的半帧步长检查 Launch～Fall 间火种尺寸的单步变化不超过 10%（旧实现交接帧 31%）。`sequence-handover-night.png` 为第 9～22 帧的交接序列。
+
+
+## 魔杖拖尾收尖修复（2026-11-10）
+
+起手不足 14 设计帧时，旧采样把超出零帧的历史全部截到起点，末段收细挤在约 0.1 像素以内，形成平截口。现用 `min(t, WandTrailTicks)` 铺满有效历史。悬停后下挥也有重复尾点，因此 `BuildWandTrailWidths` 在年龄衰减之外增加最后 12 世界像素的线性收尖上限，末点半宽严格归零；点序列仍按时间采样，没有改为按弧长重采样。
+
+KL `TrailEffect` 与 `ElainaTrailVisualStyle.DrawTrail` 增加逐点半宽重载，保留原有重载签名与默认行为；本次仅炎爆启用。固定资源仍使用既有 `LightTrail` 和 `VertexDraw`，没有新增运行时纹理生成。
+
+验证入口仍为 `pwsh -File Tools/FireBurstPreview/run.ps1 -Cast -SkipShader`。新增起手半帧步长、左右朝向、向下瞄准和悬停后下挥的检查；原有随玩家移动及随年龄衰减的回归仍运行。预览现使用真实拖尾 Shader，不再用细折线代替。输出 `cast/wand-tail-detail.png`（左起手、右下挥）和 `cast/wand-tail-scales.png`（上昼下夜，列为 1、1.25、2 倍世界缩放），均为原生像素裁切。
+
+本次 FNA 离线预览与 KL、伊蕾娜完整 C# 编译通过；尚未进行游戏内重载与实战验证，使用时需要同步重新构建并加载两个模组。
+
+
+## 施法法阵移除与结尾径向星光（2026-11-10）
+
+按用户要求移除 `Action_FireBurst` 的准备阶段法阵请求，以及 `FireBurstImpactDust` 在爆燃后的法阵外涨、淡出和对应绘制方法。天空火种与轨道环、领域范围火环仍沿用现有绘制；本节替代上述施法方案中有关地面法阵的历史说明。
+
+结尾原有贴地线状火花、上升余烬替换为同一批径向星光：24 颗十字星与 48 颗点状星光，从爆燃时锁定的领域圆心出发，在完整圆周内分扇区随机取方向，速度为每帧 5～14 像素并按 0.965 阻尼减速，寿命为 38～76 帧。粒子保持径向，缩小并淡出；不受重力或上飘逻辑影响。使用已打包的 `Star4`、`GlowDot` 贴图。
+
+`--cast` 直接绘制正式 `DrawImpactParticles`，新增 `CheckImpactParticles` 覆盖 8 个随机种子的同一发射圆心、两种星光的四象限分布、径向外移与生命周期。输出 `impact-stars-{night,day}.png` 为完整结尾，`impact-particles-{night,day}-f48/f59/f79.png` 为关闭闪光、冲击波和余热后的粒子检查，`impact-stars-detail.png` 为完整结尾的原生像素裁切。已查看明暗背景和起手无地面法阵的 FNA 离线预览；相关回归与伊蕾娜完整 C# 编译通过，尚未在运行中的游戏内验证。
+
+## 扩散初期的火圈 Bloom（2026-11-10）
+
+扩散和常驻原本使用同一 `RequestBloom` 请求及 `DomainRing` 通道。初燃时 `RingStrength = age / 10` 降低火势，着色落在橙红层；外层 HDR 色 `(2, 0.46, 0.06)` 的感知亮度为 0.878，低于 KL `DrawOverflowColor` 的阈值 1。红通道超过 1 不代表能触发 Bloom，因而会出现亮边清晰但没有光晕的早期帧。
+
+`FireBurstDomainRingDrawing.Draw` 现在仅在前 10 帧把 RGB 乘上从 1.6 平滑降到 1 的初燃补偿，覆盖度、火势包络、扩散半径和火舌长度不变。第 10 帧后恢复原有颜色参数，不调整公共 Bloom 或 Shader。
+
+验证：
+
+```powershell
+& ./Tools/FireBurstPreview/run.ps1 -RingBloom -SkipShader
+```
+
+该入口只绘制正式领域火环，排除爆燃白闪、冲击波、粒子与后续炎爆的贡献。检查年龄 2/4/6/10/12/20/24/40/300、昼夜背景、1×/1.25× 世界缩放，以及结束后的不可见性。每帧对比 Bloom 开关，沿环内侧 24 世界像素取 41 个样本，要求至少 30 个样本有可见光晕、平均红通道增量不少于 5。
+
+修复前第 2 帧为 0/41，关闭补偿的旧实现会使新增检查失败；修复后四种背景与缩放组合为 40～41/41。年龄 12/20/24/40/300 的全部开关对照与修复前逐像素一致。已查看实际 FNA 明暗背景与早期/常驻局部图，完整 C# 编译通过，尚未游戏内重载验证。
+
+输出 `out/ring-bloom/bloom-off-on.png`；本次留存的 `before-after.png` 左为修复前、右为修复后。原生像素比较脚本：`python Tools/FireBurstPreview/compose_ring_bloom.py <out> [修复前截图目录]`，指定修复前目录时同时验证初燃结束后的逐像素一致性。
+
+
+## 2026-11-11 删除脚底横向余热
+
+删除正式 `FireBurstCastVisuals.DrawImpact` 中两层横向拉伸的 GlowDot（420×46、220×22）及对应余热参数。此前移除地面法阵并未删除这两层，截图中的橙色长光带来自这里。上文余热描述保留为历史记录。
+
+运行 `pwsh -File Tools/FireBurstPreview/run.ps1 -ImpactOnly -SkipShader`，直接以当前正式 DrawImpact 和 KL Bloom 绘制爆燃第 44/46/50/56/64 设计帧的昼夜预览，输出 `out/cast/impact-only-{day,night}-f*.png`；已目视确认脚底橙色长光带消失。该入口仅用于爆燃区域视觉核对，不代表完整施法回归通过。脚本复制源码后刷新时间戳，避免本机改过预览后因增量构建复用旧程序。
+
+伊蕾娜 C# 编译通过（0 错误）；未进行游戏内重载验证。
+
+## 火种离杖闪到天空（绘制比 Update 快一帧）
+
+KL `ActionModPlayer.PostUpdate` 先以第 N 帧调用 `Update`，再推进帧号；绘制（`SubmitExtraVisuals`）取到的是 N+1。绘制时间第一次到达 `Launch` 时，`Update` 还没记录离杖点，旧 `Seed(t)` 以 `launched` 标记判断，返回天空悬停点：这一帧火种出现在约 170 像素外，下一帧回到杖尖再正常升空。现 `Seed(t)` 按时间判断离杖，离杖点未记录时用当前杖尖；同理绘制时间先到 `Impact`、爆燃尚未生成的那一帧，火种停在落点多画一帧而不是留空。
+
+预览改为与游戏相同的顺序：绘制设计帧 t 时只 `Advance` 到 t − 0.5（`AdvanceLikeGame`）。`CheckLaunchTicks` 逐游戏帧检查 Launch − 3 ～ Arrive、三种朝向下火种每帧位移不超过 30 像素；临时恢复旧 `Seed` 时该检查以 172 像素跳变失败。逐帧查看：`run.ps1 -SkipShader -LaunchTicks`，输出 `out/cast/sequence-launch-ticks-night.png`。
+
+2026-11-11：`-Cast` 中除曝光检查外全部通过。曝光检查（第 30 帧、夜景、缩放 1，近白 571 > 120）在恢复旧推进顺序后同样失败，与本次修复无关，尚未处理。尚未在游戏内重载验证。
+
+## 火种轨迹以玩家为参考系
+
+旧实现在 `Timeline.Fall` 把天空点锁定在世界坐标、落点继续跟随玩家，玩家移动时坠落轨迹会歪斜。现 `Sky()` 始终为玩家中心 + `skyOffset`，离杖点、悬停点、落点都相对玩家，移动时整条轨迹平移、形状不变；火种拖尾按同一函数回溯，也随玩家平移。
+
+`CheckSeedFollowsPlayer`（`-Cast` 与 `-LaunchTicks` 都会运行）：两种朝向 × 水平/斜向匀速移动，离杖到爆燃前每个游戏帧火种相对玩家的位置须与静止施放一致（误差 ≤ 0.01 像素）。临时恢复锁定写法时该检查以第 42 帧偏离 39.4 像素失败。适配器 `MoveOwner` 对应 `TrackOwner`。
+
+2026-11-11：`-Cast` 中除既有的曝光检查外全部通过；伊蕾娜 C# 编译无错误。尚未在游戏内重载验证。
+
+## 2026-11-18：风圈冷启动随机过曝
+
+共用 `WindRing` 的旧 `MaskFromRed = 0` 会触发 D3D11 后端全零常量首次未上传的问题，
+残留 GPU 值放大遮罩，引起橙色过曝、深色前半圈黄黑夹杂；冰锥同样受影响。
+现改用总和为 1 的 `WindMaskWeights`，两处调用与正式 XNB 已同步，原配色和 Bloom 参数未调整。
+确定性故障注入、旧实现失败数据和运行入口见 `Tools/IceConeWindPreview/README.md` 的冷启动章节。
+本工具普通入口（`-SkipShader`）完整预览及回归通过；正常冰/火风圈与旧正常基线逐像素一致。
+正式 C# 编译通过，完整打包被游戏占用阻止（TML003），仍需在模组重建与重载后验证游戏表现。
+
+## 2026-11-18：魔杖拖尾透明度与收尾
+
+正式动作与 CastAdapter 的杖尾统一使用预乘 Alpha 混合，整体透明度与尾部透明度各作用一次。抽取器同步读取正式 `SmoothOpacity` / `DrawTrailOpacity`；保持既有姿势回溯及逐点宽度。
+
+新增独立检查入口 `run.ps1 -SkipShader -WandTrail`：运行移动跟随、起手尾尖、停杖收尖检查，并导出第 1/4/10/18/36/40/44 设计帧的昼夜、1/1.25/2 倍缩放，共 42 张隐藏 FNA 图片（`out/cast/trail-check-*.png`）。本次全部通过并查看原尺寸局部图。
+
+完整 `-Cast` 的既有火核曝光断言仍失败（夜景 1 倍、571 > 120），没有跳过或放宽该入口的断言。杖尾专项通过不能代替完整施法回归通过。通用拖尾的透明度、采样与动作中断回归见 `../ActionTrailPreview/README.md`。

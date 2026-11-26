@@ -1,3 +1,4 @@
+using 伊蕾娜.Localization;
 using System;
 using KL.ActionsSystem;
 using KL.SkillSystem;
@@ -11,8 +12,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 [SkillUIInfo(State = 6, Pixels = 600)]
 public class FireLaserSkill : ElainaSkill
 {
-    public const float ReleaseCooldown = 1f;
-    public static double DomainBonusRatio => .2;
+    public const float SkillCooldown = 0.3f;
     private bool channelActive;
 
     internal float GetDomainDamageMultiplier()
@@ -22,7 +22,7 @@ public class FireLaserSkill : ElainaSkill
         double ratio = SkillBalanceConfig.GetDpsRatio(entry,
             SkillBalanceSystem.Current.GetSkillCharacterLevel(entry, Math.Max(1, Level)));
         if (ratio <= 0) throw new InvalidOperationException($"{BalanceId} 的 ratio 必须大于 0，当前为 {ratio}");
-        return (float)((ratio + DomainBonusRatio) / ratio);
+        return (float)((ratio + SkillHitBalance.FireLaserDomainBonusRatio) / ratio);
     }
 
     private SkillUnlockCondition unlockCondition;
@@ -36,28 +36,36 @@ public class FireLaserSkill : ElainaSkill
         set => unlockCondition = value;
     }
 
-    protected override object[] SkillDescriptionArgs =>
-    [
-        FireLaser.ChargeTicks / 60f,
-        SkillBalanceSystem.TryGetSkill(BalanceId, out var entry)
-            ? Math.Max(1, (int)Math.Round(entry.BaseCooldown * 60)) / 60f : 10f / 60f,
-        GetConfiguredDamage(),
-        MagicPointCost,
-        KL.DamageSystem.FireBurnNPC.ExposureTicks / 60f,
-        KL.DamageSystem.FireBurnNPC.DamageIgnitionFraction * 100,
-        (GetDomainDamageMultiplier() - 1f) * 100f
-    ];
+    protected override object[] SkillDescriptionArgs
+    {
+        get
+        {
+            int intervalFrames = SkillBalanceSystem.TryGetSkill(BalanceId, out var entry)
+                ? Math.Max(1, (int)Math.Round(entry.BaseCooldown * 60)) : 10;
+            return
+            [
+                FireLaser.ChargeTicks / 60f,
+                intervalFrames / 60f,
+                SkillValueText.Damage(GetConfiguredDamage(), SkillValueKind.Fire),
+                MagicPointCost,
+
+                SkillHitBalance.FireLaserBuildup,
+                (GetDomainDamageMultiplier() - 1f) * 100f,
+                (SkillHitBalance.FireLaserFrostDamageMultiplier - 1f) * 100f
+            ];
+        }
+    }
 
     public override void Initialize()
     {
         base.Initialize();
-        MaxCD = ReleaseCooldown;
+        MaxCD = SkillCooldown;
     }
 
     public override void DeserializeData(TagCompound tag)
     {
         base.DeserializeData(tag);
-        MaxCD = ReleaseCooldown;
+        MaxCD = SkillCooldown;
     }
 
     public override bool CanUseSkill() =>
@@ -66,12 +74,12 @@ public class FireLaserSkill : ElainaSkill
         && Player.ownedProjectileCounts[ModContent.ProjectileType<FireLaser>()] == 0
         && base.CanUseSkill();
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (!CanUseSkill() || !TryGetConfiguredBalance(out SkillBalanceResult balance))
             return false;
 
-        // 配置的攻击周期仍用于伤害与耗魔；松手后的防重触冷却单独计时。
+        // 配置的攻击周期用于伤害与耗魔；技能冷却由通用施放流程独立计时。
         int intervalFrames = Math.Max(1, (int)Math.Round(balance.Entry.BaseCooldown * 60));
         float rotation = (Main.MouseWorld - Player.MountedCenter).ToRotation() * Player.gravDir;
         if (!Player.GetModPlayer<ActionModPlayer>().StartAction(
@@ -80,21 +88,19 @@ public class FireLaserSkill : ElainaSkill
             return false;
 
         channelActive = true;
-        MaxCD = CurrentCD = CooldownDuration = ReleaseCooldown;
+        MaxCD = SkillCooldown;
         return true;
     }
 
     internal void EndChannel()
     {
         channelActive = false;
-        // 固定一秒的防重触间隔从结束引导开始，收势计入其中。
-        MaxCD = CurrentCD = CooldownDuration = ReleaseCooldown;
     }
 
     public override bool PreUpdateCD()
     {
         bool update = base.PreUpdateCD();
-        MaxCD = ReleaseCooldown;
-        return update && !channelActive;
+        MaxCD = SkillCooldown;
+        return update;
     }
 }

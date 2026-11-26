@@ -8,6 +8,7 @@ using Terraria.GameContent.UI.ResourceSets;
 using Terraria.ModLoader;
 using 伊蕾娜.Config;
 using 伊蕾娜.System;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -18,6 +19,12 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
     private readonly PortraitHudState portrait = new();
     private ResourceBarDrawing drawing;
     private PortraitHudDrawing portraitDrawing;
+    private ChargePointHud chargeHud;
+    private ChargePoints chargeOwner;
+    private readonly ConstellationUIClock chargeClock = new();
+    private bool chargeVisible;
+    private static float ChargeResetGap => .75f;
+    private ConstellationFont valueFont;
     private PlayerStatsSnapshot snapshot;
     private Player owner;
     private bool uniqueMana;
@@ -33,8 +40,18 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
             ModContent.Request<Texture2D>("伊蕾娜/ElainaAttribute/ResourceBarAssets/" + name, AssetRequestMode.ImmediateLoad).Value;
         drawing ??= new ResourceBarDrawing(Texture,
             ModContent.Request<Effect>("伊蕾娜/Effects/Content/ResourceBarClip", AssetRequestMode.ImmediateLoad).Value);
-        portraitDrawing ??= new PortraitHudDrawing(Texture, FontManager.Gelasio.Value);
+        valueFont ??= new(Mod, "NotoSerifSC", FontManager.NotoSerifSC, 9, 48);
+        portraitDrawing ??= new PortraitHudDrawing(Texture, new(Mod, "Gelasio", FontManager.Gelasio, 8, 48));
         var player = Main.LocalPlayer;
+        chargeHud ??= new(Texture("Star"), Texture("StarGlow"));
+        var points = player.GetModPlayer<ChargePointPlayer>().Points;
+        bool active = Main.hasFocus && !Main.gamePaused && !Main.gameMenu;
+        float chargeElapsed = chargeClock.Sample(active);
+        if (points != chargeOwner || !active || !chargeVisible || chargeElapsed > ChargeResetGap)
+            chargeHud.Reset(points.Current, points.RecoveryFraction);
+        else chargeHud.Update(points.Current, points.RecoveryFraction, chargeElapsed);
+        chargeOwner = points;
+        chargeVisible = active;
         var progress = player.GetModPlayer<ElainaStatePlayer>();
         level = progress.GetLevel();
         experience = progress.GetExperience();
@@ -89,13 +106,14 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         {
             drawing.Draw(batch, ui, origin, true, seconds + .7f, mana);
             Value(batch, ui, origin, true, manaValue, manaMaximum);
+            chargeHud.Draw(batch, ui, origin);
         });
     }
 
-    private static void Value(SpriteBatch batch, Matrix ui, Vector2 origin, bool isMana, float value, float max)
+    private void Value(SpriteBatch batch, Matrix ui, Vector2 origin, bool isMana, float value, float max)
     {
         if (!ModContent.GetInstance<BasicConfig>().ShowResourceValues) return;
-        ResourceBarDrawing.DrawValue(batch, ui, origin, isMana, FontManager.NotoSerifSC.Value, $"{value:0}/{max:0}");
+        ResourceBarDrawing.DrawValue(batch, ui, origin, isMana, valueFont, $"{value:0}/{max:0}");
     }
 
     private static void Draw(SpriteBatch batch, Action<SpriteBatch, Matrix> draw)
@@ -126,6 +144,10 @@ public class ElainaPlayerResourceDisplaySet : ModResourceDisplaySet
         // ModContent owns textures and effects; never dispose those shared assets here.
         drawing = null;
         portraitDrawing = null;
+        chargeHud = null;
+        chargeOwner = null;
+        chargeClock.Stop();
+        valueFont = null;
         owner = null;
         life.Particles.Clear();
         mana.Particles.Clear();

@@ -35,9 +35,8 @@ public partial class HealSkill : ElainaSkill
         return false;
     }
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
-        PrintText(66);
         if (pendingTargetIndex != InvalidTargetIndex)
         {
             int targetIndex = pendingTargetIndex;
@@ -89,7 +88,7 @@ public partial class HealSkill : ElainaSkill
             !Player.GetModPlayer<ElainaAttributeModPlayer>().ConsumeMagicPoint(MagicPointCost, allowLifeConversion: AllowsLifeConversion)) return false;
 
         int totalHealing = GetTotalHealing(Level);
-        AnimAction action = new Action_SimpleShoot().AddNode(new ShootActionNode(
+        AnimAction action = new Action_SupportShoot().AddNode(new ShootActionNode(
             1, ModContent.ProjectileType<HealProj>(), _ => target.MountedCenter,
             damage: 0, 0, _ => Vector2.Zero, projectile =>
             {
@@ -98,7 +97,7 @@ public partial class HealSkill : ElainaSkill
             }));
         float rotation = (target.MountedCenter - Player.MountedCenter).ToRotation();
         Player.GetModPlayer<ActionModPlayer>().StartAction(action, rotation: rotation);
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 
     private bool PendingSkillIsValid()

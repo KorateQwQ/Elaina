@@ -56,10 +56,35 @@ async function browserTest(){
   await page.locator('#loadMod').click();
   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已读取'));
   assert.equal(await stageB(),'40');
+  await page.locator('[role="tab"][aria-controls="skillsPage"]').click();
+  const field=key=>page.locator(`[data-skill-index="0"][data-skill-field="${key}"]`);
+  for(const [index,row] of config.skills.entries()){
+   if(!row.energyCost)continue;
+   const inputs=page.locator(`#rotationRows tr:nth-child(${index+1}) .pricing-fields input`);
+   assert.deepEqual(await inputs.evaluateAll(nodes=>nodes.map(input=>input.dataset.skillField)),['energyEfficiency'],row.id);
+  }
+  assert.equal(await field('energyCost').inputValue(),'2');
+  await field('energyCost').fill('0');
+  assert.equal(await field('energyEfficiency').count(),0);
+  assert.ok(await field('cdRatio').isVisible());
+  await field('cdRatio').fill('0.35');
+  await field('energyCost').fill('4');
+  assert.equal(await field('cdRatio').count(),0);
+  await field('energyEfficiency').fill('0.75');
   await page.locator('#saveMod').click();
   await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已保存'));
   const savedConfig=JSON.parse(fs.readFileSync(configPath,'utf8')).configuration;
   assert.deepEqual(Object.keys(savedConfig).sort(),Object.keys(B.defaults()).sort(),'Saving drops the old lab fields');
+  assert.equal(savedConfig.skills[0].energyCost,4);
+  assert.equal(savedConfig.skills[0].energyEfficiency,.75);
+  assert.equal(savedConfig.skills[0].cdRatio,.35);
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('fileStatus').textContent.includes('已读取'));
+  assert.equal(await field('energyCost').inputValue(),'4');
+  assert.equal(await field('energyEfficiency').inputValue(),'0.75');
+  await page.locator('[role="tab"][aria-controls="progressionPage"]').click();
+  await page.locator('#progressionDetailSkill').selectOption('WaterBallSkill');
+  assert.equal(await page.locator('#progressionCoefficient').innerText(),'性价比');
   fs.writeFileSync(sourcePath,'invalid');
   await page.waitForFunction(()=>document.getElementById('dpsSourceStatus').textContent.includes('同步失败'));
   assert.equal(await stageB(),'40','An invalid source keeps the last valid curve');

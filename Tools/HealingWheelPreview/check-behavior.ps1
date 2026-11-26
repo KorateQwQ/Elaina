@@ -7,6 +7,8 @@ $project = [xml]'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramewor
 foreach ($entry in @(
     @('Reference', (Join-Path $Tml 'Libraries/FNA/1.0.0/FNA.dll')),
     @('Compile', (Join-Path $PSScriptRoot 'BehaviorChecks.cs.txt')),
+    @('Compile', (Join-Path $repo 'ElainaModSkills/ElainaSkill.ChargePoints.cs')),
+    @('Compile', (Join-Path $repo 'ElainaAttribute/ChargePoints.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/Heal/HealSkill.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/Skills/Heal/HealSkill.Values.cs')),
     @('Compile', (Join-Path $repo 'ElainaModSkills/SkillBalanceConfig.cs')),

@@ -1,0 +1,536 @@
+using System.Reflection;
+using KL.Buffs.ElementalDebuff;
+using KL.DamageSystem;
+using KL.Extensions;
+using KL.Utils;
+using Terraria;
+using Terraria.ID;
+using Terraria.ModLoader;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+using GameMain = Terraria.Main;
+
+static partial class Checks
+{
+    static void CheckStatusRules()
+    {
+        new ElementBuildUpSystem().Load();
+        int fire = ModContent.BuffType<ElementalAffliction_Fire>();
+        int wet = ModContent.BuffType<ElementalAffliction_Wet>();
+        int ice = ModContent.BuffType<ElementalAffliction_Freeze>();
+        uint tick = 100;
+        void Water(NPC npc, int ticks = 10, int player = 0) {
+            Clock(tick += 2);
+            Check(WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(npc)!.Value, player, ticks), "valid water attachment accepted");
+        }
+        void Fire(NPC npc, int ticks = 10, int player = 0) {
+            Clock(tick += 2);
+            FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(npc)!.Value, player, ticks, 1, 1);
+        }
+        void Ice(NPC npc, float gain = 5.6f, int damage = 1) {
+            Clock(tick += 2);
+            npc.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice, npc,
+                new NPC.HitInfo { Damage = damage, SourceDamage = damage }, 0, gain);
+        }
+        float Progress(NPC npc, ElementType element) => npc.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(element) ?? 0;
+        void CooldownTick(NPC npc) => typeof(ElementalGlobalNPC).GetMethod("UpdateFreezeCooldown", All)!
+            .Invoke(npc.GetGlobalNPC<ElementalGlobalNPC>(), new object[] { npc });
+        NPC.HitModifiers Modifiers() => new() { SourceDamage = StatModifier.Default };
+
+        Near(WaterExposureNPC.Capacity, 100, "water capacity");
+        Near(FireBurnNPC.Capacity, 100, "fire capacity");
+        Near(ElementBuildUpSystem.FreezeCapacity, 100, "ice capacity");
+        Near(WaterExposureNPC.DurationTicks, 1800, "Wet lasts thirty seconds");
+        Near(FireBurnNPC.DurationTicks, 900, "Burning lasts fifteen seconds");
+        Near(ElementBuildUpSystem.FreezeDuration, 240, "Freeze lasts four seconds");
+
+        var water = NpcFixture(10); var burning = NpcFixture(11);
+        for (int i = 0; i < 17; i++) { Water(water); Fire(burning); }
+        Near(Progress(water, ElementType.Water), 100d * 17 / 18, "water progress uses points");
+        Near(Progress(burning, ElementType.Fire), 100d * 17 / 18, "fire progress uses points");
+        Check(!WaterExposureNPC.IsWet(water) && !FireBurnNPC.IsBurning(burning), "below threshold does not trigger");
+        Water(water); Fire(burning);
+        Check(WaterExposureNPC.IsWet(water) && FireBurnNPC.IsBurning(burning), "eighteenth pulse triggers both statuses");
+        Near(water.buffTime[water.FindBuffIndex(wet)], 1800, "Wet initial duration");
+        Near(burning.buffTime[burning.FindBuffIndex(fire)], 900, "Burning initial duration");
+        water.buffTime[water.FindBuffIndex(wet)] = 42;
+        burning.buffTime[burning.FindBuffIndex(fire)] = 42;
+        Water(water); Fire(burning);
+        Near(water.buffTime[water.FindBuffIndex(wet)], 1800, "water renews to cap");
+        Near(burning.buffTime[burning.FindBuffIndex(fire)], 900, "fire renews to cap");
+
+        var root = NpcFixture(12); var part = NpcFixture(13,12);
+        Fire(root, 90); Water(part, 90);
+        Near(Progress(root, ElementType.Fire), 50, "partial water preserves existing fire buildup");
+        Near(Progress(root, ElementType.Water), 50, "water and fire buildup coexist before Wet");
+        Water(root, 90);
+        Check(WaterExposureNPC.IsWet(part), "Wet applied to all parts");
+        Near(Progress(root, ElementType.Fire), 0, "Wet clears partial fire buildup");
+        Fire(root, 90);
+        Check(WaterExposureNPC.IsWet(root) && !FireBurnNPC.IsBurning(root), "partial fire does not consume Wet");
+        root.GetGlobalNPC<ElementalGlobalNPC>().SetCurrentAccumulation(ElementType.Ice, 70);
+        Fire(root, 90);
+        Check(FireBurnNPC.IsBurning(part) && !WaterExposureNPC.IsWet(root) && !part.HasBuff(wet), "ignition clears Wet across parts");
+        Near(Progress(root, ElementType.Ice), 0, "ignition clears ice buildup");
+        Near(Progress(root, ElementType.Water), 0, "ignition clears water buildup");
+        var batch = new WaterExposureBatch();
+        Check(batch.Capture(root), "water snapshot sees pre-hit Burning");
+        Water(root, 180);
+        Check(!FireBurnNPC.IsBurning(part) && WaterExposureNPC.IsWet(part), "orb extinguishes and triggers Wet on same hit");
+        Check(batch.Capture(part), "later body retains whole-orb Burning bonus");
+
+        var consumed = NpcFixture(14); Fire(consumed, 180); Water(consumed, 10);
+        Near(consumed.buffTime[consumed.FindBuffIndex(fire)], FireBurnNPC.DurationTicks, "partial water preserves burn duration");
+        Near(Progress(consumed, ElementType.Water), 100d / 18, "water accumulates on a burning target");
+        Fire(consumed, 10);
+        Near(Progress(consumed, ElementType.Water), 100d / 18, "renewing existing Burning does not clear new water buildup");
+
+        var frozen = NpcFixture(15); var frozenPart = NpcFixture(16,15);
+        Fire(frozen, 180);
+        frozen.GetGlobalNPC<ElementalGlobalNPC>().SetCurrentAccumulation(ElementType.Ice, 99);
+        Ice(frozen, 5.6f);
+        Check(frozen.HasBuff(ice) && frozenPart.HasBuff(ice), "freeze triggers across parts");
+        Check(!FireBurnNPC.IsBurning(frozenPart), "freeze removes Burning");
+        Check(!frozen.IsFreezeAccumulating(), "same-frame freeze blocks further accumulation");
+        Clock(tick += 2);
+        Check(!WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(frozenPart)!.Value, 0, 180),
+            "frozen body rejects water attachment");
+        frozenPart.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Water, frozenPart,
+            new NPC.HitInfo { Damage = 5000, SourceDamage = 5000 }, 1);
+        Check(!WaterExposureNPC.IsWet(frozen) && !WaterExposureNPC.IsWet(frozenPart), "frozen group cannot become Wet");
+        Near(Progress(frozen, ElementType.Water), 0, "ordinary water cannot build up during freeze");
+        Fire(frozen, 180);
+        Check(!frozen.HasBuff(ice) && !frozenPart.HasBuff(ice), "ignition thaws all parts immediately");
+        Near(frozen.GetFreezeCooldown(), 1500, "same-frame thaw starts thirty-second frost then deducts five seconds");
+        Near(frozenPart.GetFreezeCooldown(), 1500, "frost cooldown shared by body parts");
+        for (int i = 0; i < 60; i++) CooldownTick(frozen);
+        Near(frozen.GetFreezeCooldown(), 1410, "one burning second removes ninety frost ticks");
+        Water(frozen, 180);
+        for (int i = 0; i < 60; i++) CooldownTick(frozen);
+        Near(frozen.GetFreezeCooldown(), 1350, "normal countdown resumes after extinguishing");
+        Ice(frozen, 100);
+        Near(Progress(frozen, ElementType.Ice), 0, "frost prevents stored ice buildup");
+
+        var fractions = NpcFixture(17); FreezeCD(fractions, 1800);
+        for (int i = 0; i < 18; i++) Fire(fractions);
+        Near(fractions.GetFreezeCooldown(), 1500, "split 100 points removes exactly five seconds without rounding drift");
+        // 同步包保留半帧加速及小额积蓄削减余数，随后两端继续推进应一致。
+        CooldownTick(fractions);
+        fractions.GetGlobalNPC<ElementalGlobalNPC>().ReduceFreezeCooldown(fractions, .001f);
+        var synced = NpcFixture(25); synced.AddBuff(fire, 900);
+        using (var bytes = new MemoryStream()) {
+            using (var writer = new BinaryWriter(bytes, System.Text.Encoding.UTF8, true))
+                fractions.GetGlobalNPC<ElementalGlobalNPC>().SendExtraAI(fractions, new Terraria.ModLoader.IO.BitWriter(), writer);
+            bytes.Position = 0;
+            using var reader = new BinaryReader(bytes, System.Text.Encoding.UTF8, true);
+            synced.GetGlobalNPC<ElementalGlobalNPC>().ReceiveExtraAI(synced, null!, reader);
+            Near(bytes.Position, bytes.Length, "status packet fully consumed");
+        }
+        for (int i = 0; i < 60; i++) { CooldownTick(fractions); CooldownTick(synced); }
+        Near(synced.GetFreezeCooldown(), fractions.GetFreezeCooldown(), "burn acceleration stays aligned after network roundtrip");
+        FreezeCD(fractions, 1);
+        Fire(fractions, 180);
+        Near(fractions.GetFreezeCooldown(), 0, "frost deduction clamps at zero");
+        Check(fractions.IsFreezeAccumulating(), "ice buildup resumes after frost expires");
+        var ongoing = NpcFixture(26); Fire(ongoing,180); Ice(ongoing,20); Fire(ongoing,10);
+        Near(Progress(ongoing,ElementType.Ice),20,"burn renewal preserves accumulated ice; only ignition clears it");
+        var thaw = NpcFixture(27); Ice(thaw,100); Ice(thaw,100);
+        CooldownTick(thaw);
+        thaw.DelBuff(thaw.FindBuffIndex(ice));
+        thaw.GetGlobalNPC<ElementalGlobalNPC>().SetAffliction(ElementType.Ice,false);
+        CooldownTick(thaw);
+        Near(thaw.GetFreezeCooldown(),1800,"natural thaw starts thirty-second frost");
+
+        var dry = NpcFixture(18); var damp = NpcFixture(19); Water(damp,180);
+        Ice(dry); Ice(damp);
+        Near(Progress(dry,ElementType.Ice), 5.6, "dry ice uses full configured buildup");
+        Near(Progress(damp,ElementType.Ice), 11.2, "Wet doubles configured ice buildup");
+        var strongDry = NpcFixture(20); var strongWet = NpcFixture(21); Water(strongWet,180);
+        Ice(strongDry, 5.6f, 500); Ice(strongWet,5.6f,500);
+        Near(Progress(strongWet,ElementType.Ice), Progress(strongDry,ElementType.Ice)*2, "Wet doubles compensated ice buildup too");
+
+        var icy = NpcFixture(28); Ice(icy,100); Ice(icy,100);
+        var player = GameMain.player[0];
+        var infusion = player.GetModPlayer<ElementalInfusionPlayer>();
+        var actual = new ElementalGlobalProjectile();
+        var item = new ElementalGlobalItem();
+        var projectile = new Projectile { owner = player.whoAmI };
+        var weapon = new Item();
+        NPC.HitModifiers mods;
+        foreach (var element in Enum.GetValues<ElementType>()) {
+            foreach (bool inherited in new[] { false, true }) {
+                infusion.InfusionElement = inherited ? element : ElementType.None;
+                actual.InfusionElement = item.InfusionElement = inherited ? ElementType.None : element;
+                foreach (var target in new[] { dry, damp, burning, icy, thaw, frozen }) {
+                    mods = Modifiers(); actual.ModifyHitNPC(projectile,target,ref mods);
+                    Near(mods.SourceDamage.ApplyTo(100),100,$"ordinary projectile {element}, inherited={inherited}");
+                    mods = Modifiers(); item.ModifyHitNPC(weapon,player,target,ref mods);
+                    Near(mods.SourceDamage.ApplyTo(100),100,$"ordinary item {element}, inherited={inherited}");
+                }
+            }
+        }
+        infusion.InfusionElement = default;
+        for (int i = 0; i < GameMain.projectile.Length; i++) GameMain.projectile[i] ??= new Projectile();
+        var fireBeam = Attach(new FireLaser()); var fireBurst = Attach(new FireBurstProj());
+        foreach (var pair in new[] { (Spell: (ModProjectile)fireBeam, Multiplier: 1.1), (Spell: (ModProjectile)fireBurst, Multiplier: 1.5) }) {
+            foreach (var target in new[] { icy, thaw, dry, damp, frozen }) {
+                actual.InfusionElement = ElementType.Fire;
+                mods = Modifiers();
+                actual.ModifyHitNPC(pair.Spell.Projectile,target,ref mods);
+                pair.Spell.ModifyHitNPC(target,ref mods);
+                double expected = target == icy || target == thaw || target == frozen ? 100 * pair.Multiplier : 100;
+                Near(mods.SourceDamage.ApplyTo(100),expected,
+                    "actual fire skill and global hooks apply only that skill's frost bonus, including on Wet targets");
+            }
+        }
+        var orb = Attach(new WaterBall { BurningDamageMultiplier = 1.5f });
+        mods = Modifiers(); orb.ModifyHitNPC(burning,ref mods);
+        Near(mods.SourceDamage.ApplyTo(100),150,"actual orb receives only its 50 percent bonus");
+        var stream = Attach(new WaterLaser());
+        typeof(WaterLaser).GetField("primaryTarget",All)!.SetValue(stream,burning.whoAmI);
+        mods = Modifiers(); stream.ModifyHitNPC(burning,ref mods);
+        Near(mods.SourceDamage.ApplyTo(100),110,"actual water stream receives ten percent bonus");
+
+        int ignitions = 0;
+        FireBurnSystem.Ignited += (_,_) => ignitions++;
+        var once = NpcFixture(22); Fire(once,180); Water(once,180); Fire(once,180);
+        Near(ignitions,1,"reignition never repeats first-ignition reward");
+        var cooldownRoot = NpcFixture(23); var cooldownPart = NpcFixture(24,23); FreezeCD(cooldownRoot,1800);
+        Clock(tick += 2);
+        var samePulse = new ElementBuildupBatch();
+        FireBurnNPC.ApplyPoints(FireBurnNPC.CaptureHit(cooldownRoot)!.Value,0,50,1,1,samePulse);
+        FireBurnNPC.ApplyPoints(FireBurnNPC.CaptureHit(cooldownPart)!.Value,0,50,1,1,samePulse);
+        Near(cooldownRoot.GetFreezeCooldown(),1650,"body repeats cannot double frost reduction");
+        FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(cooldownPart)!.Value,1,90,1,1);
+        Near(cooldownRoot.GetFreezeCooldown(),1500,"different players contribute independently");
+        var old = FireBurnNPC.CaptureHit(cooldownRoot)!.Value; NpcFixture(23);
+        Check(!WaterExposureNPC.ApplyHit(old,0,180),"stale NPC identity rejected");
+        GameMain.netMode=NetmodeID.MultiplayerClient;
+        Check(!WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(dry)!.Value,0,180),"client cannot apply water state");
+        Check(!FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(dry)!.Value,0,180,1,1),"client cannot apply fire state");
+        GameMain.netMode=NetmodeID.SinglePlayer;
+        var partialWater = NpcFixture(29); Water(partialWater,90);
+        Near(Progress(partialWater,ElementType.Water),50,"partial water exists before ignition");
+        Fire(partialWater,180);
+        Near(Progress(partialWater,ElementType.Water),0,"ignition clears partial water even without Wet buff");
+        var ordinary = NpcFixture(30); ordinary.AddBuff(wet,1800);
+        Clock(tick += 2);
+        ordinary.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Fire,ordinary,
+            new NPC.HitInfo { Damage=5000, SourceDamage=5000 },0,1);
+        Check(FireBurnNPC.IsBurning(ordinary) && !WaterExposureNPC.IsWet(ordinary),
+            "ordinary elemental fire uses the same ignition transition");
+        Clock(tick += 2);
+        ordinary.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Water,ordinary,
+            new NPC.HitInfo { Damage=5000, SourceDamage=5000 },0,1);
+        Check(WaterExposureNPC.IsWet(ordinary) && !FireBurnNPC.IsBurning(ordinary),
+            "ordinary elemental water uses the same Wet transition");
+        var wetRoot = NpcFixture(31); var wetPart = NpcFixture(32,31);
+        Water(wetRoot,180); Fire(wetRoot,90); Ice(wetPart,100);
+        Check(wetRoot.HasBuff(ice) && wetPart.HasBuff(ice), "Wet group freezes on the triggering hit");
+        Check(!wetRoot.HasBuff(wet) && !wetPart.HasBuff(wet), "freeze removes Wet across all parts");
+        Near(Progress(wetRoot,ElementType.Fire),0,"freeze clears partial fire buildup");
+        Near(Progress(wetRoot,ElementType.Water),0,"freeze clears Wet progress");
+        var partial = NpcFixture(33); Fire(partial,180); Water(partial,30);
+        Ice(partial,100); Ice(partial,100);
+        Check(partial.HasBuff(ice) && !partial.HasBuff(fire),"freeze removes Burning while water is partially built up");
+        Near(Progress(partial,ElementType.Water),0,"freeze clears partial water without a Wet buff");
+        Near(Progress(partial,ElementType.Fire),0,"freeze clears Burning progress");
+        partial.DelBuff(partial.FindBuffIndex(ice));
+        partial.GetGlobalNPC<ElementalGlobalNPC>().SetAffliction(ElementType.Ice,false);
+        Water(partial,10); Fire(partial,10);
+        Near(Progress(partial,ElementType.Water),100d/18,"water resumes from zero after thawing");
+        Near(Progress(partial,ElementType.Fire),100d/18,"fire resumes from zero after thawing");
+
+        var parsed = 伊蕾娜.ElainaModSkills.SkillBalanceConfig.TryParse(File.ReadAllText(Path.Combine(rootDirectory,
+            伊蕾娜.ElainaModSkills.SkillBalanceConfig.ResourcePath)),out var config,out var error);
+        Check(parsed,"current skill balance parses: "+error);
+        Near(伊蕾娜.ElainaModSkills.SkillBalanceConfig.GetDpsRatio(config.Skills["IceConeSkill"],95),1.6,"ice cone current configured base DPS");
+        Near(伊蕾娜.ElainaModSkills.SkillBalanceConfig.GetDpsRatio(config.Skills["ShardbindSkill"],95),.1,"shardbind planned base DPS");
+        CheckMultipartHealthBars();
+        CheckElementalDamageOrder();
+        CheckShardbindFinalBuildup();
+        CheckFixedAndDamageBuildup();
+    }
+
+    static void CheckFixedAndDamageBuildup()
+    {
+        // 固定积蓄统一为 10 点；伤害补偿按最大生命的 50% 对应整条计算。
+        foreach (var sample in new[] { (Life: 10000, Damage: 1, Expected: 10f),
+            (Life: 10000, Damage: 500, Expected: 10f), (Life: 1000, Damage: 125, Expected: 25f),
+            (Life: 1000, Damage: 250, Expected: 50f), (Life: 1000, Damage: 500, Expected: 100f) }) {
+            Clock(24000);
+            var ice = NpcFixture(183); var fire = NpcFixture(184); var water = NpcFixture(185);
+            foreach (var npc in new[] { ice, fire, water }) npc.life = npc.lifeMax = sample.Life;
+            ice.GetGlobalNPC<ElementalGlobalNPC>().OnHitByElement(ElementType.Ice, ice,
+                new NPC.HitInfo { Damage = sample.Damage, SourceDamage = 99999 }, 0, 10);
+            FireBurnNPC.ApplyBeamHit(FireBurnNPC.CaptureHit(fire)!.Value, 0, 18, 1, sample.Damage);
+            WaterExposureNPC.ApplyHit(FireBurnNPC.CaptureHit(water)!.Value, 0, 18, sample.Damage);
+            foreach (var pair in new[] { (Npc: ice, Element: ElementType.Ice), (Npc: fire, Element: ElementType.Fire),
+                (Npc: water, Element: ElementType.Water) }) {
+                bool afflicted = pair.Element == ElementType.Ice ? pair.Npc.HasBuff<ElementalAffliction_Freeze>()
+                    : pair.Element == ElementType.Fire ? FireBurnNPC.IsBurning(pair.Npc) : WaterExposureNPC.IsWet(pair.Npc);
+                Check(afflicted == (sample.Expected >= 100), "fixed or damage compensation triggers the same threshold across ice/fire/water");
+                if (!afflicted) Near(pair.Npc.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(pair.Element) ?? 0,
+                    sample.Expected, "fixed gain and damage compensation use max, never add or halve");
+            }
+        }
+        var root = NpcFixture(183); root.life = root.lifeMax = 1000;
+        var part = NpcFixture(184,183); var beam = Attach(new WaterLaser());
+        beam.Projectile.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
+        ElementInfusion waterHit = new(ElementType.Water, 5.55f);
+        Clock(25000); Hit(part,waterHit,0,projectile:beam.Projectile);
+        Near(WaterProgress(root),0,"zero damage does not claim this anchor");
+        Hit(part,waterHit,125,projectile:beam.Projectile);
+        Near(WaterProgress(root),25,"water uses actual damage to shared maximum life");
+        Clock(25003); Hit(root,waterHit,500,projectile:beam.Projectile);
+        Near(WaterProgress(root),25,"one pulse compensates once per anchor");
+    }
+
+    static void CheckElementalDamageOrder()
+    {
+        using var send = new MonoMod.RuntimeDetour.Hook(typeof(NetMessage).GetMethod("SendData", All)!,
+            (Action<int,int,int,Terraria.Localization.NetworkText,int,float,float,float,int,int,int>)((_,_,_,_,_,_,_,_,_,_,_) => {}));
+        foreach (int mode in new[] { NetmodeID.SinglePlayer, NetmodeID.Server, NetmodeID.MultiplayerClient })
+        foreach (var type in new[] { ElementType.Fire, ElementType.Ice, ElementType.Water, ElementType.Lightning })
+        foreach (float points in new[] {0f,7.625f}) {
+            GameMain.netMode=mode; Clock(20000); var npc=NpcFixture(180);
+            float Progress() => npc.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(type) ?? 0;
+            int calls=0;
+            Hit(npc,new(type,points),1,_=> { calls++; Near(Progress(),0,"damage precedes attachment"); });
+            Check(calls==1,"exactly one strike");
+            Near(Progress(), mode == NetmodeID.MultiplayerClient ? 0 : points,"only authority applies explicit points");
+        }
+        GameMain.netMode=NetmodeID.SinglePlayer;
+        CheckIceDamageWithoutBuildup();
+        CheckStrikeTransport();
+    }
+
+    static void CheckStrikeTransport()
+    {
+        // 安装实际 tML 二进制上的两个 IL 补丁，校验发送位置和栈签名。
+        var system = new ElementStrikeSystem(); system.Load(); system.Unload();
+        var target = NpcFixture(181); var element = new ElementInfusion(ElementType.Fire,7.625f);
+        var payload = StrikeSystem.GetMethod("Create",All)!.Invoke(null,[target,element,1]);
+        var original = new NPC.HitInfo { Damage=1, SourceDamage=999, Crit=true, HitDirection=-1,
+            DamageType=DamageClass.Magic, Knockback=12.34567f, HideCombatText=true };
+        using var bytes=new MemoryStream();
+        using var writer=new BinaryWriter(bytes, System.Text.Encoding.UTF8,true);
+        StrikeSystem.GetMethod("Write",All)!.Invoke(null,[writer,target.whoAmI,original,payload]);
+        using var reader=new BinaryReader(bytes,System.Text.Encoding.UTF8,true);
+        int strikes=0, relays=0;
+        using var engine = new MonoMod.RuntimeDetour.Hook(typeof(NPC).GetMethod("StrikeNPC",[typeof(NPC.HitInfo),typeof(bool),typeof(bool)])!,
+            (Func<NPC,NPC.HitInfo,bool,bool,int>)((_,h,net,_)=>{
+                Check(net && h.DamageType==original.DamageType && h.Crit && h.HitDirection==-1 && h.SourceDamage==999,
+                    "atomic strike round-trips all damage fields"); Near(h.Knockback,original.Knockback,"wire preserves knockback"); strikes++; return 1;
+            }));
+        using var relay = new MonoMod.RuntimeDetour.Hook(typeof(ModPacket).GetMethod("Send",All)!,
+            (Action<ModPacket,int,int>)((_,_,ignore)=>{Check(ignore==0,"server excludes predicting client"); relays++;}));
+        typeof(Mod).Assembly.GetType("Terraria.ModLoader.ModNet")!.GetField("netMods",All)!.SetValue(null, Array.Empty<Mod>()); global::KL.KL.KLInstance = new CheckMod(); typeof(Mod).GetField("netID",All)!.SetValue(global::KL.KL.KLInstance,(short)0);
+        void Receive(int mode) { GameMain.netMode=mode; bytes.Position=0; StrikeSystem.GetMethod("Receive",All)!.Invoke(null,[reader,0]); }
+        Clock(40000); Receive(NetmodeID.Server);
+        Near(target.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire)??0,7.625,"server uses exact transmitted points");
+        Clock(40005); Receive(NetmodeID.Server);
+        Check(strikes == 1 && relays == 1, "replaying a strike packet cannot duplicate damage or buildup");
+        Receive(NetmodeID.MultiplayerClient);
+        Near(target.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire)??0,7.625,"relay cannot settle a second attachment");
+        bytes.Position=0;
+        StrikeSystem.GetMethod("Write",All)!.Invoke(null,[writer,target.whoAmI,original,payload]);
+        Receive(NetmodeID.Server);
+        Near(target.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Fire)??0,15.25,"distinct same-frame packet contributes independently");
+        GameMain.netMode=NetmodeID.SinglePlayer; NpcFixture(181); Receive(NetmodeID.Server);
+        Check(strikes==3 && relays==2,"slot reuse rejects both damage and points");
+        GameMain.netMode=NetmodeID.SinglePlayer;
+    }
+
+    static void CheckMeleeBuildup(Player player)
+    {
+        var root = NpcFixture(183); var body = NpcFixture(184,183);
+        var enchant = player.GetModPlayer<ElementalInfusionPlayer>();
+        enchant.InfusionElement = new(ElementType.Lightning, 8);
+        var item = new Item { type = ItemID.WoodenSword }; var state = new ElementalGlobalItem();
+        typeof(Item).GetField("_globals",All)!.SetValue(item, new GlobalItem[] { state });
+        var hit = new NPC.HitInfo { Damage = 1, HideCombatText = true };
+        using var engine = new MonoMod.RuntimeDetour.Hook(typeof(NPC).GetMethod("StrikeNPC",[typeof(NPC.HitInfo),typeof(bool),typeof(bool)])!,
+            (Func<NPC,NPC.HitInfo,bool,bool,int>)((_,_,_,_) => 1));
+        void SwingHit(NPC npc) => StrikeSystem.GetMethod("StrikeItem",All)!.Invoke(null,[npc,hit,false,false,player,item,null]);
+        state.UseAnimation(item, player); SwingHit(body); Clock(GameMain.GameUpdateCount + 4); SwingHit(root);
+        Near(root.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Lightning) ?? 0, 8, "one enchanted swing across parts");
+        state.UseAnimation(item, player); SwingHit(root);
+        Near(root.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Lightning) ?? 0, 16, "next swing attaches even on same tick");
+        enchant.InfusionElement = default;
+    }
+
+    static void CheckShardbindFinalBuildup()
+    {
+        GameMain.netMode = NetmodeID.SinglePlayer;
+        foreach (uint gap in new uint[] { 0, 1, 2 }) {
+            var target = NpcFixture(180);
+            target.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 1800);
+            Clock(20000);
+            Hit(target, new(ElementType.Ice, 1.6f), 1, projectile: Attach(new IceConeProj()).Projectile);
+            Clock(20000 + gap);
+            Near(Hit(target, new(ElementType.Ice, 50), 50, projectile: Attach(new ShardbindProj()).Projectile), 50,
+                "independent ice blast deals damage");
+            Check(target.HasBuff<ElementalAffliction_Freeze>(), $"independent blast freezes Wet target after {gap} ticks");
+        }
+        var shared = NpcFixture(180); var part = NpcFixture(181,180); var other = NpcFixture(182);
+        var attack = Attach(new IceConeProj()).Projectile;
+        foreach (var type in new[] { ElementType.Water, ElementType.Ice, ElementType.Lightning, ElementType.Fire }) {
+            var infusion = new ElementInfusion(type, 5);
+            Hit(shared, infusion, 0, projectile: attack);
+            Hit(part, infusion, 1, projectile: attack);
+            Clock(GameMain.GameUpdateCount + 6);
+            Near(Hit(shared, infusion, 1, projectile: attack), 1, "later body hits still deal damage");
+            Hit(other, infusion, 1, projectile: attack);
+            foreach (var npc in new[] { shared, other })
+                Near(npc.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(type) ?? 0, 5, $"one {type} attachment per attack and anchor");
+        }
+        attack.GetGlobalProjectile<ElementalGlobalProjectile>().BeginBuildupBatch();
+        Hit(part, new(ElementType.Lightning,5), 1, projectile: attack);
+        Near(shared.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Lightning) ?? 0, 10, "new pulse can attach in same tick");
+        shared = NpcFixture(180);
+        Hit(shared, new(ElementType.Lightning,5), 1, projectile: attack);
+        Near(shared.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Lightning) ?? 0, 5, "slot reused by a new NPC can attach");
+        foreach (var scenario in new[] { (Amount: 50f, Initial: 0f), (Amount: 30f, Initial: 0f), (Amount: 30f, Initial: 99f),
+            (Amount: 7.5f, Initial: 0f), (Amount: 0f, Initial: 99f) }) {
+            var wet = NpcFixture(180); var body = NpcFixture(181, 180); var dry = NpcFixture(182);
+            wet.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 1800);
+            body.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 1800);
+            var state = wet.GetGlobalNPC<ElementalGlobalNPC>();
+            state.SetCurrentAccumulation(ElementType.Ice, scenario.Initial);
+            var sequence = Attach(new ShardbindProj());
+            sequence.Projectile.damage = 100; sequence.Projectile.timeLeft = ShardbindVisualSettings.ControllerLifetime;
+            sequence.BindTarget(wet, wet.GetGlobalNPC<IceboundNPC>().SpawnSerial);
+            var element = sequence.Projectile.GetGlobalProjectile<ElementalGlobalProjectile>();
+            element.InfusionElement = ElementType.Ice;
+            element.InfusionElement = new(ElementType.Ice, scenario.Amount);
+            int pulses = 0;
+            void Damage(On_Projectile.orig_Damage orig, Projectile projectile) {
+                if (projectile != sequence.Projectile) { orig(projectile); return; }
+                pulses++;
+                bool final = pulses == 16;
+                Near(element.InfusionElement.Buildup, final ? scenario.Amount : 0, "only final blast exposes configured buildup to global hit hook");
+                foreach (var target in new[] { wet, body, dry }) {
+                    if (sequence.CanHitNPC(target) == false) continue;
+                    var modifiers = new NPC.HitModifiers { SourceDamage = StatModifier.Default };
+                    sequence.ModifyHitNPC(target, ref modifiers);
+                    element.ModifyHitNPC(projectile, target, ref modifiers);
+                    Near(modifiers.SourceDamage.ApplyTo(100), target == wet ? 150 : 100,
+                        "all shard and final damage use the status before this hit, including freeze-triggering blast");
+                    sequence.OnHitNPC(target, default, 1);
+                    Hit(target,element.InfusionElement,1,projectile:projectile);
+                }
+                Check(sequence.CanHitNPC(body) == false, "shared-life body cannot duplicate the pulse");
+                if (!final) {
+                    Near(state.GetCurrentAccumulation(ElementType.Ice) ?? 0, scenario.Initial, "15 early impacts leave ice progress unchanged");
+                    Check(WaterExposureNPC.IsWet(wet) && !wet.HasBuff<ElementalAffliction_Freeze>(), "early impacts retain Wet");
+                }
+            }
+            On_Projectile.Damage += Damage;
+            try {
+                for (int frame = 1; frame <= IceCycleBalance.LockBurstFrame + 1; frame++) {
+                    Clock((uint)(21000 + frame));
+                    sequence.AI();
+                    Near(element.InfusionElement.Buildup, scenario.Amount, "pulse restores cast-time buildup configuration");
+                }
+            }
+            finally { On_Projectile.Damage -= Damage; }
+            Check(pulses == 16, "one cast has 15 shards and one final blast");
+            bool freezes = scenario.Initial + scenario.Amount * 2 >= 100;
+            Check(wet.HasBuff<ElementalAffliction_Freeze>() == freezes && WaterExposureNPC.IsWet(wet) != freezes,
+                "only final hit may freeze and consume Wet");
+            if (!freezes) Near(state.GetCurrentAccumulation(ElementType.Ice) ?? 0, scenario.Initial + scenario.Amount * 2,
+                "wet target receives configured buildup exactly once");
+            Near(dry.GetGlobalNPC<ElementalGlobalNPC>().GetCurrentAccumulation(ElementType.Ice) ?? 0, scenario.Amount,
+                "independent dry splash target receives full fixed buildup once");
+        }
+    }
+
+    static void CheckMultipartHealthBars()
+    {
+        ElementalGlobalNPC State(NPC npc) => npc.GetGlobalNPC<ElementalGlobalNPC>();
+        ElementalGlobalNPC.BuildUpProgressContext Display(NPC npc) =>
+            (ElementalGlobalNPC.BuildUpProgressContext)typeof(ElementalGlobalNPC)
+                .GetMethod("GetIceHealthBarProgress", All)!.Invoke(State(npc), [npc])!;
+        var snapshots = new List<object>();
+        void Capture(string name, NPC npc) {
+            var p = Display(npc);
+            snapshots.Add(new { Name=name, p.Current, p.Max, p.VisualTime, p.InAffliction,
+                p.Duration, p.MaxDuration, p.UpdateCounter, Cooldown=npc.GetFreezeCooldown() });
+        }
+
+        var core = NpcFixture(150); core.type = NPCID.MoonLordCore; core.dontTakeDamage = true;
+        var left = NpcFixture(151); left.type = NPCID.MoonLordHand; left.ai[3] = 150;
+        var right = NpcFixture(152); right.type = NPCID.MoonLordHand; right.ai[3] = 150;
+        var head = NpcFixture(153); head.type = NPCID.MoonLordHead; head.ai[3] = 150;
+        var otherCore = NpcFixture(154); otherCore.type = NPCID.MoonLordCore;
+        var otherHead = NpcFixture(155); otherHead.type = NPCID.MoonLordHead; otherHead.ai[3] = 154;
+        foreach (NPC target in new[] { left, right, head }) {
+            Clock((uint)(20000 + target.whoAmI * 2));
+            State(target).OnHitByElement(ElementType.Ice, target,
+                new NPC.HitInfo { Damage=1, SourceDamage=1 }, 0, 20);
+        }
+        Near(Display(core).Current, 60, "head and both hands accumulate on hidden Moon Lord core");
+        foreach (NPC part in new[] { left, right, head }) {
+            Check(ReferenceEquals(Display(part), Display(core)), "each Moon Lord part reads shared ice progress");
+            Check(Display(part).VisualTime > 0, "unfrozen parts display buildup even while core is invulnerable");
+            Check(!State(part).ElementAccumulation.ContainsKey(ElementType.Ice), "display does not copy state into parts");
+        }
+        Near(Display(otherHead).Current, 0, "second Moon Lord has independent buildup");
+        Capture("ice-buildup", head);
+
+        var shared = Display(core);
+        shared.InAffliction = true; shared.Current = 0; shared.Duration = 180; shared.MaxDuration = 240;
+        shared.UpdateCounter = 11;
+        foreach (NPC part in new[] { left, right, head }) {
+            Check(Display(part).InAffliction, "every part displays frozen state");
+            Near(Display(part).Duration, 180, "every part displays same remaining freeze duration");
+        }
+        Capture("ice-frozen", head);
+        shared.InAffliction = false; shared.Current = 0; shared.VisualTime = 120;
+        FreezeCD(core, 900);
+        foreach (NPC part in new[] { left, right, head }) Near(part.GetFreezeCooldown(), 900, "every part shares frost cooldown");
+        Capture("ice-cooldown", head);
+
+        // Exercise actual extra-AI deserialization: display must follow the replacement context, not cache old state.
+        shared.Current = 45; shared.VisualTime = 0;
+        using (var bytes = new MemoryStream()) {
+            State(core).SendExtraAI(core, new Terraria.ModLoader.IO.BitWriter(), new BinaryWriter(bytes));
+            bytes.Position = 0;
+            GameMain.netMode = NetmodeID.MultiplayerClient;
+            State(core).ReceiveExtraAI(core, new Terraria.ModLoader.IO.BitReader(new BinaryReader(new MemoryStream(new byte[1]))), new BinaryReader(bytes));
+            Check(!ReferenceEquals(shared, Display(head)), "client display follows newly received core context");
+            Near(Display(head).Current, 45, "client head reads synchronized accumulation");
+            Check(Display(head).VisualTime > 0, "first received buildup is immediately visible on client head");
+            Near(head.GetFreezeCooldown(), 900, "client head reads synchronized cooldown");
+            GameMain.netMode = NetmodeID.SinglePlayer;
+        }
+
+        foreach (var group in new[] {
+            (NPCID.SkeletronHead, NPCID.SkeletronHand, 1),
+            (NPCID.SkeletronPrime, NPCID.PrimeLaser, 1),
+            (NPCID.Golem, NPCID.GolemFistLeft, -1),
+            (NPCID.MartianSaucerCore, NPCID.MartianSaucerCannon, 0),
+            (NPCID.PirateShip, NPCID.PirateShipCannon, 0) }) {
+            var parent = NpcFixture(156); parent.type = group.Item1;
+            var part = NpcFixture(157); part.type = group.Item2;
+            int previousGolem = NPC.golemBoss;
+            if (group.Item3 >= 0) part.ai[group.Item3] = parent.whoAmI;
+            else NPC.golemBoss = parent.whoAmI;
+            State(parent).SetCurrentAccumulation(ElementType.Ice, 37);
+            Near(Display(part).Current, 37, "other multipart boss reads shared ice buildup");
+            NPC.golemBoss = previousGolem;
+        }
+        var ordinary = NpcFixture(158); State(ordinary).SetCurrentAccumulation(ElementType.Ice, 12);
+        Near(Display(ordinary).Current, 12, "ordinary NPC keeps local progress");
+        var worm = NpcFixture(159); var segment = NpcFixture(160,159);
+        State(worm).SetCurrentAccumulation(ElementType.Ice, 27);
+        Near(Display(segment).Current, 27, "worm keeps existing shared-root state");
+        shared = Display(core); shared.Current = 0; shared.VisualTime = 0; FreezeCD(core, 0);
+        foreach (NPC part in new[] { left, right, head }) Near(Display(part).VisualTime, 0, "clearing root hides every part");
+        var output = Path.Combine(rootDirectory, ".vissandbox/ice-cycle-checks");
+        Directory.CreateDirectory(output);
+        File.WriteAllText(Path.Combine(output, "ice-progress-snapshots.json"), System.Text.Json.JsonSerializer.Serialize(snapshots));
+    }
+}

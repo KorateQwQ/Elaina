@@ -38,9 +38,22 @@ internal static class RingChecks
         for (int i = 0; i < 160; i++)
         {
             float a = i * MathHelper.TwoPi / 160, b = (i + 1) * MathHelper.TwoPi / 160;
-            d.Line(center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius,
-                center + new Vector2(MathF.Cos(b), MathF.Sin(b)) * radius, Color.White, width);
+            LegacyLine(d, center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius,
+                center + new Vector2(MathF.Cos(b), MathF.Sin(b)) * radius, width);
         }
+    }
+
+    private static void LegacyLine(RasterDrawing d, Vector2 a, Vector2 b, float width)
+    {
+        Vector2 delta = b - a;
+        if (delta.LengthSquared() < .001f) return;
+        if (width * d.Device <= 1.5f)
+            d.Batch.Draw(d.Texture("LineAA"), d.Origin + a * d.Scale, null, Color.White * Math.Min(1, width * d.Device),
+                MathF.Atan2(delta.Y, delta.X), new Vector2(0, 1.5f),
+                new Vector2(delta.Length() * d.Scale / 3, Math.Max(1, width * d.Device) * d.Scale / d.Device), SpriteEffects.None, 0);
+        else
+            d.Batch.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value, d.Origin + a * d.Scale, new Rectangle(0, 0, 1, 1), Color.White,
+                MathF.Atan2(delta.Y, delta.X), new Vector2(0, .5f), new Vector2(delta.Length(), width) * d.Scale, SpriteEffects.None, 0);
     }
 
     internal static void Run(RasterDrawing d, string output)

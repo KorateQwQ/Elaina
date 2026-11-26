@@ -6,7 +6,6 @@ using KL.Dusts;
 using KL.Dusts.Burst;
 using KL.Dusts.Glow;
 using KL.Dusts.Smoke;
-using KL.Dusts.Stone;
 using KL.Extensions;
 using KL.Projectiles;
 using KL.Utils;
@@ -174,6 +173,13 @@ public class IceConeProj : ElainaBasicProjectile
         DrawTrail(state, points, MathHelper.SmoothStep(0f, 1f, remainingRatio));
     }
 
+    public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
+    {
+        float radius = 80;
+        
+        return (targetHitbox.Center - projHitbox.Center).ToVector2().Length()<radius;
+    }
+
     private void ConnectTrailToBreakPoint()
     {
         if (Main.dedServ || managedTrail == null || lastTrailState.Texture == null || OldCenter is not { Length: > 1 })
@@ -186,7 +192,7 @@ public class IceConeProj : ElainaBasicProjectile
         float distance = delta.Length();
         TrailManager.CreateOrUpdateTrail(ref managedTrail, OldCenter, TrailLifetime,
             lastTrailState, DrawReleasedTrail,
-            layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles, bloom: true);
+            layer: LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, timing: LayerDrawRequestSystem.DrawTiming.Before, bloom: true);
 
         if (distance < 0.5f)
             return;
@@ -204,7 +210,7 @@ public class IceConeProj : ElainaBasicProjectile
         var connectionState = (lastTrailState.Texture, Vector2.Zero, lastTrailState.TimeOffset);
         TrailManager.CreateOrUpdateTrail(ref connectionHandle, connection, BreakFadeTime,
             connectionState, DrawBreakConnection,
-            layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            layer: LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, timing: LayerDrawRequestSystem.DrawTiming.Before,
             bloom: true, shrinkPathOnExpire: false);
     }
 
@@ -309,19 +315,20 @@ public class IceConeProj : ElainaBasicProjectile
                 lifetime: TrailLifetime,
                 trailState,
                 DrawManagedTrail,
-                layer: LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+                layer: LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, timing: LayerDrawRequestSystem.DrawTiming.Before,
                 bloom: true);
             lastTrailState = trailState;
         }
 
-        LayerDrawRequestSystem.RequestBloom("Elaina:IceCone", LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, DrawVisual);
+        LayerDrawRequestSystem.RequestBloom("Elaina:IceCone", LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, DrawVisual);
     }
 
     public override void ModifyHitNPC(NPC target, ref NPC.HitModifiers modifiers)
     {
-        if (WaterExposureNPC.IsWet(target)) modifiers.SourceDamage *= IceCycleBalance.ConeWetDamageMultiplier;
         base.ModifyHitNPC(target, ref modifiers);
+        if (WaterExposureNPC.IsWet(target))
+            modifiers.SourceDamage *= SkillHitBalance.IceConeWetDamageMultiplier;
     }
 
     public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
@@ -337,9 +344,7 @@ public class IceConeProj : ElainaBasicProjectile
         KLBasicDust.SpawnDust(Projectile.Center,ModContent.DustType<BurstPoint>(),velocity:Main.rand.NextVector2Circular(0.1f,0.1f),lifeTime:12,
             color:new Color(150,220,255,0),scale:new Vector2(1.2f));
         
-        KLBasicDust.SpawnDustsCircle(Projectile.Center+Main.rand.NextVector2Circular(50,50), ModContent.DustType<IceStone>(), 5, -dir*15.1f, 
-            3.28f,28, new Color(255, 255, 255, 255),new Vector2(0.4f),
-            0,20,lifeOffset:2,scaleOffset:new Vector2(0.2f,0.2f));
+        IceShardDust.Emit(Projectile.Center, Projectile.rotation);
         
         KLBasicDust.SpawnDustsCircle(Projectile.Center+Main.rand.NextVector2Circular(10,10), ModContent.DustType<BurstDust>(), 5, -dir*10.1f, 
             1.88f,15, new Color(180, 220, 255, 150),new Vector2(1.2f,0.8f)*0.5F,

@@ -1,6 +1,8 @@
 # 正式技能面板离线验证
 
-`-FireOnly -LocalizationOnly` 检查火焰射线与炎爆领域的中英文正式说明，包含新增的领域增伤、维持、15 秒剩余上限和右键快捷施法。`fire-beam-bottom` / `fire-burst-bottom` 同时导出详情滚动到底部，覆盖长英文说明末尾；每种语言覆盖 720p、默认及 125% UI。参数是与 2026-11-09 配置对应的预览夹具（射线 40% 领域增伤，炎爆 350 魔力/1 层/60 秒恢复），实际玩法验证见 `Tools/FireLaserChecks`。
+`-NodeLabelsOnly -SkipChecks -Configuration Release` 检查星图缩小时的节点名称：75% 及以上保持显示，65%–75% 随当前缩放平滑改变透明度，65% 及以下跳过名称与文字衬底绘制；悬停提示和右侧详情保留。此规则直接由 `_zoom` 决定，没有新增计时动画，也不改变现有相机的独立时钟。正式 `DrawNode` 每次从源码抽取，覆盖 50%、65%、70%、75%、默认 84%，分辨率为 1366×768/100%、1920×1080/112.5%、3840×2160/200%；50% 另绘制悬停提示并检查提示仍被请求。英文加 `-Culture en-US`。输出为 `output/<culture>/node-labels` 下的原生尺寸 PNG。2026-11-10：中英文共 36 张离线图导出成功，检查代表画面的隐藏、过渡、恢复与悬停；正式项目 Release 的 `Compile` 目标通过。未执行模组打包及游戏内重载验证。
+
+`-FireOnly -LocalizationOnly` 检查火焰射线与炎爆（火焰领域）的中英文正式说明，包含领域增伤、维持、15 秒剩余上限，以及写在炎爆说明中的右键快捷施法。`fire-beam-bottom` / `fire-burst-bottom` 同时导出详情滚动到底部，覆盖长英文说明末尾；每种语言覆盖 720p、默认及 125% UI。参数是与 2026-11-09 配置对应的预览夹具（射线 40% 领域增伤，炎爆 350 魔力/1 层/60 秒恢复），实际玩法验证见 `Tools/FireLaserChecks`。
 
 `-RingsOnly -SkipChecks -Configuration Release` 重放正式 `LevelUpToastPainter`，使用与 `LevelUpToastUI` 相同的定位公式、1.35 倍自身缩放和真实 UI 矩阵，输出 1366×768/100%、1864×977/125%、1920×1080/100%/112.5%/150%、2560×1440/150%、3840×2160/200% 下的入场、回弹、停留、淡出共 28 张图，以及未缩放的局部裁切，位于 `output/<culture>/rings`。圆环直接加载正式 `UICircle.xnb` 在 FNA GPU 中绘制；框架圆角/阴影沿用本工具已有 CPU SDF 适配，不是游戏截图。对应面积覆盖和状态恢复检查、Shader 重建入口见 `../ConstellationRasterChecks/README.md`。预览的 SpriteBatch 状态适配现在也保留实际矩阵和自定义 Effect 参数，支持圆环绘制后恢复调用方批次。
 

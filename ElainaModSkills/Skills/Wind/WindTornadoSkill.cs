@@ -3,7 +3,7 @@ using Terraria.DataStructures;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.Wind;
 
-//[SkillUIInfo(State = 8, Pixels = 500)]
+[SkillUIInfo(State = 8, Pixels = 500)]
 public class WindTornadoSkill : ElainaSkill
 {
     public override void Initialize()
@@ -13,13 +13,13 @@ public class WindTornadoSkill : ElainaSkill
         base.Initialize();
     }
 
-    public override bool PreUseSkill(IEntitySource source)
+    protected override bool OnCast(IEntitySource source)
     {
         CurrentCD = 0.1f;
         Projectile projectile = Projectile.NewProjectileDirect(source,WandCenter , WandDirection*0, ModContent.ProjectileType<WindTornado>(), 
             10, 2);
         
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 
     public override bool PreUpdateCD()

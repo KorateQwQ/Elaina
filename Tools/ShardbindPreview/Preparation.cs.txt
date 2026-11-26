@@ -1,0 +1,38 @@
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+public partial class ShardbindProj
+{
+    private static IceCone3DUnit CreatePreviewCone(Vector3 position, Vector3 target, Vector3 velocity,
+        int triggerFrame, int count, int index) => Revised
+        ? IceCone3DUnit.CreatePrepared(position, target, velocity, count, index, ShardbindPreview.PreviewTimeline.ConfirmTick)
+        : new IceCone3DUnit(position, target, velocity, triggerFrame, 135);
+}
+public partial class IceCone3DUnit
+{
+    int retreatChecks;
+    Vector3 previousPreviewPosition;
+    bool previousWaiting;
+    public void ValidatePreparation()
+    {
+        if (!Prepared) return;
+        if (Timer < LaunchTick && (HasArrived || ArrivedThisUpdate))
+            throw new InvalidOperationException("冰锥在发射前抵达目标。");
+        if (previousWaiting && Waiting && Position3D != previousPreviewPosition)
+            throw new InvalidOperationException("已凝结的冰锥在等待发射期间发生位移。");
+        if (!Waiting && Timer < LaunchTick && MotionTime < BackwardFlyTime - 1)
+        {
+            if (Vector3.Dot(currentVelocity3D, forwardVelocity3D) >= 0)
+                throw new InvalidOperationException("发射前没有沿朝向反向后撤。");
+            retreatChecks++;
+        }
+        if (Timer == LaunchTick && retreatChecks != BackwardFlyTime - 1)
+            throw new InvalidOperationException("发射前后撤未连续完成。");
+        if (Timer == LaunchTick - 1
+            && Vector3.Distance(Position3D - targetPosition3D, ReadyOffset) > .05f)
+            throw new InvalidOperationException("后撤终点没有到达所设计的三维准备位置。");
+        if (MotionTime >= BackwardFlyTime + BurstFlyTime
+            && Vector3.Distance(Position3D - targetPosition3D, RestOffset) > .05f)
+            throw new InvalidOperationException("凝结冰刺没有恢复正式代码的穿入深度。");
+        previousPreviewPosition = Position3D;
+        previousWaiting = Waiting;
+    }
+}

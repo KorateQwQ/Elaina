@@ -1,0 +1,75 @@
+global using KL.Utils;
+global using KL.Dusts.Stone;
+global using KL.Projectiles;
+namespace KL.Extensions { }
+namespace Terraria.ModLoader
+{
+    public class Mod { }
+    public abstract class ModDust { }
+    public interface ILoadable { void Load(Mod mod); void Unload(); }
+}
+namespace Terraria
+{
+    public static class PreviewRandomExtensions
+    {
+        public static float NextFloat(this PreviewRandom random, float max) => random.NextFloat(0, max);
+    }
+    public class Projectile : Entity { public Vector2 Center; public int damage; }
+    public static class Lighting
+    {
+        public static Color GetColor(int x, int y) => Color.White;
+        public static void AddLight(Vector2 position, Vector3 color) { }
+    }
+}
+namespace KL.Utils
+{
+    public static class AssetManager
+    {
+        static readonly Dictionary<string, Texture2D> textures = new();
+        public static void Register(string path, Texture2D texture) => textures.Add(path, texture);
+        public static Texture2D GetTexture(string path) => textures[path];
+    }
+}
+namespace KL.Dusts
+{
+    public static class KLPreviewPhysics
+    {
+        public static bool Update(Dust dust)
+        {
+            var info = (KLBasicDust.DustInfo)dust.customData;
+            if (info == null) return false;
+            info.CurrentLifeTime--;
+            info.LifeProgress = 1 - info.CurrentLifeTime / info.LifeTime;
+            dust.life = info.LifeTime;
+            dust.remaining = info.CurrentLifeTime;
+            dust.position += dust.velocity;
+            dust.rotation = dust.velocity.ToRotation();
+            if (info.CurrentLifeTime < 0) dust.active = false;
+            return false;
+        }
+    }
+    public static class ExtraDustExtensions
+    {
+        public static KLBasicDust.DustInfo DustInfo(this Dust dust) => (KLBasicDust.DustInfo)dust.customData;
+        public static Color GetRealColor(this Dust dust, Color color) => color;
+    }
+}
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice
+{
+    public static class PreviewAssets { public static Effect WindEffect, SheetEffect; }
+}
+namespace KL.Drawing
+{
+    public static class PreviewRotation
+    {
+        public static Vector2 SafeNormalize(this Vector2 v, Vector2 fallback) => v.LengthSquared() > 0 ? Vector2.Normalize(v) : fallback;
+        public static float ToRotation(this Vector2 v) => MathF.Atan2(v.Y, v.X);
+        public static Vector2 RotatedBy(this Vector2 v, double rotation) => Vector2.Transform(v, Matrix.CreateRotationZ((float)rotation));
+    }
+    public partial class DrawHelper
+    {
+        public static void DrawInWorld(Texture2D texture, Vector2 position, Color color, Vector2 scale, float rotation) =>
+            Main.spriteBatch.Draw(texture, position - Main.screenPosition, null, color, rotation,
+                new Vector2(texture.Width, texture.Height) * .5f, scale, SpriteEffects.None, 0);
+    }
+}

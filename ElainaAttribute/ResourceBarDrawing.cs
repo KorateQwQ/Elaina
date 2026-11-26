@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.ElainaAttribute;
 
@@ -120,25 +120,20 @@ internal sealed class ResourceBarDrawing
     }
 
     // Optional "current/max" readout centred on the bar; same number font and outline idea as the skill bar countdown.
-    public static void DrawValue(SpriteBatch batch, Matrix ui, Vector2 origin, bool isMana, DynamicSpriteFont font, string text)
+    public static void DrawValue(SpriteBatch batch, Matrix ui, Vector2 origin, bool isMana, ConstellationFont font, string text)
     {
-        // Hot-reload friendly tunables: font size in UI px and XNB em size. NotoSerifSC digits centre on the line box.
-        float size = 12, em = 48;
-        float h = isMana ? ManaHeight : LifeHeight, k = size / em;
-        var extent = font.MeasureString(text) * k;
+        float scale = new Vector2(ui.M11, ui.M12).Length(), em = 12 * scale;
+        float h = isMana ? ManaHeight : LifeHeight;
+        var extent = new Vector2(font.Measure(text, em), font.Height(text, em)) / scale;
         var topLeft = origin + new Vector2((Length - extent.X) / 2, (h - extent.Y) / 2);
         Begin(batch, ui);
-        foreach (var (radius, alpha) in ValueHalo)
-            for (int i = 0; i < 8; i++)
-            {
-                float angle = i * Tau / 8;
-                batch.DrawString(font, text, topLeft + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius, ValueHaloInk * alpha,
-                    0, Vector2.Zero, k, SpriteEffects.None, 0);
-            }
-        batch.DrawString(font, text, topLeft, ValueInk, 0, Vector2.Zero, k, SpriteEffects.None, 0);
+        // One screen pixel of separation; repeated subpixel rings darken small counters excessively.
+        foreach (var offset in ValueOutline)
+            font.Draw(batch, text, topLeft + offset / scale, ValueHaloInk * .65f, em, ui);
+        font.Draw(batch, text, topLeft, ValueInk, em, ui);
         batch.End();
     }
-    private static (float Radius, float Alpha)[] ValueHalo => [(.5f, .5f), (1f, .45f)];
+    private static readonly Vector2[] ValueOutline = [new(-1, 0), new(1, 0), new(0, -1), new(0, 1)];
     private static Color ValueInk => new(248, 245, 252);
     private static Color ValueHaloInk => new(14, 10, 26);
 

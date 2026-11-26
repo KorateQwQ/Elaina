@@ -1,8 +1,17 @@
 Snippets: {
-	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]"
+	MagicPoint: "[klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power]"
 	Shield: "[klicon/16,0:伊蕾娜/Snippets/ShieldIcon]"
 	NoLifeConversion: "[c/E28096:Cannot be cast through Ashen Witch's life conversion]"
+	MagicCrystalCost: "[klicon/16,0:伊蕾娜/ElainaAttribute/ResourceBarAssets/Star][c/BBA7EA:{$Mods.伊蕾娜.Terms.MagicCrystal.Name}] ×{0}"
 	HiddenSkill: the ??? skill
+}
+
+Values: {
+	FireDamage: "{0} Fire damage"
+	IceDamage: "{0} Ice damage"
+	WaterDamage: "{0} Water damage"
+	MagicDamage: "{0} magic damage"
+	Heal: "{0} life"
 }
 
 SkillName: {
@@ -28,15 +37,22 @@ SkillName: {
 }
 
 SkillDesc: {
-	FireBurstSkill: Unleash a Flame Burst domain around yourself for {4:0.##}s, consuming {1:0.##} {$Mods.伊蕾娜.SkillInfo.Snippets.MagicPoint}. Enemies inside are repeatedly struck by Flame Bursts, which fall faster the more enemies there are. Each deals {0} Fire damage and ignites within two hits. A burst that hits only one enemy deals {6} instead, and [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] enemies take {7} extra. Each enemy ignited inside extends the domain by {5:0.##}s, up to {8:0.##}s remaining. Casting again replaces the previous domain. Stores up to {2} charges and restores one every {3:0.##} seconds.
-	FireLaserSkill: Hold to charge for {0:0.##}s, then channel a flame beam. Every {1:0.##}s, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {2} Fire damage to enemies along the beam. Hits ignite enemies in about {4:0.##}s. Higher damage speeds up ignition, requiring at most {5:0.##}% of their maximum life in damage. Burning lasts 10s and further hits refresh it. Inside your own Flame Burst domain, beam damage increases by {6:0.#}% and its remaining duration does not decrease while firing. Right-click while channeling to quick-cast an equipped Flame Burst.
+	WindTornadoSkill: Summons a vortex of wind blades at the tip of your wand.
+	FireBurstSkill:
+		'''
+		Unleash a flame domain around yourself for {4:0.##}s. Enemies inside are repeatedly struck by Flame Bursts, which fall faster the more enemies there are.
+		Each Flame Burst deals {0} and adds {8} [klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:Burning] buildup. It deals {6} extra when it hits only one enemy. Deals {9:0.#}% more damage against enemies affected by [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:Freeze] or Frost Fracture.
+		Each enemy ignited inside extends the domain by {5:0.##}s, up to {7:0.##}s remaining. Casting again replaces the previous domain.
+		While channeling {$Mods.伊蕾娜.SkillInfo.SkillName.FireLaserSkill}, right-click to quick-cast an equipped Flame Burst.
+		'''
+	FireLaserSkill: Hold to charge for {0:0.##}s, then channel a flame beam. Every {1:0.##}s, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power], deals {2} to enemies along the beam and adds {4:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:Burning] buildup. Deals {6:0.#}% more damage against enemies affected by [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:Freeze] or Frost Fracture. Inside your own flame domain, beam damage increases by {5:0.#}% and its remaining duration does not decrease while firing.
 	FlightSkill:
 		'''
 		While riding the broom, increases flight speed by {0:0.##}% and enables the Broom Acceleration key:
-		Hold it to boost to {1:0.##}x speed, costing {2:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] per second.
-		Tap it to dash in your movement direction, costing {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] with a {4:0.##}-second cooldown.
+		Hold it to boost to {1:0.##}x speed, costing {2:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] per second.
+		Tap it to dash in your movement direction, costing {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] with a {4:0.##}-second cooldown.
 		'''
-	HealSkill: Restores {0} life to you or one nearby teammate over {2} seconds. Healing stacks.
+	HealSkill: Restores {0} to you or one nearby teammate over {2} seconds. Healing stacks.
 	AlchemySkill:
 		'''
 		Right-click the [klicon/16,0:Item:Cauldron][c/E8C27A:Alchemy Cauldron] to open the recipe notebook, then research a recipe to brew it. Some recipes also require holding the matching recipe item.
@@ -44,12 +60,12 @@ SkillDesc: {
 		'''
 	FrostVeilSkill:
 		'''
-		Grants you and nearby teammates 3 frost shields each. Each hit consumes one shield to block {1:0.##} damage (5% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]).
+		Grants you and nearby teammates 3 frost shields each. Each hit consumes one shield to block {1:0.##} damage (5% of maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power]).
 		Shields last 60 seconds. If any remain at expiry, they refill for free and renew; once all are consumed, cast again.
 		'''
 	DollControlSkill:
 		'''
-		Consumes 20 [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] to summon {0} dolls that follow you until dismissed.
+		Consumes 20 [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] to summon {0} dolls that follow you until dismissed.
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_MineChain]Hold {2} and drag over an area, then release to have the dolls mine its blocks or break its walls. Targets too far from you wait until you come closer.
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_OpenChest]Right-click a distant chest to have a doll open it: that doll brings back items you take out, and another idle doll delivers items you put in.
 		[klicon/16,0:伊蕾娜/ElainaModSkills/Skills/DollControl/Commands/DollCommand_PlacePlanters]Click or drag a block beyond your reach to have a doll place it. Dolls tend, plant, and harvest planters placed while they are out.
@@ -67,56 +83,58 @@ SkillDesc: {
 		'''
 	ShardbindSkill:
 		'''
-		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} Ice damage in total.
+		Summons 15 ice shards that hunt down an enemy near the cursor, each dealing a small area hit, then unleashes a large ice burst for {0} in total.
+		The final burst adds {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:Freeze] buildup.
 		Binds the target in ice for the duration, leaving it unable to act.
-		Deals 150% more damage to [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
-		Starts sealed. Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] yourself unlocks one cast.
+		Deals {2:0.#}% more damage and doubles Freeze buildup against [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
+		Starts sealed. Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:Freeze] yourself unlocks one cast.
 		'''
 	IceConeSkill:
 		'''
-		Continuously fires ice cones, each dealing {0} Ice damage and adding {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] buildup.
-		Deals 12.5% more damage and doubles Freeze buildup against [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
-		Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FFFF:Freeze] yourself unseals one use of {2}.
+		Continuously fires ice cones, each dealing {0} and adding {1:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:Freeze] buildup.
+		Deals {3:0.#}% more damage and doubles Freeze buildup against [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] enemies.
+		Triggering [klicon/16,0:KL/Drawing/Snippets/Icons/IceIcon][c/8FE3FF:Freeze] yourself unseals one use of {2}.
 		'''
 	WaterBallSkill:
 		'''
-		Hold to conjure a water orb, then release to launch it, dealing {0} damage.
+		Conjures a water orb with a {3}-second charge. Hold to keep aiming, or release to launch it once fully charged, dealing {0}.
 		After traveling a certain distance, the orb bursts in a wide splash behind the target along its flight direction. At close range, it bursts in a circular splash instead.
-		Inflicts [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] on non-burning enemies. Deals {1:0.#}% more damage to burning enemies and heavily consumes their burn.
+		Adds {2} [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] buildup on hit. Against [klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:Burning] enemies, deals {1:0.#}% more damage.
 		'''
 	WaterLaserSKill:
 		'''
-		Hold to channel a water beam. Every {0:0.##} seconds, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] and deals {1} Water damage, plus {2:0.#}% splash damage to enemies near the end of the beam.
-		About 3 seconds of sustained hits make enemies [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet]. Against burning enemies, the stream first rapidly consumes the burn.
+		Hold to channel a water beam. Every {0:0.##} seconds, consumes {3:0.##} [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] and deals {1}, plus {2:0.#}% splash damage to enemies near the end of the beam.
+		Each hit adds {4:0.###} [klicon/16,0:KL/Drawing/Snippets/Icons/WaterIcon][c/66C3E8:Wet] buildup. Against [klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:Burning] enemies, deals {5:0.#}% more damage.
 		'''
 	MagicMissileSkill:
 		'''
-		Deals {0} magic damage to the target.
-		Passive: Magic Missile ignores enemy defense. After hitting the same target 5 times consecutively, it deals splash damage equal to 200% of Magic Missile's damage to other nearby enemies (the main target is not affected).
+		Deals {0} to the target.
+		Passive: Magic Missile ignores enemy defense. After hitting the same target 5 times consecutively, it deals splash damage equal to {1:0.#}% of Magic Missile's damage to other nearby enemies (the main target is not affected).
 		'''
 	MultiMissileSkill:
 		'''
-		Channels to summon floating magic orbs that follow you, up to {0} at a time.
-		Each orb fires a Magic Missile at the nearest enemy, dealing {1} magic damage.
+		Summons {0} floating orbs in succession. They follow you until they fire. Once all have fired, you can summon another set.
+		Each orb fires a Magic Missile at the nearest enemy, dealing {1}.
+		With Multi-Shot equipped, right-click while casting Magic Missile to cast Multi-Shot.
 		'''
 	AshenWitchSkill:
 		'''
-		Elaina uses [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] to cast skills. Each point of vanilla maximum mana gained increases her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] by 1. Her bonus life is reduced by 50%. Each point of maximum life lost to Ashen Witch increases her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] by 1.
+		Elaina uses [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] to cast skills. Each point of vanilla maximum mana gained increases her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] by 1. Her bonus life is reduced by 50%. Each point of maximum life lost to Ashen Witch increases her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] by 1.
 
-		When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] is insufficient, she can spend 1% of her maximum life to restore 1% of her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] for casting. This is unavailable while her current life is below 10% of her maximum life.
+		When [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] is insufficient, she can spend 1% of her maximum life to restore 1% of her maximum [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] for casting. This is unavailable while her current life is below 10% of her maximum life.
 		'''
 	MagicBarrierSkill:
 		'''
 		Requires the Ashen Witch skill to be enabled.
-		Activate the barrier just before taking damage. It reduces damage by the same percentage of maximum life lost to Ashen Witch, consuming [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power] equal to the damage blocked.
+		Activate the barrier just before taking damage. It reduces damage by the same percentage of maximum life lost to Ashen Witch, consuming [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power] equal to the damage blocked.
 		Current damage reduction: {0:0.#}%
 		When affected by certain damage-over-time effects, the barrier also stays deployed, granting complete immunity to those effects.
 		'''
 	WindSlashSkill:
 		'''
-		Unleashes a piercing wind blade that deals {0} magic damage to every enemy in its path.
+		Unleashes a piercing wind blade that deals {0} to every enemy in its path.
 		Weaker enemies are knocked back along the blade's direction.
-		After touching a burning enemy, the blade ignites enemies hit afterward.
+		After touching a [klicon/16,0:KL/Drawing/Snippets/Icons/FireIcon][c/FF8F5A:Burning] enemy, the blade ignites enemies hit afterward.
 		'''
 }
 
@@ -148,7 +166,7 @@ SkillTotalInfo:
 	Cost: {2}
 	Effect:
 	'''
-LackOfMagic: Not Enough [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FFFF:Magic Power]
+LackOfMagic: Not Enough [klicon/16,0:伊蕾娜/Snippets/MagicStarIcon][c/4C91FF:Magic Power]
 
 FlightStats: {
 	Speed: Broom speed

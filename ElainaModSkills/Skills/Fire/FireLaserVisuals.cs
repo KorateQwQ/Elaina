@@ -5,7 +5,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 /// <summary>游戏与 FNA 预览共享的火焰射线主体与缎带绘制入口；资源归 ModContent 管理。</summary>
 public sealed class FireLaserVisuals : ModSystem
 {
-    internal const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.Projectiles;
+    internal const LayerDrawRequestSystem.DrawTargetLayer Layer = LayerDrawRequestSystem.DrawTargetLayer.OverPlayers;
     private static FireLaserRibbonRenderer renderer;
     private static FireLaserBodyRenderer bodyRenderer;
 
@@ -44,14 +44,9 @@ public sealed class FireLaserVisuals : ModSystem
         renderer ??= new FireLaserRibbonRenderer(Main.instance.GraphicsDevice,
             ModContent.Request<Effect>("伊蕾娜/Effects/Content/FireLaserRibbon", AssetRequestMode.ImmediateLoad).Value, Load);
         Main.spriteBatch.End();
-        try
-        {
-            renderer.Draw(start, direction, length, time / 60f, foreground, Main.screenPosition,
-                Main.GameViewMatrix.TransformationMatrix);
-        }
-        finally
-        {
-            BeginDraw();
-        }
+        renderer.Draw(start, direction, length, time / 60f, foreground, Main.screenPosition,
+            Main.GameViewMatrix.TransformationMatrix);
+        BeginDraw();
+
     }
 }

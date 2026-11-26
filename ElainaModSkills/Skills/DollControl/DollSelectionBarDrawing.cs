@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.UICore;
 
 namespace 伊蕾娜.ElainaModSkills.Skills.DollControl;
 
@@ -23,8 +23,8 @@ internal static class DollSelectionBarDrawing
     internal readonly record struct Layout(Rectangle Panel, Rectangle Start,
         Rectangle BringBack = default, Rectangle Chain = default);
 
-    /// <summary>Stars 为炼金手记的 NotebookStars 图集（预乘 alpha）。</summary>
-    internal readonly record struct Art(Texture2D Pixel, Texture2D Stars, DynamicSpriteFont Serif, DynamicSpriteFont Sans);
+    /// <summary>Stars 复用技能面板的多尺寸预制四芒星。</summary>
+    internal readonly record struct Art(Texture2D Pixel, UIRasterStar Stars, UIRasterFont Serif, UIRasterFont Sans, UIRasterShapes Shapes);
 
     internal static Layout GetLayout(Vector2 viewport)
     {
@@ -100,13 +100,6 @@ internal static class DollSelectionBarDrawing
         bool Contains(Rectangle rect) => rect.Contains(new Point((int)pointer.X, (int)pointer.Y));
         void Box(float x, float y, float width, float height, Color color)
             => batch.Draw(pixel, new Vector2(x, y), Unit, color, 0, Vector2.Zero, new Vector2(width, height), SpriteEffects.None, 0);
-        void Line(Vector2 a, Vector2 b, Color color)
-        {
-            Vector2 delta = b - a;
-            if (delta.LengthSquared() < .001f) return;
-            batch.Draw(pixel, a, Unit, color, MathF.Atan2(delta.Y, delta.X), new Vector2(0, .5f),
-                new Vector2(delta.Length(), 1), SpriteEffects.None, 0);
-        }
         void Frame(float x, float y, float width, float height, Color color)
         {
             Box(x, y, width, 1, color); Box(x, y + height - 1, width, 1, color);
@@ -121,75 +114,24 @@ internal static class DollSelectionBarDrawing
             Box(x + width - arm, y + height - 1, arm, 1, color); Box(x + width - 1, y + height - arm, 1, arm - 1, color);
         }
         void Arc(Vector2 center, float radius, float from, float sweep, Color color)
-        {
-            int segments = Math.Max(2, (int)MathF.Ceiling(sweep / 360 * 96));
-            Vector2 Point(int i)
-            {
-                float angle = MathHelper.ToRadians(from + sweep * i / segments);
-                return center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
-            }
-            for (int i = 0; i < segments; i++) Line(Point(i), Point(i + 1), color);
-        }
-        // 以 1px 竖条拼出圆角，与 AlchemyDrawing.RoundRect 的填充方式一致。
-        void Strips(float x, float y, float width, float height, float radius, Color color)
-        {
-            int columns = Math.Max(1, (int)MathF.Ceiling(width));
-            float step = width / columns;
-            for (int i = 0; i < columns; i++)
-            {
-                float mid = x + (i + .5f) * step, edge = Math.Min(mid - x, x + width - mid), inset = 0;
-                if (edge < radius) inset = radius - MathF.Sqrt(Math.Max(0, radius * radius - (radius - edge) * (radius - edge)));
-                Box(x + i * step, y + inset, step, height - inset * 2, color);
-            }
-        }
-        void Disc(Vector2 center, float radius, Color color) => Strips(center.X - radius, center.Y - radius, radius * 2, radius * 2, radius, color);
+            => art.Shapes.Arc(batch, center, radius, from, sweep, 1, color);
+        void Disc(Vector2 center, float radius, Color color) => art.Shapes.Disc(batch, center, radius, color);
         void RoundRect(Rectangle rect, Color fill, Color border)
-        {
-            float x = rect.X, y = rect.Y, w = rect.Width, h = rect.Height, r = h / 2f;
-            if (fill.A > 0) Strips(x, y, w, h, r, fill);
-            Line(new(x + r, y), new(x + w - r, y), border);
-            Line(new(x + r, y + h), new(x + w - r, y + h), border);
-            Arc(new(x + r, y + r), r, 90, 180, border);
-            Arc(new(x + w - r, y + r), r, 270, 180, border);
-        }
-        // NotebookStars 第一行为正方四芒星，按 64/32/16/8/4 预过滤；长轴占格子 112/128。
+            => art.Shapes.RoundRect(batch, new Vector2(rect.X, rect.Y), new Vector2(rect.Width, rect.Height), rect.Height / 2f, fill, border);
         void Spark(Vector2 center, float size, Color color)
-        {
-            int side = 64, x = 0;
-            float pixels = size * 128 / 112 * uiScale;
-            while (side > 4 && pixels < side * .7071f) { x += side; side /= 2; }
-            batch.Draw(art.Stars, center, new Rectangle(x, 0, side, side), color, 0, new Vector2(side / 2f),
-                size * 128f / 112 / side, SpriteEffects.None, 0);
-        }
-        // 字号按「国」字宽归一，与 AlchemyDrawing 相同；文字以行中线定位。
-        float Measure(DynamicSpriteFont font, string text, float size)
-            => string.IsNullOrEmpty(text) ? 0 : font.MeasureString(text).X * Factor(font, size);
-        float Factor(DynamicSpriteFont font, float size) => size / Math.Max(1f, font.MeasureString("国").X);
-        void Text(DynamicSpriteFont font, string text, float x, float centerY, float size, Color color, float align, float spacing = 0)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            float factor = Factor(font, size), lineHeight = font.MeasureString("国").Y * factor;
-            float width = Measure(font, text, size) + Math.Max(0, text.Length - 1) * spacing;
-            var at = new Vector2(x - width * align, centerY - lineHeight / 2);
-            if (spacing == 0)
-            {
-                batch.DrawString(font, text, at, color, 0, Vector2.Zero, factor, SpriteEffects.None, 0);
-                return;
-            }
-            foreach (char c in text)
-            {
-                string glyph = c.ToString();
-                batch.DrawString(font, glyph, at, color, 0, Vector2.Zero, factor, SpriteEffects.None, 0);
-                at.X += font.MeasureString(glyph).X * factor + spacing;
-            }
-        }
-        void Fitted(DynamicSpriteFont font, string text, float x, float centerY, float size, float maxWidth, Color color,
+            => art.Stars.Draw(batch, center, size, color);
+        float Measure(UIRasterFont font, string text, float size)
+            => string.IsNullOrEmpty(text) ? 0 : font.Measure(text, UIRasterText.Pixels(batch, size)) / uiScale;
+        void Text(UIRasterFont font, string text, float x, float centerY, float size, Color color, float align, float spacing = 0)
+            => UIRasterText.Draw(batch, font, text, new Vector2(x, centerY), color,
+                UIRasterText.Pixels(batch, size), new Vector2(align, .5f), spacing: spacing);
+        void Fitted(UIRasterFont font, string text, float x, float centerY, float size, float maxWidth, Color color,
             float align, float spacing = 0)
         {
             if (string.IsNullOrEmpty(text)) return;
-            float width = Measure(font, text, size) + Math.Max(0, text.Length - 1) * spacing;
-            float fit = width > maxWidth ? maxWidth / width : 1;
-            Text(font, text, x, centerY, size * fit, color, align, spacing * fit);
+            float pixels = UIRasterText.Pixels(batch, size);
+            text = UIRasterText.Fit(font, text, (maxWidth - Math.Max(0, text.Length - 1) * spacing) * uiScale, ref pixels, Math.Min(pixels, 10));
+            UIRasterText.Draw(batch, font, text, new Vector2(x, centerY), color, pixels, new Vector2(align, .5f), spacing: spacing);
         }
     }
 }

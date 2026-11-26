@@ -4,7 +4,9 @@ param(
     [string]$Label = 'after',
     [string]$BaselineRevision = '',
     [switch]$Check,
-    [switch]$StarTips
+    [switch]$StarTips,
+    [switch]$Benchmark,
+    [switch]$DiagnosticPointSampler
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -21,12 +23,19 @@ if ($BaselineRevision) {
         [IO.File]::WriteAllText("$pipelineRoot/Drawing/$name", ($lines -join "`n"))
     }
 }
+if ($DiagnosticPointSampler) {
+    if (!$BaselineRevision -or !$Benchmark) { throw 'Point diagnostic requires -BaselineRevision and -Benchmark.' }
+    $drawPath = Join-Path $pipelineRoot 'Drawing/DrawSystem.cs'
+    [IO.File]::WriteAllText($drawPath, [IO.File]::ReadAllText($drawPath).Replace('SamplerState.LinearClamp', 'SamplerState.PointClamp'))
+}
 $project = [IO.File]::ReadAllText("$PSScriptRoot/../BloomBackbufferPreview/Preview.csproj.txt").Replace('<ItemGroup>', '<ItemGroup><Compile Remove="baseline/**/*.cs" />')
 [IO.File]::WriteAllText("$work/Preview.csproj", $project)
 Copy-Item -LiteralPath "$PSScriptRoot/../BloomBackbufferPreview/Program.cs.txt" -Destination "$work/Pipeline.cs"
 Copy-Item -LiteralPath "$PSScriptRoot/Preview.cs.txt" -Destination "$work/Preview.cs"
+Copy-Item -LiteralPath "$PSScriptRoot/Benchmark.cs.txt" -Destination "$work/Benchmark.cs"
 $previewArgs = @($repo, $kl, $pipelineRoot, "$work/$Label")
 if ($Check) { $previewArgs += '--check' }
 if ($StarTips) { $previewArgs += '--star-tips' }
+if ($Benchmark) { $previewArgs += '--benchmark' }
 & $Dotnet run --project "$work/Preview.csproj" '-p:StartupObject=BloomResolutionPreview' "-p:TmlPath=$TmlPath" -- @previewArgs
 if ($LASTEXITCODE -ne 0) { throw 'Bloom resolution preview failed' }

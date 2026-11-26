@@ -1,0 +1,36 @@
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+public partial class ShardbindProj
+{
+    private void DrawLegacyVisual()
+    {
+        Texture2D star = AssetManager.GetTexture("KL.Effects.Tex.Sparkle.T_StartFlare001");
+        Texture2D glow = AssetManager.GetTexture("KL.Effects.Tex.background_Premultiplied");
+
+        int starTime = 50;
+        int starStartTime = 70;
+
+        List<FrameInfo> sizeFrames = [ new(0.9f, 0.0f, starTime, TweenEase.EaseOutCubic)]; 
+        List<FrameInfo> rotFrames = [ new(0.3f, 3f, starTime, TweenEase.EaseOutCubic)]; 
+        List<FrameInfo> bloomFrames = [ new(3, 0f, starTime, TweenEase.SmoothStep)]; 
+
+        float size = EvaluateTween(sizeFrames, time,starStartTime);
+        float rot = EvaluateTween(rotFrames, time,starStartTime);
+        float bloom = EvaluateTween(bloomFrames, time,starStartTime);
+        
+        
+        EndBeginDraw(0,1);
+        ReColorEffect(new Color(150,220,255,0).ToVector4()*bloom);
+
+        if(time>starStartTime) DrawInWorld(star,Projectile.Center,new Color(100,200,255,0),new Vector2(size),rot);
+        
+        EndBeginDraw();
+        List<FrameInfo> glowFrames = [ new(0, 0.7f, 20, TweenEase.SmoothStep)]; 
+        int glowStartTime = 90;
+        float glowAlpha = EvaluateTween(glowFrames, time,glowStartTime);
+
+        if(time>=starStartTime)DrawInWorld(glow,Projectile.Center,new Color(100,200,255,0)*glowAlpha,new Vector2(2),0);
+
+        EndBeginDraw();
+    }
+
+}

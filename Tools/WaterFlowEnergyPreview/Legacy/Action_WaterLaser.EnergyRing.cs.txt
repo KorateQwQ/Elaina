@@ -1,0 +1,11 @@
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+
+namespace 伊蕾娜.ElainaActions;
+
+public sealed partial class Action_WaterLaser
+{
+    // 按持续喷射判定，两个伤害脉冲之间也保持显示。
+    internal bool HasLocalEnergyRing => owner.whoAmI == Main.myPlayer && IsChanneling
+        && IsBeamActive
+        && owner.GetModPlayer<WaterEnergyPlayer>().Energy > 0;
+}

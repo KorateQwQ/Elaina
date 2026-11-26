@@ -267,8 +267,8 @@ public sealed class DollCommandWheel : BaseBody
         if (!_open && !Fading) return;
         FillView();
         _cdEffect ??= ModContent.Request<Effect>("伊蕾娜/Effects/Content/SkillSeal", AssetRequestMode.ImmediateLoad).Value;
-        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill),
-            _cdEffect, UIDrawKit.NumberFont);
+        var art = new SkillWheelDrawing.Art(new SkillBarDrawing.StateArt(UIDrawKit.Pixel, UIDrawKit.GlowDot, UIDrawKit.DiamondFill, UIDrawKit.Shapes),
+            _cdEffect, UIDrawKit.RasterSerif);
         _matrix = ScaleAround(_view.Center, _scale) * SilkyUI.TransformMatrix;
         Restart(spriteBatch, SpriteSortMode.Deferred, null);
         try

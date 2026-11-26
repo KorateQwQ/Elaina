@@ -29,6 +29,9 @@ internal static class FireBurstDomainRingDrawing
 
     private static Vertex[] vertices = new Vertex[1024];
     private static short[] indices = new short[3072];
+    private static Vector4 OuterBand => new(2.1f, .59f, .12f, 1f);
+    private static Vector4 MiddleBand => new(2.52f, 1.58f, .35f, 1f);
+    private static Vector4 InnerBand => new(4.12f, 3.53f, 1.03f, 1f);
 
     /// <param name="screenCenter">领域中心的屏幕坐标（世界坐标 - Main.screenPosition）。</param>
     /// <param name="radius">领域半径（像素）。</param>
@@ -46,8 +49,14 @@ internal static class FireBurstDomainRingDrawing
         Vector2 flowScale = new(1f / 800f, 1f / 420f);
         float flowSpeed = .0035f;            // 约 2.8 像素 / 帧
         float outerClip = .06f, midClip = .15f, innerClip = .42f;  // 同火柱
-        Vector4 outer = new(2f, .46f, .06f, 1f), mid = new(2f, .82f, .09f, 1f), inner = new(3.6f, 2.23f, .65f, 1f);
-        int segments = 360;
+        Vector4 outer = OuterBand, mid = MiddleBand, inner = InnerBand;
+        float ignitionGlow = MathHelper.SmoothStep(1.6f, 1f, Math.Clamp(age / 10f, 0f, 1f));
+        // 初燃时主要呈现最外侧的橙色，保留展开阶段的亮度补偿。
+        // 只补偿初燃的 HDR RGB，不改变覆盖度或火舌形状；第 10 帧衔接回常驻亮度。
+        Vector4 ignitionColor = new(ignitionGlow, ignitionGlow, ignitionGlow, 1f);
+        outer *= ignitionColor;
+        mid *= ignitionColor;
+        inner *= ignitionColor;
 
         float open = Math.Clamp(age / openTicks, 0f, 1f);
         float ring = radius * (1f - MathF.Pow(1f - open, 3f));
@@ -59,6 +68,9 @@ internal static class FireBurstDomainRingDrawing
 
         // 圆环网格覆盖 边界内余辉 ～ 最长火舌（1.5 倍基准长度）
         float rIn = Math.Max(0f, ring - innerWidth * 3f), rOut = ring + height * 1.5f + 8f;
+        // The pixel shader computes the circular flame from local XY. Keep polygon
+        // chord loss below 2 world pixels, within the 8-pixel outer padding.
+        int segments = Math.Max(16, (int)MathF.Ceiling(MathF.PI * MathF.Sqrt(rOut / 4f)));
         int needVertices = (segments + 1) * 2, needIndices = segments * 6;
         if (vertices.Length < needVertices) Array.Resize(ref vertices, needVertices);
         if (indices.Length < needIndices) Array.Resize(ref indices, needIndices);

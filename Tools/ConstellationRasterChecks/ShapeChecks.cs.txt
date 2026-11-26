@@ -1,0 +1,193 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using 伊蕾娜.ElainaModSkills.UICore;
+
+internal static class ShapeChecks
+{
+    internal static void Run(SpriteBatch batch, string output)
+    {
+        var device = batch.GraphicsDevice;
+        var pixel = Terraria.GameContent.TextureAssets.MagicPixel.Value;
+        var shapes = new UIRasterShapes(pixel, PreviewAssets.Content.Load<Effect>(Path.Combine(PreviewAssets.Repo, "Effects/Content/UIShape")));
+        var report = new List<string>();
+        int oldFailures = 0;
+        foreach (float scale in new[] { .5f, 1f, 1.125f, 2f })
+        foreach (float width in new[] { 1.49f, 1.51f, 4.5f })
+        foreach (var (start, sweep) in new[] { (350f, 40f), (35f, 190f), (-90f, 359f), (10f, .5f), (0f, 360f) })
+        {
+            const float radius = 28;
+            int side = (int)Math.Ceiling(76 * scale + 8);
+            var transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(.25f, .375f, 0);
+            var center = new Vector2(38);
+            var screen = Vector2.Transform(center, transform);
+            Color[] Render(bool old, bool point)
+            {
+                using var target = new RenderTarget2D(device, side, side);
+                device.SetRenderTarget(target); device.Clear(Color.Transparent);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, point ? SamplerState.PointClamp : SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, transform);
+                if (!old) shapes.Arc(batch, center, radius, start, sweep, width, Color.White);
+                else
+                {
+                    // Frozen segmented opaque-quad baseline; never call the repaired Line method.
+                    int segments = Math.Max(1, (int)Math.Ceiling(sweep / 360 * 160));
+                    for (int i = 0; i < segments; i++)
+                    {
+                        float a = MathHelper.ToRadians(start + sweep * i / segments), b = MathHelper.ToRadians(start + sweep * (i + 1) / segments);
+                        Vector2 p = center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius;
+                        Vector2 q = center + new Vector2(MathF.Cos(b), MathF.Sin(b)) * radius;
+                        batch.Draw(pixel, p, new Rectangle(0, 0, 1, 1), Color.White, MathF.Atan2(q.Y - p.Y, q.X - p.X),
+                            new Vector2(0, .5f), new Vector2(Vector2.Distance(p, q), width), SpriteEffects.None, 0);
+                    }
+                }
+                batch.End(); device.SetRenderTarget(null);
+                var data = new Color[side * side]; target.GetData(data);
+                if (!point && width == 1.51f && start == 350)
+                {
+                    using var file = File.Create(Path.Combine(output, $"arc-{scale:0.###}-{(old ? "before" : "after")}.png"));
+                    target.SaveAsPng(file, side, side);
+                }
+                return data;
+            }
+            Color[] current = Render(false, false), old = Render(true, false);
+            if (!current.SequenceEqual(Render(false, true))) throw new InvalidDataException("Arc sampler dependence.");
+            double error = 0, oldError = 0; int count = 0;
+            double outer = (radius + width / 2) * scale, inner = (radius - width / 2) * scale;
+            for (int y = 0; y < side; y++)
+            for (int x = 0; x < side; x++)
+            {
+                double r = Vector2.Distance(new Vector2(x + .5f, y + .5f), screen);
+                if (r < inner - 1.5 || r > outer + 1.5) continue;
+                int hits = 0;
+                for (int sy = 0; sy < 16; sy++)
+                for (int sx = 0; sx < 16; sx++)
+                {
+                    double dx = x + (sx + .5) / 16 - screen.X, dy = y + (sy + .5) / 16 - screen.Y;
+                    double r2 = dx * dx + dy * dy;
+                    double angle = ((Math.Atan2(dy, dx) * 180 / Math.PI - start) % 360 + 360) % 360;
+                    if (r2 >= inner * inner && r2 <= outer * outer && angle <= sweep) hits++;
+                }
+                double expected = hits / 256.0;
+                // Exclude the entirely empty opposite sector from error dilution.
+                if (expected == 0 && current[y * side + x].A == 0 && old[y * side + x].A == 0) continue;
+                error += Math.Abs(current[y * side + x].A / 255.0 - expected);
+                oldError += Math.Abs(old[y * side + x].A / 255.0 - expected); count++;
+            }
+            error /= Math.Max(1, count); oldError /= Math.Max(1, count);
+            string line = $"arc scale={scale} width={width} start={start} sweep={sweep}: old={oldError:F5} new={error:F5}";
+            report.Add(line);
+            if (error > .085) throw new InvalidDataException(line);
+            if (oldError > .085) oldFailures++;
+        }
+        if (oldFailures < 12) throw new InvalidDataException("Arc regression no longer detects segmented hard edges.");
+        Lines(batch, shapes);
+        State(batch, shapes, pixel);
+        Text(batch, output);
+        File.WriteAllLines(Path.Combine(output, "shape-checks.txt"), report);
+        Console.WriteLine($"PASS: {report.Count} arc coverage cases, {oldFailures} legacy failures, sampler and custom-effect/scissor restoration.");
+    }
+
+    private static void Lines(SpriteBatch batch, UIRasterShapes shapes)
+    {
+        int count = 0;
+        foreach (float scale in new[] { .5f, 1f, 1.125f, 2f })
+        foreach (float width in new[] { .25f, .75f, 1.49f, 1.51f, 4.5f })
+        {
+            int side = (int)Math.Ceiling(75 * scale);
+            var transform = Matrix.CreateScale(scale) * Matrix.CreateTranslation(.25f, .375f, 0);
+            Vector2 a = new(12.25f, 14.375f), b = new(58.5f, 42.125f);
+            using var target = new RenderTarget2D(batch.GraphicsDevice, side, side);
+            batch.GraphicsDevice.SetRenderTarget(target); batch.GraphicsDevice.Clear(Color.Transparent);
+            batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, transform);
+            shapes.Line(batch, a, b, width, Color.White);
+            batch.End(); batch.GraphicsDevice.SetRenderTarget(null);
+            Color[] data = new Color[side * side]; target.GetData(data);
+            Vector2 start = Vector2.Transform(a, transform), end = Vector2.Transform(b, transform);
+            Vector2 direction = Vector2.Normalize(end - start), normal = new(-direction.Y, direction.X);
+            float length = Vector2.Distance(start, end), halfWidth = width * scale / 2;
+            double error = 0, actualArea = 0, expectedArea = 0; int covered = 0;
+            for (int y = 0; y < side; y++) for (int x = 0; x < side; x++)
+            {
+                int hits = 0;
+                for (int sy = 0; sy < 8; sy++) for (int sx = 0; sx < 8; sx++)
+                {
+                    Vector2 p = new Vector2(x + (sx + .5f) / 8, y + (sy + .5f) / 8) - start;
+                    float along = Vector2.Dot(p, direction);
+                    if (along >= 0 && along <= length && Math.Abs(Vector2.Dot(p, normal)) <= halfWidth) hits++;
+                }
+                double expected = hits / 64.0, actual = data[y * side + x].A / 255.0;
+                expectedArea += expected; actualArea += actual;
+                if (expected == 0 && actual == 0) continue;
+                error += Math.Abs(expected - actual); covered++;
+            }
+            if (error / covered > .085 || Math.Abs(actualArea - expectedArea) / expectedArea > .10)
+                throw new InvalidDataException($"Thin line coverage: scale={scale}, width={width}, error={error / covered}, area={actualArea}/{expectedArea}");
+            count++;
+        }
+        Console.WriteLine($"PASS: {count} thin-line coverage cases, including subpixel widths and both sides of 1.5px.");
+    }
+
+    private static void State(SpriteBatch batch, UIRasterShapes shapes, Texture2D pixel)
+    {
+        var device = batch.GraphicsDevice;
+        using var target = new RenderTarget2D(device, 160, 120);
+        using var rasterizer = new RasterizerState { CullMode = CullMode.None, ScissorTestEnable = true };
+        using var caller = new BasicEffect(device) { VertexColorEnabled = true, TextureEnabled = true, Texture = pixel,
+            Projection = Matrix.CreateOrthographicOffCenter(0, 160, 120, 0, 0, -1) };
+        var transform = Matrix.CreateScale(1.125f) * Matrix.CreateTranslation(3.5f, 2.75f, 0);
+        caller.World = transform;
+        device.SetRenderTarget(target); device.Clear(Color.Transparent);
+        var clip = new Rectangle(12, 12, 120, 90); device.ScissorRectangle = clip;
+        batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, rasterizer, caller, transform);
+        var saved = UIBatch.Capture(batch);
+        batch.Draw(pixel, new Rectangle(65, 16, 4, 4), Color.Red);
+        shapes.Arc(batch, new Vector2(2, 35), 28, -90, 290, 2.2f, Color.White);
+        shapes.RoundRect(batch, new Vector2(15, 50), new Vector2(36, 16), 8, Color.Gray, Color.White);
+        shapes.Line(batch, new Vector2(8, 95), new Vector2(45, 70), 1.51f, Color.White);
+        shapes.Ring(batch, new Vector2(45, 30), new Vector2(15, 8), 1, Color.White, .3f);
+        shapes.Disc(batch, Vector2.Transform(new Vector2(105.5f, 30.5f), Matrix.Invert(transform)), 4, Color.White);
+        if (UIBatch.Capture(batch) != saved) throw new InvalidDataException("Shape changed SpriteBatch state.");
+        batch.Draw(pixel, new Rectangle(85, 60, 4, 4), Color.Lime);
+        batch.End(); device.SetRenderTarget(null);
+        var pixels = new Color[160 * 120]; target.GetData(pixels);
+        if (pixels[30 * 160 + 105].A != 255) throw new InvalidDataException("Analytic disc has a hole at its exact center.");
+        for (int y = 0; y < 120; y++) for (int x = 0; x < 160; x++)
+            if (!clip.Contains(x, y) && pixels[y * 160 + x].A != 0) throw new InvalidDataException("Shape escaped scissor.");
+        foreach (var (at, expected) in new[] { (new Vector2(67, 18), Color.Red), (new Vector2(87, 62), Color.Lime) })
+        {
+            Vector2 p = Vector2.Transform(at, transform);
+            if (pixels[(int)p.Y * 160 + (int)p.X] != expected) throw new InvalidDataException("Shape lost caller effect, transform or ordering.");
+        }
+        device.RasterizerState = RasterizerState.CullNone;
+    }
+
+    private static void Text(SpriteBatch batch, string output)
+    {
+        var font = new 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel.ConstellationFont(new(), "NotoSerifSC", KL.Drawing.FontManager.NotoSerifSC, 9, 48);
+        foreach (float scale in new[] { .5f, 1f, 1.125f, 1.5f, 2f })
+        {
+            Color[] Render(bool point)
+            {
+                using var target = new RenderTarget2D(batch.GraphicsDevice, 220, 100);
+                batch.GraphicsDevice.SetRenderTarget(target); batch.GraphicsDevice.Clear(Color.Transparent);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, point ? SamplerState.PointClamp : SamplerState.LinearClamp,
+                    DepthStencilState.None, RasterizerState.CullNone, null, Matrix.CreateScale(scale) * Matrix.CreateTranslation(.25f, .375f, 0));
+                float pixels = UIRasterText.Pixels(batch, 16, 11);
+                if (pixels < 11) throw new InvalidDataException("Cooldown became unreadably small.");
+                UIRasterText.Draw(batch, font, "27  3.4", new Vector2(60, 18), Color.White, pixels, new Vector2(.5f));
+                float titleSize = UIRasterText.Pixels(batch, 14);
+                string title = UIRasterText.Fit(font, "Wandering Witch With A Long Name", 82 * scale, ref titleSize, titleSize);
+                if (font.Measure(title, titleSize) > 82 * scale || !title.EndsWith('…')) throw new InvalidDataException("Long name is not truncated to its measured width.");
+                UIRasterText.Draw(batch, font, title, new Vector2(5, 40), Color.White, titleSize, Vector2.Zero);
+                batch.End(); batch.GraphicsDevice.SetRenderTarget(null);
+                var data = new Color[220 * 100]; target.GetData(data);
+                if (!point) { using var file = File.Create(Path.Combine(output, $"ui-text-{scale:0.###}.png")); target.SaveAsPng(file, 220, 100); }
+                return data;
+            }
+            var linear = Render(false); var point = Render(true);
+            if (linear.Zip(point).Any(p => Math.Abs(p.First.A - p.Second.A) > 2)) throw new InvalidDataException("Native UI text was resampled.");
+        }
+        Console.WriteLine("PASS: cooldown minimum size, long-name fitting and native text sampling at five scales.");
+    }
+}

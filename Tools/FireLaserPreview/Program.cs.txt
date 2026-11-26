@@ -10,8 +10,8 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 
-try { using var game = new FireProbe(args[0], args[1]); game.Run(); }
-catch (Exception e) { Console.Error.WriteLine(e); Environment.Exit(1); }
+using var game = new FireProbe(args[0], args[1]);
+game.RunOneFrame();
 
 internal static class Pipeline
 {
@@ -79,14 +79,14 @@ internal static class Pipeline
             public partial class DrawSystem {
                 public void Run(float strength, int iterations, bool bloomEnabled) {
                     SetBloomInfo(strength, iterations, shouldBloom: bloomEnabled);
-                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.Projectiles, LayerDrawRequestSystem.DrawTiming.After);
+                    RenderRequestedBloom(LayerDrawRequestSystem.DrawTargetLayer.OverPlayers, LayerDrawRequestSystem.DrawTiming.Before);
                 }
             """;
         string[] fields = ["CanUseRender", "TotalBloomStrength", "TotalBloomBackGroundStrength", "bloomStr", "bloomItr", "ShouldBloom2", "bloomDrawOffset",
-            "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
+            "bloomScissor", "capturingBloom", "BloomAdditiveBlend", "BloomStraightAlphaBlend"];
         source += Fields(draw, n => fields.Contains(n) || n.StartsWith("SpriteBatch"));
         source += Methods(draw, "RenderRequestedBloom", "RenderBloomRequestsWithoutSceneTarget", "RenderBloomRequestsWithoutPostProcess",
-            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
+            "EndSpriteBatchIfActive", "EnsureSpriteBatchActive", "CaptureSpriteBatchState", "RestoreSpriteBatchState", "GetFilterRegion", "DownSampler", "UpSampler", "BeginBloomPass", "SetBloomInfo",
             "CaptureBloomRequests", "GetBlendStateForBloom");
         source += draw.DescendantNodes().OfType<RecordDeclarationSyntax>().Single(r => r.Identifier.Text == "SpriteBatchState").ToFullString();
         source += "}\n public class RenderHelper {" + Fields(render, _ => true) + Methods(render, "CreateRender", "EnsureRenderTargets", "SwitchRender", "DisposeTargets", "DetachRenderTargets", "TargetMatches") + "}\n";
@@ -106,8 +106,8 @@ internal static class Pipeline
         var vertex = Read("Drawing/DrawHelper.vertexDraw.cs");
         var assets = Read("Drawing/DrawHelper.Assets.cs");
         source += Methods(vertex, "QuickConePoints", "GetQuadraticBezierPoint", "TrailEffect");
-        source += vertex.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "VertexDrawEffect"
-            && m.ParameterList.Parameters[2].Type.ToString() == "Color").ToFullString();
+        source += string.Join("\n", vertex.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "VertexDrawEffect"
+            && m.ParameterList.Parameters[2].Type.ToString() is "Color" or "Vector4").Select(m => m.ToFullString()));
         source += drawing.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "DrawInWorld"
             && m.ParameterList.Parameters[0].Type.ToString() is "TextureInfo" or "Texture2D").Aggregate("", (a, m) => a + m.ToFullString());
         source += assets.DescendantNodes().OfType<StructDeclarationSyntax>().Single(x => x.Identifier.Text == "CustomVertexInfo").WithoutLeadingTrivia().ToFullString();
@@ -169,17 +169,17 @@ internal static class Pipeline
                 public static class Scene {
                     public static FireReplay Laser = new();
                     public static bool ParticlesEnabled = true;
-                    // Same request FireLaser.PreDraw submits: Projectiles.After with Bloom, callback FireLaser.DrawVisual2.
+                    // Same request FireLaser.PreDraw submits: OverPlayers.Before with Bloom, callback FireLaser.DrawVisual2.
                     public static void Queue(Vector2 origin, Vector2 direction, float length, int time, float release) {
                         LayerDrawRequestSystem.ClearFrame();
                         Laser.Set(time, origin, direction, length);
                         if (release < 0f)
                             LayerDrawRequestSystem.RequestBloom("Elaina:FireLaser", FireLaserVisuals.Layer,
-                                LayerDrawRequestSystem.DrawTiming.After, Laser.Draw);
+                                LayerDrawRequestSystem.DrawTiming.Before, Laser.Draw);
                         else {
                             var visual = new FireLaserBeamVisual();
                             LayerDrawRequestSystem.RequestBloom("Elaina:FireLaser", FireLaserVisuals.Layer,
-                                LayerDrawRequestSystem.DrawTiming.After, () => visual.Draw(origin, direction, length + 10f,
+                                LayerDrawRequestSystem.DrawTiming.Before, () => visual.Draw(origin, direction, length + 10f,
                                     time + release * FireLaserBeamVisual.ReleaseTicks * .3f, FireLaserBeamVisual.OpeningWidth(time), release));
                             if (ParticlesEnabled) ParticleReplay.Queue(origin, direction, length + 10f, FireLaserBeamVisual.OpeningWidth(time), release);
                         }
@@ -238,13 +238,21 @@ sealed class FireProbe : Game
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false; SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
+    }
+
+    void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException($"Offline preview window unexpectedly visible: {flags}");
     }
 
     void Set(Type type, string name, object value) => type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, value);
 
     protected override void LoadContent()
     {
-        SDL.SDL_HideWindow(Window.Handle); Directory.CreateDirectory(output);
+        SDL.SDL_HideWindow(Window.Handle); AssertHidden(); Directory.CreateDirectory(output);
         pipeline = Pipeline.Compile(Path.GetFullPath(Path.Combine(root, "../KL")), root, output);
         batch = new SpriteBatch(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
@@ -268,6 +276,7 @@ sealed class FireProbe : Game
 
     protected override void Draw(GameTime time)
     {
+        AssertHidden();
         if (done) { Exit(); return; } done = true;
         if (Environment.GetEnvironmentVariable("FIRE_FRAMES") == "1") {
             // Consecutive 60 Hz ticks for GIF assembly (make_gif.py).
@@ -368,6 +377,7 @@ sealed class FireProbe : Game
         using var target = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None);
         GraphicsDevice.SetRenderTarget(target);
         GraphicsDevice.Clear(night ? new Color(14, 18, 30) : new Color(132, 170, 204));
+        AssertHidden();
         // Nonzero world camera origin catches missed world-to-screen conversions.
         Vector2 camera = new(2000, 1200); Set(main, "screenPosition", camera);
         Vector2 origin = angle > 2 ? new Vector2(1060, 260) : new Vector2(150, 300);

@@ -119,7 +119,7 @@ sealed partial class Checks : Game
         GameMain.mouseLeft = true; GameMain.netMode = NetmodeID.SinglePlayer;
         GameMain.myPlayer = 0;
         magic.Attributes.SetBase(ElainaMagicAttributes.MagicPoint, mana);
-        fireSkill = new FireLaserSkill { Stack = 0, MaxStack = 1, CurrentCD = 1f, CooldownDuration = 1f };
+        fireSkill = new FireLaserSkill { Stack = 0, MaxStack = 1, CurrentCD = 0.3f, CooldownDuration = 0.3f };
         skillState = new Skill();
         typeof(Skill).GetProperty("ModSkill", All).SetValue(skillState, fireSkill);
         fireSkill.Skill = skillState;
@@ -166,42 +166,47 @@ sealed partial class Checks : Game
         for (int frame = 0; frame < charge + 180; frame++) {
             if (Tick()) pulses.Add(frame);
             skillState.UpdateCD(1f / 60f);
+            if (frame == 16) Check(fireSkill.CurrentCD > 0f && fireSkill.CurrentCD < 0.3f, "Cooldown advances during channeling");
+            if (frame == 18) Check(fireSkill.CurrentCD == 0f && fireSkill.Stack == 1, "Cooldown completes after 0.3 seconds during channeling");
             Check(!fireSkill.CanUseSkill(), "Cannot retrigger while held");
         }
         Check(pulses.SequenceEqual(Enumerable.Range(0, 10).Select(i => charge + i * 18)), "First pulse on burst and sustained 18-frame cadence");
         Check(magic.MagicPoint == 85f, "One mana payment per pulse");
-        Check(fireSkill.CurrentCD == 1f && fireSkill.Stack == 0, "Holding does not recover cooldown or charges");
+        Check(fireSkill.CurrentCD == 0f && fireSkill.Stack == 1, "Holding recovers cooldown and charges");
         GameMain.mouseLeft = false;
         Check(!Tick() && !beam.Projectile.active, "Release kills beam and damage immediately");
-        Check(fireSkill.CurrentCD == 1f && fireSkill.CooldownDuration == 1f, "Release starts a full one-second cooldown");
-        for (int i = 0; i < 59; i++) {
-            Tick(); skillState.UpdateCD(1f / 60f);
-            Check(!fireSkill.CanUseSkill(), "Cannot retrigger before one second");
-        }
-        Check(!actions.HasAction, "Recovery finishes without restarting cooldown");
-        skillState.UpdateCD(1f / 30f);
-        Check(fireSkill.CurrentCD == 0f && fireSkill.Stack == 1 && fireSkill.CanUseSkill(), "Skill available after one second");
+        Check(fireSkill.CurrentCD == 0f && fireSkill.Stack == 1, "Release does not restart completed cooldown");
+        Check(!fireSkill.CanUseSkill(), "Existing recovery still prevents retriggering");
+        for (int i = 0; i < Action_FireLaser.RecoveryFrames + 2 && actions.HasAction; i++) Tick();
+        Check(!actions.HasAction && fireSkill.CanUseSkill(), "Skill available after existing recovery finishes");
 
-        Start(); GameMain.mouseLeft = false;
+        Start(); skillState.UpdateCD(0.1f);
+        float remainingCooldown = fireSkill.CurrentCD;
+        GameMain.mouseLeft = false;
         Check(!Tick() && !beam.Projectile.active && magic.MagicPoint == 30f, "Release before first update cancels without mana or damage");
-        Check(fireSkill.CurrentCD == 1f && !Get<bool>(fireSkill, "channelActive"), "Early release starts cooldown");
+        Check(fireSkill.CurrentCD == remainingCooldown && !Get<bool>(fireSkill, "channelActive"), "Early release preserves remaining cooldown");
         Start();
+        skillState.UpdateCD(0.1f);
+        remainingCooldown = fireSkill.CurrentCD;
         for (int i = 0; i < charge; i++) Check(!Tick() && beam.Projectile.active, "Charging keeps the beam without damage");
         Check(magic.MagicPoint == 30f && actions.IsActionHolding, "Charging spends no mana while held");
         GameMain.mouseLeft = false;
         Check(!Tick() && !beam.Projectile.active && magic.MagicPoint == 30f, "Release while charging cancels without mana or damage");
-        Check(fireSkill.CurrentCD == 1f && !Get<bool>(fireSkill, "channelActive"), "Release while charging starts cooldown");
+        Check(fireSkill.CurrentCD == remainingCooldown && !Get<bool>(fireSkill, "channelActive"), "Release while charging preserves remaining cooldown");
         Start(3f, 18);
+        skillState.UpdateCD(0.4f);
         int hits = 0; for (int i = 0; i < charge + 40; i++) if (Tick()) hits++;
         Check(hits == 2 && magic.MagicPoint == 0f && !beam.Projectile.active && !actions.IsActionHolding,
             "Insufficient mana stops without a free pulse");
-        Check(fireSkill.CurrentCD == 1f, "Mana exhaustion starts cooldown");
+        Check(fireSkill.CurrentCD == 0f, "Mana exhaustion does not restart cooldown");
         Start(interval: 6);
         hits = 0; for (int i = 0; i < charge + 60; i++) if (Tick()) hits++;
         Check(hits == 10 && magic.MagicPoint == 15f, "Configured cadence stays paired with mana");
 
         foreach (string reason in new[] { "item", "skill", "dead", "disabled", "cc", "ui", "projectile", "action" }) {
             Start(); Tick();
+            skillState.UpdateCD(0.1f);
+            remainingCooldown = fireSkill.CurrentCD;
             switch (reason) {
                 case "item": player.selectedItem = 1; break;
                 case "skill": ElainaSkillModPlayer.CurrentSkillIndex = 1; break;
@@ -213,7 +218,7 @@ sealed partial class Checks : Game
                 case "action": actions.InterruptCurrentAction(); break;
             }
             Check(!Tick() && !beam.Projectile.active && !actions.IsActionHolding, "Channel interruption: " + reason);
-            Check(fireSkill.CurrentCD == 1f && !Get<bool>(fireSkill, "channelActive"), "Cooldown on interruption: " + reason);
+            Check(fireSkill.CurrentCD == remainingCooldown && !Get<bool>(fireSkill, "channelActive"), "Interruption preserves remaining cooldown: " + reason);
         }
 
         Start(); Tick();

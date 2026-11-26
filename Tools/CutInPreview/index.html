@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>奥义特写预览</title>
+<style>
+  html, body { margin: 0; background: #111; color: #ddd; font: 13px/1.5 "Microsoft YaHei", sans-serif; }
+  #bar { position: fixed; left: 0; right: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+         padding: 6px 10px; background: rgba(20,18,30,.92); border-bottom: 1px solid #333; }
+  #bar label { display: inline-flex; gap: 4px; align-items: center; }
+  #bar button { background: #3a3358; color: #fff; border: 1px solid #6a5f9a; padding: 2px 10px; cursor: pointer; }
+  #info { color: #b9b0e0; font-family: Consolas, monospace; }
+  #wrap { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; }
+  canvas { display: block; }
+  #wrap.fit canvas { max-width: 100%; max-height: 100%; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="play">重播</button>
+  <label><input type="checkbox" id="loop" checked>循环</label>
+  <label>分辨率
+    <select id="res">
+      <option value="1920x1080">1920×1080</option>
+      <option value="2560x1440" selected>2560×1440</option>
+      <option value="3840x2160">3840×2160</option>
+    </select>
+  </label>
+  <label>人像倍率上限 <input type="range" id="smax" min="1" max="3" step="0.05" value="1.5"><span id="smaxv"></span></label>
+  <label>速度
+    <select id="speed"><option>1</option><option>0.5</option><option>0.25</option></select>
+  </label>
+  <label><input type="checkbox" id="native">1:1 像素</label>
+  <label>时间轴 <input type="range" id="scrub" min="0" max="1" step="0.001" value="0" style="width:220px"></label>
+  <span id="info"></span>
+</div>
+<div id="wrap" class="fit"><canvas id="c"></canvas></div>
+<script>
+"use strict";
+const FRAME_DIR = "../../ElainaModSkills/CutIn/png/";
+// 选用帧：1-5 转头抬眼，6-13 举杖，19/28 闭嘴指向镜头（14-18、21-27 张嘴说话，不用）
+const SEQ = [
+  [1, .07], [2, .07], [3, .07], [4, .07], [5, .19],
+  [6, .05], [7, .06], [9, .06], [11, .06], [13, .14],
+  [19, .06], [28, 99]
+];
+const IMPACT_FRAME = 19;
+const TOTAL = 1.85;
+
+const T_SLIT = [0.00, 0.10];   // 光缝划过
+const T_OPEN = [0.06, 0.26];   // 特写带张开
+const T_EXIT = [1.52, 1.85];   // 收拢退场
+const FRAME_START = 0.10;
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const bg = new Image(); bg.src = "bg-terraria.jpg";
+// 源帧只有 960×540，带子横贯全屏时会露出帧的左/右/底边界（帽子、头发被直线切断）。
+// 给每帧乘一层边缘渐隐遮罩，让切边融进星空底。正式版应把遮罩烘焙进导出的帧 PNG。
+const FADE = { left: [0, 230], right: [960, 760], top: [0, 50], bottom: [540, 505] };
+const smooth = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+function ramp(c, axisLen, horizontal, [edge, inner]) {
+  const g = horizontal ? c.createLinearGradient(edge, 0, inner, 0) : c.createLinearGradient(0, edge, 0, inner);
+  for (let i = 0; i <= 8; i++) g.addColorStop(i / 8, `rgba(0,0,0,${smooth(i / 8)})`);
+  g.addColorStop(1, "rgba(0,0,0,1)");
+  return g;
+}
+function maskFrame(im) {
+  const cv = document.createElement("canvas"); cv.width = 960; cv.height = 540;
+  const c = cv.getContext("2d");
+  c.drawImage(im, 0, 0);
+  c.globalCompositeOperation = "destination-in";
+  for (const [key, horizontal] of [["left", true], ["right", true], ["top", false], ["bottom", false]]) {
+    c.fillStyle = ramp(c, 0, horizontal, FADE[key]);
+    c.fillRect(0, 0, 960, 540);
+  }
+  cv.ready = true;
+  return cv;
+}
+const frames = {};
+for (const [id] of SEQ) {
+  const im = new Image();
+  im.onload = () => { frames[id] = maskFrame(im); };
+  im.src = FRAME_DIR + "frame-" + String(id).padStart(3, "0") + ".png";
+  frames[id] = { ready: false };
+}
+
+let W = 2560, H = 1440;
+function setRes() {
+  [W, H] = document.getElementById("res").value.split("x").map(Number);
+  canvas.width = W; canvas.height = H;
+  applyNative();
+}
+function applyNative() {
+  const nat = document.getElementById("native").checked;
+  document.getElementById("wrap").className = nat ? "" : "fit";
+  canvas.style.width = nat ? (W / devicePixelRatio) + "px" : "";
+}
+
+// ---------- 工具 ----------
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const seg = (t, [a, b]) => clamp01((t - a) / (b - a));
+const easeOutCubic = x => 1 - Math.pow(1 - x, 3);
+const easeInCubic = x => x * x * x;
+const easeOutBack = x => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+function rng(seed) { return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+
+const STARS = (() => { const r = rng(7), a = []; for (let i = 0; i < 70; i++) a.push({ u: r(), v: r() * 2 - 1, s: .5 + r() * 1.2, ph: r() * 6.28, sp: .6 + r() * .8 }); return a; })();
+const STREAKS = (() => { const r = rng(31), a = []; for (let i = 0; i < 22; i++) a.push({ u: r(), v: r() * 2 - 1, len: .08 + r() * .22, sp: 1.6 + r() * 1.8, a: .25 + r() * .45 }); return a; })();
+const OUTER = (() => { const r = rng(97), a = []; for (let i = 0; i < 8; i++) a.push({ u: r(), off: (r() < .5 ? -1 : 1) * (0.62 + r() * 0.55), len: .12 + r() * .25, w: .5 + r() * 1.5, sp: 2.2 + r() * 1.5 }); return a; })();
+
+function frameAt(t) {
+  let acc = FRAME_START;
+  for (const [id, d] of SEQ) { if (t < acc + d) return { id, start: acc }; acc += d; }
+  return { id: SEQ[SEQ.length - 1][0], start: acc };
+}
+const IMPACT_T = (() => { let acc = FRAME_START; for (const [id, d] of SEQ) { if (id === IMPACT_FRAME) return acc; acc += d; } })();
+
+function star4(x, y, r, rot, alpha, color) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha = alpha; ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 === 0 ? r : r * 0.16; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+// ---------- 主绘制 ----------
+function draw(t) {
+  const k = H / 1080;
+  const sMax = +document.getElementById("smax").value;
+  const s = Math.min(1.30 * k, sMax);              // 人像相对源图的放大倍率
+  const T = 300 * s;                                // 带宽（垂直于带方向）= 300 源像素
+  const theta = 13 * Math.PI / 180;
+  const dir = { x: Math.cos(theta), y: -Math.sin(theta) };
+  const nrm = { x: Math.sin(theta), y: Math.cos(theta) };
+  const bx = W * 0.5, by = H * 0.255;             // 带中心：玩家（屏幕中心）上方
+  const L = Math.hypot(W, H) * 1.2;
+
+  const open = t < T_EXIT[0] ? easeOutBack(seg(t, T_OPEN)) : 1 - easeInCubic(seg(t, T_EXIT));
+  const dim = Math.min(easeOutCubic(seg(t, [0, .2])), 1 - seg(t, [T_EXIT[0] + .08, T_EXIT[1]]));
+  const sinceImpact = t - IMPACT_T;
+  const shake = sinceImpact > 0 && sinceImpact < .18 ? (1 - sinceImpact / .18) * 6 * k : 0;
+  const shx = shake * Math.sin(t * 190), shy = shake * Math.cos(t * 230);
+
+  // 游戏画面
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+  if (bg.complete) ctx.drawImage(bg, 0, 0, W, H);
+  ctx.fillStyle = `rgba(8,4,20,${0.42 * dim})`; ctx.fillRect(0, 0, W, H);
+
+  // 带局部坐标：原点在带中心，x 沿带方向
+  const toBand = () => ctx.setTransform(dir.x, dir.y, -dir.y, dir.x, bx + shx, by + shy);
+
+  // 外侧细线（入场速度感）
+  const outerA = Math.min(seg(t, [.04, .14]), 1 - seg(t, [.5, .8])) + (t > T_EXIT[0] ? seg(t, [T_EXIT[0], T_EXIT[0] + .1]) * (1 - seg(t, [T_EXIT[0] + .1, T_EXIT[1]])) : 0);
+  if (outerA > 0) {
+    toBand();
+    for (const o of OUTER) {
+      const x = ((o.u - t * o.sp) % 1.2 + 1.2) % 1.2 * L - L * .6;
+      ctx.globalAlpha = outerA * .7; ctx.fillStyle = "#e9e2ff";
+      ctx.fillRect(x, o.off * T * .5 * Math.max(open, .3), o.len * L * .4, o.w * k);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 光缝：先从左到右划过一道细线
+  const slit = seg(t, T_SLIT);
+  if (slit > 0 && open < .98 && t < T_EXIT[0]) {
+    toBand();
+    const x1 = -L / 2 + L * easeOutCubic(slit);
+    ctx.shadowColor = "#b9a6ff"; ctx.shadowBlur = 14 * k;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(-L / 2, -1.5 * k, x1 + L / 2, 3 * k);
+    ctx.shadowBlur = 0;
+  }
+
+  const halfT = T * 0.5 * Math.max(open, 0);
+  if (halfT > 0.5) {
+    // 背后的错位副带
+    toBand();
+    ctx.fillStyle = "rgba(120,86,210,0.38)";
+    ctx.fillRect(-L / 2, -halfT - 14 * k * open, L, 8 * k * open);
+    ctx.fillStyle = "rgba(160,130,240,0.30)";
+    ctx.fillRect(-L / 2, halfT + 8 * k * open, L, 5 * k * open);
+
+    // 主带剪裁
+    ctx.save();
+    toBand();
+    ctx.beginPath(); ctx.rect(-L / 2, -halfT, L, halfT * 2); ctx.clip();
+
+    const g = ctx.createLinearGradient(0, -halfT, 0, halfT);
+    g.addColorStop(0, "#2a1d55"); g.addColorStop(.5, "#3b2a78"); g.addColorStop(1, "#1a1338");
+    ctx.fillStyle = g; ctx.fillRect(-L / 2, -halfT, L, halfT * 2);
+
+    // 星点
+    for (const st of STARS) {
+      const x = ((st.u - t * .06 * st.sp) % 1 + 1) % 1 * L - L / 2;
+      const y = st.v * T * .5;
+      const tw = .45 + .55 * Math.sin(t * 6 * st.sp + st.ph);
+      star4(x, y, (2 + st.s * 3) * k, 0, .55 * tw, "#e8e0ff");
+    }
+    // 沿带方向的速度线
+    for (const sk of STREAKS) {
+      const x = ((sk.u - t * sk.sp * .35) % 1.3 + 1.3) % 1.3 * L - L * .65;
+      const y = sk.v * T * .48;
+      const lg = ctx.createLinearGradient(x, 0, x + sk.len * L * .5, 0);
+      lg.addColorStop(0, "rgba(220,210,255,0)"); lg.addColorStop(1, `rgba(230,222,255,${sk.a})`);
+      ctx.fillStyle = lg; ctx.fillRect(x, y, sk.len * L * .5, 1.5 * k);
+    }
+
+    // 人像：保持竖直（不随带旋转），只沿带方向平移
+    const f = frameAt(t);
+    const im = frames[f.id];
+    const enter = 1 - easeOutCubic(seg(t, [.08, .42]));
+    const exitP = easeInCubic(seg(t, T_EXIT));
+    const along = (W * .16) * enter - 26 * s * seg(t, [.3, T_EXIT[0]]) - W * .35 * exitP;
+    const punch = sinceImpact > 0 ? 1 + .055 * Math.exp(-sinceImpact * 9) + .02 * clamp01(sinceImpact / .3) : 1;
+    // 人像锚点：源图 (470,265/305) 对齐到带中心线上的 (0.56W) 处
+    const lx = W * .06 + along;
+    const px = bx + dir.x * lx + shx, py = by + dir.y * lx + shy;
+    const ax = 470, ay = sinceImpact >= 0 ? 305 : 265; // 冲击前后锚点不同，切换被闪白盖住（与正式代码一致）
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (im.ready) {
+      const sc = s * punch;
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(im, px - ax * sc, py - ay * sc, 960 * sc, 540 * sc);
+    }
+
+    // 冲击闪白
+    toBand();
+    if (sinceImpact > 0 && sinceImpact < .16) {
+      ctx.fillStyle = `rgba(245,240,255,${.85 * (1 - sinceImpact / .16)})`;
+      ctx.fillRect(-L / 2, -halfT, L, halfT * 2);
+    }
+    ctx.restore();
+
+    // 带边缘亮线
+    toBand();
+    ctx.shadowColor = "#a98cff"; ctx.shadowBlur = 16 * k;
+    ctx.fillStyle = "#f4efff";
+    ctx.fillRect(-L / 2, -halfT - 2 * k, L, 3 * k);
+    ctx.fillRect(-L / 2, halfT - 1 * k, L, 3 * k);
+    ctx.shadowBlur = 0;
+
+    // 冲击：杖尖星芒（frame-028 杖头约在源图 (268,500)）
+    if (sinceImpact > 0 && sinceImpact < .45 && t < T_EXIT[0]) {
+      const p = sinceImpact / .45;
+      const sc = s * punch;
+      ctx.save();
+      toBand(); ctx.beginPath(); ctx.rect(-L / 2, -halfT, L, halfT * 2); ctx.clip();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const fx = px + (268 - ax) * sc, fy = py + (490 - ay) * sc;
+      ctx.save();
+      ctx.shadowColor = "#b49cff"; ctx.shadowBlur = 24 * k;
+      star4(fx, fy, (40 + 260 * easeOutCubic(p)) * k, .2 * p, 1 - p, "#ffffff");
+      star4(fx, fy, (20 + 130 * easeOutCubic(p)) * k, Math.PI / 4 + .2 * p, (1 - p) * .8, "#d9ccff");
+      ctx.restore();
+      ctx.strokeStyle = `rgba(230,220,255,${(1 - p) * .9})`; ctx.lineWidth = 3 * k * (1 - p) + 1;
+      ctx.beginPath(); ctx.arc(fx, fy, (30 + 340 * easeOutCubic(p)) * k, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 退场：收拢后残留的光线向右射出
+  if (t > T_EXIT[0]) {
+    const p = seg(t, [T_EXIT[0] + .12, T_EXIT[1]]);
+    if (p > 0 && p < 1) {
+      toBand();
+      ctx.shadowColor = "#b9a6ff"; ctx.shadowBlur = 14 * k;
+      ctx.globalAlpha = 1 - p; ctx.fillStyle = "#fff";
+      const x0 = -L / 2 + L * easeInCubic(p);
+      ctx.fillRect(x0, -1.5 * k, L / 2 - x0, 3 * k);
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    }
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  const fr = t < TOTAL ? frameAt(t).id : "-";
+  document.getElementById("info").textContent =
+    `t=${t.toFixed(3)}s  帧=${fr}  人像倍率=×${s.toFixed(2)}  带宽=${Math.round(T)}px (${(T / H * 100).toFixed(0)}%屏高)`;
+}
+
+// ---------- 独立时钟 ----------
+let startReal = performance.now(), scrubbing = false, lastT = 0;
+function tick(now) {
+  const speed = +document.getElementById("speed").value;
+  let t;
+  if (scrubbing) t = +document.getElementById("scrub").value * TOTAL;
+  else {
+    t = (now - startReal) / 1000 * speed;
+    if (t > TOTAL + .35) {
+      if (document.getElementById("loop").checked) { startReal = now; t = 0; }
+      else t = TOTAL + .35;
+    }
+    document.getElementById("scrub").value = Math.min(t / TOTAL, 1);
+  }
+  lastT = t;
+  draw(Math.min(t, TOTAL + .35));
+  requestAnimationFrame(tick);
+}
+document.getElementById("play").onclick = () => { scrubbing = false; startReal = performance.now(); };
+document.getElementById("res").onchange = setRes;
+document.getElementById("native").onchange = applyNative;
+const smax = document.getElementById("smax"), smaxv = document.getElementById("smaxv");
+smax.oninput = () => smaxv.textContent = "×" + (+smax.value).toFixed(2); smax.oninput();
+const scrub = document.getElementById("scrub");
+scrub.oninput = () => { scrubbing = true; };
+document.getElementById("speed").onchange = () => { startReal = performance.now() - lastT * 1000 / +document.getElementById("speed").value; };
+window.preview = { seek(t) { scrubbing = true; scrub.value = t / TOTAL; } , resume() { scrubbing = false; startReal = performance.now(); } };
+setRes();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

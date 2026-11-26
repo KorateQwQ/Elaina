@@ -18,6 +18,8 @@ using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaActions;
 using 伊蕾娜.Items;
 using GameMain = Terraria.Main;
+using Queue = KL.Drawing.LayerDrawRequestSystem;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
 
 static partial class Checks
 {
@@ -32,7 +34,7 @@ static partial class Checks
     static Player PlayerFixture(int index)
     {
         var player = new Player { whoAmI = index, active = true };
-        var parts = new ModPlayer[] { new IceCyclePlayer(), new ElainaSkillModPlayer(), new FreezeBuildupPlayer(), new WaterExposurePlayer(),
+        var parts = new ModPlayer[] { new IceCyclePlayer(), new ElainaSkillModPlayer(), new ElementalInfusionPlayer(),
             new ElainaAttributeModPlayer(), new ActionModPlayer(), new global::伊蕾娜.ElainaModplayer { Elaina = true },
             new ElainaManaElixirPlayer() };
         for (ushort i = 0; i < parts.Length; i++) {
@@ -57,6 +59,58 @@ static partial class Checks
         GameMain.npc[index] = npc;
         return npc;
     }
+    static void CheckShardbindDrawLayer()
+    {
+        var controller = Attach(new ShardbindProj());
+        var behindTiles = new List<int>(); var behindNpcs = new List<int>();
+        var behindProjectiles = new List<int>(); var overPlayers = new List<int>(); var overUi = new List<int>();
+        controller.DrawBehind(17, behindTiles, behindNpcs, behindProjectiles, overPlayers, overUi);
+        Check(behindProjectiles.SequenceEqual(new[] { 17 }), "Shardbind submits before the foreground queue");
+        typeof(ShardbindProj).GetField("time", All)!.SetValue(controller, IceCycleBalance.LockChargeStartFrame + 1);
+        KL.Drawing.LayerDrawRequestSystem.ClearFrame();
+        // 控制器在 BehindProjectiles 的 PreDraw 提前登记蓄光请求。
+        Color light = Color.White;
+        Check(!controller.PreDraw(ref light), "Shardbind suppresses default projectile texture");
+        Check(!KL.Drawing.LayerDrawRequestSystem.HasBloomRequests(
+            KL.Drawing.LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
+            KL.Drawing.LayerDrawRequestSystem.DrawTiming.After), "Shardbind must not enqueue into the completed Projectiles layer");
+        Check(KL.Drawing.LayerDrawRequestSystem.HasBloomRequests(
+            KL.Drawing.LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            KL.Drawing.LayerDrawRequestSystem.DrawTiming.Before), "Shardbind charge shares the foreground Bloom");
+        KL.Drawing.LayerDrawRequestSystem.ClearFrame();
+    }
+    static void CheckCombatBloomLayers()
+    {
+        GameMain.dedServ = false;
+        Queue.ClearFrame();
+        var ball = Attach(new WaterBall());
+        var burst = Attach(new FireBurstProj());
+        var tornado = Attach(new FireTornado());
+        ball.DrawBehind(0, new(), new(), new(), new(), new());
+        burst.DrawBehind(1, new(), new(), new(), new(), new());
+        var dust = new Dust { customData = new KL.Dusts.KLBasicDust.DustInfo(10, Vector2.One) {
+            Bloom = KL.Dusts.KLBasicDust.BloomPlacement.BeforeOverPlayers } };
+        new KL.Dusts.LineSparkle().SubmitBloomDrawRequest(dust);
+        new KL.Dusts.LineRotSparkle().SubmitBloomDrawRequest(dust);
+        new KL.Dusts.Fire.FireDust().SubmitBloomDrawRequest(dust);
+        new KL.Dusts.Fire.FireDust2().SubmitBloomDrawRequest(dust);
+        CheckLayers(false);
+        tornado.DrawBehind(2, new(), new(), new(), new(), new());
+        CheckLayers(true);
+        Queue.ClearFrame();
+        GameMain.dedServ = true;
+
+        static void CheckLayers(bool tornadoActive)
+        {
+            foreach (var layer in Enum.GetValues<Queue.DrawTargetLayer>())
+            foreach (var timing in Enum.GetValues<Queue.DrawTiming>())
+            {
+                bool expected = layer == Queue.DrawTargetLayer.OverPlayers && timing == Queue.DrawTiming.Before
+                    || tornadoActive && layer == Queue.DrawTargetLayer.BehindNPCsAndTiles && timing == Queue.DrawTiming.After;
+                Check(Queue.HasBloomRequests(layer, timing) == expected, $"Combined skill Bloom at {layer}.{timing}, tornado={tornadoActive}");
+            }
+        }
+    }
     static FireBurnNPC NewFire(NPC npc) { var fire = new FireBurnNPC(); fire.SetDefaults(npc); return fire; }
     static void FreezeCD(NPC npc, int ticks) => typeof(ElementalGlobalNPC).GetField("freezeCooldown", All)!.SetValue(npc.GetGlobalNPC<ElementalGlobalNPC>(), ticks);
     static void TriggerFreeze(NPC npc, int sourcePlayer)
@@ -67,7 +121,9 @@ static partial class Checks
     }
     static T Attach<T>(T modProjectile, int owner = 0) where T : ModProjectile
     {
-        var projectile = new Projectile { owner = owner, active = true, damage = 100 };
+        var projectile = new Projectile { type = ProjectileID.WoodenArrowFriendly, owner = owner, active = true, damage = 100 };
+        typeof(Projectile).GetField("_globals", All)!.SetValue(projectile,
+            new GlobalProjectile[] { new ElementalGlobalProjectile() });
         typeof(ModProjectile).GetProperty("Entity", All)!.SetValue(modProjectile, projectile);
         return modProjectile;
     }
@@ -84,6 +140,8 @@ static partial class Checks
         typeof(GlobalNPC).GetMethod("Register", All)!.Invoke(template, null);
         ContentInstance.Register(template);
         Register(mod, new IceboundNPC()); Register(mod, new FireBurnNPC()); Register(mod, new WaterExposureNPC());
+        Register(mod, new ElementalGlobalProjectile());
+        Register(mod, new ElementalGlobalItem());
         Register(mod, new ElementalAffliction_Freeze()); Register(mod, new ElementalAffliction_Fire());
         Register(mod, new ElementalAffliction_Electrocuted()); Register(mod, new ElementalAffliction_Wet());
         System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(BuffID.Sets).TypeHandle);
@@ -93,8 +151,36 @@ static partial class Checks
         var cycle = player.GetModPlayer<IceCyclePlayer>();
         var skill = player.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)];
         var otherSkill = otherPlayer.GetModPlayer<ElainaSkillModPlayer>().UnlockedSkill[nameof(ShardbindSkill)];
+        if (args.Contains("--buildup")) {
+            new ElementBuildUpSystem().Load();
+            CheckElementalDamageOrder();
+            CheckShardbindFinalBuildup();
+            CheckMeleeBuildup(player);
+            CheckActualWaterCallbacks();
+            Console.WriteLine($"Attack buildup: {passed} checks passed.");
+            return;
+        }
+        if (args.Contains("--shardbind")) {
+            CheckCombatBloomLayers();
+            CheckShardbindDrawLayer();
+            new ElementBuildUpSystem().Load();
+            int events = 0;
+            ElementBuildUpSystem.FreezeTriggered += (_, _) => events++;
+            CheckLockSequence(NpcFixture(0), NpcFixture(1, 0), NpcFixture(2), () => events, skill);
+            CheckTargetDeathContinuation();
+            CheckShardbindFinalBuildup();
+            CheckReticleIntegration();
+            Console.WriteLine($"Shardbind integration: {passed} checks passed against compiled draw scheduling, controller AI, damage, hold and target lifetime.");
+            return;
+        }
+        if (args.Contains("--status")) {
+            CheckStatusRules();
+            Console.WriteLine($"Elemental status integration: {passed} checks passed against compiled KL/Elaina and real tML entities.");
+            return;
+        }
         if (args.Contains("--ice-action")) {
             CheckIceConeAction(player);
+            CheckIceQuickCast(player);
             Console.WriteLine($"Ice Cone action: {passed} checks passed against compiled action/node/shoot code.");
             return;
         }
@@ -131,10 +217,10 @@ static partial class Checks
         var otherSealed = (ShardbindSkill)otherSkill.ModSkill;
         Check(sealedSkill.IsSealed && otherSealed.IsSealed, "Skills start sealed even when cooldown can recover");
         target.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 600);
-        for (int i = 0; i < 17; i++) { Clock((uint)(100 + i * 2)); global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f); }
-        Check(!target.HasBuff<ElementalAffliction_Freeze>() && sealedSkill.IsSealed, "17 hits do not freeze or unseal");
+        for (int i = 0; i < 8; i++) { Clock((uint)(100 + i * 2)); global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f); }
+        Check(!target.HasBuff<ElementalAffliction_Freeze>() && sealedSkill.IsSealed, "8 wet hits do not freeze or unseal");
         Clock(134); global.OnHitByElement(ElementType.Ice, target, new NPC.HitInfo { Damage = 10, SourceDamage = 10 }, 0, 5.6f);
-        Check(target.HasBuff<ElementalAffliction_Freeze>() && part.HasBuff<ElementalAffliction_Freeze>(), "18th hit freezes shared group");
+        Check(target.HasBuff<ElementalAffliction_Freeze>() && part.HasBuff<ElementalAffliction_Freeze>(), "9th wet hit freezes shared group");
         Near(target.buffTime[target.FindBuffIndex(ModContent.BuffType<ElementalAffliction_Freeze>())], 240, "Freeze lasts four seconds");
         Check(!sealedSkill.IsSealed && otherSealed.IsSealed, "Freeze unseals only its source player");
         Near(skill.CurrentCD, 60, "Freeze does not refund cooldown");
@@ -186,17 +272,21 @@ static partial class Checks
         CheckLockSequence(target, part, other, () => freezeEvents, skill);
         CheckTargetDeathContinuation();
         CheckIceDamageWithoutBuildup();
+        CheckElementalDamageOrder();
+        CheckShardbindFinalBuildup();
+        CheckFixedAndDamageBuildup();
         CheckIndependentCasting(player);
 
         string root = args[0];
         Check(SkillBalanceConfig.TryParse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)), out var config, out var error), error);
         var entry = config.Skills[nameof(ShardbindSkill)];
-        Near(entry.FreezeBuildup, 0, "Shardbind config chooses zero buildup per hit");
         using var savedJson = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, SkillBalanceConfig.ResourcePath)));
+        var savedLock = savedJson.RootElement.GetProperty("configuration").GetProperty("skills")
+            .EnumerateArray().Single(row => row.GetProperty("id").GetString() == nameof(ShardbindSkill));
+        Check(!savedLock.TryGetProperty("buildup", out _), "Shardbind hit rules live in SkillHitBalance");
         var savedIceCone = savedJson.RootElement.GetProperty("configuration").GetProperty("basicAttacks")
             .EnumerateArray().Single(row => row.GetProperty("id").GetString() == nameof(IceConeSkill));
-        double savedIceBuildup = savedIceCone.GetProperty("freezeBuildup").GetDouble();
-        Near(config.Skills[nameof(IceConeSkill)].FreezeBuildup, savedIceBuildup, "Ice Cone parser preserves user-saved per-hit buildup");
+        Check(!savedIceCone.TryGetProperty("buildup", out _), "Ice Cone hit rules live in SkillHitBalance");
         var iceCone = config.Skills[nameof(IceConeSkill)];
         Near(iceCone.DpsRatio, savedIceCone.GetProperty("ratio").GetDouble(), "Ice Cone parser preserves configured DPS ratio");
         Near(iceCone.BaseCooldown, savedIceCone.GetProperty("interval").GetDouble(), "Ice Cone parser preserves per-shard interval");
@@ -214,17 +304,18 @@ static partial class Checks
         Near(MathF.Atan2(shotDirection.Y, shotDirection.X), .12, "Ice Cone cursor correction stays capped");
         var waterBall = config.Skills["WaterBallSkill"];
         Near(waterBall.ManaCost, 100, "Water Ball costs one hundred mana");
-        Near(config.GetSkillDamage(1, waterBall, 95), 2, "Water Ball ordinary budget is two baseline seconds");
+        Near(config.GetSkillDamage(1, waterBall, 95), .8, "Water Ball costs two points at normal efficiency");
         Near(waterBall.BaseCooldown, 10, "Water Ball ten-second cooldown");
-        Near(entry.BaseCooldown, 30, "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
-        Near(config.GetSkillDamage(1, entry, 95), 6, "Dry lock budget is six baseline seconds");
-        Near(config.GetSkillDamage(1, entry, 95) * IceCycleBalance.LockWetDamageMultiplier, 15, "Wet lock is 0.5 DPS over thirty seconds");
+        Near(entry.BaseCooldown, savedLock.GetProperty("cd").GetDouble(), "Configured lock CD"); Near(entry.ManaCost, 250, "Configured mana cost"); Near(entry.OccupySeconds, .75, "Same 45-frame cast as Ice Cone");
+        Near(config.GetSkillDamage(1, entry, 95), .96, "Dry lock budget for three energy points at 0.8 efficiency");
+        Near(config.GetSkillDamage(1, entry, 95) * SkillHitBalance.ShardbindWetDamageMultiplier, 1.44, "Wet lock gains fifty percent damage");
         Check(entry.InitialCharges == 1 && entry.MaxCharges == 1, "One opening charge, no stockpile");
         var stream = config.Skills[nameof(WaterLaserSKill)];
-        foreach (var (level, ratio) in new[] { (26, .8), (35, .8), (40, .8), (50, .8), (65, .8), (95, .8) })
+        foreach (var (level, ratio) in new[] { (26, .75), (35, .75), (40, .75), (50, .75), (65, .75), (95, .75) })
             Near(config.GetSkillDps(1, stream, level), ratio, $"Water Stream DPS at character level {level}");
         CheckWaterDamage();
         CheckNewFreezeRules();
+        CheckIceQuickCast(player);
         foreach (string culture in new[] { "zh-Hans", "en-US" }) Hjson.HjsonValue.Parse(File.ReadAllText(Path.Combine(root, $"Localization/{culture}_Mods.伊蕾娜.SkillInfo.hjson")));
         Console.WriteLine($"Ice cycle integration: {passed} checks passed against compiled KL/Elaina and real tML entities. Both HJSON files parsed. No renderer or live multiplayer sockets exercised.");
     }
@@ -372,8 +463,42 @@ static partial class Checks
         GameMain.dedServ = true;
     }
 
+    static void CheckShardbindTargetPriority()
+    {
+        Vector2 cursor = new(8000, 1000);
+        var first = NpcFixture(30);
+        var second = NpcFixture(31);
+        first.Center = cursor;
+        second.Center = cursor + new Vector2(200, 0);
+        second.lifeMax = first.lifeMax + 1;
+        second.life = 1;
+        NPC Pick(int current = -1) => IceConeTargetSystem.FindTarget(cursor, current);
+        Check(Pick(first.whoAmI) == second, "Higher maximum life wins even at one remaining HP and greater distance");
+        first.boss = true;
+        Check(Pick(second.whoAmI) == first, "Boss outranks a normal enemy with higher maximum life");
+        second.boss = true;
+        Check(Pick() == second, "Two bosses compare maximum life");
+        second.lifeMax = first.lifeMax;
+        Check(Pick(second.whoAmI) == first, "Equal maximum life prefers nearer hitbox");
+        second.Center = first.Center;
+        Check(Pick(second.whoAmI) == second, "Tied distance retains current target");
+        second.Center = cursor + new Vector2(900, 0);
+        first.boss = false;
+        Check(Pick(second.whoAmI) == first, "Boss outside retention range is excluded");
+        first.life = 1;
+        foreach (int maximum in new[] { 1, 4, 5 })
+        {
+            first.lifeMax = maximum;
+            Check(Pick(first.whoAmI) == null, $"Cannot acquire or retain target with maximum life {maximum}");
+        }
+        first.lifeMax = 6;
+        Check(Pick() == first, "Six maximum life remains eligible with one HP left");
+        first.active = second.active = false;
+    }
+
     static void CheckLockSequence(NPC target, NPC part, NPC splash, Func<int> freezeEvents, Skill skill)
     {
+        CheckShardbindTargetPriority();
         for (int damage = 1; damage < 1000; damage++) {
             int shards = Enumerable.Range(0, 15).Sum(i => IceCycleBalance.LockShardDamage(damage, i, 15));
             if (shards + IceCycleBalance.LockFinalDamage(damage) != damage) throw new Exception("Split loses integer damage");
@@ -388,18 +513,18 @@ static partial class Checks
         Array.Fill(target.buffImmune, true);
         target.position = new Vector2(500, 300); target.velocity = new Vector2(12, -5);
         part.position = new Vector2(550, 300); part.velocity = new Vector2(-3, 8);
-        var source = new Projectile { owner = 0, identity = 100, active = true };
+        var source = new Projectile { owner = 0, identity = 100, active = true, Center = target.Center };
         IceboundNPC.HoldGroup(target, source, 80);
         var state = target.GetGlobalNPC<IceboundNPC>(); var partState = part.GetGlobalNPC<IceboundNPC>();
         Check(state.IsHeld(target) && partState.IsHeld(part), "Invulnerable and buff-immune main target and related parts are sealed");
         Check(!splash.GetGlobalNPC<IceboundNPC>().IsHeld(splash), "Nearby splash enemy is not sealed");
         Check(!state.PreAI(target), "Ice seal prevents AI");
-        target.position += Vector2.One * 999; target.velocity = Vector2.One * 50; state.Pin(target);
-        Check(target.position == new Vector2(500, 300) && target.velocity == Vector2.Zero, "Seal restores position after physical or external movement");
+        target.position += Vector2.One; target.velocity = Vector2.One * 50; state.Pin(target);
+        Check(target.position == new Vector2(500, 300) && target.velocity == Vector2.Zero, "Seal restores position after local physical movement");
         Check(target.GetFreezeCooldown() == 0 && !target.HasBuff<ElementalAffliction_Freeze>() && freezeEvents() == previousEvents,
             "Seal has no freeze buff, cooldown or freeze event");
         Near(skill.CurrentCD, oldLockCD, "Seal never refunds lock cooldown");
-        var second = new Projectile { owner = 1, identity = 100, active = true };
+        var second = new Projectile { owner = 1, identity = 100, active = true, Center = target.Center };
         IceboundNPC.HoldGroup(target, second, 90);
         IceboundNPC.ReleaseGroup(source); Check(state.IsHeld(target), "First caster cannot release second caster's seal");
         IceboundNPC.ReleaseGroup(second);
@@ -421,64 +546,144 @@ static partial class Checks
 
         var cone = new IceCone3DUnit(new Vector3(200, 0, 0), Vector3.Zero, new Vector3(-58, 0, 0), 1, 135);
         cone.OnSpawn(); int arrivals = 0, arrivalFrame = 0;
+        var modelMethod = typeof(IceCone3DUnit).GetMethod("GetModelMatrix", All)!;
         for (int frame = 1; frame < 110; frame++) {
             cone.MoveWithTarget(new Vector2(3, -1)); cone.Update();
             if (cone.ArrivedThisUpdate) { arrivals++; arrivalFrame = frame; }
+            Matrix model = (Matrix)modelMethod.Invoke(cone, [frame - 1])!;
+            Near(Vector3.TransformNormal(Vector3.UnitX, model).Length(), 20, "Lock growth preserves width");
+            Near(Vector3.TransformNormal(Vector3.UnitZ, model).Length(), 20, "Lock growth preserves thickness");
+            float age = arrivalFrame == 0 ? 0 : Math.Clamp((frame - arrivalFrame) / 5f, 0, 1);
+            float expectedLength = 20 * (1 + 1.2f * (1 - MathF.Pow(1 - age, 3)));
+            Near(Vector3.TransformNormal(Vector3.UnitY, model).Length(), expectedLength,
+                "Lock length stays continuous on arrival and reaches 2.2 in five ticks");
+            var late = new IceCone3DUnit(new Vector3(200, 0, 0), Vector3.Zero, new Vector3(-58, 0, 0), 1, 135);
+            late.OnSpawn(); late.MoveWithTarget(new Vector2(3 * frame, -frame)); late.CatchUp(frame);
+            Matrix lateModel = (Matrix)modelMethod.Invoke(late, [frame - 1])!;
+            Check(!late.ArrivedThisUpdate, "Catch-up does not replay impact events during growth");
+            foreach (Vector3 point in new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
+                Check(Vector3.Distance(Vector3.Transform(point, model), Vector3.Transform(point, lateModel)) < .001f,
+                    "Late network model matches continuous growth and translated lock anchor");
         }
         Check(arrivals == 1 && arrivalFrame == 29, "Moving coordinate system keeps one actual crossing event at frame 29");
         var replay = new IceCone3DUnit(new Vector3(200, 0, 0), Vector3.Zero, new Vector3(-58, 0, 0), 1, 135);
         replay.OnSpawn(); replay.MoveWithTarget(new Vector2(3 * 109, -109)); replay.CatchUp(109);
         Check(Vector3.Distance(cone.Position3D, replay.Position3D) < .001f && replay.HasArrived && !replay.ArrivedThisUpdate,
             "Network catch-up reconstructs translated visuals without replaying impact events");
-        var spawnMethod = typeof(ShardbindProj).GetMethod("BuildIceCone3DSpawnData", All)!;
-        var spawns = (global::System.Collections.IEnumerable)spawnMethod.Invoke(null, [Vector2.Zero, 200f])!;
-        int count = 0; int lastImpact = 0;
-        foreach (object spawn in spawns) {
-            int delay = (int)spawn.GetType().GetProperty("TriggerFrame")!.GetValue(spawn)!;
-            lastImpact = Math.Max(lastImpact, delay + arrivalFrame - 1); count++;
-        }
-        Check(count == 15 && lastImpact == 96 && lastImpact < IceCycleBalance.LockBurstFrame, "All 15 shard impacts precede final explosion");
+        CheckPreparedShardbindGeometry();
 
         // Execute the real controller AI and visual-unit updates; intercept only the engine's world damage scan.
         // This checks scheduling/pulse budgets without requiring a loaded Terraria world or graphics assets.
         var sequence = Attach(new ShardbindProj());
-        sequence.Projectile.damage = 12688; sequence.Projectile.timeLeft = 120;
+        sequence.Projectile.damage = 12688; sequence.Projectile.timeLeft = ShardbindVisualSettings.ControllerLifetime;
         sequence.Projectile.identity = 101;
         sequence.BindTarget(target, state.SpawnSerial);
         var pulses = new List<(int Frame, int Damage, float Radius)>();
+        Vector2 strikePosition = target.Center;
+        const int teleportTick = ShardbindSequence.FirstImpactTick + 1;
         void CaptureDamage(On_Projectile.orig_Damage orig, Projectile projectile)
         {
             if (projectile != sequence.Projectile) { orig(projectile); return; }
             Check(sequence.CanDamage() == true && projectile.friendly, "Real damage scan is confined to explicit pulse");
+            Check(projectile.Center == strikePosition && sequence.Colliding(default, new Rectangle((int)strikePosition.X, (int)strikePosition.Y, 8, 8)) == true,
+                "Every pulse covers the original strike location");
+            if ((int)projectile.ai[1] >= teleportTick)
+                Check(sequence.Colliding(default, target.Hitbox) == false, "Teleported target is outside the remaining pulses");
             pulses.Add(((int)projectile.ai[1], projectile.damage,
                 (float)typeof(ShardbindProj).GetField("damageRadius", All)!.GetValue(sequence)!));
         }
         On_Projectile.Damage += CaptureDamage;
         try {
-            for (int frame = 1; frame <= 111; frame++) {
+            for (int frame = 1; frame <= IceCycleBalance.LockBurstFrame + 1; frame++) {
                 Clock((uint)(3000 + frame));
-                if (frame < 29) target.position += new Vector2(5, -2);
+                if (frame <= ShardbindSequence.SealTick) target.position += new Vector2(5, -2);
+                if (frame <= ShardbindSequence.SealTick) strikePosition = target.Center;
+                if (frame == teleportTick) {
+                    Vector2 destination = strikePosition + new Vector2(1000, 1000);
+                    target.Center = destination;
+                    state.Pin(target);
+                    Check(target.Center == destination, "Seal respects a forced teleport out of the strike area");
+                }
                 sequence.AI();
-                Check(sequence.Projectile.Center == target.Center, "Whole controller follows moving target");
-                Check(state.IsHeld(target) == (frame >= 29 && frame < 110), "Control follows first impact through final blast");
+                Check(sequence.Projectile.Center == strikePosition, "Controller stays at the position captured on seal");
+                if (frame >= ShardbindSequence.SealTick && frame < teleportTick)
+                    Check(target.Center == strikePosition && target.velocity == Vector2.Zero, "Target and strike center coincide before and during first piercing");
+                Check(sequence.Projectile.timeLeft > 0, "Controller survives the complete charge and burst timeline");
+                sequence.Projectile.timeLeft--;
+                if (frame == IceCycleBalance.LockChargeStartFrame) {
+                    var liveUnits = (IEnumerable<KL.Drawing.VisualUnit>)typeof(ShardbindProj).GetField("units", All)!.GetValue(sequence)!;
+                    Check(liveUnits.OfType<IceCone3DUnit>().Count(c => c.Active) == 15
+                        && liveUnits.OfType<IceCone3DUnit>().Count(c => c.HasArrived) is > 0 and < 15,
+                        "Charge begins during the volley while all fifteen cones survive");
+                }
+                Check(state.IsHeld(target) == (frame >= ShardbindSequence.SealTick && frame < teleportTick), "Control starts before launch and ends when target escapes");
             }
         }
         finally { On_Projectile.Damage -= CaptureDamage; }
-        Check(pulses.Count == 16 && pulses[0].Frame == 29 && pulses[^1].Frame == 110, "Real AI schedules 15 impacts and exactly one final blast");
+        Check(pulses.Count == 16 && pulses[0].Frame == ShardbindSequence.FirstImpactTick && pulses[^1].Frame == IceCycleBalance.LockBurstFrame, "Real AI schedules 15 impacts and exactly one final blast");
         Check(pulses.Take(15).All(p => p.Radius == 80) && pulses[^1].Radius == 200, "Real AI uses separate impact and final AOE sizes");
         Check(pulses.Sum(p => p.Damage) == 12688 && pulses[^1].Damage == 6344, "Real AI applies exact 50/50 total budget");
         Check(!splash.GetGlobalNPC<IceboundNPC>().IsHeld(splash) && freezeEvents() == previousEvents && target.GetFreezeCooldown() == 0,
             "Full sequence never seals splash targets or triggers freeze mechanics");
+        target.Center = strikePosition;
         IceboundNPC.HoldGroup(target, sequence.Projectile, 20); sequence.OnKill(1);
         Check(!state.IsHeld(target) && !partState.IsHeld(part), "Premature projectile removal releases all related parts");
     }
+    static void CheckPreparedShardbindGeometry()
+    {
+        CheckShardbindCameraMotion();
+        Check(ShardbindSequence.SealTick < ShardbindSequence.LaunchTick && ShardbindSequence.LaunchTick == 75 && ShardbindSequence.FirstImpactTick == 78
+            && ShardbindSequence.LastImpactTick == 106 && IceCycleBalance.LockChargeStartFrame == 92
+            && IceCycleBalance.LockBurstFrame == 164, "Integrated preview timeline relative to confirmation");
+        var spawnMethod = typeof(ShardbindProj).GetMethod("BuildIceCone3DSpawnData", All)!;
+        var create = typeof(IceCone3DUnit).GetMethod("CreatePrepared", All)!;
+        foreach (Vector2 center in new[] { new Vector2(1280, 720), new Vector2(130000, 35000), new Vector2(131467, 6819) })
+        foreach (float cameraZ in new[] { -1343.5f, -1791.4f, -2687.077f, -4030.6f })
+        {
+            var spawns = (global::System.Collections.IEnumerable)spawnMethod.Invoke(null, [center, 200f])!;
+            int index = 0;
+            var arrivals = new List<int>();
+            foreach (object spawn in spawns)
+            {
+                Vector2 xy = (Vector2)spawn.GetType().GetProperty("SpawnWorldPosition")!.GetValue(spawn)!;
+                float z = (float)spawn.GetType().GetProperty("StartDepth")!.GetValue(spawn)!;
+                Vector3 position = new(xy, z), target = new(center, 0);
+                Vector3 velocity = Vector3.Normalize(target - position) * 58;
+                Vector3 camera = new(center + (center.X == 131467 ? new Vector2(-409, 288) : new Vector2(180, -90)), cameraZ);
+                IceCone3DUnit Create() => (IceCone3DUnit)create.Invoke(null, [position, target, velocity, 15, index, 0, (Vector3?)camera])!;
+                var unit = Create(); unit.OnSpawn();
+                int impact = -1;
+                for (int tick = 1; tick <= 112; tick++)
+                {
+                    unit.Update();
+                    if (unit.ArrivedThisUpdate) { Check(impact < 0, "One hit per prepared cone"); impact = tick; }
+                    Check(tick >= 75 || !unit.HasArrived, "No hit during confirmed lock animation");
+                }
+                Check(impact == 78 + ShardbindSequence.ShotOffset(index), "Camera-independent authoritative arrival");
+                arrivals.Add(impact);
+                foreach (int lateTick in new[] { 60, 76, 90, 110 })
+                {
+                    var late = Create(); late.OnSpawn(); late.CatchUp(lateTick);
+                    Check(!late.ArrivedThisUpdate, "Catch-up does not replay damage events");
+                    for (int tick = lateTick + 1; tick <= 112; tick++) late.Update();
+                    Check(Vector3.Distance(unit.Position3D, late.Position3D) < .001f && late.HasArrived,
+                        "Late packet reconstructs prepared trajectory and final penetration");
+                }
+                index++;
+            }
+            Check(index == 15 && arrivals.Min() == 78 && arrivals.Max() == 106 && arrivals.Distinct().Count() == 15,
+                "All fifteen irregular shots fit the confirmed 28-tick volley");
+        }
+    }
+
     static void CheckTargetDeathContinuation()
     {
-        foreach (int deathFrame in new[] { 1, 45, 100 }) {
+        CheckNetworkSeal();
+        foreach (int deathFrame in new[] { 1, 45, 80, 105, IceCycleBalance.LockBurstFrame - 1 }) {
             var target = NpcFixture(20); var part = NpcFixture(21, 20);
             target.Center = new Vector2(600, 400);
             var sequence = Attach(new ShardbindProj());
-            sequence.Projectile.damage = 12688; sequence.Projectile.timeLeft = 120; sequence.Projectile.identity = 200 + deathFrame;
+            sequence.Projectile.damage = 12688; sequence.Projectile.timeLeft = ShardbindVisualSettings.ControllerLifetime; sequence.Projectile.identity = 200 + deathFrame;
             sequence.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
             var pulses = new List<int>(); Vector2 deathPosition = target.Center;
             void Capture(On_Projectile.orig_Damage orig, Projectile projectile) {
@@ -486,7 +691,7 @@ static partial class Checks
             }
             On_Projectile.Damage += Capture;
             try {
-                for (int frame = 1; frame <= 111; frame++) {
+                for (int frame = 1; frame <= IceCycleBalance.LockBurstFrame + 1; frame++) {
                     Clock((uint)(5000 + deathFrame * 200 + frame));
                     if (frame == deathFrame) {
                         deathPosition = sequence.Projectile.Center;
@@ -509,51 +714,87 @@ static partial class Checks
             var received = Attach(new ShardbindProj()); received.BindTarget(target, target.GetGlobalNPC<IceboundNPC>().SpawnSerial);
             using (var reader = new BinaryReader(bytes, global::System.Text.Encoding.UTF8, true)) received.ReceiveExtraAI(reader);
             Check(received.LockedTarget == null, "Detached state survives extra-AI serialization even with a live slot");
+            received.Projectile.ai[1] = IceCycleBalance.LockBurstFrame + 1;
+            received.AI();
+            Check(received.Projectile.Center == deathPosition, "Late receiver reconstructs the strike at the synchronized location");
         }
+    }
+
+    static void CheckNetworkSeal()
+    {
+        var target = NpcFixture(22);
+        Vector2 frozen = new(2400, 1200);
+        target.Center = frozen;
+        uint serial = target.GetGlobalNPC<IceboundNPC>().SpawnSerial;
+        var server = Attach(new ShardbindProj());
+        server.BindTarget(target, serial);
+        var packets = new List<int>();
+        void Capture(On_NetMessage.orig_SendData orig, int msg, int remote, int ignore, Terraria.Localization.NetworkText text,
+            int n, float n2, float n3, float n4, int n5, int n6, int n7) => packets.Add(msg);
+        GameMain.netMode = NetmodeID.Server;
+        On_NetMessage.SendData += Capture;
+        try { for (int i = 0; i < ShardbindSequence.SealTick; i++) server.AI(); }
+        finally { On_NetMessage.SendData -= Capture; GameMain.netMode = NetmodeID.SinglePlayer; }
+        Check(packets.SequenceEqual(new int[] { MessageID.SyncNPC, MessageID.SyncProjectile }) && target.GetGlobalNPC<IceboundNPC>().IsHeld(target),
+            "Server freezes the target and sends the NPC position before the strike position");
+        using var bytes = new MemoryStream();
+        using (var writer = new BinaryWriter(bytes, global::System.Text.Encoding.UTF8, true)) server.SendExtraAI(writer);
+        IceboundNPC.ReleaseGroup(server.Projectile);
+        target.Center += new Vector2(60, 0);
+        var client = Attach(new ShardbindProj());
+        client.BindTarget(target, serial);
+        GameMain.netMode = NetmodeID.MultiplayerClient;
+        try {
+            for (int i = 0; i <= ShardbindSequence.FirstImpactTick; i++) client.AI();
+            Check(client.Projectile.ai[1] == ShardbindSequence.SealTick - 1 && !target.GetGlobalNPC<IceboundNPC>().IsHeld(target),
+                "Delayed client waits before piercing instead of sealing at a predicted position");
+            bytes.Position = 0;
+            using (var reader = new BinaryReader(bytes, global::System.Text.Encoding.UTF8, true)) client.ReceiveExtraAI(reader);
+            client.Projectile.ai[1] = ShardbindSequence.SealTick;
+            client.AI();
+            Check(client.Projectile.Center == frozen && target.Center == frozen && target.GetGlobalNPC<IceboundNPC>().IsHeld(target),
+                "Receiving the server seal aligns the moving NPC and the controller on the same tick");
+            var pulses = new List<int>();
+            void Pulse(On_Projectile.orig_Damage orig, Projectile projectile) => pulses.Add((int)projectile.ai[1]);
+            On_Projectile.Damage += Pulse;
+            try {
+                client.Projectile.ai[1] = ShardbindSequence.LastImpactTick;
+                for (int i = ShardbindSequence.SealTick + 1; i <= IceCycleBalance.LockBurstFrame; i++) client.AI();
+            }
+            finally { On_Projectile.Damage -= Pulse; }
+            Check(pulses.Count == 16 && pulses[0] == ShardbindSequence.FirstImpactTick && pulses[^1] == IceCycleBalance.LockBurstFrame,
+                "Owner processes all local damage ticks after a delayed server seal and a subsequent timeline correction");
+        }
+        finally { GameMain.netMode = NetmodeID.SinglePlayer; }
+    }
+
+    static readonly Type StrikeSystem = typeof(ElementStrikeSystem);
+    static int Hit(NPC target, ElementInfusion infusion, int damage, Action<NPC> during = null, int owner = 0, Projectile projectile = null)
+    {
+        var hit = new NPC.HitInfo { Damage = Math.Max(1, damage), SourceDamage = 99999, Knockback = 12.34567f, HideCombatText = true };
+        using var engine = new Hook(typeof(NPC).GetMethod("StrikeNPC", [typeof(NPC.HitInfo), typeof(bool), typeof(bool)])!,
+            (Func<NPC,NPC.HitInfo,bool,bool,int>)((npc, actual, _, _) => {
+                Near(actual.Knockback, hit.Knockback, "full knockback reaches the engine");
+                during?.Invoke(npc); return damage;
+            }));
+        if (projectile != null) {
+            projectile.GetGlobalProjectile<ElementalGlobalProjectile>().InfusionElement = infusion;
+            return (int)StrikeSystem.GetMethod("StrikeProjectile", All)!.Invoke(null,[target,hit,false,false,projectile,null])!;
+        }
+        var data = StrikeSystem.GetMethod("Create", All)!.Invoke(null, [target, infusion, owner]);
+        return (int)StrikeSystem.GetMethod("Strike", All)!.Invoke(null, [target, hit, GameMain.netMode == NetmodeID.Server, false, data])!;
     }
 
     static void CheckIceDamageWithoutBuildup()
     {
-        var npc = NpcFixture(22); var global = npc.GetGlobalNPC<ElementalGlobalNPC>();
-        global.SetCurrentAccumulation(ElementType.Ice, 35);
-        var element = new ElementalGlobalProjectile { InfusionElement = ElementType.Ice, FreezeBuildup = 0 };
-        var modifiers = new NPC.HitModifiers(); element.ModifyHitNPC(new Projectile(), npc, ref modifiers);
-        var encodedHit = modifiers.ToHitInfo(100, false, 2f);
-        var hook = typeof(DamageColorModifier).GetMethod("On_NPCOnStrikeNPC_HitInfo_bool_bool", All)!;
-        NPC.HitInfo decodedHit = default;
-        On_NPC.orig_StrikeNPC_HitInfo_bool_bool orig = (_, hit, _, _) => { decodedHit = hit; return hit.Damage; };
-        var system = new DamageColorModifier();
-        foreach (int mode in new[] { NetmodeID.SinglePlayer, NetmodeID.Server, NetmodeID.MultiplayerClient }) {
-            GameMain.netMode = mode;
-            for (int i = 0; i < 16; i++) hook.Invoke(system, [orig, npc, encodedHit, mode != NetmodeID.SinglePlayer, false]);
-            Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 35, "Ice-only damage never advances existing buildup on any endpoint");
-            Check(!npc.HasBuff<ElementalAffliction_Freeze>() && npc.GetFreezeCooldown() == 0, "Ice-only hits cannot trigger freeze or its cooldown");
-            Near(decodedHit.Knockback, 2, "No-buildup tag restores original knockback");
-            Check(decodedHit.Damage == encodedHit.Damage && decodedHit.HideCombatText, "Ice-only tag preserves damage and uses elemental combat text");
-        }
-        GameMain.netMode = NetmodeID.SinglePlayer;
-        var tables = typeof(ElementalGlobalProjectile).Assembly.GetType("KL.DamageSystem.ElementTables")!;
-        object[] tagArgs = [(byte)52, (byte)0, default(Color), false];
-        Check((bool)tables.GetMethod("TryReadTag", All)!.Invoke(null, tagArgs)! && (byte)tagArgs[1] == 2
-            && (Color)tagArgs[2] == ElementTypeHelper.GetElementColor(ElementType.Ice) && (bool)tagArgs[3],
-            "No-buildup tag decodes to the same Ice element and color as Ice Cone");
-        global.SetCurrentAccumulation(ElementType.Ice, 0);
-        element.FreezeBuildup = 2.8f;
-        modifiers = new NPC.HitModifiers(); element.ModifyHitNPC(new Projectile(), npc, ref modifiers);
-        hook.Invoke(system, [orig, npc, modifiers.ToHitInfo(100, false, 2f), false, false]);
-        Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 0, "Damage tag alone cannot add global ice buildup");
-        npc.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(), 600);
-        Clock(9000); element.OnHitNPC(new Projectile { owner = 0 }, npc, default, 100);
-        Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 2.8, "Real projectile hit sends its own skill's points");
-        Clock(9002); element.FreezeBuildup = 7.5f;
-        element.OnHitNPC(new Projectile { owner = 0 }, npc, default, 100);
-        Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 10.3, "Different source chooses a different buildup without changing shared capacity");
-        element.FreezeBuildup = 0;
-        element.OnHitNPC(new Projectile { owner = 0 }, npc, default, 100);
-        Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 10.3, "Zero-buildup source leaves other attacks' progress untouched");
-        var buildup = GameMain.player[0].GetModPlayer<FreezeBuildupPlayer>();
-        buildup.Apply(npc.whoAmI, npc.type, float.NaN); buildup.Apply(npc.whoAmI, npc.type, -1);
-        Near(global.GetCurrentAccumulation(ElementType.Ice) ?? -1, 10.3, "Invalid buildup is rejected");
+        var npc = NpcFixture(22); var state = npc.GetGlobalNPC<ElementalGlobalNPC>();
+        state.SetCurrentAccumulation(ElementType.Ice,35);
+        Clock(9000); Hit(npc, ElementType.Ice, 5000);
+        Near(state.GetCurrentAccumulation(ElementType.Ice) ?? 0,35,"zero points bypass damage compensation");
+        Clock(9002); Hit(npc,new(ElementType.Ice,2.8f),1,n=>n.AddBuff(ModContent.BuffType<ElementalAffliction_Wet>(),600));
+        Near(state.GetCurrentAccumulation(ElementType.Ice) ?? 0,37.8,"dry at strike remains dry for this hit");
+        Clock(9004); Hit(npc,new(ElementType.Ice,7.5f),1,n=>n.DelBuff(n.FindBuffIndex(ModContent.BuffType<ElementalAffliction_Wet>())));
+        Near(state.GetCurrentAccumulation(ElementType.Ice) ?? 0,52.8,"wet at strike doubles this hit even if removed during damage");
     }
 
     sealed class CheckMod : Mod { public override string Name => "IceCycleChecks"; }

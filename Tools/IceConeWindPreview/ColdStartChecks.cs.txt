@@ -1,0 +1,106 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using Microsoft.Xna.Framework.Content;
+using 伊蕾娜.ElainaModSkills.Skills.Fire;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+internal sealed partial class Probe
+{
+    // Offline D3D11 fault injection only. Reproduce nonzero contents in an uninitialized
+    // pixel constant buffer, without changing MojoShader's zero-filled CPU shadow.
+    [StructLayout(LayoutKind.Explicit, Size = 72)]
+    struct NativeRenderer
+    {
+        [FieldOffset(0)] public uint Version;
+        [FieldOffset(4)] public uint Type;
+        [FieldOffset(8)] public IntPtr Device;
+        [FieldOffset(16)] public IntPtr Context;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    struct MappedResource { public IntPtr Data; public uint RowPitch, DepthPitch; }
+    [DllImport("FNA3D", CallingConvention = CallingConvention.Cdecl)]
+    static extern void FNA3D_GetSysRendererEXT(IntPtr device, ref NativeRenderer renderer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    delegate void GetBuffers(IntPtr self, uint start, uint count, out IntPtr buffer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    delegate int MapBuffer(IntPtr self, IntPtr resource, uint subresource, uint type, uint flags, out MappedResource mapped);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    delegate void UnmapBuffer(IntPtr self, IntPtr resource, uint subresource);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    delegate uint ReleaseObject(IntPtr self);
+    static T ComMethod<T>(IntPtr instance, int slot) where T : Delegate =>
+        Marshal.GetDelegateForFunctionPointer<T>(Marshal.ReadIntPtr(Marshal.ReadIntPtr(instance), slot * IntPtr.Size));
+
+    void SeedUninitializedPixelBuffer(float value)
+    {
+        var native = new NativeRenderer();
+        var field = typeof(GraphicsDevice).GetField("GLDevice", BindingFlags.Instance | BindingFlags.NonPublic);
+        FNA3D_GetSysRendererEXT((IntPtr)field.GetValue(GraphicsDevice), ref native);
+        if (native.Type != 2) throw new Exception("Cold-start fault injection requires FNA3D D3D11.");
+        ComMethod<GetBuffers>(native.Context, 77)(native.Context, 0, 1, out IntPtr buffer);
+        if (buffer == IntPtr.Zero) throw new Exception("WindRing has no pixel constant buffer to probe.");
+        int result = ComMethod<MapBuffer>(native.Context, 14)(native.Context, buffer, 0, 4, 0, out var mapped);
+        Marshal.ThrowExceptionForHR(result);
+        Marshal.Copy(new[] { value, value, value, value }, 0, mapped.Data, 4);
+        ComMethod<UnmapBuffer>(native.Context, 15)(native.Context, buffer, 0);
+        ComMethod<ReleaseObject>(buffer, 2)(buffer);
+    }
+
+    void CheckColdStart()
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, 1000, 600);
+        Matrix transform = Matrix.CreateOrthographicOffCenter(0, 1000, 600, 0, 0, 1);
+        var triangle = new[] {
+            new VertexPositionColorTexture(new Vector3(-20, -20, 0), Color.White, Vector2.Zero),
+            new VertexPositionColorTexture(new Vector3(-10, -20, 0), Color.White, Vector2.Zero),
+            new VertexPositionColorTexture(new Vector3(-20, -10, 0), Color.White, Vector2.Zero)
+        };
+        Color[] Render(Effect candidate, bool fire)
+        {
+            AssertHidden();
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(new Color(125, 169, 193));
+            foreach (bool front in new[] { false, true })
+                if (fire)
+                    FireBurstWindDrawing.Draw(GraphicsDevice, candidate, texture, transform,
+                        new Vector2(500, 400), 8, front, new Vector2(2, 1), Vector2.Zero, 0,
+                        new Vector4(2.32f, .68f, .048f, 1), new Vector4(.2f, .12f, 0, 1), 100, 225, 10, .3f);
+                else
+                    IceConeWindDrawing.Draw(GraphicsDevice, candidate, texture, transform,
+                        new Vector2(500, 300), 4, front, -MathHelper.PiOver2, .3f * MathHelper.TwoPi);
+            var pixels = new Color[600000]; target.GetData(pixels);
+            GraphicsDevice.SetRenderTarget(null);
+            return pixels;
+        }
+        int mismatches = 0;
+        foreach (bool fire in new[] { false, true })
+        {
+            Color[] expected = null;
+            foreach (float residual in new[] { 0f, 8f, 32f, -4f })
+            {
+                using var fresh = new ContentManager(Services, root);
+                Effect candidate = fresh.Load<Effect>("Effects/Content/FireBurstFlame");
+                // Bind a fresh WindRing buffer with all default-zero pixel uniforms. The
+                // offscreen draw does not call production Draw or initialize its mask.
+                GraphicsDevice.SetRenderTarget(target);
+                candidate.Parameters["uTransform"].SetValue(transform);
+                candidate.CurrentTechnique.Passes["WindRing"].Apply();
+                GraphicsDevice.Textures[0] = texture;
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, triangle, 0, 1);
+                SeedUninitializedPixelBuffer(residual);
+                var actual = Render(candidate, fire);
+                string name = $"cold-{(fire ? "fire" : "ice")}-{residual}";
+                Save(name, actual, 1000, 600);
+                expected ??= actual;
+                int different = actual.Where((c, i) => c != expected[i]).Count();
+                Console.WriteLine($"{name}: {different} changed pixels");
+                if (different != 0) mismatches++;
+            }
+        }
+        if (mismatches != 0) throw new Exception($"Wind mask depends on uninitialized GPU memory: {mismatches} cold-start cases changed.");
+        Console.WriteLine("PASS cold start: ice/fire exact pixels independent of 0/8/32/-4 GPU buffer contents.");
+    }
+}

@@ -144,18 +144,19 @@ public class SlashTrailActionNode : ElainaNode
         }
     }
 
-    internal void SubmitTrailBloom(ActionModPlayer actionPlayer, float nodeProgress)
+    internal ElainaTrailSnapshot CaptureTrail(ActionModPlayer actionPlayer, float nodeProgress)
     {
         Player owner = GetOwner(actionPlayer);
         EnsureTrailArrays();
         BuildSegmentTrail(owner, GetCurrentSegment(nodeProgress), nodeProgress);
         // Snapshot both geometry and transform before the shared projectile queue runs.
-        Vector2[] points = (Vector2[])GetSlashTrailDrawPositions(owner).Clone();
+        Vector2[] points = GetSlashTrailDrawPositions(owner);
         Vector2 attachPoint = owner.MountedCenter;
         float attachRotation = owner.fullRotation;
         bool debugPoint = DebugPoint;
-        ElainaTrailVisualStyle.RequestTrailBloom(() =>
-            ElainaTrailVisualStyle.DrawSlashTrail(points, attachPoint, attachRotation, nodeProgress, debugPoint));
+        return new ElainaTrailSnapshot(points, attachPoint, attachRotation, nodeProgress,
+            ElainaTrailVisualStyle.DefaultSlashTrailColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
+            ElainaTrailVisualStyle.DefaultTrailEndWidth, debugPoint: debugPoint);
     }
 
     private SlashTrailSegment GetCurrentSegment(float nodeProgress)
@@ -198,6 +199,10 @@ public class SlashTrailActionNode : ElainaNode
             if (segment.EndRecoverDuration > 0f)
             {
                 endProgress /= segment.EndRecoverDuration;
+            }
+            else
+            {
+                endProgress = 1f;
             }
 
             endProgress = MathHelper.Clamp(endProgress, 0f, 1f);

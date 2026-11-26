@@ -1,0 +1,19 @@
+using System;
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Water;
+
+// 命中、扣能量和技能起手均在玩家拥有端结算，弹幕同步此次蓄力时长。
+public sealed class WaterEnergyPlayer : ModPlayer
+{
+    internal const int Capacity = 180;
+    internal static int BaseChargeTicks => 120; // 最大蓄力时间，60 帧为 1 秒。
+    internal static int FullChargeTicks => BaseChargeTicks / 3;
+    internal int Energy { get; private set; }
+    internal int ChargeTicks => Energy == Capacity ? FullChargeTicks :
+        BaseChargeTicks - (int)Math.Round(BaseChargeTicks * Energy / (3d * Capacity));
+
+    internal void CreditPulse(int interval) => Energy = Math.Min(Capacity, Energy + interval);
+    internal void Clear() => Energy = 0;
+    public override void UpdateDead() => Clear();
+    public override void OnEnterWorld() => Clear();
+}

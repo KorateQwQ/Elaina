@@ -1,0 +1,117 @@
+using System;
+using System.IO;
+using System.Linq;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.CutIn;
+
+using var game = new CutInPreview(args[0], args[1]);
+game.Run();
+
+// FNA host for the production cut-in drawing (ElainaCutIn timeline + ElainaCutInDrawing).
+// Background is the user's Terraria screenshot; the player head is assumed at the screen centre.
+sealed class CutInPreview : Game
+{
+    readonly string repo, output;
+    bool done;
+
+    public CutInPreview(string repo, string output)
+    {
+        this.repo = repo; this.output = output;
+        Directory.CreateDirectory(output);
+        _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 320, PreferredBackBufferHeight = 180,
+            GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+    }
+
+    Texture2D Load(string relative)
+    {
+        using var stream = File.OpenRead(Path.Combine(repo, relative));
+        return Texture2D.FromStream(GraphicsDevice, stream);
+    }
+
+    static void Check(bool condition, string message)
+    {
+        if (!condition) throw new Exception("Check failed: " + message);
+        Console.WriteLine("ok  " + message);
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        if (done) { Exit(); return; }
+        done = true;
+
+        // ---- timeline checks (pure functions, explicit time) ----
+        // Fixed-length timeline over all baked frames (source frame numbers); the strike is a frame in the list.
+        float fall = ElainaCutIn.StrikeTime;
+        var list = ElainaCutIn.Frames;
+        Check(list.All(f => f.Frame >= 1 && f.Frame <= ElainaCutIn.MaxFrame && f.Duration > 0), "every timeline frame is a baked texture with a positive duration");
+        Check(ElainaCutIn.FrameAt(0f) == list[0].Frame, "before intro start shows the first frame");
+        Check(ElainaCutIn.FrameAt(fall - .001f) == list[Array.FindIndex(list, f => f.Frame == ElainaCutIn.StrikeFrame) - 1].Frame, "frame before the strike");
+        Check(ElainaCutIn.FrameAt(fall + .001f) == ElainaCutIn.StrikeFrame, $"strike frame {ElainaCutIn.StrikeFrame} starts at {fall:0.00}s");
+        Check(ElainaCutIn.FrameAt(ElainaCutIn.ExitStart - .001f) == list[^1].Frame && ElainaCutIn.FrameAt(ElainaCutIn.TotalDuration) == list[^1].Frame,
+            $"last frame held through the exit (exit {ElainaCutIn.ExitStart:0.00}s, end {ElainaCutIn.TotalDuration:0.00}s)");
+        var seen = new System.Collections.Generic.List<int>();
+        for (float t = 0; t < ElainaCutIn.ExitStart; t += .001f) { int f = ElainaCutIn.FrameAt(t); if (seen.Count == 0 || seen[^1] != f) seen.Add(f); }
+        Check(seen.SequenceEqual(list.Select(f => f.Frame)), $"plays every listed frame in order ({string.Join(",", seen)})");
+
+        // Clock: real elapsed draw intervals only; pause freezes; zero / tiny / repeated intervals behave.
+        ElainaCutIn.Play();
+        ElainaCutIn.Advance(.5f, paused: false);
+        Check(MathF.Abs(ElainaCutIn.Time - .5f) < 1e-5f, "real elapsed interval advances the cut-in");
+        ElainaCutIn.Advance(3f, paused: true);
+        Check(MathF.Abs(ElainaCutIn.Time - .5f) < 1e-5f && ElainaCutIn.Active, "paused game: 3s of draws do not advance or end the cut-in");
+        for (int i = 0; i < 1000; i++) ElainaCutIn.Advance(0f, paused: false);
+        Check(MathF.Abs(ElainaCutIn.Time - .5f) < 1e-5f, "zero intervals (repeated cached frame) do not advance");
+        for (int i = 0; i < 1000; i++) ElainaCutIn.Advance(1e-6f, paused: false);
+        Check(MathF.Abs(ElainaCutIn.Time - .501f) < 1e-4f, "tiny intervals accumulate exactly, no per-frame minimum");
+        ElainaCutIn.Advance(-1f, paused: false);
+        Check(MathF.Abs(ElainaCutIn.Time - .501f) < 1e-4f, "negative interval is ignored");
+        int frames60 = 0;
+        while (ElainaCutIn.Active && frames60 < 10000) { ElainaCutIn.Advance(1f / 60, paused: false); frames60++; }
+        Check(!ElainaCutIn.Active, $"cut-in ends after its fixed duration ({ElainaCutIn.TotalDuration:0.00}s)");
+        ElainaCutIn.Play();
+        for (int i = 0; i < 20; i++) ElainaCutIn.Advance(.1f, paused: i % 2 == 0);
+        Check(MathF.Abs(ElainaCutIn.Time - 1f) < 1e-4f, "alternating pause counts only unpaused intervals");
+        ElainaCutIn.Stop();
+
+        var bg = Load("Tools/CutInPreview/bg-terraria.jpg");
+        var white = Load("Effects/Tex/Baked/WhitePixel.png");
+        var line = Load("ElainaModSkills/Skills/Recall/Assets/PortalLine.png");
+        var star = Load("ElainaModSkills/UICore/Assets/StarFlare.png");
+        var ring = Load("ElainaModSkills/UICore/Assets/ThinRing.png");
+        var frames = new Texture2D[ElainaCutIn.MaxFrame + 1];
+        for (int i = 1; i <= ElainaCutIn.MaxFrame; i++) frames[i] = Load($"ElainaModSkills/CutIn/Frames/CutIn_{i:00}.png");
+
+        using var effect = new BasicEffect(GraphicsDevice);
+        using var batch = new SpriteBatch(GraphicsDevice);
+        float exitStart = ElainaCutIn.ExitStart;
+        var shots = new (string Name, float T)[]
+        {
+            ("a-slit", .05f), ("b-open", .18f), ("c-eyes", .32f), ("d-wand", fall - .02f),
+            ("e-flash", fall + .04f), ("f-flare", fall + .2f), ("g-hold", exitStart - .02f),
+            ("h-exit", exitStart + .12f), ("i-exitline", exitStart + .26f),
+        };
+        foreach (var (w, h, ui) in new[] { (1920, 1080, 1f), (2560, 1440, 1.25f), (3840, 2160, 1.5f) })
+        {
+            using var target = new RenderTarget2D(GraphicsDevice, w, h);
+            foreach (var (name, t) in shots)
+            {
+                GraphicsDevice.SetRenderTarget(target);
+                GraphicsDevice.Clear(Color.Black);
+                batch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+                batch.Draw(bg, new Rectangle(0, 0, w, h), Color.White);
+                batch.End();
+                var textures = new ElainaCutInDrawing.Textures(white, line, star, ring, frames[ElainaCutIn.FrameAt(t)]);
+                var frame = new ElainaCutInDrawing.Frame(w, h, ui, h * .5f - 21f, t, ElainaCutIn.StrikeTime,
+                    exitStart, ElainaCutIn.ExitDuration);
+                ElainaCutInDrawing.Draw(GraphicsDevice, effect, textures, frame);
+                GraphicsDevice.SetRenderTarget(null);
+                using var stream = File.Create(Path.Combine(output, $"{w}x{h}-ui{ui:0.00}-{name}.png"));
+                target.SaveAsPng(stream, w, h);
+            }
+        }
+        Console.WriteLine(output);
+        Exit();
+    }
+}

@@ -1,0 +1,61 @@
+using ShardbindPreview;
+
+namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+public static partial class PreviewReticle
+{
+    public static Effect Effect;
+    public static Texture2D Noise;
+    public static float Radius = 108f;
+    public static bool Suppress;
+
+    public static void Draw(int tick)
+    {
+        if (Suppress || !ShardbindProj.Revised || tick >= PreviewTimeline.LaunchTick) return;
+        // 离线回放绝对时间，不累加每次 Draw 的帧间隔。
+        ApplyMotion(tick / 60.0, PreviewTimeline.ConfirmTick / 60.0);
+        DrawQuad(new Vector2(1280, 720), Radius);
+    }
+
+    public static void ApplyMotion(double seconds, double? confirmedAt, float zoom = 1f)
+    {
+        double elapsed = confirmedAt.HasValue ? seconds - confirmedAt.Value : -1;
+        SetReticleParameters(Effect, Radius, elapsed < 0 ? -1 : (float)(elapsed * 60), ReticleMotion.Sample(seconds, confirmedAt));
+        Effect.Parameters["uHalfPx"].SetValue(Radius * zoom * .5f);
+    }
+
+    public static void DrawDiagnostic(double seconds, double? confirmedAt, Vector2 center, float radius, float zoom)
+        => DrawTracked(seconds, confirmedAt, center, radius, zoom, 1f);
+
+    public static void DrawTracked(double seconds, double? confirmedAt, Vector2 center, float radius, float zoom, float opacity)
+    {
+        float previousRadius = Radius;
+        Radius = radius;
+        ApplyMotion(seconds, confirmedAt, zoom);
+        Effect.Parameters["uAlpha"].SetValue(Effect.Parameters["uAlpha"].GetValueSingle() * opacity);
+        DrawQuad(center, radius * zoom);
+        Radius = previousRadius;
+    }
+
+    static void DrawQuad(Vector2 center, float radius)
+    {
+        var batch = Main.spriteBatch;
+        batch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp,
+            DepthStencilState.None, RasterizerState.CullNone);
+        var gd = Main.instance.GraphicsDevice;
+        gd.Textures[1] = Noise;
+        gd.SamplerStates[1] = SamplerState.LinearClamp;
+        var quad = AssetManager.GetTexture("伊蕾娜.Effects.Tex.Baked.WhitePixel");
+        float size = radius * ReticleExtent * 2f;
+        foreach (var pass in Effect.CurrentTechnique.Passes)
+        {
+            pass.Apply();
+            batch.Draw(quad, center, null, Color.White, 0f,
+                new Vector2(quad.Width, quad.Height) * .5f,
+                new Vector2(size / quad.Width, size / quad.Height), SpriteEffects.None, 0f);
+        }
+        batch.End();
+    }
+
+    public static void ValidateTimeline() => ReticleMotionChecks.Run();
+}

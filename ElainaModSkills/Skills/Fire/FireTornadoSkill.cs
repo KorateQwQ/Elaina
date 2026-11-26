@@ -25,7 +25,7 @@ public class FireTornadoSkill : ElainaSkill
         base.ResetEffects(player);
     }
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         AnimAction animAction = new Action_SimpleShoot()
             .AddNode(new ShootActionNode(
@@ -40,6 +40,6 @@ public class FireTornadoSkill : ElainaSkill
         localPlayer.GetModPlayer<ActionModPlayer>().StartAction(animAction);
 
         CurrentCD = 1;
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
 }

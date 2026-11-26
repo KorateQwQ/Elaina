@@ -1,25 +1,25 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.UICore;
 
 namespace 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 
 // Shared by the live SUI controls and the offline FNA preview.
 internal static class SkillBarDrawing
 {
-    public static void DrawRack(SpriteBatch batch, Texture2D rack, Vector2 position, float scale = 1)
+    public static void DrawRack(SpriteBatch batch, UIRasterTexture rack, Vector2 position, float scale = 1)
         => DrawRack(new ScaledSprites(batch, position, scale), rack, position);
 
-    public static void DrawSlotBackground(SpriteBatch batch, Texture2D atlas,
+    public static void DrawSlotBackground(SpriteBatch batch, UIRasterTexture atlas,
         Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1, float scale = 1)
         => DrawSlotBackground(new ScaledSprites(batch, center, scale), atlas, center, selected, occupied, hover, seconds, opacity);
 
-    public static void DrawSlotFrame(SpriteBatch batch, Texture2D atlas,
+    public static void DrawSlotFrame(SpriteBatch batch, UIRasterTexture atlas,
         Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1, float scale = 1)
         => DrawSlotFrame(new ScaledSprites(batch, center, scale), atlas, center, selected, occupied, hover, seconds, opacity);
 
-    public static void DrawSkillState(SpriteBatch batch, StateArt art, DynamicSpriteFont font,
+    public static void DrawSkillState(SpriteBatch batch, StateArt art, UIRasterFont font,
         Vector2 center, float cooldown, float remaining, int stack, int maxStack, bool showNumber, float scale = 1)
         => DrawSkillState(new ScaledSprites(batch, center, scale), art, font, center, cooldown, remaining, stack, maxStack, showNumber);
 
@@ -27,7 +27,7 @@ internal static class SkillBarDrawing
         float seconds, float denyAge = 9, float releaseAge = -1, float opacity = 1, float scale = 1)
         => DrawSealState(new ScaledSprites(batch, center, scale), art, center, seconds, denyAge, releaseAge, opacity);
 
-    internal static void OutlinedText(SpriteBatch batch, DynamicSpriteFont font, string text,
+    internal static void OutlinedText(SpriteBatch batch, UIRasterFont font, string text,
         Vector2 position, Color color, float scale, Vector2 anchor)
         => OutlinedText(new ScaledSprites(batch, position, 1), font, text, position, color, scale, anchor);
 
@@ -35,7 +35,10 @@ internal static class SkillBarDrawing
     // batch and shader matrices, including legacy skill callbacks, without extra flushes.
     private readonly struct ScaledSprites(SpriteBatch batch, Vector2 anchor, float factor)
     {
-        private Vector2 At(Vector2 position) => anchor + (position - anchor) * factor;
+        public SpriteBatch Raw => batch;
+        public float Factor => factor;
+        public float DeviceScale => factor * UIBatch.Scale(batch);
+        public Vector2 At(Vector2 position) => anchor + (position - anchor) * factor;
 
         public void Draw(Texture2D texture, Vector2 position, Rectangle? source, Color color,
             float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
@@ -50,9 +53,14 @@ internal static class SkillBarDrawing
                 new Vector2(destination.Width / (float)texture.Width, destination.Height / (float)texture.Height) * factor,
                 SpriteEffects.None, 0);
 
-        public void DrawString(DynamicSpriteFont font, string text, Vector2 position, Color color,
+        public void Draw(UIRasterTexture texture, Vector2 position, Rectangle? source, Color color,
             float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
-            => batch.DrawString(font, text, At(position), color, rotation, origin, scale * factor, effects, depth);
+            => texture.Draw(batch, At(position), source, color, rotation, origin, new Vector2(scale * factor), effects, depth);
+
+        public void Draw(UIRasterTexture texture, Vector2 position, Rectangle? source, Color color,
+            float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float depth)
+            => texture.Draw(batch, At(position), source, color, rotation, origin, scale * factor, effects, depth);
+
     }
 
     public const float SealReleaseDuration = .7f;
@@ -128,15 +136,15 @@ internal static class SkillBarDrawing
     private const float ArrivalDuration = .45f;
     private static readonly Vector2[] Orbit = CreateOrbit();
 
-    private static void DrawRack(ScaledSprites batch, Texture2D rack, Vector2 position) =>
+    private static void DrawRack(ScaledSprites batch, UIRasterTexture rack, Vector2 position) =>
         batch.Draw(rack, position - new Vector2(24), null, Color.White, 0,
             Vector2.Zero, .5f, SpriteEffects.None, 0);
 
-    private static void Ornament(ScaledSprites batch, Texture2D atlas, int tile, Vector2 center, Color color) =>
+    private static void Ornament(ScaledSprites batch, UIRasterTexture atlas, int tile, Vector2 center, Color color) =>
         batch.Draw(atlas, center, new Rectangle(tile * Tile, 0, Tile, Tile), color,
             0, new Vector2(Tile / 2), .5f, SpriteEffects.None, 0);
 
-    private static void DrawSlotBackground(ScaledSprites batch, Texture2D atlas,
+    private static void DrawSlotBackground(ScaledSprites batch, UIRasterTexture atlas,
         Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1)
     {
         Ornament(batch, atlas, selected ? 2 : 4, center, Color.White * opacity);
@@ -148,7 +156,7 @@ internal static class SkillBarDrawing
                 Color.Lerp(new Color(177, 154, 195) * (113f / 255f), new Color(224, 203, 238), hover)) * opacity);
     }
 
-    private static void DrawSlotFrame(ScaledSprites batch, Texture2D atlas,
+    private static void DrawSlotFrame(ScaledSprites batch, UIRasterTexture atlas,
         Vector2 center, bool selected, bool occupied, float hover, float seconds, float opacity = 1)
     {
         if (!selected)
@@ -188,7 +196,7 @@ internal static class SkillBarDrawing
         DrawSelectionMarkers(batch, atlas, center, seconds, pulse, opacity);
     }
 
-    private static void DrawSelectionMarkers(ScaledSprites batch, Texture2D atlas,
+    private static void DrawSelectionMarkers(ScaledSprites batch, UIRasterTexture atlas,
         Vector2 center, float seconds, float pulse, float opacity)
     {
         float breath = .5f + .5f * MathF.Sin(seconds * MathHelper.TwoPi / 3.6f);
@@ -209,12 +217,12 @@ internal static class SkillBarDrawing
             new Color(255, 241, 255, 0) * (.35f * diamondPulse * reveal), 1);
     }
 
-    private static void DrawMarker(ScaledSprites batch, Texture2D atlas, int marker,
+    private static void DrawMarker(ScaledSprites batch, UIRasterTexture atlas, int marker,
         Vector2 position, Color color, float scale) =>
         batch.Draw(atlas, position, new Rectangle(16 + marker * 64, 192, 64, 64),
             color, 0, new Vector2(32), .5f * scale, SpriteEffects.None, 0);
 
-    private static void DrawRestingCorners(ScaledSprites batch, Texture2D atlas, Vector2 center, Color color)
+    private static void DrawRestingCorners(ScaledSprites batch, UIRasterTexture atlas, Vector2 center, Color color)
     {
         // Crop four 12px patches from the existing 2x frame; retain the full tile for arrival pulses.
         const int near = 36;
@@ -232,13 +240,13 @@ internal static class SkillBarDrawing
     }
 
     /// <summary>冷却叠加层所需的实心纹理：1x1 白像素、径向柔光点、抗锯齿菱形。</summary>
-    public readonly record struct StateArt(Texture2D Pixel, Texture2D Glow, Texture2D Diamond);
+    public readonly record struct StateArt(Texture2D Pixel, Texture2D Glow, Texture2D Diamond, UIRasterShapes Shapes);
 
     /// <summary>
     /// 冷却与层数叠加层：扫描指针标出恢复进度；层数 ≤ <see cref="MaxPips"/> 时用菱形刻度，否则用角标；
     /// 只有无层可用时才在中心显示倒计时，避免可释放的技能被大号数字盖住。
     /// </summary>
-    private static void DrawSkillState(ScaledSprites batch, StateArt art, DynamicSpriteFont font,
+    private static void DrawSkillState(ScaledSprites batch, StateArt art, UIRasterFont font,
         Vector2 center, float cooldown, float remaining, int stack, int maxStack, bool showNumber)
     {
         bool recovering = cooldown > 0 && remaining > 0;
@@ -289,13 +297,15 @@ internal static class SkillBarDrawing
         }
     }
 
-    private static void DrawChargeBadge(ScaledSprites batch, StateArt art, DynamicSpriteFont font,
+    private static void DrawChargeBadge(ScaledSprites batch, StateArt art, UIRasterFont font,
         Vector2 center, int stack)
     {
         const float scale = 12f / 48f;
         string text = stack.ToString();
-        int width = (int)MathF.Ceiling(font.MeasureString(text).X * scale) + 13;
-        var chip = new Rectangle((int)center.X + 27 - width, (int)center.Y + 15, width, 12);
+        float pixels = UIRasterText.Pixels(batch.Raw, 12 * batch.Factor);
+        int width = (int)MathF.Ceiling(font.Measure(text, pixels) / batch.DeviceScale) + 13;
+        int height = Math.Max(12, (int)MathF.Ceiling(font.Height(text, pixels) / batch.DeviceScale) + 2);
+        var chip = new Rectangle((int)center.X + 27 - width, (int)center.Y + 27 - height, width, height);
         bool empty = stack <= 0;
         batch.Draw(art.Pixel, chip, Ink * .88f);
         Color edge = new Color(176, 150, 214) * (empty ? .35f : .6f);
@@ -309,7 +319,7 @@ internal static class SkillBarDrawing
             empty ? new Color(140, 124, 160) : new Color(246, 238, 255), scale, new Vector2(0, .5f));
     }
 
-    private static void DrawCountdown(ScaledSprites batch, StateArt art, DynamicSpriteFont font,
+    private static void DrawCountdown(ScaledSprites batch, StateArt art, UIRasterFont font,
         Vector2 center, float seconds)
     {
         string text = seconds >= 10 ? $"{MathF.Ceiling(seconds):0}" : $"{seconds:0.0}";
@@ -317,32 +327,21 @@ internal static class SkillBarDrawing
         OutlinedText(batch, font, text, center, new Color(248, 240, 255), 16f / 48f, new Vector2(.5f));
     }
 
-    private static void OutlinedText(ScaledSprites batch, DynamicSpriteFont font, string text,
+    private static void OutlinedText(ScaledSprites batch, UIRasterFont font, string text,
         Vector2 position, Color color, float scale, Vector2 anchor)
     {
-        Vector2 origin = font.MeasureString(text) * anchor;
-        Color outline = Ink * (.9f * color.A / 255f);
-        for (int i = 0; i < 8; i++)
-        {
-            float angle = i * MathHelper.PiOver4;
-            batch.DrawString(font, text, position + new Vector2(MathF.Cos(angle), MathF.Sin(angle)), outline,
-                0, origin, scale, SpriteEffects.None, 0);
-        }
-        batch.DrawString(font, text, position, color, 0, origin, scale, SpriteEffects.None, 0);
+        float pixels = UIRasterText.Pixels(batch.Raw, scale * 48 * batch.Factor, scale * 48 >= 16 ? 11 : 9);
+        UIRasterText.Draw(batch.Raw, font, text, batch.At(position), color, pixels, anchor, Ink * (.65f * color.A / 255f));
     }
 
     private static void Line(ScaledSprites batch, StateArt art, Vector2 a, Vector2 b, float thickness, Color color)
-    {
-        Vector2 delta = b - a;
-        batch.Draw(art.Pixel, a, null, color, MathF.Atan2(delta.Y, delta.X),
-            new Vector2(0, .5f), new Vector2(delta.Length(), thickness), SpriteEffects.None, 0);
-    }
+        => art.Shapes.Line(batch.Raw, batch.At(a), batch.At(b), thickness * batch.Factor, color);
 
     private static void Glow(ScaledSprites batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
         Stretch(batch, art.Glow, center, size, color);
 
-    private static void Diamond(ScaledSprites batch, StateArt art, Vector2 center, Vector2 size, Color color) =>
-        Stretch(batch, art.Diamond, center, size, color);
+    private static void Diamond(ScaledSprites batch, StateArt art, Vector2 center, Vector2 size, Color color)
+        => art.Shapes.Diamond(batch.Raw, batch.At(center), size * batch.Factor, color);
 
     private static void Stretch(ScaledSprites batch, Texture2D texture, Vector2 center, Vector2 size, Color color)
     {

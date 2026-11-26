@@ -11,6 +11,10 @@ internal sealed class FireLaserBeamVisual
 {
     internal static int EntranceTicks => 31;
     internal static int ReleaseTicks => 42;
+    private static Vector4 OuterColor => new(2.18f, 1.4f, .56f, 1f);
+    private static Vector4 CoreColor => new(2.12f, 2.13f, 1.85f, 1f);
+    private static Vector4 HeadStartColor => new(4.1f, 2.35f, 1.1f, 1f);
+    private static Vector4 HeadEndColor => new(2.4f, .72f, .54f, 0f);
 
     // 入场：先展开，再快速鼓起，峰值停留后回落；这些参数只控制 OpeningWidth。
     private static float EntranceGrowTicks => 1f;
@@ -72,18 +76,18 @@ internal sealed class FireLaserBeamVisual
         Texture2D core = Texture("KL/Effects/Tex/Trail/Eff_Trail_2014");
         Vector2 flow = new(-(ticks % 1200f) / 30f, 0f);
         Vector2 imageScale = new(500f / length, 1f);
-        Vector4 outerColor = new(new Color(255, 100, 20).ToVector3() * 3.8f, 1f);
-        Vector4 coreColor = new(new Color(255, 200, 150).ToVector3() * 1.8f, 1f);
+        Vector4 outerColor = OuterColor;
+        Vector4 coreColor = CoreColor;
 
         if (release < 0f)
         {
             for (int i = 0; i < points.Length; i++)
                 points[i] = start + direction * (length * i / (points.Length - 1));
             TrailEffect(trail, points, outerColor, outerColor, maxWidth: 2f * width, endWidth: 15f * width,
-                startAlpha: 1f, endAlpha: 1f, drawTimes: 1, blendState: 2, uTime: flow, imageScale: imageScale,
+                startAlpha: 1f, endAlpha: 0.7f, drawTimes: 1, blendState: 2, uTime: flow, imageScale: imageScale,
                 useRforAlpha: false, debugPoint: false);
             TrailEffect(core, points, coreColor, coreColor, maxWidth: 2f * width, endWidth: 6f * width,
-                startAlpha: 1f, endAlpha: 1f, drawTimes: 1, blendState: 2, uTime: flow, imageScale: imageScale,
+                startAlpha: 1f, endAlpha: 0.8f, drawTimes: 1, blendState: 2, uTime: flow, imageScale: imageScale,
                 useRforAlpha: true, debugPoint: false);
         }
         else
@@ -92,24 +96,21 @@ internal sealed class FireLaserBeamVisual
             Texture2D noise = Texture("KL/Effects/Tex/PerlinX");
             GraphicsDevice device = Main.graphics.GraphicsDevice;
             Main.spriteBatch.End();
-            try
-            {
-                device.BlendState = DrawSystem.GetBlendStateForBloom(BlendState.NonPremultiplied);
-                device.DepthStencilState = DepthStencilState.None;
-                device.RasterizerState = RasterizerState.CullNone;
-                device.SamplerStates[0] = device.SamplerStates[1] = SamplerState.LinearWrap;
-                device.Textures[1] = noise;
-                Matrix model = Matrix.CreateTranslation(-Main.screenPosition.X, -Main.screenPosition.Y, 0f) * Main.Transform;
-                effect.Parameters["uTransform"].SetValue(model * Matrix.CreateOrthographicOffCenter(0, Main.screenWidth, Main.screenHeight, 0, 0, 1));
-                effect.Parameters["ImageScale"].SetValue(imageScale);
-                effect.Parameters["Flow"].SetValue(flow.X);
-                effect.Parameters["Shrink"].SetValue(ReleaseShrink(release));
-                effect.Parameters["NoiseScale"].SetValue(ReleaseNoiseScale(length));
-                effect.Parameters["MaxShrinkRate"].SetValue(Math.Max(1f, ReleaseMaxShrinkRate));
-                DrawReleaseLayer(device, effect, trail, start, direction, length, width, 15f, outerColor, false);
-                DrawReleaseLayer(device, effect, core, start, direction, length, width, 6f, coreColor, true);
-            }
-            finally { BeginDraw(); }
+            device.BlendState = DrawSystem.GetBlendStateForBloom(BlendState.NonPremultiplied);
+            device.DepthStencilState = DepthStencilState.None;
+            device.RasterizerState = RasterizerState.CullNone;
+            device.SamplerStates[0] = device.SamplerStates[1] = SamplerState.LinearWrap;
+            device.Textures[1] = noise;
+            Matrix model = Matrix.CreateTranslation(-Main.screenPosition.X, -Main.screenPosition.Y, 0f) * Main.Transform;
+            effect.Parameters["uTransform"].SetValue(model * Matrix.CreateOrthographicOffCenter(0, Main.screenWidth, Main.screenHeight, 0, 0, 1));
+            effect.Parameters["ImageScale"].SetValue(imageScale);
+            effect.Parameters["Flow"].SetValue(flow.X);
+            effect.Parameters["Shrink"].SetValue(ReleaseShrink(release));
+            effect.Parameters["NoiseScale"].SetValue(ReleaseNoiseScale(length));
+            effect.Parameters["MaxShrinkRate"].SetValue(Math.Max(1f, ReleaseMaxShrinkRate));
+            DrawReleaseLayer(device, effect, trail, start, direction, length, width, 15f, outerColor, false);
+            DrawReleaseLayer(device, effect, core, start, direction, length, width, 6f, coreColor, true);
+            BeginDraw();
         }
 
         // 火焰头随主体一起展开，退场稍晚收完，遮住正在收细消融的线体末端。
@@ -120,8 +121,8 @@ internal sealed class FireLaserBeamVisual
         // 头部同样通过截面收缩消失，保留仍可见部分的发光强度。
         float headAlpha = Math.Min(1f, width);
         VertexDrawEffect(Texture("KL/Effects/Tex/Wind/wind3"), head,
-            new Color(255, 50, 30, 255), new Color(255, 150, 30, 0),
-            startAlpha: 4.6f * headAlpha, endAlpha: 0, blendState: 1, drawTimes: 1,
+            HeadStartColor, HeadEndColor,
+            startAlpha: headAlpha, endAlpha: 0, blendState: 2, drawTimes: 3,
             uTime: new Vector2((float)(Main.timeForVisualEffects % 60) / 20f, 0),
             attachPoint: start + direction * (length - 70f), attachRotation: direction.ToRotation(),
             useRforAlpha: false, debugPoint: false);

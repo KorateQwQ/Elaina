@@ -49,21 +49,21 @@ test('Basic attack damage is B × ratio × interval, split across shots and inde
  ice.cost=30;near(B.progressionBudget(s,ice,10).total,20);
 });
 test('Active skill damage has no occupancy compensation by default; occupyRatio prices cast time in B',()=>{
- const s=B.defaults(),x=s.skills[0];Object.assign(x,{cost:100,k:1,cd:10,cdRatio:1,cast:1});near(s.occupyRatio,0);
+ const s=B.defaults(),x=B.newSkill('Legacy','旧定价');Object.assign(x,{cost:100,k:1,cd:10,cdRatio:1,cast:1});near(s.occupyRatio,0);
  let r=B.progressionBudget(s,x,10);near(r.total,100);near(r.dps,10);assert.equal(r.ratio,null);
  s.occupyRatio=.5;near(B.progressionBudget(s,x,10).total,125);
  x.cast=0;near(B.progressionBudget(s,x,10).total,100+50*.5/60);
 });
 test('Cooldown damage ratio reduces only the cooldown-priced skill damage',()=>{
- const s=B.defaults(),x=s.skills[0];Object.assign(x,{cost:100,k:1,cd:10,cdRatio:1,cast:1});s.occupyRatio=1;
+ const s=B.defaults(),x=B.newSkill('Legacy','旧定价');Object.assign(x,{cost:100,k:1,cd:10,cdRatio:1,cast:1});s.occupyRatio=1;
  near(B.progressionBudget(s,x,10).total,150);x.cdRatio=.5;near(B.progressionBudget(s,x,10).total,100);
 });
 test('Explicit DPS ratio prices the full cooldown plus cast cycle',()=>{
- const s=B.defaults(),x={...s.skills[0],ratio:.2,cd:10,cast:1,k:99};const r=B.progressionBudget(s,x,10);
+ const s=B.defaults(),x={...s.skills[0],energyCost:0,ratio:.2,cd:10,cast:1,k:99};const r=B.progressionBudget(s,x,10);
  near(r.total,50*.2*11);near(r.dps,10);near(r.ratio,.2);
 });
 test('Active skill curves replace their own coefficient: DPS ratio for ratio skills, K otherwise',()=>{
- const s=B.defaults(),k={...s.skills[0],cost:100,cd:10,cdRatio:1,cast:1,k:1,ratioCurve:[[1,2],[11,4]]};s.skills[0]=k;
+ const s=B.defaults(),k={...s.skills[0],energyCost:0,cost:100,cd:10,cdRatio:1,cast:1,k:1,ratioCurve:[[1,2],[11,4]]};s.skills[0]=k;
  near(B.progressionBudget(s,k,1).k,2);near(B.progressionBudget(s,k,6).k,3);near(B.progressionBudget(s,k,50).k,4);
  near(B.progressionBudget(s,k,6).total,B.levelDps(6)*(.04/20*100*10*3));near(B.progressionBudget(s,k,6).coef,3);
  const r={...s.skills[1],ratio:.2,cd:10,cast:1,ratioCurve:[[1,.1],[21,.3]]};s.skills[1]=r;
@@ -74,7 +74,7 @@ test('Active skill curves replace their own coefficient: DPS ratio for ratio ski
  for(const row of [B.newSkill('X','X'),...B.defaults().skills])assert.deepEqual(Array.from(row.ratioCurve),[]);
 });
 test('Fractional mana costs are valid for basic attacks and active skills',()=>{
- const s=B.defaults();s.basicAttacks[0].cost=2.5;s.skills[0].cost=12.5;assert.ok(B.validBasics(s));
+ const s=B.defaults();s.basicAttacks[0].cost=2.5;s.skills[0].cost=12.5;s.skills[0].energyCost=0;assert.ok(B.validBasics(s));
  near(B.progressionBudget(s,s.skills[0],10).total*2,B.progressionBudget(s,{...s.skills[0],cost:25},10).total);
 });
 test('Armor aggregation',()=>{
@@ -116,6 +116,12 @@ test('All-damage assignment matches the best menacing/lucky mix and ignores empt
  }
  const l=emptyLoadout();l.items.forEach(x=>{x.id='regenLife';});const mixed=B.loadoutProbe(l);mixed.e.crit=10;const picks=B.applyDamagePrefixes(mixed,'e');
  assert.ok(picks.includes('menacing')&&picks.includes('lucky'),'Balanced damage and crit mix both prefixes');
+});
+test('Legacy buildup fields disappear when upgrading saved editor data',()=>{
+ const normalize=vm.runInNewContext('('+ui.slice(ui.indexOf('function normalizeProgression('),ui.indexOf('function validSaved('))+')',{Balance:B});
+ const state=savedConfig();state.basicAttacks[0].buildup=7;state.skills[0].freezeBuildup=8;
+ normalize(state);
+ for(const row of [...state.basicAttacks,...state.skills])assert.ok(!('buildup' in row)&&!('freezeBuildup' in row));
 });
 test('All recommended slots use mapped accessories and Spectre stays a full damage set',()=>{
  const mapping=fs.readFileSync(path.join(__dirname,'../../ElainaModSkills/Loadout/LoadoutItems.cs'),'utf8');
@@ -307,7 +313,8 @@ async function browserTests(){
   await page.locator('#moreActions summary').click();
   await page.locator('h1').click();
   assert.equal(await page.locator('#reset').isVisible(),false);
-  await page.locator('#rate').fill('5');
+  const showManaPricing=async()=>{if(!await page.locator('#rate').isVisible())await page.locator('#manaPricingSettings summary').click();};
+  await showManaPricing();await page.locator('#rate').fill('5');
   await resetPage(false);
   assert.equal(await page.locator('#rate').inputValue(),'5','Cancel reset preserves edits');
   await resetPage();
@@ -339,7 +346,7 @@ async function browserTests(){
   await page.getByRole('spinbutton',{name:'魔法飞弹整次耗蓝',exact:true}).fill('2.5');
   await page.getByRole('spinbutton',{name:'魔法飞弹冻结积蓄',exact:true}).fill('5.6');
   let saved=await stored();
-  assert.deepEqual(saved.basicAttacks[0].ratioCurve,[[1,1],[50,.75]]);near(saved.basicAttacks[0].cost,2.5);near(saved.basicAttacks[0].freezeBuildup,5.6);
+  assert.deepEqual(saved.basicAttacks[0].ratioCurve,[[1,1],[50,.75]]);near(saved.basicAttacks[0].cost,2.5);
   assert.equal(await page.getByRole('button',{name:'删除普攻魔法飞弹',exact:true}).isDisabled(),true,'At least one basic attack stays');
   await page.getByRole('button',{name:'添加普通攻击',exact:true}).click();
   assert.equal(await page.locator('#basicRows tr').count(),2);
@@ -375,7 +382,8 @@ async function browserTests(){
   assert.equal(await page.locator('#rotationRows tr').last().getByRole('textbox',{name:/技能 ID/}).inputValue(),'ExperimentalSkill');
   await page.getByRole('button',{name:'删除'+addedName,exact:true}).click();
   assert.equal(await page.locator('#rotationRows tr').count(),B.defaults().skills.length);
-  await page.locator('#occupyRatio').fill('0.5');near((await stored()).occupyRatio,.5);
+  await showManaPricing();await page.locator('#occupyRatio').fill('0.5');near((await stored()).occupyRatio,.5);
+  await page.locator('[data-skill-index="0"][data-skill-field="energyCost"]').fill('0');
   const waterCurve=page.getByRole('textbox',{name:'水球魔法系数曲线',exact:true}),waterK=page.getByRole('spinbutton',{name:'水球魔法魔力转换率',exact:true});
   assert.equal(await waterCurve.inputValue(),'');assert.equal(await waterK.isDisabled(),false);
   await waterCurve.fill('1:250');await waterCurve.press('Tab');
@@ -383,6 +391,7 @@ async function browserTests(){
   await waterCurve.fill('1:0.5，50：150');await waterCurve.press('Tab');
   assert.equal(await waterCurve.inputValue(),'1:0.5, 50:150');assert.equal(await page.getByRole('spinbutton',{name:'水球魔法魔力转换率',exact:true}).isDisabled(),true);
   assert.deepEqual((await stored()).skills[0].ratioCurve,[[1,.5],[50,150]]);
+  await page.locator('[data-skill-index="0"][data-skill-field="energyCost"]').fill('2');
   await page.locator('#skillPanel').screenshot({path:path.join(out,'skill-config.png')});
   await page.setViewportSize({width:390,height:844});
   await noOverflow('Skill configuration must not overflow on mobile');
@@ -589,7 +598,7 @@ async function browserTests(){
   await page.evaluate(value=>localStorage.setItem('elaina-mage-balance-v2',JSON.stringify(value)),legacyCache);
   await page.reload();await page.locator('#tabSkills').click();
   assert.equal(await page.locator('#rate').inputValue(),'6','Legacy cache keeps its skill parameters');
-  await page.locator('#rate').fill('6.5');
+  await showManaPricing();await page.locator('#rate').fill('6.5');
   saved=await stored();assert.deepEqual(Object.keys(saved).sort(),Object.keys(B.defaults()).sort());assert.ok(saved.skills.every(r=>!Object.hasOwn(r,'priority')&&!Object.hasOwn(r,'enabled')));
   await resetPage();
 
@@ -620,7 +629,7 @@ async function browserTests(){
   await resetPage();
   assert.equal(await page.evaluate(()=>window.testFile.text),beforeResetFile,'Reset does not overwrite the mod file');
   assert.match(await page.locator('#status').innerText(),/尚未写入模组文件/);
-  await page.locator('#rate').fill('7');
+  await showManaPricing();await page.locator('#rate').fill('7');
   await page.getByRole('button',{name:'重新读取',exact:true}).click();
   await page.waitForFunction(()=>document.getElementById('rate').value!=='7');
   assert.equal(await page.locator('#rate').inputValue(),String(savedDirect.configuration.rate));
@@ -659,7 +668,7 @@ async function browserTests(){
   assert.match(await page.locator('#fileStatus').innerText(),/已读取/,'The published mod JSON loads');
   assert.equal(await page.locator('#rotationRows tr').count(),base.skills.length);
   for(const category of ['basicAttacks','skills']){
-   for(const [field,value] of [['growthMode','bad'],['growthMode',null],['levelInterval',0],['levelInterval',1.5],['levelInterval',1001],['freezeBuildup',101]]){
+   for(const [field,value] of [['growthMode','bad'],['growthMode',null],['levelInterval',0],['levelInterval',1.5],['levelInterval',1001]]){
     const invalid=B.clone(base);invalid[category][0][field]=value;
     await loadPayload(invalid);assert.match(await page.locator('#fileStatus').innerText(),/读取失败/,category+'.'+field);
    }
@@ -679,7 +688,7 @@ async function browserTests(){
   const empty=B.clone(base);empty.skills=[];await loadPayload(empty);
   assert.equal(await page.locator('#rotationRows input').count(),0,'Zero active skills is a valid basic-only plan');
   await loadPayload(base);
-  await page.locator('#rate').fill('9');
+  await showManaPricing();await page.locator('#rate').fill('9');
   const retained=await page.locator('#rate').inputValue();
   for(const bad of ['{bad json',null,[],{schema:'future',configuration:base},{version:2},{...base,rate:21},{...base,loadouts:base.loadouts.slice(1)},{...base,skills:[null]}]){
    await loadPayload(bad===null?'null':bad);

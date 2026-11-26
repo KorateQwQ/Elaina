@@ -1,0 +1,34 @@
+using System;
+using Microsoft.Xna.Framework;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+namespace ShardbindPreview;
+public static class ReticleTrackingChecks {
+    public static void Validate()
+    {
+        var state = new ReticleTracking();
+        state.Update(0, new Vector2(620,720), 108);
+        state.Update(.5, new Vector2(620,720), 108);
+        var before = state.Center;
+        state.Update(.5, new Vector2(1280,720), 100.8f);
+        if (state.Center != before) throw new InvalidOperationException("切换当帧跳到新目标。");
+        state.Update(.6, new Vector2(1280,720), 100.8f);
+        if (state.Center.X <= 620 || state.Center.X >= 1280) throw new InvalidOperationException("没有平滑移动到新目标。");
+        before = state.Center;
+        state.Update(.6, new Vector2(620,720), 108);
+        if (state.Center != before) throw new InvalidOperationException("反向切换产生位置跳变。");
+        state.Update(1.5, new Vector2(620,720), 108);
+        if (Vector2.Distance(state.Center, new Vector2(620,720)) > .01) throw new InvalidOperationException("目标追踪未稳定。");
+        state.Update(1.9, null, 108);
+        if (state.Opacity > .001) throw new InvalidOperationException("移出目标后未淡出。");
+        state.Update(2.3, new Vector2(1280,720), 100.8f);
+        if (state.Opacity < .99) throw new InvalidOperationException("重新锁定未恢复。");
+        float previousRadius = state.Radius;
+        state.Update(2.3, new Vector2(1280,720), 43.2f);
+        if (state.Radius != previousRadius) throw new InvalidOperationException("体型改变当帧半径跳变。");
+        state.Update(2.4, new Vector2(1280,720), 43.2f);
+        if (state.Radius <= 43.2f || state.Radius >= previousRadius) throw new InvalidOperationException("未向小目标尺寸平滑收缩。");
+        state.Update(3.3, new Vector2(1280,720), 43.2f);
+        if (Math.Abs(state.Radius-43.2f) > .001f) throw new InvalidOperationException("小目标尺寸未稳定。");
+        Console.WriteLine("PASS target handoff: zero-delta retarget, interrupted reversal, settling, loss/reacquisition and dynamic target size.");
+    }
+}

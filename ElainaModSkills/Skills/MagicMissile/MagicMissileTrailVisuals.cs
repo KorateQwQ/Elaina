@@ -9,6 +9,8 @@ namespace 伊蕾娜.ElainaModSkills.Skills.MagicMissile;
 public sealed class MagicMissileTrailVisuals
 {
     public const int FadeTicks = 22;
+    private static Vector4 TrailHeadColor => new(2.6f, 1.28f, 2.25f, 1f);
+    private static Vector4 TrailTailColor => new(2.1f, 1.06f, 1.85f, 0f);
     private TrailVertex[] vertices = Array.Empty<TrailVertex>();
     private readonly Vector2 noiseOffset;
     private readonly int headFrame;
@@ -140,10 +142,11 @@ public sealed class MagicMissileTrailVisuals
                     offset *= MathHelper.Lerp(6f, 2f, materialU) / MathHelper.Lerp(6f, 2f, u);
                     u = materialU;
                 }
-                Vector4 color = Vector4.Lerp(new Vector4(1.5f, .75f, 1.35f, 1), new Vector4(1, .4f, .9f, 0), u);
-                float alpha = MathHelper.Lerp(1, 3, u);
-                var top = new TrailVertex(center + offset, color, new Vector3(u, 1, alpha));
-                var bottom = new TrailVertex(center - offset, color, new Vector3(u, 0, alpha));
+                // 末端的 UV 保持原有采样位置；覆盖度沿完整轨迹降至零。
+                float fade = u * points.Length / (points.Length - 1);
+                Vector4 color = Vector4.Lerp(TrailHeadColor, TrailTailColor, fade);
+                var top = new TrailVertex(center + offset, color, new Vector3(u, 1, 1));
+                var bottom = new TrailVertex(center - offset, color, new Vector3(u, 0, 1));
                 if (j == 0)
                 {
                     previousTop = top;

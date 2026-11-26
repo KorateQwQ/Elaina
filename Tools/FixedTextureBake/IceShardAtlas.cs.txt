@@ -1,0 +1,59 @@
+using Microsoft.Xna.Framework;
+
+// 六种静态冰石块；直接绘制白色轮廓与浅色切面，没有几何光照或动画帧模拟。
+internal static class IceShardAtlas
+{
+    internal static Color[] Build()
+    {
+        const int width = 128, height = 160, samples = 8;
+        Color[] pixels = new Color[width * height];
+        Vector2[][] shapes =
+        [
+            [new(4,12),new(11,4),new(25,7),new(28,20),new(19,28),new(6,24)],
+            [new(5,7),new(20,4),new(28,13),new(23,26),new(11,28),new(4,18)],
+            [new(4,15),new(9,5),new(22,4),new(28,21),new(17,28),new(6,25)],
+            [new(5,9),new(16,4),new(28,10),new(25,25),new(13,28),new(4,19)],
+            [new(4,11),new(15,4),new(26,8),new(28,20),new(20,28),new(6,23)],
+            [new(4,9),new(21,4),new(28,15),new(24,25),new(10,28),new(6,20)]
+        ];
+        Color[] palette = [new(244,250,253),new(255,255,255),new(230,241,247),new(192,214,228),new(214,231,240),new(236,246,251)];
+        for (int shape = 0; shape < shapes.Length; shape++)
+        {
+            Vector2[] outline = shapes[shape];
+            Vector2 junction = new(14 + shape % 3, 14 + shape % 2);
+            for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+            {
+                Vector4 sum = Vector4.Zero;
+                for (int sy = 0; sy < samples; sy++)
+                for (int sx = 0; sx < samples; sx++)
+                {
+                    Vector2 p = new(x + (sx + .5f) / samples, y + (sy + .5f) / samples);
+                    for (int face = 0; face < outline.Length; face++)
+                        if (Inside(p, outline[face], outline[(face+1)%outline.Length], junction))
+                        {
+                            sum += palette[face].ToVector4();
+                            break;
+                        }
+                }
+                pixels[(shape / 3 * 32 + y) * width + shape % 3 * 32 + x] = new Color(sum / (samples * samples));
+            }
+        }
+        // 同图集的预乘柔光，与此前 96px 光晕的覆盖度相同。
+        for (int y = 0; y < 96; y++)
+        for (int x = 0; x < 96; x++)
+        {
+            float r = new Vector2((x-47.5f)/47.5f,(y-47.5f)/47.5f).Length();
+            pixels[(64+y)*width+x] = Color.White * MathF.Pow(Math.Max(0,1-r*r),3);
+        }
+        for (int y = 73; y < 75; y++)
+        for (int x = 104; x < 120; x++) pixels[y*width+x] = Color.White;
+        return pixels;
+    }
+    private static bool Inside(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+    {
+        static float Cross(Vector2 u,Vector2 v) => u.X*v.Y-u.Y*v.X;
+        float x=Cross(b-a,p-a),y=Cross(c-b,p-b),z=Cross(a-c,p-c);
+        return (x>=0 && y>=0 && z>=0)||(x<=0 && y<=0 && z<=0);
+    }
+}

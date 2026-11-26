@@ -1,0 +1,114 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using ReLogic.Graphics;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
+
+// Independent master-glyph reference: rasterize at 4x and integrate pixel coverage.
+// The legacy path remains available through smoothTransform:false, so the check must distinguish it.
+internal static class TextQualityChecks
+{
+    private const int W = 240, H = 72, Samples = 4;
+
+    internal static void Transformed(GraphicsDevice device, SpriteBatch batch, ConstellationFont font,
+        DynamicSpriteFont master, string text, string output)
+    {
+        var report = new List<string>();
+        double beforeTotal = 0, afterTotal = 0;
+        int improved = 0, count = 0;
+        foreach (float em in new[] { 9f, 12f, 15f, 20f, 26f })
+        foreach (var pose in new[] { (-3.2f,1f), (1.2f,1f), (0f,1.045f), (.8f,1.015f) })
+        foreach (float phase in new[] { 0f,.25f,.5f,.75f })
+        {
+            var matrix = Matrix.CreateScale(pose.Item2) * Matrix.CreateRotationZ(MathHelper.ToRadians(pose.Item1)) *
+                Matrix.CreateTranslation(16.25f+phase, 18.61f+phase, 0);
+            var before = Render(device, batch, font, master, text, em, matrix, 0);
+            var after = Render(device, batch, font, master, text, em, matrix, 1);
+            var reference = Render(device, batch, font, master, text, em, matrix, 2);
+            double a = 0, b = 0; int covered = 0;
+            for (int i = 0; i < reference.Length; i++)
+            {
+                if (Math.Max(reference[i], Math.Max(before[i],after[i])) < .01f) continue;
+                a += Math.Pow(before[i]-reference[i],2); b += Math.Pow(after[i]-reference[i],2); covered++;
+            }
+            a /= covered; b /= covered;
+            if (b < a) improved++;
+            beforeTotal += a; afterTotal += b; count++;
+            report.Add($"em={em} tilt={pose.Item1} zoom={pose.Item2} phase={phase}: old={a:F6} new={b:F6}");
+        }
+        string summary = $"Transformed '{text}': {improved}/{count} improved; coverage MSE {beforeTotal/count:F6} -> {afterTotal/count:F6}";
+        report.Add(summary);
+        File.WriteAllLines(output, report);
+        Console.WriteLine(summary);
+        if (afterTotal >= beforeTotal * .8 || improved < count * .8)
+            throw new Exception("Transformed glyph coverage did not sufficiently improve over legacy resampling.");
+    }
+
+    private static float[] Render(GraphicsDevice device, SpriteBatch batch, ConstellationFont font,
+        DynamicSpriteFont master, string text, float em, Matrix matrix, int mode)
+    {
+        int samples = mode == 2 ? Samples : 1;
+        using var target = new RenderTarget2D(device,W*samples,H*samples);
+        device.SetRenderTarget(target); device.Clear(Color.Transparent);
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,
+            DepthStencilState.None,RasterizerState.CullNone,null,matrix*Matrix.CreateScale(samples));
+        if (mode < 2)
+            font.Draw(batch,text,Vector2.Zero,Color.White,em,matrix,1,smoothTransform:mode==1);
+        else
+        {
+            float x=0;
+            foreach(char c in text)
+            {
+                var glyph=master.SpriteCharacters[c];
+                float advance=font.Measure(c.ToString(),em);
+                float sx=advance/master.MeasureString(c.ToString()).X, sy=em/48;
+                var position=new Vector2(x+(glyph.Padding.X+Math.Max(0,glyph.Kerning.X))*sx,glyph.Padding.Y*sy);
+                batch.Draw(glyph.Texture,position,glyph.Glyph,Color.White,0,Vector2.Zero,new Vector2(sx,sy),SpriteEffects.None,0);
+                x+=advance;
+            }
+        }
+        batch.End(); device.SetRenderTarget(null);
+        var data=new Color[target.Width*target.Height];target.GetData(data);
+        var result=new float[W*H];
+        for(int y=0;y<H;y++) for(int x=0;x<W;x++)
+        {
+            float sum=0;
+            for(int sy=0;sy<samples;sy++) for(int sx=0;sx<samples;sx++)
+                sum+=data[(y*samples+sy)*target.Width+x*samples+sx].A/255f;
+            result[y*W+x]=sum/(samples*samples);
+        }
+        return result;
+    }
+
+    internal static void Native(GraphicsDevice device, SpriteBatch batch, ConstellationFont font,
+        DynamicSpriteFont master, string text, float size)
+    {
+        int legacyFailures=0;
+        foreach(float scale in new[] {1f,1.125f,1.25f,1.5f,2f})
+        {
+            Color[] Paint(bool legacy, SamplerState sampler)
+            {
+                using var target=new RenderTarget2D(device,400,100);
+                device.SetRenderTarget(target);device.Clear(Color.Transparent);
+                var matrix=Matrix.CreateScale(scale)*Matrix.CreateTranslation(.37f,.61f,0);
+                batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,sampler,DepthStencilState.None,RasterizerState.CullNone,null,matrix);
+                if(legacy) batch.DrawString(master,text,new Vector2(8.25f),Color.White,0,Vector2.Zero,size/48,SpriteEffects.None,0);
+                else font.Draw(batch,text,new Vector2(8.25f),Color.White,size*scale,matrix);
+                batch.End();device.SetRenderTarget(null);
+                var data=new Color[400*100];target.GetData(data);return data;
+            }
+            foreach(bool legacy in new[] {false,true})
+            {
+                var point=Paint(legacy,SamplerState.PointClamp);var linear=Paint(legacy,SamplerState.LinearClamp);
+                int difference=0;
+                for(int i=0;i<point.Length;i++) difference=Math.Max(difference,Math.Abs(point[i].A-linear[i].A));
+                if(legacy) { if(difference>2) legacyFailures++; }
+                else if(difference>2) throw new Exception($"HUD glyph resampled: size={size}, ui={scale}, delta={difference}");
+            }
+        }
+        if(legacyFailures!=5) throw new Exception("HUD regression did not expose the old master downsampling.");
+        Console.WriteLine($"PASS: '{text}', native HUD text at five scales; old path fails all five.");
+    }
+}

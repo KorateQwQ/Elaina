@@ -6,6 +6,8 @@ public sealed class IceConeDepthRenderer : ModSystem
 {
     private static RenderTarget2D depthTarget;
     private static RenderTarget2D sceneCopy;
+    private static RenderTarget2D worldSceneCopy;
+    private static RenderTarget2D hdrSceneCopy;
     private static RenderTargetBinding[] previousTargets;
     private static Viewport previousViewport;
     private static Rectangle previousScissor;
@@ -29,7 +31,7 @@ public sealed class IceConeDepthRenderer : ModSystem
         previousBackbufferUsage = gd.PresentationParameters.RenderTargetUsage;
         restoreScene = false;
 
-        // Preserve HDR highlights until KL derives the base color and bloom from this layer.
+        // 两层复用深度目标，前景保留 HDR 值供合成时提取 Bloom。
         EnsureTarget(ref depthTarget, gd, previousViewport.Width, previousViewport.Height,
             SurfaceFormat.Vector4, DepthFormat.Depth24);
 
@@ -37,7 +39,10 @@ public sealed class IceConeDepthRenderer : ModSystem
         if (previousTargets.Length > 0 && previousTargets[0].RenderTarget is RenderTarget2D scene &&
             scene.RenderTargetUsage != RenderTargetUsage.PreserveContents)
         {
-            EnsureTarget(ref sceneCopy, gd, scene.Width, scene.Height, scene.Format, DepthFormat.None);
+            // 世界场景与 HDR 捕获格式不同，分开缓存，避免切层时反复分配。
+            ref RenderTarget2D cachedCopy = ref (scene.Format == SurfaceFormat.Vector4 ? ref hdrSceneCopy : ref worldSceneCopy);
+            EnsureTarget(ref cachedCopy, gd, scene.Width, scene.Height, scene.Format, DepthFormat.None);
+            sceneCopy = cachedCopy;
             gd.SetRenderTarget(sceneCopy);
             Main.spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp,
                 DepthStencilState.None, RasterizerState.CullNone);
@@ -102,7 +107,9 @@ public sealed class IceConeDepthRenderer : ModSystem
         Main.QueueMainThreadAction(() =>
         {
             depthTarget?.Dispose();
-            sceneCopy?.Dispose();
+            hdrSceneCopy?.Dispose();
+            worldSceneCopy?.Dispose();
+            hdrSceneCopy = worldSceneCopy = null;
             depthTarget = null;
             sceneCopy = null;
         });

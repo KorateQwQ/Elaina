@@ -44,6 +44,14 @@ wind-*.png 使用实际风刃绘制；trail-/overlap-*.png 使用实际魔法飞
 
 ## 风刃弧度对齐
 
+### HTML 动态调参
+
+从模组根目录运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Tools/ManagedTrailPreview/run.ps1 -WindWeb`，在浏览器打开 `http://127.0.0.1:48731/`。服务使用后台 FNA 窗口逐帧运行风刃和 Bloom 绘制，保持启动进程运行即可预览。手动从终端启动时可按 Ctrl+C 结束。
+
+滑块的初始值来自启动时读取的 `WindSlash.cs`。稀疏度调整流动纹理在弧面上的间距，长度随机范围控制各束风丝的长短差；中央长拖尾亮度可独立调至零。页面记住本次调整，暂停后可切换“对照原版”在同一帧查看差异。“复制当前参数”可导出对应的 C# 属性供定稿。修改 HTML 后刷新页面，修改实际 C# 或编译后的 Shader 后重新启动预览服务。
+
+### 离线对齐检查
+
 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Tools/ManagedTrailPreview/run.ps1 -WindAlignment`。
 单独输出到 `out/wind-alignment`，使用当前 WindSlash 的实际绘制参数和混合模式。
 `layer-1/2/3.png` 分别显示月牙、噪声弧面和条纹；合成图覆盖第 5、10、30 帧及左、右、斜向、朝上和昼夜背景。
@@ -51,7 +59,7 @@ wind-*.png 使用实际风刃绘制；trail-/overlap-*.png 使用实际魔法飞
 回放从实际 Shader 参数、纹理尺寸、绘制位置/缩放恢复两个椭圆，比较它们与实际条纹顶点的弧心、半径、弧顶和前缘。
 每个合成状态要求弧心、半径及弧顶误差小于 0.001 像素，前缘椭圆方程误差小于 0.0005。
 当前三层共用 WindSlash 的 BladeCenterOffset、BladeRadiusX、BladeRadiusY，显现缩放也一起变化。
-月牙及噪声层保留用户设定的 NonPremultiplied，条纹仍按调用处指定的模式绘制；这些混合方式不会被预览器替换。
+Bloom 开启时月牙与风丝沿用 NonPremultiplied。关闭时短风丝在 Shader 内预乘覆盖率并补一圈局部刃光，中央长尾将部分 HDR 增益移到加法混合的透明度。`compare-{day,night}-{5,10,30}-{off,on}.png` 可按同一帧对照，均来自普通颜色场景目标。修改短风丝 Shader 后运行 `compile-wind.ps1 -FringeOnly` 更新正式 XNB。
 
 风刃使用的 fadeUP 和 background 是 Alpha 全为 255 的灰度渐变，因此两层开启 useRGBforApha：
 Shader 用灰度乘入几何透明度，RGB 只保留绘制颜色；关闭该模式时继续保留材质原色。

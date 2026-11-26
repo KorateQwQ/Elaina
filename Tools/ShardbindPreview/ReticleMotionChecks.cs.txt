@@ -1,0 +1,97 @@
+using System;
+using System.Diagnostics;
+using System.Threading;
+using Microsoft.Xna.Framework;
+using 伊蕾娜.ElainaModSkills.Skills.Ice;
+
+namespace ShardbindPreview;
+
+public static class ReticleMotionChecks
+{
+    static double[] Values(ReticleMotion.Pose p) => [p.Scale, p.Angle, p.Gap, p.Alpha,
+        p.Presence, p.Ambient, p.Pulse, p.Motes, p.Time];
+    static void Check(bool valid, string message)
+    {
+        if (!valid) throw new InvalidOperationException(message);
+    }
+    public static void Run()
+    {
+        // 旧错误候选的常态1.52会失败；体型公式直接来自本次抽取的正式方法。
+        for (double seconds = .4; seconds <= 8; seconds += .013)
+            Check(Math.Abs(ReticleMotion.Hover(seconds).Scale-.86) <= .01401,
+                "悬停常态没有回到历史收紧尺寸。");
+        Check(Math.Abs(PreviewReticle.RadiusFromHitbox(150,100)-108) < .001
+            && Math.Abs(PreviewReticle.RadiusFromHitbox(140,140)-100.8) < .001
+            && Math.Abs(PreviewReticle.RadiusFromHitbox(60,60)-43.2) < .001
+            && Math.Abs(PreviewReticle.RadiusFromHitbox(16,16)-28.8) < .001
+            && Math.Abs(PreviewReticle.RadiusFromHitbox(400,200)-180) < .001,
+            "目标体型或半径上下限偏离正式公式。");
+        const double h = .00001;
+        foreach (double confirm in new[] { 0, .04, .12, .32, .75, 2.4, 7.1 })
+        {
+            var at = Values(ReticleMotion.Sample(confirm, confirm));
+            var hover = Values(ReticleMotion.Hover(confirm));
+            var before = Values(ReticleMotion.Hover(Math.Max(0, confirm-h)));
+            var after = Values(ReticleMotion.Sample(confirm+h, confirm));
+            for (int i = 0; i < at.Length; i++)
+            {
+                Check(Math.Abs(at[i]-hover[i]) < 1e-8, $"确认时形态跳变: {confirm}/{i}");
+                if (confirm > 0) Check(Math.Abs((after[i]-at[i])/h-(at[i]-before[i])/h) < .025,
+                    $"确认时速度跳变: {confirm}/{i}");
+            }
+            var end = ReticleMotion.Sample(confirm+ReticleMotion.TightenSeconds, confirm);
+            Check(Math.Abs(end.Scale-.86) < 1e-8 && Math.Abs(end.Angle) < 1e-8 && Math.Abs(end.Alpha-1) < 1e-8,
+                "收紧结束未接入原有霜纹形态。");
+            Check(ReticleMotion.Sample(confirm+PreviewTimeline.LockTicks/60.0, confirm).Alpha < 1e-8,
+                "齐射开始时准星仍未消失。");
+            // 覆盖实际发送给原 Shader 的全部参数，而不只检查动画辅助函数。
+            foreach (double seam in new[] { confirm, confirm + ReticleMotion.TightenSeconds,
+                         confirm + PreviewTimeline.LockTicks/60.0 })
+            {
+                PreviewReticle.ApplyMotion(Math.Max(0, seam-h), confirm);
+                float[] left = Uniforms();
+                PreviewReticle.ApplyMotion(seam+h, confirm);
+                float[] right = Uniforms();
+                for (int i = 0; i < left.Length; i++) Check(Math.Abs(right[i]-left[i]) < .2,
+                    $"Shader参数跳变: {confirm}/{seam}/{i}");
+            }
+        }
+        // 切换演示的精确收紧边界；旧预览双重时间换算会在此瞬亮一帧。
+        PreviewReticle.ApplyMotion(273 / 60.0, 252 / 60.0);
+        Check(PreviewReticle.Effect.Parameters["uRing"].GetValueVector3().Z == 0
+            && PreviewReticle.Effect.Parameters["uFlash"].GetValueVector2().Y == 0,
+            "收紧边界出现单帧全亮闪光。");
+        Check(Math.Abs(ReticleMotion.Hover(.04).Scale-ReticleMotion.Hover(.25).Scale) > .2,
+            "未修复悬停只有一帧的问题。");
+        Check(Math.Abs(ReticleMotion.Hover(.7).Angle-ReticleMotion.Hover(1.7).Angle) > .02,
+            "悬停稳定后停止运动。");
+        // 真实经过时间 + 零值、极小值及重复缓存 GameTime。只验证本次预览采样入口，非正式游戏时钟接入。
+        var clock = Stopwatch.StartNew();
+        var cached = new GameTime(TimeSpan.Zero, TimeSpan.Zero);
+        double start = clock.Elapsed.TotalSeconds;
+        var first = ReticleMotion.Sample(start, null);
+        foreach (var gameTime in new[] { cached, new GameTime(TimeSpan.Zero, TimeSpan.FromTicks(1)), cached, cached })
+        {
+            Thread.Sleep(12);
+            double now = clock.Elapsed.TotalSeconds;
+            var actual = ReticleMotion.Sample(now, null);
+            Check(actual.Time > first.Time && actual.Alpha > first.Alpha, "真实时间经过但预览动画停滞。");
+            Check(actual == ReticleMotion.Sample(now, null), "重复绘制推进了动画。");
+            _ = gameTime;
+        }
+        Console.WriteLine("PASS reticle motion: 7 confirm phases, pose/velocity continuity, shader seams, real elapsed time with zero/tiny/repeated GameTime; launch schedule preserved.");
+    }
+    static float[] Uniforms()
+    {
+        var result = new System.Collections.Generic.List<float>();
+        foreach (var parameter in PreviewReticle.Effect.Parameters)
+        {
+            float[] values = parameter.GetValueSingleArray(parameter.ColumnCount * parameter.RowCount);
+            // 不可见闪光的几何参数不参与覆盖率；比较带可见强度的状态。
+            if (parameter.Name == "uRing") { values[0] *= values[2]; values[1] *= values[2]; }
+            if (parameter.Name == "uFlash") values[0] *= values[1];
+            result.AddRange(values);
+        }
+        return result.ToArray();
+    }
+}

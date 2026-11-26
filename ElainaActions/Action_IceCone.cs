@@ -4,6 +4,7 @@ using KL.DamageSystem;
 using Terraria.DataStructures;
 using 伊蕾娜.ElainaAttribute;
 using 伊蕾娜.ElainaModSkills;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI;
 using 伊蕾娜.ElainaModSkills.Skills.Ice;
 using 伊蕾娜.Items;
 
@@ -31,7 +32,7 @@ public sealed class Action_IceCone : ElainaAction
     private readonly int damage;
     private readonly float manaCost;
     private readonly int intervalFrames;
-    private readonly float freezeBuildup;
+    private readonly float buildup;
     private Item castingItem;
     private int castingSlot;
     private int framesSinceShot;
@@ -40,18 +41,29 @@ public sealed class Action_IceCone : ElainaAction
     private float worldAimRotation;
     private float lastSentAimRotation;
     private int framesSinceAimSync;
+    private NPC quickCastTarget;
+    private uint quickCastTargetSerial;
 
-    protected override void RequestActionStarBloom(float actionProgress)
+    internal NPC QuickCastTarget => quickCastTarget != null
+        && IceConeTargetSystem.IsValidTarget(quickCastTarget)
+        && quickCastTarget.GetGlobalNPC<IceboundNPC>().SpawnSerial == quickCastTargetSerial
+            ? quickCastTarget : null;
+
+    // 松开左键也要允许接入冰凌锁，因此施法上下文与按键保持分开判断。
+    internal bool CanReleaseQuickCast => !ending && owner.whoAmI == Main.myPlayer
+        && HasCastingContext() && CanUseQuickCastInput();
+
+    protected override void RequestActionStar(float actionProgress)
     {
         // 保持在第 1 帧时已满亮，只有离开保持点后才进入 20 帧淡出。
-        ElainaTrailVisualStyle.RequestBloomStar(StarCenter.Floor(), actionProgress,
+        ElainaTrailVisualStyle.RequestStar(StarCenter.Floor(), actionProgress,
             ElainaTrailVisualStyle.DefaultStarColor, fadeInEnd: 0f,
             fadeOutStart: ChannelFrame / (float)(ChannelFrame + RecoveryFrames));
     }
 
-    protected override void DrawWandTrailVisual(Vector2[] points, float actionProgress)
+    protected override ElainaTrailSnapshot CreateWandTrailVisual(Vector2[] points, float actionProgress)
     {
-        ElainaTrailVisualStyle.DrawTrail(points, Vector2.Zero, 0f, actionProgress,
+        return new ElainaTrailSnapshot(points, Vector2.Zero, 0f, actionProgress,
             ElainaTrailVisualStyle.DefaultWandTrailColor, ElainaTrailVisualStyle.DefaultTrailMaxWidth,
             ElainaTrailVisualStyle.DefaultTrailEndWidth, fadeInEnd: 0f,
             fadeOutStart: ChannelFrame / (float)(ChannelFrame + RecoveryFrames));
@@ -59,14 +71,14 @@ public sealed class Action_IceCone : ElainaAction
 
     public Action_IceCone() : this(null, 0, 0f, 12, 0f) { }
 
-    public Action_IceCone(IceConeSkill skill, int damage, float manaCost, int intervalFrames, float freezeBuildup)
+    public Action_IceCone(IceConeSkill skill, int damage, float manaCost, int intervalFrames, float buildup)
         : base(ChannelFrame + RecoveryFrames + 1)
     {
         castingSkill = skill;
         this.damage = damage;
         this.manaCost = Math.Max(0f, manaCost);
         this.intervalFrames = Math.Max(1, intervalFrames);
-        this.freezeBuildup = freezeBuildup;
+        this.buildup = buildup;
         AddNode(CreateShotNode());
     }
 
@@ -82,10 +94,13 @@ public sealed class Action_IceCone : ElainaAction
     }
 
     private bool CanContinueCasting()
+        => Main.mouseLeft && HasCastingContext();
+
+    private bool HasCastingContext()
     {
         var skills = owner.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
         return owner.active && !owner.dead && !owner.CCed && !owner.noItems
-            && Main.mouseLeft && !owner.mouseInterface
+            && !owner.mouseInterface
             && ReferenceEquals(owner.HeldItem, castingItem)
             && ElainaSkillModPlayer.CurrentSkillIndex == castingSlot
             && castingSlot >= 0 && castingSlot < skills.Count
@@ -101,6 +116,8 @@ public sealed class Action_IceCone : ElainaAction
 
     public override void Update(ActionModPlayer actionPlayer, int actionFrame, float actionProgress)
     {
+        if (UpdateQuickCast()) return;
+
         if (!ending && owner.whoAmI == Main.myPlayer && !CanContinueCasting())
             ending = true;
 
@@ -116,6 +133,8 @@ public sealed class Action_IceCone : ElainaAction
 
     public override void OnHoldUpdate(ActionModPlayer actionPlayer, int actionFrame, int holdTime)
     {
+        if (UpdateQuickCast()) return;
+
         UpdateLocalAim();
         ApplyPose();
         SyncItemRotationToArmRotation();
@@ -135,6 +154,48 @@ public sealed class Action_IceCone : ElainaAction
         ApplyPose();
         SyncItemRotationToArmRotation();
         framesSinceShot = 0;
+    }
+
+    private static bool CanUseQuickCastInput() => Main.hasFocus && !Main.gameMenu && !Main.gamePaused
+        && !Main.drawingPlayerChat && !Main.ingameOptionsWindow && !Main.inFancyUI
+        && !Main.editSign && !Main.editChest && !ElainaSkillWheel.IsShowing
+        && !ElainaHealingWheel.OwnsPointer
+        && !ElainaModSkills.Skills.DollControl.DollCommandWheel.OwnsPointer;
+
+    private bool UpdateQuickCast()
+    {
+        if (owner.whoAmI != Main.myPlayer) return false;
+        if (!CanReleaseQuickCast || owner.HeldItem.ModItem is not ElainaWand
+            || !ShardbindSkill.TryGetEquipped(owner, out var skill) || !skill.CanPrepareQuickCast())
+        {
+            quickCastTarget = null;
+            return false;
+        }
+
+        if (Main.mouseRight && Main.mouseLeft)
+        {
+            quickCastTarget = IceConeTargetSystem.FindTarget(Main.MouseWorld, QuickCastTarget?.whoAmI ?? -1);
+            if (quickCastTarget != null)
+                quickCastTargetSerial = quickCastTarget.GetGlobalNPC<IceboundNPC>().SpawnSerial;
+            return false;
+        }
+
+        // 释放沿用已经显示的目标，不在松键瞬间改锁另一个敌人。
+        NPC target = QuickCastTarget;
+        quickCastTarget = null;
+        return target != null && skill.TryQuickCast(target);
+    }
+
+    internal static bool OwnsQuickCastInput(Player player)
+    {
+        if (!Main.mouseRight || !ShardbindSkill.TryGetEquipped(player, out _)) return false;
+        var current = player.GetModPlayer<ActionModPlayer>().CurrentAnimAction;
+        if (current is Action_IceCone cone)
+            return cone.CanReleaseQuickCast && (Main.mouseLeft || cone.QuickCastTarget != null);
+        if (current != null || !Main.mouseLeft) return false;
+        var skills = player.GetModPlayer<ElainaSkillModPlayer>().ActiveSkill;
+        int index = ElainaSkillModPlayer.CurrentSkillIndex;
+        return index >= 0 && index < skills.Count && skills[index]?.ModSkill is IceConeSkill;
     }
 
     private ShootActionNode CreateShotNode()
@@ -160,7 +221,7 @@ public sealed class Action_IceCone : ElainaAction
             2f,
             _ => GetShotDirection(worldAimRotation.ToRotationVector2(), GetSpawnPosition(),
                 owner.MountedCenter + worldAimRotation.ToRotationVector2() * AimDistance) * 35f,
-            projectile => projectile.GetGlobalProjectile<ElementalGlobalProjectile>().FreezeBuildup = freezeBuildup);
+            projectile => projectile.GetGlobalProjectile<ElementalGlobalProjectile>().InfusionElement = new(ElementType.Ice, buildup));
     }
 
     // mouseWorld 接收调用方构造的固定距离虚拟目标，保留原有轻微偏转和上限。
@@ -297,8 +358,16 @@ public sealed class Action_IceCone : ElainaAction
     }
 
     public override void OnHoldExit(ActionModPlayer actionPlayer, int actionFrame) => ending = true;
-    public override void OnInterrupt(ActionModPlayer actionPlayer) => ending = true;
-    public override void OnFinish(ActionModPlayer actionPlayer) => ending = true;
+    public override void OnInterrupt(ActionModPlayer actionPlayer)
+    {
+        ending = true;
+        base.OnInterrupt(actionPlayer);
+    }
+    public override void OnFinish(ActionModPlayer actionPlayer)
+    {
+        ending = true;
+        base.OnFinish(actionPlayer);
+    }
 
     private void FinishChannel(ActionModPlayer actionPlayer)
     {

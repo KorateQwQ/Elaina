@@ -1,4 +1,4 @@
-param()
+param([ValidateSet('UICircle','UIShape')][string]$Name = 'UICircle')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $scratch = Join-Path $repo '.vissandbox/ui-circle-shader'
@@ -6,17 +6,17 @@ New-Item -ItemType Directory -Force -Path (Join-Path $scratch 'source') | Out-Nu
 Get-ChildItem -LiteralPath (Join-Path $repo 'Effects') -File |
     Where-Object { $_.Name -eq 'XNBCompiler.exe' -or $_.Extension -eq '.dll' -or $_.Name -eq 'XNBCompiler.exe.config' } |
     Copy-Item -Destination $scratch
-$compiled = Join-Path $scratch 'UICircle.xnb'
+$compiled = Join-Path $scratch "$Name.xnb"
 $cache = Join-Path $scratch 'shader.cache'
 foreach ($file in @($compiled, $cache)) {
     if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
 }
-Copy-Item -LiteralPath (Join-Path $repo 'Effects/Content/UICircle.fx') -Destination (Join-Path $scratch 'source/UICircle.fx')
+Copy-Item -LiteralPath (Join-Path $repo "Effects/Content/$Name.fx") -Destination (Join-Path $scratch "source/$Name.fx")
 Push-Location $scratch
 try { & './XNBCompiler.exe' 'source' } finally { Pop-Location }
 # The bundled legacy compiler may fault during shutdown; require a newly produced artifact.
 # Actual loading/rendering is checked separately by run.ps1's FNA host.
 if (!(Test-Path -LiteralPath $compiled) -or (Get-Item -LiteralPath $compiled).Length -lt 100) {
-    throw 'No compiled UICircle.xnb was produced.'
+    throw "No compiled $Name.xnb was produced."
 }
-Copy-Item -LiteralPath $compiled -Destination (Join-Path $repo 'Effects/Content/UICircle.xnb')
+Copy-Item -LiteralPath $compiled -Destination (Join-Path $repo "Effects/Content/$Name.xnb")

@@ -19,7 +19,6 @@ public sealed class DollMarkSystem : ModSystem
     private static readonly Color TileColor = new(255, 196, 92), WallColor = new(110, 196, 255),
         AddColor = new(150, 235, 160), RemoveColor = new(240, 120, 130), PlaceColor = new(202, 178, 237);
     // 操作条主按钮两端的四芒星与炼金手记共用同一图集。
-    private const string StarsPath = "伊蕾娜/ElainaModAlchemy/UI/Assets/NotebookStars";
 
     public override void PostDrawTiles()
     {
@@ -149,8 +148,7 @@ public sealed class DollMarkSystem : ModSystem
         if (layout.Panel.Contains(pointer.ToPoint())) Main.LocalPlayer.mouseInterface = true;
         Texture2D icon = ModContent.Request<Texture2D>(DollCommands.IconPath(tool)).Value;
         var art = new DollSelectionBarDrawing.Art(TextureAssets.MagicPixel.Value,
-            ModContent.Request<Texture2D>(StarsPath).Value, UIDrawKit.TitleFont,
-            FontManager.HarmonyOS_Sans_SC?.Value ?? FontAssets.MouseText.Value);
+            UIDrawKit.SmallStar, UIDrawKit.RasterSerif, UIDrawKit.RasterSans, UIDrawKit.Shapes);
         string keyName = DollCommandPlayer.MarkKeyName ?? LocalizeUI("DollMarkUnbound");
         DollSelectionBarDrawing.Draw(Main.spriteBatch, art, icon, layout, pointer, Main.UIScale,
             LocalizeUI("DollCommand" + DollCommands.BaseCommand(tool)), LocalizeUI("DollModeSettings"),

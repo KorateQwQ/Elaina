@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using KL.Drawing;
 using ReLogic.Graphics;
 using Terraria.GameContent;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 namespace 伊蕾娜.ElainaModSkills.UICore;
 
@@ -43,7 +44,24 @@ public static class UIDrawKit
     private static Effect _radialCooldown;
     private static Effect _starfieldPlaque;
     private static Effect _sigilRing;
-    private static bool _effectLoadFailed;
+    private static UIRasterFont _rasterSerif, _rasterSans;
+    private static UIRasterShapes _shapes;
+    private static UIRasterTexture _barRack, _barOrnaments;
+    private static UIRasterStar _smallStar;
+    internal static UIRasterStar SmallStar => _smallStar ??= new(
+        ModContent.Request<Texture2D>("伊蕾娜/ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/StarsRaster", AssetRequestMode.ImmediateLoad).Value,
+        ModContent.GetInstance<global::伊蕾娜.伊蕾娜>().GetFileBytes("ElainaModSkills/ElainaSkillUI/ConstellationSkillPanel/Assets/StarsRaster.json"));
+    internal static UIRasterFont RasterSerif => _rasterSerif ??= new ConstellationFont(ModContent.GetInstance<global::伊蕾娜.伊蕾娜>(), "NotoSerifSC", FontManager.NotoSerifSC, 9, 48);
+    internal static UIRasterFont RasterSans => _rasterSans ??= new ConstellationFont(ModContent.GetInstance<global::伊蕾娜.伊蕾娜>(), "HarmonyOS_Sans_SC", FontManager.HarmonyOS_Sans_SC, 9, 28);
+    internal static UIRasterShapes Shapes => _shapes ??= new(Pixel, ModContent.Request<Effect>("伊蕾娜/Effects/Content/UIShape", AssetRequestMode.ImmediateLoad).Value);
+    internal static UIRasterTexture BarRack => _barRack ??= BarTexture("Rack");
+    internal static UIRasterTexture BarOrnaments => _barOrnaments ??= BarTexture("Ornaments");
+    private static UIRasterTexture BarTexture(string name)
+    {
+        const string root = "伊蕾娜/ElainaModSkills/ElainaSkillUI/BattleBar/";
+        return new(ModContent.Request<Texture2D>(root + name, AssetRequestMode.ImmediateLoad).Value,
+            level => ModContent.Request<Texture2D>(root + name + "Lod" + level, AssetRequestMode.ImmediateLoad).Value);
+    }
 
     public static Effect Nebula => TryGetEffect(ref _nebula, "NebulaBackground");
     public static Effect GlassCard => TryGetEffect(ref _glassCard, "GlassCard");
@@ -59,17 +77,7 @@ public static class UIDrawKit
 
     private static Effect TryGetEffect(ref Effect cache, string name)
     {
-        if (cache != null || _effectLoadFailed) return cache;
-        try
-        {
-            cache = ModContent.Request<Effect>(EffectRoot + name, AssetRequestMode.ImmediateLoad).Value;
-        }
-        catch (Exception e)
-        {
-            _effectLoadFailed = true;
-            Log($"UICore: 加载着色器 {name} 失败,退化为基础绘制。{e.Message}");
-        }
-        return cache;
+        return cache ??= ModContent.Request<Effect>(EffectRoot + name, AssetRequestMode.ImmediateLoad).Value;
     }
 
     private static void EnsureTextures()
@@ -87,7 +95,10 @@ public static class UIDrawKit
         _pixel = _glowDot = _softRing = _star4 = _diamondFill = null;
         _nebula = _glassCard = _starGlow = _constellationLine = _radialCooldown = null;
         _starfieldPlaque = _sigilRing = null;
-        _effectLoadFailed = false;
+        _rasterSerif = _rasterSans = null;
+        _shapes = null;
+        _barRack = _barOrnaments = null;
+        _smallStar = null;
     }
 
     // ---------- SpriteBatch 状态 ----------

@@ -1,3 +1,4 @@
+using 伊蕾娜.Localization;
 using static 伊蕾娜.Localization.UIText;
 using System;
 using KL.ActionsSystem;
@@ -13,7 +14,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Ice;
 [SkillUIInfo(State = 7, Pixels = 500)]
 public class IceConeSkill : ElainaSkill
 {
-    protected override object[] SkillDescriptionArgs => [GetConfiguredDamage(hitCount: 1), GetConfiguredFreezeBuildup() * .5f, ShardbindSkill.NameFor(Player)];
+    protected override object[] SkillDescriptionArgs => [SkillValueText.Damage(GetConfiguredDamage(hitCount: 1), SkillValueKind.Ice), SkillHitBalance.IceConeBuildup, ShardbindSkill.NameFor(Player), (SkillHitBalance.IceConeWetDamageMultiplier - 1f) * 100f];
     public override bool IsPassiveSkill => false;
 
     // 当前 JSON 配置为血肉墙后开放（角色等级上限 40）；门槛由 unlockStageCap 决定，不要求实际等级达到上限。
@@ -49,7 +50,7 @@ public class IceConeSkill : ElainaSkill
         && !Player.GetModPlayer<ActionModPlayer>().HasAction
         && base.CanUseSkill();
 
-    public override bool PreUseSkill(IEntitySource source = null)
+    protected override bool OnCast(IEntitySource source)
     {
         if (!CanUseSkill() || !TryGetConfiguredBalance(out SkillBalanceResult balance))
             return false;
@@ -60,11 +61,11 @@ public class IceConeSkill : ElainaSkill
         int intervalFrames = Math.Max(1, (int)Math.Round(balance.Entry.BaseCooldown * 60));
         float rotation = (Main.MouseWorld - Player.MountedCenter).ToRotation() * Player.gravDir;
         var action = new Action_IceCone(this, balance.DamagePerHit, (float)balance.Entry.ManaCost,
-            intervalFrames, GetConfiguredFreezeBuildup());
+            intervalFrames, SkillHitBalance.IceConeBuildup);
         if (!Player.GetModPlayer<ActionModPlayer>().StartAction(action, interruptCurrentAction: false, rotation: rotation))
             return false;
 
-        return base.PreUseSkill(source);
+        return base.OnCast(source);
     }
     
 

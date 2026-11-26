@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>定点雷击 · 伊蕾娜</title>
+<style>
+:root{color-scheme:dark;font:15px Inter,"Microsoft YaHei UI",sans-serif;color:#e2eff7;background:#0a1018;accent-color:#8ed4ee}*{box-sizing:border-box}body{margin:0}main{max-width:1520px;margin:auto;padding:clamp(14px,3vw,44px)}header,footer,.row,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px}header{margin-bottom:18px}h1{margin:0;font-size:clamp(22px,3vw,34px);letter-spacing:.06em}button{font:inherit;color:#d7eaf4;background:#192733;border:1px solid #344857;border-radius:6px;padding:8px 14px;cursor:pointer}button:hover{border-color:#91ccdf}button.primary{background:#b7e5f6;color:#10212c;border-color:transparent}.bench{display:grid;grid-template-columns:minmax(0,1fr) 264px;overflow:hidden;border:1px solid #30404c;border-radius:12px;background:#101923}.stage{position:relative;min-height:420px;height:clamp(440px,69vh,800px);overflow:hidden;background:radial-gradient(ellipse at 48% 56%,#192b3b,#101b29 48%,#0a131e 85%)}canvas{position:absolute;width:100%;height:100%;inset:0;pointer-events:none}.stage{cursor:crosshair}.hint{position:absolute;left:18px;bottom:14px;pointer-events:none;color:#adc1cd;font-size:12px}.panel{padding:22px 20px;border-left:1px solid #30404c;display:flex;flex-direction:column;gap:16px}.panel h2{font-size:15px;margin:0;color:#dcecf3}.panel h2:not(:first-child){padding-top:15px;border-top:1px solid #2a3944}.slider{display:grid;grid-template-columns:1fr auto;gap:7px;font-size:13px;color:#bfd0dc}.slider input{grid-column:span 2;width:100%;margin:0}.slider output{font:13px 'IBM Plex Mono',Consolas,monospace;color:#a6e2fa}.row{font-size:13px;color:#c0d1dd;flex-wrap:wrap}.row label{cursor:pointer}footer{font-size:12px;color:#99b2c1;padding-top:12px}.error{position:absolute;inset:30% 12% auto;padding:16px;background:#472931}.error:empty{display:none}@media(max-width:760px){.bench{grid-template-columns:1fr}.panel{border-left:0;border-top:1px solid #30404c;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.panel h2,.panel .row{grid-column:span 2}.stage{height:52vh;min-height:330px}.actions{gap:6px}button{padding:7px 10px}}
+#dust{mix-blend-mode:screen}.stage{isolation:isolate}
+</style></head><body><main>
+<header><h1>定点雷击</h1><div class="actions"><button id="pause">暂停</button><button id="fire" class="primary">单次雷击</button></div></header>
+<div class="bench"><div class="stage" id="stage" aria-label="三维雷击预览"><canvas id="ground"></canvas><canvas id="bolt"></canvas><canvas id="dust"></canvas><span class="hint">点击网格移动落点</span><div class="error" id="error" role="alert"></div></div>
+<aside class="panel"><h2>入射方向</h2>
+<label class="slider">方位角<output></output><input id="azimuth" type="range" min="-180" max="180" value="-148" data-unit="°"></label>
+<label class="slider">仰角<output></output><input id="elevation" type="range" min="-90" max="90" value="58" data-unit="°"></label>
+<label class="slider">雷身长度<output></output><input id="length" type="range" min="90" max="900" value="440" step="5" data-unit=""></label>
+<label class="slider">观察方位<output></output><input id="view" type="range" min="-180" max="180" value="0" data-unit="°"></label>
+<label class="slider">视图缩放<output></output><input id="magnification" type="range" min="18" max="140" value="90" data-unit="%"></label>
+<h2>放电</h2><label class="slider">毛边强度<output></output><input id="edge" type="range" min="0" max="100" value="74" data-unit="%"></label>
+<div class="row"><label for="branchStyle">副雷方案</label><select id="branchStyle"><option value="taper">渐细分叉</option><option value="filaments">细丝副雷</option></select></div>
+<label class="slider">断口尺度<output></output><input id="gapScale" type="range" min="0.25" max="4" value="2.25" step="0.05" data-unit="×"></label>
+<label class="slider">主雷折角<output></output><input id="steepness" type="range" min="0" max="72" value="48" step="1" data-unit="°"></label>
+<label class="slider">折角频率<output></output><input id="bendFrequency" type="range" min="0.25" max="4" value="1" step="0.05" data-unit="×"></label>
+<label class="slider">整体粗细<output></output><input id="thickness" type="range" min="0.25" max="6" value="2.5" step="0.05" data-unit="×"></label>
+<label class="slider">粒子大小<output></output><input id="particleSize" type="range" min="0.25" max="3" value="1" step="0.05" data-unit="×"></label>
+<label class="slider">逐帧查看<output></output><input id="scrub" type="range" min="0" max="460" step="1" value="60" data-unit=" ms"></label>
+<label class="slider">雷击间隔<output></output><input id="interval" type="range" min="250" max="1500" step="50" value="600" data-unit=" ms"></label>
+<div class="row"><label><input type="checkbox" id="repeat" checked> 连续雷击</label><label><input type="checkbox" id="particles" checked> 雷电粒子</label></div></aside></div>
+<footer><span id="coords"></span><span>WebGL · 透视投影</span></footer>
+</main><script src="renderer.js"></script><script src="preview.js"></script></body></html>

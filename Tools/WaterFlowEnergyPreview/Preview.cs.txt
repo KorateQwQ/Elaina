@@ -1,0 +1,246 @@
+using System;
+using System.IO;
+using System.Threading;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Content;
+using SDL2;
+using 伊蕾娜.ElainaModSkills.Skills.Water;
+
+using var game = new RingPreview(args[0], args[1], args[2]);
+game.RunOneFrame();
+if (!game.Exported) throw new InvalidOperationException("Missing ring frames");
+
+sealed class RingPreview : Game
+{
+    readonly string root, output, terrariaContent;
+    public bool Exported { get; private set; }
+    public RingPreview(string root, string output, string terrariaContent)
+    {
+        this.terrariaContent = terrariaContent; this.root = root; this.output = output;
+        _ = new GraphicsDeviceManager(this) { GraphicsProfile = GraphicsProfile.HiDef };
+        IsFixedTimeStep = false;
+        SDL.SDL_HideWindow(Window.Handle);
+        CheckHidden();
+    }
+    void CheckHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        if (!flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) || flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN))
+            throw new InvalidOperationException("Unexpected visible export window");
+    }
+    protected override void Draw(GameTime t)
+    {
+        CheckHidden();
+        using var assets = new ContentManager(Services, Path.Combine(root, "Effects/Content"));
+        var effect = assets.Load<Effect>("WaterEnergyRing");
+        using var file = File.OpenRead(Path.Combine(root,"ElainaModSkills/Skills/Water/Eff_Splash_322_288.png"));
+        using var water = Texture2D.FromStream(GraphicsDevice, file);
+        using var batch = new SpriteBatch(GraphicsDevice);
+        var wholeRing = new Vector2(360, 0);
+        using var target = new RenderTarget2D(GraphicsDevice, 720, 432);
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(new Color(65,145,140));
+        foreach (var (row, ui) in new[]{(0,1f),(1,1.25f),(2,2f)})
+            for(int i=0;i<5;i++) {
+                CheckHidden();
+                float scale = ui * WaterEnergyRingDrawing.SizeMultiplier;
+                WaterEnergyRingDrawing.Draw(batch, water, effect,new Vector2(72+144*i,72+144*row),wholeRing,1f,
+                    scale,new[]{.06f,.45f,.8f,1f,1f}[i],i*.19f,i==2?.4f:0f,i>=3);
+            }
+        GraphicsDevice.SetRenderTarget(null);
+        using (var stream=File.Create(Path.Combine(output,"ring.png"))) target.SaveAsPng(stream,720,432);
+        using var vanilla = new ContentManager(Services, terrariaContent);
+        var arrow = vanilla.Load<Texture2D>("Images/UI/Cursor_0");
+        using var bends = new RenderTarget2D(GraphicsDevice,480,360);
+        GraphicsDevice.SetRenderTarget(bends);
+        GraphicsDevice.Clear(new Color(65,145,140));
+        foreach(var (row,ui) in new[]{(0,1f),(1,1.25f),(2,2f)}) {
+            for(int col=0;col<3;col++) {
+                CheckHidden();
+                var pos=new Vector2(68+160*col,60+120*row);
+                var bend=new[]{1f,.65f,0f}[col];
+                WaterEnergyRingDrawing.Draw(batch,water,effect,pos,new Vector2(130,25),bend,ui,.5f,.23f,0,false);
+                batch.Begin();
+                batch.Draw(arrow,pos,null,new Color(230,50,75),0,new Vector2(arrow.Width,arrow.Height)*.5f,ui,SpriteEffects.None,0);
+                batch.End();
+            }
+        }
+        GraphicsDevice.SetRenderTarget(null);
+        using(var capture=File.Create(Path.Combine(output,"curvatures.png"))) bends.SaveAsPng(capture,480,360);
+        using var arcs = new RenderTarget2D(GraphicsDevice, 432, 120);
+        GraphicsDevice.SetRenderTarget(arcs);
+        var arcBackground = new Color(65,145,140);
+        GraphicsDevice.Clear(arcBackground);
+        var arcCenters = new Vector2[3];
+        var capBounds = new float[3];
+        for (int i=0;i<3;i++) {
+            CheckHidden();
+            float ui = 1.25f;
+            var glyph = new Vector2(arrow.Width, arrow.Height)*ui;
+            var cursorCenter = new Vector2(72+144*i,72);
+            var offset = new Vector2(12,-16);
+            var (center,scale) = WaterEnergyRingDrawing.AroundCursor(cursorCenter-glyph*.5f,glyph,ui,offset);
+            if (center != cursorCenter + offset*ui) throw new Exception("Scaled cursor offset mismatch");
+            arcCenters[i]=center;
+            // Full bank: 3.5 local pixels of outline plus the 6-pixel glow skirt.
+            capBounds[i] = i == 2 ? MathF.Ceiling(9.5f * scale) : 8f;
+            WaterEnergyRingDrawing.Draw(batch,water,effect,center,new Vector2(i==0?0:180,-90),1f,scale,
+                i==1?.5f:1f,.25f,0,i!=1);
+        }
+        GraphicsDevice.SetRenderTarget(null);
+        var arcPixels = new Color[432*120];
+        arcs.GetData(arcPixels);
+        for (int i=0;i<3;i++) {
+            int left=0,right=0;
+            for(int y=0;y<120;y++) for(int x=i*144;x<(i+1)*144;x++) {
+                var pixel=arcPixels[y*432+x];
+                if(pixel==arcBackground) continue;
+                if(i==0 || y>arcCenters[i].Y+capBounds[i] || (y>arcCenters[i].Y+8 && pixel.B>=224))
+                    throw new Exception("Water or halo outside the configured arc");
+                // Only count bright water; the entire track also has a pale border.
+                if(pixel.B<224 || y>arcCenters[i].Y-8) continue;
+                if(x<arcCenters[i].X-8) left++;
+                if(x>arcCenters[i].X+8) right++;
+            }
+            if(i>0 && (left<20 || (i==1 ? right!=0 : right<20))) throw new Exception("Incorrect arc fill or start angle");
+        }
+        using(var capture=File.Create(Path.Combine(output,"arc-offset.png"))) arcs.SaveAsPng(capture,432,120);
+        foreach (var (w,h,ui) in new[]{(1366,768,1f),(1864,977,1.25f),(1920,1080,1.5f),(3840,2160,2f)}) {
+            var size = new Vector2(arrow.Width, arrow.Height) * ui;
+            using var screen = new RenderTarget2D(GraphicsDevice,w,h);
+            GraphicsDevice.SetRenderTarget(screen);
+            var background = new Color(65,145,140);
+            GraphicsDevice.Clear(background);
+            var middle = new Vector2(w/2,h/2);
+            foreach (var pos in new[]{middle,Vector2.Zero,new Vector2(w-1,0),new Vector2(0,h-1),new Vector2(w-1,h-1)}) {
+                CheckHidden();
+                var (center, scale) = WaterEnergyRingDrawing.AroundCursor(pos,size,ui,WaterEnergyRingDrawing.CursorOffset);
+                if (Vector2.Distance(center,pos + size*.5f + new Vector2(9,0)*ui) > .01f)
+                    throw new InvalidOperationException("Water ring detached from cursor");
+                WaterEnergyRingDrawing.Draw(batch,water,effect,center,WaterEnergyRingDrawing.ArcDegrees,WaterEnergyRingDrawing.Curvature,scale,.6f,.6f,0,false);
+            }
+            GraphicsDevice.SetRenderTarget(null);
+            var gap = (int)(2 * ui);
+            var rect = new Rectangle((int)middle.X-gap,(int)middle.Y-gap,(int)Math.Ceiling(size.X)+2*gap,(int)Math.Ceiling(size.Y)+2*gap);
+            var pixels = new Color[rect.Width * rect.Height];
+            screen.GetData(0,rect,pixels,0,pixels.Length);
+            if (Array.Exists(pixels, pixel => pixel != background))
+                throw new InvalidOperationException("Ring overlaps cursor or its outline");
+            if(ui==1.5f) {
+                using var preview = new RenderTarget2D(GraphicsDevice,160,144);
+                GraphicsDevice.SetRenderTarget(preview);
+                GraphicsDevice.Clear(background);
+                var pos = new Vector2(80,72) - size*.5f;
+                var (center, scale) = WaterEnergyRingDrawing.AroundCursor(pos,size,ui,WaterEnergyRingDrawing.CursorOffset);
+                WaterEnergyRingDrawing.Draw(batch,water,effect,center,WaterEnergyRingDrawing.ArcDegrees,WaterEnergyRingDrawing.Curvature,scale,.6f,.6f,0,false);
+                batch.Begin();
+                batch.Draw(arrow,pos,null,new Color(230,50,75),0,Vector2.Zero,ui,SpriteEffects.None,0);
+                batch.End();
+                GraphicsDevice.SetRenderTarget(null);
+                using var shot=File.Create(Path.Combine(output,"cursor-ring.png")); preview.SaveAsPng(shot,160,144);
+            }
+            using var capture=File.Create(Path.Combine(output,$"screen-{w}.png")); screen.SaveAsPng(capture,w,h);
+        }
+        using var frames = new RenderTarget2D(GraphicsDevice, 144, 80);
+        for (int i=0;i<=24*WaterEnergyRingMotion.FlowPeriod;i++) {
+            CheckHidden();
+            GraphicsDevice.SetRenderTarget(frames);
+            GraphicsDevice.Clear(new Color(65,145,140));
+            WaterEnergyRingDrawing.Draw(batch,water,effect,new Vector2(36,40),wholeRing,1f,1.25f,.5f,i/24f,0,false);
+            WaterEnergyRingDrawing.Draw(batch,water,effect,new Vector2(108,40),wholeRing,1f,1.25f,1,i/24f,0,true);
+            GraphicsDevice.SetRenderTarget(null);
+            using var capture=File.Create(Path.Combine(output,$"flow-{i:D2}.png")); frames.SaveAsPng(capture,144,80);
+        }
+        // Replay repeated cached GameTime at zero and one tick; real elapsed time drives the HUD.
+        foreach (var cached in new[]{new GameTime(),new GameTime(TimeSpan.Zero,TimeSpan.FromTicks(1))}) {
+            var motion = new WaterEnergyRingMotion();
+            void Sample(int energy, bool focused = true) { _ = cached.ElapsedGameTime; motion.Update(energy,180,focused); }
+            Sample(180);
+            if (!motion.Full || motion.FullAge != 0) throw new Exception("Full swell did not start at the base width");
+            Thread.Sleep(50); Sample(180);
+            if (WaterEnergyRingDrawing.FullWidth(motion.FullAge) <= WaterEnergyRingDrawing.BaseWidth) throw new Exception("Full swell did not advance");
+            float age = motion.FullAge;
+            Sample(180,false); Thread.Sleep(35); Sample(180);
+            if (age != motion.FullAge) throw new Exception("Unfocused time advanced full swell");
+            Thread.Sleep(350); Sample(180);
+            if (WaterEnergyRingDrawing.FullWidth(motion.FullAge) != WaterEnergyRingDrawing.FullWidth(2f)) throw new Exception("Full width did not settle");
+            motion.Update(0,180,true,new WaterEnergyRingDrain(1f));
+            if (motion.Full || motion.FullAge != 0) throw new Exception("Spending retained full swell");
+            motion.Reset();
+            Sample(90);
+            Thread.Sleep(45); Sample(90);
+            float partial = motion.Opacity;
+            if (!(partial > 0 && partial < 1)) throw new Exception("Missing fade-in");
+            Sample(0);
+            if (partial != motion.Opacity) throw new Exception("Fade-out snapped on release");
+            Thread.Sleep(18); Sample(0);
+            float closing = motion.Opacity;
+            if (!(closing > 0 && closing < partial && motion.Fill == .5f)) throw new Exception("Lost last visible ring");
+            Sample(90);
+            if (motion.Opacity != closing) throw new Exception("Reopening snapped");
+            Sample(90,false); Thread.Sleep(50); Sample(90);
+            if (motion.Opacity != closing) throw new Exception("Focus gap advanced animation");
+            Thread.Sleep(175); Sample(90); Sample(0); Thread.Sleep(240); Sample(0);
+            if (motion.Active || motion.Opacity != 0) throw new Exception("Lingering energy ring");
+            Sample(108); Thread.Sleep(175); Sample(108);
+            float opacity = motion.Opacity;
+            var spend = new WaterEnergyRingDrain(.6f);
+            motion.Update(0,180,true,spend);
+            if(motion.Fill!=.6f || motion.Opacity!=opacity || motion.MaterialPulse>=0) throw new Exception("Beam to orb handoff snapped");
+            motion.Update(0,180,false,spend);
+            float heldPhase=motion.Phase;
+            Thread.Sleep(30); motion.Update(0,180,true,spend);
+            if(motion.Phase!=heldPhase || motion.Fill!=.6f) throw new Exception("Charge ring advanced while unfocused");
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            Thread.Sleep(100); motion.Update(0,180,true,spend);
+            float expected = Math.Max(0f,.6f-(float)timer.Elapsed.TotalSeconds);
+            if(Math.Abs(motion.Fill-expected)>.015f) throw new Exception("Incorrect real-time spending speed");
+            var low = new WaterEnergyRingDrain(.1f);
+            motion.Update(0,180,true,low); Thread.Sleep(110); motion.Update(0,180,true,low);
+            if(motion.Fill!=0) throw new Exception("Small balances linger");
+            Thread.Sleep(240); motion.Update(0,180,true,low);
+            if(motion.Active) throw new Exception("Spent ring did not close");
+        }
+        foreach(float initial in new[]{.05f,.1f,.6f,1f}) {
+            var spend = new WaterEnergyRingDrain(initial);
+            spend.Advance(.1f);
+            if(Math.Abs(spend.Remaining-Math.Max(0f,initial-.1f))>.00001f) throw new Exception("Nonlinear drain");
+            spend.Advance(1f);
+            if(spend.Remaining!=0) throw new Exception("Drain overshot zero");
+        }
+        // Sample the production drain at 30 Hz, starting at 60% of the bar.
+        using var drain = new RenderTarget2D(GraphicsDevice,192,144);
+        for(int i=0;i<=28;i++) {
+            CheckHidden();
+            GraphicsDevice.SetRenderTarget(drain);
+            GraphicsDevice.Clear(arcBackground);
+            var glyph=new Vector2(arrow.Width,arrow.Height)*1.5f;
+            var pos=new Vector2(72,72)-glyph*.5f;
+            var (center,scale)=WaterEnergyRingDrawing.AroundCursor(pos,glyph,1.5f,WaterEnergyRingDrawing.CursorOffset);
+            float seconds = i / 30f;
+            var spend = new WaterEnergyRingDrain(.6f);
+            spend.Advance(seconds);
+            float fade=MathHelper.SmoothStep(0,1,Math.Clamp(1-(seconds-.6f)/.22f,0,1));
+            WaterEnergyRingDrawing.Draw(batch,water,effect,center,WaterEnergyRingDrawing.ArcDegrees,
+                WaterEnergyRingDrawing.Curvature,scale,spend.Remaining,2-seconds*.85f,-1,false,fade);
+            batch.Begin(); batch.Draw(arrow,pos,null,new Color(230,50,75),0,Vector2.Zero,1.5f,SpriteEffects.None,0); batch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            using var shot=File.Create(Path.Combine(output,$"spend-{i:D2}.png")); drain.SaveAsPng(shot,192,144);
+        }
+        using var fades = new RenderTarget2D(GraphicsDevice,96,96);
+        var backdrop = new Color(30,42,56);
+        for (int i=0; i<=20; i++) {
+            CheckHidden();
+            float fraction = i <= 10 ? i / 10f : (20-i) / 10f;
+            float alpha = MathHelper.SmoothStep(0,1,fraction);
+            GraphicsDevice.SetRenderTarget(fades);
+            GraphicsDevice.Clear(backdrop);
+            WaterEnergyRingDrawing.Draw(batch,water,effect,new Vector2(48,48),wholeRing,1f,1.25f,.75f,.28f,.5f,false,alpha);
+            GraphicsDevice.SetRenderTarget(null);
+            using var frame = File.Create(Path.Combine(output,$"fade-{i:D2}.png"));
+            fades.SaveAsPng(frame,96,96);
+        }
+        Exported = true;
+    }
+}

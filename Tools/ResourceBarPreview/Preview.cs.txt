@@ -7,15 +7,20 @@ using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Graphics;
 using SDL2;
 using 伊蕾娜.ElainaAttribute;
+using 伊蕾娜.ElainaModSkills.ElainaSkillUI.ConstellationSkillPanel;
 
 internal sealed class ResourcePreview : Game
 {
+    internal static string Root;
+    private static ResourcePreview instance;
     private readonly string root, output;
     private readonly Dictionary<string, Texture2D> textures = new();
     private ResourceBarDrawing drawing;
     private PortraitHudDrawing portrait;
+    private ConstellationFont valueFont;
     private ContentManager fonts;
     private bool done;
+    internal static bool ChargeOnly;
     // Same as PORTRAIT_STATES in bake.cjs: level, experience, cap, displayed life, flash/pulse, time.
     private static readonly (string Name, int Level, int Experience, int Cap, float Life, float Burst, float Time)[] PortraitStates =
     [("normal",24,65,30,.84f,0,4), ("low",24,12,30,.84f,0,4), ("capped",30,100,30,.84f,0,4),
@@ -23,10 +28,17 @@ internal sealed class ResourcePreview : Game
     private ResourcePreview(string root, string output)
     {
         this.root = root; this.output = output;
+        Root = root; instance = this;
         new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 400, PreferredBackBufferHeight = 200,
             GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
         IsFixedTimeStep = false;
         SDL.SDL_HideWindow(Window.Handle);
+        AssertHidden();
+    }
+    private void AssertHidden()
+    {
+        var flags = (SDL.SDL_WindowFlags)SDL.SDL_GetWindowFlags(Window.Handle);
+        Check(flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_HIDDEN) && !flags.HasFlag(SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN), "Preview window must stay hidden");
     }
     protected override void LoadContent()
     {
@@ -36,7 +48,8 @@ internal sealed class ResourcePreview : Game
         fonts = new ContentManager(Services, Path.GetFullPath(Path.Combine(root, "../KL/Fonts")));
         var gelasio = fonts.Load<DynamicSpriteFont>("Gelasio");
         foreach (char c in "0123456789") Check(gelasio.IsCharacterSupported(c), $"Missing Gelasio digit {c}");
-        portrait = new PortraitHudDrawing(Texture, gelasio);
+        portrait = new PortraitHudDrawing(Texture, new(new Terraria.ModLoader.Mod(), "Gelasio", new(gelasio), 8, 48));
+        valueFont = new(new Terraria.ModLoader.Mod(), "NotoSerifSC", new(fonts.Load<DynamicSpriteFont>("NotoSerifSC")), 9, 48);
         // Compare with the installed FNA's real SpriteEffect instead of assuming a half-pixel convention.
         using var probe = new SpriteBatch(GraphicsDevice);
         int matched = 0;
@@ -70,11 +83,25 @@ internal sealed class ResourcePreview : Game
         for (int i = 0; i < pixels.Length; i++) if (pixels[i].A == 0) pixels[i] = Color.Transparent;
         texture.SetData(pixels); textures[name] = texture; return texture;
     }
+    internal static Texture2D FontTexture(string path)
+    {
+        if (instance.textures.TryGetValue(path, out var texture)) return texture;
+        using var stream = File.OpenRead(Path.Combine(Root, path[(path.IndexOf('/') + 1)..] + ".png"));
+        texture = Texture2D.FromStream(instance.GraphicsDevice, stream);
+        instance.textures.Add(path, texture);
+        return texture;
+    }
     protected override void Update(GameTime gameTime)
     {
-        if (done) return; done = true; SDL.SDL_HideWindow(Window.Handle);
+        if (done) return; done = true; AssertHidden();
         Directory.CreateDirectory(output); Checks();
         using var batch = new SpriteBatch(GraphicsDevice);
+        RenderCharge(batch);
+        RenderChargeGlow(batch);
+        if (ChargeOnly) { Console.WriteLine("PASS: charge-point checks and glow frames."); Exit(); return; }
+        TextQualityChecks.Native(GraphicsDevice, batch, valueFont, fonts.Load<DynamicSpriteFont>("NotoSerifSC"), "300/310",12);
+        var levelFont = new ConstellationFont(new Terraria.ModLoader.Mod(), "Gelasio", new(fonts.Load<DynamicSpriteFont>("Gelasio")),8,48);
+        TextQualityChecks.Native(GraphicsDevice, batch, levelFont, fonts.Load<DynamicSpriteFont>("Gelasio"), "120",16.8f);
         foreach (float scale in new[] { 1f, 1.5f, 3f }) foreach (bool day in new[] { false, true })
             foreach (var entry in new[] { ("normal",.84f,.84f,4f), ("damage",.18f,.84f,4f), ("empty",0f,0f,4f),
                 ("full",1f,1f,4f), ("tiny",.003f,.012f,4f), ("motion",.84f,.84f,6f) })
@@ -86,11 +113,17 @@ internal sealed class ResourcePreview : Game
         RenderGame(batch, 1.5f, true);
         for (int i = 0; i <= 5; i++) RenderAnimation(batch, i * .2f);
         RenderLevelUp(batch);
+        foreach (float scale in new[] { 1f, 1.125f, 1.25f, 1.5f, 2f })
+            foreach (bool day in new[] { false, true })
+                foreach (bool legacy in new[] { false, true }) RenderValues(batch, scale, day, legacy);
+        foreach (var display in new[] { (1366,768,1f), (1864,977,1.25f), (1920,1080,1.125f), (2560,1440,1.5f), (3840,2160,2f) })
+            RenderScreen(batch, display.Item1, display.Item2, display.Item3);
         Console.WriteLine("PASS: state checks, 72 shared-renderer comparisons, layout, six damage frames and a level-up strip.");
         Exit();
     }
     private void Save(RenderTarget2D target, string name)
     {
+        AssertHidden();
         GraphicsDevice.SetRenderTarget(null);
         using var stream = File.Create(Path.Combine(output, name + ".png"));
         target.SaveAsPng(stream, target.Width, target.Height);
@@ -164,7 +197,125 @@ internal sealed class ResourcePreview : Game
         drawing.Draw(batch,Matrix.CreateScale(3),new Vector2(34,48),true,4.7f+elapsed,mp);
         Save(target,$"animation-{elapsed:0.0}");
     }
+    private void RenderValues(SpriteBatch batch, float scale, bool day, bool legacy)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice, (int)MathF.Ceiling(450 * scale), (int)MathF.Ceiling(150 * scale));
+        GraphicsDevice.SetRenderTarget(target);
+        GraphicsDevice.Clear(day ? new Color(120,167,245) : new Color(20,18,29));
+        var matrix = Matrix.CreateScale(scale) * Matrix.CreateTranslation(.37f, .61f, 0);
+        Vector2 origin = new(160.25f, 24.25f);
+        drawing.Draw(batch, matrix, origin, false, 4, State(false,1,1));
+        Value(origin, false, "300/310");
+        drawing.Draw(batch, matrix, origin + new Vector2(0,28), true, 4, State(true,1,1));
+        Value(origin + new Vector2(0,28), true, "680/660");
+        portrait.Draw(batch, matrix, origin + PortraitHudDrawing.Offset, Portrait(90,40,120,0), 1, 4);
+        Value(origin + new Vector2(0,68), false, "99999/99999");
+        Save(target, $"values-{(day ? "day" : "dark")}-{scale:0.000}{(legacy ? "-legacy-values" : "")}");
+        void Value(Vector2 at, bool mana, string text)
+        {
+            if (legacy) LegacyValue(batch, matrix, at, mana, text);
+            else ResourceBarDrawing.DrawValue(batch, matrix, at, mana, valueFont, text);
+        }
+    }
+    private void LegacyValue(SpriteBatch batch, Matrix ui, Vector2 origin, bool mana, string text)
+    {
+        var font = fonts.Load<DynamicSpriteFont>("NotoSerifSC");
+        float k = 12f/48, h = mana ? 7 : 8;
+        var extent = font.MeasureString(text)*k;
+        var at = origin + new Vector2((ResourceBarDrawing.Length-extent.X)/2,(h-extent.Y)/2);
+        batch.Begin(SpriteSortMode.Deferred,BlendState.AlphaBlend,SamplerState.LinearClamp,DepthStencilState.None,RasterizerState.CullNone,null,ui);
+        foreach(var ring in new[] {(.5f,.5f),(1f,.45f)}) for(int i=0;i<8;i++)
+            batch.DrawString(font,text,at+new Vector2(MathF.Cos(i*MathF.Tau/8),MathF.Sin(i*MathF.Tau/8))*ring.Item1,
+                new Color(14,10,26)*ring.Item2,0,Vector2.Zero,k,SpriteEffects.None,0);
+        batch.DrawString(font,text,at,new Color(248,245,252),0,Vector2.Zero,k,SpriteEffects.None,0);
+        batch.End();
+    }
+    private void RenderScreen(SpriteBatch batch, int width, int height, float scale)
+    {
+        using var target = new RenderTarget2D(GraphicsDevice,width,height);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(120,167,245));
+        var matrix = Matrix.CreateScale(scale);
+        var hp = ResourceBarDrawing.LifePosition(width/scale);
+        var mp = ResourceBarDrawing.ManaPosition(width/scale);
+        drawing.Draw(batch,matrix,hp,false,4,State(false,1,1));
+        ResourceBarDrawing.DrawValue(batch,matrix,hp,false,valueFont,"300/310");
+        drawing.Draw(batch,matrix,mp,true,4,State(true,1,1));
+        var charges = new ChargePointHud(Texture("Star"),Texture("StarGlow"));
+        charges.Reset(5,.4f);
+        charges.Draw(batch,matrix,mp);
+        ResourceBarDrawing.DrawValue(batch,matrix,mp,true,valueFont,"680/660");
+        portrait.Draw(batch,matrix,PortraitHudDrawing.Position(width/scale),Portrait(90,40,120,0),1,4);
+        Save(target,$"screen-{width}x{height}-{scale:0.000}");
+    }
     private static void Check(bool pass,string label){if(!pass)throw new Exception(label);}
+    private void RenderCharge(SpriteBatch batch)
+    {
+        var hud = new ChargePointHud(Texture("Star"), Texture("StarGlow"));
+        using var target = new RenderTarget2D(GraphicsDevice, 320, 200);
+        GraphicsDevice.SetRenderTarget(target); GraphicsDevice.Clear(new Color(120,167,245));
+        var matrix = Matrix.CreateScale(2);
+        Vector2 origin = new(6,-12);
+        hud.Reset(5,.4f);
+        hud.Draw(batch,matrix,origin);
+        hud.Update(2,.4f,0); hud.Update(2,.4f,.19f);
+        hud.Draw(batch,matrix,origin + new Vector2(0,24));
+        hud.Update(2,.6f,1);
+        hud.Draw(batch,matrix,origin + new Vector2(0,48));
+        hud.Update(5,0,0); hud.Update(5,0,.18f);
+        hud.Draw(batch,matrix,origin + new Vector2(0,72));
+        Save(target,"charge-cycle");
+    }
+    private ChargePointHud NewChargeHud() => new(Texture("Star"), Texture("StarGlow"));
+    private void Backdrop(SpriteBatch batch, Rectangle area, Color color)
+    {
+        batch.Begin(); batch.Draw(Texture("Pixel"), area, color); batch.End();
+    }
+    // Real ChargePointHud over time: six points while the seventh condenses, gain, a three-point spend,
+    // then the next ember fades back in. Upper half night, lower half the sky colour of the in-game screenshot.
+    private void RenderChargeGlow(SpriteBatch batch)
+    {
+        string folder = Path.Combine(output, "charge-glow");
+        Directory.CreateDirectory(folder);
+        var hud = NewChargeHud();
+        using var target = new RenderTarget2D(GraphicsDevice, 300, 120);
+        var matrix = Matrix.CreateScale(2);
+        const float dt = 1f / 30;
+        int count = 6; float recovery = 0;
+        hud.Reset(count, recovery);
+        for (int frame = 0; frame < 216; frame++)
+        {
+            float t = frame * dt;
+            recovery += dt / 3;
+            if (recovery >= 1) { recovery -= 1; count++; }
+            if (frame == 150) count -= 3;
+            if (frame > 0) hud.Update(count, recovery, dt);
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(new Color(20,18,29));
+            Backdrop(batch, new Rectangle(0,60,300,60), new Color(120,167,245));
+            hud.Draw(batch, matrix, new Vector2(4,-10));
+            hud.Draw(batch, matrix, new Vector2(4,20));
+            Save(target, $"charge-glow/frame-{frame:000}");
+        }
+        // Native-size sheet: 1x / 1.5x / 2x with fractional origins, full and five points + 60% ember.
+        using var sheet = new RenderTarget2D(GraphicsDevice, 560, 250);
+        GraphicsDevice.SetRenderTarget(sheet);
+        GraphicsDevice.Clear(new Color(20,18,29));
+        Backdrop(batch, new Rectangle(280,0,280,250), new Color(120,167,245));
+        float y = 4;
+        foreach (float scale in new[] { 1f, 1.5f, 2f })
+        {
+            for (int column = 0; column < 2; column++)
+            {
+                var full = NewChargeHud(); full.Reset(8, 0); full.Update(8, 0, 1f / 3);
+                var partial = NewChargeHud(); partial.Reset(5, .6f); partial.Update(5, .6f, 2);
+                var m = Matrix.CreateScale(scale) * Matrix.CreateTranslation(column * 280 + .37f, y + .61f, 0);
+                full.Draw(batch, m, new Vector2(2, -18));
+                partial.Draw(batch, m, new Vector2(2, 2));
+            }
+            y += 40 * scale + 12;
+        }
+        Save(sheet, "charge-glow-sheet");
+    }
     private static void Checks()
     {
         var s=new ResourceBarState(false);s.Reset(420,500);s.Update(90,500,0,0,false);
@@ -185,14 +336,22 @@ internal sealed class ResourcePreview : Game
         Check(p.Sparks.Count==0,"level-up sparks expire");
         p.Update(3,0,100,30,1f/60);Check(p.Shown==3&&p.Fraction==0,"lost progress snaps without a level-up");
         p.Reset(30,100,100,30);Check(p.Capped&&p.Fraction==1,"cap stores one full level");
+        p.Reset(30,99,100,30);Check(!p.Capped,"capped level still accepts experience");
+        p.Update(30,100,100,30,0);Check(p.Capped,"last stored experience turns the band gray");
+        p.Update(30,100,100,35,0);Check(!p.Capped,"raising level cap restores color");
+        var points = new ChargePoints();
+        Check(!points.TryCast(1,0,_=>throw new Exception("cast ran without points")),"insufficient charge");
+        Check(points.Restore(int.MaxValue)==8 && points.Restore(1)==0,"restore clamps at eight");
+        Check(!points.TryCast(3,0,_=>false) && points.Current==8,"canceled cast keeps charge");
+        Check(points.TryCast(3,0,_=>points.Has(3) && !points.TrySpend(6)) && points.Current==5,"successful cast spends once");
+        Check(points.TrySpend(5) && points.TryCast(0,0,_=>true) && points.Current==0,"zero-cost cast at zero");
+        points.Load(3,30);Check(Math.Abs(points.RecoveryFraction-.5f)<1e-6f,"recovery fraction");
+        points.Restore(8);Check(points.RecoveryFraction==0,"no recovery fraction at full charge");
         p.Reset(5,40,0,30);Check(float.IsFinite(p.Fraction)&&p.Fraction==0,"zero experience requirement");
         p.Reset(1,0,100,90);for(int i=0;i<20;i++)p.Update(90,0,100,90,1f/60);Check(p.Sparks.Count<=66,"sparks stay bounded");
-        var centre=PortraitHudDrawing.Position(520);
-        float radius=PortraitHudDrawing.DisplayOuter;
-        Check(PortraitHudDrawing.Contains(centre,centre+new Vector2(radius-1,0))&&!PortraitHudDrawing.Contains(centre,centre+new Vector2(radius*.7f,-radius*.7f)),"scaled diamond hover test");
-        var label=centre+(PortraitHudDrawing.LevelAnchor+new Vector2(0,10))*PortraitHudDrawing.DisplayScale;
-        Check(PortraitHudDrawing.Contains(centre,label)&&!PortraitHudDrawing.Contains(centre,centre+new Vector2(0,radius+20))&&!PortraitHudDrawing.Contains(centre,PortraitHudDrawing.TooltipPosition(centre)),"bottom level hover and tooltip clearance");
+        // Resource HUD no longer exposes hover hit areas or tooltips.
+
     }
     protected override void UnloadContent(){foreach(var texture in textures.Values)texture.Dispose();fonts?.Dispose();base.UnloadContent();}
-    public static void Main(string[] args){using var game=new ResourcePreview(args[0],args[1]);game.Run();}
+    public static void Main(string[] args){ChargeOnly=args.Length>2&&args[2]=="--charge";using var game=new ResourcePreview(args[0],args[1]);game.RunOneFrame();Check(game.done,"Preview did not render");}
 }

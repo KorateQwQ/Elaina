@@ -1,5 +1,46 @@
 # Bloom 分辨率与采样检查
 
+## 2026-11-10：Bloom 性能回归与优化
+
+在本机 RTX 5080 / FNA D3D11 上重放正式管线，确认 2026-11-05 改动存在性能回归。该提交除了更换采样器，也修正了视口、源纹素间隔与绘制矩形；但控制变量测试表明主要增量来自 FP32 RGBA 贴图上的 25 次线性过滤：仅把优化前管线的 LinearClamp 改为 PointClamp，4K 单层耗时即从 5.005 ms 降到 3.198 ms。此诊断仅在隔离源码中运行，不能作为正式画质修复。
+
+| 4K 场景 | 旧版 `47b4b52` | 优化前 `8b2b457` | 本次优化 |
+| --- | ---: | ---: | ---: |
+| 单层 Bloom | 3.306 ms | 5.005 ms | 3.044 ms |
+| 两次独立 Bloom 合成 | 5.387 ms | 9.692 ms | 4.775 ms |
+
+数据是 CPU 提交 + GPU 完成等待 + 固定单像素读回的中位数，含约 1.2 ms 的 4K 空场景/读回成本；不是 GPU timestamp、游戏帧率或利用率预测。每项预热后测 90 次，三轮轮换顺序；后台游戏、GPU 频率与读回成本仍可能影响绝对值。1080p 单层从 1.405 ms 降到 0.838 ms，两次从 2.472 ms 降到 1.345 ms。原始结果保存于 `performance-2026-11-10.json`。
+
+正式改动位于同级 KL：
+
+- 保留 LinearClamp、原分辨率链和迭代数；新增九次读取的滤波 pass，近似原来四舍五入的 5×5 权重，保留总权重 0.9997。双线性合并在非整数纹素相位下与原 25 次读取并非逐像素等价，按实际截图检查差异。
+- 只把 BloomDownSample/BloomUpSample 改为 HalfVector4，捕获与通用场景目标仍为 Vector4；尺寸、格式、设备与生命周期均检查。
+- 场景路径少一次无用全屏拷贝，backbuffer 路径少两次；保留原始捕获的预乘颜色和覆盖度。
+- 公共 GaussianBlur/GaussianBlurTwice 的原签名和旧 pass 保留，快速 pass 仅由已设置 LinearClamp 的 Bloom 管线使用。FX 和正式 XNB 同步更新。
+
+复现命令（PowerShell，仓库根目录）：
+
+```powershell
+& Tools/BloomResolutionPreview/compile.ps1
+& Tools/BloomResolutionPreview/run.ps1 -Label perf-legacy -BaselineRevision 47b4b52 -Benchmark
+& Tools/BloomResolutionPreview/run.ps1 -Label perf-before -BaselineRevision 8b2b457 -Benchmark
+& Tools/BloomResolutionPreview/run.ps1 -Label perf-point-diagnostic -BaselineRevision 8b2b457 -Benchmark -DiagnosticPointSampler
+& Tools/BloomResolutionPreview/run.ps1 -Label perf-after-half -Benchmark
+& Tools/BloomResolutionPreview/run.ps1 -Label visual-before -BaselineRevision 8b2b457 -Check
+& Tools/BloomResolutionPreview/run.ps1 -Label visual-after -Check
+python Tools/BloomResolutionPreview/compare-performance.py
+& Tools/BloomBackbufferPreview/run.ps1
+& Tools/FireLaserPreview/run.ps1 -Dotnet C:/Users/PC/.dotnet/dotnet.exe -SkipShader
+```
+
+旧版源码使用保留的原始 shader pass，所以可与新版共用当前 XNB；隔离源码从 Git 读取，不回滚工作区。测试同步移除了飞弹夹具对已删除 MagicMissileTrailNoise 的依赖，实际拖尾仍从当前源码提取。
+
+验证：1366×768、1080p、1440p、4K 与 125% 变换通过；移动点光源的能量比最大 1.0074；Point/Linear 世界采样器对 Bloom 输出无影响。23 张原生尺寸截图对照中，发光区域平均 RGB 通道差最大 0.756/255，单通道极值最大 7/255。已打开十字星、火焰粒子、飞弹拖尾对照图，以及火焰射线和双层合成输出，未见回归到马赛克或断裂光晕。输出是 FNA 离线预览。
+
+Backbuffer 的 2/5/7 层、强度、开关、批次恢复、异常恢复和目标生命周期检查通过。真实 FireLaser.DrawVisual2 的白天/夜晚、短射线、左向、入退场连续性与后段 Bloom 检查通过。KL Release 构建与伊蕾娜 Release 源码编译通过；需先构建同配置 KL，再编译消费者，旧的 KL Release 引用会报无关的元素伤害和拖尾参数错误。没有替换或重载游戏中的模组，游戏内 GPU 利用率仍待重载 KL 后验证。
+
+以下为此前采样画质修复的历史记录。
+
 2026-11-05：用户在 1920×1080 下报告火焰粒子的光晕呈格子、多重射击十字星出现横竖条带、拖尾细且失去柔光。本工具复用 `BloomBackbufferPreview` 的 Roslyn 抽取器，直接编译当前 KL 的捕获、降采样、重建、合成与请求队列，并加载正式 Bloom/ReColor XNB。
 
 ```powershell

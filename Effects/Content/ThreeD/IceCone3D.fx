@@ -95,7 +95,7 @@ float4 PixelShaderOutline(PSInput input) : COLOR0
     return float4(uOutlineColor.rgb, uOutlineColor.a * input.Color.a * edgeAlpha);
 }
 
-float4 PixelShaderBase(PSInput input) : COLOR0
+float4 ShadeIce(PSInput input, bool highlightEdge)
 {
     if (uDepthClipSide != 0.0)
     {
@@ -114,12 +114,22 @@ float4 PixelShaderBase(PSInput input) : COLOR0
 
     // 消融效果
     float edgeAlpha = GetDissolveEdgeAlpha(input.Texcoord);
-    float edgeMask = 1.0 - edgeAlpha;
-    baseColor = lerp(baseColor, uDissolveEdgeColor, edgeMask);
-    baseColor.a *= edgeAlpha;
+    if (highlightEdge)
+    {
+        baseColor = lerp(baseColor, uDissolveEdgeColor, 1.0 - edgeAlpha);
+        baseColor.a *= edgeAlpha;
+    }
+    else
+    {
+        // Keep the former half-coverage contour, with solid ice up to the cut.
+        clip(edgeAlpha - 0.5);
+    }
 
     return baseColor;
 }
+
+float4 PixelShaderBase(PSInput input) : COLOR0 { return ShadeIce(input, true); }
+float4 PixelShaderBack(PSInput input) : COLOR0 { return ShadeIce(input, false); }
 
 technique Technique1
 {
@@ -133,5 +143,10 @@ technique Technique1
     {
         VertexShader = compile vs_3_0 VertexShaderBase();
         PixelShader = compile ps_3_0 PixelShaderBase();
+    }
+    pass BackWithoutEdge
+    {
+        VertexShader = compile vs_3_0 VertexShaderBase();
+        PixelShader = compile ps_3_0 PixelShaderBack();
     }
 }

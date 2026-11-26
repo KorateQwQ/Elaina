@@ -6,7 +6,7 @@ namespace 伊蕾娜.ElainaModSkills.Skills.Fire;
 
 /// <summary>
 /// 火焰龙卷的火星粒子：附着在龙卷上随其移动，生命周期独立于弹幕，龙卷消失后留在原地按自己的寿命飞散。
-/// 与龙卷共用 Projectiles.After 的 Bloom：背面火星排在龙卷本体之前被遮挡，正面火星排在之后。
+/// 与龙卷共用 OverPlayers.Before 的 Bloom：背面火星排在龙卷本体之前被遮挡，正面火星排在之后。
 /// </summary>
 public sealed class FireTornadoSparkDust : KLBasicDust
 {
@@ -99,8 +99,8 @@ public sealed class FireTornadoSparkDust : KLBasicDust
             if (context.IsLast) EndBeginDraw();
         };
         bool front = FireTornadoSparks.IsFront(state.Spark);
-        LayerDrawRequestSystem.RequestBloom(RequestId, LayerDrawRequestSystem.DrawTargetLayer.Projectiles,
-            LayerDrawRequestSystem.DrawTiming.After, state.Draw, order: front ? LayerDrawRequestSystem.DustOrder : BackOrder);
+        LayerDrawRequestSystem.RequestBloom(RequestId, LayerDrawRequestSystem.DrawTargetLayer.OverPlayers,
+            LayerDrawRequestSystem.DrawTiming.Before, state.Draw, order: front ? LayerDrawRequestSystem.DustOrder : BackOrder);
     }
 
     public override bool PreDraw(Dust dust) => false;
