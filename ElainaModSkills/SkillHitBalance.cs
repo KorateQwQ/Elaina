@@ -12,8 +12,8 @@ public static class SkillHitBalance
     public static float ShardbindWetDamageMultiplier => 1.5f;
 
     // 水流术
-    public static float WaterStreamBuildup => 5.5555556f;
-    public static float WaterStreamBurningDamageMultiplier => 1.1f;
+    public static float WaterStreamBuildup => 1.5555556f;
+    public static float WaterStreamBurningDamageMultiplier => 1.5f;
     public static float WaterStreamSplashDamageMultiplier => .5f;
 
     // 水球魔法
